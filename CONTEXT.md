@@ -95,6 +95,6 @@ LLM (e.g. Gemini) + Firestore: natural-language check-ins via WhatsApp Business 
 
 ## 7. Build Priority
 
-1. **Done in this repo milestone:** `CONTEXT.md`, Node.js GT06 gateway, Firestore schema.
-2. **Next:** Flutter map dashboard consuming Firestore snapshots.
-3. **Later:** WhatsApp hub, remote commands, AI engines.
+1. **Done:** `CONTEXT.md`, Node.js GT06 gateway, Firestore schema, device simulator, Firebase project `guardian-fbadd`.
+2. **In progress:** Flutter map dashboard in `apps/mobile` (live Firestore markers).
+3. **Later:** WhatsApp hub, remote commands, AI engines, Auth-gated rules.

@@ -17,27 +17,29 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
+    // Bring-up: any signed-in guardian can read all devices/alerts.
+    // Tighten to linkedTo(imei) before production.
     match /devices/{imei} {
-      allow read: if linkedTo(imei);
+      allow read: if signedIn();
       allow write: if false; // gateway (Admin SDK) only
 
       match /locations/{locationId} {
-        allow read: if linkedTo(imei);
+        allow read: if signedIn();
         allow write: if false;
       }
     }
 
     match /geofences/{geofenceId} {
-      allow read: if linkedTo(resource.data.imei);
-      allow create: if linkedTo(request.resource.data.imei)
+      allow read: if signedIn();
+      allow create: if signedIn()
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if linkedTo(resource.data.imei)
+      allow update, delete: if signedIn()
         && resource.data.createdBy == request.auth.uid;
     }
 
     match /alerts/{alertId} {
-      allow read: if linkedTo(resource.data.imei);
-      allow update: if linkedTo(resource.data.imei)
+      allow read: if signedIn();
+      allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
       allow create, delete: if false;

@@ -1,3 +1,4 @@
+const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
 
@@ -14,8 +15,29 @@ function initFirestore() {
     throw new Error('FIREBASE_PROJECT_ID is required when Firestore is enabled');
   }
 
+  if (!config.googleApplicationCredentials) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS is required when Firestore is enabled');
+  }
+
+  if (!fs.existsSync(config.googleApplicationCredentials)) {
+    throw new Error(
+      `Service account file not found:\n  ${config.googleApplicationCredentials}\n` +
+        'Put your Firebase private key JSON there, then restart the gateway.'
+    );
+  }
+
+  const serviceAccount = JSON.parse(
+    fs.readFileSync(config.googleApplicationCredentials, 'utf8')
+  );
+
+  if (serviceAccount.type !== 'service_account') {
+    throw new Error(
+      'Credentials file is not a Firebase service account JSON (missing type: service_account).'
+    );
+  }
+
   admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
+    credential: admin.credential.cert(serviceAccount),
     projectId: config.firebaseProjectId,
   });
 
