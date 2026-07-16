@@ -8,6 +8,7 @@ Premium personal GPS safety platform for families in Mauritius — elderly care,
 
 - [CONTEXT.md](CONTEXT.md) — product vision, hardware, architecture, features
 - [firestore/SCHEMA.md](firestore/SCHEMA.md) — Firestore collections and fields
+- [docs/reference/](docs/reference/) — V28C datasheet + SMS server-switch commands (PDFs)
 
 ## Repository layout
 

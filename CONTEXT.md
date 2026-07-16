@@ -12,7 +12,9 @@ Guardian is a premium personal safety and tracking SaaS platform tailored for fa
 
 ## 2. Hardware Device Specifications
 
-The platform integrates with a wearable 4G GPS smart pendant.
+The platform integrates with a wearable 4G GPS smart pendant (**V28C** family — see [docs/reference/V28C-DataSheet.pdf](docs/reference/V28C-DataSheet.pdf)).
+
+Server IP / APN / interval configuration is done via SMS — see [docs/reference/Switch-Server-SMS-Commands.pdf](docs/reference/Switch-Server-SMS-Commands.pdf).
 
 - **Connectivity:** 4G LTE + 3G WCDMA + 2G GSM (Nano SIM).
 - **Sensors:** GPS, BDS, WiFi Positioning (indoor), LBS (cellular tower fallback), 3-axis Accelerometer (fall detection), 0.3MP Camera.
