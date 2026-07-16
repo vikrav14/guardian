@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function linkedTo(imei) {
+      return signedIn() && imei in userDoc().linkedImeis;
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /devices/{imei} {
+      allow read: if linkedTo(imei);
+      allow write: if false; // gateway (Admin SDK) only
+
+      match /locations/{locationId} {
+        allow read: if linkedTo(imei);
+        allow write: if false;
+      }
+    }
+
+    match /geofences/{geofenceId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if linkedTo(request.resource.data.imei)
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if linkedTo(resource.data.imei)
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /alerts/{alertId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow update: if linkedTo(resource.data.imei)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['resolved', 'resolvedAt']);
+      allow create, delete: if false;
+    }
+  }
+}

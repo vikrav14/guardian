@@ -1,0 +1,18 @@
+{
+  "name": "guardian-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guardian GT06 TCP gateway — GPS pendant packets to Firestore",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "firebase-admin": "^13.0.2"
+  }
+}

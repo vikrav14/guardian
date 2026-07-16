@@ -1,14 +1,43 @@
 # Guardian
 
-Location and safety tracker for kids and older adults.
+Premium personal GPS safety platform for families in Mauritius — elderly care, school transit monitoring, and outdoor SOS.
 
-## About
+**Repo:** https://github.com/vikrav14/guardian
 
-Guardian helps families stay connected and aware of loved ones' whereabouts, with a focus on simplicity for both the people being tracked and the caregivers watching over them.
+## Documentation
 
-## Status
+- [CONTEXT.md](CONTEXT.md) — product vision, hardware, architecture, features
+- [firestore/SCHEMA.md](firestore/SCHEMA.md) — Firestore collections and fields
 
-Early setup — repository scaffolding in progress.
+## Repository layout
+
+```
+guardian/
+  CONTEXT.md
+  firestore/          # Schema + example security rules
+  gateway/            # Node.js GT06 TCP listener → Firestore
+  apps/mobile/        # Flutter app (next milestone)
+```
+
+## Quick start — gateway
+
+```bash
+cd gateway
+cp .env.example .env   # fill in Firebase project + credentials path
+npm install
+npm start
+```
+
+Listens on TCP port **9000** for GT06 packets from GPS pendants.
+
+## Stack (current)
+
+| Layer | Tech |
+|-------|------|
+| Device protocol | GT06 over TCP |
+| Gateway | Node.js |
+| Backend data | Firebase Firestore + Auth |
+| Mobile (next) | Flutter |
 
 ## License
 
