@@ -41,6 +41,7 @@ class SafeZonesPage extends StatelessWidget {
 
     final nameCtrl = TextEditingController(text: 'Home');
     final radiusCtrl = TextEditingController(text: '150');
+    final wifiCtrl = TextEditingController();
     var imei = devices.first.imei;
     LatLng? pickedLocation;
 
@@ -74,6 +75,14 @@ class SafeZonesPage extends StatelessWidget {
                     controller: radiusCtrl,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Radius (meters)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: wifiCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Home WiFi name (optional)',
+                      hintText: 'Also counts as "inside" if the pendant supports it',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -122,6 +131,7 @@ class SafeZonesPage extends StatelessWidget {
     if (created != true || !context.mounted) {
       nameCtrl.dispose();
       radiusCtrl.dispose();
+      wifiCtrl.dispose();
       return;
     }
 
@@ -143,6 +153,7 @@ class SafeZonesPage extends StatelessWidget {
         );
         nameCtrl.dispose();
         radiusCtrl.dispose();
+        wifiCtrl.dispose();
         return;
       }
       lat = loc.lat;
@@ -157,6 +168,7 @@ class SafeZonesPage extends StatelessWidget {
         lat: lat,
         lng: lng,
         radiusMeters: radius.clamp(50, 5000),
+        wifiSsid: wifiCtrl.text,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,6 +184,7 @@ class SafeZonesPage extends StatelessWidget {
     } finally {
       nameCtrl.dispose();
       radiusCtrl.dispose();
+      wifiCtrl.dispose();
     }
   }
 
@@ -307,7 +320,8 @@ class _ZoneCard extends StatelessWidget {
     final linked = devices.where((d) => d.imei == zone.imei).toList();
     final subtitle =
         '${zone.radiusMeters.round()} m radius${zone.active ? '' : ' · paused'}'
-        '${linked.isNotEmpty ? ' · ${linked.first.displayName}' : ''}';
+        '${linked.isNotEmpty ? ' · ${linked.first.displayName}' : ''}'
+        '${zone.wifiSsid != null && zone.wifiSsid!.isNotEmpty ? ' · WiFi "${zone.wifiSsid}"' : ''}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

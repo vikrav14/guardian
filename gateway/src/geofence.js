@@ -44,7 +44,18 @@ async function evaluateGeofenceTransitions(db, imei, location) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
     const distance = haversineMeters(location.lat, location.lng, lat, lng);
-    const inside = distance <= radius;
+    // A zone with a wifiSsid configured is "inside" if either GPS says so, OR the
+    // pendant currently reports being associated with that SSID — whichever fires
+    // first, since indoor GPS is often unreliable right where a WiFi fence matters.
+    // NOTE: the GT06/V28C protocol decoder in ./protocol/gt06.js does not currently
+    // extract a WiFi SSID from any device packet (the vendor docs in docs/reference/
+    // don't document that packet's byte layout), so `location.wifiSsid` is always
+    // undefined today — this check is ready for whenever that decoding is added.
+    const wifiMatch =
+      Boolean(data.wifiSsid) &&
+      Boolean(location.wifiSsid) &&
+      String(location.wifiSsid).trim().toLowerCase() === String(data.wifiSsid).trim().toLowerCase();
+    const inside = distance <= radius || wifiMatch;
     const key = `${imei}:${doc.id}`;
     const prev = insideState.get(key);
 
@@ -69,6 +80,7 @@ async function evaluateGeofenceTransitions(db, imei, location) {
           geofenceId: doc.id,
           geofenceName: name,
           distanceMeters: Math.round(distance),
+          viaWifi: wifiMatch,
           source: 'gateway',
         },
       });
@@ -81,6 +93,7 @@ async function evaluateGeofenceTransitions(db, imei, location) {
           geofenceId: doc.id,
           geofenceName: name,
           distanceMeters: Math.round(distance),
+          viaWifi: wifiMatch,
           source: 'gateway',
         },
       });
