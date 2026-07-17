@@ -20,10 +20,11 @@ service cloud.firestore {
 
     match /devices/{imei} {
       allow read: if linkedTo(imei);
-      // Gateway (Admin SDK) owns device telemetry. Clients may only rename.
+      // Gateway (Admin SDK) owns device telemetry. Clients may rename and
+      // set the pendant's own SIM number (used for calls / SMS commands).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['name', 'updatedAt']);
+            .hasOnly(['name', 'simNumber', 'updatedAt']);
       allow create, delete: if false;
 
       match /locations/{locationId} {
@@ -75,6 +76,14 @@ service cloud.firestore {
     match /notificationLogs/{logId} {
       allow read: if linkedTo(resource.data.imei);
       allow write: if false; // gateway Admin SDK only
+    }
+
+    match /deviceCommands/{commandId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if linkedTo(request.resource.data.imei)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false; // gateway Admin SDK only
     }
   }
 }

@@ -45,6 +45,7 @@ Live device state. Document ID = device IMEI (digits only).
 |-------|------|-------|
 | imei | string | Same as doc id |
 | name | string | Friendly label (e.g. "Dad's pendant") |
+| simNumber | string \| null | Pendant's own SIM phone number (E.164) — used for calls and SMS commands |
 | online | boolean | True while TCP session active / recent heartbeat |
 | lastHeartbeatAt | timestamp | |
 | batteryPercent | number \| null | 0–100 when known |
@@ -107,6 +108,22 @@ Optional history (gateway may throttle writes).
 | notifyStatus | string \| null | `pending` \| `sending` \| `sent` \| `failed` \| `skipped` |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+
+## `deviceCommands/{commandId}`
+
+App-originated downlink commands the gateway sends to the pendant by SMS (see `gateway/src/commands.js`).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| imei | string | Target device |
+| type | string | `set_center_number` \| `set_sos_number` \| `check_status` |
+| params | map | Command-specific, e.g. `{ phone }` or `{ slot, phone }` |
+| status | string | `pending` \| `sending` \| `sent` \| `failed` |
+| result | map \| null | `{ text, simNumber, result }` once sent |
+| error | string \| null | |
+| createdBy | string | uid |
+| createdAt | timestamp | |
+| completedAt | timestamp \| null | |
 
 ## `notificationLogs/{logId}`
 

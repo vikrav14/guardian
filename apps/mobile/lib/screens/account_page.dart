@@ -368,10 +368,142 @@ class _DeviceRow extends StatelessWidget {
             device.online ? 'Online' : 'Pendant linked',
             style: const TextStyle(fontSize: 11, color: GuardianColors.textSecondary),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, size: 18),
+            tooltip: 'Pendant settings',
+            onPressed: () => _showDeviceSettingsDialog(context, device),
+          ),
         ],
       ),
     );
   }
+}
+
+Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) async {
+  final simCtrl = TextEditingController(text: device.simNumber ?? '');
+  final centerCtrl = TextEditingController();
+  final sosCtrl = TextEditingController();
+  var busy = false;
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return StatefulBuilder(
+        builder: (ctx, setLocal) {
+          Future<void> run(Future<void> Function() action, String successMessage) async {
+            setLocal(() => busy = true);
+            try {
+              await action();
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(successMessage)));
+              }
+            } catch (e) {
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
+              }
+            } finally {
+              setLocal(() => busy = false);
+            }
+          }
+
+          return AlertDialog(
+            title: Text('${device.displayName} settings'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: simCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: "Pendant's SIM number",
+                      hintText: '+230…',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceService().setSimNumber(device.imei, simCtrl.text),
+                                'SIM number saved',
+                              ),
+                      child: const Text('Save SIM number'),
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  const Text(
+                    'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
+                    style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: centerCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'Set center number'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceCommandService()
+                                    .setCenterNumber(device.imei, centerCtrl.text),
+                                'Command queued',
+                              ),
+                      child: const Text('Send'),
+                    ),
+                  ),
+                  TextField(
+                    controller: sosCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'Set SOS number 1'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceCommandService()
+                                    .setSosNumber(device.imei, 1, sosCtrl.text),
+                                'Command queued',
+                              ),
+                      child: const Text('Send'),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceCommandService().checkStatus(device.imei),
+                                'Status check queued',
+                              ),
+                      icon: const Icon(Icons.info_outline, size: 16),
+                      label: const Text('Check status'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  simCtrl.dispose();
+  centerCtrl.dispose();
+  sosCtrl.dispose();
 }
 
 class _PersonRow extends StatelessWidget {

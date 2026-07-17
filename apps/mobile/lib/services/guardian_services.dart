@@ -36,6 +36,16 @@ class DeviceService {
     });
   }
 
+  /// Records the pendant's own SIM phone number so the app can call it
+  /// directly and the gateway can send it SMS configuration commands.
+  Future<void> setSimNumber(String imei, String phone) async {
+    final trimmed = phone.trim();
+    await _db.collection('devices').doc(imei).update({
+      'simNumber': trimmed.isEmpty ? FieldValue.delete() : trimmed,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Streams only the devices this signed-in guardian is linked to.
   Stream<List<Device>> watchLinkedDevices() {
     return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
@@ -410,5 +420,42 @@ class FamilyService {
     );
 
     await batch.commit();
+  }
+}
+
+/// Writes app-originated commands for the gateway to deliver to a pendant by
+/// SMS (see gateway/src/commands.js — only the vendor-documented commands are
+/// supported: center number, SOS numbers, and a status check).
+class DeviceCommandService {
+  DeviceCommandService({FirebaseFirestore? db, FirebaseAuth? auth})
+      : _db = db ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Future<void> _enqueue(String imei, String type, Map<String, dynamic> params) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+    await _db.collection('deviceCommands').add({
+      'imei': imei,
+      'type': type,
+      'params': params,
+      'status': 'pending',
+      'createdBy': uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> setCenterNumber(String imei, String phone) {
+    return _enqueue(imei, 'set_center_number', {'phone': phone.trim()});
+  }
+
+  Future<void> setSosNumber(String imei, int slot, String phone) {
+    return _enqueue(imei, 'set_sos_number', {'slot': slot, 'phone': phone.trim()});
+  }
+
+  Future<void> checkStatus(String imei) {
+    return _enqueue(imei, 'check_status', const {});
   }
 }

@@ -3,10 +3,12 @@ const admin = require('firebase-admin');
 const config = require('./config');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
+const { sendDeviceCommand } = require('./commands');
 
 let db = null;
 let enabled = false;
 let alertWatchUnsub = null;
+let commandWatchUnsub = null;
 
 function initFirestore() {
   if (config.firestoreDisabled) {
@@ -48,6 +50,7 @@ function initFirestore() {
   enabled = true;
   console.log(`[firestore] connected to project ${config.firebaseProjectId}`);
   startPendingAlertWatcher();
+  startPendingCommandWatcher();
 }
 
 function getDb() {
@@ -203,6 +206,62 @@ function startPendingAlertWatcher() {
     );
 
   console.log('[notify] watching alerts with notifyStatus=pending');
+}
+
+async function deliverDeviceCommand(imei, type, params, commandId) {
+  const ref = db.collection('deviceCommands').doc(commandId);
+  try {
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return false;
+      if (snap.data().status !== 'pending') return false;
+      tx.update(ref, { status: 'sending' });
+      return true;
+    });
+    if (!claimed) return;
+  } catch (err) {
+    console.error('[commands] claim failed', err.message);
+    return;
+  }
+
+  try {
+    const outcome = await sendDeviceCommand(db, imei, type, params);
+    await ref.set(
+      { status: 'sent', result: outcome, completedAt: nowTs() },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('[commands] failed', err.message);
+    await ref.set(
+      { status: 'failed', error: err.message, completedAt: nowTs() },
+      { merge: true }
+    );
+  }
+}
+
+function startPendingCommandWatcher() {
+  if (!enabled || commandWatchUnsub) return;
+
+  commandWatchUnsub = db
+    .collection('deviceCommands')
+    .where('status', '==', 'pending')
+    .onSnapshot(
+      (snap) => {
+        snap.docChanges().forEach((change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
+          const data = change.doc.data() || {};
+          if (data.status !== 'pending') return;
+          deliverDeviceCommand(data.imei, data.type, data.params, change.doc.id).catch((err) => {
+            console.error('[commands] watcher error', err.message);
+          });
+        });
+      },
+      (err) => {
+        console.error('[commands] watcher failed', err.message);
+      }
+    );
+
+  console.log('[commands] watching deviceCommands with status=pending');
 }
 
 module.exports = {

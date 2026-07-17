@@ -43,6 +43,7 @@ class Device {
     this.location,
     this.lastHeartbeatAt,
     this.updatedAt,
+    this.simNumber,
   });
 
   final String imei;
@@ -55,6 +56,7 @@ class Device {
   final DeviceLocation? location;
   final DateTime? lastHeartbeatAt;
   final DateTime? updatedAt;
+  final String? simNumber;
 
   String get displayName =>
       (name != null && name!.trim().isNotEmpty) ? name! : 'Device $imei';
@@ -76,6 +78,7 @@ class Device {
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
       updatedAt: _asDateTime(data['updatedAt']),
+      simNumber: data['simNumber'] as String?,
     );
   }
 }
