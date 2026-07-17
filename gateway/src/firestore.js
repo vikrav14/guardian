@@ -2,6 +2,7 @@ const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
 const { notifyEmergencyContacts } = require('./notify');
+const { notifyGuardianDevices } = require('./push');
 
 let db = null;
 let enabled = false;
@@ -89,7 +90,14 @@ async function appendLocation(imei, point) {
   await db.collection('devices').doc(imei).collection('locations').add(data);
 }
 
+// Push notifications go to the guardian's own app for anything alert-worthy.
 function shouldNotify(alert) {
+  const t = String(alert.type || '').toLowerCase();
+  return ['sos', 'fall', 'geofence_exit', 'geofence_enter', 'low_battery'].includes(t);
+}
+
+// SMS/WhatsApp to emergency contacts stays reserved for the urgent subset.
+function shouldSms(alert) {
   const t = String(alert.type || '').toLowerCase();
   return t === 'sos' || t === 'fall' || t === 'geofence_exit';
 }
@@ -123,7 +131,9 @@ async function deliverAlertNotifications(imei, alert, alertId) {
   }
 
   try {
-    await notifyEmergencyContacts(db, imei, alert);
+    const tasks = [notifyGuardianDevices(db, imei, alert)];
+    if (shouldSms(alert)) tasks.push(notifyEmergencyContacts(db, imei, alert));
+    await Promise.all(tasks);
     if (enabled && alertId) {
       await db.collection('alerts').doc(alertId).set(
         {

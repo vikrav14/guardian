@@ -1,13 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'push_service.dart';
+
 class AuthService {
-  AuthService({FirebaseAuth? auth, FirebaseFirestore? db})
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? db, PushService? push})
       : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseFirestore.instance;
+        _db = db ?? FirebaseFirestore.instance,
+        _push = push ?? PushService();
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
+  final PushService _push;
 
   /// Demo IMEI from the GT06 simulator — linked on first profile create.
   static const demoImei = '359633100123456';
@@ -39,7 +43,13 @@ class AuthService {
     return cred;
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      await _push.unregisterForUser(uid);
+    }
+    await _auth.signOut();
+  }
 
   Future<void> ensureUserProfile(User user) async {
     final ref = _db.collection('users').doc(user.uid);

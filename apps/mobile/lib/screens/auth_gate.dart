@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import 'home_shell.dart';
 import 'login_page.dart';
 
@@ -37,7 +38,9 @@ class _AuthGateState extends State<AuthGate> {
 
         if (_profileUid != user.uid || _profileFuture == null) {
           _profileUid = user.uid;
-          _profileFuture = _auth.ensureUserProfile(user);
+          _profileFuture = _auth
+              .ensureUserProfile(user)
+              .then((_) => PushService().registerForUser(user.uid));
         }
 
         return FutureBuilder<void>(

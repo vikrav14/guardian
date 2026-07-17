@@ -13,6 +13,7 @@ Firebase Auth UID as document ID.
 | phone | string | E.164 preferred |
 | role | string | `guardian` \| `admin` |
 | linkedImeis | string[] | Devices this user may view/control |
+| fcmTokens | string[] | FCM registration tokens for this user's app installs (push alerts) |
 | emergencyContacts | array | `{ name, phone, whatsapp? }` |
 | familyMembers | array | `{ uid, displayName, email? }` guardians who shared access |
 | createdAt | timestamp | |

@@ -1,8 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'services/push_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -10,6 +12,9 @@ Future<void> main() async {
 
   if (DefaultFirebaseOptions.isConfigured) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await PushService.initLocalNotifications();
+    PushService.listenForegroundMessages();
   }
 
   runApp(const GuardianApp());
