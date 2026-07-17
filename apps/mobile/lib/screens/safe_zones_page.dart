@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/guardian_widgets.dart';
+import 'location_picker_page.dart';
 
 class SafeZonesPage extends StatelessWidget {
   const SafeZonesPage({super.key});
@@ -40,6 +42,7 @@ class SafeZonesPage extends StatelessWidget {
     final nameCtrl = TextEditingController(text: 'Home');
     final radiusCtrl = TextEditingController(text: '150');
     var imei = devices.first.imei;
+    LatLng? pickedLocation;
 
     final created = await showDialog<bool>(
       context: context,
@@ -72,10 +75,37 @@ class SafeZonesPage extends StatelessWidget {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Radius (meters)'),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Center uses the device’s current location.',
-                    style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          pickedLocation != null
+                              ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
+                                  '${pickedLocation!.longitude.toStringAsFixed(4)}'
+                              : "Center: pendant's current location",
+                          style: const TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final device = devices.firstWhere((d) => d.imei == imei);
+                          final loc = device.location;
+                          final initial = loc?.isValid == true
+                              ? LatLng(loc!.lat, loc.lng)
+                              : const LatLng(-20.2642, 57.4791);
+                          final picked = await Navigator.of(ctx).push<LatLng>(
+                            MaterialPageRoute(
+                              builder: (_) => LocationPickerPage(initialCenter: initial),
+                            ),
+                          );
+                          if (picked != null) {
+                            setLocal(() => pickedLocation = picked);
+                          }
+                        },
+                        child: const Text('Choose on map'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -95,15 +125,28 @@ class SafeZonesPage extends StatelessWidget {
       return;
     }
 
-    final device = devices.firstWhere((d) => d.imei == imei);
-    final loc = device.location;
-    if (loc == null || !loc.isValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Device has no location yet. Wait for a GPS update.')),
-      );
-      nameCtrl.dispose();
-      radiusCtrl.dispose();
-      return;
+    double lat;
+    double lng;
+    if (pickedLocation != null) {
+      lat = pickedLocation!.latitude;
+      lng = pickedLocation!.longitude;
+    } else {
+      final device = devices.firstWhere((d) => d.imei == imei);
+      final loc = device.location;
+      if (loc == null || !loc.isValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Device has no location yet — wait for a GPS update, or use 'Choose on map'.",
+            ),
+          ),
+        );
+        nameCtrl.dispose();
+        radiusCtrl.dispose();
+        return;
+      }
+      lat = loc.lat;
+      lng = loc.lng;
     }
 
     final radius = double.tryParse(radiusCtrl.text.trim()) ?? 150;
@@ -111,8 +154,8 @@ class SafeZonesPage extends StatelessWidget {
       await GeofenceService().create(
         imei: imei,
         name: nameCtrl.text,
-        lat: loc.lat,
-        lng: loc.lng,
+        lat: lat,
+        lng: lng,
         radiusMeters: radius.clamp(50, 5000),
       );
       if (context.mounted) {

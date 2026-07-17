@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/device.dart';
@@ -29,6 +30,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   bool _loading = true;
   bool _didFit = false;
   bool _sendingHelp = false;
+  bool _myLocationEnabled = false;
   double _zoom = 13;
 
   static const _mauritius = LatLng(-20.2642, 57.4791);
@@ -71,6 +73,22 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
       if (!mounted) return;
       setState(() => _geofences = zones);
     });
+    _requestLocationPermission();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      final granted = permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse;
+      if (mounted) setState(() => _myLocationEnabled = granted);
+    } catch (_) {
+      // Own-location is a nice-to-have overlay; ignore failures.
+    }
   }
 
   Future<void> _animateTo(LatLng target, {double? zoom}) async {
@@ -293,8 +311,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                         initialCameraPosition: CameraPosition(target: center, zoom: _zoom),
                         markers: _markers(),
                         circles: _circles(),
-                        myLocationButtonEnabled: true,
-                        myLocationEnabled: false,
+                        myLocationButtonEnabled: _myLocationEnabled,
+                        myLocationEnabled: _myLocationEnabled,
                         zoomControlsEnabled: true,
                         mapToolbarEnabled: false,
                         compassEnabled: false,
