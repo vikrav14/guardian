@@ -14,6 +14,7 @@ Firebase Auth UID as document ID.
 | role | string | `guardian` \| `admin` |
 | linkedImeis | string[] | Devices this user may view/control |
 | fcmTokens | string[] | FCM registration tokens for this user's app installs (push alerts) |
+| subscription | map \| null | `{ tier: 'free'\|'premium', status, renewsAt }` — entitlement display only; no payment provider is wired up, so this is client-writable today. Move ownership to a backend (Cloud Function / webhook from whatever payment provider is chosen) once real billing exists, the same way `devices` telemetry is gateway-owned. |
 | emergencyContacts | array | `{ name, phone, whatsapp? }` |
 | familyMembers | array | `{ uid, displayName, email? }` guardians who shared access |
 | createdAt | timestamp | |

@@ -305,13 +305,35 @@ class AccountPage extends StatelessWidget {
                             );
                           },
                         ),
-                        _SettingRow(
-                          icon: Icons.credit_card,
-                          label: 'Subscription',
-                          trailing: 'Rs 200/mo',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Subscription coming soon')),
+                        StreamBuilder<GuardianSubscription>(
+                          stream: UserProfileService().watchSubscription(),
+                          builder: (context, subSnap) {
+                            final sub = subSnap.data ?? const GuardianSubscription(tier: 'free');
+                            return _SettingRow(
+                              icon: Icons.credit_card,
+                              label: 'Subscription',
+                              trailing: sub.isPremium ? 'Premium' : 'Free plan',
+                              onTap: () {
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Subscription'),
+                                    content: Text(
+                                      sub.isPremium
+                                          ? 'You are on the Premium plan.'
+                                          : "You're on the Free plan. Paid plans aren't available yet -- "
+                                              'this needs a payment provider (e.g. Stripe or MCB Juice) '
+                                              'connected on the backend before real billing can go live.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),

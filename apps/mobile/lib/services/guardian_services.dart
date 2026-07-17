@@ -142,6 +142,29 @@ class EmergencyContact {
   }
 }
 
+/// Entitlement state only — there is no payment provider wired up yet, so
+/// every account is 'free' until a real processor (Stripe, Play Billing,
+/// MCB Juice, ...) is connected server-side. See account_page.dart.
+class GuardianSubscription {
+  const GuardianSubscription({required this.tier, this.status, this.renewsAt});
+
+  final String tier;
+  final String? status;
+  final DateTime? renewsAt;
+
+  bool get isPremium => tier == 'premium' && status != 'canceled';
+
+  factory GuardianSubscription.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const GuardianSubscription(tier: 'free');
+    final renews = map['renewsAt'];
+    return GuardianSubscription(
+      tier: (map['tier'] as String?) ?? 'free',
+      status: map['status'] as String?,
+      renewsAt: renews is Timestamp ? renews.toDate() : null,
+    );
+  }
+}
+
 class UserProfileService {
   UserProfileService({FirebaseFirestore? db, FirebaseAuth? auth})
       : _db = db ?? FirebaseFirestore.instance,
@@ -149,6 +172,15 @@ class UserProfileService {
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
+
+  Stream<GuardianSubscription> watchSubscription() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(const GuardianSubscription(tier: 'free'));
+    return _db.collection('users').doc(uid).snapshots().map((snap) {
+      final raw = snap.data()?['subscription'];
+      return GuardianSubscription.fromMap(raw is Map ? Map<String, dynamic>.from(raw) : null);
+    });
+  }
 
   Stream<List<EmergencyContact>> watchContacts() {
     final uid = _auth.currentUser?.uid;
