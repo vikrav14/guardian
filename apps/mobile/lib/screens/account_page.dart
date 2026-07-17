@@ -2,9 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
+import '../main.dart';
 import '../models/device.dart';
 import '../services/auth_service.dart';
 import '../services/guardian_services.dart';
+import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/guardian_widgets.dart';
 import 'emergency_contacts_page.dart';
@@ -80,6 +83,7 @@ class AccountPage extends StatelessWidget {
     final email = user?.email ?? '';
     final initials = initialsFor(name);
     final family = FamilyService();
+    final t = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: GuardianColors.surfaceMuted,
@@ -255,9 +259,9 @@ class AccountPage extends StatelessWidget {
                     child: const Text('Have a code? Join a family'),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Settings',
-                    style: TextStyle(
+                  Text(
+                    t.settingsHeading,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: GuardianColors.textSecondary,
@@ -311,13 +315,13 @@ class AccountPage extends StatelessWidget {
                             final sub = subSnap.data ?? const GuardianSubscription(tier: 'free');
                             return _SettingRow(
                               icon: Icons.credit_card,
-                              label: 'Subscription',
-                              trailing: sub.isPremium ? 'Premium' : 'Free plan',
+                              label: t.subscriptionLabel,
+                              trailing: sub.isPremium ? t.premiumPlan : t.freePlan,
                               onTap: () {
                                 showDialog<void>(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
-                                    title: const Text('Subscription'),
+                                    title: Text(t.subscriptionLabel),
                                     content: Text(
                                       sub.isPremium
                                           ? 'You are on the Premium plan.'
@@ -338,8 +342,13 @@ class AccountPage extends StatelessWidget {
                           },
                         ),
                         _SettingRow(
+                          icon: Icons.language,
+                          label: t.languageSettingLabel,
+                          onTap: () => _showLanguagePicker(context),
+                        ),
+                        _SettingRow(
                           icon: Icons.logout,
-                          label: 'Sign out',
+                          label: t.signOut,
                           danger: true,
                           last: true,
                           onTap: () => AuthService().signOut(),
@@ -398,6 +407,35 @@ class _DeviceRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _showLanguagePicker(BuildContext context) async {
+  final current = Localizations.localeOf(context);
+  final picked = await showDialog<Locale>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('Language'),
+      children: [
+        for (final locale in LocaleService.supportedLocales)
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, locale),
+            child: Row(
+              children: [
+                if (locale.languageCode == current.languageCode)
+                  const Icon(Icons.check, size: 18, color: GuardianColors.safe)
+                else
+                  const SizedBox(width: 18),
+                const SizedBox(width: 8),
+                Text(LocaleService.localeNames[locale.languageCode] ?? locale.languageCode),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+  if (picked != null && context.mounted) {
+    GuardianApp.setLocale(context, picked);
   }
 }
 

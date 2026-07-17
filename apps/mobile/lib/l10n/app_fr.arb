@@ -1,0 +1,23 @@
+{
+  "@@locale": "fr",
+  "appTitle": "Guardian",
+  "navMap": "Carte",
+  "navSafeZones": "Zones sûres",
+  "navAlerts": "Alertes",
+  "navAccount": "Compte",
+  "callButton": "Appeler",
+  "sendHelpAlert": "Envoyer une alerte",
+  "sendingHelpAlert": "Envoi…",
+  "emergencyNumbersHeading": "Numéros d'urgence de Maurice",
+  "emergencyPolice": "Police",
+  "emergencySamu": "SAMU",
+  "emergencyFire": "Pompiers",
+  "addContact": "Ajouter un contact",
+  "emergencyContactsTitle": "Contacts d'urgence",
+  "settingsHeading": "Paramètres",
+  "languageSettingLabel": "Langue",
+  "signOut": "Se déconnecter",
+  "subscriptionLabel": "Abonnement",
+  "freePlan": "Plan gratuit",
+  "premiumPlan": "Premium"
+}

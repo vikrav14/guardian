@@ -1,0 +1,23 @@
+{
+  "@@locale": "en",
+  "appTitle": "Guardian",
+  "navMap": "Map",
+  "navSafeZones": "Safe zones",
+  "navAlerts": "Alerts",
+  "navAccount": "Account",
+  "callButton": "Call",
+  "sendHelpAlert": "Send help alert",
+  "sendingHelpAlert": "Sending…",
+  "emergencyNumbersHeading": "Mauritius emergency numbers",
+  "emergencyPolice": "Police",
+  "emergencySamu": "SAMU",
+  "emergencyFire": "Fire",
+  "addContact": "Add contact",
+  "emergencyContactsTitle": "Emergency contacts",
+  "settingsHeading": "Settings",
+  "languageSettingLabel": "Language",
+  "signOut": "Sign out",
+  "subscriptionLabel": "Subscription",
+  "freePlan": "Free plan",
+  "premiumPlan": "Premium"
+}

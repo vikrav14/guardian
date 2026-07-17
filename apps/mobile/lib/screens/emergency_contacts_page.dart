@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 
+/// Mauritius national emergency numbers (Police, SAMU ambulance, Fire).
+List<({String label, String number})> _mauritiusEmergencyNumbers(AppLocalizations t) => [
+      (label: t.emergencyPolice, number: '999'),
+      (label: t.emergencySamu, number: '114'),
+      (label: t.emergencyFire, number: '995'),
+    ];
+
 class EmergencyContactsPage extends StatelessWidget {
   const EmergencyContactsPage({super.key});
+
+  Future<void> _call(BuildContext context, String number) async {
+    final uri = Uri(scheme: 'tel', path: number);
+    if (!await launchUrl(uri) && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not start a call to $number')),
+      );
+    }
+  }
 
   Future<void> _addContact(
     BuildContext context,
@@ -12,7 +30,7 @@ class EmergencyContactsPage extends StatelessWidget {
     List<EmergencyContact> existing,
   ) async {
     final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController(text: '+230');
     final waCtrl = TextEditingController();
 
     final ok = await showDialog<bool>(
@@ -69,11 +87,13 @@ class EmergencyContactsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = UserProfileService();
+    final t = AppLocalizations.of(context)!;
+    final emergencyNumbers = _mauritiusEmergencyNumbers(t);
 
     return Scaffold(
       backgroundColor: GuardianColors.surfaceMuted,
       appBar: AppBar(
-        title: const Text('Emergency contacts'),
+        title: Text(t.emergencyContactsTitle),
         backgroundColor: GuardianColors.surface,
         foregroundColor: GuardianColors.textPrimary,
         elevation: 0,
@@ -88,12 +108,32 @@ class EmergencyContactsPage extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Text(
+                t.emergencyNumbersHeading,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: GuardianColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final e in emergencyNumbers) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _call(context, e.number),
+                        icon: const Icon(Icons.call, size: 16),
+                        label: Text('${e.label} · ${e.number}'),
+                      ),
+                    ),
+                    if (e != emergencyNumbers.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => _addContact(context, service, contacts),
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add contact'),
+                  label: Text(t.addContact),
                 ),
               ),
               const SizedBox(height: 16),

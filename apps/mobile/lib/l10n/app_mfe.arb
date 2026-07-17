@@ -1,0 +1,23 @@
+{
+  "@@locale": "mfe",
+  "appTitle": "Guardian",
+  "navMap": "Kart",
+  "navSafeZones": "Zonn sekirite",
+  "navAlerts": "Alert",
+  "navAccount": "Kont",
+  "callButton": "Apel",
+  "sendHelpAlert": "Avoy alert ledsid",
+  "sendingHelpAlert": "Pe avoye…",
+  "emergencyNumbersHeading": "Nimero urzans Moris",
+  "emergencyPolice": "Lapolis",
+  "emergencySamu": "SAMU",
+  "emergencyFire": "Pompie",
+  "addContact": "Azout kontak",
+  "emergencyContactsTitle": "Kontak ledsid",
+  "settingsHeading": "Paramet",
+  "languageSettingLabel": "Lang",
+  "signOut": "Dekonekte",
+  "subscriptionLabel": "Abonman",
+  "freePlan": "Plan gratis",
+  "premiumPlan": "Premium"
+}

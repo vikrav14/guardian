@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 
 class AvatarBubble extends StatelessWidget {
@@ -116,15 +117,15 @@ class GuardianBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const _items = [
-    (icon: Icons.map_outlined, label: 'Map'),
-    (icon: Icons.shield_outlined, label: 'Safe zones'),
-    (icon: Icons.notifications_outlined, label: 'Alerts'),
-    (icon: Icons.account_circle_outlined, label: 'Account'),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    final items = [
+      (icon: Icons.map_outlined, label: t.navMap),
+      (icon: Icons.shield_outlined, label: t.navSafeZones),
+      (icon: Icons.notifications_outlined, label: t.navAlerts),
+      (icon: Icons.account_circle_outlined, label: t.navAccount),
+    ];
     return Container(
       decoration: const BoxDecoration(
         color: GuardianColors.surface,
@@ -135,7 +136,7 @@ class GuardianBottomNav extends StatelessWidget {
         top: false,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(_items.length, (i) {
+          children: List.generate(items.length, (i) {
             final active = i == currentIndex;
             final color = active ? GuardianColors.safe : GuardianColors.textMuted;
             return InkWell(
@@ -143,10 +144,10 @@ class GuardianBottomNav extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(_items[i].icon, size: 22, color: color),
+                  Icon(items[i].icon, size: 22, color: color),
                   const SizedBox(height: 2),
                   Text(
-                    _items[i].label,
+                    items[i].label,
                     style: TextStyle(
                       fontSize: 10,
                       color: color,

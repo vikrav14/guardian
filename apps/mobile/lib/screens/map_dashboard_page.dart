@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
@@ -541,29 +542,32 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _callDevice(selected),
-                            icon: const Icon(Icons.call, size: 18),
-                            label: const Text('Call'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: GuardianColors.danger,
+                    Builder(builder: (context) {
+                      final t = AppLocalizations.of(context)!;
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _callDevice(selected),
+                              icon: const Icon(Icons.call, size: 18),
+                              label: Text(t.callButton),
                             ),
-                            onPressed: _sendingHelp ? null : () => _sendHelp(selected),
-                            icon: const Icon(Icons.warning_amber_rounded, size: 18),
-                            label: Text(_sendingHelp ? 'Sending…' : 'Send help alert'),
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: GuardianColors.danger,
+                              ),
+                              onPressed: _sendingHelp ? null : () => _sendHelp(selected),
+                              icon: const Icon(Icons.warning_amber_rounded, size: 18),
+                              label: Text(_sendingHelp ? t.sendingHelpAlert : t.sendHelpAlert),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
                   ],
                 ),
               ),
