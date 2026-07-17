@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/device.dart';
 import '../models/geofence.dart';
@@ -224,6 +225,26 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
       }
     } finally {
       if (mounted) setState(() => _sendingHelp = false);
+    }
+  }
+
+  Future<void> _callDevice(Device device) async {
+    final sim = device.simNumber?.trim();
+    if (sim == null || sim.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No SIM number on file — add it in the pendant's settings first."),
+        ),
+      );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: sim);
+    if (!await launchUrl(uri)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start a call to $sim')),
+        );
+      }
     }
   }
 
@@ -520,16 +541,28 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: GuardianColors.danger,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _callDevice(selected),
+                            icon: const Icon(Icons.call, size: 18),
+                            label: const Text('Call'),
+                          ),
                         ),
-                        onPressed: _sendingHelp ? null : () => _sendHelp(selected),
-                        icon: const Icon(Icons.warning_amber_rounded, size: 18),
-                        label: Text(_sendingHelp ? 'Sending…' : 'Send help alert'),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: GuardianColors.danger,
+                            ),
+                            onPressed: _sendingHelp ? null : () => _sendHelp(selected),
+                            icon: const Icon(Icons.warning_amber_rounded, size: 18),
+                            label: Text(_sendingHelp ? 'Sending…' : 'Send help alert'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
