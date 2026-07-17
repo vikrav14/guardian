@@ -1,18 +1,50 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/alert.dart';
+import '../models/device.dart';
 import '../models/geofence.dart';
 
+/// Firestore rules only allow reading devices/alerts/geofences whose `imei`
+/// is in the signed-in user's `linkedImeis` — so every list/stream here has
+/// to filter by that set rather than reading the collection unscoped.
+Stream<List<String>> _watchLinkedImeis(FirebaseFirestore db, FirebaseAuth auth) {
+  final uid = auth.currentUser?.uid;
+  if (uid == null) return Stream.value(const []);
+  return db.collection('users').doc(uid).snapshots().map((snap) {
+    return (snap.data()?['linkedImeis'] as List?)?.whereType<String>().toList() ??
+        const <String>[];
+  });
+}
+
+// Firestore whereIn supports at most 30 values per query.
+const _maxWhereIn = 30;
+
 class DeviceService {
-  DeviceService({FirebaseFirestore? db}) : _db = db ?? FirebaseFirestore.instance;
+  DeviceService({FirebaseFirestore? db, FirebaseAuth? auth})
+      : _db = db ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
 
   Future<void> renameDevice(String imei, String name) async {
     final trimmed = name.trim();
     await _db.collection('devices').doc(imei).update({
       'name': trimmed.isEmpty ? FieldValue.delete() : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Streams only the devices this signed-in guardian is linked to.
+  Stream<List<Device>> watchLinkedDevices() {
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (linked.isEmpty) return Stream.value(const <Device>[]);
+      return _db
+          .collection('devices')
+          .where(FieldPath.documentId, whereIn: linked.take(_maxWhereIn).toList())
+          .snapshots()
+          .map((snap) => snap.docs.map(Device.fromDoc).toList());
     });
   }
 }
@@ -26,9 +58,14 @@ class GeofenceService {
   final FirebaseAuth _auth;
 
   Stream<List<Geofence>> watchAll() {
-    return _db.collection('geofences').snapshots().map(
-          (snap) => snap.docs.map(Geofence.fromDoc).toList(),
-        );
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (linked.isEmpty) return Stream.value(const <Geofence>[]);
+      return _db
+          .collection('geofences')
+          .where('imei', whereIn: linked.take(_maxWhereIn).toList())
+          .snapshots()
+          .map((snap) => snap.docs.map(Geofence.fromDoc).toList());
+    });
   }
 
   Future<void> create({
@@ -160,6 +197,20 @@ class AlertService {
     await _db.collection('alerts').doc(alertId).update({
       'resolved': true,
       'resolvedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Streams recent alerts for devices this signed-in guardian is linked to.
+  Stream<List<GuardianAlert>> watchLinkedAlerts({int limit = 100}) {
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (linked.isEmpty) return Stream.value(const <GuardianAlert>[]);
+      return _db
+          .collection('alerts')
+          .where('imei', whereIn: linked.take(_maxWhereIn).toList())
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map((snap) => snap.docs.map(GuardianAlert.fromDoc).toList());
     });
   }
 }

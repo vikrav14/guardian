@@ -30,12 +30,7 @@ async function resolveCallerContext(db, fromRaw) {
     }
   }
 
-  let linkedImeis = matched?.linkedImeis;
-  if (!Array.isArray(linkedImeis) || linkedImeis.length === 0) {
-    // Demo fallback: all devices (bring-up)
-    const devicesSnap = await db.collection('devices').limit(20).get();
-    linkedImeis = devicesSnap.docs.map((d) => d.id);
-  }
+  const linkedImeis = Array.isArray(matched?.linkedImeis) ? matched.linkedImeis : [];
 
   const devices = [];
   for (const imei of linkedImeis) {

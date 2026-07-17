@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../models/device.dart';
@@ -138,12 +137,10 @@ class SafeZonesPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: GuardianColors.surfaceMuted,
       body: SafeArea(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('devices').snapshots(),
+        child: StreamBuilder<List<Device>>(
+          stream: DeviceService().watchLinkedDevices(),
           builder: (context, deviceSnap) {
-            final devices = deviceSnap.hasData
-                ? deviceSnap.data!.docs.map(Device.fromDoc).toList()
-                : <Device>[];
+            final devices = deviceSnap.data ?? <Device>[];
 
             return StreamBuilder<List<Geofence>>(
               stream: GeofenceService().watchAll(),

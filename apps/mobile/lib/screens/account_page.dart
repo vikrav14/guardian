@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -129,12 +128,10 @@ class AccountPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance.collection('devices').snapshots(),
+                  StreamBuilder<List<Device>>(
+                    stream: DeviceService().watchLinkedDevices(),
                     builder: (context, snapshot) {
-                      final devices = snapshot.hasData
-                          ? snapshot.data!.docs.map(Device.fromDoc).toList()
-                          : <Device>[];
+                      final devices = snapshot.data ?? <Device>[];
 
                       if (devices.isEmpty) {
                         return Container(

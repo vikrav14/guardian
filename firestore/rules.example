@@ -18,37 +18,36 @@ service cloud.firestore {
       allow write: if signedIn() && request.auth.uid == uid;
     }
 
-    // Bring-up: any signed-in guardian can read all devices/alerts.
-    // Tighten to linkedTo(imei) before production.
     match /devices/{imei} {
-      allow read: if signedIn();
+      allow read: if linkedTo(imei);
       // Gateway (Admin SDK) owns device telemetry. Clients may only rename.
-      allow update: if signedIn()
+      allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['name', 'updatedAt']);
       allow create, delete: if false;
 
       match /locations/{locationId} {
-        allow read: if signedIn();
+        allow read: if linkedTo(imei);
         allow write: if false;
       }
     }
 
     match /geofences/{geofenceId} {
-      allow read: if signedIn();
+      allow read: if linkedTo(resource.data.imei);
       allow create: if signedIn()
+        && linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if signedIn()
+      allow update, delete: if linkedTo(resource.data.imei)
         && resource.data.createdBy == request.auth.uid;
     }
 
     match /alerts/{alertId} {
-      allow read: if signedIn();
-      allow update: if signedIn()
+      allow read: if linkedTo(resource.data.imei);
+      allow update: if linkedTo(resource.data.imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
       // App "Send help alert" — gateway still owns device-originated alerts.
-      allow create: if signedIn()
+      allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.type == 'sos'
         && request.resource.data.severity == 'critical'
         && request.resource.data.resolved == false
@@ -74,7 +73,7 @@ service cloud.firestore {
     }
 
     match /notificationLogs/{logId} {
-      allow read: if signedIn();
+      allow read: if linkedTo(resource.data.imei);
       allow write: if false; // gateway Admin SDK only
     }
   }

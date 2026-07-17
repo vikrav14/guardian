@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -74,16 +73,11 @@ class AlertsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final query = FirebaseFirestore.instance
-        .collection('alerts')
-        .orderBy('createdAt', descending: true)
-        .limit(100);
-
     return Scaffold(
       backgroundColor: GuardianColors.surfaceMuted,
       body: SafeArea(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: query.snapshots(),
+        child: StreamBuilder<List<GuardianAlert>>(
+          stream: AlertService().watchLinkedAlerts(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(child: Text('${snapshot.error}'));
@@ -92,7 +86,7 @@ class AlertsPage extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final alerts = snapshot.data!.docs.map(GuardianAlert.fromDoc).toList();
+            final alerts = snapshot.data!;
             final recent = alerts.where((a) {
               final at = a.createdAt;
               if (at == null) return true;

@@ -13,7 +13,7 @@ Create a Firebase project so the gateway can write live device data (and the Flu
 1. **Authentication** → Sign-in method → enable **Email/Password**
 2. **Firestore Database** → Create database  
    - Start in **test mode** for local bring-up  
-   - Later deploy rules from [`firestore/rules.example`](../firestore/rules.example)
+   - Deploy the real rules before any non-solo use — see step 6
 
 ## 3. Service account for the gateway
 
@@ -64,6 +64,22 @@ npm run simulate -- --sos
 
 With Firestore enabled, check the `devices` collection for IMEI `359633100123456`.
 
-## 6. Flutter (next)
+## 6. Deploy Firestore rules + indexes
 
-The mobile app will use a normal Firebase app config (`google-services.json` / `GoogleService-Info.plist`) — separate from the gateway service account.
+The rules in [`firestore/rules.example`](../firestore/rules.example) scope every read to `linkedTo(imei)`
+(i.e. the caller's `users/{uid}.linkedImeis` must contain the device's IMEI), so the app's alert list
+also needs a composite index. Both are already wired up in [`firebase.json`](../firebase.json):
+
+```bash
+npm install -g firebase-tools   # once
+firebase login
+firebase deploy --only firestore:rules,firestore:indexes --project guardian-mu
+```
+
+Without this, Firestore falls back to whatever rules you set in test mode — do this before letting
+more than one family use the app.
+
+## 7. Flutter
+
+The mobile app uses its own Firebase app config (`lib/firebase_options.dart`, generated via
+`flutterfire configure`) — separate from the gateway's service account.

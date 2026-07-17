@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -20,7 +19,7 @@ class MapDashboardPage extends StatefulWidget {
 
 class _MapDashboardPageState extends State<MapDashboardPage> {
   GoogleMapController? _mapController;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
+  StreamSubscription<List<Device>>? _sub;
   StreamSubscription<List<Geofence>>? _geofenceSub;
 
   List<Device> _devices = const [];
@@ -44,9 +43,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _sub = FirebaseFirestore.instance.collection('devices').snapshots().listen(
-      (snapshot) {
-        final devices = snapshot.docs.map(Device.fromDoc).toList();
+    _sub = DeviceService().watchLinkedDevices().listen(
+      (devices) {
         if (!mounted) return;
         setState(() {
           _devices = devices;

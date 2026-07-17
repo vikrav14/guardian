@@ -38,6 +38,15 @@ async function handleChat({ from, text }) {
   const db = getDb();
   const ctx = await resolveCallerContext(db, from);
   console.log(`[assistant] from=${ctx.from} devices=${ctx.linkedImeis.length} text=${JSON.stringify(text)}`);
+
+  if (!ctx.uid) {
+    return {
+      ctx,
+      reply:
+        "This number isn't registered with any Guardian family yet. Ask your guardian to add you as a contact in the app first.",
+    };
+  }
+
   const reply = await answerWithAssistant(db, ctx, text);
   return { ctx, reply };
 }
