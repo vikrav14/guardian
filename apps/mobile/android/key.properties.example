@@ -1,0 +1,4 @@
+storePassword=REPLACE_WITH_YOUR_KEYSTORE_PASSWORD
+keyPassword=REPLACE_WITH_YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=/absolute/path/to/guardian-upload-key.jks

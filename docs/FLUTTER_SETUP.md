@@ -66,3 +66,26 @@ flutter run -d chrome
 ```
 
 You should see the simulated device near Quatre Bornes on the map, with battery / heartbeat updating live.
+
+## Android release signing
+
+`flutter run --release` and debug builds work out of the box, signed with the debug key. To produce
+a real release APK/AAB (e.g. for Google Play), generate your own upload keystore once:
+
+```powershell
+cd C:\Users\MSI\repos\guardian\apps\mobile\android
+keytool -genkeypair -v -keystore guardian-upload-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+`keytool` will ask you to choose a store password, a key password, and your name/organization —
+keep the passwords somewhere safe, you'll need them for every future release build. Then:
+
+```powershell
+Copy-Item key.properties.example key.properties
+# Edit key.properties: set storeFile to the full path of guardian-upload-key.jks above,
+# and storePassword/keyPassword to what you chose.
+```
+
+`key.properties` and `*.jks`/`*.keystore` are already gitignored — never commit them. Once
+`key.properties` exists, `flutter build appbundle`/`flutter build apk --release` will sign with it
+automatically (see `android/app/build.gradle.kts`).

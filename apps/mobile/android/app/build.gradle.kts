@@ -14,6 +14,16 @@ val googleMapsApiKey: String =
         ?: System.getenv("GOOGLE_MAPS_API_KEY")
         ?: ""
 
+// Release signing: see key.properties.example for how to generate your own
+// keystore. Falls back to debug signing (so `flutter run --release` still
+// works out of the box) when key.properties isn't present.
+val keystoreProperties = java.util.Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "mu.guardian.guardian"
     compileSdk = flutter.compileSdkVersion
@@ -25,7 +35,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "mu.guardian.guardian"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -36,11 +45,26 @@ android {
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                // No key.properties yet — sign with the debug key so
+                // `flutter run --release` still works during development.
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
