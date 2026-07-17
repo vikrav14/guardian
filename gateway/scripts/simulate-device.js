@@ -152,15 +152,23 @@ async function main() {
     }
 
     setInterval(() => {
-      const jitterLat = args.lat + (Math.random() - 0.5) * 0.001;
-      const jitterLng = args.lng + (Math.random() - 0.5) * 0.001;
+      // Walk ~25–40 m each tick so the map marker clearly moves.
+      const stepMeters = 25 + Math.random() * 15;
+      const bearing = Math.random() * Math.PI * 2;
+      const dLat = (stepMeters * Math.cos(bearing)) / 111320;
+      const dLng =
+        (stepMeters * Math.sin(bearing)) /
+        (111320 * Math.cos((args.lat * Math.PI) / 180));
+      args.lat += dLat;
+      args.lng += dLng;
+      const speedKmh = Math.max(3, Math.round((stepMeters / (args.intervalMs / 1000)) * 3.6));
       const loc = buildLocation({
-        lat: jitterLat,
-        lng: jitterLng,
-        speedKmh: 3 + Math.floor(Math.random() * 8),
+        lat: args.lat,
+        lng: args.lng,
+        speedKmh,
         serial: serial++,
       });
-      console.log('[simulate] → LOCATION', jitterLat.toFixed(5), jitterLng.toFixed(5));
+      console.log('[simulate] → LOCATION', args.lat.toFixed(5), args.lng.toFixed(5), `${speedKmh} km/h`);
       socket.write(loc);
       socket.write(buildHeartbeat(serial++, 4 + Math.floor(Math.random() * 3)));
     }, args.intervalMs);

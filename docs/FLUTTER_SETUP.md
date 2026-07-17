@@ -26,6 +26,24 @@ The app shows a login/register screen. New accounts get a `users/{uid}` profile 
 
 Also enable **Firestore** rules that allow reads while testing (or keep temporary test mode). For production, deploy [`firestore/rules.example`](../firestore/rules.example) after Auth is wired.
 
+## Google Maps
+
+1. In [Google Cloud Console](https://console.cloud.google.com/) enable **Maps JavaScript API** (for Chrome/web) and **Maps SDK for Android** if you build the Android app.
+2. Restrict the key (HTTP referrers for web: `http://localhost:8080/*`, Android package later).
+3. Copy the local key file (gitignored — never commit the real key):
+
+```powershell
+cd C:\Users\MSI\repos\guardian\apps\mobile
+Copy-Item web\maps_key.js.example web\maps_key.js
+# Edit web\maps_key.js and set window.GOOGLE_MAPS_API_KEY
+```
+
+For Android, add to `android/local.properties`:
+
+```
+GOOGLE_MAPS_API_KEY=your_key_here
+```
+
 ## Run the dashboard
 
 Terminal A — gateway + simulator (so there is live data):

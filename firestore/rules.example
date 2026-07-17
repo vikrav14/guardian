@@ -14,14 +14,19 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid;
     }
 
     // Bring-up: any signed-in guardian can read all devices/alerts.
     // Tighten to linkedTo(imei) before production.
     match /devices/{imei} {
       allow read: if signedIn();
-      allow write: if false; // gateway (Admin SDK) only
+      // Gateway (Admin SDK) owns device telemetry. Clients may only rename.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name', 'updatedAt']);
+      allow create, delete: if false;
 
       match /locations/{locationId} {
         allow read: if signedIn();
@@ -42,7 +47,35 @@ service cloud.firestore {
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
-      allow create, delete: if false;
+      // App "Send help alert" — gateway still owns device-originated alerts.
+      allow create: if signedIn()
+        && request.resource.data.type == 'sos'
+        && request.resource.data.severity == 'critical'
+        && request.resource.data.resolved == false
+        && request.resource.data.notifyStatus == 'pending'
+        && request.resource.data.keys()
+            .hasOnly(['imei', 'type', 'severity', 'message', 'resolved',
+                      'payload', 'createdAt', 'notifyStatus']);
+      allow delete: if false;
+    }
+
+    match /invites/{inviteId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if signedIn() && (
+        resource.data.createdBy == request.auth.uid
+        || (resource.data.status == 'pending'
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedBy == request.auth.uid)
+      );
+      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /notificationLogs/{logId} {
+      allow read: if signedIn();
+      allow write: if false; // gateway Admin SDK only
     }
   }
 }

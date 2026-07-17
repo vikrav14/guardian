@@ -2,8 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import 'home_shell.dart';
 import 'login_page.dart';
-import 'map_dashboard_page.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -58,7 +58,7 @@ class _AuthGateState extends State<AuthGate> {
                 ),
               );
             }
-            return const MapDashboardPage();
+            return const HomeShell();
           },
         );
       },

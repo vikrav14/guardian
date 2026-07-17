@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Google Maps API key (local only — never commit)
+/web/maps_key.js
+/android/local.properties

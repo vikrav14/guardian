@@ -1,9 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,21 +20,10 @@ class GuardianApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF1F8A4C),
-        brightness: Brightness.light,
-        surface: const Color(0xFFF7F4EF),
-      ),
-      useMaterial3: true,
-    );
-
     return MaterialApp(
       title: 'Guardian',
       debugShowCheckedModeBanner: false,
-      theme: base.copyWith(
-        textTheme: GoogleFonts.dmSansTextTheme(base.textTheme),
-      ),
+      theme: buildGuardianTheme(),
       home: DefaultFirebaseOptions.isConfigured
           ? const AuthGate()
           : const _FirebaseSetupPage(),
@@ -50,27 +39,18 @@ class _FirebaseSetupPage extends StatelessWidget {
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: const Padding(
-            padding: EdgeInsets.all(28),
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Guardian',
-                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Firebase Web app config is still missing.',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'See docs/FLUTTER_SETUP.md to register the Web app and paste config '
-                  'into lib/firebase_options.dart.',
-                  style: TextStyle(height: 1.45),
+                Text('Guardian', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                const Text(
+                  'Firebase Web app config is still missing. See docs/FLUTTER_SETUP.md.',
+                  style: TextStyle(color: GuardianColors.textSecondary),
                 ),
               ],
             ),

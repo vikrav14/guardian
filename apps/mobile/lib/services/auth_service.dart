@@ -53,6 +53,7 @@ class AuthService {
       'role': 'guardian',
       'linkedImeis': [demoImei],
       'emergencyContacts': <Map<String, dynamic>>[],
+      'familyMembers': <Map<String, dynamic>>[],
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });

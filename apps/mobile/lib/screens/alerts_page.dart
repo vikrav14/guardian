@@ -3,9 +3,74 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/alert.dart';
+import '../services/guardian_services.dart';
+import '../theme/app_theme.dart';
+
+enum _AlertTone { danger, warning, neutral }
 
 class AlertsPage extends StatelessWidget {
   const AlertsPage({super.key});
+
+  _AlertTone _toneFor(GuardianAlert alert) {
+    final t = alert.type.toLowerCase();
+    final s = alert.severity.toLowerCase();
+    if (t == 'sos' || t == 'fall' || s == 'critical') return _AlertTone.danger;
+    if (t.contains('geofence') || t == 'low_battery' || s == 'warning') {
+      return _AlertTone.warning;
+    }
+    return _AlertTone.neutral;
+  }
+
+  IconData _iconFor(GuardianAlert alert) {
+    switch (alert.type.toLowerCase()) {
+      case 'sos':
+      case 'fall':
+        return Icons.warning_amber_rounded;
+      case 'geofence_exit':
+      case 'geofence_enter':
+        return Icons.gpp_bad_outlined;
+      case 'low_battery':
+        return Icons.battery_1_bar;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
+
+  String _titleFor(GuardianAlert alert) {
+    switch (alert.type.toLowerCase()) {
+      case 'sos':
+        return alert.message.isNotEmpty ? alert.message : 'SOS alert';
+      case 'fall':
+        return 'Possible fall detected';
+      case 'geofence_exit':
+        return 'Left safe zone';
+      case 'geofence_enter':
+        return 'Entered safe zone';
+      case 'low_battery':
+        return 'Pendant battery low';
+      default:
+        return alert.message.isNotEmpty ? alert.message : alert.type;
+    }
+  }
+
+  String _actionFor(GuardianAlert alert) {
+    if (alert.resolved) return 'Resolved';
+    final tone = _toneFor(alert);
+    if (tone == _AlertTone.danger) return 'Review';
+    if (tone == _AlertTone.warning) return 'View';
+    return 'Dismiss';
+  }
+
+  (Color bg, Color fg, Color iconFg) _toneColors(_AlertTone tone) {
+    switch (tone) {
+      case _AlertTone.danger:
+        return (GuardianColors.dangerBg, GuardianColors.dangerText, GuardianColors.danger);
+      case _AlertTone.warning:
+        return (GuardianColors.warningBg, GuardianColors.warningText, GuardianColors.warning);
+      case _AlertTone.neutral:
+        return (GuardianColors.surface, GuardianColors.textPrimary, GuardianColors.textSecondary);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,176 +80,190 @@ class AlertsPage extends StatelessWidget {
         .limit(100);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Alerts'),
-        backgroundColor: const Color(0xFFF7F4EF),
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: query.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Could not load alerts.\n${snapshot.error}\n\n'
-                  'Tip: create a Firestore index if prompted, or keep rules in test mode.',
-                  textAlign: TextAlign.center,
+      backgroundColor: GuardianColors.surfaceMuted,
+      body: SafeArea(
+        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: query.snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('${snapshot.error}'));
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final alerts = snapshot.data!.docs.map(GuardianAlert.fromDoc).toList();
+            final recent = alerts.where((a) {
+              final at = a.createdAt;
+              if (at == null) return true;
+              return DateTime.now().difference(at) < const Duration(hours: 24);
+            }).toList();
+            final open = alerts.where((a) => !a.resolved).toList();
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+              children: [
+                const Text(
+                  'Alerts',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
                 ),
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  '${recent.length} in the last 24 hours',
+                  style: const TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                ),
+                const SizedBox(height: 14),
+                if (open.isEmpty && alerts.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: GuardianColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'No alerts yet. SOS and other events will appear here.',
+                      style: TextStyle(color: GuardianColors.textSecondary),
+                    ),
+                  )
+                else ...[
+                  for (final alert in open) ...[
+                    _AlertCard(
+                      title: _titleFor(alert),
+                      subtitle: _subtitle(alert),
+                      icon: _iconFor(alert),
+                      tone: _toneFor(alert),
+                      colors: _toneColors(_toneFor(alert)),
+                      action: _actionFor(alert),
+                      onAction: () => AlertService().resolve(alert.id),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: GuardianColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: GuardianColors.safeBg,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.check, color: GuardianColors.safe, size: 20),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          open.isEmpty
+                              ? 'Everyone is all clear'
+                              : 'Everyone else is all clear',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'New alerts will show up here first',
+                          style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             );
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final alerts = snapshot.data!.docs.map(GuardianAlert.fromDoc).toList();
-          if (alerts.isEmpty) {
-            return const Center(
-              child: Text(
-                'No alerts yet.\nTrigger SOS from the simulator:\n'
-                'npm run simulate -- --sos',
-                textAlign: TextAlign.center,
-                style: TextStyle(height: 1.45),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: alerts.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final alert = alerts[index];
-              return _AlertTile(alert: alert);
-            },
-          );
-        },
+          },
+        ),
       ),
     );
   }
+
+  String _subtitle(GuardianAlert alert) {
+    final time = alert.createdAt != null
+        ? DateFormat('h:mm a').format(alert.createdAt!.toLocal())
+        : '—';
+    return 'IMEI ${alert.imei} · $time';
+  }
 }
 
-class _AlertTile extends StatelessWidget {
-  const _AlertTile({required this.alert});
+class _AlertCard extends StatelessWidget {
+  const _AlertCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tone,
+    required this.colors,
+    required this.action,
+    required this.onAction,
+  });
 
-  final GuardianAlert alert;
-
-  Color get _severityColor {
-    switch (alert.severity) {
-      case 'critical':
-        return const Color(0xFFB91C1C);
-      case 'warning':
-        return const Color(0xFFD97706);
-      default:
-        return const Color(0xFF2F6FED);
-    }
-  }
-
-  IconData get _icon {
-    switch (alert.type) {
-      case 'sos':
-        return Icons.sos;
-      case 'fall':
-        return Icons.personal_injury_outlined;
-      case 'low_battery':
-        return Icons.battery_alert;
-      case 'geofence_exit':
-      case 'geofence_enter':
-        return Icons.fence;
-      default:
-        return Icons.notifications_active_outlined;
-    }
-  }
-
-  Future<void> _resolve(BuildContext context) async {
-    await FirebaseFirestore.instance.collection('alerts').doc(alert.id).update({
-      'resolved': true,
-      'resolvedAt': FieldValue.serverTimestamp(),
-    });
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Alert marked resolved')),
-      );
-    }
-  }
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final _AlertTone tone;
+  final (Color bg, Color fg, Color iconFg) colors;
+  final String action;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    final time = alert.createdAt != null
-        ? DateFormat('dd MMM, HH:mm').format(alert.createdAt!.toLocal())
-        : '—';
-
-    return Material(
-      color: alert.resolved ? const Color(0xFFEDEBE6) : const Color(0xFFF7F4EF),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: _severityColor.withValues(alpha: 0.15),
-              foregroundColor: _severityColor,
-              child: Icon(_icon, size: 20),
+    final (bg, fg, iconFg) = colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: tone == _AlertTone.neutral
+            ? Border.all(color: GuardianColors.border)
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: iconFg.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          alert.type.toUpperCase(),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: _severityColor,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        time,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF5C6B63)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(alert.message),
-                  const SizedBox(height: 4),
-                  Text(
-                    'IMEI ${alert.imei}',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF5C6B63)),
-                  ),
-                  if (!alert.resolved) ...[
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => _resolve(context),
-                        icon: const Icon(Icons.check, size: 18),
-                        label: const Text('Resolve'),
-                      ),
-                    ),
-                  ] else
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Resolved',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1F8A4C),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 17, color: iconFg),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: fg.withValues(alpha: 0.8)),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              foregroundColor: fg,
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              action,
+              style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }

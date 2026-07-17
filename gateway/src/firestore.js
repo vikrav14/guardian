@@ -1,9 +1,11 @@
 const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
+const { notifyEmergencyContacts } = require('./notify');
 
 let db = null;
 let enabled = false;
+let alertWatchUnsub = null;
 
 function initFirestore() {
   if (config.firestoreDisabled) {
@@ -44,6 +46,11 @@ function initFirestore() {
   db = admin.firestore();
   enabled = true;
   console.log(`[firestore] connected to project ${config.firebaseProjectId}`);
+  startPendingAlertWatcher();
+}
+
+function getDb() {
+  return enabled ? db : null;
 }
 
 function nowTs() {
@@ -82,25 +89,115 @@ async function appendLocation(imei, point) {
   await db.collection('devices').doc(imei).collection('locations').add(data);
 }
 
+function shouldNotify(alert) {
+  const t = String(alert.type || '').toLowerCase();
+  return t === 'sos' || t === 'fall' || t === 'geofence_exit';
+}
+
+async function deliverAlertNotifications(imei, alert, alertId) {
+  if (!shouldNotify(alert)) {
+    if (enabled && alertId) {
+      await db.collection('alerts').doc(alertId).set(
+        { notifyStatus: 'skipped' },
+        { merge: true }
+      );
+    }
+    return;
+  }
+
+  if (enabled && alertId) {
+    const ref = db.collection('alerts').doc(alertId);
+    try {
+      const claimed = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return false;
+        if (snap.data().notifyStatus !== 'pending') return false;
+        tx.update(ref, { notifyStatus: 'sending' });
+        return true;
+      });
+      if (!claimed) return;
+    } catch (err) {
+      console.error('[notify] claim failed', err.message);
+      return;
+    }
+  }
+
+  try {
+    await notifyEmergencyContacts(db, imei, alert);
+    if (enabled && alertId) {
+      await db.collection('alerts').doc(alertId).set(
+        {
+          notifyStatus: 'sent',
+          notifiedAt: nowTs(),
+        },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.error('[notify] failed', err.message);
+    if (enabled && alertId) {
+      await db.collection('alerts').doc(alertId).set(
+        {
+          notifyStatus: 'failed',
+          notifyError: err.message,
+        },
+        { merge: true }
+      );
+    }
+  }
+}
+
 async function createAlert(imei, alert) {
   const data = {
     imei,
     resolved: false,
     resolvedAt: null,
+    notifyStatus: 'pending',
     createdAt: nowTs(),
     ...alert,
   };
 
   if (!enabled) {
     console.log(`[firestore:dry-run] alerts`, JSON.stringify(data));
-    return;
+    await deliverAlertNotifications(imei, data, null);
+    return null;
   }
 
-  await db.collection('alerts').add(data);
+  const ref = await db.collection('alerts').add(data);
+  // Deliver immediately for gateway-originated alerts (watcher also covers app SOS).
+  await deliverAlertNotifications(imei, data, ref.id);
+  return ref.id;
+}
+
+function startPendingAlertWatcher() {
+  if (!enabled || alertWatchUnsub) return;
+
+  alertWatchUnsub = db
+    .collection('alerts')
+    .where('notifyStatus', '==', 'pending')
+    .onSnapshot(
+      (snap) => {
+        snap.docChanges().forEach((change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
+          const data = change.doc.data() || {};
+          // Skip if gateway createAlert is already delivering the same doc mid-write.
+          if (data.notifyStatus !== 'pending') return;
+          deliverAlertNotifications(data.imei, data, change.doc.id).catch((err) => {
+            console.error('[notify] watcher error', err.message);
+          });
+        });
+      },
+      (err) => {
+        console.error('[notify] alert watcher failed', err.message);
+      }
+    );
+
+  console.log('[notify] watching alerts with notifyStatus=pending');
 }
 
 module.exports = {
   initFirestore,
+  getDb,
   upsertDevice,
   appendLocation,
   createAlert,

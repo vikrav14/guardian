@@ -23,7 +23,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCTfWy000OwIQKjm7nqs0czTz37lDlUT2A',
+    apiKey: 'AIzaSyCTfWyOO0OwIQKjm7nqs0czTz37lDlUT2A',
     appId: '1:813482800288:web:cc6d6dd3d1ec6d6cc205c5',
     messagingSenderId: '813482800288',
     projectId: 'guardian-fbadd',
@@ -33,7 +33,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCTfWy000OwIQKjm7nqs0czTz37lDlUT2A',
+    apiKey: 'AIzaSyCTfWyOO0OwIQKjm7nqs0czTz37lDlUT2A',
     appId: '1:813482800288:web:cc6d6dd3d1ec6d6cc205c5',
     messagingSenderId: '813482800288',
     projectId: 'guardian-fbadd',

@@ -3,12 +3,16 @@ const config = require('./config');
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
 const {
   initFirestore,
+  getDb,
   upsertDevice,
   appendLocation,
   createAlert,
 } = require('./firestore');
+const { evaluateGeofenceTransitions } = require('./geofence');
+const { startHttpServer } = require('./http');
 
 initFirestore();
+startHttpServer();
 
 const sessions = new Map(); // socket -> { imei, buffer }
 
@@ -42,6 +46,19 @@ async function applyEvents(events) {
           accuracySource: event.accuracySource,
           recordedAt: event.location.recordedAt,
         });
+
+        const db = getDb();
+        if (db && event.location) {
+          const transitions = await evaluateGeofenceTransitions(
+            db,
+            event.imei,
+            event.location
+          );
+          for (const t of transitions) {
+            console.log(`[geofence] ${event.imei} ${t.type}: ${t.message}`);
+            await createAlert(event.imei, t);
+          }
+        }
       } else if (event.type === 'heartbeat') {
         await upsertDevice(event.imei, {
           online: true,

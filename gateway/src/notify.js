@@ -1,0 +1,152 @@
+const config = require('./config');
+
+/**
+ * Find guardian users who linked this IMEI and collect emergency contacts.
+ */
+async function findContactsForImei(db, imei) {
+  const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
+  const contacts = [];
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+    const list = Array.isArray(data.emergencyContacts) ? data.emergencyContacts : [];
+    for (const c of list) {
+      if (!c || !c.phone) continue;
+      contacts.push({
+        name: c.name || 'Contact',
+        phone: String(c.phone).trim(),
+        whatsapp: c.whatsapp ? String(c.whatsapp).trim() : null,
+        guardianUid: doc.id,
+      });
+    }
+  }
+  return contacts;
+}
+
+function normalizeE164(phone) {
+  const digits = String(phone).replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) return digits;
+  // Mauritius default country code if local mobile given
+  if (/^5\d{7}$/.test(digits)) return `+230${digits}`;
+  if (/^\d{8,15}$/.test(digits)) return `+${digits}`;
+  return digits;
+}
+
+async function twilioRequest(path, body) {
+  const sid = config.twilioAccountSid;
+  const token = config.twilioAuthToken;
+  if (!sid || !token) return { ok: false, skipped: true, reason: 'twilio_not_configured' };
+
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const params = new URLSearchParams(body);
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    return { ok: false, status: res.status, body: text.slice(0, 300) };
+  }
+  return { ok: true, body: text.slice(0, 120) };
+}
+
+async function sendSms(to, body) {
+  if (!config.twilioFromSms) {
+    return { ok: false, skipped: true, reason: 'TWILIO_FROM_SMS missing' };
+  }
+  return twilioRequest('/Messages.json', {
+    To: normalizeE164(to),
+    From: config.twilioFromSms,
+    Body: body,
+  });
+}
+
+async function sendWhatsApp(to, body) {
+  if (!config.twilioWhatsAppFrom) {
+    return { ok: false, skipped: true, reason: 'TWILIO_WHATSAPP_FROM missing' };
+  }
+  const dest = normalizeE164(to);
+  return twilioRequest('/Messages.json', {
+    To: dest.startsWith('whatsapp:') ? dest : `whatsapp:${dest}`,
+    From: config.twilioWhatsAppFrom,
+    Body: body,
+  });
+}
+
+function buildMessage(imei, alert) {
+  const type = (alert.type || 'alert').toUpperCase();
+  const msg = alert.message || 'Guardian alert';
+  return `Guardian ${type}: ${msg}\nDevice IMEI ${imei}`;
+}
+
+/**
+ * Notify all emergency contacts linked to this IMEI.
+ * Uses Twilio when configured; always writes a notificationLogs row.
+ */
+async function notifyEmergencyContacts(db, imei, alert) {
+  const contacts = await findContactsForImei(db, imei);
+  const text = buildMessage(imei, alert);
+  const results = [];
+
+  if (contacts.length === 0) {
+    console.log(`[notify] no emergency contacts for IMEI ${imei}`);
+  }
+
+  for (const c of contacts) {
+    const entry = { name: c.name, phone: c.phone, channels: {} };
+
+    if (config.notifySms) {
+      entry.channels.sms = await sendSms(c.phone, text);
+    } else {
+      entry.channels.sms = { ok: false, skipped: true, reason: 'NOTIFY_SMS=false' };
+    }
+
+    const waTarget = c.whatsapp || c.phone;
+    if (config.notifyWhatsApp) {
+      entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+    } else {
+      entry.channels.whatsapp = { ok: false, skipped: true, reason: 'NOTIFY_WHATSAPP=false' };
+    }
+
+    // Always log intent so you can see fan-out without Twilio.
+    console.log(
+      `[notify] ${c.name} ${c.phone} sms=${entry.channels.sms.ok ? 'ok' : entry.channels.sms.reason || 'fail'} ` +
+        `wa=${entry.channels.whatsapp.ok ? 'ok' : entry.channels.whatsapp.reason || 'fail'}`
+    );
+    results.push(entry);
+  }
+
+  if (db) {
+    await db.collection('notificationLogs').add({
+      imei,
+      alertType: alert.type || null,
+      message: text,
+      contactCount: contacts.length,
+      results,
+      createdAt: adminTimestamp(),
+    });
+  }
+
+  return results;
+}
+
+function adminTimestamp() {
+  try {
+    const admin = require('firebase-admin');
+    return admin.firestore.FieldValue.serverTimestamp();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+module.exports = {
+  notifyEmergencyContacts,
+  findContactsForImei,
+  buildMessage,
+  normalizeE164,
+  sendSms,
+  sendWhatsApp,
+};
