@@ -1,30 +1,60 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:guardian/l10n/app_localizations.dart';
+import 'package:guardian/l10n/app_localizations_mfe.dart';
+import 'package:guardian/widgets/guardian_widgets.dart';
 
-import 'package:guardian/main.dart';
+Widget _wrap(Widget child, {Locale locale = const Locale('en')}) {
+  return MaterialApp(
+    locale: locale,
+    supportedLocales: AppLocalizations.supportedLocales,
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    home: Scaffold(body: child),
+  );
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('GuardianBottomNav shows localized English labels and reports taps', (tester) async {
+    var tapped = -1;
+    await tester.pumpWidget(
+      _wrap(GuardianBottomNav(currentIndex: 0, onTap: (i) => tapped = i)),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Map'), findsOneWidget);
+    expect(find.text('Safe zones'), findsOneWidget);
+    expect(find.text('Alerts'), findsOneWidget);
+    expect(find.text('Account'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.tap(find.text('Alerts'));
+    expect(tapped, 2);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('GuardianBottomNav shows French labels when locale is fr', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        GuardianBottomNav(currentIndex: 0, onTap: (_) {}),
+        locale: const Locale('fr'),
+      ),
+    );
+
+    expect(find.text('Carte'), findsOneWidget);
+    expect(find.text('Alertes'), findsOneWidget);
+    expect(find.text('Compte'), findsOneWidget);
+  });
+
+  test('Kreol Morisien translations are present for the core nav labels', () {
+    // Flutter's built-in Material/Cupertino localization delegates don't
+    // support 'mfe', so this checks our own translation data directly
+    // rather than pumping a full MaterialApp with that locale.
+    final t = AppLocalizationsMfe();
+    expect(t.navMap, 'Kart');
+    expect(t.navAlerts, 'Alert');
+    expect(t.navAccount, 'Kont');
   });
 }

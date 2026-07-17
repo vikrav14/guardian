@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "simulate": "node scripts/simulate-device.js",
-    "chat": "node scripts/chat.js"
+    "chat": "node scripts/chat.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
