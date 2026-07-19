@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { centerNumberCommand, sosNumberCommand, statusCommand, sendDeviceCommand } = require('../src/commands');
+const {
+  centerNumberCommand,
+  sosNumberCommand,
+  statusCommand,
+  voiceMonitorCommand,
+  sendDeviceCommand,
+} = require('../src/commands');
 
 test('centerNumberCommand matches the vendor SMS syntax exactly', () => {
   assert.equal(centerNumberCommand('+23057123456'), 'pw,123456,center,+23057123456#');
@@ -18,6 +24,10 @@ test('sosNumberCommand rejects an out-of-range slot', () => {
 
 test('statusCommand is the documented ts# check', () => {
   assert.equal(statusCommand(), 'ts#');
+});
+
+test('voiceMonitorCommand matches the RF-V28 community-documented syntax', () => {
+  assert.equal(voiceMonitorCommand('+23057123456'), 'monitor,+23057123456#');
 });
 
 test('sendDeviceCommand rejects an unknown command type', async () => {

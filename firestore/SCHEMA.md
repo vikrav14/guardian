@@ -117,7 +117,7 @@ App-originated downlink commands the gateway sends to the pendant by SMS (see `g
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` |
+| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` (unverified against this exact device -- see commands.js) |
 | params | map | Command-specific, e.g. `{ phone }` or `{ slot, phone }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, simNumber, result }` once sent |

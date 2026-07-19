@@ -443,6 +443,7 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
   final simCtrl = TextEditingController(text: device.simNumber ?? '');
   final centerCtrl = TextEditingController();
   final sosCtrl = TextEditingController();
+  final monitorCtrl = TextEditingController();
   var busy = false;
 
   await showDialog<void>(
@@ -549,6 +550,36 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       label: const Text('Check status'),
                     ),
                   ),
+                  const Divider(height: 24),
+                  const Text(
+                    'Voice monitoring: unverified against this exact device -- documented for '
+                    'the closely related RF-V28 by a third party, not the V28C vendor manual. '
+                    'Test carefully before relying on it.',
+                    style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: monitorCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Your number to receive the silent call',
+                      hintText: '+230…',
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceCommandService()
+                                    .startVoiceMonitor(device.imei, monitorCtrl.text),
+                                'Listen-in command queued',
+                              ),
+                      icon: const Icon(Icons.hearing, size: 16),
+                      label: const Text('Listen in'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -564,6 +595,7 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
   simCtrl.dispose();
   centerCtrl.dispose();
   sosCtrl.dispose();
+  monitorCtrl.dispose();
 }
 
 class _PersonRow extends StatelessWidget {

@@ -1,12 +1,15 @@
 const { sendSms } = require('./notify');
 
 /**
- * SMS command builders for the V28C/GT06 family, using the exact syntax from
- * docs/reference/Switch-Server-SMS-Commands.pdf. Only commands documented
- * there are implemented — features the datasheet lists (voice monitoring,
- * remote photo, reboot, etc.) don't have a documented SMS/GPRS command string
- * in the vendor docs available here, so they are intentionally not built as
- * commands yet rather than guessed.
+ * SMS command builders for the V28C/GT06 family. Most of these use the exact
+ * syntax from docs/reference/Switch-Server-SMS-Commands.pdf (the vendor doc
+ * for this exact device). `voiceMonitorCommand` is the one exception: it's
+ * not in that PDF, but is documented for the RF-V28 -- the same "V28" family
+ * from the same manufacturer (Shenzhen Reachfar) -- by a third-party/community
+ * source (github.com/matthiasmo/RF-V28), not Reachfar's own V28C manual.
+ * Treat it as higher-confidence-but-unverified: test it on a real device
+ * before relying on it. Remote photo capture is still undocumented anywhere
+ * we could find, so it remains unbuilt rather than guessed.
  */
 function centerNumberCommand(phone) {
   return `pw,123456,center,${phone}#`;
@@ -24,10 +27,15 @@ function statusCommand() {
   return 'ts#';
 }
 
+function voiceMonitorCommand(phone) {
+  return `monitor,${phone}#`;
+}
+
 const BUILDERS = {
   set_center_number: ({ phone }) => centerNumberCommand(phone),
   set_sos_number: ({ slot, phone }) => sosNumberCommand(slot, phone),
   check_status: () => statusCommand(),
+  voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
 };
 
 /**
@@ -57,4 +65,5 @@ module.exports = {
   centerNumberCommand,
   sosNumberCommand,
   statusCommand,
+  voiceMonitorCommand,
 };

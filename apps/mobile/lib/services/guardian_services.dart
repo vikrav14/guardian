@@ -456,8 +456,10 @@ class FamilyService {
 }
 
 /// Writes app-originated commands for the gateway to deliver to a pendant by
-/// SMS (see gateway/src/commands.js — only the vendor-documented commands are
-/// supported: center number, SOS numbers, and a status check).
+/// SMS (see gateway/src/commands.js). Center number, SOS numbers, and status
+/// check are from the vendor's own manual; voice monitoring is documented
+/// only for the closely related RF-V28 by a third-party source, not verified
+/// against this exact device — see the comment in commands.js.
 class DeviceCommandService {
   DeviceCommandService({FirebaseFirestore? db, FirebaseAuth? auth})
       : _db = db ?? FirebaseFirestore.instance,
@@ -489,5 +491,11 @@ class DeviceCommandService {
 
   Future<void> checkStatus(String imei) {
     return _enqueue(imei, 'check_status', const {});
+  }
+
+  /// Triggers the pendant to silently call [listenerPhone] for one-way
+  /// listening. Unverified against the V28C specifically — see class doc.
+  Future<void> startVoiceMonitor(String imei, String listenerPhone) {
+    return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
 }
