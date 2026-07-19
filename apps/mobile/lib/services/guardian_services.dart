@@ -498,4 +498,10 @@ class DeviceCommandService {
   Future<void> startVoiceMonitor(String imei, String listenerPhone) {
     return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
+
+  /// Makes the pendant sound an audible alert so it can be found. Unverified
+  /// against the V28C specifically — see class doc.
+  Future<void> ringToFind(String imei) {
+    return _enqueue(imei, 'ring_to_find', const {});
+  }
 }

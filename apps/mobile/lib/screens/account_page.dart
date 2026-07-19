@@ -580,6 +580,19 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       label: const Text('Listen in'),
                     ),
                   ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                                () => DeviceCommandService().ringToFind(device.imei),
+                                'Ring command queued',
+                              ),
+                      icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                      label: const Text('Ring to find'),
+                    ),
+                  ),
                 ],
               ),
             ),

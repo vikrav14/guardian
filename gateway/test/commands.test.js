@@ -5,6 +5,7 @@ const {
   sosNumberCommand,
   statusCommand,
   voiceMonitorCommand,
+  ringToFindCommand,
   sendDeviceCommand,
 } = require('../src/commands');
 
@@ -28,6 +29,10 @@ test('statusCommand is the documented ts# check', () => {
 
 test('voiceMonitorCommand matches the RF-V28 community-documented syntax', () => {
   assert.equal(voiceMonitorCommand('+23057123456'), 'monitor,+23057123456#');
+});
+
+test('ringToFindCommand matches the RF-V28 community-documented syntax', () => {
+  assert.equal(ringToFindCommand(), 'find#');
 });
 
 test('sendDeviceCommand rejects an unknown command type', async () => {

@@ -31,11 +31,18 @@ function voiceMonitorCommand(phone) {
   return `monitor,${phone}#`;
 }
 
+// Same source/confidence caveat as voiceMonitorCommand: documented for the
+// RF-V28 by a third party, not the V28C's own manual.
+function ringToFindCommand() {
+  return 'find#';
+}
+
 const BUILDERS = {
   set_center_number: ({ phone }) => centerNumberCommand(phone),
   set_sos_number: ({ slot, phone }) => sosNumberCommand(slot, phone),
   check_status: () => statusCommand(),
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
+  ring_to_find: () => ringToFindCommand(),
 };
 
 /**
@@ -66,4 +73,5 @@ module.exports = {
   sosNumberCommand,
   statusCommand,
   voiceMonitorCommand,
+  ringToFindCommand,
 };
