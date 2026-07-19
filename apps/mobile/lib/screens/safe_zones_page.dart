@@ -33,9 +33,9 @@ class SafeZonesPage extends StatelessWidget {
 
   Future<void> _createZone(BuildContext context, List<Device> devices) async {
     if (devices.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link a device first')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Link a device first')));
       return;
     }
 
@@ -52,75 +52,95 @@ class SafeZonesPage extends StatelessWidget {
           builder: (ctx, setLocal) {
             return AlertDialog(
               title: const Text('Add safe zone'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    // ignore: deprecated_member_use
-                    value: imei,
-                    items: [
-                      for (final d in devices)
-                        DropdownMenuItem(value: d.imei, child: Text(d.displayName)),
-                    ],
-                    onChanged: (v) => setLocal(() => imei = v ?? imei),
-                    decoration: const InputDecoration(labelText: 'Device'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(labelText: 'Zone name'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: radiusCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Radius (meters)'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: wifiCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Home WiFi name (optional)',
-                      hintText: 'Also counts as "inside" if the pendant supports it',
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use
+                      value: imei,
+                      items: [
+                        for (final d in devices)
+                          DropdownMenuItem(
+                            value: d.imei,
+                            child: Text(d.displayName),
+                          ),
+                      ],
+                      onChanged: (v) => setLocal(() => imei = v ?? imei),
+                      decoration: const InputDecoration(labelText: 'Device'),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          pickedLocation != null
-                              ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
-                                  '${pickedLocation!.longitude.toStringAsFixed(4)}'
-                              : "Center: pendant's current location",
-                          style: const TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
-                        ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Zone name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: radiusCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Radius (meters)',
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          final device = devices.firstWhere((d) => d.imei == imei);
-                          final loc = device.location;
-                          final initial = loc?.isValid == true
-                              ? LatLng(loc!.lat, loc.lng)
-                              : const LatLng(-20.2642, 57.4791);
-                          final picked = await Navigator.of(ctx).push<LatLng>(
-                            MaterialPageRoute(
-                              builder: (_) => LocationPickerPage(initialCenter: initial),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: wifiCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Home WiFi name (optional)',
+                        hintText:
+                            'Also counts as "inside" if the pendant supports it',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            pickedLocation != null
+                                ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
+                                      '${pickedLocation!.longitude.toStringAsFixed(4)}'
+                                : "Center: pendant's current location",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: GuardianColors.textSecondary,
                             ),
-                          );
-                          if (picked != null) {
-                            setLocal(() => pickedLocation = picked);
-                          }
-                        },
-                        child: const Text('Choose on map'),
-                      ),
-                    ],
-                  ),
-                ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final device = devices.firstWhere(
+                              (d) => d.imei == imei,
+                            );
+                            final loc = device.location;
+                            final initial = loc?.isValid == true
+                                ? LatLng(loc!.lat, loc.lng)
+                                : const LatLng(-20.2642, 57.4791);
+                            final picked = await Navigator.of(ctx).push<LatLng>(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    LocationPickerPage(initialCenter: initial),
+                              ),
+                            );
+                            if (picked != null) {
+                              setLocal(() => pickedLocation = picked);
+                            }
+                          },
+                          child: const Text('Choose on map'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Create'),
+                ),
               ],
             );
           },
@@ -171,15 +191,15 @@ class SafeZonesPage extends StatelessWidget {
         wifiSsid: wifiCtrl.text,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Safe zone created')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Safe zone created')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     } finally {
       nameCtrl.dispose();
@@ -220,7 +240,10 @@ class SafeZonesPage extends StatelessWidget {
                             children: [
                               const Text(
                                 'Safe zones',
-                                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -242,7 +265,11 @@ class SafeZonesPage extends StatelessWidget {
                             child: const SizedBox(
                               width: 34,
                               height: 34,
-                              child: Icon(Icons.add, color: Colors.white, size: 18),
+                              child: Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -269,7 +296,10 @@ class SafeZonesPage extends StatelessWidget {
                           icon: _iconFor(zone.name),
                           iconColor: _iconColors(zone.name).$1,
                           iconBg: _iconColors(zone.name).$2,
-                          onToggle: () => GeofenceService().setActive(zone.id, !zone.active),
+                          onToggle: () => GeofenceService().setActive(
+                            zone.id,
+                            !zone.active,
+                          ),
                           onDelete: () => GeofenceService().delete(zone.id),
                         ),
                         const SizedBox(height: 10),
@@ -348,12 +378,18 @@ class _ZoneCard extends StatelessWidget {
               children: [
                 Text(
                   zone.name,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 1),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: GuardianColors.textSecondary,
+                  ),
                 ),
               ],
             ),

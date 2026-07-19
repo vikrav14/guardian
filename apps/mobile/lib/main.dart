@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -9,6 +10,39 @@ import 'screens/auth_gate.dart';
 import 'services/locale_service.dart';
 import 'services/push_service.dart';
 import 'theme/app_theme.dart';
+
+/// Flutter's built-in Material/Cupertino/Widgets localizations don't ship a
+/// Kreol Morisien ('mfe') translation. Without a fallback, any widget that
+/// requires MaterialLocalizations (e.g. PopupMenuButton) crashes outright
+/// when the app locale is 'mfe' — this makes those specific framework
+/// strings fall back to English while our own AppLocalizations.mfe strings
+/// (nav labels, buttons, etc.) still render correctly.
+class _MfeFallbackDelegate<T> extends LocalizationsDelegate<T> {
+  const _MfeFallbackDelegate(this._delegate);
+
+  final LocalizationsDelegate<T> _delegate;
+
+  @override
+  bool isSupported(Locale locale) => locale.languageCode == 'mfe';
+
+  @override
+  Future<T> load(Locale locale) => _delegate.load(const Locale('en'));
+
+  @override
+  bool shouldReload(_MfeFallbackDelegate<T> old) => false;
+}
+
+/// The exact delegate list the app runs with — exposed so tests exercise the
+/// same configuration rather than a hand-rolled copy that can drift.
+final List<LocalizationsDelegate<dynamic>> guardianLocalizationsDelegates = [
+  AppLocalizations.delegate,
+  GlobalMaterialLocalizations.delegate,
+  GlobalWidgetsLocalizations.delegate,
+  GlobalCupertinoLocalizations.delegate,
+  _MfeFallbackDelegate<MaterialLocalizations>(GlobalMaterialLocalizations.delegate),
+  _MfeFallbackDelegate<WidgetsLocalizations>(GlobalWidgetsLocalizations.delegate),
+  _MfeFallbackDelegate<CupertinoLocalizations>(GlobalCupertinoLocalizations.delegate),
+];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,12 +93,7 @@ class _GuardianAppState extends State<GuardianApp> {
       theme: buildGuardianTheme(),
       locale: _locale,
       supportedLocales: LocaleService.supportedLocales,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
+      localizationsDelegates: guardianLocalizationsDelegates,
       home: DefaultFirebaseOptions.isConfigured
           ? const AuthGate()
           : const _FirebaseSetupPage(),
