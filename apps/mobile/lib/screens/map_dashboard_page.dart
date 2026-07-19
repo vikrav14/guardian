@@ -12,6 +12,7 @@ import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/guardian_widgets.dart';
+import 'route_history_page.dart';
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -502,6 +503,18 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.route_outlined, size: 20),
+                          tooltip: 'Route history',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => RouteHistoryPage(
+                                imei: selected.imei,
+                                deviceName: selected.displayName,
+                              ),
+                            ),
                           ),
                         ),
                         StatusPill(

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
+import '../models/location_history_point.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
 /// is in the signed-in user's `linkedImeis` — so every list/stream here has
@@ -44,6 +45,22 @@ class DeviceService {
       'simNumber': trimmed.isEmpty ? FieldValue.delete() : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Streams the given day's location history for a pendant (requires the
+  /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
+  Stream<List<LocationHistoryPoint>> watchDayHistory(String imei, DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('locations')
+        .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('recordedAt', isLessThan: Timestamp.fromDate(end))
+        .orderBy('recordedAt')
+        .snapshots()
+        .map((snap) => snap.docs.map(LocationHistoryPoint.fromDoc).toList());
   }
 
   /// Streams only the devices this signed-in guardian is linked to.

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,6 +40,56 @@ void main() {
       await DeviceService(db: db, auth: auth).renameDevice('AAA', '   ');
       doc = await db.collection('devices').doc('AAA').get();
       expect(doc.data()!.containsKey('name'), false);
+    });
+  });
+
+  group('DeviceService.watchDayHistory', () {
+    test('only returns points recorded within the given day', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final locations = db.collection('devices').doc('AAA').collection('locations');
+      await locations.add({
+        'lat': 1,
+        'lng': 1,
+        'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 16, 23, 0)),
+      });
+      await locations.add({
+        'lat': 2,
+        'lng': 2,
+        'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 17, 10, 0)),
+      });
+      await locations.add({
+        'lat': 3,
+        'lng': 3,
+        'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 18, 1, 0)),
+      });
+
+      final points =
+          await DeviceService(db: db, auth: auth).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+
+      expect(points.length, 1);
+      expect(points.single.lat, 2);
+    });
+
+    test('orders points chronologically', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final locations = db.collection('devices').doc('AAA').collection('locations');
+      await locations.add({
+        'lat': 2,
+        'lng': 2,
+        'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 17, 12, 0)),
+      });
+      await locations.add({
+        'lat': 1,
+        'lng': 1,
+        'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 17, 8, 0)),
+      });
+
+      final points =
+          await DeviceService(db: db, auth: auth).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+
+      expect(points.map((p) => p.lat).toList(), [1, 2]);
     });
   });
 

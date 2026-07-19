@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/alert.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/models/geofence.dart';
+import 'package:guardian/models/location_history_point.dart';
 
 void main() {
   group('Device.fromDoc', () {
@@ -98,6 +100,40 @@ void main() {
       final zone = Geofence.fromDoc(snap.docs.first);
 
       expect(zone.active, false);
+    });
+  });
+
+  group('LocationHistoryPoint.fromDoc', () {
+    test('parses lat/lng/speed/accuracy/recordedAt', () async {
+      final db = FakeFirebaseFirestore();
+      final recordedAt = DateTime(2026, 7, 17, 14, 30);
+      await db.collection('devices').doc('123').collection('locations').add({
+        'lat': -20.2642,
+        'lng': 57.4791,
+        'speedKmh': 22,
+        'accuracySource': 'gps',
+        'recordedAt': Timestamp.fromDate(recordedAt),
+      });
+      final snap = await db.collection('devices').doc('123').collection('locations').get();
+      final point = LocationHistoryPoint.fromDoc(snap.docs.first);
+
+      expect(point.lat, -20.2642);
+      expect(point.lng, 57.4791);
+      expect(point.speedKmh, 22);
+      expect(point.accuracySource, 'gps');
+      expect(point.recordedAt, recordedAt);
+    });
+
+    test('defaults to 0,0 and nulls when fields are absent', () async {
+      final db = FakeFirebaseFirestore();
+      await db.collection('devices').doc('123').collection('locations').add({});
+      final snap = await db.collection('devices').doc('123').collection('locations').get();
+      final point = LocationHistoryPoint.fromDoc(snap.docs.first);
+
+      expect(point.lat, 0);
+      expect(point.lng, 0);
+      expect(point.speedKmh, isNull);
+      expect(point.recordedAt, isNull);
     });
   });
 }
