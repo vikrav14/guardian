@@ -1,279 +1,204 @@
-const { crc16Itu, appendCrc } = require('./crc');
-
-const PROTO = {
-  LOGIN: 0x01,
-  LOCATION: 0x12,
-  HEARTBEAT: 0x13,
-  ALARM: 0x16,
-  GPS_ADDRESS: 0x1a,
-};
-
-const ALARM_TYPES = {
-  0x01: 'sos',
-  0x02: 'other', // power cut
-  0x03: 'other', // vibration
-  0x04: 'geofence_enter',
-  0x05: 'geofence_exit',
-  0x06: 'other', // overspeed
-  0x09: 'other', // moving
-  0x0c: 'other', // gps antenna cut
-  0x0d: 'low_battery', // device low battery sometimes 0x13/status
-  0x17: 'fall', // some firmwares use custom; treat unknown carefully
-};
-
-function bcdImei(buf) {
-  let imei = '';
-  for (let i = 0; i < buf.length; i += 1) {
-    imei += buf[i].toString(16).padStart(2, '0');
-  }
-  // GT06 often prefixes with 0 nibble
-  if (imei.startsWith('0') && imei.length === 16) {
-    imei = imei.slice(1);
-  }
-  return imei.replace(/^0+/, '') || imei;
-}
-
-function parseDateTime(buf, offset) {
-  // YY MM DD HH MM SS — each byte is the numeric value (not always BCD on all firmwares;
-  // Concox uses year/month/... as binary decimals in many GT06 docs)
-  const year = 2000 + buf[offset];
-  const month = buf[offset + 1];
-  const day = buf[offset + 2];
-  const hour = buf[offset + 3];
-  const minute = buf[offset + 4];
-  const second = buf[offset + 5];
-  const iso = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-  return Number.isNaN(iso.getTime()) ? new Date() : iso;
-}
-
-function parseCoordinate(latRaw, lngRaw, courseStatus) {
-  // lat/lng: 4 bytes each, degrees * 1_800_000
-  const lat = latRaw / 1800000;
-  const lng = lngRaw / 1800000;
-  const south = (courseStatus & 0x0400) !== 0;
-  const west = (courseStatus & 0x0800) !== 0;
-  return {
-    lat: south ? -lat : lat,
-    lng: west ? -lng : lng,
-    course: courseStatus & 0x03ff,
-    gpsFixed: (courseStatus & 0x1000) !== 0,
-  };
-}
-
-function accuracyFromCourseStatus(courseStatus) {
-  // Bit 12 often indicates GPS positioning; without WiFi/LBS flags treat as gps or lbs
-  return (courseStatus & 0x1000) !== 0 ? 'gps' : 'lbs';
-}
-
-function buildAck(protocol, serial) {
-  // 78 78 | len=05 | proto | serial(2) | crc(2) | 0D 0A
-  const body = Buffer.alloc(4);
-  body[0] = 0x05; // length from proto through serial (inclusive of serial, exclusive of crc in some docs)
-  // Concox: packet length = protocol(1) + info(0) + serial(2) + crc(2) = 5
-  body[0] = 0x05;
-  body[1] = protocol;
-  body.writeUInt16BE(serial, 2);
-  const withCrc = appendCrc(body);
-  return Buffer.concat([Buffer.from([0x78, 0x78]), withCrc, Buffer.from([0x0d, 0x0a])]);
-}
-
-function parseLocationInfo(info) {
-  if (info.length < 12) return null;
-  const recordedAt = parseDateTime(info, 0);
-  const sats = info[6] & 0x0f;
-  const latRaw = info.readUInt32BE(7);
-  const lngRaw = info.readUInt32BE(11);
-  const speedKmh = info.length > 15 ? info[15] : null;
-  const courseStatus = info.length > 17 ? info.readUInt16BE(16) : 0;
-  const coords = parseCoordinate(latRaw, lngRaw, courseStatus);
-
-  return {
-    location: {
-      lat: coords.lat,
-      lng: coords.lng,
-      altitude: null,
-      recordedAt,
-      satellites: sats,
-    },
-    speedKmh,
-    course: coords.course,
-    accuracySource: accuracyFromCourseStatus(courseStatus),
-    gpsFixed: coords.gpsFixed,
-  };
-}
-
-function parseHeartbeat(info) {
-  // Terminal info (1) + voltage level (1) + gsm (1) + language/alarm (2) typical
-  const terminalInfo = info[0] || 0;
-  const voltageLevel = info.length > 1 ? info[1] : null;
-  // Map voltage level 0–6 to rough percent
-  const batteryMap = [0, 10, 20, 40, 60, 80, 100];
-  const batteryPercent =
-    voltageLevel != null && voltageLevel >= 0 && voltageLevel <= 6
-      ? batteryMap[voltageLevel]
-      : null;
-
-  const charging = (terminalInfo & 0x04) !== 0;
-  const gpsTracking = (terminalInfo & 0x40) !== 0;
-  const alarmBit = terminalInfo & 0x38; // bits 3-5 alarm type on some firmwares
-
-  return {
-    batteryPercent,
-    charging,
-    accuracySource: gpsTracking ? 'gps' : null,
-    terminalInfo,
-    alarmBit,
-  };
-}
-
-function parseAlarm(info) {
-  // Often similar to location + alarm code; many firmwares: datetime + sats + lat/lng + speed + course + lbs + alarm
-  const locationPart = parseLocationInfo(info);
-  let alarmCode = null;
-  if (info.length >= 25) {
-    alarmCode = info[24];
-  } else if (info.length > 0) {
-    alarmCode = info[info.length - 1];
-  }
-  const type = ALARM_TYPES[alarmCode] || 'other';
-  const severity = type === 'sos' || type === 'fall' ? 'critical' : 'warning';
-  return {
-    ...locationPart,
-    alarmCode,
-    type,
-    severity,
-  };
-}
-
 /**
- * Extract complete GT06 frames from a sliding buffer.
- * Supports 0x7878 (1-byte length) and 0x7979 (2-byte length) headers.
+ * ReachFar V28C ASCII protocol decoder.
+ * Format: [CS*YYYYYYYYYY*LEN*command,data...]
+ * - CS: 2-byte factory code (e.g., "3G", "SG")
+ * - YYYYYYYYYY: 10-digit device ID (IMEI)
+ * - LEN: 4-char ASCII hex content length
+ * - command,data: payload (LK, UD_LTE, AL_LTE, etc.)
  */
+
+function parseLocationData(fields) {
+  if (fields.length < 2) return null;
+  const date = fields[0]; // DDMMYY
+  const time = fields[1]; // HHMMSS
+  if (!date || !time || date.length !== 6 || time.length !== 6) return null;
+
+  const day = parseInt(date.substring(0, 2), 10);
+  const month = parseInt(date.substring(2, 4), 10);
+  const year = 2000 + parseInt(date.substring(4, 6), 10);
+  const hour = parseInt(time.substring(0, 2), 10);
+  const minute = parseInt(time.substring(2, 4), 10);
+  const second = parseInt(time.substring(4, 6), 10);
+
+  const recordedAt = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (Number.isNaN(recordedAt.getTime())) return null;
+
+  const gpsValid = fields.length > 2 && fields[2] === 'A'; // A=valid, V=invalid
+  if (!gpsValid) return null; // GPS not fixed
+
+  let lat = null, lng = null, course = 0;
+  if (fields.length > 5) {
+    lat = parseFloat(fields[3]);
+    const latDir = fields[4];
+    if (Number.isNaN(lat)) return null;
+    if (latDir === 'S') lat = -lat;
+
+    lng = parseFloat(fields[5]);
+    const lngDir = fields.length > 6 ? fields[6] : 'E';
+    if (Number.isNaN(lng)) return null;
+    if (lngDir === 'W') lng = -lng;
+  }
+
+  if (fields.length > 8) {
+    const speed = parseFloat(fields[8]);
+    if (!Number.isNaN(speed)) {
+      var speedKmh = speed;
+    }
+  }
+
+  if (fields.length > 9) {
+    const c = parseInt(fields[9], 10);
+    if (!Number.isNaN(c)) course = c;
+  }
+
+  return {
+    location: { lat, lng, altitude: null, recordedAt, satellites: null },
+    speedKmh: speedKmh || null,
+    course,
+    accuracySource: 'gps',
+  };
+}
+
+function parseLkData(fields) {
+  // LK,steps,rolls,battery
+  let battery = null;
+  if (fields.length > 3) {
+    const b = parseInt(fields[3], 10);
+    if (!Number.isNaN(b)) battery = b;
+  }
+  return { batteryPercent: battery };
+}
+
+function buildAckFrame(imei, command) {
+  // [SG*IMEI*LEN*command]
+  const content = command;
+  const lenHex = content.length.toString(16).toUpperCase().padStart(4, '0');
+  const ack = `[SG*${imei}*${lenHex}*${content}]`;
+  return Buffer.from(ack, 'ascii');
+}
+
 function extractFrames(buffer) {
   const frames = [];
   let offset = 0;
 
-  while (offset + 5 <= buffer.length) {
-    if (buffer[offset] === 0x78 && buffer[offset + 1] === 0x78) {
-      const length = buffer[offset + 2];
-      const total = 2 + 1 + length + 2; // start + len + body + stop
-      if (offset + total > buffer.length) break;
-      const frame = buffer.subarray(offset, offset + total);
-      const stopOk = frame[frame.length - 2] === 0x0d && frame[frame.length - 1] === 0x0a;
-      if (stopOk) frames.push(frame);
-      offset += total;
-      continue;
-    }
+  while (offset < buffer.length) {
+    // Find opening bracket
+    const start = buffer.indexOf(0x5b, offset); // 0x5b = '['
+    if (start === -1) break;
 
-    if (buffer[offset] === 0x79 && buffer[offset + 1] === 0x79) {
-      if (offset + 4 > buffer.length) break;
-      const length = buffer.readUInt16BE(offset + 2);
-      const total = 2 + 2 + length + 2;
-      if (offset + total > buffer.length) break;
-      const frame = buffer.subarray(offset, offset + total);
-      const stopOk = frame[frame.length - 2] === 0x0d && frame[frame.length - 1] === 0x0a;
-      if (stopOk) frames.push(frame);
-      offset += total;
-      continue;
-    }
+    // Find closing bracket
+    const end = buffer.indexOf(0x5d, start); // 0x5d = ']'
+    if (end === -1) break;
 
-    offset += 1;
+    // Extract frame including brackets
+    const frame = buffer.subarray(start, end + 1);
+    frames.push(frame);
+    offset = end + 1;
   }
 
   return { frames, rest: buffer.subarray(offset) };
 }
 
 function decodeFrame(frame) {
-  const isExt = frame[0] === 0x79 && frame[1] === 0x79;
-  const lengthOffset = 2;
-  const lengthSize = isExt ? 2 : 1;
-  const packetLength = isExt ? frame.readUInt16BE(2) : frame[2];
-  const protoOffset = lengthOffset + lengthSize;
-  const protocol = frame[protoOffset];
+  // Parse ASCII frame: [CS*IMEI*LEN*cmd,data...]
+  const frameStr = frame.toString('ascii');
+  if (!frameStr.startsWith('[') || !frameStr.endsWith(']')) {
+    return { error: 'invalid_frame_delimiters' };
+  }
 
-  // Body for CRC: length field through serial number (exclude start bits, crc, stop)
-  const crcOffset = frame.length - 4; // 2 crc + 2 stop
-  const crcExpected = frame.readUInt16BE(crcOffset);
-  const crcData = frame.subarray(2, crcOffset);
-  const crcActual = crc16Itu(crcData);
-  const crcOk = crcExpected === crcActual;
+  const content = frameStr.slice(1, -1); // Remove brackets
+  const parts = content.split('*');
+  if (parts.length < 4) {
+    return { error: 'incomplete_frame' };
+  }
 
-  const infoStart = protoOffset + 1;
-  const serialOffset = crcOffset - 2;
-  const info = frame.subarray(infoStart, serialOffset);
-  const serial = frame.readUInt16BE(serialOffset);
+  const factory = parts[0]; // CS (2 chars)
+  const imei = parts[1]; // YYYYYYYYYY (10 digits)
+  const lenHex = parts[2]; // LEN (4 hex digits)
+  const payload = parts.slice(3).join('*'); // Everything after 3rd *
+
+  const expectedLen = parseInt(lenHex, 16);
+  if (payload.length !== expectedLen) {
+    return { error: 'length_mismatch' };
+  }
+
+  // Split payload on first comma to separate command from args
+  const [command, ...argParts] = payload.split(',');
 
   return {
-    protocol,
-    info,
-    serial,
-    crcOk,
-    packetLength,
+    factory,
+    imei,
+    command,
+    args: argParts,
+    payload,
   };
 }
 
 function handlePacket(decoded, session) {
-  const { protocol, info, serial, crcOk } = decoded;
+  const { imei, command, args } = decoded;
   const acks = [];
   const events = [];
 
-  if (!crcOk) {
-    events.push({ type: 'crc_error' });
+  if (!imei) {
+    events.push({ type: 'parse_error', error: 'no_imei' });
     return { acks, events };
   }
 
-  switch (protocol) {
-    case PROTO.LOGIN: {
-      const imei = bcdImei(info.subarray(0, Math.min(8, info.length)));
-      session.imei = imei;
-      acks.push(buildAck(PROTO.LOGIN, serial));
-      events.push({ type: 'login', imei });
-      break;
+  session.imei = imei;
+
+  // Route by command type
+  if (command === 'LK') {
+    // Link keep-alive / heartbeat
+    const hb = parseLkData([command, ...args]);
+    acks.push(buildAckFrame(imei, 'LK'));
+    events.push({ type: 'heartbeat', imei, ...hb });
+  } else if (command.startsWith('UD')) {
+    // Location upload: UD, UD_LTE, UD_WCDMA, etc.
+    const loc = parseLocationData(args);
+    acks.push(buildAckFrame(imei, 'UD'));
+    if (loc) {
+      events.push({ type: 'location', imei, ...loc });
+    } else {
+      events.push({ type: 'location_parse_error', imei, command });
     }
-    case PROTO.LOCATION: {
-      const loc = parseLocationInfo(info);
-      acks.push(buildAck(PROTO.LOCATION, serial));
-      if (loc) events.push({ type: 'location', imei: session.imei, ...loc });
-      break;
+  } else if (command.startsWith('AL')) {
+    // Alarm upload: AL, AL_LTE, AL_WCDMA, etc.
+    const loc = parseLocationData(args);
+    acks.push(buildAckFrame(imei, 'AL'));
+    let alarmType = 'other';
+    if (args.length > 0) {
+      const stateField = args[args.length - 1];
+      const stateBits = parseInt(stateField, 16);
+      if (!Number.isNaN(stateBits)) {
+        if ((stateBits & (1 << 16)) !== 0) alarmType = 'sos';
+        else if ((stateBits & (1 << 21)) !== 0) alarmType = 'fall';
+        else if ((stateBits & (1 << 20)) !== 0) alarmType = 'geofence_exit';
+        else if ((stateBits & (1 << 19)) !== 0) alarmType = 'geofence_enter';
+        else if ((stateBits & (1 << 17)) !== 0) alarmType = 'low_battery';
+      }
     }
-    case PROTO.HEARTBEAT: {
-      const hb = parseHeartbeat(info);
-      acks.push(buildAck(PROTO.HEARTBEAT, serial));
-      events.push({ type: 'heartbeat', imei: session.imei, ...hb });
-      break;
-    }
-    case PROTO.ALARM:
-    case PROTO.GPS_ADDRESS: {
-      const alarm = parseAlarm(info);
-      acks.push(buildAck(protocol, serial));
-      events.push({
-        type: 'alarm',
-        imei: session.imei,
-        alarmType: alarm.type,
-        severity: alarm.severity,
-        alarmCode: alarm.alarmCode,
-        location: alarm.location,
-        speedKmh: alarm.speedKmh,
-        course: alarm.course,
-        accuracySource: alarm.accuracySource,
-      });
-      break;
-    }
-    default: {
-      // Still ACK unknown to keep some devices happy
-      acks.push(buildAck(protocol, serial));
-      events.push({ type: 'unknown', protocol, imei: session.imei });
-      break;
-    }
+    events.push({
+      type: 'alarm',
+      imei,
+      alarmType,
+      severity: alarmType === 'sos' || alarmType === 'fall' ? 'critical' : 'warning',
+      ...(loc || {}),
+    });
+  } else if (command === 'CONFIG' || command === 'ICCID' || command === 'WT_LTE') {
+    // Config / provisioning response — ACK only, no events
+    acks.push(buildAckFrame(imei, command));
+  } else {
+    // Unknown command — still ACK for compatibility
+    acks.push(buildAckFrame(imei, command));
+    events.push({ type: 'unknown_command', imei, command });
   }
 
   return { acks, events };
 }
 
 module.exports = {
-  PROTO,
   extractFrames,
   decodeFrame,
   handlePacket,
-  buildAck,
+  buildAckFrame,
 };

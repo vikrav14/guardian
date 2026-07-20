@@ -101,6 +101,12 @@ async function applyEvents(events) {
         });
       } else if (event.type === 'crc_error') {
         console.warn('[gateway] CRC mismatch — frame dropped');
+      } else if (event.type === 'parse_error') {
+        console.warn(`[gateway] parse error: ${event.error}`);
+      } else if (event.type === 'location_parse_error') {
+        console.warn(`[gateway] ${event.imei} location parse failed (${event.command})`);
+      } else if (event.type === 'unknown_command') {
+        console.log(`[gateway] unknown command: ${event.command} from ${event.imei}`);
       } else if (event.type === 'unknown') {
         console.log(`[gateway] unknown protocol 0x${Number(event.protocol).toString(16)}`);
       }
