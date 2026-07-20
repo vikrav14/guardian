@@ -97,7 +97,7 @@ create_issue "Call pendant directly from app" \
   "status:built,tier:basic,area:tracking"
 
 create_issue "Route history / day-by-day playback" \
-  "Full UI exists for scrubbing through a day's location history, but the gateway only writes history when WRITE_LOCATION_HISTORY=true, which defaults to false — see the linked bug about empty history in production." \
+  "Full UI for scrubbing through a day's location history. Requires WRITE_LOCATION_HISTORY=true on the gateway (confirmed working once enabled)." \
   "status:built,tier:tbd,area:tracking"
 
 create_issue "Device command: check pendant status" \
@@ -321,21 +321,17 @@ create_issue "WiFi safe-zone matching never receives real device data" \
   "Users can type a WiFi SSID into a safe zone, but the gateway's real GT06/V28C decoder never populates the location's WiFi SSID field (undocumented byte layout for this hardware). The matching logic is fully built and unit-tested against a synthetic field, but is structurally dead in production — the UI gives a false impression this works." \
   "type:bug,area:safety"
 
-create_issue "Route history playback is empty in production by default" \
-  "The route history screen is fully built, but the gateway only writes location history when WRITE_LOCATION_HISTORY=true, which defaults to false. Users opening this screen see nothing and may assume it's broken." \
-  "type:bug,area:tracking"
-
 create_issue "Family invite relationship is one-directional" \
-  "Accepting a family invite links the acceptor to the inviter's device(s), but the inviter's own family-member view doesn't appear to reflect the acceptor back. Verify intended behavior — likely an asymmetric-data-model bug." \
+  "Confirmed root cause: acceptInviteCode() only updates the acceptor's familyMembers array with the inviter — nothing writes the acceptor back onto the inviter's own familyMembers list, so the inviter never sees who joined." \
   "type:bug,area:family"
-
-create_issue "Geofence alarm delivery is inconsistent across channels" \
-  "geofence_enter reaches the app via push but is excluded from SMS/WhatsApp delivery, while geofence_exit is included in both. Confirm whether this asymmetry is intentional." \
-  "type:bug,area:safety"
 
 create_issue "Voice monitoring and ring-to-find use unverified SMS syntax" \
   "Both commands' SMS syntax is only documented for a related hardware model (RF-V28), not confirmed against the actual pendant model in use (V28C), per the gateway's own code comments. Could silently fail or do nothing on real hardware — needs verification before being relied on." \
   "type:bug,area:safety"
+
+create_issue "Decide and implement an on-device consent indicator for voice monitoring (listen-in)" \
+  "Voice monitoring gives the wearer no on-device indication they're being listened to (no light/sound/vibration). Not just a test caveat — some jurisdictions require an audible/visible indicator for this. Needs a deliberate decision before real use, especially with children or non-consenting adults." \
+  "status:concept,tier:tbd,area:safety"
 
 create_issue "Language switcher implies full translation but most UI stays English" \
   "Selecting French or Kreol Morisien only translates ~21 strings; safe zones, alerts, device settings, and family invites remain hardcoded English regardless of the selected language." \
