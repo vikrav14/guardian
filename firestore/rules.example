@@ -13,18 +13,34 @@ service cloud.firestore {
       return signedIn() && imei in userDoc().linkedImeis;
     }
 
+    function validUserAvatar() {
+      return !('avatarUrl' in request.resource.data)
+        || request.resource.data.avatarUrl == null
+        || (request.resource.data.avatarUrl is string
+            && request.resource.data.avatarUrl.size() <= 2048);
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn()
+        && request.auth.uid == uid
+        && validUserAvatar();
     }
 
     match /devices/{imei} {
       allow read: if linkedTo(imei);
-      // Gateway (Admin SDK) owns device telemetry. Clients may rename and
-      // set the pendant's own SIM number (used for calls / SMS commands).
+      // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer
+      // and set the wearable's SIM number (used for calls / SMS commands).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['name', 'simNumber', 'updatedAt']);
+            .hasOnly([
+              'name',
+              'nickname',
+              'relationship',
+              'avatarUrl',
+              'simNumber',
+              'updatedAt'
+            ]);
       allow create, delete: if false;
 
       match /locations/{locationId} {

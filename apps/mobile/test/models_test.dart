@@ -12,6 +12,8 @@ void main() {
       final db = FakeFirebaseFirestore();
       await db.collection('devices').doc('123456789012345').set({
         'name': "Mum's pendant",
+        'nickname': 'Mimi',
+        'relationship': 'Mum',
         'online': true,
         'batteryPercent': 72,
         'speedKmh': 12,
@@ -19,31 +21,93 @@ void main() {
         'accuracySource': 'gps',
         'location': {'lat': -20.2642, 'lng': 57.4791, 'satellites': 8},
         'simNumber': '+23057123456',
+        'avatarUrl': 'https://example.com/avatar.jpg',
       });
       final doc = await db.collection('devices').doc('123456789012345').get();
 
       final device = Device.fromDoc(doc);
 
       expect(device.imei, '123456789012345');
-      expect(device.displayName, "Mum's pendant");
+      expect(device.displayName, 'Mimi');
+      expect(device.relationshipLabel, 'Mum');
       expect(device.online, true);
       expect(device.batteryPercent, 72);
       expect(device.location?.isValid, true);
       expect(device.location?.lat, -20.2642);
       expect(device.simNumber, '+23057123456');
+      expect(device.avatarUrl, 'https://example.com/avatar.jpg');
     });
 
-    test('falls back to "Device {imei}" when unnamed, and location is invalid when absent', () async {
-      final db = FakeFirebaseFirestore();
-      await db.collection('devices').doc('999').set({'online': false});
-      final doc = await db.collection('devices').doc('999').get();
+    test(
+      'falls back to a person-first label when unnamed, and location is invalid when absent',
+      () async {
+        final db = FakeFirebaseFirestore();
+        await db.collection('devices').doc('999').set({'online': false});
+        final doc = await db.collection('devices').doc('999').get();
 
-      final device = Device.fromDoc(doc);
+        final device = Device.fromDoc(doc);
 
-      expect(device.displayName, 'Device 999');
-      expect(device.online, false);
-      expect(device.location?.isValid, false);
-      expect(device.simNumber, isNull);
+        expect(device.displayName, 'Loved one');
+        expect(device.relationshipLabel, 'Family member');
+        expect(device.online, false);
+        expect(device.location?.isValid, false);
+        expect(device.simNumber, isNull);
+      },
+    );
+
+    test(
+      'relationship precedes legacy name and legacy hardware wording is removed',
+      () {
+        const related = Device(
+          imei: '1',
+          online: true,
+          relationship: 'Dad',
+          name: "Father's pendant",
+        );
+        const legacy = Device(imei: '2', online: true, name: "Mum's pendant");
+
+        expect(related.displayName, 'Dad');
+        expect(legacy.displayName, 'Mum');
+      },
+    );
+  });
+
+  group('Device.hasFreshLocation', () {
+    test('rejects coordinates older than last heartbeat', () {
+      final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+      final staleRecorded = heartbeat.subtract(const Duration(minutes: 10));
+      final device = Device(
+        imei: '861397053141170',
+        online: true,
+        speedKmh: 45,
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.261286,
+          lng: 57.477801,
+          recordedAt: staleRecorded,
+        ),
+      );
+
+      expect(device.hasFreshLocation, isFalse);
+      expect(device.isMoving, isFalse);
+    });
+
+    test('accepts recent coordinates', () {
+      final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+      final device = Device(
+        imei: '1',
+        online: true,
+        speedKmh: 12,
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.2,
+          lng: 57.5,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 2)),
+        ),
+      );
+
+      expect(device.hasFreshLocation, isTrue);
+      expect(device.isMoving, isTrue);
     });
   });
 
@@ -68,26 +132,29 @@ void main() {
   });
 
   group('Geofence.fromDoc', () {
-    test('parses center map, defaults active to true, and reads wifiSsid', () async {
-      final db = FakeFirebaseFirestore();
-      await db.collection('geofences').add({
-        'imei': '123',
-        'name': 'Home',
-        'center': {'lat': -20.1, 'lng': 57.5},
-        'radiusMeters': 150,
-        'wifiSsid': 'Home WiFi',
-        'createdBy': 'uid1',
-      });
-      final snap = await db.collection('geofences').get();
-      final zone = Geofence.fromDoc(snap.docs.first);
+    test(
+      'parses center map, defaults active to true, and reads wifiSsid',
+      () async {
+        final db = FakeFirebaseFirestore();
+        await db.collection('geofences').add({
+          'imei': '123',
+          'name': 'Home',
+          'center': {'lat': -20.1, 'lng': 57.5},
+          'radiusMeters': 150,
+          'wifiSsid': 'Home WiFi',
+          'createdBy': 'uid1',
+        });
+        final snap = await db.collection('geofences').get();
+        final zone = Geofence.fromDoc(snap.docs.first);
 
-      expect(zone.name, 'Home');
-      expect(zone.active, true);
-      expect(zone.lat, -20.1);
-      expect(zone.lng, 57.5);
-      expect(zone.radiusMeters, 150);
-      expect(zone.wifiSsid, 'Home WiFi');
-    });
+        expect(zone.name, 'Home');
+        expect(zone.active, true);
+        expect(zone.lat, -20.1);
+        expect(zone.lng, 57.5);
+        expect(zone.radiusMeters, 150);
+        expect(zone.wifiSsid, 'Home WiFi');
+      },
+    );
 
     test('active defaults to true unless explicitly false', () async {
       final db = FakeFirebaseFirestore();
@@ -114,7 +181,11 @@ void main() {
         'accuracySource': 'gps',
         'recordedAt': Timestamp.fromDate(recordedAt),
       });
-      final snap = await db.collection('devices').doc('123').collection('locations').get();
+      final snap = await db
+          .collection('devices')
+          .doc('123')
+          .collection('locations')
+          .get();
       final point = LocationHistoryPoint.fromDoc(snap.docs.first);
 
       expect(point.lat, -20.2642);
@@ -127,7 +198,11 @@ void main() {
     test('defaults to 0,0 and nulls when fields are absent', () async {
       final db = FakeFirebaseFirestore();
       await db.collection('devices').doc('123').collection('locations').add({});
-      final snap = await db.collection('devices').doc('123').collection('locations').get();
+      final snap = await db
+          .collection('devices')
+          .doc('123')
+          .collection('locations')
+          .get();
       final point = LocationHistoryPoint.fromDoc(snap.docs.first);
 
       expect(point.lat, 0);

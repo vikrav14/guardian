@@ -8,29 +8,73 @@ void main() {
   group('DeviceService.watchLinkedDevices', () {
     test('only returns devices in the signed-in user\'s linkedImeis', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      await db.collection('users').doc('u1').set({'linkedImeis': ['AAA']});
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': ['AAA'],
+      });
       await db.collection('devices').doc('AAA').set({'online': true});
       await db.collection('devices').doc('BBB').set({'online': true});
 
-      final devices = await DeviceService(db: db, auth: auth).watchLinkedDevices().first;
+      final devices = await DeviceService(
+        db: db,
+        auth: auth,
+      ).watchLinkedDevices().first;
 
       expect(devices.map((d) => d.imei).toList(), ['AAA']);
     });
 
-    test('returns an empty list (not an error) when linkedImeis is empty', () async {
+    test(
+      'returns an empty list (not an error) when linkedImeis is empty',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({'linkedImeis': []});
+
+        final devices = await DeviceService(
+          db: db,
+          auth: auth,
+        ).watchLinkedDevices().first;
+
+        expect(devices, isEmpty);
+      },
+    );
+
+    test('normalizes 10-digit protocol ids in linkedImeis to 15-digit docs', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      await db.collection('users').doc('u1').set({'linkedImeis': []});
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': ['9705314117'],
+      });
+      await db.collection('devices').doc('861397053141170').set({
+        'online': true,
+        'batteryPercent': 72,
+      });
 
-      final devices = await DeviceService(db: db, auth: auth).watchLinkedDevices().first;
+      final devices = await DeviceService(
+        db: db,
+        auth: auth,
+      ).watchLinkedDevices().first;
 
-      expect(devices, isEmpty);
+      expect(devices, hasLength(1));
+      expect(devices.single.imei, '861397053141170');
+      expect(devices.single.batteryPercent, 72);
     });
 
     test('renameDevice sets name and clears it when blank', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
       await db.collection('devices').doc('AAA').set({'name': 'Old'});
 
       await DeviceService(db: db, auth: auth).renameDevice('AAA', 'New name');
@@ -41,13 +85,65 @@ void main() {
       doc = await db.collection('devices').doc('AAA').get();
       expect(doc.data()!.containsKey('name'), false);
     });
+
+    test('updatePersonIdentity stores nickname and relationship', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('devices').doc('AAA').set({'online': true});
+      final service = DeviceService(db: db, auth: auth);
+
+      await service.updatePersonIdentity(
+        'AAA',
+        nickname: ' Mimi ',
+        relationship: ' Mum ',
+      );
+      var data = (await db.collection('devices').doc('AAA').get()).data()!;
+      expect(data['nickname'], 'Mimi');
+      expect(data['relationship'], 'Mum');
+
+      await service.updatePersonIdentity(
+        'AAA',
+        nickname: ' ',
+        relationship: 'Dad',
+      );
+      data = (await db.collection('devices').doc('AAA').get()).data()!;
+      expect(data.containsKey('nickname'), false);
+      expect(data['relationship'], 'Dad');
+    });
+
+    test('updateAvatarUrl stores and removes the photo URL', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('devices').doc('AAA').set({'online': true});
+      final service = DeviceService(db: db, auth: auth);
+
+      await service.updateAvatarUrl('AAA', ' https://example.com/avatar.jpg ');
+      var data = (await db.collection('devices').doc('AAA').get()).data()!;
+      expect(data['avatarUrl'], 'https://example.com/avatar.jpg');
+
+      await service.updateAvatarUrl('AAA', null);
+      data = (await db.collection('devices').doc('AAA').get()).data()!;
+      expect(data.containsKey('avatarUrl'), false);
+    });
   });
 
   group('DeviceService.watchDayHistory', () {
     test('only returns points recorded within the given day', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      final locations = db.collection('devices').doc('AAA').collection('locations');
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      final locations = db
+          .collection('devices')
+          .doc('AAA')
+          .collection('locations');
       await locations.add({
         'lat': 1,
         'lng': 1,
@@ -64,8 +160,10 @@ void main() {
         'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 18, 1, 0)),
       });
 
-      final points =
-          await DeviceService(db: db, auth: auth).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+      final points = await DeviceService(
+        db: db,
+        auth: auth,
+      ).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
 
       expect(points.length, 1);
       expect(points.single.lat, 2);
@@ -73,8 +171,14 @@ void main() {
 
     test('orders points chronologically', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      final locations = db.collection('devices').doc('AAA').collection('locations');
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      final locations = db
+          .collection('devices')
+          .doc('AAA')
+          .collection('locations');
       await locations.add({
         'lat': 2,
         'lng': 2,
@@ -86,45 +190,150 @@ void main() {
         'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 17, 8, 0)),
       });
 
-      final points =
-          await DeviceService(db: db, auth: auth).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+      final points = await DeviceService(
+        db: db,
+        auth: auth,
+      ).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
 
       expect(points.map((p) => p.lat).toList(), [1, 2]);
+    });
+  });
+
+  group('UserProfileService avatar', () {
+    test(
+      'watches, stores, and removes the signed-in guardian avatar',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({'linkedImeis': []});
+        final service = UserProfileService(db: db, auth: auth);
+
+        expect(await service.watchAvatarUrl().first, isNull);
+
+        await service.updateAvatarUrl(' https://example.com/guardian.jpg ');
+        expect(
+          await service.watchAvatarUrl().first,
+          'https://example.com/guardian.jpg',
+        );
+
+        await service.updateAvatarUrl(null);
+        final data = (await db.collection('users').doc('u1').get()).data()!;
+        expect(data.containsKey('avatarUrl'), false);
+      },
+    );
+
+    test('follows auth state changes before reading Firestore', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: false,
+      );
+      final service = UserProfileService(db: db, auth: auth);
+
+      final values = <String?>[];
+      final sub = service.watchAvatarUrl().listen(values.add);
+      await Future<void>.delayed(Duration.zero);
+      expect(values.first, isNull);
+
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': [],
+        'avatarUrl': 'https://example.com/guardian.jpg',
+      });
+      auth.signInWithEmailAndPassword(
+        email: 'guardian@example.com',
+        password: 'secret',
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(values.last, 'https://example.com/guardian.jpg');
+      await sub.cancel();
+    });
+
+    test('rejects updates when signed out', () async {
+      final service = UserProfileService(
+        db: FakeFirebaseFirestore(),
+        auth: MockFirebaseAuth(signedIn: false),
+      );
+
+      expect(
+        service.updateAvatarUrl('https://example.com/a.jpg'),
+        throwsStateError,
+      );
     });
   });
 
   group('GeofenceService', () {
     test('watchAll filters by the linked IMEI set', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      await db.collection('users').doc('u1').set({'linkedImeis': ['AAA']});
-      await db.collection('geofences').add({'imei': 'AAA', 'name': 'Home', 'center': {'lat': 0, 'lng': 0}});
-      await db.collection('geofences').add({'imei': 'BBB', 'name': 'Other', 'center': {'lat': 0, 'lng': 0}});
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': ['AAA'],
+      });
+      await db.collection('geofences').add({
+        'imei': 'AAA',
+        'name': 'Home',
+        'center': {'lat': 0, 'lng': 0},
+      });
+      await db.collection('geofences').add({
+        'imei': 'BBB',
+        'name': 'Other',
+        'center': {'lat': 0, 'lng': 0},
+      });
 
       final zones = await GeofenceService(db: db, auth: auth).watchAll().first;
 
       expect(zones.map((z) => z.imei).toList(), ['AAA']);
     });
 
-    test('create stores wifiSsid as null when blank, and trimmed when set', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      final service = GeofenceService(db: db, auth: auth);
+    test(
+      'create stores wifiSsid as null when blank, and trimmed when set',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        final service = GeofenceService(db: db, auth: auth);
 
-      await service.create(imei: 'AAA', name: 'Home', lat: 1, lng: 2, radiusMeters: 100, wifiSsid: '  ');
-      await service.create(imei: 'AAA', name: 'Work', lat: 3, lng: 4, radiusMeters: 100, wifiSsid: ' Office WiFi ');
+        await service.create(
+          imei: 'AAA',
+          name: 'Home',
+          lat: 1,
+          lng: 2,
+          radiusMeters: 100,
+          wifiSsid: '  ',
+        );
+        await service.create(
+          imei: 'AAA',
+          name: 'Work',
+          lat: 3,
+          lng: 4,
+          radiusMeters: 100,
+          wifiSsid: ' Office WiFi ',
+        );
 
-      final snap = await db.collection('geofences').orderBy('name').get();
-      expect(snap.docs[0].data()['wifiSsid'], isNull);
-      expect(snap.docs[1].data()['wifiSsid'], 'Office WiFi');
-    });
+        final snap = await db.collection('geofences').orderBy('name').get();
+        expect(snap.docs[0].data()['wifiSsid'], isNull);
+        expect(snap.docs[1].data()['wifiSsid'], 'Office WiFi');
+      },
+    );
 
     test('create throws when not signed in', () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(signedIn: false);
 
       expect(
-        () => GeofenceService(db: db, auth: auth).create(imei: 'AAA', name: 'Home', lat: 0, lng: 0, radiusMeters: 100),
+        () => GeofenceService(
+          db: db,
+          auth: auth,
+        ).create(imei: 'AAA', name: 'Home', lat: 0, lng: 0, radiusMeters: 100),
         throwsA(isA<StateError>()),
       );
     });
@@ -133,9 +342,15 @@ void main() {
   group('AlertService', () {
     test('sendHelpAlert writes a pending critical sos alert', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
 
-      await AlertService(db: db, auth: auth).sendHelpAlert(imei: 'AAA', deviceName: 'Mum');
+      await AlertService(
+        db: db,
+        auth: auth,
+      ).sendHelpAlert(imei: 'AAA', deviceName: 'Mum');
 
       final snap = await db.collection('alerts').get();
       final data = snap.docs.single.data();
@@ -148,7 +363,10 @@ void main() {
 
     test('resolve sets resolved=true', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
       final ref = await db.collection('alerts').add({'resolved': false});
 
       await AlertService(db: db, auth: auth).resolve(ref.id);
@@ -159,33 +377,55 @@ void main() {
   });
 
   group('UserProfileService', () {
-    test('watchSubscription defaults to free when no subscription field exists', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
-      await db.collection('users').doc('u1').set({});
+    test(
+      'watchSubscription defaults to free when no subscription field exists',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({});
 
-      final sub = await UserProfileService(db: db, auth: auth).watchSubscription().first;
+        final sub = await UserProfileService(
+          db: db,
+          auth: auth,
+        ).watchSubscription().first;
 
-      expect(sub.tier, 'free');
-      expect(sub.isPremium, false);
-    });
+        expect(sub.tier, 'free');
+        expect(sub.isPremium, false);
+      },
+    );
 
     test('watchSubscription reports premium only when not canceled', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
       await db.collection('users').doc('u1').set({
         'subscription': {'tier': 'premium', 'status': 'canceled'},
       });
 
-      final sub = await UserProfileService(db: db, auth: auth).watchSubscription().first;
+      final sub = await UserProfileService(
+        db: db,
+        auth: auth,
+      ).watchSubscription().first;
 
       expect(sub.tier, 'premium');
-      expect(sub.isPremium, false, reason: 'a canceled premium subscription should not read as active');
+      expect(
+        sub.isPremium,
+        false,
+        reason: 'a canceled premium subscription should not read as active',
+      );
     });
 
     test('saveContacts round-trips emergency contacts', () async {
       final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
       final service = UserProfileService(db: db, auth: auth);
 
       await service.saveContacts(const [
@@ -199,25 +439,39 @@ void main() {
   });
 
   group('FamilyService invite flow', () {
-    test('acceptInviteCode links the inviter\'s devices to the accepting user', () async {
-      final db = FakeFirebaseFirestore();
-      await db.collection('invites').add({
-        'code': 'AB12CD',
-        'createdBy': 'inviter-uid',
-        'createdByName': 'Dad',
-        'status': 'pending',
-        'linkedImeis': ['AAA', 'BBB'],
-      });
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'acceptor-uid'), signedIn: true);
-      await db.collection('users').doc('acceptor-uid').set({'linkedImeis': []});
+    test(
+      'acceptInviteCode links the inviter\'s devices to the accepting user',
+      () async {
+        final db = FakeFirebaseFirestore();
+        await db.collection('invites').add({
+          'code': 'AB12CD',
+          'createdBy': 'inviter-uid',
+          'createdByName': 'Dad',
+          'status': 'pending',
+          'linkedImeis': ['AAA', 'BBB'],
+        });
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'acceptor-uid'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('acceptor-uid').set({
+          'linkedImeis': [],
+        });
 
-      await FamilyService(db: db, auth: auth).acceptInviteCode('ab12cd');
+        await FamilyService(db: db, auth: auth).acceptInviteCode('ab12cd');
 
-      final acceptorDoc = await db.collection('users').doc('acceptor-uid').get();
-      expect(acceptorDoc.data()!['linkedImeis'], containsAll(['AAA', 'BBB']));
-      final invites = await db.collection('invites').where('code', isEqualTo: 'AB12CD').get();
-      expect(invites.docs.single.data()['status'], 'accepted');
-    });
+        final acceptorDoc = await db
+            .collection('users')
+            .doc('acceptor-uid')
+            .get();
+        expect(acceptorDoc.data()!['linkedImeis'], containsAll(['AAA', 'BBB']));
+        final invites = await db
+            .collection('invites')
+            .where('code', isEqualTo: 'AB12CD')
+            .get();
+        expect(invites.docs.single.data()['status'], 'accepted');
+      },
+    );
 
     test('acceptInviteCode rejects accepting your own invite', () async {
       final db = FakeFirebaseFirestore();
@@ -227,7 +481,10 @@ void main() {
         'status': 'pending',
         'linkedImeis': <String>[],
       });
-      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true);
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
 
       expect(
         () => FamilyService(db: db, auth: auth).acceptInviteCode('SELF01'),

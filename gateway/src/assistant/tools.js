@@ -50,8 +50,20 @@ async function resolveCallerContext(db, fromRaw) {
 }
 
 function deviceLabel(device) {
-  if (device.name && String(device.name).trim()) return String(device.name).trim();
-  return `Device …${String(device.imei || '').slice(-4)}`;
+  if (device.nickname && String(device.nickname).trim()) {
+    return String(device.nickname).trim();
+  }
+  if (device.relationship && String(device.relationship).trim()) {
+    return String(device.relationship).trim();
+  }
+  if (device.name && String(device.name).trim()) {
+    const legacy = String(device.name)
+      .trim()
+      .replace(/(?:'s)?\s+(?:pendant|device)$/i, '')
+      .trim();
+    if (legacy && !legacy.toLowerCase().startsWith('device ')) return legacy;
+  }
+  return 'Loved one';
 }
 
 function findDevice(devices, query) {

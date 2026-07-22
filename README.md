@@ -10,6 +10,7 @@ Premium personal GPS safety platform for families in Mauritius — elderly care,
 - [firestore/SCHEMA.md](firestore/SCHEMA.md) — Firestore collections and fields
 - [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) — create Firebase project + wire the gateway
 - [docs/FLUTTER_SETUP.md](docs/FLUTTER_SETUP.md) — Flutter map dashboard + Firebase Web config
+- [docs/V28C_DEVICE_SETUP.md](docs/V28C_DEVICE_SETUP.md) — configure a real V28C pendant (SMS + ngrok + gateway)
 - [docs/reference/](docs/reference/) — V28C datasheet + SMS server-switch commands (PDFs)
 
 ## Repository layout

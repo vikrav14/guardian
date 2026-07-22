@@ -10,11 +10,14 @@ const {
 } = require('./firestore');
 const { evaluateGeofenceTransitions } = require('./geofence');
 const { startHttpServer } = require('./http');
+const {
+  registerSession,
+  unregisterSession,
+  getSession,
+} = require('./sessions');
 
 initFirestore();
 startHttpServer();
-
-const sessions = new Map(); // socket -> { imei, buffer }
 
 async function applyEvents(events) {
   for (const event of events) {
@@ -24,14 +27,18 @@ async function applyEvents(events) {
     }
 
     try {
+      const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
+
       if (event.type === 'login') {
         await upsertDevice(event.imei, {
+          ...devicePatch,
           online: true,
           lastHeartbeatAt: new Date(),
           createdAt: new Date(),
         });
       } else if (event.type === 'location') {
         await upsertDevice(event.imei, {
+          ...devicePatch,
           online: true,
           lastHeartbeatAt: new Date(),
           location: event.location,
@@ -61,6 +68,7 @@ async function applyEvents(events) {
         }
       } else if (event.type === 'heartbeat') {
         await upsertDevice(event.imei, {
+          ...devicePatch,
           online: true,
           lastHeartbeatAt: new Date(),
           batteryPercent: event.batteryPercent,
@@ -68,8 +76,13 @@ async function applyEvents(events) {
         });
       } else if (event.type === 'alarm') {
         const alarmType = event.alarmType || 'other';
+        const alarmRaw =
+          event.alarmCode != null ? { raw: { alarmCode: event.alarmCode } } : {};
+        const alarmPayload =
+          event.alarmCode != null ? { alarmCode: event.alarmCode } : {};
         if (event.location) {
           await upsertDevice(event.imei, {
+            ...devicePatch,
             online: true,
             lastHeartbeatAt: new Date(),
             location: event.location,
@@ -79,16 +92,17 @@ async function applyEvents(events) {
             lastAlarm: {
               type: alarmType,
               at: new Date(),
-              raw: { alarmCode: event.alarmCode },
+              ...alarmRaw,
             },
           });
         } else {
           await upsertDevice(event.imei, {
+            ...devicePatch,
             online: true,
             lastAlarm: {
               type: alarmType,
               at: new Date(),
-              raw: { alarmCode: event.alarmCode },
+              ...alarmRaw,
             },
           });
         }
@@ -97,10 +111,42 @@ async function applyEvents(events) {
           type: alarmType,
           severity: event.severity || 'warning',
           message: `Device alarm: ${alarmType}`,
-          payload: { alarmCode: event.alarmCode },
+          payload: alarmPayload,
         });
       } else if (event.type === 'crc_error') {
         console.warn('[gateway] CRC mismatch — frame dropped');
+      } else if (event.type === 'parse_error') {
+        console.warn(`[gateway] parse error: ${event.error}`);
+      } else if (event.type === 'location_parse_error') {
+        const detail =
+          event.reason === 'gps_not_fixed'
+            ? 'GPS not fixed (V)'
+            : event.reason || 'parse error';
+        const gps = event.gpsFlag != null ? ` gps=${event.gpsFlag}` : '';
+        const fields = event.argCount != null ? ` fields=${event.argCount}` : '';
+        const preview = event.payloadPreview
+          ? ` payload="${event.payloadPreview}"`
+          : '';
+        console.warn(
+          `[gateway] ${event.imei} location parse failed (${event.command}): ${detail}${gps}${fields}${preview}`
+        );
+      } else if (event.type === 'imei_report') {
+        await upsertDevice(event.imei, {
+          online: true,
+          protocolId: event.protocolId,
+          fullImei: event.fullImei,
+        });
+        console.log(
+          `[gateway] full IMEI ${event.fullImei} for protocol id ${event.protocolId}`
+        );
+      } else if (event.type === 'command_echo') {
+        console.log(
+          `[gateway] ${event.protocolId || event.imei} echoed back ${event.command} (dropped, not re-acking)`
+        );
+      } else if (event.type === 'unknown_command') {
+        console.log(
+          `[gateway] unknown command: ${event.command} from ${event.protocolId || event.imei}`
+        );
       } else if (event.type === 'unknown') {
         console.log(`[gateway] unknown protocol 0x${Number(event.protocol).toString(16)}`);
       }
@@ -113,10 +159,10 @@ async function applyEvents(events) {
 const server = net.createServer((socket) => {
   const remote = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`[tcp] connected ${remote}`);
-  sessions.set(socket, { imei: null, buffer: Buffer.alloc(0) });
+  registerSession(socket);
 
   socket.on('data', (chunk) => {
-    const session = sessions.get(socket);
+    const session = getSession(socket);
     if (!session) return;
 
     session.buffer = Buffer.concat([session.buffer, chunk]);
@@ -140,14 +186,14 @@ const server = net.createServer((socket) => {
   });
 
   socket.on('close', () => {
-    const session = sessions.get(socket);
+    const session = getSession(socket);
     console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
     if (session?.imei) {
       upsertDevice(session.imei, { online: false }).catch((err) => {
         console.error('[gateway] offline update failed', err.message);
       });
     }
-    sessions.delete(socket);
+    unregisterSession(socket);
   });
 });
 

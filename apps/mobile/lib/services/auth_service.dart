@@ -13,7 +13,9 @@ class AuthService {
   final FirebaseFirestore _db;
   final PushService _push;
 
-  /// Demo IMEI from the GT06 simulator — linked on first profile create.
+  /// Legacy demo IMEI used by `npm run simulate` in older dev setups.
+  /// New accounts start with no linked pendants — link the real 15-digit IMEI
+  /// after onboarding hardware.
   static const demoImei = '359633100123456';
 
   Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -61,7 +63,7 @@ class AuthService {
       'email': user.email,
       'phone': '',
       'role': 'guardian',
-      'linkedImeis': [demoImei],
+      'linkedImeis': <String>[],
       'emergencyContacts': <Map<String, dynamic>>[],
       'familyMembers': <Map<String, dynamic>>[],
       'createdAt': FieldValue.serverTimestamp(),
