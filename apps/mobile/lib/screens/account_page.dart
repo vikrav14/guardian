@@ -38,6 +38,71 @@ class AccountPage extends StatelessWidget {
     }
   }
 
+  Future<void> _linkPendant(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Link a pendant'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the 15-digit IMEI printed on the pendant or returned '
+              'by the status SMS (ts#).',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              maxLength: 15,
+              decoration: const InputDecoration(
+                labelText: 'IMEI',
+                hintText: 'e.g. 861397053141170',
+                counterText: '',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Link'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) {
+      ctrl.dispose();
+      return;
+    }
+    try {
+      await DeviceService().linkPendant(ctrl.text);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Pendant linked — it will appear when the gateway receives data',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      ctrl.dispose();
+    }
+  }
+
   Future<void> _acceptInvite(BuildContext context) async {
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -132,22 +197,34 @@ class AccountPage extends StatelessWidget {
               builder: (context, snapshot) {
                 final devices = snapshot.data ?? <Device>[];
 
-                if (devices.isEmpty) {
-                  return GuardianCard(
-                    child: Text(
-                      'No pendants linked yet.',
-                      style: textTheme.bodyMedium,
-                    ),
-                  );
-                }
-
                 return GuardianListGroup(
                   children: [
+                    if (devices.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(GuardianSpacing.md),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: colors.border),
+                          ),
+                        ),
+                        child: Text(
+                          'No pendants linked yet. Add the 15-digit IMEI from '
+                          'the device label.',
+                          style: textTheme.bodyMedium,
+                        ),
+                      ),
                     for (var i = 0; i < devices.length; i++)
                       _DeviceRow(
                         device: devices[i],
                         showDivider: i < devices.length - 1,
                       ),
+                    GuardianSettingsRow(
+                      icon: Icons.link_rounded,
+                      label: 'Link a pendant',
+                      showDivider: devices.isNotEmpty,
+                      onTap: () => _linkPendant(context),
+                    ),
                   ],
                 );
               },

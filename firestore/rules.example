@@ -20,11 +20,27 @@ service cloud.firestore {
             && request.resource.data.avatarUrl.size() <= 2048);
     }
 
+    // Acceptor appends themselves to the inviter's familyMembers when joining.
+    function selfJoiningFamilyCircle(inviterUid) {
+      let oldMembers = resource.data.get('familyMembers', []);
+      let newMembers = request.resource.data.get('familyMembers', []);
+      return signedIn()
+        && request.auth.uid != inviterUid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['familyMembers', 'updatedAt'])
+        && newMembers.size() == oldMembers.size() + 1
+        && newMembers[newMembers.size() - 1].uid == request.auth.uid
+        && newMembers[newMembers.size() - 1].displayName is string;
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if signedIn()
-        && request.auth.uid == uid
-        && validUserAvatar();
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && (
+        (request.auth.uid == uid && validUserAvatar())
+        || selfJoiningFamilyCircle(uid)
+      );
+      allow delete: if false;
     }
 
     match /devices/{imei} {

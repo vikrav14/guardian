@@ -69,6 +69,47 @@ void main() {
       expect(devices.single.batteryPercent, 72);
     });
 
+    test('linkPendant adds a normalized 15-digit IMEI to linkedImeis', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({'linkedImeis': []});
+
+      await DeviceService(db: db, auth: auth).linkPendant('861397053141170');
+
+      final doc = await db.collection('users').doc('u1').get();
+      expect(doc.data()!['linkedImeis'], ['861397053141170']);
+    });
+
+    test('linkPendant normalizes 10-digit protocol ids before linking', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({'linkedImeis': []});
+
+      await DeviceService(db: db, auth: auth).linkPendant('9705314117');
+
+      final doc = await db.collection('users').doc('u1').get();
+      expect(doc.data()!['linkedImeis'], ['861397053141170']);
+    });
+
+    test('linkPendant rejects invalid IMEI input', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+
+      expect(
+        () => DeviceService(db: db, auth: auth).linkPendant('123'),
+        throwsA(isA<StateError>()),
+      );
+    });
+
     test('renameDevice sets name and clears it when blank', () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(
@@ -470,6 +511,46 @@ void main() {
             .where('code', isEqualTo: 'AB12CD')
             .get();
         expect(invites.docs.single.data()['status'], 'accepted');
+      },
+    );
+
+    test(
+      'acceptInviteCode adds acceptor to inviter familyMembers',
+      () async {
+        final db = FakeFirebaseFirestore();
+        await db.collection('invites').add({
+          'code': 'JOIN01',
+          'createdBy': 'inviter-uid',
+          'createdByName': 'Dad',
+          'createdByEmail': 'dad@example.com',
+          'status': 'pending',
+          'linkedImeis': ['AAA'],
+        });
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(
+            uid: 'acceptor-uid',
+            email: 'kid@example.com',
+            displayName: 'Kid',
+          ),
+          signedIn: true,
+        );
+        await db.collection('users').doc('acceptor-uid').set({
+          'linkedImeis': [],
+          'familyMembers': [],
+        });
+        await db.collection('users').doc('inviter-uid').set({
+          'linkedImeis': ['AAA'],
+          'familyMembers': [],
+        });
+
+        await FamilyService(db: db, auth: auth).acceptInviteCode('join01');
+
+        final inviterDoc = await db.collection('users').doc('inviter-uid').get();
+        final members = (inviterDoc.data()!['familyMembers'] as List)
+            .cast<Map<String, dynamic>>();
+        expect(members, hasLength(1));
+        expect(members.single['uid'], 'acceptor-uid');
+        expect(members.single['displayName'], 'Kid');
       },
     );
 
