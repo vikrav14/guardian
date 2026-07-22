@@ -212,6 +212,7 @@ String labelForEventType(JourneyEventType type) {
     JourneyEventType.vehicle => 'Vehicle',
     JourneyEventType.stopped => 'Stop',
     JourneyEventType.arrived => 'Arrived',
+    JourneyEventType.dwell => 'Stayed',
   };
 }
 
@@ -222,6 +223,7 @@ String emojiForEventType(JourneyEventType type) {
     JourneyEventType.vehicle => '🚌',
     JourneyEventType.stopped => '⏸',
     JourneyEventType.arrived => '🏁',
+    JourneyEventType.dwell => '📍',
   };
 }
 
@@ -274,37 +276,107 @@ List<RouteSegment> buildRouteSegments(List<LocationHistoryPoint> points) {
   return segments;
 }
 
+Geofence? resolveHomeGeofence(List<Geofence> geofences) {
+  final active = geofences.where((zone) => zone.active).toList();
+  if (active.isEmpty) return null;
+
+  for (final zone in active) {
+    if (zone.name.toLowerCase().contains('home')) return zone;
+  }
+  return active.length == 1 ? active.first : null;
+}
+
+bool isPointInsideGeofence(LocationHistoryPoint point, Geofence zone) {
+  if (!zone.active) return false;
+  if (zone.lat == 0 && zone.lng == 0) return false;
+  final distance = haversineMeters(point.lat, point.lng, zone.lat, zone.lng);
+  return distance <= zone.radiusMeters;
+}
+
+String labelForArrivalEvent({required bool arrivedHome, String? zoneName}) {
+  if (arrivedHome) {
+    final name = zoneName?.trim();
+    return name != null && name.isNotEmpty ? 'Arrived $name' : 'Arrived Home';
+  }
+  return labelForEventType(JourneyEventType.arrived);
+}
+
 /// Infers movement segments from speed (device-reported or computed).
-List<JourneyEvent> detectJourneyEvents(List<LocationHistoryPoint> points) {
+List<JourneyEvent> detectJourneyEvents(
+  List<LocationHistoryPoint> points, {
+  List<Geofence> geofences = const [],
+}) {
   if (points.isEmpty) return const [];
 
-  final events = <JourneyEvent>[
-    JourneyEvent(
-      type: JourneyEventType.leftHome,
-      label: labelForEventType(JourneyEventType.leftHome),
-      startIndex: 0,
-      endIndex: 0,
-      at: points.first.recordedAt,
-      transportMode: TransportMode.stationary,
-    ),
-  ];
+  final home = resolveHomeGeofence(geofences);
+  final events = <JourneyEvent>[];
+  bool? wasInsideHome;
+
+  if (home != null) {
+    wasInsideHome = isPointInsideGeofence(points.first, home);
+  }
 
   if (points.length == 1) {
-    events.add(
-      JourneyEvent(
-        type: JourneyEventType.arrived,
-        label: labelForEventType(JourneyEventType.arrived),
-        startIndex: 0,
-        endIndex: 0,
-        at: points.first.recordedAt,
-        transportMode: TransportMode.stationary,
-      ),
-    );
+    if (home != null && wasInsideHome == true) {
+      events.add(
+        JourneyEvent(
+          type: JourneyEventType.arrived,
+          label: labelForArrivalEvent(arrivedHome: true, zoneName: home.name),
+          startIndex: 0,
+          endIndex: 0,
+          at: points.first.recordedAt,
+          transportMode: TransportMode.stationary,
+        ),
+      );
+    } else {
+      events.add(
+        JourneyEvent(
+          type: JourneyEventType.arrived,
+          label: labelForEventType(JourneyEventType.arrived),
+          startIndex: 0,
+          endIndex: 0,
+          at: points.first.recordedAt,
+          transportMode: TransportMode.stationary,
+        ),
+      );
+    }
     return events;
   }
 
   var index = 1;
+  var terminalArrivalAdded = false;
   while (index < points.length) {
+    if (home != null) {
+      final inside = isPointInsideGeofence(points[index], home);
+      if (wasInsideHome == true && !inside) {
+        events.add(
+          JourneyEvent(
+            type: JourneyEventType.leftHome,
+            label: labelForEventType(JourneyEventType.leftHome),
+            startIndex: index,
+            endIndex: index,
+            at: points[index].recordedAt,
+            transportMode: TransportMode.stationary,
+          ),
+        );
+      } else if (wasInsideHome == false && inside) {
+        events.add(
+          JourneyEvent(
+            type: JourneyEventType.arrived,
+            label: labelForArrivalEvent(arrivedHome: true, zoneName: home.name),
+            startIndex: index,
+            endIndex: index,
+            at: points[index].recordedAt,
+            transportMode: TransportMode.stationary,
+          ),
+        );
+        if (index == points.length - 1) {
+          terminalArrivalAdded = true;
+        }
+      }
+      wasInsideHome = inside;
+    }
+
     final mode = transportModeForSegment(points, index - 1, index);
     final type = eventTypeForTransport(mode);
 
@@ -371,16 +443,23 @@ List<JourneyEvent> detectJourneyEvents(List<LocationHistoryPoint> points) {
   }
 
   final lastIndex = points.length - 1;
-  events.add(
-    JourneyEvent(
-      type: JourneyEventType.arrived,
-      label: labelForEventType(JourneyEventType.arrived),
-      startIndex: lastIndex,
-      endIndex: lastIndex,
-      at: points[lastIndex].recordedAt,
-      transportMode: TransportMode.stationary,
-    ),
-  );
+  final endedInsideHome =
+      home != null && isPointInsideGeofence(points[lastIndex], home);
+
+  if (!terminalArrivalAdded) {
+    events.add(
+      JourneyEvent(
+        type: JourneyEventType.arrived,
+        label: endedInsideHome && home != null
+            ? labelForArrivalEvent(arrivedHome: true, zoneName: home.name)
+            : labelForEventType(JourneyEventType.arrived),
+        startIndex: lastIndex,
+        endIndex: lastIndex,
+        at: points[lastIndex].recordedAt,
+        transportMode: TransportMode.stationary,
+      ),
+    );
+  }
 
   return events;
 }
@@ -419,7 +498,10 @@ JourneyQuality computeJourneyQuality(List<LocationHistoryPoint> points) {
   return JourneyQuality(fixCount: points.length, label: label);
 }
 
-JourneyScoreBreakdown computeJourneyScore(List<LocationHistoryPoint> points) {
+JourneyScoreBreakdown computeJourneyScore(
+  List<LocationHistoryPoint> points, {
+  List<Geofence> geofences = const [],
+}) {
   if (points.isEmpty) {
     return const JourneyScoreBreakdown(
       gpsAccuracy: 0,
@@ -430,7 +512,7 @@ JourneyScoreBreakdown computeJourneyScore(List<LocationHistoryPoint> points) {
   }
 
   final quality = computeJourneyQuality(points);
-  final events = detectJourneyEvents(points);
+  final events = detectJourneyEvents(points, geofences: geofences);
   final stopCount =
       events.where((e) => e.type == JourneyEventType.stopped).length;
   final gpsRatio = _gpsRatio(points);
@@ -514,7 +596,7 @@ JourneyHighlights computeJourneyHighlights(
     );
   }
 
-  final events = detectJourneyEvents(points);
+  final events = detectJourneyEvents(points, geofences: zones);
   var longestStop = Duration.zero;
   var totalMoving = Duration.zero;
   var walkingTime = Duration.zero;
@@ -584,20 +666,24 @@ JourneyHealth computeJourneyHealth(
   );
 }
 
-JourneyInsights buildJourneyInsights(List<LocationHistoryPoint> points) {
+JourneyInsights buildJourneyInsights(
+  List<LocationHistoryPoint> points, {
+  List<Geofence> geofences = const [],
+}) {
   if (points.isEmpty) {
     return const JourneyInsights(
       routeSummary: 'No journey data',
       avgSpeedKmh: null,
       gpsQualityLabel: 'Unknown',
       confidenceScore: 0,
+      confidenceExplanation: 'Based on 0 GPS fixes',
       stopCount: 0,
-      verified: false,
+      highDataQuality: false,
     );
   }
 
   final stats = buildJourneyStats(points);
-  final events = detectJourneyEvents(points);
+  final events = detectJourneyEvents(points, geofences: geofences);
   final stopCount =
       events.where((e) => e.type == JourneyEventType.stopped).length;
 
@@ -632,8 +718,9 @@ JourneyInsights buildJourneyInsights(List<LocationHistoryPoint> points) {
     avgSpeedKmh: avgSpeed,
     gpsQualityLabel: gpsQuality,
     confidenceScore: confidence,
+    confidenceExplanation: 'Based on ${points.length} GPS fixes',
     stopCount: stopCount,
-    verified: confidence >= 80 && quality.label != 'Fair',
+    highDataQuality: confidence >= 80 && quality.label != 'Fair',
   );
 }
 
@@ -660,6 +747,7 @@ String narrationForEvent(JourneyEvent event, List<LocationHistoryPoint> points) 
             : 'Vehicle movement detected. Average speed ${avg.toStringAsFixed(0)} km/h.';
       }(),
     JourneyEventType.stopped => 'Stop detected. Device stationary.',
+    JourneyEventType.dwell => event.label,
     JourneyEventType.arrived => 'Arrived at destination. Journey complete.',
   };
 }
@@ -848,4 +936,196 @@ class TypicalWeather {
   final int tempC;
 
   String get display => '$icon $label $tempC°C';
+}
+
+/// Decode a Google encoded polyline (precision 5).
+List<({double lat, double lng})> decodePolyline(String encoded) {
+  if (encoded.isEmpty) return const [];
+
+  final points = <({double lat, double lng})>[];
+  var index = 0;
+  var lat = 0;
+  var lng = 0;
+
+  while (index < encoded.length) {
+    var shift = 0;
+    var result = 0;
+    int b;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    final dlat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    final dlng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+    lng += dlng;
+
+    points.add((lat: lat / 1e5, lng: lng / 1e5));
+  }
+
+  return points;
+}
+
+/// Expand compressed journey polylines into timestamped GPS points.
+List<LocationHistoryPoint> pointsFromJourneyRecords(List<JourneyRecord> journeys) {
+  if (journeys.isEmpty) return const [];
+
+  final sorted = List<JourneyRecord>.from(journeys)
+    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+
+  final points = <LocationHistoryPoint>[];
+  for (final journey in sorted) {
+    points.addAll(_pointsFromJourneyRecord(journey));
+  }
+  return points;
+}
+
+List<LocationHistoryPoint> _pointsFromJourneyRecord(JourneyRecord journey) {
+  final coords = decodePolyline(journey.polyline);
+  if (coords.isEmpty) return const [];
+
+  final startMs = journey.startAt.millisecondsSinceEpoch;
+  final endMs = journey.endAt.millisecondsSinceEpoch;
+  final spanMs = endMs - startMs;
+
+  return [
+    for (var i = 0; i < coords.length; i++)
+      LocationHistoryPoint(
+        lat: coords[i].lat,
+        lng: coords[i].lng,
+        recordedAt: coords.length == 1
+            ? journey.startAt
+            : DateTime.fromMillisecondsSinceEpoch(
+                startMs + ((spanMs * i) / (coords.length - 1)).round(),
+              ),
+      ),
+  ];
+}
+
+String labelForDwellSegment(
+  DwellSegment dwell, {
+  List<Geofence> geofences = const [],
+}) {
+  final fromLabel = DateFormat.Hm().format(dwell.from);
+  final toLabel = DateFormat.Hm().format(dwell.to);
+  final place = _dwellPlaceLabel(dwell, geofences);
+  return 'Stayed at $place $fromLabel–$toLabel';
+}
+
+String _dwellPlaceLabel(DwellSegment dwell, List<Geofence> geofences) {
+  final placeName = dwell.placeName?.trim();
+  if (placeName != null && placeName.isNotEmpty) return placeName;
+
+  final geofenceId = dwell.geofenceId;
+  if (geofenceId != null) {
+    for (final zone in geofences) {
+      if (zone.id == geofenceId && zone.name.trim().isNotEmpty) {
+        return zone.name.trim();
+      }
+    }
+  }
+
+  for (final zone in geofences) {
+    if (!zone.active) continue;
+    final distance = haversineMeters(
+      dwell.centerLat,
+      dwell.centerLng,
+      zone.lat,
+      zone.lng,
+    );
+    if (distance <= zone.radiusMeters) {
+      return zone.name.trim().isEmpty ? 'safe zone' : zone.name.trim();
+    }
+  }
+
+  return 'location';
+}
+
+int? _nearestPointIndexForTime(
+  List<LocationHistoryPoint> points,
+  DateTime time,
+) {
+  if (points.isEmpty) return null;
+  var bestIndex = 0;
+  var bestDelta = Duration(days: 9999);
+  for (var i = 0; i < points.length; i++) {
+    final recordedAt = points[i].recordedAt;
+    if (recordedAt == null) continue;
+    final delta = recordedAt.difference(time).abs();
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+/// Merge gateway dwell segments with movement events into one timeline.
+List<JourneyEvent> mergeDwellAndMovementEvents({
+  required List<DwellSegment> dwells,
+  required List<JourneyEvent> movementEvents,
+  required List<LocationHistoryPoint> points,
+  List<Geofence> geofences = const [],
+}) {
+  final merged = List<JourneyEvent>.from(movementEvents);
+
+  for (final dwell in dwells) {
+    final index = _nearestPointIndexForTime(points, dwell.from) ?? 0;
+    merged.add(
+      JourneyEvent(
+        type: JourneyEventType.dwell,
+        label: labelForDwellSegment(dwell, geofences: geofences),
+        startIndex: index,
+        endIndex: index,
+        at: dwell.from,
+        transportMode: TransportMode.stationary,
+      ),
+    );
+  }
+
+  merged.sort((a, b) {
+    final aTime = a.at ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bTime = b.at ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return aTime.compareTo(bTime);
+  });
+
+  return merged;
+}
+
+/// Build replay input from gateway journeys + dwell segments (falls back to raw points).
+JourneyDayData buildJourneyDayData({
+  required List<LocationHistoryPoint> locationPoints,
+  required List<JourneyRecord> journeys,
+  required List<DwellSegment> dwells,
+  List<Geofence> geofences = const [],
+}) {
+  final points = journeys.isNotEmpty
+      ? pointsFromJourneyRecords(journeys)
+      : locationPoints;
+
+  final movementEvents = detectJourneyEvents(points, geofences: geofences);
+  final events = dwells.isEmpty
+      ? movementEvents
+      : mergeDwellAndMovementEvents(
+          dwells: dwells,
+          movementEvents: movementEvents,
+          points: points,
+          geofences: geofences,
+        );
+
+  return JourneyDayData(
+    points: points,
+    events: events,
+    dwells: dwells,
+    journeys: journeys,
+  );
 }

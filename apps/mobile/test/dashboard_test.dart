@@ -25,8 +25,39 @@ void main() {
     );
   });
 
-  test('Guardian insight reports normal only with live GPS', () {
+  test('Guardian insight uses gateway intelligence when present', () {
     final now = DateTime(2026, 7, 22, 13, 40);
+    final device = Device(
+      imei: '1',
+      online: true,
+      batteryPercent: 70,
+      location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
+      lastHeartbeatAt: now,
+      intelligence: DeviceIntelligence(
+        insights: const [
+          DeviceIntelligenceInsight(
+            id: 'stale_gps',
+            inference: 'Last GPS fix is 12 minutes old.',
+            confidence: 80,
+            level: 'warning',
+          ),
+        ],
+        topInsight: const DeviceIntelligenceInsight(
+          id: 'stale_gps',
+          inference: 'Last GPS fix is 12 minutes old.',
+          confidence: 80,
+          level: 'warning',
+        ),
+      ),
+    );
+
+    final insight = buildDashboardInsight(device);
+    expect(insight.title, 'GPS data may be stale');
+    expect(insight.tone, DashboardInsightTone.warning);
+  });
+
+  test('Guardian insight reports normal only with live GPS', () {
+    final now = DateTime.now();
     final device = Device(
       imei: '1',
       online: true,
@@ -39,7 +70,7 @@ void main() {
   });
 
   test('Guardian insight waits when GPS coordinates are stale', () {
-    final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+    final heartbeat = DateTime.now();
     final device = Device(
       imei: '1',
       online: true,
@@ -159,7 +190,7 @@ void main() {
   });
 
   test('map card attention flags offline, low battery, and open alerts', () {
-    final now = DateTime(2026, 7, 22, 13, 40);
+    final now = DateTime.now();
     final healthy = Device(
       imei: '1',
       online: true,
@@ -189,7 +220,7 @@ void main() {
   });
 
   testWidgets('smart device map card minimizes and expands', (tester) async {
-    final now = DateTime(2026, 7, 22, 13, 40);
+    final now = DateTime.now();
     final device = Device(
       imei: '1',
       nickname: 'Bouboush',

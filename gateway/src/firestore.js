@@ -5,6 +5,10 @@ const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
 const { sendDeviceCommand } = require('./commands');
 const { isFullImei, isProtocolId, normalizeImei } = require('./imei');
+const {
+  evaluateDeviceIntelligence,
+  shouldCreateOfflineAlert,
+} = require('./intelligence');
 
 let db = null;
 let enabled = false;
@@ -130,10 +134,41 @@ async function appendLocation(imei, point) {
   await db.collection('devices').doc(imei).collection('locations').add(data);
 }
 
+async function appendSegment(imei, segment) {
+  const data = {
+    ...segment,
+    createdAt: nowTs(),
+  };
+
+  if (!enabled) {
+    console.log(`[firestore:dry-run] devices/${imei}/segments`, JSON.stringify(data));
+    return;
+  }
+
+  await db.collection('devices').doc(imei).collection('segments').add(data);
+}
+
+async function appendJourney(imei, journey) {
+  const data = {
+    ...journey,
+    createdAt: nowTs(),
+  };
+
+  if (!enabled) {
+    console.log(`[firestore:dry-run] devices/${imei}/journeys`, JSON.stringify(data));
+    return null;
+  }
+
+  const ref = await db.collection('devices').doc(imei).collection('journeys').add(data);
+  return ref.id;
+}
+
 // Push notifications go to the guardian's own app for anything alert-worthy.
 function shouldNotify(alert) {
   const t = String(alert.type || '').toLowerCase();
-  return ['sos', 'fall', 'geofence_exit', 'geofence_enter', 'low_battery'].includes(t);
+  return ['sos', 'fall', 'geofence_exit', 'geofence_enter', 'low_battery', 'offline'].includes(
+    t
+  );
 }
 
 // SMS/WhatsApp to emergency contacts stays reserved for the urgent subset.
@@ -301,10 +336,109 @@ function startPendingCommandWatcher() {
   console.log('[commands] watching deviceCommands with status=pending');
 }
 
+function intelligenceConfig() {
+  return {
+    offlineMinutes: config.intelligenceOfflineMinutes,
+    offlineAlertCooldownMinutes: config.intelligenceOfflineAlertCooldownMinutes,
+  };
+}
+
+async function loadActiveGeofences(db, imei) {
+  const snap = await db
+    .collection('geofences')
+    .where('imei', '==', imei)
+    .where('active', '==', true)
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+async function refreshDeviceIntelligence(imei, deviceOverride = null) {
+  const canonicalImei = normalizeImei(imei);
+  const db = getDb();
+  const cfg = intelligenceConfig();
+
+  let device = deviceOverride;
+  if (!device && db) {
+    const snap = await db.collection('devices').doc(canonicalImei).get();
+    device = snap.exists ? { imei: canonicalImei, ...snap.data() } : null;
+  }
+  if (!device) return [];
+
+  const geofences = db ? await loadActiveGeofences(db, canonicalImei) : [];
+  const insights = evaluateDeviceIntelligence({
+    imei: canonicalImei,
+    device,
+    geofences,
+    config: cfg,
+  });
+
+  const payload = {
+    updatedAt: nowTs(),
+    insights,
+    topInsight: insights[0] || null,
+  };
+
+  if (!enabled) {
+    console.log(
+      `[firestore:dry-run] devices/${canonicalImei}.intelligence`,
+      JSON.stringify(payload)
+    );
+  } else {
+    await db.collection('devices').doc(canonicalImei).set({ intelligence: payload }, { merge: true });
+  }
+
+  const offlineInsight = insights.find(
+    (item) => item.id === 'offline' && item.confidence >= item.suppressBelow
+  );
+  if (offlineInsight && shouldCreateOfflineAlert(canonicalImei, cfg)) {
+    await createAlert(canonicalImei, {
+      type: 'offline',
+      severity: offlineInsight.level === 'urgent' ? 'critical' : 'warning',
+      message: offlineInsight.inference,
+      payload: {
+        source: 'intelligence',
+        facts: offlineInsight.facts,
+        confidence: offlineInsight.confidence,
+      },
+    });
+  }
+
+  return insights;
+}
+
+async function checkOfflineDevices() {
+  const db = getDb();
+  if (!db) return;
+
+  const snap = await db.collection('devices').where('online', '==', true).get();
+  for (const doc of snap.docs) {
+    try {
+      await refreshDeviceIntelligence(doc.id, { imei: doc.id, ...doc.data() });
+    } catch (err) {
+      console.error('[intelligence] refresh failed', doc.id, err.message);
+    }
+  }
+}
+
+function startIntelligenceMonitor() {
+  if (config.firestoreDisabled) return;
+  const intervalMs = config.intelligenceCheckIntervalMs;
+  setInterval(() => {
+    checkOfflineDevices().catch((err) => {
+      console.error('[intelligence] periodic check failed', err.message);
+    });
+  }, intervalMs);
+  console.log(`[intelligence] monitoring offline devices every ${intervalMs / 1000}s`);
+}
+
 module.exports = {
   initFirestore,
   getDb,
   upsertDevice,
   appendLocation,
+  appendSegment,
+  appendJourney,
   createAlert,
+  refreshDeviceIntelligence,
+  startIntelligenceMonitor,
 };

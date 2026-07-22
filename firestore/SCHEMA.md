@@ -59,6 +59,7 @@ Live device state. Document ID = device IMEI (digits only).
 | location | map | See below |
 | accuracySource | string \| null | `gps` \| `wifi` \| `lbs` |
 | lastAlarm | map \| null | `{ type, at, raw }` |
+| intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
@@ -75,7 +76,7 @@ Live device state. Document ID = device IMEI (digits only).
 
 ## `devices/{imei}/locations/{locationId}`
 
-Optional history (gateway may throttle writes).
+Optional history (gateway throttles writes — see write gate below).
 
 | Field | Type |
 |-------|------|
@@ -84,6 +85,41 @@ Optional history (gateway may throttle writes).
 | speedKmh | number \| null |
 | accuracySource | string \| null |
 | recordedAt | timestamp |
+
+History is appended only when the gateway write gate passes (same rules as device doc location updates, or when history interval elapses on a heartbeat-cap persist).
+
+## `devices/{imei}/segments/{segmentId}`
+
+Merged dwell periods for Journey view. Gateway writes when the device stays stationary (< 1 km/h or < 50 m movement) for at least `DWELL_MIN_MINUTES` (default 10).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| type | string | `dwell` |
+| placeName | string \| null | Optional label |
+| geofenceId | string \| null | Safe zone id when inside a geofence |
+| from | timestamp | Dwell start |
+| to | timestamp | Dwell end |
+| centerLat | number | Centroid latitude |
+| centerLng | number | Centroid longitude |
+| createdAt | timestamp | Write time |
+
+## `devices/{imei}/journeys/{journeyId}`
+
+Compressed movement segments for Journey route replay. Gateway accumulates GPS in memory during active travel and writes **one document per closed journey** (polyline-encoded route) instead of hundreds of raw location points.
+
+Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after last movement, daily boundary (midnight), or TCP disconnect.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| startAt | timestamp | Journey start |
+| endAt | timestamp | Journey end |
+| distanceKm | number | Path length along buffered GPS points |
+| polyline | string | Google encoded polyline (precision 5) |
+| events | array | Optional inline events, e.g. `{ type: 'geofence_exit', geofenceId, name, at }` |
+| pointCount | number | Raw GPS fixes in buffer before compression |
+| compressed | boolean | Always `true` for gateway-written docs |
+| closeReason | string | `idle` \| `geofence_exit` \| `daily_boundary` \| `disconnect` |
+| createdAt | timestamp | Write time |
 
 ## `geofences/{geofenceId}`
 
@@ -145,13 +181,29 @@ Gateway fan-out audit trail (SMS/WhatsApp attempts).
 
 ## Gateway write map
 
+The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
+
+| Trigger | Firestore action |
+|---------|------------------|
+| Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
+| Battery integer change | Upsert `batteryPercent` |
+| SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
+| Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
+| First GPS fix after TCP connect | Always upsert location |
+| Dwell ≥ `DWELL_MIN_MINUTES` (default 10 min) stationary | Write `devices/{imei}/segments/{id}` |
+| Active journey closes (idle / geofence exit / day boundary / disconnect) | Write `devices/{imei}/journeys/{id}` (compressed polyline) |
+| Login / disconnect | Upsert `online` status; flush dwell + open journey on disconnect |
+
+Geofence evaluation and safety alerts run on **every** valid in-memory GPS fix, even when Firestore writes are skipped. `intelligence` refreshes only on persist or alarm (not every GPS tick).
+
 | GT06 event | Firestore action |
 |------------|------------------|
 | Login | Upsert `devices/{imei}` (`online: true`) |
-| GPS / location | Update `devices/{imei}.location`, evaluate **Firestore geofences**, create enter/exit alerts |
-| Heartbeat / status | Update `lastHeartbeatAt`, `batteryPercent`, `online: true` |
-| SOS / fall / alarm | Create `alerts/{id}` + set `devices/{imei}.lastAlarm` + notify contacts |
-| Disconnect | Set `online: false` (best-effort) |
+| Heartbeat / status | Write gate: battery change or heartbeat cap → update device + refresh `intelligence` |
+| GPS / location | Write gate on device doc; journey buffer in memory; location history only on alarm / geofence / first fix / history interval; refresh `intelligence` only on persist |
+| Periodic check | Refresh `intelligence` for online devices; create `offline` alert when heartbeat gap exceeds threshold (cooldown applies) |
+| SOS / fall / alarm | Always persist + create `alerts/{id}` + notify contacts |
+| Disconnect | Flush dwell segment; set `online: false` |
 
 ## Security (summary)
 

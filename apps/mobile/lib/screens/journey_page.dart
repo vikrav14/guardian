@@ -185,17 +185,18 @@ class _JourneyPageState extends State<JourneyPage> {
     _selectDay(_day.add(Duration(days: deltaDays)));
   }
 
-  JourneyReplayController _controllerFor(List<LocationHistoryPoint> points) {
+  JourneyReplayController _controllerFor(JourneyDayData dayData) {
     if (_replay != null &&
         _cachedPoints != null &&
-        _pointsEqual(_cachedPoints!, points)) {
+        _pointsEqual(_cachedPoints!, dayData.points)) {
       return _replay!;
     }
     _replay?.dispose();
-    _cachedPoints = points;
+    _cachedPoints = dayData.points;
     _replay = JourneyReplayController(
-      rawPoints: points,
+      rawPoints: dayData.points,
       geofences: _geofences,
+      timelineEvents: dayData.events,
     );
     return _replay!;
   }
@@ -327,9 +328,13 @@ class _JourneyPageState extends State<JourneyPage> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<LocationHistoryPoint>>(
+            child: StreamBuilder<JourneyDayData>(
               key: ValueKey(_day),
-              stream: DeviceService().watchDayHistory(widget.imei, _day),
+              stream: DeviceService().watchDayJourneyData(
+                widget.imei,
+                _day,
+                geofences: _geofences,
+              ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('${snapshot.error}'));
@@ -337,8 +342,8 @@ class _JourneyPageState extends State<JourneyPage> {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final points = snapshot.data!;
-                if (points.isEmpty) {
+                final dayData = snapshot.data!;
+                if (dayData.isEmpty) {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -351,7 +356,7 @@ class _JourneyPageState extends State<JourneyPage> {
                   );
                 }
 
-                final replay = _controllerFor(points);
+                final replay = _controllerFor(dayData);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _fitBounds(replay.smoothedPoints);
                   _followReplayMarker(replay);
@@ -381,7 +386,7 @@ class _JourneyPageState extends State<JourneyPage> {
                       _mapType =
                           _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
                     }),
-                    onCompareToggle: () => _toggleCompareMode(points),
+                    onCompareToggle: () => _toggleCompareMode(dayData.points),
                     onTimeMachine: _openTimeMachine,
                   );
                 }
@@ -409,7 +414,7 @@ class _JourneyPageState extends State<JourneyPage> {
                     _mapType =
                         _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
                   }),
-                  onCompareToggle: () => _toggleCompareMode(points),
+                  onCompareToggle: () => _toggleCompareMode(dayData.points),
                   onTimeMachine: _openTimeMachine,
                 );
               },
@@ -1801,15 +1806,25 @@ class _JourneyInsightsCard extends StatelessWidget {
               const GuardianAiIcon(size: 32),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
-                  'Guardian AI',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                child: Tooltip(
+                  message: 'Rule-based summary from GPS and device signals',
+                  child: Text(
+                    'Guardian AI',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
               _AiConfidenceBadge(insights: insights),
             ],
           ),
-          const SizedBox(height: 12),
+          Text(
+            insights.confidenceExplanation,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
           _InsightRow(label: 'Route', value: insights.routeSummary),
           _InsightRow(
             label: 'Avg speed',
@@ -1840,8 +1855,8 @@ class _AiConfidenceBadge extends StatelessWidget {
         border: Border.all(color: colors.accent.withValues(alpha: 0.25)),
       ),
       child: Text(
-        insights.verified
-            ? 'Confidence ${insights.confidenceScore}% · Verified'
+        insights.highDataQuality
+            ? 'Confidence ${insights.confidenceScore}% · High data quality'
             : 'Confidence ${insights.confidenceScore}%',
         style: TextStyle(
           fontSize: 10,

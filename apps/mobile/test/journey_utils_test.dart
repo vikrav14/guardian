@@ -174,7 +174,7 @@ void main() {
   });
 
   group('detectJourneyEvents', () {
-    test('marks left home and arrived for any non-empty journey', () {
+    test('does not mark left home without geofence exit', () {
       final points = _line(
         count: 5,
         startLat: -20.2,
@@ -187,8 +187,52 @@ void main() {
       );
 
       final events = detectJourneyEvents(points);
-      expect(events.first.type, JourneyEventType.leftHome);
+      expect(events.any((e) => e.type == JourneyEventType.leftHome), isFalse);
       expect(events.last.type, JourneyEventType.arrived);
+    });
+
+    test('emits left home and arrived home when crossing home geofence', () {
+      const home = Geofence(
+        id: 'home',
+        imei: 'demo',
+        name: 'Home',
+        active: true,
+        lat: -20.2642,
+        lng: 57.4791,
+        radiusMeters: 200,
+      );
+      final start = DateTime(2026, 7, 22, 8, 0);
+      final points = <LocationHistoryPoint>[
+        LocationHistoryPoint(
+          lat: -20.2642,
+          lng: 57.4791,
+          speedKmh: 0,
+          recordedAt: start,
+        ),
+        ..._line(
+          count: 4,
+          startLat: -20.2642,
+          startLng: 57.4791,
+          latStep: 0.003,
+          lngStep: 0,
+          startTime: start.add(const Duration(minutes: 2)),
+          step: const Duration(minutes: 2),
+          speedKmh: 12,
+        ),
+        LocationHistoryPoint(
+          lat: -20.2642,
+          lng: 57.4791,
+          speedKmh: 0,
+          recordedAt: start.add(const Duration(minutes: 12)),
+        ),
+      ];
+
+      final events = detectJourneyEvents(points, geofences: const [home]);
+      expect(events.any((e) => e.type == JourneyEventType.leftHome), isTrue);
+      expect(
+        events.any((e) => e.label.toLowerCase().contains('arrived home')),
+        isTrue,
+      );
     });
 
     test('detects vehicle movement above walking threshold', () {
@@ -334,7 +378,27 @@ void main() {
       final insights = buildJourneyInsights(points);
       expect(insights.stopCount, greaterThanOrEqualTo(1));
       expect(insights.confidenceScore, greaterThan(50));
+      expect(insights.confidenceExplanation, 'Based on 13 GPS fixes');
       expect(insights.avgSpeedKmh, isNotNull);
+    });
+  });
+
+  group('buildJourneyInsights confidenceExplanation', () {
+    test('includes GPS fix count', () {
+      final points = _line(
+        count: 8,
+        startLat: -20.2,
+        startLng: 57.4,
+        latStep: 0.0002,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 14, 0),
+        step: const Duration(minutes: 1),
+      );
+
+      expect(
+        buildJourneyInsights(points).confidenceExplanation,
+        'Based on 8 GPS fixes',
+      );
     });
   });
 
@@ -409,6 +473,74 @@ void main() {
       final jul = typicalWeatherForMonth(7);
       expect(jan.display, contains('°C'));
       expect(jul.label, isNotEmpty);
+    });
+  });
+
+  group('decodePolyline', () {
+    test('decodes gateway-encoded polyline', () {
+      const encoded = r'fztzBkky}I~CsD';
+      final points = decodePolyline(encoded);
+      expect(points.length, 2);
+      expect(points.first.lat, closeTo(-20.2642, 0.0001));
+      expect(points.last.lng, closeTo(57.48, 0.0001));
+    });
+  });
+
+  group('buildJourneyDayData', () {
+    test('merges dwell segments into timeline labels', () {
+      final start = DateTime(2026, 7, 22, 9, 0);
+      final end = DateTime(2026, 7, 22, 12, 10);
+      const home = Geofence(
+        id: 'home',
+        imei: 'demo',
+        name: 'Home',
+        active: true,
+        lat: -20.2642,
+        lng: 57.4791,
+        radiusMeters: 200,
+      );
+      final dwell = DwellSegment(
+        id: 'd1',
+        from: start,
+        to: end,
+        centerLat: -20.2642,
+        centerLng: 57.4791,
+        geofenceId: 'home',
+      );
+      final points = _line(
+        count: 6,
+        startLat: -20.2642,
+        startLng: 57.4791,
+        latStep: 0.001,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 13, 0),
+        step: const Duration(minutes: 5),
+        speedKmh: 12,
+      );
+
+      final dayData = buildJourneyDayData(
+        locationPoints: points,
+        journeys: const [],
+        dwells: [dwell],
+        geofences: const [home],
+      );
+
+      expect(
+        dayData.events.any((e) => e.type == JourneyEventType.dwell),
+        isTrue,
+      );
+      expect(
+        dayData.events
+            .firstWhere((e) => e.type == JourneyEventType.dwell)
+            .label,
+        contains('Stayed at Home'),
+      );
+      expect(
+        dayData.events
+            .firstWhere((e) => e.type == JourneyEventType.dwell)
+            .label,
+        contains('09:00'),
+      );
     });
   });
 }

@@ -1,4 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../models/location_history_point.dart';
 
 enum JourneyEventType {
   leftHome,
@@ -6,6 +9,7 @@ enum JourneyEventType {
   vehicle,
   stopped,
   arrived,
+  dwell,
 }
 
 enum TransportMode {
@@ -133,16 +137,116 @@ class JourneyInsights {
     required this.avgSpeedKmh,
     required this.gpsQualityLabel,
     required this.confidenceScore,
+    required this.confidenceExplanation,
     required this.stopCount,
-    required this.verified,
+    required this.highDataQuality,
   });
 
   final String routeSummary;
   final double? avgSpeedKmh;
   final String gpsQualityLabel;
   final int confidenceScore;
+  final String confidenceExplanation;
   final int stopCount;
-  final bool verified;
+  final bool highDataQuality;
+}
+
+/// Gateway-written dwell segment (`devices/{imei}/segments`).
+class DwellSegment {
+  const DwellSegment({
+    required this.id,
+    required this.from,
+    required this.to,
+    required this.centerLat,
+    required this.centerLng,
+    this.placeName,
+    this.geofenceId,
+  });
+
+  final String id;
+  final DateTime from;
+  final DateTime to;
+  final double centerLat;
+  final double centerLng;
+  final String? placeName;
+  final String? geofenceId;
+
+  factory DwellSegment.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return DwellSegment(
+      id: doc.id,
+      from: _asDateTime(data['from']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      to: _asDateTime(data['to']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      centerLat: (data['centerLat'] as num?)?.toDouble() ?? 0,
+      centerLng: (data['centerLng'] as num?)?.toDouble() ?? 0,
+      placeName: data['placeName'] as String?,
+      geofenceId: data['geofenceId'] as String?,
+    );
+  }
+}
+
+/// Compressed journey route (`devices/{imei}/journeys`).
+class JourneyRecord {
+  const JourneyRecord({
+    required this.id,
+    required this.startAt,
+    required this.endAt,
+    required this.polyline,
+    required this.distanceKm,
+    required this.pointCount,
+    this.compressed = true,
+    this.events = const [],
+  });
+
+  final String id;
+  final DateTime startAt;
+  final DateTime endAt;
+  final String polyline;
+  final double distanceKm;
+  final int pointCount;
+  final bool compressed;
+  final List<Map<String, dynamic>> events;
+
+  factory JourneyRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    final rawEvents = data['events'];
+    return JourneyRecord(
+      id: doc.id,
+      startAt: _asDateTime(data['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      endAt: _asDateTime(data['endAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      polyline: data['polyline'] as String? ?? '',
+      distanceKm: (data['distanceKm'] as num?)?.toDouble() ?? 0,
+      pointCount: (data['pointCount'] as num?)?.toInt() ?? 0,
+      compressed: data['compressed'] as bool? ?? true,
+      events: rawEvents is List
+          ? rawEvents.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : const [],
+    );
+  }
+}
+
+/// Points + merged timeline events for Journey replay.
+class JourneyDayData {
+  const JourneyDayData({
+    required this.points,
+    required this.events,
+    this.dwells = const [],
+    this.journeys = const [],
+  });
+
+  final List<LocationHistoryPoint> points;
+  final List<JourneyEvent> events;
+  final List<DwellSegment> dwells;
+  final List<JourneyRecord> journeys;
+
+  bool get isEmpty => points.isEmpty;
+}
+
+DateTime? _asDateTime(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
 /// Journey map & sharing features.

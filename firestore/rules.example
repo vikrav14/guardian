@@ -63,6 +63,16 @@ service cloud.firestore {
         allow read: if linkedTo(imei);
         allow write: if false;
       }
+
+      match /segments/{segmentId} {
+        allow read: if linkedTo(imei);
+        allow write: if false;
+      }
+
+      match /journeys/{journeyId} {
+        allow read: if linkedTo(imei);
+        allow write: if false;
+      }
     }
 
     match /geofences/{geofenceId} {

@@ -11,6 +11,13 @@ const config = {
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
 
+  // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
+  writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),
+  writeGateHeartbeatMinutes: Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5),
+  writeGateHistoryMinutes: Number(process.env.WRITE_GATE_HISTORY_MINUTES || 5),
+  dwellMinMinutes: Number(process.env.DWELL_MIN_MINUTES || 10),
+  journeyIdleMinutes: Number(process.env.JOURNEY_IDLE_MINUTES || 15),
+
   // ReachFar V28C: 10-digit protocol id → 15-digit IMEI = prefix + id[3..9] + suffix digit.
   // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
   imeiPrefix: process.env.IMEI_PREFIX || '8613970',
@@ -32,6 +39,13 @@ const config = {
   // Claude (WhatsApp AI assistant)
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+
+  // Layer 1 intelligence (rule-based device insights)
+  intelligenceOfflineMinutes: Number(process.env.INTELLIGENCE_OFFLINE_MINUTES || 10),
+  intelligenceOfflineAlertCooldownMinutes: Number(
+    process.env.INTELLIGENCE_OFFLINE_ALERT_COOLDOWN_MINUTES || 30
+  ),
+  intelligenceCheckIntervalMs: Number(process.env.INTELLIGENCE_CHECK_INTERVAL_MS || 60_000),
 };
 
 module.exports = config;

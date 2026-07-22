@@ -7,6 +7,8 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
+import '../journey/journey_models.dart';
+import '../journey/journey_utils.dart';
 import 'imei_utils.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
@@ -33,6 +35,67 @@ Stream<List<String>> _watchLinkedImeis(
 
 // Firestore whereIn supports at most 30 values per query.
 const _maxWhereIn = 30;
+
+Stream<T> _combineLatest3<A, B, C, T>(
+  Stream<A> streamA,
+  Stream<B> streamB,
+  Stream<C> streamC,
+  T Function(A a, B b, C c) combiner,
+) {
+  late StreamSubscription<A> subA;
+  late StreamSubscription<B> subB;
+  late StreamSubscription<C> subC;
+  A? latestA;
+  B? latestB;
+  C? latestC;
+  var anyEvent = false;
+
+  final controller = StreamController<T>();
+
+  void emit() {
+    if (latestA != null && latestB != null && latestC != null) {
+      controller.add(combiner(latestA as A, latestB as B, latestC as C));
+    }
+  }
+
+  controller.onListen = () {
+    subA = streamA.listen(
+      (value) {
+        latestA = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+    subB = streamB.listen(
+      (value) {
+        latestB = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+    subC = streamC.listen(
+      (value) {
+        latestC = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+  };
+
+  controller.onCancel = () async {
+    await subA.cancel();
+    await subB.cancel();
+    await subC.cancel();
+    if (!anyEvent) {
+      // Allow empty combine when all streams complete without data.
+    }
+  };
+
+  return controller.stream;
+}
 
 class DeviceService {
   DeviceService({FirebaseFirestore? db, FirebaseAuth? auth})
@@ -128,6 +191,64 @@ class DeviceService {
         .map((snap) => snap.docs.map(LocationHistoryPoint.fromDoc).toList());
   }
 
+  /// Streams compressed journeys for a calendar day.
+  Stream<List<JourneyRecord>> watchDayJourneys(String imei, DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('journeys')
+        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startAt', isLessThan: Timestamp.fromDate(end))
+        .orderBy('startAt')
+        .snapshots()
+        .map((snap) => snap.docs.map(JourneyRecord.fromDoc).toList());
+  }
+
+  /// Streams gateway dwell segments for a calendar day.
+  Stream<List<DwellSegment>> watchDaySegments(String imei, DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('segments')
+        .where('from', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('from', isLessThan: Timestamp.fromDate(end))
+        .orderBy('from')
+        .snapshots()
+        .map((snap) => snap.docs.map(DwellSegment.fromDoc).toList());
+  }
+
+  /// Journeys + dwell segments + legacy location history merged for Journey replay.
+  Stream<JourneyDayData> watchDayJourneyData(
+    String imei,
+    DateTime day, {
+    List<Geofence> geofences = const [],
+  }) {
+    return _combineLatest3(
+      watchDayHistory(imei, day),
+      watchDayJourneys(imei, day),
+      watchDaySegments(imei, day),
+      (locations, journeys, segments) => buildJourneyDayData(
+        locationPoints: locations,
+        journeys: journeys,
+        dwells: segments,
+        geofences: geofences,
+      ),
+    );
+  }
+
+  /// One-shot fetch for compare mode and share exports.
+  Future<JourneyDayData> fetchDayJourneyData(
+    String imei,
+    DateTime day, {
+    List<Geofence> geofences = const [],
+  }) {
+    return watchDayJourneyData(imei, day, geofences: geofences).first;
+  }
+
   /// One-shot fetch for compare mode and share exports.
   Future<List<LocationHistoryPoint>> fetchDayHistory(
     String imei,
@@ -163,6 +284,23 @@ class DeviceService {
       final dt = ts.toDate();
       days.add(DateTime(dt.year, dt.month, dt.day));
     }
+
+    final journeySnap = await _db
+        .collection('devices')
+        .doc(imei)
+        .collection('journeys')
+        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .orderBy('startAt')
+        .get();
+
+    for (final doc in journeySnap.docs) {
+      final ts = doc.data()['startAt'];
+      if (ts is! Timestamp) continue;
+      final dt = ts.toDate();
+      days.add(DateTime(dt.year, dt.month, dt.day));
+    }
+
     return days;
   }
 

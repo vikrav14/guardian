@@ -37,6 +37,70 @@ const double deviceMovingSpeedThresholdKmh = 5;
 /// Location older than this gap behind the last heartbeat is treated as stale.
 const Duration deviceLocationFreshnessSlack = Duration(minutes: 8);
 
+class DeviceIntelligence {
+  const DeviceIntelligence({
+    required this.insights,
+    this.topInsight,
+    this.updatedAt,
+  });
+
+  final List<DeviceIntelligenceInsight> insights;
+  final DeviceIntelligenceInsight? topInsight;
+  final DateTime? updatedAt;
+
+  factory DeviceIntelligence.fromMap(Map<String, dynamic>? map) {
+    if (map == null) {
+      return const DeviceIntelligence(insights: []);
+    }
+    final rawInsights = map['insights'];
+    final insights = rawInsights is List
+        ? rawInsights
+            .whereType<Map>()
+            .map((item) => DeviceIntelligenceInsight.fromMap(
+                  Map<String, dynamic>.from(item),
+                ))
+            .toList(growable: false)
+        : const <DeviceIntelligenceInsight>[];
+
+    final topRaw = map['topInsight'];
+    final topInsight = topRaw is Map
+        ? DeviceIntelligenceInsight.fromMap(Map<String, dynamic>.from(topRaw))
+        : (insights.isNotEmpty ? insights.first : null);
+
+    return DeviceIntelligence(
+      insights: insights,
+      topInsight: topInsight,
+      updatedAt: _asDateTime(map['updatedAt']),
+    );
+  }
+}
+
+class DeviceIntelligenceInsight {
+  const DeviceIntelligenceInsight({
+    required this.id,
+    required this.inference,
+    required this.confidence,
+    required this.level,
+    this.suppressBelow = 50,
+  });
+
+  final String id;
+  final String inference;
+  final int confidence;
+  final String level;
+  final int suppressBelow;
+
+  factory DeviceIntelligenceInsight.fromMap(Map<String, dynamic> map) {
+    return DeviceIntelligenceInsight(
+      id: map['id'] as String? ?? 'unknown',
+      inference: map['inference'] as String? ?? '',
+      confidence: (map['confidence'] as num?)?.round() ?? 0,
+      level: map['level'] as String? ?? 'info',
+      suppressBelow: (map['suppressBelow'] as num?)?.round() ?? 50,
+    );
+  }
+}
+
 class Device {
   const Device({
     required this.imei,
@@ -53,6 +117,7 @@ class Device {
     this.updatedAt,
     this.simNumber,
     this.avatarUrl,
+    this.intelligence,
   });
 
   final String imei;
@@ -71,6 +136,7 @@ class Device {
   final DateTime? updatedAt;
   final String? simNumber;
   final String? avatarUrl;
+  final DeviceIntelligence? intelligence;
 
   String? get _legacyPersonName {
     final value = name?.trim();
@@ -146,6 +212,11 @@ class Device {
       updatedAt: _asDateTime(data['updatedAt']),
       simNumber: data['simNumber'] as String?,
       avatarUrl: data['avatarUrl'] as String?,
+      intelligence: DeviceIntelligence.fromMap(
+        data['intelligence'] is Map
+            ? Map<String, dynamic>.from(data['intelligence'] as Map)
+            : null,
+      ),
     );
   }
 }
