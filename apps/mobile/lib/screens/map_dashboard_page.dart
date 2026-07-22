@@ -22,7 +22,7 @@ import '../widgets/dashboard/desktop_dashboard_layout.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
-import 'route_history_page.dart';
+import 'journey_page.dart';
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -407,7 +407,11 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
-            RouteHistoryPage(imei: device.imei, deviceName: device.displayName),
+            JourneyPage(
+              imei: device.imei,
+              deviceName: device.displayName,
+              avatarUrl: device.avatarUrl,
+            ),
       ),
     );
   }
@@ -1896,7 +1900,7 @@ class _QuickActions extends StatelessWidget {
       (Icons.my_location_rounded, 'Locate', onLocate),
       (Icons.chat_bubble_outline_rounded, 'Message', onMessage),
       (Icons.volume_up_rounded, 'Siren', onSiren),
-      (Icons.history_rounded, 'History', onHistory),
+      (Icons.route_rounded, 'Journey', onHistory),
       (Icons.location_on_outlined, 'Safe zone', onSafeZone),
     ];
     return Container(
@@ -1976,7 +1980,7 @@ class _TimelineCard extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
-              TextButton(onPressed: onOpen, child: const Text('View timeline')),
+              TextButton(onPressed: onOpen, child: const Text('View journey')),
             ],
           ),
           const SizedBox(height: 6),
@@ -2023,7 +2027,7 @@ class _TimelineCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Route events appear when location history is enabled on the gateway.',
+            'Journey events appear when location history is enabled on the gateway.',
             style: TextStyle(fontSize: 10, color: colors.textMuted),
           ),
         ],

@@ -128,6 +128,44 @@ class DeviceService {
         .map((snap) => snap.docs.map(LocationHistoryPoint.fromDoc).toList());
   }
 
+  /// One-shot fetch for compare mode and share exports.
+  Future<List<LocationHistoryPoint>> fetchDayHistory(
+    String imei,
+    DateTime day,
+  ) {
+    return watchDayHistory(imei, day).first;
+  }
+
+  /// Returns calendar days (midnight local) that have at least one location fix
+  /// within [lookbackDays] ending today — used by Journey Time Machine memories.
+  Future<Set<DateTime>> fetchDaysWithHistory(
+    String imei, {
+    int lookbackDays = 60,
+  }) async {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day)
+        .subtract(Duration(days: lookbackDays));
+    final end = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+    final snap = await _db
+        .collection('devices')
+        .doc(imei)
+        .collection('locations')
+        .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('recordedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .orderBy('recordedAt')
+        .get();
+
+    final days = <DateTime>{};
+    for (final doc in snap.docs) {
+      final ts = doc.data()['recordedAt'];
+      if (ts is! Timestamp) continue;
+      final dt = ts.toDate();
+      days.add(DateTime(dt.year, dt.month, dt.day));
+    }
+    return days;
+  }
+
   /// Streams only the devices this signed-in guardian is linked to.
   Stream<List<Device>> watchLinkedDevices() {
     return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
