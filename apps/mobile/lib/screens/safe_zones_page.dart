@@ -1,35 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
+import '../safe_zones/safe_zone_logic.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
-import '../widgets/guardian_widgets.dart';
+import '../widgets/safe_zones/safe_zone_card.dart';
+import '../widgets/safe_zones/safe_zones_hero.dart';
 import 'location_picker_page.dart';
 
 class SafeZonesPage extends StatelessWidget {
   const SafeZonesPage({super.key});
-
-  IconData _iconFor(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('school')) return Icons.school_outlined;
-    if (lower.contains('grand') || lower.contains('heart')) {
-      return Icons.favorite_border;
-    }
-    return Icons.home_outlined;
-  }
-
-  (Color, Color) _iconColors(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('school')) {
-      return (GuardianColors.accent, GuardianColors.accentBg);
-    }
-    if (lower.contains('grand')) {
-      return (const Color(0xFF993556), const Color(0xFFFBEAF0));
-    }
-    return (GuardianColors.safe, GuardianColors.safeBg);
-  }
 
   Future<void> _createZone(BuildContext context, List<Device> devices) async {
     if (devices.isEmpty) {
@@ -100,9 +83,9 @@ class SafeZonesPage extends StatelessWidget {
                                 ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
                                       '${pickedLocation!.longitude.toStringAsFixed(4)}'
                                 : "Center: pendant's current location",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: GuardianColors.textSecondary,
+                              color: context.guardianColors.textSecondary,
                             ),
                           ),
                         ),
@@ -115,10 +98,18 @@ class SafeZonesPage extends StatelessWidget {
                             final initial = loc?.isValid == true
                                 ? LatLng(loc!.lat, loc.lng)
                                 : const LatLng(-20.2642, 57.4791);
+                            final radius =
+                                double.tryParse(radiusCtrl.text.trim()) ?? 150;
+                            final zoneStyle = styleForCategory(
+                              categoryFromZoneName(nameCtrl.text),
+                            );
                             final picked = await Navigator.of(ctx).push<LatLng>(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    LocationPickerPage(initialCenter: initial),
+                                builder: (_) => LocationPickerPage(
+                                  initialCenter: initial,
+                                  radiusMeters: radius.clamp(50, 5000),
+                                  zoneColor: zoneStyle.color,
+                                ),
                               ),
                             );
                             if (picked != null) {
@@ -211,210 +202,103 @@ class SafeZonesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GuardianColors.surfaceMuted,
-      body: SafeArea(
-        child: StreamBuilder<List<Device>>(
-          stream: DeviceService().watchLinkedDevices(),
-          builder: (context, deviceSnap) {
-            final devices = deviceSnap.data ?? <Device>[];
+      backgroundColor: context.guardianColors.canvas,
+      body: SafeArea(child: _SafeZonesBody(onCreateZone: _createZone)),
+    );
+  }
+}
 
-            return StreamBuilder<List<Geofence>>(
-              stream: GeofenceService().watchAll(),
-              builder: (context, zoneSnap) {
-                if (zoneSnap.hasError) {
-                  return Center(child: Text('${zoneSnap.error}'));
-                }
-                if (!zoneSnap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+class _SafeZonesBody extends StatefulWidget {
+  const _SafeZonesBody({required this.onCreateZone});
 
-                final zones = zoneSnap.data!;
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+  final Future<void> Function(BuildContext context, List<Device> devices)
+      onCreateZone;
+
+  @override
+  State<_SafeZonesBody> createState() => _SafeZonesBodyState();
+}
+
+class _SafeZonesBodyState extends State<_SafeZonesBody> {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Device>>(
+      stream: DeviceService().watchLinkedDevices(),
+      builder: (context, deviceSnap) {
+        final devices = deviceSnap.data ?? const <Device>[];
+
+        return StreamBuilder<List<Geofence>>(
+          stream: GeofenceService().watchAll(),
+          builder: (context, zoneSnap) {
+            if (zoneSnap.hasError) {
+              return Center(child: Text('${zoneSnap.error}'));
+            }
+            if (!zoneSnap.hasData || !deviceSnap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final zones = zoneSnap.data!;
+
+            return StreamBuilder<List<GuardianAlert>>(
+              stream: AlertService().watchLinkedAlerts(),
+              builder: (context, alertSnap) {
+                final alerts = alertSnap.data ?? const <GuardianAlert>[];
+                final hero = buildSafeZonesHeroSummary(
+                  zones: zones,
+                  devices: devices,
+                  alerts: alerts,
+                );
+
+                return Stack(
                   children: [
-                    Row(
+                    ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        GuardianSpacing.md,
+                        GuardianSpacing.lg,
+                        GuardianSpacing.md,
+                        88,
+                      ),
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Safe zones',
-                                style: TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                        SafeZonesHero(summary: hero),
+                        const SizedBox(height: GuardianSpacing.md),
+                        if (zones.isEmpty)
+                          Text(
+                            'No safe zones yet. Tap + to create a radius around home, school, or another place you care about.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          )
+                        else
+                          for (final zone in zones) ...[
+                            SafeZoneCard(
+                              zone: zone,
+                              devices: devices,
+                              alerts: alerts,
+                              onToggle: () => GeofenceService().setActive(
+                                zone.id,
+                                !zone.active,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${zones.length} zone${zones.length == 1 ? '' : 's'} · get notified on exit',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: GuardianColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Material(
-                          color: GuardianColors.safe,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () => _createZone(context, devices),
-                            child: const SizedBox(
-                              width: 34,
-                              height: 34,
-                              child: Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 18,
-                              ),
+                              onDelete: () => GeofenceService().delete(zone.id),
                             ),
-                          ),
-                        ),
+                            const SizedBox(height: GuardianSpacing.sm),
+                          ],
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    if (zones.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: GuardianColors.surface,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Text(
-                          'No safe zones yet. Create a radius around home, school, or another place you care about.',
-                          style: TextStyle(color: GuardianColors.textSecondary),
-                        ),
-                      )
-                    else
-                      for (final zone in zones) ...[
-                        _ZoneCard(
-                          zone: zone,
-                          devices: devices,
-                          icon: _iconFor(zone.name),
-                          iconColor: _iconColors(zone.name).$1,
-                          iconBg: _iconColors(zone.name).$2,
-                          onToggle: () => GeofenceService().setActive(
-                            zone.id,
-                            !zone.active,
-                          ),
-                          onDelete: () => GeofenceService().delete(zone.id),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    const SizedBox(height: 6),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                    Positioned(
+                      right: GuardianSpacing.md,
+                      bottom: GuardianSpacing.md,
+                      child: FloatingActionButton(
+                        onPressed: () =>
+                            widget.onCreateZone(context, devices),
+                        backgroundColor: context.guardianColors.accent,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        child: const Icon(Icons.add),
                       ),
-                      onPressed: () => _createZone(context, devices),
-                      child: const Text('Add a new safe zone'),
                     ),
                   ],
                 );
               },
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _ZoneCard extends StatelessWidget {
-  const _ZoneCard({
-    required this.zone,
-    required this.devices,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    required this.onToggle,
-    required this.onDelete,
-  });
-
-  final Geofence zone;
-  final List<Device> devices;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final VoidCallback onToggle;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final linked = devices.where((d) => d.imei == zone.imei).toList();
-    final subtitle =
-        '${zone.radiusMeters.round()} m radius${zone.active ? '' : ' · paused'}'
-        '${linked.isNotEmpty ? ' · ${linked.first.displayName}' : ''}'
-        '${zone.wifiSsid != null && zone.wifiSsid!.isNotEmpty ? ' · WiFi "${zone.wifiSsid}"' : ''}';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: GuardianColors.surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 19, color: iconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  zone.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: GuardianColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (linked.isNotEmpty)
-            AvatarBubble(
-              initials: initialsFor(linked.first.displayName),
-              color: avatarColorForKey(linked.first.imei),
-              size: 22,
-            ),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'toggle') onToggle();
-              if (v == 'delete') onDelete();
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'toggle',
-                child: Text(zone.active ? 'Pause' : 'Activate'),
-              ),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

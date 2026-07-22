@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
@@ -9,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'screens/auth_gate.dart';
 import 'services/locale_service.dart';
 import 'services/push_service.dart';
+import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
 
 /// Flutter's built-in Material/Cupertino/Widgets localizations don't ship a
@@ -50,11 +53,19 @@ Future<void> main() async {
   if (DefaultFirebaseOptions.isConfigured) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await PushService.initLocalNotifications();
-    PushService.listenForegroundMessages();
+    unawaited(_initializeOptionalPush());
   }
 
   runApp(const GuardianApp());
+}
+
+Future<void> _initializeOptionalPush() async {
+  try {
+    await PushService.initLocalNotifications();
+    PushService.listenForegroundMessages();
+  } catch (error) {
+    debugPrint('Push initialization unavailable: $error');
+  }
 }
 
 class GuardianApp extends StatefulWidget {
@@ -63,6 +74,15 @@ class GuardianApp extends StatefulWidget {
   /// Lets any screen change the app's language, e.g. from account_page.dart.
   static void setLocale(BuildContext context, Locale locale) {
     context.findAncestorStateOfType<_GuardianAppState>()?._setLocale(locale);
+  }
+
+  /// Lets any screen change the app theme, e.g. from account_page.dart.
+  static void setTheme(BuildContext context, GuardianThemeId theme) {
+    GuardianThemeScope.maybeOf(context)?.setTheme(theme);
+  }
+
+  static GuardianThemeId? themeOf(BuildContext context) {
+    return GuardianThemeScope.maybeOf(context)?.themeId;
   }
 
   @override
@@ -95,8 +115,73 @@ class _GuardianAppState extends State<GuardianApp> {
       supportedLocales: LocaleService.supportedLocales,
       localizationsDelegates: guardianLocalizationsDelegates,
       home: DefaultFirebaseOptions.isConfigured
-          ? const AuthGate()
+          ? const _ThemedAppRoot()
           : const _FirebaseSetupPage(),
+    );
+  }
+}
+
+/// Holds theme state inside [MaterialApp] so switching themes updates colors
+/// without recreating the navigator or tearing down platform views like
+/// Google Maps on web.
+class GuardianThemeScope extends InheritedWidget {
+  const GuardianThemeScope({
+    super.key,
+    required this.themeId,
+    required this.onThemeChanged,
+    required super.child,
+  });
+
+  final GuardianThemeId themeId;
+  final ValueChanged<GuardianThemeId> onThemeChanged;
+
+  static GuardianThemeScope? maybeOf(BuildContext context) {
+    return context.getInheritedWidgetOfExactType<GuardianThemeScope>();
+  }
+
+  void setTheme(GuardianThemeId theme) {
+    if (themeId == theme) return;
+    onThemeChanged(theme);
+  }
+
+  @override
+  bool updateShouldNotify(GuardianThemeScope oldWidget) {
+    return themeId != oldWidget.themeId;
+  }
+}
+
+class _ThemedAppRoot extends StatefulWidget {
+  const _ThemedAppRoot();
+
+  @override
+  State<_ThemedAppRoot> createState() => _ThemedAppRootState();
+}
+
+class _ThemedAppRootState extends State<_ThemedAppRoot> {
+  GuardianThemeId _themeId = GuardianThemeId.defaultTheme;
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeService.loadSavedTheme().then((saved) {
+      if (mounted) setState(() => _themeId = saved);
+    });
+  }
+
+  void _setTheme(GuardianThemeId theme) {
+    setState(() => _themeId = theme);
+    ThemeService.saveTheme(theme);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GuardianThemeScope(
+      themeId: _themeId,
+      onThemeChanged: _setTheme,
+      child: Theme(
+        data: buildGuardianTheme(themeId: _themeId),
+        child: const AuthGate(),
+      ),
     );
   }
 }

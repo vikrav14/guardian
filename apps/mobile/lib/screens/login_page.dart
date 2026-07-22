@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand/dodo_ai_icon.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -96,15 +97,11 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: GuardianColors.safe,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.shield, color: Colors.white, size: 32),
+                    const GuardianBrandMark(
+                      size: 64,
+                      borderRadius: 18,
+                      iconScale: 0.5,
+                      showShadow: false,
                     ),
                     const SizedBox(height: 14),
                     Text('Guardian', style: Theme.of(context).textTheme.titleLarge),

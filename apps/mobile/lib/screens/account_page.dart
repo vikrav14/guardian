@@ -6,10 +6,14 @@ import '../l10n/app_localizations.dart';
 import '../main.dart';
 import '../models/device.dart';
 import '../services/auth_service.dart';
+import '../services/device_avatar_service.dart';
+import '../services/guardian_avatar_service.dart';
 import '../services/guardian_services.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
+import '../widgets/theme/theme_picker.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
@@ -22,13 +26,15 @@ class AccountPage extends StatelessWidget {
       await Clipboard.setData(ClipboardData(text: code));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invite code $code copied. Share it with family.')),
+        SnackBar(
+          content: Text('Invite code $code copied. Share it with family.'),
+        ),
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create invite: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not create invite: $e')));
     }
   }
 
@@ -47,8 +53,14 @@ class AccountPage extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Join')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Join'),
+          ),
         ],
       ),
     );
@@ -65,9 +77,9 @@ class AccountPage extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       ctrl.dispose();
@@ -84,284 +96,394 @@ class AccountPage extends StatelessWidget {
     final initials = initialsFor(name);
     final family = FamilyService();
     final t = AppLocalizations.of(context)!;
+    final colors = context.guardianColors;
+
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: GuardianColors.surfaceMuted,
+      backgroundColor: colors.canvas,
       body: SafeArea(
         child: ListView(
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.fromLTRB(
+            GuardianSpacing.md,
+            GuardianSpacing.lg,
+            GuardianSpacing.md,
+            GuardianSpacing.md,
+          ),
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              color: GuardianColors.safeBg,
+            GuardianCard(
               child: Column(
                 children: [
-                  AvatarBubble(
-                    initials: initials,
-                    color: GuardianColors.safe,
-                    size: 56,
-                    ringWidth: 0,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    name,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
+                  AccountAvatarEditor(initials: initials),
+                  const SizedBox(height: GuardianSpacing.xs),
+                  Text(name, style: textTheme.titleMedium),
                   Text(
                     email.isEmpty ? 'Family admin' : 'Family admin · $email',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: GuardianColors.textSecondary,
-                    ),
+                    style: textTheme.bodyMedium,
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Pendants',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: GuardianColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  StreamBuilder<List<Device>>(
-                    stream: DeviceService().watchLinkedDevices(),
-                    builder: (context, snapshot) {
-                      final devices = snapshot.data ?? <Device>[];
+            const SizedBox(height: GuardianSpacing.lg),
+            const GuardianSectionTitle('Pendants'),
+            const SizedBox(height: GuardianSpacing.sm),
+            StreamBuilder<List<Device>>(
+              stream: DeviceService().watchLinkedDevices(),
+              builder: (context, snapshot) {
+                final devices = snapshot.data ?? <Device>[];
 
-                      if (devices.isEmpty) {
-                        return Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: GuardianColors.surface,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Text(
-                            'No pendants linked yet.',
-                            style: TextStyle(color: GuardianColors.textSecondary),
-                          ),
-                        );
-                      }
+                if (devices.isEmpty) {
+                  return GuardianCard(
+                    child: Text(
+                      'No pendants linked yet.',
+                      style: textTheme.bodyMedium,
+                    ),
+                  );
+                }
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: GuardianColors.surface,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < devices.length; i++)
-                              _DeviceRow(
-                                device: devices[i],
-                                showDivider: i < devices.length - 1,
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Family circle',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: GuardianColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  StreamBuilder<List<FamilyMember>>(
-                    stream: family.watchFamilyMembers(),
-                    builder: (context, memberSnap) {
-                      return StreamBuilder<List<FamilyInvite>>(
-                        stream: family.watchMyInvites(),
-                        builder: (context, inviteSnap) {
-                          final members = memberSnap.data ?? const <FamilyMember>[];
-                          final invites = inviteSnap.data ?? const <FamilyInvite>[];
-                          final accepted = invites
-                              .where((i) => i.status == 'accepted')
-                              .toList();
-                          final pending = invites
-                              .where((i) => i.status == 'pending')
-                              .toList();
+                return GuardianListGroup(
+                  children: [
+                    for (var i = 0; i < devices.length; i++)
+                      _DeviceRow(
+                        device: devices[i],
+                        showDivider: i < devices.length - 1,
+                      ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: GuardianSpacing.lg),
+            const GuardianSectionTitle('Family circle'),
+            const SizedBox(height: GuardianSpacing.sm),
+            StreamBuilder<List<FamilyMember>>(
+              stream: family.watchFamilyMembers(),
+              builder: (context, memberSnap) {
+                return StreamBuilder<List<FamilyInvite>>(
+                  stream: family.watchMyInvites(),
+                  builder: (context, inviteSnap) {
+                    final members = memberSnap.data ?? const <FamilyMember>[];
+                    final invites = inviteSnap.data ?? const <FamilyInvite>[];
+                    final accepted = invites
+                        .where((i) => i.status == 'accepted')
+                        .toList();
+                    final pending = invites
+                        .where((i) => i.status == 'pending')
+                        .toList();
 
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: GuardianColors.surface,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              children: [
-                                if (members.isEmpty && accepted.isEmpty)
-                                  const Padding(
-                                    padding: EdgeInsets.all(16),
-                                    child: Text(
-                                      'Invite a spouse or relative so they can watch the same pendants.',
-                                      style: TextStyle(color: GuardianColors.textSecondary),
-                                    ),
-                                  ),
-                                for (var i = 0; i < members.length; i++)
-                                  _PersonRow(
-                                    name: members[i].displayName,
-                                    subtitle: members[i].email ?? 'Family member',
-                                    showDivider: i < members.length - 1 || accepted.isNotEmpty,
-                                  ),
-                                for (var i = 0; i < accepted.length; i++)
-                                  _PersonRow(
-                                    name: accepted[i].acceptedByName ?? 'Family member',
-                                    subtitle: 'Joined with code ${accepted[i].code}',
-                                    showDivider: i < accepted.length - 1 || pending.isNotEmpty,
-                                  ),
-                                for (final invite in pending)
-                                  _PersonRow(
-                                    name: 'Invite ${invite.code}',
-                                    subtitle: 'Waiting to be accepted · tap to copy',
-                                    showDivider: false,
-                                    onTap: () async {
-                                      await Clipboard.setData(ClipboardData(text: invite.code));
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Copied ${invite.code}')),
-                                        );
-                                      }
-                                    },
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  TextButton(
-                    onPressed: () => _createInvite(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: GuardianColors.safeText,
-                      alignment: Alignment.centerLeft,
-                    ),
-                    child: const Text('+ Invite a family member'),
-                  ),
-                  TextButton(
-                    onPressed: () => _acceptInvite(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: GuardianColors.safeText,
-                      alignment: Alignment.centerLeft,
-                    ),
-                    child: const Text('Have a code? Join a family'),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    t.settingsHeading,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: GuardianColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: GuardianColors.surface,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
+                    return GuardianListGroup(
                       children: [
-                        _SettingRow(
-                          icon: Icons.chat_bubble_outline,
-                          label: 'WhatsApp / SMS alerts',
-                          onTap: () {
-                            showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Alert delivery'),
-                                content: const Text(
-                                  'SOS, fall, and safe-zone exit alerts notify your emergency contacts '
-                                  'through the gateway. Add Twilio keys in gateway/.env to send real '
-                                  'SMS/WhatsApp. Until then, deliveries are logged in notificationLogs.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('OK'),
-                                  ),
-                                ],
+                        if (members.isEmpty &&
+                            accepted.isEmpty &&
+                            pending.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(GuardianSpacing.md),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: colors.border),
                               ),
-                            );
-                          },
-                        ),
-                        _SettingRow(
-                          icon: Icons.phone_outlined,
-                          label: 'Emergency contacts',
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const EmergencyContactsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        StreamBuilder<GuardianSubscription>(
-                          stream: UserProfileService().watchSubscription(),
-                          builder: (context, subSnap) {
-                            final sub = subSnap.data ?? const GuardianSubscription(tier: 'free');
-                            return _SettingRow(
-                              icon: Icons.credit_card,
-                              label: t.subscriptionLabel,
-                              trailing: sub.isPremium ? t.premiumPlan : t.freePlan,
-                              onTap: () {
-                                showDialog<void>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: Text(t.subscriptionLabel),
-                                    content: Text(
-                                      sub.isPremium
-                                          ? 'You are on the Premium plan.'
-                                          : "You're on the Free plan. Paid plans aren't available yet -- "
-                                              'this needs a payment provider (e.g. Stripe or MCB Juice) '
-                                              'connected on the backend before real billing can go live.',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx),
-                                        child: const Text('OK'),
-                                      ),
-                                    ],
+                            ),
+                            child: Text(
+                              'Invite a spouse or relative so they can watch the same pendants.',
+                              style: textTheme.bodyMedium,
+                            ),
+                          ),
+                        for (var i = 0; i < members.length; i++)
+                          _PersonRow(
+                            name: members[i].displayName,
+                            subtitle: members[i].email ?? 'Family member',
+                            showDivider: true,
+                          ),
+                        for (var i = 0; i < accepted.length; i++)
+                          _PersonRow(
+                            name:
+                                accepted[i].acceptedByName ?? 'Family member',
+                            subtitle: 'Joined with code ${accepted[i].code}',
+                            showDivider: true,
+                          ),
+                        for (final invite in pending)
+                          _PersonRow(
+                            name: 'Invite ${invite.code}',
+                            subtitle: 'Waiting to be accepted · tap to copy',
+                            showDivider: true,
+                            onTap: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: invite.code),
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Copied ${invite.code}'),
                                   ),
                                 );
-                              },
-                            );
-                          },
+                              }
+                            },
+                          ),
+                        GuardianSettingsRow(
+                          icon: Icons.person_add_rounded,
+                          label: 'Invite a family member',
+                          onTap: () => _createInvite(context),
                         ),
-                        _SettingRow(
-                          icon: Icons.language,
-                          label: t.languageSettingLabel,
-                          onTap: () => _showLanguagePicker(context),
-                        ),
-                        _SettingRow(
-                          icon: Icons.logout,
-                          label: t.signOut,
-                          danger: true,
-                          last: true,
-                          onTap: () => AuthService().signOut(),
+                        GuardianSettingsRow(
+                          icon: Icons.group_add_rounded,
+                          label: 'Have a code? Join a family',
+                          showDivider: false,
+                          onTap: () => _acceptInvite(context),
                         ),
                       ],
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: GuardianSpacing.lg),
+            GuardianSectionTitle(t.settingsHeading),
+            const SizedBox(height: GuardianSpacing.sm),
+            GuardianListGroup(
+              children: [
+                GuardianSettingsRow(
+                  icon: Icons.sms_rounded,
+                  label: 'WhatsApp / SMS alerts',
+                  onTap: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Alert delivery'),
+                        content: const Text(
+                          'SOS, fall, and safe-zone exit alerts notify your emergency contacts '
+                          'through the gateway. Add Twilio keys in gateway/.env to send real '
+                          'SMS/WhatsApp. Until then, deliveries are logged in notificationLogs.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                GuardianSettingsRow(
+                  icon: Icons.contact_phone_rounded,
+                  label: 'Emergency contacts',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const EmergencyContactsPage(),
+                      ),
+                    );
+                  },
+                ),
+                StreamBuilder<GuardianSubscription>(
+                  stream: UserProfileService().watchSubscription(),
+                  builder: (context, subSnap) {
+                    final sub =
+                        subSnap.data ?? const GuardianSubscription(tier: 'free');
+                    return GuardianSettingsRow(
+                      icon: Icons.workspace_premium_rounded,
+                      label: t.subscriptionLabel,
+                      trailing: sub.isPremium ? t.premiumPlan : t.freePlan,
+                      onTap: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: Text(t.subscriptionLabel),
+                            content: Text(
+                              sub.isPremium
+                                  ? 'You are on the Premium plan.'
+                                  : "You're on the Free plan. Paid plans aren't available yet -- "
+                                        'this needs a payment provider (e.g. Stripe or MCB Juice) '
+                                        'connected on the backend before real billing can go live.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                GuardianSettingsRow(
+                  icon: Icons.translate_rounded,
+                  label: t.languageSettingLabel,
+                  onTap: () => _showLanguagePicker(context),
+                ),
+                GuardianSettingsRow(
+                  icon: Icons.palette_rounded,
+                  label: 'Theme',
+                  trailing: (GuardianApp.themeOf(context) ??
+                          GuardianThemeId.defaultTheme)
+                      .displayName,
+                  onTap: () => showThemePickerDialog(context),
+                ),
+                GuardianSettingsRow(
+                  icon: Icons.logout_rounded,
+                  label: t.signOut,
+                  danger: true,
+                  showDivider: false,
+                  onTap: () => AuthService().signOut(),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+@visibleForTesting
+class AccountAvatarEditor extends StatefulWidget {
+  const AccountAvatarEditor({
+    super.key,
+    required this.initials,
+    this.service,
+    this.avatarUrls,
+  });
+
+  final String initials;
+  final GuardianAvatarService? service;
+  final Stream<String?>? avatarUrls;
+
+  @override
+  State<AccountAvatarEditor> createState() => _AccountAvatarEditorState();
+}
+
+class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
+  late final GuardianAvatarService _service;
+  bool _busy = false;
+  AvatarUpdateStage? _stage;
+  double? _uploadFraction;
+
+  @override
+  void initState() {
+    super.initState();
+    _service = widget.service ?? GuardianAvatarService();
+  }
+
+  Future<void> _run(Future<dynamic> Function() action, String message) async {
+    setState(() => _busy = true);
+    try {
+      final result = await action();
+      if (result == false || !mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Photo update failed: $error')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _choosePhoto() async {
+    setState(() {
+      _busy = true;
+      _stage = AvatarUpdateStage.selection;
+      _uploadFraction = null;
+    });
+    try {
+      final updated = await _service.chooseAndUpload(
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _stage = progress.stage;
+            _uploadFraction = progress.fraction;
+          });
+        },
+      );
+      if (!updated || !mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile photo updated')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Photo update failed: $error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _stage = null;
+          _uploadFraction = null;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
+    return StreamBuilder<String?>(
+      stream: widget.avatarUrls ?? UserProfileService().watchAvatarUrl(),
+      builder: (context, snapshot) {
+        final avatarUrl = snapshot.data;
+        return Column(
+          children: [
+            AvatarBubble(
+              initials: widget.initials,
+              color: colors.accent,
+              size: 64,
+              ringWidth: 2,
+              imageUrl: avatarUrl,
+            ),
+            const SizedBox(height: GuardianSpacing.xs),
+            PhotoManagementControls(
+              subjectName: 'guardian profile',
+              hasPhoto: avatarUrl != null,
+              busy: _busy,
+              onChange: _choosePhoto,
+              onRemove: () => _run(_service.remove, 'Profile photo removed'),
+            ),
+            if (_busy && _stage == AvatarUpdateStage.selection)
+              Text(
+                'Photo chooser open — choose an image or cancel.',
+                style: textTheme.labelSmall,
+              )
+            else if (_busy)
+              Column(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      value: _stage == AvatarUpdateStage.upload
+                          ? _uploadFraction
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: GuardianSpacing.xxs),
+                  Text(
+                    _stage == AvatarUpdateStage.profileSave
+                        ? 'Saving profile photo…'
+                        : _uploadFraction == null
+                        ? 'Uploading photo…'
+                        : 'Uploading photo… ${(_uploadFraction! * 100).round()}%',
+                    style: textTheme.labelSmall,
+                  ),
+                ],
+              )
+            else if (snapshot.hasError)
+              Text(
+                'Could not load profile photo',
+                style: textTheme.labelSmall?.copyWith(
+                  color: GuardianColors.danger,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -374,11 +496,16 @@ class _DeviceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: GuardianSpacing.sm,
+        vertical: GuardianSpacing.sm,
+      ),
       decoration: BoxDecoration(
         border: showDivider
-            ? const Border(bottom: BorderSide(color: GuardianColors.border))
+            ? Border(bottom: BorderSide(color: colors.border))
             : null,
       ),
       child: Row(
@@ -386,22 +513,23 @@ class _DeviceRow extends StatelessWidget {
           AvatarBubble(
             initials: initialsFor(device.displayName),
             color: avatarColorForKey(device.imei),
-            size: 30,
+            size: 34,
+            imageUrl: device.avatarUrl,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: GuardianSpacing.sm),
           Expanded(
             child: Text(
               device.displayName,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: textTheme.titleMedium?.copyWith(fontSize: 13),
             ),
           ),
           Text(
-            device.online ? 'Online' : 'Pendant linked',
-            style: const TextStyle(fontSize: 11, color: GuardianColors.textSecondary),
+            device.online ? 'Online' : 'Offline',
+            style: textTheme.labelSmall,
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
-            tooltip: 'Pendant settings',
+            tooltip: 'Person and device settings',
             onPressed: () => _showDeviceSettingsDialog(context, device),
           ),
         ],
@@ -412,6 +540,7 @@ class _DeviceRow extends StatelessWidget {
 
 Future<void> _showLanguagePicker(BuildContext context) async {
   final current = Localizations.localeOf(context);
+  final accent = context.guardianColors.accent;
   final picked = await showDialog<Locale>(
     context: context,
     builder: (ctx) => SimpleDialog(
@@ -423,11 +552,14 @@ Future<void> _showLanguagePicker(BuildContext context) async {
             child: Row(
               children: [
                 if (locale.languageCode == current.languageCode)
-                  const Icon(Icons.check, size: 18, color: GuardianColors.safe)
+                  Icon(Icons.check, size: 18, color: accent)
                 else
                   const SizedBox(width: 18),
                 const SizedBox(width: 8),
-                Text(LocaleService.localeNames[locale.languageCode] ?? locale.languageCode),
+                Text(
+                  LocaleService.localeNames[locale.languageCode] ??
+                      locale.languageCode,
+                ),
               ],
             ),
           ),
@@ -439,7 +571,14 @@ Future<void> _showLanguagePicker(BuildContext context) async {
   }
 }
 
-Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) async {
+Future<void> _showDeviceSettingsDialog(
+  BuildContext context,
+  Device device,
+) async {
+  final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
+  final relationshipCtrl = TextEditingController(
+    text: device.relationship ?? device.relationshipLabel,
+  );
   final simCtrl = TextEditingController(text: device.simNumber ?? '');
   final centerCtrl = TextEditingController();
   final sosCtrl = TextEditingController();
@@ -451,21 +590,31 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setLocal) {
-          Future<void> run(Future<void> Function() action, String successMessage) async {
+          Future<void> run(
+            Future<dynamic> Function() action,
+            String successMessage,
+          ) async {
             setLocal(() => busy = true);
             try {
-              await action();
+              final result = await action();
+              if (result == false) return;
               if (ctx.mounted) {
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(successMessage)));
+                ScaffoldMessenger.of(
+                  ctx,
+                ).showSnackBar(SnackBar(content: Text(successMessage)));
               }
             } catch (e) {
               if (ctx.mounted) {
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                ScaffoldMessenger.of(
+                  ctx,
+                ).showSnackBar(SnackBar(content: Text('Failed: $e')));
               }
             } finally {
               setLocal(() => busy = false);
             }
           }
+
+          final colors = ctx.guardianColors;
 
           return AlertDialog(
             title: Text('${device.displayName} settings'),
@@ -474,6 +623,74 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'Person',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      AvatarBubble(
+                        initials: initialsFor(device.displayName),
+                        color: avatarColorForKey(device.imei),
+                        size: 52,
+                        imageUrl: device.avatarUrl,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: PhotoManagementControls(
+                          subjectName: device.displayName,
+                          hasPhoto: device.avatarUrl != null,
+                          busy: busy,
+                          onChange: () => run(
+                            () => DeviceAvatarService().chooseAndUpload(
+                              device.imei,
+                            ),
+                            'Photo updated',
+                          ),
+                          onRemove: () => run(
+                            () => DeviceAvatarService().remove(device.imei),
+                            'Photo removed',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nicknameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nickname (optional)',
+                      hintText: 'e.g. Mimi',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: relationshipCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Relationship',
+                      hintText: 'e.g. Mum, Dad, Grandad',
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => run(
+                              () => DeviceService().updatePersonIdentity(
+                                device.imei,
+                                nickname: nicknameCtrl.text,
+                                relationship: relationshipCtrl.text,
+                              ),
+                              'Person details saved',
+                            ),
+                      child: const Text('Save person'),
+                    ),
+                  ),
+                  const Divider(height: 24),
                   TextField(
                     controller: simCtrl,
                     keyboardType: TextInputType.phone,
@@ -489,22 +706,30 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceService().setSimNumber(device.imei, simCtrl.text),
-                                'SIM number saved',
+                              () => DeviceService().setSimNumber(
+                                device.imei,
+                                simCtrl.text,
                               ),
+                              'SIM number saved',
+                            ),
                       child: const Text('Save SIM number'),
                     ),
                   ),
                   const Divider(height: 24),
-                  const Text(
+                  Text(
                     'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
-                    style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: centerCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Set center number'),
+                    decoration: const InputDecoration(
+                      labelText: 'Set center number',
+                    ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -512,17 +737,21 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceCommandService()
-                                    .setCenterNumber(device.imei, centerCtrl.text),
-                                'Command queued',
+                              () => DeviceCommandService().setCenterNumber(
+                                device.imei,
+                                centerCtrl.text,
                               ),
+                              'Command queued',
+                            ),
                       child: const Text('Send'),
                     ),
                   ),
                   TextField(
                     controller: sosCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'Set SOS number 1'),
+                    decoration: const InputDecoration(
+                      labelText: 'Set SOS number 1',
+                    ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -530,10 +759,13 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceCommandService()
-                                    .setSosNumber(device.imei, 1, sosCtrl.text),
-                                'Command queued',
+                              () => DeviceCommandService().setSosNumber(
+                                device.imei,
+                                1,
+                                sosCtrl.text,
                               ),
+                              'Command queued',
+                            ),
                       child: const Text('Send'),
                     ),
                   ),
@@ -543,19 +775,24 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceCommandService().checkStatus(device.imei),
-                                'Status check queued',
+                              () => DeviceCommandService().checkStatus(
+                                device.imei,
                               ),
+                              'Status check queued',
+                            ),
                       icon: const Icon(Icons.info_outline, size: 16),
                       label: const Text('Check status'),
                     ),
                   ),
                   const Divider(height: 24),
-                  const Text(
+                  Text(
                     'Voice monitoring: unverified against this exact device -- documented for '
                     'the closely related RF-V28 by a third party, not the V28C vendor manual. '
                     'Test carefully before relying on it.',
-                    style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -572,10 +809,12 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceCommandService()
-                                    .startVoiceMonitor(device.imei, monitorCtrl.text),
-                                'Listen-in command queued',
+                              () => DeviceCommandService().startVoiceMonitor(
+                                device.imei,
+                                monitorCtrl.text,
                               ),
+                              'Listen-in command queued',
+                            ),
                       icon: const Icon(Icons.hearing, size: 16),
                       label: const Text('Listen in'),
                     ),
@@ -586,10 +825,15 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
                       onPressed: busy
                           ? null
                           : () => run(
-                                () => DeviceCommandService().ringToFind(device.imei),
-                                'Ring command queued',
+                              () => DeviceCommandService().ringToFind(
+                                device.imei,
                               ),
-                      icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                              'Ring command queued',
+                            ),
+                      icon: const Icon(
+                        Icons.notifications_active_outlined,
+                        size: 16,
+                      ),
                       label: const Text('Ring to find'),
                     ),
                   ),
@@ -597,7 +841,10 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
             ],
           );
         },
@@ -605,6 +852,8 @@ Future<void> _showDeviceSettingsDialog(BuildContext context, Device device) asyn
     },
   );
 
+  nicknameCtrl.dispose();
+  relationshipCtrl.dispose();
   simCtrl.dispose();
   centerCtrl.dispose();
   sosCtrl.dispose();
@@ -626,95 +875,40 @@ class _PersonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: GuardianSpacing.sm,
+          vertical: GuardianSpacing.sm,
+        ),
         decoration: BoxDecoration(
           border: showDivider
-              ? const Border(bottom: BorderSide(color: GuardianColors.border))
+              ? Border(bottom: BorderSide(color: colors.border))
               : null,
         ),
         child: Row(
           children: [
             AvatarBubble(
               initials: initialsFor(name),
-              color: GuardianColors.safe,
+              color: avatarColorForKey(name),
               size: 30,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: GuardianSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 11, color: GuardianColors.textSecondary),
+                    name,
+                    style: textTheme.titleMedium?.copyWith(fontSize: 13),
                   ),
+                  Text(subtitle, style: textTheme.labelSmall),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingRow extends StatelessWidget {
-  const _SettingRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.trailing,
-    this.danger = false,
-    this.last = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String? trailing;
-  final bool danger;
-  final bool last;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = danger ? GuardianColors.danger : GuardianColors.textSecondary;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          border: last
-              ? null
-              : const Border(bottom: BorderSide(color: GuardianColors.border)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 17, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: danger ? GuardianColors.danger : GuardianColors.textPrimary,
-                ),
-              ),
-            ),
-            if (trailing != null)
-              Text(
-                trailing!,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: GuardianColors.safeText,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            else if (!danger)
-              const Icon(Icons.chevron_right, size: 16, color: GuardianColors.textMuted),
           ],
         ),
       ),

@@ -4,12 +4,29 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/app_localizations.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../widgets/cards/guardian_card.dart';
+import '../widgets/guardian_widgets.dart';
 
 /// Mauritius national emergency numbers (Police, SAMU ambulance, Fire).
-List<({String label, String number})> _mauritiusEmergencyNumbers(AppLocalizations t) => [
-      (label: t.emergencyPolice, number: '999'),
-      (label: t.emergencySamu, number: '114'),
-      (label: t.emergencyFire, number: '995'),
+List<({String label, String number, IconData icon})> _mauritiusEmergencyNumbers(
+  AppLocalizations t,
+) =>
+    [
+      (
+        label: t.emergencyPolice,
+        number: '999',
+        icon: Icons.local_police_rounded,
+      ),
+      (
+        label: t.emergencySamu,
+        number: '114',
+        icon: Icons.medical_services_rounded,
+      ),
+      (
+        label: t.emergencyFire,
+        number: '995',
+        icon: Icons.local_fire_department_rounded,
+      ),
     ];
 
 class EmergencyContactsPage extends StatelessWidget {
@@ -88,117 +105,202 @@ class EmergencyContactsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = UserProfileService();
     final t = AppLocalizations.of(context)!;
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
     final emergencyNumbers = _mauritiusEmergencyNumbers(t);
 
     return Scaffold(
-      backgroundColor: GuardianColors.surfaceMuted,
+      backgroundColor: colors.canvas,
       appBar: AppBar(
         title: Text(t.emergencyContactsTitle),
-        backgroundColor: GuardianColors.surface,
-        foregroundColor: GuardianColors.textPrimary,
+        backgroundColor: colors.surface,
+        foregroundColor: colors.textPrimary,
         elevation: 0,
       ),
       body: StreamBuilder<List<EmergencyContact>>(
         stream: service.watchContacts(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(color: colors.accent),
+            );
           }
           final contacts = snapshot.data!;
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              GuardianSpacing.md,
+              GuardianSpacing.lg,
+              GuardianSpacing.md,
+              GuardianSpacing.md,
+            ),
             children: [
-              Text(
-                t.emergencyNumbersHeading,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: GuardianColors.textSecondary),
-              ),
-              const SizedBox(height: 8),
+              GuardianSectionTitle(t.emergencyNumbersHeading),
+              const SizedBox(height: GuardianSpacing.sm),
               Row(
                 children: [
                   for (final e in emergencyNumbers) ...[
                     Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _call(context, e.number),
-                        icon: const Icon(Icons.call, size: 16),
-                        label: Text('${e.label} · ${e.number}'),
+                      child: _EmergencyNumberChip(
+                        icon: e.icon,
+                        label: e.label,
+                        number: e.number,
+                        onTap: () => _call(context, e.number),
                       ),
                     ),
-                    if (e != emergencyNumbers.last) const SizedBox(width: 8),
+                    if (e != emergencyNumbers.last) const SizedBox(width: GuardianSpacing.xs),
                   ],
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _addContact(context, service, contacts),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(t.addContact),
-                ),
-              ),
-              const SizedBox(height: 16),
+              const SizedBox(height: GuardianSpacing.lg),
+              const GuardianSectionTitle('Your contacts'),
+              const SizedBox(height: GuardianSpacing.sm),
               if (contacts.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: GuardianColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Text(
+                GuardianCard(
+                  child: Text(
                     'No contacts yet. These people can receive SOS and alert notifications later.',
-                    style: TextStyle(color: GuardianColors.textSecondary),
+                    style: textTheme.bodyMedium,
                   ),
                 )
               else
-                ...contacts.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final c = entry.value;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: GuardianColors.surface,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                c.name,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${c.phone}${c.whatsapp != null ? ' · WhatsApp ${c.whatsapp}' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: GuardianColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final next = [...contacts]..removeAt(i);
-                            await service.saveContacts(next);
-                          },
-                          style: TextButton.styleFrom(foregroundColor: GuardianColors.danger),
-                          child: const Text('Remove'),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                GuardianListGroup(
+                  children: [
+                    for (var i = 0; i < contacts.length; i++)
+                      _ContactRow(
+                        contact: contacts[i],
+                        showDivider: i < contacts.length - 1,
+                        onRemove: () async {
+                          final next = [...contacts]..removeAt(i);
+                          await service.saveContacts(next);
+                        },
+                      ),
+                  ],
+                ),
+              const SizedBox(height: GuardianSpacing.sm),
+              GuardianListGroup(
+                children: [
+                  GuardianSettingsRow(
+                    icon: Icons.person_add_rounded,
+                    label: t.addContact,
+                    showDivider: false,
+                    onTap: () => _addContact(context, service, contacts),
+                  ),
+                ],
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _EmergencyNumberChip extends StatelessWidget {
+  const _EmergencyNumberChip({
+    required this.icon,
+    required this.label,
+    required this.number,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String number;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(GuardianRadius.medium),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(GuardianRadius.medium),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: GuardianSpacing.xs,
+            vertical: GuardianSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(GuardianRadius.medium),
+            border: Border.all(color: colors.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: colors.accent),
+              const SizedBox(height: GuardianSpacing.xxs),
+              Text(
+                label,
+                style: textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(number, style: textTheme.labelSmall),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  const _ContactRow({
+    required this.contact,
+    required this.showDivider,
+    required this.onRemove,
+  });
+
+  final EmergencyContact contact;
+  final bool showDivider;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: GuardianSpacing.sm,
+        vertical: GuardianSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        border: showDivider
+            ? Border(bottom: BorderSide(color: colors.border))
+            : null,
+      ),
+      child: Row(
+        children: [
+          AvatarBubble(
+            initials: initialsFor(contact.name),
+            color: avatarColorForKey(contact.phone),
+            size: 30,
+          ),
+          const SizedBox(width: GuardianSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  contact.name,
+                  style: textTheme.titleMedium?.copyWith(fontSize: 13),
+                ),
+                Text(
+                  '${contact.phone}${contact.whatsapp != null ? ' · WhatsApp ${contact.whatsapp}' : ''}',
+                  style: textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onRemove,
+            style: TextButton.styleFrom(foregroundColor: GuardianColors.danger),
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }

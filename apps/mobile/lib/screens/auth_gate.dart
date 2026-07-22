@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -38,9 +40,19 @@ class _AuthGateState extends State<AuthGate> {
 
         if (_profileUid != user.uid || _profileFuture == null) {
           _profileUid = user.uid;
-          _profileFuture = _auth
-              .ensureUserProfile(user)
-              .then((_) => PushService().registerForUser(user.uid));
+          _profileFuture = _auth.ensureUserProfile(user);
+          unawaited(
+            _profileFuture!.then((_) async {
+              try {
+                await PushService().registerForUser(user.uid);
+              } catch (error) {
+                // Push is optional. A browser that blocks notifications or
+                // service workers must not prevent the safety dashboard from
+                // opening.
+                debugPrint('Push registration unavailable: $error');
+              }
+            }),
+          );
         }
 
         return FutureBuilder<void>(

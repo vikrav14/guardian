@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../widgets/guardian_widgets.dart';
+import '../navigation/home_shell_scope.dart';
+import '../widgets/dashboard/responsive_layout.dart';
+import '../widgets/navigation/guardian_navigation.dart';
 import 'account_page.dart';
 import 'alerts_page.dart';
 import 'map_dashboard_page.dart';
@@ -16,21 +18,40 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  void _goToTab(int index) => setState(() => _index = index);
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: const [
-          MapDashboardPage(),
-          SafeZonesPage(),
-          AlertsPage(),
-          AccountPage(),
-        ],
-      ),
-      bottomNavigationBar: GuardianBottomNav(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
+    const pages = [
+      MapDashboardPage(),
+      SafeZonesPage(),
+      AlertsPage(),
+      AccountPage(),
+    ];
+    return HomeShellScope(
+      currentIndex: _index,
+      goToTab: _goToTab,
+      child: ResponsiveLayout(
+        mobile: Scaffold(
+          body: IndexedStack(index: _index, children: pages),
+          bottomNavigationBar: MobileBottomBar(
+            currentIndex: _index,
+            onTap: _goToTab,
+          ),
+        ),
+        desktop: Scaffold(
+          body: Row(
+            children: [
+              DesktopSidebar(
+                currentIndex: _index,
+                onTap: _goToTab,
+              ),
+              Expanded(
+                child: IndexedStack(index: _index, children: pages),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

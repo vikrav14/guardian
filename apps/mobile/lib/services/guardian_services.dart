@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -5,17 +7,28 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
+import 'imei_utils.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
 /// is in the signed-in user's `linkedImeis` — so every list/stream here has
 /// to filter by that set rather than reading the collection unscoped.
-Stream<List<String>> _watchLinkedImeis(FirebaseFirestore db, FirebaseAuth auth) {
+Stream<List<String>> _watchLinkedImeis(
+  FirebaseFirestore db,
+  FirebaseAuth auth,
+) {
   final uid = auth.currentUser?.uid;
   if (uid == null) return Stream.value(const []);
-  return db.collection('users').doc(uid).snapshots().map((snap) {
-    return (snap.data()?['linkedImeis'] as List?)?.whereType<String>().toList() ??
-        const <String>[];
-  });
+  return db
+      .collection('users')
+      .doc(uid)
+      .snapshots()
+      .map((snap) {
+        final raw =
+            (snap.data()?['linkedImeis'] as List?)?.whereType<String>() ??
+            const <String>[];
+        return normalizeLinkedImeis(raw);
+      })
+      .distinct(linkedImeisEqual);
 }
 
 // Firestore whereIn supports at most 30 values per query.
@@ -23,8 +36,8 @@ const _maxWhereIn = 30;
 
 class DeviceService {
   DeviceService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -33,6 +46,34 @@ class DeviceService {
     final trimmed = name.trim();
     await _db.collection('devices').doc(imei).update({
       'name': trimmed.isEmpty ? FieldValue.delete() : trimmed,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updatePersonIdentity(
+    String imei, {
+    required String nickname,
+    required String relationship,
+  }) async {
+    final trimmedNickname = nickname.trim();
+    final trimmedRelationship = relationship.trim();
+    await _db.collection('devices').doc(imei).update({
+      'nickname': trimmedNickname.isEmpty
+          ? FieldValue.delete()
+          : trimmedNickname,
+      'relationship': trimmedRelationship.isEmpty
+          ? FieldValue.delete()
+          : trimmedRelationship,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateAvatarUrl(String imei, String? avatarUrl) async {
+    final trimmed = avatarUrl?.trim();
+    await _db.collection('devices').doc(imei).update({
+      'avatarUrl': trimmed == null || trimmed.isEmpty
+          ? FieldValue.delete()
+          : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -49,7 +90,10 @@ class DeviceService {
 
   /// Streams the given day's location history for a pendant (requires the
   /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
-  Stream<List<LocationHistoryPoint>> watchDayHistory(String imei, DateTime day) {
+  Stream<List<LocationHistoryPoint>> watchDayHistory(
+    String imei,
+    DateTime day,
+  ) {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _db
@@ -69,7 +113,10 @@ class DeviceService {
       if (linked.isEmpty) return Stream.value(const <Device>[]);
       return _db
           .collection('devices')
-          .where(FieldPath.documentId, whereIn: linked.take(_maxWhereIn).toList())
+          .where(
+            FieldPath.documentId,
+            whereIn: linked.take(_maxWhereIn).toList(),
+          )
           .snapshots()
           .map((snap) => snap.docs.map(Device.fromDoc).toList());
     });
@@ -78,8 +125,8 @@ class DeviceService {
 
 class GeofenceService {
   GeofenceService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -145,10 +192,10 @@ class EmergencyContact {
   final String? whatsapp;
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'phone': phone,
-        if (whatsapp != null && whatsapp!.trim().isNotEmpty) 'whatsapp': whatsapp,
-      };
+    'name': name,
+    'phone': phone,
+    if (whatsapp != null && whatsapp!.trim().isNotEmpty) 'whatsapp': whatsapp,
+  };
 
   factory EmergencyContact.fromMap(Map<String, dynamic> map) {
     return EmergencyContact(
@@ -184,18 +231,49 @@ class GuardianSubscription {
 
 class UserProfileService {
   UserProfileService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  Stream<String?> watchAvatarUrl() {
+    Stream<User?> authEvents() async* {
+      yield _auth.currentUser;
+      yield* _auth.authStateChanges();
+    }
+
+    return authEvents().asyncExpand((user) {
+      if (user == null) return Stream.value(null);
+      return _db.collection('users').doc(user.uid).snapshots().map((snap) {
+        final value = (snap.data()?['avatarUrl'] as String?)?.trim();
+        return value == null || value.isEmpty ? null : value;
+      });
+    });
+  }
+
+  Future<void> updateAvatarUrl(String? avatarUrl) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+    final trimmed = avatarUrl?.trim();
+    await _db.collection('users').doc(uid).set({
+      'avatarUrl': trimmed == null || trimmed.isEmpty
+          ? FieldValue.delete()
+          : trimmed,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Stream<GuardianSubscription> watchSubscription() {
     final uid = _auth.currentUser?.uid;
-    if (uid == null) return Stream.value(const GuardianSubscription(tier: 'free'));
+    if (uid == null) {
+      return Stream.value(const GuardianSubscription(tier: 'free'));
+    }
     return _db.collection('users').doc(uid).snapshots().map((snap) {
       final raw = snap.data()?['subscription'];
-      return GuardianSubscription.fromMap(raw is Map ? Map<String, dynamic>.from(raw) : null);
+      return GuardianSubscription.fromMap(
+        raw is Map ? Map<String, dynamic>.from(raw) : null,
+      );
     });
   }
 
@@ -226,16 +304,13 @@ class UserProfileService {
 
 class AlertService {
   AlertService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  Future<void> sendHelpAlert({
-    required String imei,
-    String? deviceName,
-  }) async {
+  Future<void> sendHelpAlert({required String imei, String? deviceName}) async {
     final uid = _auth.currentUser?.uid;
     await _db.collection('alerts').add({
       'imei': imei,
@@ -244,10 +319,7 @@ class AlertService {
       'message': 'Help requested for ${deviceName ?? imei}',
       'resolved': false,
       'notifyStatus': 'pending',
-      'payload': {
-        'source': 'app',
-        'requestedBy': ?uid,
-      },
+      'payload': {'source': 'app', 'requestedBy': ?uid},
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -286,10 +358,10 @@ class FamilyMember {
   final String? email;
 
   Map<String, dynamic> toMap() => {
-        'uid': uid,
-        'displayName': displayName,
-        if (email != null) 'email': email,
-      };
+    'uid': uid,
+    'displayName': displayName,
+    if (email != null) 'email': email,
+  };
 
   factory FamilyMember.fromMap(Map<String, dynamic> map) {
     return FamilyMember(
@@ -327,7 +399,9 @@ class FamilyInvite {
       createdBy: (data['createdBy'] as String?) ?? '',
       createdByName: (data['createdByName'] as String?) ?? 'Guardian',
       status: (data['status'] as String?) ?? 'pending',
-      linkedImeis: (data['linkedImeis'] as List?)?.whereType<String>().toList() ?? const [],
+      linkedImeis:
+          (data['linkedImeis'] as List?)?.whereType<String>().toList() ??
+          const [],
       acceptedByName: data['acceptedByName'] as String?,
     );
   }
@@ -335,8 +409,8 @@ class FamilyInvite {
 
 class FamilyService {
   FamilyService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
@@ -376,10 +450,10 @@ class FamilyService {
         .where('createdBy', isEqualTo: uid)
         .snapshots()
         .map((snap) {
-      final list = snap.docs.map(FamilyInvite.fromDoc).toList();
-      list.sort((a, b) => a.code.compareTo(b.code));
-      return list;
-    });
+          final list = snap.docs.map(FamilyInvite.fromDoc).toList();
+          list.sort((a, b) => a.code.compareTo(b.code));
+          return list;
+        });
   }
 
   Future<String> createInviteCode() async {
@@ -387,7 +461,10 @@ class FamilyService {
     if (user == null) throw StateError('Not signed in');
 
     final profile = await _db.collection('users').doc(user.uid).get();
-    final linked = (profile.data()?['linkedImeis'] as List?)?.whereType<String>().toList() ??
+    final linked =
+        (profile.data()?['linkedImeis'] as List?)
+            ?.whereType<String>()
+            .toList() ??
         <String>[];
     final code = _generateCode();
 
@@ -401,7 +478,9 @@ class FamilyService {
       'linkedImeis': linked,
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      'expiresAt': Timestamp.fromDate(
+        DateTime.now().add(const Duration(days: 7)),
+      ),
     });
     return code;
   }
@@ -413,7 +492,11 @@ class FamilyService {
     final code = rawCode.trim().toUpperCase();
     if (code.length < 4) throw StateError('Enter a valid invite code');
 
-    final snap = await _db.collection('invites').where('code', isEqualTo: code).limit(1).get();
+    final snap = await _db
+        .collection('invites')
+        .where('code', isEqualTo: code)
+        .limit(1)
+        .get();
     if (snap.docs.isEmpty) throw StateError('Invite code not found');
 
     final inviteDoc = snap.docs.first;
@@ -430,7 +513,9 @@ class FamilyService {
       throw StateError('This invite has expired');
     }
 
-    final linked = (invite['linkedImeis'] as List?)?.whereType<String>().toList() ?? <String>[];
+    final linked =
+        (invite['linkedImeis'] as List?)?.whereType<String>().toList() ??
+        <String>[];
     final inviter = FamilyMember(
       uid: invite['createdBy'] as String,
       displayName: (invite['createdByName'] as String?) ?? 'Guardian',
@@ -439,7 +524,8 @@ class FamilyService {
 
     final myRef = _db.collection('users').doc(user.uid);
     final mySnap = await myRef.get();
-    final existingMembers = (mySnap.data()?['familyMembers'] as List?)
+    final existingMembers =
+        (mySnap.data()?['familyMembers'] as List?)
             ?.whereType<Map>()
             .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
             .toList() ??
@@ -458,15 +544,11 @@ class FamilyService {
       'acceptedByEmail': user.email,
       'acceptedAt': FieldValue.serverTimestamp(),
     });
-    batch.set(
-      myRef,
-      {
-        'linkedImeis': FieldValue.arrayUnion(linked),
-        'familyMembers': existingMembers.map((m) => m.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(myRef, {
+      'linkedImeis': FieldValue.arrayUnion(linked),
+      'familyMembers': existingMembers.map((m) => m.toMap()).toList(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     await batch.commit();
   }
@@ -479,13 +561,17 @@ class FamilyService {
 /// against this exact device — see the comment in commands.js.
 class DeviceCommandService {
   DeviceCommandService({FirebaseFirestore? db, FirebaseAuth? auth})
-      : _db = db ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  Future<void> _enqueue(String imei, String type, Map<String, dynamic> params) async {
+  Future<void> _enqueue(
+    String imei,
+    String type,
+    Map<String, dynamic> params,
+  ) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
     await _db.collection('deviceCommands').add({
@@ -503,7 +589,10 @@ class DeviceCommandService {
   }
 
   Future<void> setSosNumber(String imei, int slot, String phone) {
-    return _enqueue(imei, 'set_sos_number', {'slot': slot, 'phone': phone.trim()});
+    return _enqueue(imei, 'set_sos_number', {
+      'slot': slot,
+      'phone': phone.trim(),
+    });
   }
 
   Future<void> checkStatus(String imei) {

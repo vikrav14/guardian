@@ -6,7 +6,7 @@ import 'package:guardian/services/push_service.dart';
 
 void main() {
   group('AuthService.ensureUserProfile', () {
-    test('creates a users/{uid} profile linked to the demo IMEI for a new user', () async {
+    test('creates a users/{uid} profile with no linked pendants for a new user', () async {
       final db = FakeFirebaseFirestore();
       final user = MockUser(uid: 'u1', email: 'guardian@example.com', displayName: 'Vik');
       final auth = MockFirebaseAuth(mockUser: user, signedIn: true);
@@ -17,7 +17,7 @@ void main() {
       final doc = await db.collection('users').doc('u1').get();
       expect(doc.exists, true);
       expect(doc.data()!['displayName'], 'Vik');
-      expect(doc.data()!['linkedImeis'], [AuthService.demoImei]);
+      expect(doc.data()!['linkedImeis'], isEmpty);
       expect(doc.data()!['role'], 'guardian');
     });
 
