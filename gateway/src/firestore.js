@@ -9,6 +9,7 @@ const {
   evaluateDeviceIntelligence,
   shouldCreateOfflineAlert,
 } = require('./intelligence');
+const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
 
 let db = null;
 let enabled = false;
@@ -104,6 +105,7 @@ async function upsertDevice(imei, patch = {}) {
 
   if (!enabled) {
     console.log(`[firestore:dry-run] devices/${canonicalImei}`, JSON.stringify(data));
+    incrementMetric('firestoreWrites');
     if (protocolId && protocolId !== canonicalImei) {
       console.log(`[firestore:dry-run] would migrate devices/${protocolId} → devices/${canonicalImei}`);
     }
@@ -116,6 +118,7 @@ async function upsertDevice(imei, patch = {}) {
 
   const ref = db.collection('devices').doc(canonicalImei);
   await ref.set(data, { merge: true });
+  incrementMetric('firestoreWrites');
 }
 
 async function appendLocation(imei, point) {
@@ -244,10 +247,14 @@ async function createAlert(imei, alert) {
 
   if (!enabled) {
     console.log(`[firestore:dry-run] alerts`, JSON.stringify(data));
+    incrementAlert(alert.type || 'unknown');
+    incrementMetric('firestoreWrites');
     await deliverAlertNotifications(imei, data, null);
     return null;
   }
 
+  incrementAlert(alert.type || 'unknown');
+  incrementMetric('firestoreWrites');
   const ref = await db.collection('alerts').add(data);
   // Deliver immediately for gateway-originated alerts (watcher also covers app SOS).
   await deliverAlertNotifications(imei, data, ref.id);

@@ -31,6 +31,12 @@ const { evaluateGeofenceTransitions } = require('./geofence');
 const { startHttpServer } = require('./http');
 
 const {
+  incrementEvent,
+  recordWriteGate,
+  startMetricsFlusher,
+} = require('./ops-metrics');
+
+const {
 
   registerSession,
 
@@ -78,6 +84,10 @@ startIntelligenceMonitor();
 
 startHttpServer();
 
+if (!config.firestoreDisabled) {
+  startMetricsFlusher(config.opsMetricsFlushMs);
+}
+
 
 
 setInterval(() => {
@@ -87,6 +97,8 @@ setInterval(() => {
   if (skipped > 0 || persisted > 0) {
 
     console.log(`[write-gate] skipped ${skipped}, persisted ${persisted}`);
+
+    recordWriteGate({ persisted, skipped });
 
   }
 
@@ -179,6 +191,8 @@ async function applyEvents(events) {
       continue;
 
     }
+
+    incrementEvent(event.type);
 
 
 

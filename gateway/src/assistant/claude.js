@@ -55,28 +55,39 @@ async function answerWithAssistant(db, ctx, userText) {
     // Offline-friendly fallback without LLM
     const { deviceLabel } = require('./tools');
     if (!ctx.devices.length) {
-      return 'I could not find any linked pendants yet.';
+      return { reply: 'I could not find any linked pendants yet.' };
     }
     const d = ctx.devices[0];
     const loc = d.location || {};
     const name = deviceLabel(d);
     if (loc.lat != null && loc.lng != null) {
-      return `${name} last seen at ${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}` +
-        (d.batteryPercent != null ? ` · battery ${d.batteryPercent}%` : '') +
-        `\nhttps://maps.google.com/?q=${loc.lat},${loc.lng}`;
+      return {
+        reply:
+          `${name} last seen at ${Number(loc.lat).toFixed(4)}, ${Number(loc.lng).toFixed(4)}` +
+          (d.batteryPercent != null ? ` · battery ${d.batteryPercent}%` : '') +
+          `\nhttps://maps.google.com/?q=${loc.lat},${loc.lng}`,
+      };
     }
-    return `${name} has no GPS fix yet.`;
+    return { reply: `${name} has no GPS fix yet.` };
   }
 
   const messages = [{ role: 'user', content: userText }];
+  let totalUsage = { input_tokens: 0, output_tokens: 0 };
 
   for (let round = 0; round < 5; round += 1) {
     const response = await callClaude(messages);
+    if (response.usage) {
+      totalUsage.input_tokens += response.usage.input_tokens || 0;
+      totalUsage.output_tokens += response.usage.output_tokens || 0;
+    }
     const toolUses = (response.content || []).filter((b) => b.type === 'tool_use');
 
     if (!toolUses.length) {
       const text = extractText(response.content);
-      return text || 'Sorry — I could not form an answer.';
+      return {
+        reply: text || 'Sorry — I could not form an answer.',
+        usage: totalUsage,
+      };
     }
 
     messages.push({ role: 'assistant', content: response.content });
@@ -93,7 +104,10 @@ async function answerWithAssistant(db, ctx, userText) {
     messages.push({ role: 'user', content: toolResults });
   }
 
-  return 'I hit a limit looking that up — try asking again in a moment.';
+  return {
+    reply: 'I hit a limit looking that up — try asking again in a moment.',
+    usage: totalUsage,
+  };
 }
 
 module.exports = {

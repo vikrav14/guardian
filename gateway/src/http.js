@@ -6,6 +6,13 @@ const { resolveCallerContext } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { sendWhatsApp, normalizeE164 } = require('./notify');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
+const { estimateMonthlyCost } = require('./cost-engine');
+const {
+  checkAdminAuth,
+  getMetricsResponse,
+  recordAssistantUsage,
+  increment: incrementMetric,
+} = require('./ops-metrics');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -20,9 +27,25 @@ function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
     'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
     'Content-Length': Buffer.byteLength(body),
   });
   res.end(body);
+}
+
+function sendOptions(res) {
+  res.writeHead(204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+  });
+  res.end();
+}
+
+function parseBoolParam(value, defaultValue) {
+  if (value == null || value === '') return defaultValue;
+  return String(value).toLowerCase() === 'true';
 }
 
 function sendTwiml(res, message) {
@@ -48,8 +71,13 @@ async function handleChat({ from, text }) {
     };
   }
 
-  const reply = await answerWithAssistant(db, ctx, text);
-  return { ctx, reply };
+  const assistantResult = await answerWithAssistant(db, ctx, text);
+  if (assistantResult.usage) {
+    recordAssistantUsage(assistantResult.usage);
+  } else {
+    incrementMetric('assistantRequests');
+  }
+  return { ctx, reply: assistantResult.reply };
 }
 
 function startHttpServer() {
@@ -57,8 +85,41 @@ function startHttpServer() {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
+      if (req.method === 'OPTIONS') {
+        sendOptions(res);
+        return;
+      }
+
       if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true, service: 'guardian-gateway-http' });
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/ops/metrics') {
+        const auth = checkAdminAuth(req);
+        if (!auth.ok) {
+          sendJson(res, auth.status, { error: auth.error });
+          return;
+        }
+        sendJson(res, 200, getMetricsResponse());
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/ops/cost-estimate') {
+        const auth = checkAdminAuth(req);
+        if (!auth.ok) {
+          sendJson(res, auth.status, { error: auth.error });
+          return;
+        }
+        const estimate = estimateMonthlyCost({
+          users: Number(url.searchParams.get('users') || 500),
+          gpsIntervalSec: Number(url.searchParams.get('gpsIntervalSec') || 60),
+          historyOn: parseBoolParam(url.searchParams.get('historyOn'), false),
+          journeyCompression: parseBoolParam(url.searchParams.get('journeyCompression'), true),
+          whatsappPct: Number(url.searchParams.get('whatsappPct') || 15),
+          aiNarrationOn: parseBoolParam(url.searchParams.get('aiNarrationOn'), true),
+        });
+        sendJson(res, 200, estimate);
         return;
       }
 
@@ -109,6 +170,7 @@ function startHttpServer() {
 
         // Reply async via API when possible (avoids Twilio 15s timeout on slow LLM).
         // Still return a short TwiML ack immediately if sendWhatsApp is not configured.
+        incrementMetric('whatsappInbound');
         const { reply } = await handleChat({ from, text });
         const wa = await sendWhatsApp(from.replace(/^whatsapp:/i, ''), reply);
         if (wa.ok || wa.skipped) {
@@ -139,6 +201,8 @@ function startHttpServer() {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
     console.log('[guardian-http] POST /webhooks/twilio/whatsapp');
     console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
+    console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
+    console.log('[guardian-http] GET  /ops/cost-estimate?users=500');
   });
 
   return server;

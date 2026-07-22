@@ -46,6 +46,14 @@ const config = {
     process.env.INTELLIGENCE_OFFLINE_ALERT_COOLDOWN_MINUTES || 30
   ),
   intelligenceCheckIntervalMs: Number(process.env.INTELLIGENCE_CHECK_INTERVAL_MS || 60_000),
+
+  // Command Center / ops API (GET /ops/metrics, /ops/cost-estimate)
+  adminApiKey: process.env.ADMIN_API_KEY || '',
+  adminEmails: (process.env.ADMIN_EMAILS || 'vikrav14@gmail.com')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+  opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
 };
 
 module.exports = config;
