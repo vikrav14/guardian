@@ -144,6 +144,63 @@ async function requireAdmin(req, res) {
   return true;
 }
 
+async function handleOpsHttpRequest(req, res, url) {
+  if (req.method !== 'GET' || !url.pathname.startsWith('/ops/')) {
+    return false;
+  }
+
+  if (!(await requireAdmin(req, res))) {
+    return true;
+  }
+
+  switch (url.pathname) {
+    case '/ops/metrics':
+      sendJson(res, 200, getMetricsResponse());
+      return true;
+
+    case '/ops/fleet':
+      sendJson(res, 200, await getFleetResponse());
+      return true;
+
+    case '/ops/finance': {
+      const assumptions = {
+        users: Number(url.searchParams.get('users') || 500),
+        devicesSoldToday: Number(url.searchParams.get('devicesSoldToday') || 0),
+        devicesSoldMonth: Number(url.searchParams.get('devicesSoldMonth') || 0),
+        subscriptionsSoldToday: Number(url.searchParams.get('subscriptionsSoldToday') || 0),
+        subscriptionsSoldMonth: Number(url.searchParams.get('subscriptionsSoldMonth') || 0),
+        monthlyBudgetMur: url.searchParams.has('budget')
+          ? Number(url.searchParams.get('budget'))
+          : undefined,
+      };
+      sendJson(res, 200, await getFinanceResponse(assumptions));
+      return true;
+    }
+
+    case '/ops/growth':
+      sendJson(res, 200, getGrowthResponse(parseGrowthParams(url)));
+      return true;
+
+    case '/ops/ai-stats':
+      sendJson(res, 200, getAiStatsResponse());
+      return true;
+
+    case '/ops/cost-estimate': {
+      const params = parseCostParams(url);
+      const withSensitivity = parseBoolParam(url.searchParams.get('sensitivity'), false);
+      sendJson(
+        res,
+        200,
+        withSensitivity ? estimateCostSensitivity(params) : estimateMonthlyCost(params)
+      );
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
 function startHttpServer() {
   const server = http.createServer(async (req, res) => {
     try {
@@ -159,57 +216,7 @@ function startHttpServer() {
         return;
       }
 
-      if (req.method === 'GET' && url.pathname === '/ops/metrics') {
-        if (!(await requireAdmin(req, res))) return;
-        sendJson(res, 200, getMetricsResponse());
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/ops/fleet') {
-        if (!(await requireAdmin(req, res))) return;
-        sendJson(res, 200, await getFleetResponse());
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/ops/finance') {
-        if (!(await requireAdmin(req, res))) return;
-        const assumptions = {
-          users: Number(url.searchParams.get('users') || 500),
-          devicesSoldToday: Number(url.searchParams.get('devicesSoldToday') || 0),
-          devicesSoldMonth: Number(url.searchParams.get('devicesSoldMonth') || 0),
-          subscriptionsSoldToday: Number(url.searchParams.get('subscriptionsSoldToday') || 0),
-          subscriptionsSoldMonth: Number(url.searchParams.get('subscriptionsSoldMonth') || 0),
-          monthlyBudgetMur: url.searchParams.has('budget')
-            ? Number(url.searchParams.get('budget'))
-            : undefined,
-        };
-        sendJson(res, 200, await getFinanceResponse(assumptions));
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/ops/growth') {
-        if (!(await requireAdmin(req, res))) return;
-        sendJson(res, 200, getGrowthResponse(parseGrowthParams(url)));
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/ops/ai-stats') {
-        if (!(await requireAdmin(req, res))) return;
-        sendJson(res, 200, getAiStatsResponse());
-        return;
-      }
-
-      if (req.method === 'GET' && url.pathname === '/ops/cost-estimate') {
-        if (!(await requireAdmin(req, res))) return;
-        const params = parseCostParams(url);
-        const withSensitivity = parseBoolParam(url.searchParams.get('sensitivity'), false);
-
-        if (withSensitivity) {
-          sendJson(res, 200, estimateCostSensitivity(params));
-          return;
-        }
-
-        sendJson(res, 200, estimateMonthlyCost(params));
+      if (await handleOpsHttpRequest(req, res, url)) {
         return;
       }
 
