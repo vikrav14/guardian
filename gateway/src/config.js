@@ -11,6 +11,13 @@ const config = {
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
 
+  // ReachFar V28C: 10-digit protocol id → 15-digit IMEI = prefix + id[3..9] + suffix digit.
+  // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
+  imeiPrefix: process.env.IMEI_PREFIX || '8613970',
+  imeiDefaultSuffix: process.env.IMEI_DEFAULT_SUFFIX || '0',
+  // Optional overrides when suffix digit differs: "9705313987:861397053139877"
+  imeiMap: process.env.IMEI_MAP || '',
+
   // Twilio (optional — without these, notifications are logged only)
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',

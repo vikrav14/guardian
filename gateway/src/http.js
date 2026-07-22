@@ -5,6 +5,7 @@ const { getDb } = require('./firestore');
 const { resolveCallerContext } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { sendWhatsApp, normalizeE164 } = require('./notify');
+const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -58,6 +59,24 @@ function startHttpServer() {
 
       if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true, service: 'guardian-gateway-http' });
+        return;
+      }
+
+      // Force GPS continuous reporting (CR) on an active TCP session
+      if (
+        (req.method === 'POST' || req.method === 'GET') &&
+        (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
+      ) {
+        const imei =
+          url.searchParams.get('imei') ||
+          url.searchParams.get('protocolId') ||
+          '861397053141170';
+        const command = url.searchParams.get('command') || 'CR';
+        const result =
+          command === 'CR'
+            ? sendContinuousReporting(imei)
+            : sendDownlinkCommand(imei, command);
+        sendJson(res, result.ok ? 200 : 404, result);
         return;
       }
 

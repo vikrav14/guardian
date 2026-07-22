@@ -2,10 +2,25 @@
  * ReachFar V28C ASCII protocol decoder.
  * Format: [CS*YYYYYYYYYY*LEN*command,data...]
  * - CS: 2-byte factory code (e.g., "3G", "SG")
- * - YYYYYYYYYY: 10-digit device ID (IMEI)
+ * - YYYYYYYYYY: 10-digit device ID (protocol id; full IMEI is 15 digits — see imei.js)
  * - LEN: 4-char ASCII hex content length
  * - command,data: payload (LK, UD_LTE, AL_LTE, etc.)
  */
+
+const {
+  bindSessionImei,
+  extractFullImeiFromPayload,
+  isFullImei,
+} = require('../imei');
+
+// Commands only ever sent server->tracker (section II of the protocol doc).
+// If one shows up as an *incoming* command, the device echoed it back.
+const SERVER_ONLY_COMMANDS = new Set([
+  'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'PHBX',
+  'SMSONOFF', 'profile', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
+  'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
+  'TAKEPILLS', 'WIFIFENCE', 'rcapture',
+]);
 
 function parseLocationData(fields) {
   if (fields.length < 2) return null;
@@ -23,10 +38,13 @@ function parseLocationData(fields) {
   const recordedAt = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
   if (Number.isNaN(recordedAt.getTime())) return null;
 
-  const gpsValid = fields.length > 2 && fields[2] === 'A'; // A=valid, V=invalid
-  if (!gpsValid) return null; // GPS not fixed
+  const gpsFlag = fields.length > 2 ? fields[2] : null;
+  const gpsValid = gpsFlag === 'A'; // A=valid, V=invalid
+  if (!gpsValid) {
+    return { error: gpsFlag === 'V' ? 'gps_not_fixed' : 'gps_flag_missing' };
+  }
 
-  let lat = null, lng = null, course = 0;
+  let lat = null, lng = null, course = 0, speedKmh = null;
   if (fields.length > 5) {
     lat = parseFloat(fields[3]);
     const latDir = fields[4];
@@ -39,24 +57,30 @@ function parseLocationData(fields) {
     if (lngDir === 'W') lng = -lng;
   }
 
-  if (fields.length > 8) {
-    const speed = parseFloat(fields[8]);
+  // UD_LTE field order after lngDir: speed (km/h), course (degrees), then extras.
+  if (fields.length > 7) {
+    const speed = parseFloat(fields[7]);
     if (!Number.isNaN(speed)) {
-      var speedKmh = speed;
+      speedKmh = speed;
     }
   }
 
-  if (fields.length > 9) {
-    const c = parseInt(fields[9], 10);
+  if (fields.length > 8) {
+    const c = parseInt(fields[8], 10);
     if (!Number.isNaN(c)) course = c;
   }
 
   return {
     location: { lat, lng, altitude: null, recordedAt, satellites: null },
-    speedKmh: speedKmh || null,
+    speedKmh,
     course,
     accuracySource: 'gps',
   };
+}
+
+function truncatePayloadPreview(args, maxLen = 200) {
+  const s = args.join(',');
+  return s.length <= maxLen ? s : `${s.slice(0, maxLen)}…`;
 }
 
 function parseLkData(fields) {
@@ -103,12 +127,14 @@ function decodeFrame(frame) {
   // Parse ASCII frame: [CS*IMEI*LEN*cmd,data...]
   const frameStr = frame.toString('ascii');
   if (!frameStr.startsWith('[') || !frameStr.endsWith(']')) {
+    console.log(`[protocol] invalid frame delimiters: ${frameStr.substring(0, 50)}`);
     return { error: 'invalid_frame_delimiters' };
   }
 
   const content = frameStr.slice(1, -1); // Remove brackets
   const parts = content.split('*');
   if (parts.length < 4) {
+    console.log(`[protocol] incomplete frame (${parts.length} parts): ${frameStr.substring(0, 50)}`);
     return { error: 'incomplete_frame' };
   }
 
@@ -135,39 +161,57 @@ function decodeFrame(frame) {
 }
 
 function handlePacket(decoded, session) {
-  const { imei, command, args } = decoded;
+  const { imei: rawId, command, args, payload } = decoded;
   const acks = [];
   const events = [];
 
-  if (!imei) {
+  if (!rawId) {
     events.push({ type: 'parse_error', error: 'no_imei' });
     return { acks, events };
   }
 
+  let fullImeiHint = null;
+  if (command === 'RYIMEI' || command === 'CONFIG') {
+    fullImeiHint = extractFullImeiFromPayload(args, payload);
+  }
+
+  const { protocolId, imei } = bindSessionImei(session, rawId, fullImeiHint);
   session.imei = imei;
+
+  const eventMeta = { imei, protocolId };
 
   // Route by command type
   if (command === 'LK') {
     // Link keep-alive / heartbeat
     const hb = parseLkData([command, ...args]);
-    acks.push(buildAckFrame(imei, 'LK'));
-    events.push({ type: 'heartbeat', imei, ...hb });
+    acks.push(buildAckFrame(protocolId, 'LK'));
+    events.push({ type: 'heartbeat', ...eventMeta, ...hb });
   } else if (command.startsWith('UD')) {
     // Location upload: UD, UD_LTE, UD_WCDMA, etc.
     const loc = parseLocationData(args);
-    acks.push(buildAckFrame(imei, 'UD'));
-    if (loc) {
-      events.push({ type: 'location', imei, ...loc });
+    acks.push(buildAckFrame(protocolId, 'UD'));
+    if (loc && !loc.error) {
+      events.push({ type: 'location', ...eventMeta, ...loc });
     } else {
-      events.push({ type: 'location_parse_error', imei, command });
+      events.push({
+        type: 'location_parse_error',
+        ...eventMeta,
+        command,
+        reason: loc?.error || 'invalid_location',
+        gpsFlag: args[2] || null,
+        argCount: args.length,
+        payloadPreview: truncatePayloadPreview(args),
+      });
     }
   } else if (command.startsWith('AL')) {
     // Alarm upload: AL, AL_LTE, AL_WCDMA, etc.
     const loc = parseLocationData(args);
-    acks.push(buildAckFrame(imei, 'AL'));
+    acks.push(buildAckFrame(protocolId, 'AL'));
     let alarmType = 'other';
+    let alarmCode = null;
     if (args.length > 0) {
       const stateField = args[args.length - 1];
+      alarmCode = stateField;
       const stateBits = parseInt(stateField, 16);
       if (!Number.isNaN(stateBits)) {
         if ((stateBits & (1 << 16)) !== 0) alarmType = 'sos';
@@ -179,18 +223,38 @@ function handlePacket(decoded, session) {
     }
     events.push({
       type: 'alarm',
-      imei,
+      ...eventMeta,
       alarmType,
+      ...(alarmCode != null ? { alarmCode } : {}),
       severity: alarmType === 'sos' || alarmType === 'fall' ? 'critical' : 'warning',
-      ...(loc || {}),
+      ...(loc && !loc.error ? loc : {}),
     });
-  } else if (command === 'CONFIG' || command === 'ICCID' || command === 'WT_LTE') {
-    // Config / provisioning response — ACK only, no events
-    acks.push(buildAckFrame(imei, command));
+  } else if (command === 'RYIMEI') {
+    acks.push(buildAckFrame(protocolId, command));
+    if (fullImeiHint && isFullImei(fullImeiHint)) {
+      events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
+    }
+  } else if (command === 'CONFIG') {
+    // Vendor PDF: reply CONFIG,1 (not bare CONFIG)
+    acks.push(buildAckFrame(protocolId, 'CONFIG,1'));
+    if (fullImeiHint && isFullImei(fullImeiHint)) {
+      events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
+    }
+  } else if (command === 'ICCID' || command === 'WT_LTE') {
+    // Config / provisioning response — ACK only; may carry full IMEI in payload
+    acks.push(buildAckFrame(protocolId, command));
+    if (fullImeiHint && isFullImei(fullImeiHint)) {
+      events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
+    }
+  } else if (SERVER_ONLY_COMMANDS.has(command)) {
+    // Device echoed back a command we sent it (e.g. CR). These are
+    // server->tracker only; acking the echo would just bounce it back
+    // again and loop forever, so drop it silently.
+    events.push({ type: 'command_echo', ...eventMeta, command });
   } else {
     // Unknown command — still ACK for compatibility
-    acks.push(buildAckFrame(imei, command));
-    events.push({ type: 'unknown_command', imei, command });
+    acks.push(buildAckFrame(protocolId, command));
+    events.push({ type: 'unknown_command', ...eventMeta, command });
   }
 
   return { acks, events };

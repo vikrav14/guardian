@@ -4,6 +4,7 @@ const config = require('./config');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
 const { sendDeviceCommand } = require('./commands');
+const { isFullImei, isProtocolId, normalizeImei } = require('./imei');
 
 let db = null;
 let enabled = false;
@@ -61,19 +62,55 @@ function nowTs() {
   return enabled ? admin.firestore.FieldValue.serverTimestamp() : new Date().toISOString();
 }
 
-async function upsertDevice(imei, patch) {
+async function migrateLegacyDeviceDoc(canonicalImei, protocolId) {
+  if (!enabled || !protocolId || protocolId === canonicalImei) return;
+
+  const legacyRef = db.collection('devices').doc(protocolId);
+  const canonicalRef = db.collection('devices').doc(canonicalImei);
+  const legacySnap = await legacyRef.get();
+  if (!legacySnap.exists) return;
+
+  const legacyData = legacySnap.data() || {};
+  await canonicalRef.set(
+    {
+      ...legacyData,
+      imei: canonicalImei,
+      protocolId,
+      migratedFrom: protocolId,
+      updatedAt: nowTs(),
+    },
+    { merge: true }
+  );
+  await legacyRef.delete();
+  console.log(`[firestore] migrated devices/${protocolId} → devices/${canonicalImei}`);
+}
+
+async function upsertDevice(imei, patch = {}) {
+  const canonicalImei = normalizeImei(imei);
+  const { protocolId, ...rest } = patch;
   const data = {
-    imei,
+    ...rest,
+    imei: canonicalImei,
     updatedAt: nowTs(),
-    ...patch,
   };
 
+  if (protocolId && isProtocolId(protocolId) && isFullImei(canonicalImei)) {
+    data.protocolId = protocolId;
+  }
+
   if (!enabled) {
-    console.log(`[firestore:dry-run] devices/${imei}`, JSON.stringify(data));
+    console.log(`[firestore:dry-run] devices/${canonicalImei}`, JSON.stringify(data));
+    if (protocolId && protocolId !== canonicalImei) {
+      console.log(`[firestore:dry-run] would migrate devices/${protocolId} → devices/${canonicalImei}`);
+    }
     return;
   }
 
-  const ref = db.collection('devices').doc(imei);
+  if (protocolId && protocolId !== canonicalImei) {
+    await migrateLegacyDeviceDoc(canonicalImei, protocolId);
+  }
+
+  const ref = db.collection('devices').doc(canonicalImei);
   await ref.set(data, { merge: true });
 }
 

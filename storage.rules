@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function linkedTo(imei) {
+      return signedIn()
+        && imei in firestore.get(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        ).data.linkedImeis;
+    }
+
+    match /deviceAvatars/{imei}/avatar {
+      allow read: if linkedTo(imei);
+      allow delete: if linkedTo(imei);
+      allow create, update: if linkedTo(imei)
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /guardianAvatars/{uid}/avatar {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

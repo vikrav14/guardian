@@ -11,6 +11,7 @@ Firebase Auth UID as document ID.
 | displayName | string | |
 | email | string | |
 | phone | string | E.164 preferred |
+| avatarUrl | string \| null | Firebase Storage download URL for the guardian's profile photo (`guardianAvatars/{uid}/avatar`) |
 | role | string | `guardian` \| `admin` |
 | linkedImeis | string[] | Devices this user may view/control |
 | fcmTokens | string[] | FCM registration tokens for this user's app installs (push alerts) |
@@ -45,7 +46,10 @@ Live device state. Document ID = device IMEI (digits only).
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Same as doc id |
-| name | string | Friendly label (e.g. "Dad's pendant") |
+| nickname | string \| null | Preferred dashboard name (e.g. "Mimi"); takes priority over relationship |
+| relationship | string \| null | Guardian's relationship to the wearer (e.g. "Mum", "Dad", "Grandad") |
+| name | string | Legacy friendly label; retained for backwards compatibility |
+| avatarUrl | string \| null | Firebase Storage download URL for the wearer's photo (`deviceAvatars/{imei}/avatar`) |
 | simNumber | string \| null | Pendant's own SIM phone number (E.164) — used for calls and SMS commands |
 | online | boolean | True while TCP session active / recent heartbeat |
 | lastHeartbeatAt | timestamp | |
@@ -153,5 +157,6 @@ Gateway fan-out audit trail (SMS/WhatsApp attempts).
 
 - Clients authenticate with Firebase Auth.
 - Guardians may **read** `devices` / `alerts` / `geofences` only when `imei` is in `users/{uid}.linkedImeis`.
-- Guardians may **rename** devices (`name`), write geofences, and resolve alerts for linked devices.
+- Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences, and resolve alerts for linked devices.
+- Wearer photos live in Firebase Storage at `deviceAvatars/{imei}/avatar`; Storage rules restrict access to signed-in guardians linked to that IMEI and enforce image content under 5 MB.
 - Gateway uses **Admin SDK** (bypasses rules). See [rules.example](rules.example).

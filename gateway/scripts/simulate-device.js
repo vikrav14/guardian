@@ -18,6 +18,8 @@ function parseArgs(argv) {
     lat: -20.2642,
     lng: 57.4791,
     intervalMs: 5000,
+    batteryPercent: 80,
+    randomBattery: false,
     sos: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -28,6 +30,8 @@ function parseArgs(argv) {
     else if (a === '--lat') args.lat = Number(argv[++i]);
     else if (a === '--lng') args.lng = Number(argv[++i]);
     else if (a === '--interval') args.intervalMs = Number(argv[++i]);
+    else if (a === '--battery') args.batteryPercent = Number(argv[++i]);
+    else if (a === '--random-battery') args.randomBattery = true;
     else if (a === '--sos') args.sos = true;
   }
   return args;
@@ -76,17 +80,41 @@ function buildAlarm(imei, { lat, lng }) {
   return buildAsciiFrame('3G', imei, 'AL_LTE', payload);
 }
 
+const REAL_HARDWARE_IMEIS = new Set([
+  '861397053141170',
+  '9705314117',
+]);
+
+function isRealHardwareImei(imei) {
+  const id = String(imei || '').replace(/\D/g, '');
+  if (REAL_HARDWARE_IMEIS.has(id)) return true;
+  // Catch the real pendant by its distinctive protocol-id suffix.
+  return id.length === 15 && id.includes('5314117');
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  if (isRealHardwareImei(args.imei)) {
+    console.error(
+      `[simulate] REFUSED: IMEI ${args.imei} is a real pendant — use demo IMEI 861397053139877 instead`
+    );
+    process.exit(1);
+  }
+
   console.log(`[simulate] connecting to ${args.host}:${args.port} as IMEI ${args.imei}`);
   console.log(`[simulate] location ${args.lat}, ${args.lng}`);
+  if (args.randomBattery) {
+    console.log('[simulate] random battery enabled (40–89%) — use only for demo IMEIs');
+  } else {
+    console.log(`[simulate] stable battery ${args.batteryPercent}% (pass --random-battery to vary)`);
+  }
 
   const socket = net.connect({ host: args.host, port: args.port }, () => {
     console.log('[simulate] connected, sending: LK → LOCATION → HEARTBEAT');
 
     // Send heartbeat/keep-alive (LK)
-    socket.write(buildHeartbeat(args.imei, 80));
+    socket.write(buildHeartbeat(args.imei, args.batteryPercent));
 
     // Send location after 300ms
     setTimeout(() => {
@@ -97,7 +125,7 @@ async function main() {
 
     // Send another heartbeat after 600ms
     setTimeout(() => {
-      socket.write(buildHeartbeat(args.imei, 80));
+      socket.write(buildHeartbeat(args.imei, args.batteryPercent));
       console.log('[simulate] → LK');
     }, 600);
 
@@ -131,8 +159,10 @@ async function main() {
       console.log(`[simulate] → UD_LTE ${args.lat.toFixed(5)} ${args.lng.toFixed(5)} ${speedKmh} km/h`);
       socket.write(loc);
 
-      // Also send heartbeat with random battery level
-      socket.write(buildHeartbeat(args.imei, 40 + Math.floor(Math.random() * 50)));
+      const battery = args.randomBattery
+        ? 40 + Math.floor(Math.random() * 50)
+        : args.batteryPercent;
+      socket.write(buildHeartbeat(args.imei, battery));
     }, args.intervalMs);
   });
 
