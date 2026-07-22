@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/dashboard/dashboard_insight.dart';
 import 'package:guardian/dashboard/dashboard_status_colors.dart';
+import 'package:guardian/dashboard/device_card_visibility.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
+import 'package:guardian/models/alert.dart';
 import 'package:guardian/models/device.dart';
-import 'package:guardian/theme/colors.dart';
+import 'package:guardian/theme/app_theme.dart';
 import 'package:guardian/widgets/dashboard/desktop_dashboard_layout.dart';
+import 'package:guardian/widgets/dashboard/smart_device_map_card.dart';
 
 void main() {
   test('Guardian insight prioritizes offline and low-battery states', () {
@@ -153,6 +156,85 @@ void main() {
     expect(dashboardBatteryHealthy(null), isFalse);
     expect(dashboardBatteryHealthy(20), isFalse);
     expect(dashboardBatteryHealthy(21), isTrue);
+  });
+
+  test('map card attention flags offline, low battery, and open alerts', () {
+    final now = DateTime(2026, 7, 22, 13, 40);
+    final healthy = Device(
+      imei: '1',
+      online: true,
+      batteryPercent: 70,
+      location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
+      lastHeartbeatAt: now,
+    );
+    const offline = Device(imei: '2', online: false, batteryPercent: 70);
+    const lowBattery = Device(imei: '3', online: true, batteryPercent: 15);
+    const sosAlert = GuardianAlert(
+      id: 'a1',
+      imei: '1',
+      type: 'sos',
+      severity: 'critical',
+      message: 'SOS',
+      resolved: false,
+    );
+
+    expect(deviceNeedsMapCardAttention(healthy), isFalse);
+    expect(deviceMapCardStatusNormal(healthy), isTrue);
+    expect(deviceNeedsMapCardAttention(offline), isTrue);
+    expect(deviceNeedsMapCardAttention(lowBattery), isTrue);
+    expect(
+      deviceNeedsMapCardAttention(healthy, alerts: const [sosAlert]),
+      isTrue,
+    );
+  });
+
+  testWidgets('smart device map card minimizes and expands', (tester) async {
+    final now = DateTime(2026, 7, 22, 13, 40);
+    final device = Device(
+      imei: '1',
+      nickname: 'Bouboush',
+      relationship: 'Wife',
+      online: true,
+      batteryPercent: 52,
+      location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
+      lastHeartbeatAt: now,
+    );
+    var minimized = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildGuardianTheme(),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              return SmartDeviceMapCard(
+                device: device,
+                updated: 'Updated 1m ago',
+                onOpen: () {},
+                minimized: minimized,
+                onMinimize: () => setState(() => minimized = true),
+                onExpand: () => setState(() => minimized = false),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('smart-device-map-card')), findsOneWidget);
+    expect(find.text('View details'), findsOneWidget);
+    expect(find.text('All good — hide when you do not need this'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Minimize'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('smart-device-map-chip')), findsOneWidget);
+    expect(find.text('View details'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('smart-device-map-chip')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('smart-device-map-card')), findsOneWidget);
   });
 
   testWidgets('desktop person card leaves map controls clickable', (

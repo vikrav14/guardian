@@ -14,6 +14,7 @@ class JourneyReplayController extends ChangeNotifier {
   })  : rawPoints = List<LocationHistoryPoint>.unmodifiable(rawPoints),
         smoothedPoints = smoothRouteForDisplay(rawPoints),
         routeSegments = buildRouteSegments(rawPoints),
+        displayRouteSegments = buildRouteSegments(smoothRouteForDisplay(rawPoints)),
         events = detectJourneyEvents(rawPoints),
         stats = buildJourneyStats(rawPoints),
         insights = buildJourneyInsights(rawPoints),
@@ -29,6 +30,7 @@ class JourneyReplayController extends ChangeNotifier {
   final List<LocationHistoryPoint> rawPoints;
   final List<LocationHistoryPoint> smoothedPoints;
   final List<RouteSegment> routeSegments;
+  final List<RouteSegment> displayRouteSegments;
   final List<JourneyEvent> events;
   final JourneyStats stats;
   final JourneyInsights insights;
@@ -146,7 +148,13 @@ class JourneyReplayController extends ChangeNotifier {
   }
 
   void seek(double value) {
-    progress = value.clamp(0.0, 1.0);
+    final clamped = value.clamp(0.0, 1.0);
+    if (clamped > 0 && !isReplayMode) enterReplayMode();
+    if (clamped == 0 && !isPlaying) {
+      exitReplayMode();
+      return;
+    }
+    progress = clamped;
     _updateNarration(force: true);
     notifyListeners();
   }

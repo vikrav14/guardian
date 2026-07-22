@@ -7,11 +7,13 @@ class HomeShellScope extends InheritedWidget {
     super.key,
     required this.currentIndex,
     required this.goToTab,
+    this.sidebarCollapsed = false,
     required super.child,
   });
 
   final int currentIndex;
   final ValueChanged<int> goToTab;
+  final bool sidebarCollapsed;
 
   static HomeShellScope? maybeOf(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<HomeShellScope>();
@@ -19,6 +21,7 @@ class HomeShellScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(HomeShellScope oldWidget) {
-    return currentIndex != oldWidget.currentIndex;
+    return currentIndex != oldWidget.currentIndex ||
+        sidebarCollapsed != oldWidget.sidebarCollapsed;
   }
 }

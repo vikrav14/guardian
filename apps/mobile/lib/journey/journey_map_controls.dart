@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +7,14 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import 'journey_models.dart';
 import 'journey_time_machine.dart';
+
+/// Matches journey map overlay glass in [JourneyPage].
+const _kJourneyControlGlassBlur = 20.0;
+const _kJourneyControlGlassFillAlpha = 0.45;
+const _kJourneyControlGlassBorderAlpha = 0.28;
+
+Color _journeyControlGlassFill(GuardianThemeColors colors) =>
+    colors.glass.withValues(alpha: _kJourneyControlGlassFillAlpha);
 
 /// Corner controls for heat map, compare, map type, weather, and lighting info.
 class JourneyMapControls extends StatelessWidget {
@@ -97,18 +107,35 @@ class _ControlChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Material(
-      color: active
-          ? colors.accent.withValues(alpha: 0.15)
-          : colors.surface.withValues(alpha: 0.92),
+    return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(
-          icon,
-          size: 18,
-          color: active ? colors.accent : colors.textSecondary,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: _kJourneyControlGlassBlur,
+          sigmaY: _kJourneyControlGlassBlur,
+        ),
+        child: Material(
+          color: active
+              ? colors.accent.withValues(alpha: 0.22)
+              : _journeyControlGlassFill(colors),
+          borderRadius: BorderRadius.circular(12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.white.withValues(alpha: _kJourneyControlGlassBorderAlpha),
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              tooltip: tooltip,
+              onPressed: onPressed,
+              icon: Icon(
+                icon,
+                size: 18,
+                color: active ? colors.accent : colors.textPrimary,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -123,14 +150,38 @@ class _WeatherChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Material(
-      color: colors.surface.withValues(alpha: 0.92),
+    return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Text(
-          label,
-          style: TextStyle(fontSize: 10, color: colors.textSecondary),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: _kJourneyControlGlassBlur,
+          sigmaY: _kJourneyControlGlassBlur,
+        ),
+        child: Material(
+          color: _journeyControlGlassFill(colors),
+          borderRadius: BorderRadius.circular(12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Colors.white.withValues(alpha: _kJourneyControlGlassBorderAlpha),
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                  shadows: const [
+                    Shadow(color: Color(0x33000000), blurRadius: 2),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

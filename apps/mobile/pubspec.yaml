@@ -78,6 +78,7 @@ flutter:
 
   assets:
     - assets/brand/guardian_dodo.png
+    - assets/navigation/sidebar_le_morne.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -20,6 +20,17 @@ import '../widgets/brand/dodo_ai_icon.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/map/person_map_marker.dart';
 
+/// Map overlay glass — lighter than [GuardianThemeColors.glass] so the route shows through.
+const _kJourneyMapGlassBlur = 24.0;
+const _kJourneyMapGlassFillAlpha = 0.38;
+const _kJourneyMapGlassBorderAlpha = 0.28;
+
+Color _journeyMapGlassFill(GuardianThemeColors colors) =>
+    colors.glass.withValues(alpha: _kJourneyMapGlassFillAlpha);
+
+Border _journeyMapGlassBorder() =>
+    Border.all(color: Colors.white.withValues(alpha: _kJourneyMapGlassBorderAlpha));
+
 class JourneyPage extends StatefulWidget {
   const JourneyPage({
     super.key,
@@ -365,10 +376,6 @@ class _JourneyPageState extends State<JourneyPage> {
                       _mapController = c;
                       _fitBounds(replay.smoothedPoints);
                     },
-                    onReplayStart: () {
-                      replay.enterReplayMode();
-                      replay.play();
-                    },
                     onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
                     onMapTypeToggle: () => setState(() {
                       _mapType =
@@ -397,10 +404,6 @@ class _JourneyPageState extends State<JourneyPage> {
                     _mapController = c;
                     _fitBounds(replay.smoothedPoints);
                   },
-                  onReplayStart: () {
-                    replay.enterReplayMode();
-                    replay.play();
-                  },
                   onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
                   onMapTypeToggle: () => setState(() {
                     _mapType =
@@ -425,7 +428,6 @@ class _WideJourneyLayout extends StatelessWidget {
     required this.deviceName,
     required this.imei,
     required this.onMapCreated,
-    required this.onReplayStart,
     required this.mapType,
     required this.showHeatmap,
     required this.compareMode,
@@ -447,7 +449,6 @@ class _WideJourneyLayout extends StatelessWidget {
   final String imei;
   final String? avatarUrl;
   final ValueChanged<GoogleMapController> onMapCreated;
-  final VoidCallback onReplayStart;
   final MapType mapType;
   final bool showHeatmap;
   final bool compareMode;
@@ -475,17 +476,10 @@ class _WideJourneyLayout extends StatelessWidget {
                 flex: 3,
                 child: Column(
                   children: [
-                    _CompactSummaryRow(
-                      journeyTitle: journeyTitle,
-                      replay: replay,
-                    ),
-                    const SizedBox(height: 8),
-                    if (!replay.isReplayMode)
-                      _ReplayJourneyButton(onPressed: onReplayStart),
-                    if (!replay.isReplayMode) const SizedBox(height: 8),
                     Expanded(
                       child: _JourneyMap(
                         replay: replay,
+                        journeyTitle: journeyTitle,
                         deviceName: deviceName,
                         imei: imei,
                         avatarUrl: avatarUrl,
@@ -519,7 +513,9 @@ class _WideJourneyLayout extends StatelessWidget {
               const SizedBox(width: 12),
               SizedBox(
                 width: 300,
-                child: _JourneyDetailsColumn(replay: replay),
+                child: SingleChildScrollView(
+                  child: _JourneyDetailsColumn(replay: replay),
+                ),
               ),
             ],
           ),
@@ -536,7 +532,6 @@ class _MobileJourneyLayout extends StatelessWidget {
     required this.deviceName,
     required this.imei,
     required this.onMapCreated,
-    required this.onReplayStart,
     required this.mapType,
     required this.showHeatmap,
     required this.compareMode,
@@ -558,7 +553,6 @@ class _MobileJourneyLayout extends StatelessWidget {
   final String imei;
   final String? avatarUrl;
   final ValueChanged<GoogleMapController> onMapCreated;
-  final VoidCallback onReplayStart;
   final MapType mapType;
   final bool showHeatmap;
   final bool compareMode;
@@ -579,18 +573,6 @@ class _MobileJourneyLayout extends StatelessWidget {
       builder: (context, _) {
         return Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _CompactSummaryRow(
-                journeyTitle: journeyTitle,
-                replay: replay,
-              ),
-            ),
-            if (!replay.isReplayMode)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: _ReplayJourneyButton(onPressed: onReplayStart),
-              ),
             Expanded(
               flex: 5,
               child: Padding(
@@ -600,6 +582,7 @@ class _MobileJourneyLayout extends StatelessWidget {
                     Expanded(
                       child: _JourneyMap(
                         replay: replay,
+                        journeyTitle: journeyTitle,
                         deviceName: deviceName,
                         imei: imei,
                         avatarUrl: avatarUrl,
@@ -663,43 +646,61 @@ class _CompactSummaryRow extends StatelessWidget {
             ? 'Brief stops'
             : 'Unusual';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(GuardianRadius.medium),
-        border: Border.all(color: colors.border),
-      ),
-      child: Text.rich(
-        TextSpan(
-          style: TextStyle(fontSize: 12, color: colors.textSecondary, height: 1.4),
-          children: [
-            TextSpan(
-              text: journeyTitle,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-              ),
-            ),
-            const TextSpan(text: '  |  '),
-            TextSpan(text: '${stats.distanceKm.toStringAsFixed(1)} km'),
-            const TextSpan(text: '  |  '),
-            TextSpan(text: formatJourneyDuration(stats.duration)),
-            const TextSpan(text: '  |  '),
-            TextSpan(text: quality.fixesLabel),
-            const TextSpan(text: '  |  '),
-            TextSpan(
-              text: '✓ $routeLabel',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: replay.insights.stopCount <= 2 ? colors.accent : colors.textPrimary,
-              ),
-            ),
-          ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(GuardianRadius.medium),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: _kJourneyMapGlassBlur,
+          sigmaY: _kJourneyMapGlassBlur,
         ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _journeyMapGlassFill(colors),
+            borderRadius: BorderRadius.circular(GuardianRadius.medium),
+            border: _journeyMapGlassBorder(),
+          ),
+          child: Text.rich(
+            TextSpan(
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+                height: 1.4,
+                shadows: const [
+                  Shadow(color: Color(0x33000000), blurRadius: 3),
+                ],
+              ),
+              children: [
+                TextSpan(
+                  text: journeyTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const TextSpan(text: '  |  '),
+                TextSpan(text: '${stats.distanceKm.toStringAsFixed(1)} km'),
+                const TextSpan(text: '  |  '),
+                TextSpan(text: formatJourneyDuration(stats.duration)),
+                const TextSpan(text: '  |  '),
+                TextSpan(text: quality.fixesLabel),
+                const TextSpan(text: '  |  '),
+                TextSpan(
+                  text: '✓ $routeLabel',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: replay.insights.stopCount <= 2
+                        ? colors.accent
+                        : colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ),
     );
   }
@@ -728,27 +729,10 @@ class _JourneyDetailsColumn extends StatelessWidget {
   }
 }
 
-class _ReplayJourneyButton extends StatelessWidget {
-  const _ReplayJourneyButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Icons.play_arrow_rounded),
-        label: const Text('Replay Journey'),
-      ),
-    );
-  }
-}
-
 class _JourneyMap extends StatefulWidget {
   const _JourneyMap({
     required this.replay,
+    required this.journeyTitle,
     required this.deviceName,
     required this.imei,
     required this.onMapCreated,
@@ -765,6 +749,7 @@ class _JourneyMap extends StatefulWidget {
   });
 
   final JourneyReplayController replay;
+  final String journeyTitle;
   final String deviceName;
   final String imei;
   final String? avatarUrl;
@@ -849,12 +834,12 @@ class _JourneyMapState extends State<_JourneyMap> {
     final polylines = <Polyline>{};
 
     if (!widget.showHeatmap) {
-      final points = replay.rawPoints;
+      final points = replay.smoothedPoints;
       if (points.length >= 2) {
-        final maxIndex = replay.isReplayMode ? replay.currentRawIndex : points.length - 1;
+        final maxIndex = replay.isReplayMode ? replay.currentIndex : points.length - 1;
         var segmentIndex = 0;
 
-        for (final segment in replay.routeSegments) {
+        for (final segment in replay.displayRouteSegments) {
           if (segment.startIndex > maxIndex) break;
           final end = segment.endIndex.clamp(segment.startIndex, maxIndex);
           if (end <= segment.startIndex) continue;
@@ -919,13 +904,15 @@ class _JourneyMapState extends State<_JourneyMap> {
   }
 
   List<Map<String, dynamic>> _mapStyleForReplay() {
-    if (!widget.replay.isReplayMode) return JourneyMapStyles.light;
-
-    final time = interpolateJourneyTime(widget.replay.rawPoints, widget.replay.progress);
-    if (time != null && isEveningOrNight(time)) {
+    if (!widget.replay.isReplayMode || !widget.replay.isPlaying) {
       return JourneyMapStyles.dark;
     }
-    return JourneyMapStyles.light;
+
+    final time = interpolateJourneyTime(widget.replay.rawPoints, widget.replay.progress);
+    if (time != null && !isEveningOrNight(time)) {
+      return JourneyMapStyles.light;
+    }
+    return JourneyMapStyles.dark;
   }
 
   String get _weatherLabel {
@@ -974,12 +961,24 @@ class _JourneyMapState extends State<_JourneyMap> {
     return markers;
   }
 
+  String? _aiNarrationMessage(JourneyReplayController replay) {
+    if (replay.isReplayMode && replay.currentNarration != null) {
+      return replay.currentNarration;
+    }
+    if (!replay.isReplayMode) {
+      return replay.insights.routeSummary;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final replay = widget.replay;
     final first = replay.smoothedPoints.first;
     final mapStyle = _mapStyleForReplay();
     final lightingActive = mapStyle.isNotEmpty;
+
+    final aiMessage = _aiNarrationMessage(replay);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(GuardianRadius.large),
@@ -1001,36 +1000,43 @@ class _JourneyMapState extends State<_JourneyMap> {
             mapToolbarEnabled: false,
             myLocationButtonEnabled: false,
           ),
-          if (replay.isReplayMode && replay.currentNarration != null)
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 52,
+            child: _CompactSummaryRow(
+              journeyTitle: widget.journeyTitle,
+              replay: replay,
+            ),
+          ),
+          if (aiMessage != null)
             Positioned(
               left: 12,
               right: 12,
-              top: 12,
-              child: _AiNarrationBubble(message: replay.currentNarration!),
+              top: 58,
+              child: _AiNarrationBubble(message: aiMessage),
             ),
-          if (replay.isReplayMode)
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 10,
-              child: _GlassReplayPanel(replay: replay),
-            )
-          else
-            Positioned(
-              top: 10,
-              right: 10,
-              child: JourneyMapControls(
-                showHeatmap: widget.showHeatmap,
-                mapType: widget.mapType,
-                compareMode: widget.compareMode,
-                lightingActive: lightingActive,
-                weatherLabel: _weatherLabel,
-                onHeatmapToggle: widget.onHeatmapToggle,
-                onMapTypeToggle: widget.onMapTypeToggle,
-                onCompareToggle: widget.onCompareToggle,
-                onTimeMachine: widget.onTimeMachine,
-              ),
+          Positioned(
+            top: 10,
+            right: 10,
+            child: JourneyMapControls(
+              showHeatmap: widget.showHeatmap,
+              mapType: widget.mapType,
+              compareMode: widget.compareMode,
+              lightingActive: lightingActive,
+              weatherLabel: _weatherLabel,
+              onHeatmapToggle: widget.onHeatmapToggle,
+              onMapTypeToggle: widget.onMapTypeToggle,
+              onCompareToggle: widget.onCompareToggle,
+              onTimeMachine: widget.onTimeMachine,
             ),
+          ),
+          Positioned(
+            left: 10,
+            right: 10,
+            bottom: 10,
+            child: _GlassReplayPanel(replay: replay),
+          ),
         ],
       ),
     );
@@ -1048,13 +1054,16 @@ class _AiNarrationBubble extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        filter: ImageFilter.blur(
+          sigmaX: _kJourneyMapGlassBlur,
+          sigmaY: _kJourneyMapGlassBlur,
+        ),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: colors.glass,
+            color: _journeyMapGlassFill(colors),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+            border: _journeyMapGlassBorder(),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1065,9 +1074,16 @@ class _AiNarrationBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Guardian AI',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: colors.textPrimary,
+                        shadows: const [
+                          Shadow(color: Color(0x33000000), blurRadius: 3),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1076,6 +1092,9 @@ class _AiNarrationBubble extends StatelessWidget {
                         fontSize: 12,
                         height: 1.35,
                         color: colors.textSecondary,
+                        shadows: const [
+                          Shadow(color: Color(0x26000000), blurRadius: 2),
+                        ],
                       ),
                     ),
                   ],
@@ -1109,21 +1128,26 @@ class _GlassReplayPanel extends StatelessWidget {
     final currentTime = interpolateJourneyTime(replay.rawPoints, replay.progress);
     final scrubberEvents = _scrubberEvents;
 
+    final iconColor = colors.textPrimary;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(
+          sigmaX: _kJourneyMapGlassBlur,
+          sigmaY: _kJourneyMapGlassBlur,
+        ),
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           decoration: BoxDecoration(
-            color: colors.glass,
+            color: _journeyMapGlassFill(colors),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+            border: _journeyMapGlassBorder(),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -1133,17 +1157,18 @@ class _GlassReplayPanel extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  IconButton(
-                    tooltip: 'Exit replay',
-                    visualDensity: VisualDensity.compact,
-                    onPressed: replay.exitReplayMode,
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                  ),
+                  if (replay.isReplayMode)
+                    IconButton(
+                      tooltip: 'Reset replay',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: replay.exitReplayMode,
+                      icon: Icon(Icons.close_rounded, size: 20, color: iconColor),
+                    ),
                   IconButton(
                     tooltip: 'Skip to start',
                     visualDensity: VisualDensity.compact,
                     onPressed: replay.skipToStart,
-                    icon: const Icon(Icons.skip_previous_rounded, size: 22),
+                    icon: Icon(Icons.skip_previous_rounded, size: 22, color: iconColor),
                   ),
                   IconButton(
                     tooltip: replay.isPlaying ? 'Pause' : 'Play',
@@ -1152,25 +1177,26 @@ class _GlassReplayPanel extends StatelessWidget {
                     icon: Icon(
                       replay.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       size: 28,
+                      color: iconColor,
                     ),
                   ),
                   IconButton(
                     tooltip: 'Skip to end',
                     visualDensity: VisualDensity.compact,
                     onPressed: replay.skipToEnd,
-                    icon: const Icon(Icons.skip_next_rounded, size: 22),
+                    icon: Icon(Icons.skip_next_rounded, size: 22, color: iconColor),
                   ),
                   IconButton(
                     tooltip: 'Previous event',
                     visualDensity: VisualDensity.compact,
                     onPressed: replay.stepBackward,
-                    icon: const Icon(Icons.fast_rewind_rounded, size: 20),
+                    icon: Icon(Icons.fast_rewind_rounded, size: 20, color: iconColor),
                   ),
                   IconButton(
                     tooltip: 'Next event',
                     visualDensity: VisualDensity.compact,
                     onPressed: replay.stepForward,
-                    icon: const Icon(Icons.fast_forward_rounded, size: 20),
+                    icon: Icon(Icons.fast_forward_rounded, size: 20, color: iconColor),
                   ),
                   const SizedBox(width: 4),
                   _SpeedDropdown(replay: replay),
@@ -1180,7 +1206,14 @@ class _GlassReplayPanel extends StatelessWidget {
                 children: [
                   Text(
                     start != null ? DateFormat.Hm().format(start) : '--:--',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                      shadows: const [
+                        Shadow(color: Color(0x33000000), blurRadius: 2),
+                      ],
+                    ),
                   ),
                   Expanded(
                     child: SizedBox(
@@ -1238,7 +1271,14 @@ class _GlassReplayPanel extends StatelessWidget {
                   ),
                   Text(
                     end != null ? DateFormat.Hm().format(end) : '--:--',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                      shadows: const [
+                        Shadow(color: Color(0x33000000), blurRadius: 2),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1254,7 +1294,14 @@ class _GlassReplayPanel extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'Home · Vehicle · Stop · Arrival',
-                style: TextStyle(fontSize: 9, color: colors.textMuted),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                  shadows: const [
+                    Shadow(color: Color(0x26000000), blurRadius: 2),
+                  ],
+                ),
               ),
             ],
           ),

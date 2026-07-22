@@ -10,15 +10,20 @@ import 'package:url_launcher/url_launcher.dart';
 import '../dashboard/dashboard_status_colors.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/dashboard_insight.dart';
+import '../dashboard/device_card_visibility.dart';
 import '../dashboard/device_formatters.dart';
+import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../navigation/home_shell_scope.dart';
+import '../services/device_card_preferences.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand/dodo_ai_icon.dart';
 import '../widgets/cards/guardian_card.dart';
+import '../widgets/dashboard/dashboard_desktop_top_bar.dart';
 import '../widgets/dashboard/desktop_dashboard_layout.dart';
+import '../widgets/dashboard/smart_device_map_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
@@ -46,6 +51,11 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   Set<Circle> _cachedCircles = const {};
   String _cachedCirclesKey = '';
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
+  StreamSubscription<List<GuardianAlert>>? _alertsSubscription;
+  List<GuardianAlert> _alerts = const [];
+  bool _deviceCardMinimized = false;
+  String? _loadedCardPrefsImei;
+  final Map<String, bool> _attentionByImei = {};
 
   static const _mauritius = LatLng(-20.2642, 57.4791);
 
@@ -61,12 +71,81 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
+    _alertsSubscription = AlertService().watchLinkedAlerts().listen((alerts) {
+      if (!mounted) return;
+      setState(() => _alerts = alerts);
+      _syncDeviceCardVisibility();
+    });
     _requestLocationPermission();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureDeviceCardPrefsLoaded();
+      _syncDeviceCardVisibility();
+    });
+  }
+
+  List<GuardianAlert> _alertsForDevice(String imei) {
+    return _alerts
+        .where((alert) => alert.imei == imei && !alert.resolved)
+        .toList();
+  }
+
+  Future<void> _loadDeviceCardPrefs(String imei) async {
+    final minimized = await DeviceCardPreferences.loadMinimized(imei);
+    if (!mounted || _selectedImei != imei) return;
+    setState(() => _deviceCardMinimized = minimized);
+    _syncDeviceCardVisibility();
+  }
+
+  void _syncDeviceCardVisibility() {
+    final device = _selected;
+    if (device == null) return;
+    final imei = device.imei;
+    final needsAttention = deviceNeedsMapCardAttention(
+      device,
+      alerts: _alertsForDevice(imei),
+    );
+    final wasAttention = _attentionByImei[imei] ?? false;
+    if (needsAttention && !wasAttention && _deviceCardMinimized) {
+      setState(() => _deviceCardMinimized = false);
+      unawaited(DeviceCardPreferences.saveMinimized(imei, false));
+    }
+    _attentionByImei[imei] = needsAttention;
+  }
+
+  void _setDeviceCardMinimized(bool minimized) {
+    final imei = _selectedImei;
+    if (imei == null) return;
+    setState(() => _deviceCardMinimized = minimized);
+    unawaited(DeviceCardPreferences.saveMinimized(imei, minimized));
+  }
+
+  void _ensureDeviceCardPrefsLoaded() {
+    final imei = _selectedImei;
+    if (imei == null || imei == _loadedCardPrefsImei) return;
+    _loadedCardPrefsImei = imei;
+    unawaited(_loadDeviceCardPrefs(imei));
+  }
+
+  Widget _selectedDeviceMapCard({
+    required Device device,
+    required VoidCallback onOpen,
+  }) {
+    return SmartDeviceMapCard(
+      device: device,
+      updated: deviceUpdatedLabel(device),
+      onOpen: onOpen,
+      minimized: _deviceCardMinimized,
+      onMinimize: () => _setDeviceCardMinimized(true),
+      onExpand: () => _setDeviceCardMinimized(false),
+      alerts: _alertsForDevice(device.imei),
+    );
   }
 
   void _onDashboardChanged() {
     if (!mounted) return;
     setState(() {});
+    _ensureDeviceCardPrefsLoaded();
+    _syncDeviceCardVisibility();
     unawaited(_refreshMarkerIcons());
     _fitIfNeeded(_devices);
     _followSelected(_devices);
@@ -195,6 +274,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   @override
   void dispose() {
     _emergencyHoldTimer?.cancel();
+    _alertsSubscription?.cancel();
     _mapCameraGeneration.dispose();
     _dashboard
       ..removeListener(_onDashboardChanged)
@@ -464,14 +544,22 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
             ),
           ),
           if (selected != null)
-            DesktopMapPersonCardPlacement(
-              key: const ValueKey('desktop-selected-person-card'),
-              child: _FloatingDeviceCard(
-                device: selected,
-                updated: deviceUpdatedLabel(selected),
-                onOpen: () => _openHistory(selected),
-              ),
-            ),
+            _deviceCardMinimized
+                ? Positioned(
+                    left: DesktopMapPersonCardPlacement.leftInset,
+                    bottom: DesktopMapPersonCardPlacement.bottomInset,
+                    child: _selectedDeviceMapCard(
+                      device: selected,
+                      onOpen: () => _openHistory(selected),
+                    ),
+                  )
+                : DesktopMapPersonCardPlacement(
+                    key: const ValueKey('desktop-selected-person-card'),
+                    child: _selectedDeviceMapCard(
+                      device: selected,
+                      onOpen: () => _openHistory(selected),
+                    ),
+                  ),
         ],
       ),
     );
@@ -542,9 +630,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
           );
     return Scaffold(
       body: DesktopDashboardLayout(
-        topBar: _DesktopTopBar(
-          userInitials: userInitials,
-        ),
+        topBar: DashboardDesktopTopBar(userInitials: userInitials),
         safetySummary: _SafetyHero(
           safe: allSafe,
           onlineCount: onlineCount,
@@ -715,11 +801,10 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                               if (selected != null)
                                 Positioned(
                                   left: 14,
-                                  right: 14,
+                                  right: _deviceCardMinimized ? null : 14,
                                   bottom: 14,
-                                  child: _FloatingDeviceCard(
+                                  child: _selectedDeviceMapCard(
                                     device: selected,
-                                    updated: deviceUpdatedLabel(selected),
                                     onOpen: () => _openHistory(selected),
                                   ),
                                 ),
@@ -896,82 +981,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
 const _dashboardHeaderTitleStyle = TextStyle(
   fontSize: 22,
   fontWeight: FontWeight.w800,
+  height: 1.0,
 );
-
-class _GuardianSloganText extends StatelessWidget {
-  const _GuardianSloganText();
-
-  static const _style = TextStyle(
-    fontSize: 10,
-    fontWeight: FontWeight.bold,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Text.rich(
-      TextSpan(
-        style: _style,
-        children: const [
-          TextSpan(
-            text: 'Know ',
-            style: TextStyle(color: GuardianColors.flagRed),
-          ),
-          TextSpan(
-            text: 'they ',
-            style: TextStyle(color: GuardianColors.flagBlue),
-          ),
-          TextSpan(
-            text: 'are ',
-            style: TextStyle(color: GuardianColors.flagYellow),
-          ),
-          TextSpan(
-            text: 'safe',
-            style: TextStyle(color: GuardianColors.flagGreen),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DesktopTopBar extends StatelessWidget {
-  const _DesktopTopBar({
-    required this.userInitials,
-  });
-
-  final String userInitials;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: Row(
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Guardian', style: _dashboardHeaderTitleStyle),
-              const _GuardianSloganText(),
-            ],
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded),
-            tooltip: 'Notifications',
-          ),
-          const SizedBox(width: 8),
-          GuardianHeaderAvatar(
-            initials: userInitials,
-            color: context.guardianColors.accent,
-            size: 38,
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _DesktopDevicesCard extends StatelessWidget {
   const _DesktopDevicesCard({
@@ -1412,203 +1423,6 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
 
   @override
   Widget build(BuildContext context) => _map;
-}
-
-class _FloatingDeviceCard extends StatelessWidget {
-  const _FloatingDeviceCard({
-    required this.device,
-    required this.updated,
-    required this.onOpen,
-  });
-
-  final Device device;
-  final String updated;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final batteryMetric = flagMetricColors(
-      DashboardFlagMetric.battery,
-      dashboardBatteryHealthy(device.batteryPercent),
-    );
-    return Material(
-      color: colors.surface.withValues(alpha: 0.96),
-      borderRadius: BorderRadius.circular(18),
-      elevation: 6,
-      shadowColor: colors.textPrimary.withValues(alpha: 0.15),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: device.online
-                        ? colors.accent
-                        : colors.textMuted,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  device.online ? 'Live' : 'Offline',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: device.online
-                        ? colors.accent
-                        : colors.textMuted,
-                  ),
-                ),
-                const Spacer(),
-                Icon(
-                  Icons.more_horiz_rounded,
-                  size: 18,
-                  color: colors.textSecondary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                AvatarBubble(
-                  initials: initialsFor(device.displayName),
-                  color: avatarColorForKey(device.imei),
-                  size: 38,
-                  imageUrl: device.avatarUrl,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    device.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.star_border_rounded,
-                  size: 18,
-                  color: colors.textSecondary,
-                ),
-              ],
-            ),
-            if (device.displayName != device.relationshipLabel)
-              Text(
-                device.relationshipLabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: colors.textSecondary,
-                ),
-              ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text(
-                  deviceMovementLabel(device),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: device.isMoving
-                        ? colors.accent
-                        : device.online
-                            ? colors.textSecondary
-                            : colors.textMuted,
-                  ),
-                ),
-                if (device.isMoving && device.speedKmh != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      '•',
-                      style: TextStyle(color: colors.textMuted),
-                    ),
-                  ),
-                  Text(
-                    '${device.speedKmh} km/h',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            Text(
-              updated,
-              style: TextStyle(
-                fontSize: 9,
-                color: colors.textMuted,
-              ),
-            ),
-            Divider(height: 16, color: colors.border),
-            Row(
-              children: [
-                Icon(
-                  Icons.battery_5_bar_rounded,
-                  size: 15,
-                  color: batteryMetric.foreground,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  device.batteryPercent == null
-                      ? 'Battery unavailable'
-                      : '${device.batteryPercent}% Battery',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 9),
-            SizedBox(
-              width: double.infinity,
-              height: 34,
-              child: FilledButton(
-                onPressed: onOpen,
-                style: FilledButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: colors.accentMuted,
-                  foregroundColor: colors.textPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'View details',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 16,
-                      color: colors.accent,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _SectionTitle extends StatelessWidget {
