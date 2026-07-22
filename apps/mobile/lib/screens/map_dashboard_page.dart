@@ -428,6 +428,48 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     }
   }
 
+  Future<void> _unlink(Device device) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unlink pendant?'),
+        content: Text(
+          '${device.displayName} will disappear from your account. '
+          'The pendant itself is not reset — you can link it again with the IMEI.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: GuardianColors.danger,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Unlink'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await DeviceService().unlinkPendant(device.imei);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${device.displayName} unlinked')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not unlink pendant: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _rename(Device device) async {
     final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
     final relationshipCtrl = TextEditingController(
@@ -842,6 +884,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                   }
                                 },
                                 onRename: () => _rename(device),
+                                onUnlink: () => _unlink(device),
                               );
                             },
                           ),
@@ -1446,6 +1489,7 @@ class _PremiumDeviceCard extends StatelessWidget {
     required this.updated,
     required this.onTap,
     required this.onRename,
+    required this.onUnlink,
   });
 
   final Device device;
@@ -1453,6 +1497,7 @@ class _PremiumDeviceCard extends StatelessWidget {
   final String updated;
   final VoidCallback onTap;
   final VoidCallback onRename;
+  final VoidCallback onUnlink;
 
   @override
   Widget build(BuildContext context) {
@@ -1493,6 +1538,25 @@ class _PremiumDeviceCard extends StatelessWidget {
                       imageUrl: device.avatarUrl,
                     ),
                     const Spacer(),
+                    PopupMenuButton<String>(
+                      icon: Icon(Icons.more_horiz, size: 18, color: colors.textMuted),
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Pendant options',
+                      onSelected: (value) {
+                        if (value == 'rename') onRename();
+                        if (value == 'unlink') onUnlink();
+                      },
+                      itemBuilder: (ctx) => const [
+                        PopupMenuItem(
+                          value: 'rename',
+                          child: Text('Edit name'),
+                        ),
+                        PopupMenuItem(
+                          value: 'unlink',
+                          child: Text('Unlink pendant'),
+                        ),
+                      ],
+                    ),
                     SizedBox(
                       width: 40,
                       height: 40,

@@ -172,6 +172,24 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
+  /// Removes a pendant IMEI from the signed-in guardian's linked set.
+  ///
+  /// Does not delete `devices/{imei}` — only drops access for this account.
+  Future<void> unlinkPendant(String rawImei) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+
+    final imei = canonicalDeviceImei(rawImei.trim());
+    if (imei == null || !isFullImei(imei)) {
+      throw StateError('Invalid pendant IMEI');
+    }
+
+    await _db.collection('users').doc(user.uid).set({
+      'linkedImeis': FieldValue.arrayRemove([imei]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Streams the given day's location history for a pendant (requires the
   /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(

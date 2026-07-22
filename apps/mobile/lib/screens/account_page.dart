@@ -218,6 +218,7 @@ class AccountPage extends StatelessWidget {
                       _DeviceRow(
                         device: devices[i],
                         showDivider: i < devices.length - 1,
+                        onUnlink: () => _confirmUnlinkPendant(context, devices[i]),
                       ),
                     GuardianSettingsRow(
                       icon: Icons.link_rounded,
@@ -566,10 +567,15 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
 }
 
 class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({required this.device, required this.showDivider});
+  const _DeviceRow({
+    required this.device,
+    required this.showDivider,
+    required this.onUnlink,
+  });
 
   final Device device;
   final bool showDivider;
+  final VoidCallback onUnlink;
 
   @override
   Widget build(BuildContext context) {
@@ -604,6 +610,19 @@ class _DeviceRow extends StatelessWidget {
             device.online ? 'Online' : 'Offline',
             style: textTheme.labelSmall,
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 18),
+            tooltip: 'Pendant options',
+            onSelected: (value) {
+              if (value == 'unlink') onUnlink();
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'unlink',
+                child: Text('Unlink pendant'),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Person and device settings',
@@ -612,6 +631,48 @@ class _DeviceRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Unlink pendant?'),
+      content: Text(
+        '${device.displayName} will disappear from your account. '
+        'The pendant itself is not reset — you can link it again with the IMEI.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: GuardianColors.danger,
+          ),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Unlink'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+
+  try {
+    await DeviceService().unlinkPendant(device.imei);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${device.displayName} unlinked')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not unlink pendant: $e')),
+      );
+    }
   }
 }
 
@@ -918,6 +979,47 @@ Future<void> _showDeviceSettingsDialog(
               ),
             ),
             actions: [
+              TextButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final confirmed = await showDialog<bool>(
+                          context: ctx,
+                          builder: (confirmCtx) => AlertDialog(
+                            title: const Text('Unlink pendant?'),
+                            content: Text(
+                              '${device.displayName} will disappear from your account. '
+                              'The pendant itself is not reset — you can link it again with the IMEI.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(confirmCtx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: GuardianColors.danger,
+                                ),
+                                onPressed: () =>
+                                    Navigator.pop(confirmCtx, true),
+                                child: const Text('Unlink'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !ctx.mounted) return;
+                        await run(
+                          () => DeviceService().unlinkPendant(device.imei),
+                          '${device.displayName} unlinked',
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                style: TextButton.styleFrom(
+                  foregroundColor: GuardianColors.danger,
+                ),
+                child: const Text('Unlink pendant'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Close'),
