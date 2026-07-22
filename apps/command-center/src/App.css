@@ -202,6 +202,145 @@ h1 {
   cursor: pointer;
 }
 
+.topbar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.user-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-sm {
+  padding: 6px 10px !important;
+  font-size: 0.85rem;
+}
+
+.btn-secondary {
+  border: 1px solid #243246;
+  background: #121821;
+  color: #c9d7e5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-google {
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-divider {
+  border: none;
+  border-top: 1px solid #243246;
+  margin: 8px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e2a3a;
+}
+
+.data-table th {
+  color: #8fa3b8;
+  font-size: 0.85rem;
+}
+
+.delta-good {
+  color: #3fb950;
+}
+
+.delta-bad {
+  color: #f85149;
+}
+
+.whatif-table-wrap {
+  margin-top: 20px;
+}
+
+.whatif-table-wrap h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.burn-bar {
+  height: 16px;
+  background: #0f141c;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #1e2a3a;
+}
+
+.burn-used {
+  height: 100%;
+  background: linear-gradient(90deg, #1f6feb, #58a6ff);
+}
+
+.burn-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #8fa3b8;
+}
+
+.chart-wrap {
+  min-height: 280px;
+}
+
+.metric-card.highlight {
+  border-color: #1f6feb;
+}
+
+.recommendations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rec {
+  padding: 14px;
+  border: 1px solid #1e2a3a;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: #0f141c;
+}
+
+.rec p {
+  margin: 8px 0 0;
+  color: #8fa3b8;
+  font-size: 0.9rem;
+}
+
+.rec-savings {
+  float: right;
+  color: #3fb950;
+  font-weight: 600;
+}
+
 @media (max-width: 720px) {
   .cost-summary {
     grid-template-columns: 1fr;

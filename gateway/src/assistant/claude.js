@@ -87,6 +87,10 @@ async function answerWithAssistant(db, ctx, userText) {
       return {
         reply: text || 'Sorry — I could not form an answer.',
         usage: totalUsage,
+        toolsUsed: messages
+          .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => b.name),
       };
     }
 

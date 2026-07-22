@@ -6,11 +6,16 @@ const { resolveCallerContext } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { sendWhatsApp, normalizeE164 } = require('./notify');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
-const { estimateMonthlyCost } = require('./cost-engine');
+const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
   getMetricsResponse,
-  recordAssistantUsage,
+  getFleetResponse,
+  getFinanceResponse,
+  getGrowthResponse,
+  getAiStatsResponse,
+  estimateCostSensitivity,
+  estimateMonthlyCost,
   increment: incrementMetric,
 } = require('./ops-metrics');
 
@@ -48,6 +53,42 @@ function parseBoolParam(value, defaultValue) {
   return String(value).toLowerCase() === 'true';
 }
 
+function parseCostParams(url) {
+  return {
+    users: Number(url.searchParams.get('users') || 500),
+    gpsIntervalSec: Number(url.searchParams.get('gpsIntervalSec') || 60),
+    historyOn: parseBoolParam(url.searchParams.get('historyOn'), false),
+    journeyCompression: parseBoolParam(url.searchParams.get('journeyCompression'), true),
+    whatsappPct: Number(url.searchParams.get('whatsappPct') || 15),
+    aiNarrationOn: parseBoolParam(url.searchParams.get('aiNarrationOn'), true),
+  };
+}
+
+function parseGrowthParams(url) {
+  return {
+    users: Number(url.searchParams.get('users') || 500),
+    growthRatePct: Number(url.searchParams.get('growthRate') || 5),
+    churnPct: Number(url.searchParams.get('churn') || 2),
+    deviceCostMur: url.searchParams.has('deviceCost')
+      ? Number(url.searchParams.get('deviceCost'))
+      : undefined,
+    deviceSaleMur: url.searchParams.has('salePrice')
+      ? Number(url.searchParams.get('salePrice'))
+      : undefined,
+    subscriptionMur: url.searchParams.has('subscription')
+      ? Number(url.searchParams.get('subscription'))
+      : undefined,
+    supportMarketingPerUserMur: url.searchParams.has('supportCost')
+      ? Number(url.searchParams.get('supportCost'))
+      : undefined,
+    gpsIntervalSec: Number(url.searchParams.get('gpsIntervalSec') || 60),
+    historyOn: parseBoolParam(url.searchParams.get('historyOn'), false),
+    journeyCompression: parseBoolParam(url.searchParams.get('journeyCompression'), true),
+    whatsappPct: Number(url.searchParams.get('whatsappPct') || 15),
+    aiNarrationOn: parseBoolParam(url.searchParams.get('aiNarrationOn'), true),
+  };
+}
+
 function sendTwiml(res, message) {
   const escaped = String(message || '')
     .replace(/&/g, '&amp;')
@@ -59,6 +100,7 @@ function sendTwiml(res, message) {
 }
 
 async function handleChat({ from, text }) {
+  const started = Date.now();
   const db = getDb();
   const ctx = await resolveCallerContext(db, from);
   console.log(`[assistant] from=${ctx.from} devices=${ctx.linkedImeis.length} text=${JSON.stringify(text)}`);
@@ -72,12 +114,34 @@ async function handleChat({ from, text }) {
   }
 
   const assistantResult = await answerWithAssistant(db, ctx, text);
+  const latencyMs = Date.now() - started;
+
   if (assistantResult.usage) {
-    recordAssistantUsage(assistantResult.usage);
+    recordAiDecision({
+      toolsUsed: assistantResult.toolsUsed || [],
+      tokensIn: assistantResult.usage.input_tokens || 0,
+      tokensOut: assistantResult.usage.output_tokens || 0,
+      latencyMs,
+      callerPhone: ctx.from,
+    });
   } else {
-    incrementMetric('assistantRequests');
+    recordAiDecision({
+      toolsUsed: [],
+      latencyMs,
+      callerPhone: ctx.from,
+    });
   }
+
   return { ctx, reply: assistantResult.reply };
+}
+
+async function requireAdmin(req, res) {
+  const auth = await checkAdminAuth(req);
+  if (!auth.ok) {
+    sendJson(res, auth.status, { error: auth.error });
+    return false;
+  }
+  return true;
 }
 
 function startHttpServer() {
@@ -96,34 +160,59 @@ function startHttpServer() {
       }
 
       if (req.method === 'GET' && url.pathname === '/ops/metrics') {
-        const auth = checkAdminAuth(req);
-        if (!auth.ok) {
-          sendJson(res, auth.status, { error: auth.error });
-          return;
-        }
+        if (!(await requireAdmin(req, res))) return;
         sendJson(res, 200, getMetricsResponse());
         return;
       }
 
-      if (req.method === 'GET' && url.pathname === '/ops/cost-estimate') {
-        const auth = checkAdminAuth(req);
-        if (!auth.ok) {
-          sendJson(res, auth.status, { error: auth.error });
-          return;
-        }
-        const estimate = estimateMonthlyCost({
-          users: Number(url.searchParams.get('users') || 500),
-          gpsIntervalSec: Number(url.searchParams.get('gpsIntervalSec') || 60),
-          historyOn: parseBoolParam(url.searchParams.get('historyOn'), false),
-          journeyCompression: parseBoolParam(url.searchParams.get('journeyCompression'), true),
-          whatsappPct: Number(url.searchParams.get('whatsappPct') || 15),
-          aiNarrationOn: parseBoolParam(url.searchParams.get('aiNarrationOn'), true),
-        });
-        sendJson(res, 200, estimate);
+      if (req.method === 'GET' && url.pathname === '/ops/fleet') {
+        if (!(await requireAdmin(req, res))) return;
+        sendJson(res, 200, await getFleetResponse());
         return;
       }
 
-      // Force GPS continuous reporting (CR) on an active TCP session
+      if (req.method === 'GET' && url.pathname === '/ops/finance') {
+        if (!(await requireAdmin(req, res))) return;
+        const assumptions = {
+          users: Number(url.searchParams.get('users') || 500),
+          devicesSoldToday: Number(url.searchParams.get('devicesSoldToday') || 0),
+          devicesSoldMonth: Number(url.searchParams.get('devicesSoldMonth') || 0),
+          subscriptionsSoldToday: Number(url.searchParams.get('subscriptionsSoldToday') || 0),
+          subscriptionsSoldMonth: Number(url.searchParams.get('subscriptionsSoldMonth') || 0),
+          monthlyBudgetMur: url.searchParams.has('budget')
+            ? Number(url.searchParams.get('budget'))
+            : undefined,
+        };
+        sendJson(res, 200, await getFinanceResponse(assumptions));
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/ops/growth') {
+        if (!(await requireAdmin(req, res))) return;
+        sendJson(res, 200, getGrowthResponse(parseGrowthParams(url)));
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/ops/ai-stats') {
+        if (!(await requireAdmin(req, res))) return;
+        sendJson(res, 200, getAiStatsResponse());
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/ops/cost-estimate') {
+        if (!(await requireAdmin(req, res))) return;
+        const params = parseCostParams(url);
+        const withSensitivity = parseBoolParam(url.searchParams.get('sensitivity'), false);
+
+        if (withSensitivity) {
+          sendJson(res, 200, estimateCostSensitivity(params));
+          return;
+        }
+
+        sendJson(res, 200, estimateMonthlyCost(params));
+        return;
+      }
+
       if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
@@ -141,7 +230,6 @@ function startHttpServer() {
         return;
       }
 
-      // Local / ngrok test without Twilio
       if (req.method === 'POST' && url.pathname === '/dev/chat') {
         const raw = await readBody(req);
         const payload = raw ? JSON.parse(raw) : {};
@@ -156,7 +244,6 @@ function startHttpServer() {
         return;
       }
 
-      // Twilio WhatsApp inbound webhook
       if (req.method === 'POST' && url.pathname === '/webhooks/twilio/whatsapp') {
         const raw = await readBody(req);
         const params = new URLSearchParams(raw);
@@ -168,13 +255,10 @@ function startHttpServer() {
           return;
         }
 
-        // Reply async via API when possible (avoids Twilio 15s timeout on slow LLM).
-        // Still return a short TwiML ack immediately if sendWhatsApp is not configured.
         incrementMetric('whatsappInbound');
         const { reply } = await handleChat({ from, text });
         const wa = await sendWhatsApp(from.replace(/^whatsapp:/i, ''), reply);
         if (wa.ok || wa.skipped) {
-          // If skipped (no Twilio out), fall back to TwiML so sandbox still answers.
           if (wa.skipped) {
             sendTwiml(res, reply);
           } else {
@@ -202,7 +286,11 @@ function startHttpServer() {
     console.log('[guardian-http] POST /webhooks/twilio/whatsapp');
     console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
-    console.log('[guardian-http] GET  /ops/cost-estimate?users=500');
+    console.log('[guardian-http] GET  /ops/fleet');
+    console.log('[guardian-http] GET  /ops/finance');
+    console.log('[guardian-http] GET  /ops/growth?users=500');
+    console.log('[guardian-http] GET  /ops/ai-stats');
+    console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
   });
 
   return server;

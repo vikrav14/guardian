@@ -46,14 +46,30 @@ module.exports = {
 
   /** Revenue-side assumptions for finance tab (Phase 2) */
   subscription: {
+    /** Annual subscription price per user (MUR) */
+    annualMur: 1500,
+    /** Monthly equivalent for projections */
+    monthlyMur: 125,
     basicMonthlyMur: 299,
     familyMonthlyMur: 499,
     careMonthlyMur: 799,
   },
 
   device: {
-    pendantCostMur: 2500,
-    pendantSaleMur: 4500,
+    /** COGS per pendant (MUR) */
+    pendantCostMur: 1800,
+    /** Retail sale price per pendant (MUR) */
+    pendantSaleMur: 2500,
+  },
+
+  /** Finance dashboard defaults */
+  finance: {
+    monthlyBudgetMur: 15000,
+    devicesSoldToday: 0,
+    devicesSoldMonth: 0,
+    subscriptionsSoldToday: 0,
+    subscriptionsSoldMonth: 0,
+    supportMarketingPerUserMur: 45,
   },
 
   /** Per-user daily usage heuristics for monthly projection */
