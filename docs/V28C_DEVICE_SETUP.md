@@ -36,7 +36,8 @@ HOST=0.0.0.0
 FIRESTORE_DISABLED=false
 FIREBASE_PROJECT_ID=your-project-id
 GOOGLE_APPLICATION_CREDENTIALS=C:\path\to\serviceAccount.json
-WRITE_LOCATION_HISTORY=false
+# Set true in production so route history appears in the app.
+WRITE_LOCATION_HISTORY=true
 ```
 
 ```bash
@@ -185,11 +186,15 @@ sos3,{OTHER_PHONE}#
 
 ## Part C — Link device in Guardian app
 
-New accounts auto-link to demo IMEI `359633100123456`. For a real pendant:
+New accounts start with **no linked pendants**. Link your real device from the app:
 
 1. Read the **15-digit IMEI** from the device label or status SMS (`imei:861397053141170` in the `ts#` reply).
-2. In Firestore, set `users/{your-uid}.linkedImeis` to **only** that 15-digit value (never add the 10-digit protocol id as a second entry).
-3. Set `devices/{imei}.simNumber` to the pendant SIM (E.164) if you use in-app SMS commands later.
+2. In the app, open **Account → Link a pendant** and enter that 15-digit IMEI (never the 10-digit protocol id).
+3. Optionally set `devices/{imei}.simNumber` in Firestore to the pendant SIM (E.164) if you use in-app SMS commands later.
+
+For local simulator testing without hardware, link the demo IMEI `359633100123456` the same way, then run `npm run simulate` in `gateway/`.
+
+Alternatively, set `users/{your-uid}.linkedImeis` to **only** that 15-digit value directly in Firestore.
 
 ### 10-digit vs 15-digit IMEI (important)
 

@@ -23,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscure = true;
   bool _busy = false;
   String? _error;
+  String? _resetSent;
 
   @override
   void dispose() {
@@ -53,11 +54,38 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    final email = _email.text.trim();
+    if (!email.contains('@')) {
+      setState(() {
+        _error = 'Enter your email above, then tap Forgot password.';
+        _resetSent = null;
+      });
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+      _resetSent = null;
+    });
+    try {
+      await _auth.sendPasswordResetEmail(email);
+      setState(() => _resetSent = 'Password reset email sent — check your inbox.');
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = _friendlyAuthError(e));
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _busy = true;
       _error = null;
+      _resetSent = null;
     });
     try {
       if (_registerMode) {
@@ -179,6 +207,34 @@ class _LoginPageState extends State<LoginPage> {
                               return null;
                             },
                           ),
+                          if (!_registerMode) ...[
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _busy ? null : _resetPassword,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Forgot password?',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: GuardianColors.safeText,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (_resetSent != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _resetSent!,
+                              style: const TextStyle(fontSize: 12, color: GuardianColors.safeText),
+                            ),
+                          ],
                           if (_error != null) ...[
                             const SizedBox(height: 12),
                             Text(
@@ -211,6 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                                   : () => setState(() {
                                         _registerMode = !_registerMode;
                                         _error = null;
+                                        _resetSent = null;
                                       }),
                               child: Text(
                                 _registerMode

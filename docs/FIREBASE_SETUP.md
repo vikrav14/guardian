@@ -32,6 +32,7 @@ HOST=0.0.0.0
 FIRESTORE_DISABLED=false
 FIREBASE_PROJECT_ID=guardian-mu
 GOOGLE_APPLICATION_CREDENTIALS=C:\Users\MSI\secrets\guardian-firebase.json
+# Set true in production so route history appears in the app (safe to leave false locally).
 WRITE_LOCATION_HISTORY=false
 ```
 
@@ -79,7 +80,34 @@ firebase deploy --only firestore:rules,firestore:indexes --project guardian-mu
 Without this, Firestore falls back to whatever rules you set in test mode — do this before letting
 more than one family use the app.
 
-## 7. Flutter
+## 7. Firebase Storage CORS (web app)
+
+The Flutter web app fetches avatar bytes and map marker images via XHR. The Storage bucket needs
+CORS rules or those requests fail in the browser.
+
+**Automated (Linux/macOS/WSL with gcloud CLI):**
+
+```bash
+./scripts/configure-storage-cors.sh
+# or explicitly:
+gcloud storage buckets update gs://guardian-fbadd.firebasestorage.app \
+  --cors-file=firebase/storage.cors.json
+```
+
+**Manual (Firebase Console or any machine with gcloud):**
+
+1. Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) and run `gcloud auth login`.
+2. Select the project: `gcloud config set project guardian-fbadd`
+3. Apply CORS from the repo file [`firebase/storage.cors.json`](../firebase/storage.cors.json):
+
+   ```bash
+   gcloud storage buckets update gs://guardian-fbadd.firebasestorage.app \
+     --cors-file=firebase/storage.cors.json
+   ```
+
+4. Reload the web app — avatar/map marker byte fetches should succeed.
+
+## 8. Flutter
 
 The mobile app uses its own Firebase app config (`lib/firebase_options.dart`, generated via
 `flutterfire configure`) — separate from the gateway's service account.
