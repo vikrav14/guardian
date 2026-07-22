@@ -1,8 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { fetchFinance, mur, type FinanceSnapshot } from '../api';
 
 const PIE_COLORS = ['#1f6feb', '#3fb950', '#d29922', '#a371f7', '#f85149', '#8fa3b8'];
+const PROFIT_COLOR = '#3fb950';
+const COST_COLOR = '#f85149';
+const REVENUE_COLOR = '#1f6feb';
+
+const CHART_TOOLTIP = {
+  contentStyle: {
+    background: '#121821',
+    border: '1px solid #243246',
+    borderRadius: 8,
+    color: '#e8eef5',
+  },
+  itemStyle: { color: '#e8eef5' },
+  labelStyle: { color: '#8fa3b8' },
+};
 
 export default function FinanceTab({ onError }: { onError: (msg: string | null) => void }) {
   const [data, setData] = useState<FinanceSnapshot | null>(null);
@@ -28,6 +53,35 @@ export default function FinanceTab({ onError }: { onError: (msg: string | null) 
     : [];
 
   const burnPct = data?.burnRate.usedPct ?? 0;
+  const profitVsCost = data?.profitVsCost;
+
+  const barData = profitVsCost
+    ? [
+        { name: 'Revenue', value: profitVsCost.revenueMur, fill: REVENUE_COLOR },
+        { name: 'Cloud cost', value: profitVsCost.costMur, fill: COST_COLOR },
+        {
+          name: 'Gross profit',
+          value: profitVsCost.profitMur,
+          fill: profitVsCost.profitMur >= 0 ? PROFIT_COLOR : COST_COLOR,
+        },
+      ]
+    : [];
+
+  const donutData =
+    profitVsCost && profitVsCost.revenueMur > 0
+      ? [
+          {
+            name: 'Cloud cost',
+            value: Math.min(profitVsCost.costMur, profitVsCost.revenueMur),
+            fill: COST_COLOR,
+          },
+          {
+            name: 'Gross profit',
+            value: Math.max(0, profitVsCost.profitMur),
+            fill: PROFIT_COLOR,
+          },
+        ].filter((d) => d.value > 0)
+      : [];
 
   return (
     <>
@@ -80,6 +134,84 @@ export default function FinanceTab({ onError }: { onError: (msg: string | null) 
         ) : null}
       </section>
 
+      {profitVsCost ? (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Profit vs cost</h2>
+            <span className="muted">Monthly revenue split · cloud cost vs gross profit</span>
+          </div>
+          <div className="metric-grid profit-summary">
+            <div className="metric-card highlight">
+              <div className="metric-label">Revenue</div>
+              <div className="metric-value">{mur(profitVsCost.revenueMur)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Cloud cost</div>
+              <div className="metric-value">{mur(profitVsCost.costMur)}</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Gross profit</div>
+              <div className={`metric-value ${profitVsCost.profitMur < 0 ? 'delta-bad' : 'delta-good'}`}>
+                {mur(profitVsCost.profitMur)}
+              </div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-label">Gross margin</div>
+              <div className={`metric-value ${profitVsCost.marginPct < 0 ? 'delta-bad' : ''}`}>
+                {profitVsCost.marginPct}%
+              </div>
+            </div>
+          </div>
+          <div className="profit-charts">
+            <div className="chart-wrap">
+              <h3 className="chart-title">Amount comparison (MUR)</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={barData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fill: '#8fa3b8', fontSize: 12 }} axisLine={{ stroke: '#243246' }} tickLine={{ stroke: '#243246' }} />
+                  <YAxis tick={{ fill: '#8fa3b8', fontSize: 12 }} axisLine={{ stroke: '#243246' }} tickLine={{ stroke: '#243246' }} tickFormatter={(v) => `Rs ${v}`} />
+                  <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => mur(v)} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {barData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {donutData.length ? (
+              <div className="chart-wrap">
+                <h3 className="chart-title">Revenue share</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {donutData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => mur(v)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="chart-wrap chart-empty">
+                <h3 className="chart-title">Revenue share</h3>
+                <p className="muted">Set device or subscription sales to compare profit vs cost.</p>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {data ? (
         <section className="panel">
           <div className="panel-head">
@@ -111,7 +243,7 @@ export default function FinanceTab({ onError }: { onError: (msg: string | null) 
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => mur(v)} />
+                <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => mur(v)} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>

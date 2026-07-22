@@ -107,6 +107,12 @@ export type FinanceSnapshot = {
   revenue: { todayMur: number; monthMur: number };
   cloud: { todayMur: number; projectedMonthMur: number };
   grossMargin: { monthMur: number; monthPct: number };
+  profitVsCost: {
+    revenueMur: number;
+    costMur: number;
+    profitMur: number;
+    marginPct: number;
+  };
   burnRate: { budgetMur: number; usedMur: number; forecastMur: number; usedPct: number };
   costBreakdown: Record<string, number>;
 };

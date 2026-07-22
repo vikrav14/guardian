@@ -343,6 +343,9 @@ function getFinanceSnapshot({
     other: 0,
   };
 
+  const marginPct =
+    revenueMonth > 0 ? round2((grossMarginMonth / revenueMonth) * 100) : 0;
+
   return {
     currency: pricing.currency,
     pricing: {
@@ -360,7 +363,13 @@ function getFinanceSnapshot({
     },
     grossMargin: {
       monthMur: round2(grossMarginMonth),
-      monthPct: revenueMonth > 0 ? round2((grossMarginMonth / revenueMonth) * 100) : 0,
+      monthPct: marginPct,
+    },
+    profitVsCost: {
+      revenueMur: round2(revenueMonth),
+      costMur: round2(cloudUsedMonth),
+      profitMur: round2(grossMarginMonth),
+      marginPct,
     },
     burnRate: {
       budgetMur: round2(budgetMur),

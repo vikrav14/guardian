@@ -128,6 +128,10 @@ test('getFinanceSnapshot merges revenue and burn rate', () => {
   assert.equal(result.cloud.projectedMonthMur, 8500);
   assert.ok(result.burnRate.budgetMur === 20000);
   assert.ok(result.costBreakdown.firestore === 3000);
+  assert.equal(result.profitVsCost.revenueMur, result.revenue.monthMur);
+  assert.equal(result.profitVsCost.costMur, 8500);
+  assert.equal(result.profitVsCost.profitMur, result.grossMargin.monthMur);
+  assert.equal(result.profitVsCost.marginPct, result.grossMargin.monthPct);
 });
 
 test('getAiRecommendations returns rule-based savings', () => {

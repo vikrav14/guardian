@@ -311,6 +311,41 @@ h1 {
   min-height: 280px;
 }
 
+.profit-summary {
+  margin-bottom: 20px;
+}
+
+.profit-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.chart-title {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  color: #8fa3b8;
+  font-weight: 500;
+}
+
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+  background: #0f141c;
+  border: 1px dashed #1e2a3a;
+  border-radius: 12px;
+}
+
+@media (max-width: 720px) {
+  .profit-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
 .metric-card.highlight {
   border-color: #1f6feb;
 }
