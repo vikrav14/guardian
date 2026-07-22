@@ -118,12 +118,12 @@ async function getBattery(ctx, { device_name: deviceName, imei } = {}) {
 
 async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, imei } = {}) {
   const device = deviceName || imei ? findDevice(ctx.devices, imei || deviceName) : null;
-  let query = db.collection('alerts').orderBy('createdAt', 'descending').limit(Math.min(20, Number(limit) || 5));
+  let query = db.collection('alerts').orderBy('createdAt', 'desc').limit(Math.min(20, Number(limit) || 5));
   if (device) {
     query = db
       .collection('alerts')
       .where('imei', '==', device.imei)
-      .orderBy('createdAt', 'descending')
+      .orderBy('createdAt', 'desc')
       .limit(Math.min(20, Number(limit) || 5));
   }
   try {
@@ -144,7 +144,7 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
     };
   } catch (err) {
     // Missing composite index — fall back to recent global filter in memory
-    const snap = await db.collection('alerts').orderBy('createdAt', 'descending').limit(30).get();
+    const snap = await db.collection('alerts').orderBy('createdAt', 'desc').limit(30).get();
     let alerts = snap.docs.map((doc) => {
       const d = doc.data() || {};
       return {
