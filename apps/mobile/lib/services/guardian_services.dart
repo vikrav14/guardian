@@ -88,6 +88,27 @@ class DeviceService {
     });
   }
 
+  /// Links a pendant IMEI to the signed-in guardian's account.
+  ///
+  /// Uses the 15-digit label/SMS IMEI (10-digit protocol ids are normalized).
+  /// The gateway creates `devices/{imei}` when the pendant first connects.
+  Future<void> linkPendant(String rawImei) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+
+    final imei = canonicalDeviceImei(rawImei.trim());
+    if (imei == null || !isFullImei(imei)) {
+      throw StateError(
+        'Enter the 15-digit IMEI from the pendant label or status SMS',
+      );
+    }
+
+    await _db.collection('users').doc(user.uid).set({
+      'linkedImeis': FieldValue.arrayUnion([imei]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Streams the given day's location history for a pendant (requires the
   /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
@@ -521,9 +542,18 @@ class FamilyService {
       displayName: (invite['createdByName'] as String?) ?? 'Guardian',
       email: invite['createdByEmail'] as String?,
     );
+    final acceptor = FamilyMember(
+      uid: user.uid,
+      displayName: user.displayName?.trim().isNotEmpty == true
+          ? user.displayName!.trim()
+          : (user.email ?? 'Guardian'),
+      email: user.email,
+    );
 
     final myRef = _db.collection('users').doc(user.uid);
+    final inviterRef = _db.collection('users').doc(inviter.uid);
     final mySnap = await myRef.get();
+    final inviterSnap = await inviterRef.get();
     final existingMembers =
         (mySnap.data()?['familyMembers'] as List?)
             ?.whereType<Map>()
@@ -534,19 +564,31 @@ class FamilyService {
       existingMembers.add(inviter);
     }
 
+    final inviterMembers =
+        (inviterSnap.data()?['familyMembers'] as List?)
+            ?.whereType<Map>()
+            .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
+            .toList() ??
+        <FamilyMember>[];
+    if (!inviterMembers.any((m) => m.uid == acceptor.uid)) {
+      inviterMembers.add(acceptor);
+    }
+
     final batch = _db.batch();
     batch.update(inviteDoc.reference, {
       'status': 'accepted',
       'acceptedBy': user.uid,
-      'acceptedByName': user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (user.email ?? 'Guardian'),
+      'acceptedByName': acceptor.displayName,
       'acceptedByEmail': user.email,
       'acceptedAt': FieldValue.serverTimestamp(),
     });
     batch.set(myRef, {
       'linkedImeis': FieldValue.arrayUnion(linked),
       'familyMembers': existingMembers.map((m) => m.toMap()).toList(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    batch.set(inviterRef, {
+      'familyMembers': inviterMembers.map((m) => m.toMap()).toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
