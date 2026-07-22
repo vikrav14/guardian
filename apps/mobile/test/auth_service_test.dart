@@ -5,6 +5,19 @@ import 'package:guardian/services/auth_service.dart';
 import 'package:guardian/services/push_service.dart';
 
 void main() {
+  group('AuthService.sendPasswordResetEmail', () {
+    test('completes without throwing for a valid email', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth();
+      final service = AuthService(auth: auth, db: db, push: PushService(db: db));
+
+      await expectLater(
+        service.sendPasswordResetEmail('  guardian@example.com  '),
+        completes,
+      );
+    });
+  });
+
   group('AuthService.ensureUserProfile', () {
     test('creates a users/{uid} profile with no linked pendants for a new user', () async {
       final db = FakeFirebaseFirestore();
