@@ -14,6 +14,7 @@ import '../journey/journey_share.dart';
 import '../journey/journey_utils.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
+import '../models/device.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand/dodo_ai_icon.dart';
@@ -52,6 +53,7 @@ class _JourneyPageState extends State<JourneyPage> {
   GoogleMapController? _mapController;
   JourneyReplayController? _replay;
   List<LocationHistoryPoint>? _cachedPoints;
+  JourneyGpsContext? _cachedGpsContext;
   List<Geofence> _geofences = const [];
   bool _didFitForDay = false;
 
@@ -185,20 +187,34 @@ class _JourneyPageState extends State<JourneyPage> {
     _selectDay(_day.add(Duration(days: deltaDays)));
   }
 
-  JourneyReplayController _controllerFor(JourneyDayData dayData) {
+  JourneyReplayController _controllerFor(
+    JourneyDayData dayData, {
+    JourneyGpsContext? gpsContext,
+  }) {
     if (_replay != null &&
         _cachedPoints != null &&
-        _pointsEqual(_cachedPoints!, dayData.points)) {
+        _pointsEqual(_cachedPoints!, dayData.points) &&
+        _gpsContextEqual(_cachedGpsContext, gpsContext)) {
       return _replay!;
     }
     _replay?.dispose();
     _cachedPoints = dayData.points;
+    _cachedGpsContext = gpsContext;
     _replay = JourneyReplayController(
       rawPoints: dayData.points,
       geofences: _geofences,
       timelineEvents: dayData.events,
+      gpsContext: gpsContext,
     );
     return _replay!;
+  }
+
+  bool _gpsContextEqual(JourneyGpsContext? a, JourneyGpsContext? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.liveGpsFresh == b.liveGpsFresh &&
+        a.staleGpsActive == b.staleGpsActive &&
+        a.isViewingToday == b.isViewingToday;
   }
 
   bool _pointsEqual(List<LocationHistoryPoint> a, List<LocationHistoryPoint> b) {
@@ -328,94 +344,107 @@ class _JourneyPageState extends State<JourneyPage> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<JourneyDayData>(
-              key: ValueKey(_day),
-              stream: DeviceService().watchDayJourneyData(
-                widget.imei,
-                _day,
-                geofences: _geofences,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final dayData = snapshot.data!;
-                if (dayData.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'No journey data for this day.',
-                        style: TextStyle(color: colors.textSecondary),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
+            child: StreamBuilder<List<Device>>(
+              stream: DeviceService().watchLinkedDevices(),
+              builder: (context, deviceSnapshot) {
+                final device = deviceSnapshot.data
+                    ?.where((d) => d.imei == widget.imei)
+                    .firstOrNull;
+                final gpsContext = journeyGpsContextForDevice(
+                  device,
+                  isViewingToday: _isToday,
+                );
 
-                final replay = _controllerFor(dayData);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _fitBounds(replay.smoothedPoints);
-                  _followReplayMarker(replay);
-                });
+                return StreamBuilder<JourneyDayData>(
+                  key: ValueKey(_day),
+                  stream: DeviceService().watchDayJourneyData(
+                    widget.imei,
+                    _day,
+                    geofences: _geofences,
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('${snapshot.error}'));
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final dayData = snapshot.data!;
+                    if (dayData.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'No journey data for this day.',
+                            style: TextStyle(color: colors.textSecondary),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }
 
-                if (isWide) {
-                  return _WideJourneyLayout(
-                    replay: replay,
-                    journeyTitle: _journeyTitle,
-                    deviceName: widget.deviceName,
-                    imei: widget.imei,
-                    avatarUrl: widget.avatarUrl,
-                    mapType: _mapType,
-                    showHeatmap: _showHeatmap,
-                    compareMode: _compareMode,
-                    compareDay: _compareDay,
-                    comparePoints: _comparePoints,
-                    similarityPercent: _similarityPercent,
-                    loadingCompare: _loadingCompare,
-                    weather: typicalWeatherForMonth(_day.month),
-                    onMapCreated: (c) {
-                      _mapController = c;
+                    final replay = _controllerFor(dayData, gpsContext: gpsContext);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
                       _fitBounds(replay.smoothedPoints);
-                    },
-                    onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
-                    onMapTypeToggle: () => setState(() {
-                      _mapType =
-                          _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
-                    }),
-                    onCompareToggle: () => _toggleCompareMode(dayData.points),
-                    onTimeMachine: _openTimeMachine,
-                  );
-                }
+                      _followReplayMarker(replay);
+                    });
 
-                return _MobileJourneyLayout(
-                  replay: replay,
-                  journeyTitle: _journeyTitle,
-                  deviceName: widget.deviceName,
-                  imei: widget.imei,
-                  avatarUrl: widget.avatarUrl,
-                  mapType: _mapType,
-                  showHeatmap: _showHeatmap,
-                  compareMode: _compareMode,
-                  compareDay: _compareDay,
-                  comparePoints: _comparePoints,
-                  similarityPercent: _similarityPercent,
-                  loadingCompare: _loadingCompare,
-                  weather: typicalWeatherForMonth(_day.month),
-                  onMapCreated: (c) {
-                    _mapController = c;
-                    _fitBounds(replay.smoothedPoints);
+                    if (isWide) {
+                      return _WideJourneyLayout(
+                        replay: replay,
+                        journeyTitle: _journeyTitle,
+                        deviceName: widget.deviceName,
+                        imei: widget.imei,
+                        avatarUrl: widget.avatarUrl,
+                        mapType: _mapType,
+                        showHeatmap: _showHeatmap,
+                        compareMode: _compareMode,
+                        compareDay: _compareDay,
+                        comparePoints: _comparePoints,
+                        similarityPercent: _similarityPercent,
+                        loadingCompare: _loadingCompare,
+                        weather: typicalWeatherForMonth(_day.month),
+                        onMapCreated: (c) {
+                          _mapController = c;
+                          _fitBounds(replay.smoothedPoints);
+                        },
+                        onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
+                        onMapTypeToggle: () => setState(() {
+                          _mapType =
+                              _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
+                        }),
+                        onCompareToggle: () => _toggleCompareMode(dayData.points),
+                        onTimeMachine: _openTimeMachine,
+                      );
+                    }
+
+                    return _MobileJourneyLayout(
+                      replay: replay,
+                      journeyTitle: _journeyTitle,
+                      deviceName: widget.deviceName,
+                      imei: widget.imei,
+                      avatarUrl: widget.avatarUrl,
+                      mapType: _mapType,
+                      showHeatmap: _showHeatmap,
+                      compareMode: _compareMode,
+                      compareDay: _compareDay,
+                      comparePoints: _comparePoints,
+                      similarityPercent: _similarityPercent,
+                      loadingCompare: _loadingCompare,
+                      weather: typicalWeatherForMonth(_day.month),
+                      onMapCreated: (c) {
+                        _mapController = c;
+                        _fitBounds(replay.smoothedPoints);
+                      },
+                      onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
+                      onMapTypeToggle: () => setState(() {
+                        _mapType =
+                            _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
+                      }),
+                      onCompareToggle: () => _toggleCompareMode(dayData.points),
+                      onTimeMachine: _openTimeMachine,
+                    );
                   },
-                  onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
-                  onMapTypeToggle: () => setState(() {
-                    _mapType =
-                        _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
-                  }),
-                  onCompareToggle: () => _toggleCompareMode(dayData.points),
-                  onTimeMachine: _openTimeMachine,
                 );
               },
             ),
@@ -1857,7 +1886,9 @@ class _AiConfidenceBadge extends StatelessWidget {
       child: Text(
         insights.highDataQuality
             ? 'Confidence ${insights.confidenceScore}% · High data quality'
-            : 'Confidence ${insights.confidenceScore}%',
+            : insights.confidenceSubtitle != null
+                ? 'Confidence ${insights.confidenceScore}% · ${insights.confidenceSubtitle}'
+                : 'Confidence ${insights.confidenceScore}%',
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,

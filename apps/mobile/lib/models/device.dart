@@ -191,6 +191,18 @@ class Device {
   bool get isMoving =>
       hasFreshLocation && (speedKmh ?? 0) > deviceMovingSpeedThresholdKmh;
 
+  /// Gateway [stale_gps] intelligence insight is active above its threshold.
+  bool get hasActiveStaleGpsInsight {
+    final intelligence = this.intelligence;
+    if (intelligence == null) return false;
+    bool isActive(DeviceIntelligenceInsight insight) =>
+        insight.id == 'stale_gps' &&
+        insight.confidence >= insight.suppressBelow;
+    final top = intelligence.topInsight;
+    if (top != null && isActive(top)) return true;
+    return intelligence.insights.any(isActive);
+  }
+
   factory Device.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     return Device(

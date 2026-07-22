@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_utils.dart';
+import 'package:guardian/models/device.dart';
 import 'package:guardian/models/geofence.dart';
 import 'package:guardian/models/location_history_point.dart';
 
@@ -322,6 +323,20 @@ void main() {
       expect(quality.fixesLabel, '60 GPS fixes');
       expect(quality.label, 'Excellent');
     });
+
+    test('does not label excellent when GPS metadata is missing', () {
+      final start = DateTime(2026, 7, 22, 12, 0);
+      final points = List.generate(
+        60,
+        (index) => LocationHistoryPoint(
+          lat: -20.2 + (index * 0.0001),
+          lng: 57.4,
+          recordedAt: start.add(Duration(minutes: index)),
+        ),
+      );
+
+      expect(computeJourneyQuality(points).label, 'Unknown');
+    });
   });
 
   group('computeJourneyHighlights', () {
@@ -399,6 +414,120 @@ void main() {
         buildJourneyInsights(points).confidenceExplanation,
         'Based on 8 GPS fixes',
       );
+    });
+  });
+
+  group('buildJourneyInsights GPS reliability', () {
+    test('caps confidence when live GPS is stale on today', () {
+      final points = _line(
+        count: 30,
+        startLat: -20.2,
+        startLng: 57.4,
+        latStep: 0.0003,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 8, 0),
+        step: const Duration(minutes: 1),
+        speedKmh: 12,
+      );
+      const gpsContext = JourneyGpsContext(
+        liveGpsFresh: false,
+        staleGpsActive: true,
+        isViewingToday: true,
+      );
+
+      final insights = buildJourneyInsights(points, gpsContext: gpsContext);
+      expect(insights.confidenceScore, lessThanOrEqualTo(25));
+      expect(insights.highDataQuality, isFalse);
+      expect(insights.gpsQualityLabel, 'GPS unavailable');
+      expect(
+        insights.confidenceExplanation,
+        'GPS unavailable — journey data may be incomplete',
+      );
+      expect(insights.confidenceSubtitle, 'Limited GPS data');
+    });
+
+    test('does not claim excellent GPS when metadata is missing', () {
+      final start = DateTime(2026, 7, 22, 8, 0);
+      final points = List.generate(
+        25,
+        (index) => LocationHistoryPoint(
+          lat: -20.2 + (index * 0.0002),
+          lng: 57.4,
+          speedKmh: 10,
+          recordedAt: start.add(Duration(minutes: index)),
+        ),
+      );
+
+      final insights = buildJourneyInsights(points);
+      expect(insights.gpsQualityLabel, 'GPS quality unknown');
+      expect(insights.highDataQuality, isFalse);
+      expect(insights.confidenceScore, lessThan(70));
+      expect(
+        insights.confidenceExplanation,
+        'GPS metadata unavailable for this route',
+      );
+    });
+
+    test('journey health avoids excellent GPS when live fix is unavailable', () {
+      final points = _line(
+        count: 30,
+        startLat: -20.2,
+        startLng: 57.4,
+        latStep: 0.0003,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 8, 0),
+        step: const Duration(minutes: 1),
+        speedKmh: 12,
+      );
+      const gpsContext = JourneyGpsContext(
+        liveGpsFresh: false,
+        isViewingToday: true,
+      );
+      final insights = buildJourneyInsights(points, gpsContext: gpsContext);
+      final quality = computeJourneyQuality(points, gpsContext: gpsContext);
+      final score = computeJourneyScore(points, gpsContext: gpsContext);
+      final assessment = assessJourneyGps(points, gpsContext: gpsContext);
+      final health = computeJourneyHealth(
+        insights,
+        quality,
+        score,
+        gpsAssessment: assessment,
+      );
+
+      expect(health.summary, contains('GPS unreliable'));
+      expect(health.summary, isNot(contains('excellent GPS')));
+    });
+  });
+
+  group('journeyGpsContextForDevice', () {
+    test('maps stale_gps intelligence into journey GPS context', () {
+      final now = DateTime(2026, 7, 22, 13, 40);
+      final device = Device(
+        imei: '1',
+        online: true,
+        location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
+        lastHeartbeatAt: now,
+        intelligence: DeviceIntelligence(
+          insights: const [
+            DeviceIntelligenceInsight(
+              id: 'stale_gps',
+              inference: 'Last GPS fix is 12 minutes old.',
+              confidence: 80,
+              level: 'warning',
+            ),
+          ],
+          topInsight: const DeviceIntelligenceInsight(
+            id: 'stale_gps',
+            inference: 'Last GPS fix is 12 minutes old.',
+            confidence: 80,
+            level: 'warning',
+          ),
+        ),
+      );
+
+      final context = journeyGpsContextForDevice(device, isViewingToday: true);
+      expect(context.staleGpsActive, isTrue);
+      expect(context.liveGpsFresh, isTrue);
     });
   });
 

@@ -12,6 +12,7 @@ class JourneyReplayController extends ChangeNotifier {
     required List<LocationHistoryPoint> rawPoints,
     List<Geofence> geofences = const [],
     List<JourneyEvent>? timelineEvents,
+    JourneyGpsContext? gpsContext,
   })  : rawPoints = List<LocationHistoryPoint>.unmodifiable(rawPoints),
         smoothedPoints = smoothRouteForDisplay(rawPoints),
         routeSegments = buildRouteSegments(rawPoints),
@@ -19,14 +20,22 @@ class JourneyReplayController extends ChangeNotifier {
         events = timelineEvents ??
             detectJourneyEvents(rawPoints, geofences: geofences),
         stats = buildJourneyStats(rawPoints),
-        insights = buildJourneyInsights(rawPoints, geofences: geofences),
-        quality = computeJourneyQuality(rawPoints),
-        score = computeJourneyScore(rawPoints, geofences: geofences),
+        insights = buildJourneyInsights(
+          rawPoints,
+          geofences: geofences,
+          gpsContext: gpsContext,
+        ),
+        quality = computeJourneyQuality(rawPoints, gpsContext: gpsContext),
+        score = computeJourneyScore(
+          rawPoints,
+          geofences: geofences,
+          gpsContext: gpsContext,
+        ),
         highlights = computeJourneyHighlights(rawPoints, zones: geofences),
-        health = computeJourneyHealth(
-          buildJourneyInsights(rawPoints, geofences: geofences),
-          computeJourneyQuality(rawPoints),
-          computeJourneyScore(rawPoints, geofences: geofences),
+        health = buildJourneyHealthForPoints(
+          rawPoints,
+          geofences: geofences,
+          gpsContext: gpsContext,
         );
 
   final List<LocationHistoryPoint> rawPoints;

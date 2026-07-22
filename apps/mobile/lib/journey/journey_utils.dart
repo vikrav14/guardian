@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
 
+import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../safe_zones/safe_zone_logic.dart';
@@ -450,7 +451,7 @@ List<JourneyEvent> detectJourneyEvents(
     events.add(
       JourneyEvent(
         type: JourneyEventType.arrived,
-        label: endedInsideHome && home != null
+        label: endedInsideHome
             ? labelForArrivalEvent(arrivedHome: true, zoneName: home.name)
             : labelForEventType(JourneyEventType.arrived),
         startIndex: lastIndex,
@@ -468,14 +469,153 @@ double _gpsRatio(List<LocationHistoryPoint> points) {
   final gpsSources = points
       .map((p) => p.accuracySource?.toLowerCase())
       .whereType<String>()
+      .where((s) => s.isNotEmpty)
       .toList();
-  if (gpsSources.isEmpty) return 0.5;
+  if (gpsSources.isEmpty) return 0;
   return gpsSources.where((s) => s.contains('gps')).length / gpsSources.length;
 }
 
-JourneyQuality computeJourneyQuality(List<LocationHistoryPoint> points) {
+double _accuracyMetadataCoverage(List<LocationHistoryPoint> points) {
+  if (points.isEmpty) return 0;
+  final withMeta = points
+      .where((p) => p.accuracySource?.trim().isNotEmpty == true)
+      .length;
+  return withMeta / points.length;
+}
+
+bool _hasFrozenCoordinates(List<LocationHistoryPoint> points) {
+  if (points.length < 3) return false;
+  final first = points.first;
+  final identical = points
+      .where(
+        (p) =>
+            (p.lat - first.lat).abs() < 0.00001 &&
+            (p.lng - first.lng).abs() < 0.00001,
+      )
+      .length;
+  return identical >= (points.length * 0.9).ceil();
+}
+
+class JourneyGpsAssessment {
+  const JourneyGpsAssessment({
+    required this.metadataCoverage,
+    required this.gpsRatio,
+    required this.frozenCoordinates,
+    required this.liveGpsUnreliable,
+    required this.warningMessage,
+  });
+
+  final double metadataCoverage;
+  final double gpsRatio;
+  final bool frozenCoordinates;
+  final bool liveGpsUnreliable;
+  final String? warningMessage;
+
+  bool get metadataMissing => metadataCoverage < 0.5;
+  bool get gpsQualityPoor => metadataCoverage > 0 && gpsRatio < 0.4;
+
+  bool get shouldCapConfidence =>
+      liveGpsUnreliable || metadataMissing || gpsQualityPoor || frozenCoordinates;
+}
+
+JourneyGpsContext journeyGpsContextForDevice(
+  Device? device, {
+  required bool isViewingToday,
+}) {
+  if (device == null) {
+    return JourneyGpsContext(isViewingToday: isViewingToday);
+  }
+  return JourneyGpsContext(
+    liveGpsFresh: device.hasFreshLocation,
+    staleGpsActive: device.hasActiveStaleGpsInsight,
+    isViewingToday: isViewingToday,
+  );
+}
+
+JourneyGpsAssessment assessJourneyGps(
+  List<LocationHistoryPoint> points, {
+  JourneyGpsContext? gpsContext,
+}) {
+  final metadataCoverage = _accuracyMetadataCoverage(points);
+  final gpsRatio = _gpsRatio(points);
+  final frozen = _hasFrozenCoordinates(points);
+
+  var liveUnreliable = false;
+  String? warning;
+
+  final context = gpsContext;
+  if (context != null && context.isViewingToday) {
+    if (context.staleGpsActive) {
+      liveUnreliable = true;
+      warning = 'GPS unavailable — journey data may be incomplete';
+    } else if (!context.liveGpsFresh) {
+      liveUnreliable = true;
+      warning = 'GPS unavailable — journey data may be incomplete';
+    }
+  }
+
+  if (frozen && (liveUnreliable || context?.isViewingToday == true)) {
+    warning ??= 'GPS unavailable — journey data may be incomplete';
+  }
+
+  if (metadataCoverage < 0.5) {
+    warning ??= 'GPS metadata unavailable for this route';
+  } else if (gpsRatio < 0.4) {
+    warning ??= 'Unable to determine with confidence';
+  }
+
+  return JourneyGpsAssessment(
+    metadataCoverage: metadataCoverage,
+    gpsRatio: gpsRatio,
+    frozenCoordinates: frozen,
+    liveGpsUnreliable: liveUnreliable,
+    warningMessage: warning,
+  );
+}
+
+String _gpsQualityLabel(JourneyQuality quality, JourneyGpsAssessment assessment) {
+  if (assessment.liveGpsUnreliable) {
+    return 'GPS unavailable';
+  }
+  if (assessment.metadataMissing) {
+    return 'GPS quality unknown';
+  }
+  if (assessment.frozenCoordinates && assessment.gpsQualityPoor) {
+    return 'Poor GPS coverage';
+  }
+  return switch (quality.label) {
+    'Unknown' => 'GPS quality unknown',
+    'Excellent' => 'Excellent GPS coverage',
+    'Good' => 'Good GPS coverage',
+    _ => 'Fair GPS coverage',
+  };
+}
+
+String _gpsHealthPhrase(JourneyQuality quality, JourneyGpsAssessment assessment) {
+  if (assessment.shouldCapConfidence) {
+    return 'GPS unreliable';
+  }
+  return switch (quality.label) {
+    'Excellent' => 'excellent GPS',
+    'Good' => 'good GPS',
+    _ => 'fair GPS',
+  };
+}
+
+JourneyQuality computeJourneyQuality(
+  List<LocationHistoryPoint> points, {
+  JourneyGpsContext? gpsContext,
+}) {
   if (points.isEmpty) {
     return const JourneyQuality(fixCount: 0, label: 'Unknown');
+  }
+
+  final assessment = assessJourneyGps(points, gpsContext: gpsContext);
+  if (assessment.shouldCapConfidence) {
+    return JourneyQuality(
+      fixCount: points.length,
+      label: assessment.metadataMissing ? 'Unknown' : 'Fair',
+    );
   }
 
   final stats = buildJourneyStats(points);
@@ -484,10 +624,12 @@ JourneyQuality computeJourneyQuality(List<LocationHistoryPoint> points) {
   final fixesPerHour = durationHours > 0
       ? points.length / durationHours
       : points.length.toDouble();
-  final gpsRatio = _gpsRatio(points);
+  final gpsRatio = assessment.gpsRatio;
 
   String label;
-  if (fixesPerHour >= 30 && gpsRatio > 0.7) {
+  if (assessment.metadataMissing) {
+    label = 'Unknown';
+  } else if (fixesPerHour >= 30 && gpsRatio > 0.7) {
     label = 'Excellent';
   } else if (fixesPerHour >= 12 && gpsRatio > 0.4) {
     label = 'Good';
@@ -501,6 +643,7 @@ JourneyQuality computeJourneyQuality(List<LocationHistoryPoint> points) {
 JourneyScoreBreakdown computeJourneyScore(
   List<LocationHistoryPoint> points, {
   List<Geofence> geofences = const [],
+  JourneyGpsContext? gpsContext,
 }) {
   if (points.isEmpty) {
     return const JourneyScoreBreakdown(
@@ -511,23 +654,26 @@ JourneyScoreBreakdown computeJourneyScore(
     );
   }
 
-  final quality = computeJourneyQuality(points);
+  final assessment = assessJourneyGps(points, gpsContext: gpsContext);
+  final quality = computeJourneyQuality(points, gpsContext: gpsContext);
   final events = detectJourneyEvents(points, geofences: geofences);
   final stopCount =
       events.where((e) => e.type == JourneyEventType.stopped).length;
-  final gpsRatio = _gpsRatio(points);
+  final gpsRatio = assessment.gpsRatio;
   final smoothed = smoothRouteForDisplay(points);
   final compressionRatio =
       points.isEmpty ? 1.0 : smoothed.length / points.length;
 
-  final gpsAccuracy = ((gpsRatio * 60) +
-          (quality.label == 'Excellent'
-              ? 40
-              : quality.label == 'Good'
-                  ? 25
-                  : 10))
-      .round()
-      .clamp(0, 100);
+  var gpsAccuracy = assessment.shouldCapConfidence
+      ? (gpsRatio * 25).round()
+      : ((gpsRatio * 60) +
+              (quality.label == 'Excellent'
+                  ? 40
+                  : quality.label == 'Good'
+                      ? 25
+                      : 10))
+          .round();
+  gpsAccuracy = gpsAccuracy.clamp(0, 100);
 
   final routeConsistency = ((compressionRatio.clamp(0.15, 1.0) * 70) +
           (stopCount <= 2 ? 30 : stopCount <= 4 ? 15 : 0))
@@ -632,27 +778,60 @@ JourneyHighlights computeJourneyHighlights(
   );
 }
 
+JourneyHealth buildJourneyHealthForPoints(
+  List<LocationHistoryPoint> points, {
+  List<Geofence> geofences = const [],
+  JourneyGpsContext? gpsContext,
+}) {
+  final insights = buildJourneyInsights(
+    points,
+    geofences: geofences,
+    gpsContext: gpsContext,
+  );
+  final quality = computeJourneyQuality(points, gpsContext: gpsContext);
+  final score = computeJourneyScore(
+    points,
+    geofences: geofences,
+    gpsContext: gpsContext,
+  );
+  final assessment = assessJourneyGps(points, gpsContext: gpsContext);
+  return computeJourneyHealth(
+    insights,
+    quality,
+    score,
+    gpsAssessment: assessment,
+  );
+}
+
 JourneyHealth computeJourneyHealth(
   JourneyInsights insights,
   JourneyQuality quality,
-  JourneyScoreBreakdown score,
-) {
+  JourneyScoreBreakdown score, {
+  JourneyGpsAssessment? gpsAssessment,
+}) {
   final overall = score.overall;
-  final stars = overall >= 90
+  final cappedOverall = gpsAssessment?.shouldCapConfidence == true
+      ? overall.clamp(0, 55)
+      : overall;
+  final stars = cappedOverall >= 90
       ? 5
-      : overall >= 75
+      : cappedOverall >= 75
           ? 4
-          : overall >= 60
+          : cappedOverall >= 60
               ? 3
-              : overall >= 40
+              : cappedOverall >= 40
                   ? 2
                   : 1;
 
-  final gpsPhrase = quality.label == 'Excellent'
-      ? 'excellent GPS'
-      : quality.label == 'Good'
-          ? 'good GPS'
-          : 'fair GPS';
+  final assessment = gpsAssessment ??
+      const JourneyGpsAssessment(
+        metadataCoverage: 1,
+        gpsRatio: 1,
+        frozenCoordinates: false,
+        liveGpsUnreliable: false,
+        warningMessage: null,
+      );
+  final gpsPhrase = _gpsHealthPhrase(quality, assessment);
 
   final routePhrase = insights.stopCount == 0
       ? 'Normal route, no detours'
@@ -669,6 +848,7 @@ JourneyHealth computeJourneyHealth(
 JourneyInsights buildJourneyInsights(
   List<LocationHistoryPoint> points, {
   List<Geofence> geofences = const [],
+  JourneyGpsContext? gpsContext,
 }) {
   if (points.isEmpty) {
     return const JourneyInsights(
@@ -679,6 +859,7 @@ JourneyInsights buildJourneyInsights(
       confidenceExplanation: 'Based on 0 GPS fixes',
       stopCount: 0,
       highDataQuality: false,
+      confidenceSubtitle: 'Unable to determine with confidence',
     );
   }
 
@@ -690,22 +871,33 @@ JourneyInsights buildJourneyInsights(
   final durationHours = stats.duration.inMilliseconds / 3600000.0;
   final avgSpeed = durationHours > 0 ? stats.distanceKm / durationHours : null;
 
+  final assessment = assessJourneyGps(points, gpsContext: gpsContext);
   final withTimestamps =
       points.where((p) => p.recordedAt != null).length / points.length;
   final withSpeed = points.where((p) => p.speedKmh != null).length / points.length;
-  final gpsRatio = _gpsRatio(points);
 
   var confidence = 0;
-  if (withTimestamps > 0.8) confidence += 30;
-  if (points.length >= 20) confidence += 20;
-  if (withSpeed > 0.5) confidence += 20;
-  if (gpsRatio > 0.5) confidence += 30;
-  confidence = confidence.clamp(0, 100);
+  if (withTimestamps > 0.8) confidence += 20;
+  if (points.length >= 20) confidence += 15;
+  if (withSpeed > 0.5) confidence += 15;
+  if (assessment.metadataCoverage >= 0.5) {
+    if (assessment.gpsRatio > 0.7) {
+      confidence += 30;
+    } else if (assessment.gpsRatio > 0.4) {
+      confidence += 15;
+    }
+  }
 
-  final quality = computeJourneyQuality(points);
-  final gpsQuality = quality.label == 'Unknown'
-      ? 'GPS quality unknown'
-      : '${quality.label} GPS coverage';
+  if (assessment.shouldCapConfidence) {
+    confidence = assessment.liveGpsUnreliable
+        ? confidence.clamp(0, 25)
+        : confidence.clamp(0, 40);
+  } else {
+    confidence = confidence.clamp(0, 100);
+  }
+
+  final quality = computeJourneyQuality(points, gpsContext: gpsContext);
+  final gpsQuality = _gpsQualityLabel(quality, assessment);
 
   final routeSummary = stopCount >= 3
       ? 'Unusual stops detected ($stopCount pauses)'
@@ -713,14 +905,24 @@ JourneyInsights buildJourneyInsights(
           ? 'Brief stops along the route'
           : 'Normal route pattern';
 
+  final explanation = assessment.warningMessage ??
+      'Based on ${points.length} GPS fixes';
+
   return JourneyInsights(
     routeSummary: routeSummary,
     avgSpeedKmh: avgSpeed,
     gpsQualityLabel: gpsQuality,
     confidenceScore: confidence,
-    confidenceExplanation: 'Based on ${points.length} GPS fixes',
+    confidenceExplanation: explanation,
     stopCount: stopCount,
-    highDataQuality: confidence >= 80 && quality.label != 'Fair',
+    highDataQuality: confidence >= 70 &&
+        !assessment.shouldCapConfidence &&
+        quality.label == 'Excellent',
+    confidenceSubtitle: assessment.warningMessage != null
+        ? (assessment.liveGpsUnreliable
+            ? 'Limited GPS data'
+            : 'Limited confidence')
+        : null,
   );
 }
 

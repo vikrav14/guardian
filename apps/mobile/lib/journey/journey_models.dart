@@ -131,6 +131,19 @@ class RouteSegment {
   final RouteSegmentColor color;
 }
 
+/// Live device GPS signals passed into journey insight builders.
+class JourneyGpsContext {
+  const JourneyGpsContext({
+    this.liveGpsFresh = false,
+    this.staleGpsActive = false,
+    this.isViewingToday = false,
+  });
+
+  final bool liveGpsFresh;
+  final bool staleGpsActive;
+  final bool isViewingToday;
+}
+
 class JourneyInsights {
   const JourneyInsights({
     required this.routeSummary,
@@ -140,6 +153,7 @@ class JourneyInsights {
     required this.confidenceExplanation,
     required this.stopCount,
     required this.highDataQuality,
+    this.confidenceSubtitle,
   });
 
   final String routeSummary;
@@ -149,6 +163,9 @@ class JourneyInsights {
   final String confidenceExplanation;
   final int stopCount;
   final bool highDataQuality;
+
+  /// Short badge suffix when confidence is capped (e.g. "Limited GPS data").
+  final String? confidenceSubtitle;
 }
 
 /// Gateway-written dwell segment (`devices/{imei}/segments`).
