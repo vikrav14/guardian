@@ -180,6 +180,45 @@ function shouldAppendLocationHistory(gate) {
 
 
 
+async function resolveGeolocation(event) {
+  if (!event.needsGeolocation) return event;
+
+  const wifiCount = event.wifiAccessPoints?.length || 0;
+  const cellCount = event.cellTowers?.length || 0;
+  const geo = await geolocateFromV({
+    wifiAccessPoints: event.wifiAccessPoints || [],
+    cellTowers: event.cellTowers || [],
+  });
+
+  if (!geo) {
+    console.log(
+      `[geolocate] ${event.imei} wifi=${wifiCount} cells=${cellCount} → failed`
+    );
+    return null;
+  }
+
+  const accLabel = geo.accuracyMeters != null ? `${Math.round(geo.accuracyMeters)}m` : '?';
+  console.log(
+    `[geolocate] ${event.imei} wifi=${wifiCount} cells=${cellCount} → ` +
+      `${geo.lat.toFixed(3)}, ${geo.lng.toFixed(3)} acc=${accLabel}`
+  );
+
+  const recordedAt = event.location?.recordedAt || new Date();
+  return {
+    ...event,
+    needsGeolocation: false,
+    location: {
+      ...(event.location || {}),
+      lat: geo.lat,
+      lng: geo.lng,
+      accuracyMeters: geo.accuracyMeters,
+      recordedAt,
+    },
+  };
+}
+
+
+
 async function applyEvents(events) {
 
   for (const event of events) {
@@ -227,6 +266,11 @@ async function applyEvents(events) {
         );
 
       } else if (event.type === 'location') {
+        const resolved = await resolveGeolocation(event);
+        if (!resolved?.location || typeof resolved.location.lat !== 'number') {
+          continue;
+        }
+        event = resolved;
 
         updateLiveState(event.imei, {
 
@@ -498,27 +542,37 @@ async function applyEvents(events) {
 
       } else if (event.type === 'alarm') {
 
-        const alarmType = event.alarmType || 'other';
+        let alarmEvent = event;
+        if (event.needsGeolocation) {
+          const resolved = await resolveGeolocation(event);
+          if (resolved?.location && typeof resolved.location.lat === 'number') {
+            alarmEvent = resolved;
+          } else {
+            alarmEvent = { ...event, location: undefined };
+          }
+        }
+
+        const alarmType = alarmEvent.alarmType || 'other';
 
         const alarmRaw =
 
-          event.alarmCode != null ? { raw: { alarmCode: event.alarmCode } } : {};
+          alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};
 
         const alarmPayload =
 
-          event.alarmCode != null ? { alarmCode: event.alarmCode } : {};
+          alarmEvent.alarmCode != null ? { alarmCode: alarmEvent.alarmCode } : {};
 
 
 
-        if (event.location) {
+        if (alarmEvent.location) {
 
-          updateLiveState(event.imei, {
+          updateLiveState(alarmEvent.imei, {
 
-            location: event.location,
+            location: alarmEvent.location,
 
-            speedKmh: event.speedKmh,
+            speedKmh: alarmEvent.speedKmh,
 
-            accuracySource: event.accuracySource,
+            accuracySource: alarmEvent.accuracySource,
 
           });
 
@@ -526,7 +580,7 @@ async function applyEvents(events) {
 
 
 
-        const alarmPatch = event.location
+        const alarmPatch = alarmEvent.location
 
           ? {
 
@@ -536,13 +590,13 @@ async function applyEvents(events) {
 
               lastHeartbeatAt: new Date(),
 
-              location: event.location,
+              location: alarmEvent.location,
 
-              speedKmh: event.speedKmh,
+              speedKmh: alarmEvent.speedKmh,
 
-              course: event.course,
+              course: alarmEvent.course,
 
-              accuracySource: event.accuracySource,
+              accuracySource: alarmEvent.accuracySource,
 
               lastAlarm: {
 
@@ -576,51 +630,51 @@ async function applyEvents(events) {
 
 
 
-        await persistDeviceState(event.imei, alarmPatch, 'alarm');
+        await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm');
 
-        if (event.location) {
+        if (alarmEvent.location) {
 
-          await appendLocation(event.imei, {
+          await appendLocation(alarmEvent.imei, {
 
-            lat: event.location.lat,
+            lat: alarmEvent.location.lat,
 
-            lng: event.location.lng,
+            lng: alarmEvent.location.lng,
 
-            speedKmh: event.speedKmh,
+            speedKmh: alarmEvent.speedKmh,
 
-            accuracySource: event.accuracySource,
+            accuracySource: alarmEvent.accuracySource,
 
-            recordedAt: event.location.recordedAt,
+            recordedAt: alarmEvent.location.recordedAt,
 
           });
 
         }
 
-        await refreshDeviceIntelligence(event.imei, {
+        await refreshDeviceIntelligence(alarmEvent.imei, {
 
-          ...getLiveDeviceState(event.imei),
+          ...getLiveDeviceState(alarmEvent.imei),
 
           online: true,
 
           lastHeartbeatAt: new Date(),
 
-          location: event.location,
+          location: alarmEvent.location,
 
-          speedKmh: event.speedKmh,
+          speedKmh: alarmEvent.speedKmh,
 
-          accuracySource: event.accuracySource,
+          accuracySource: alarmEvent.accuracySource,
 
-          batteryPercent: event.batteryPercent,
+          batteryPercent: alarmEvent.batteryPercent,
 
         });
 
 
 
-        await createAlert(event.imei, {
+        await createAlert(alarmEvent.imei, {
 
           type: alarmType,
 
-          severity: event.severity || 'warning',
+          severity: alarmEvent.severity || 'warning',
 
           message: `Device alarm: ${alarmType}`,
 

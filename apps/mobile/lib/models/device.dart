@@ -188,6 +188,13 @@ class Device {
     return true;
   }
 
+  /// True when the latest fix came from WiFi/cell geolocation (gps=V), not satellite GPS.
+  bool get hasApproximateLocation {
+    if (!hasFreshLocation) return false;
+    final source = accuracySource?.toLowerCase();
+    return source == 'wifi' || source == 'lbs';
+  }
+
   bool get isMoving =>
       hasFreshLocation && (speedKmh ?? 0) > deviceMovingSpeedThresholdKmh;
 

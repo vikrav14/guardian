@@ -61,7 +61,7 @@ test('handlePacket parses a valid UD_LTE location', () => {
   assert.equal(events[0].course, 0);
 });
 
-test('handlePacket ignores UD_LTE when GPS is not fixed (V)', () => {
+test('handlePacket ignores UD_LTE when GPS is V with no WiFi/cell data', () => {
   const payload = '241122,062109,V,22.653729,N,114.014600,E,0.0,0';
   const frame = asciiFrame('3G', '9705314117', 'UD_LTE', payload);
   const decoded = decodeFrame(frame);
@@ -142,8 +142,11 @@ test('handlePacket parses AL_LTE SOS alarm with alarmCode from state field', () 
   assert.equal(acks[0].toString('ascii'), '[SG*9705314117*0002*AL]');
 });
 
-test('handlePacket parses AL_LTE with gps=V as alarm without location', () => {
-  const payload = '241122,062109,V,22.653729,N,114.014600,E,0,0,00010000';
+test('handlePacket parses AL_LTE with gps=V as alarm with geolocation when WiFi present', () => {
+  const payload = [
+    '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0', '0',
+    '617', '1', '12345', '67890123', '1', '', 'aa:bb:cc:dd:ee:ff', '-70', '00010000',
+  ].join(',');
   const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
   const decoded = decodeFrame(frame);
   const session = {};
@@ -152,6 +155,6 @@ test('handlePacket parses AL_LTE with gps=V as alarm without location', () => {
 
   assert.equal(events[0].type, 'alarm');
   assert.equal(events[0].alarmType, 'sos');
-  assert.equal(events[0].alarmCode, '00010000');
-  assert.equal(events[0].location, undefined);
+  assert.equal(events[0].needsGeolocation, true);
+  assert.equal(events[0].accuracySource, 'wifi');
 });

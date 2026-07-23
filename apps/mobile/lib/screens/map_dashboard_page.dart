@@ -926,9 +926,11 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                             Expanded(
                               child: _InfoTile(
                                 icon: Icons.gps_fixed_rounded,
-                                value: selected.hasFreshLocation
-                                    ? 'Active'
-                                    : 'Waiting',
+                                value: selected.hasApproximateLocation
+                                    ? 'Approx'
+                                    : (selected.hasFreshLocation
+                                        ? 'Active'
+                                        : 'Waiting'),
                                 label: 'GPS',
                                 metric: DashboardFlagMetric.gps,
                                 active: selected.hasFreshLocation,
@@ -1277,6 +1279,7 @@ class _LiveStatusBar extends StatelessWidget {
     final colors = context.guardianColors;
     final connected = device?.online == true;
     final gps = device?.hasFreshLocation == true;
+    final approximate = device?.hasApproximateLocation == true;
     final battery = device?.batteryPercent;
     final batteryHealthy = dashboardBatteryHealthy(battery);
     return Container(
@@ -1297,7 +1300,9 @@ class _LiveStatusBar extends StatelessWidget {
           _LiveMetric(
             metric: DashboardFlagMetric.gps,
             icon: Icons.gps_fixed_rounded,
-            label: gps ? 'GPS active' : 'GPS waiting',
+            label: approximate
+                ? 'Approximate'
+                : (gps ? 'GPS active' : 'GPS waiting'),
             active: gps,
           ),
           _LiveMetric(
@@ -1603,7 +1608,9 @@ class _PremiumDeviceCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${device.hasFreshLocation ? 'GPS active' : 'GPS waiting'}  •  $updated',
+                  device.hasApproximateLocation
+                      ? 'Approximate location  •  $updated'
+                      : '${device.hasFreshLocation ? 'GPS active' : 'GPS waiting'}  •  $updated',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1883,14 +1890,37 @@ class _TimelineCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      device.hasFreshLocation
-                          ? 'Latest position received'
-                          : 'Waiting for a position',
+                      device.hasApproximateLocation
+                          ? 'Approximate location'
+                          : (device.hasFreshLocation
+                              ? 'Latest position received'
+                              : 'Waiting for a position'),
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (device.hasApproximateLocation) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.accentMuted,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Approximate location',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: colors.accent,
+                          ),
+                        ),
+                      ),
+                    ],
                     Text(
                       updated,
                       style: TextStyle(

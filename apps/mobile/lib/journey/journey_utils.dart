@@ -465,6 +465,16 @@ List<JourneyEvent> detectJourneyEvents(
   return events;
 }
 
+double _approximateRatio(List<LocationHistoryPoint> points) {
+  final sources = points
+      .map((p) => p.accuracySource?.toLowerCase())
+      .whereType<String>()
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (sources.isEmpty) return 0;
+  return sources.where((s) => s == 'wifi' || s == 'lbs').length / sources.length;
+}
+
 double _gpsRatio(List<LocationHistoryPoint> points) {
   final gpsSources = points
       .map((p) => p.accuracySource?.toLowerCase())
@@ -500,6 +510,7 @@ class JourneyGpsAssessment {
   const JourneyGpsAssessment({
     required this.metadataCoverage,
     required this.gpsRatio,
+    required this.approximateRatio,
     required this.frozenCoordinates,
     required this.liveGpsUnreliable,
     required this.warningMessage,
@@ -507,12 +518,14 @@ class JourneyGpsAssessment {
 
   final double metadataCoverage;
   final double gpsRatio;
+  final double approximateRatio;
   final bool frozenCoordinates;
   final bool liveGpsUnreliable;
   final String? warningMessage;
 
   bool get metadataMissing => metadataCoverage < 0.5;
-  bool get gpsQualityPoor => metadataCoverage > 0 && gpsRatio < 0.4;
+  bool get gpsQualityPoor =>
+      metadataCoverage > 0 && (gpsRatio < 0.4 || approximateRatio > 0.5);
 
   bool get shouldCapConfidence =>
       liveGpsUnreliable || metadataMissing || gpsQualityPoor || frozenCoordinates;
@@ -526,7 +539,8 @@ JourneyGpsContext journeyGpsContextForDevice(
     return JourneyGpsContext(isViewingToday: isViewingToday);
   }
   return JourneyGpsContext(
-    liveGpsFresh: device.hasFreshLocation,
+    liveGpsFresh: device.hasFreshLocation && !device.hasApproximateLocation,
+    liveApproximateFix: device.hasApproximateLocation,
     staleGpsActive: device.hasActiveStaleGpsInsight,
     isViewingToday: isViewingToday,
   );
@@ -538,6 +552,7 @@ JourneyGpsAssessment assessJourneyGps(
 }) {
   final metadataCoverage = _accuracyMetadataCoverage(points);
   final gpsRatio = _gpsRatio(points);
+  final approximateRatio = _approximateRatio(points);
   final frozen = _hasFrozenCoordinates(points);
 
   var liveUnreliable = false;
@@ -548,7 +563,7 @@ JourneyGpsAssessment assessJourneyGps(
     if (context.staleGpsActive) {
       liveUnreliable = true;
       warning = 'GPS unavailable — journey data may be incomplete';
-    } else if (!context.liveGpsFresh) {
+    } else if (!context.liveGpsFresh && !context.liveApproximateFix) {
       liveUnreliable = true;
       warning = 'GPS unavailable — journey data may be incomplete';
     }
@@ -560,6 +575,8 @@ JourneyGpsAssessment assessJourneyGps(
 
   if (metadataCoverage < 0.5) {
     warning ??= 'GPS metadata unavailable for this route';
+  } else if (approximateRatio > 0.5) {
+    warning ??= 'Route uses approximate WiFi/cell positioning';
   } else if (gpsRatio < 0.4) {
     warning ??= 'Unable to determine with confidence';
   }
@@ -567,6 +584,7 @@ JourneyGpsAssessment assessJourneyGps(
   return JourneyGpsAssessment(
     metadataCoverage: metadataCoverage,
     gpsRatio: gpsRatio,
+    approximateRatio: approximateRatio,
     frozenCoordinates: frozen,
     liveGpsUnreliable: liveUnreliable,
     warningMessage: warning,
@@ -579,6 +597,9 @@ String _gpsQualityLabel(JourneyQuality quality, JourneyGpsAssessment assessment)
   }
   if (assessment.metadataMissing) {
     return 'GPS quality unknown';
+  }
+  if (assessment.approximateRatio > 0.5) {
+    return 'Approximate positioning';
   }
   if (assessment.frozenCoordinates && assessment.gpsQualityPoor) {
     return 'Poor GPS coverage';
@@ -629,9 +650,9 @@ JourneyQuality computeJourneyQuality(
   String label;
   if (assessment.metadataMissing) {
     label = 'Unknown';
-  } else if (fixesPerHour >= 30 && gpsRatio > 0.7) {
+  } else if (fixesPerHour >= 30 && gpsRatio > 0.7 && assessment.approximateRatio <= 0.5) {
     label = 'Excellent';
-  } else if (fixesPerHour >= 12 && gpsRatio > 0.4) {
+  } else if (fixesPerHour >= 12 && gpsRatio > 0.4 && assessment.approximateRatio <= 0.5) {
     label = 'Good';
   } else {
     label = 'Fair';
@@ -827,6 +848,7 @@ JourneyHealth computeJourneyHealth(
       const JourneyGpsAssessment(
         metadataCoverage: 1,
         gpsRatio: 1,
+        approximateRatio: 0,
         frozenCoordinates: false,
         liveGpsUnreliable: false,
         warningMessage: null,

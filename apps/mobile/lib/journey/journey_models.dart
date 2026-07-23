@@ -135,11 +135,13 @@ class RouteSegment {
 class JourneyGpsContext {
   const JourneyGpsContext({
     this.liveGpsFresh = false,
+    this.liveApproximateFix = false,
     this.staleGpsActive = false,
     this.isViewingToday = false,
   });
 
   final bool liveGpsFresh;
+  final bool liveApproximateFix;
   final bool staleGpsActive;
   final bool isViewingToday;
 }

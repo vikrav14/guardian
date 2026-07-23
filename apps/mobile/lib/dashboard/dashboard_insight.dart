@@ -102,6 +102,14 @@ DashboardInsight _fallbackClientInsight(Device device) {
     );
   }
 
+  if (device.hasApproximateLocation) {
+    return const DashboardInsight(
+      title: 'Approximate location',
+      detail: 'Position from WiFi or cell towers — less precise than GPS.',
+      tone: DashboardInsightTone.neutral,
+    );
+  }
+
   return const DashboardInsight(
     title: 'Everything looks normal',
     detail: 'Device connected • Battery sufficient • GPS position available',

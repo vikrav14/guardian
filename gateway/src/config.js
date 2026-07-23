@@ -54,6 +54,9 @@ const config = {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
   opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
+
+  // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
+  googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
 };
 
 module.exports = config;

@@ -12,6 +12,7 @@ const {
   extractFullImeiFromPayload,
   isFullImei,
 } = require('../imei');
+const { parseLteExtras, isPlaceholderCoords } = require('../geolocate/google');
 
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
@@ -39,12 +40,13 @@ function parseLocationData(fields) {
   if (Number.isNaN(recordedAt.getTime())) return null;
 
   const gpsFlag = fields.length > 2 ? fields[2] : null;
-  const gpsValid = gpsFlag === 'A'; // A=valid, V=invalid
-  if (!gpsValid) {
-    return { error: gpsFlag === 'V' ? 'gps_not_fixed' : 'gps_flag_missing' };
-  }
+  const gpsValid = gpsFlag === 'A'; // A=valid satellite fix; V=WiFi/LBS raw data
 
-  let lat = null, lng = null, course = 0, speedKmh = null;
+  let lat = null;
+  let lng = null;
+  let course = 0;
+  let speedKmh = null;
+
   if (fields.length > 5) {
     lat = parseFloat(fields[3]);
     const latDir = fields[4];
@@ -57,7 +59,7 @@ function parseLocationData(fields) {
     if (lngDir === 'W') lng = -lng;
   }
 
-  // UD_LTE field order after lngDir: speed (km/h), course (degrees), then extras.
+  // UD_LTE field order after lngDir: speed (km/h), course (degrees), then LTE extras.
   if (fields.length > 7) {
     const speed = parseFloat(fields[7]);
     if (!Number.isNaN(speed)) {
@@ -70,7 +72,41 @@ function parseLocationData(fields) {
     if (!Number.isNaN(c)) course = c;
   }
 
+  if (!gpsValid) {
+    if (gpsFlag !== 'V') {
+      return { error: 'gps_flag_missing' };
+    }
+
+    const { wifiAccessPoints, cellTowers } = parseLteExtras(fields.slice(9));
+    if (wifiAccessPoints.length === 0 && cellTowers.length === 0) {
+      return { error: 'gps_not_fixed' };
+    }
+
+    const positioningMode = wifiAccessPoints.length > 0
+      ? 'wifi'
+      : (cellTowers.length > 0 ? 'lbs' : 'unknown');
+
+    return {
+      gpsValid: false,
+      positioningMode,
+      wifiAccessPoints,
+      cellTowers,
+      needsGeolocation: true,
+      location: {
+        lat: isPlaceholderCoords(lat, lng) ? null : lat,
+        lng: isPlaceholderCoords(lat, lng) ? null : lng,
+        altitude: null,
+        recordedAt,
+        satellites: null,
+      },
+      speedKmh,
+      course,
+      accuracySource: positioningMode === 'wifi' ? 'wifi' : 'lbs',
+    };
+  }
+
   return {
+    gpsValid: true,
     location: { lat, lng, altitude: null, recordedAt, satellites: null },
     speedKmh,
     course,
@@ -205,12 +241,17 @@ function handlePacket(decoded, session) {
     }
   } else if (command.startsWith('AL')) {
     // Alarm upload: AL, AL_LTE, AL_WCDMA, etc.
-    const loc = parseLocationData(args);
+    const alarmStateField = args.length > 0 ? args[args.length - 1] : null;
+    const locArgs =
+      alarmStateField && /^[0-9a-f]+$/i.test(alarmStateField)
+        ? args.slice(0, -1)
+        : args;
+    const loc = parseLocationData(locArgs);
     acks.push(buildAckFrame(protocolId, 'AL'));
     let alarmType = 'other';
     let alarmCode = null;
     if (args.length > 0) {
-      const stateField = args[args.length - 1];
+      const stateField = alarmStateField ?? args[args.length - 1];
       alarmCode = stateField;
       const stateBits = parseInt(stateField, 16);
       if (!Number.isNaN(stateBits)) {
@@ -265,4 +306,5 @@ module.exports = {
   decodeFrame,
   handlePacket,
   buildAckFrame,
+  parseLocationData,
 };

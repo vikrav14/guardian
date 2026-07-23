@@ -109,6 +109,35 @@ void main() {
       expect(device.hasFreshLocation, isTrue);
       expect(device.isMoving, isTrue);
     });
+
+    test('hasApproximateLocation when accuracySource is wifi or lbs', () {
+      final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+      final wifiDevice = Device(
+        imei: '1',
+        online: true,
+        accuracySource: 'wifi',
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.2,
+          lng: 57.5,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      expect(wifiDevice.hasApproximateLocation, isTrue);
+
+      final gpsDevice = Device(
+        imei: '2',
+        online: true,
+        accuracySource: 'gps',
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.2,
+          lng: 57.5,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      expect(gpsDevice.hasApproximateLocation, isFalse);
+    });
   });
 
   group('GuardianAlert.fromDoc', () {
