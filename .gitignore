@@ -29,3 +29,15 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Cursor / local sync
+.claude/
+.git-sync-check.txt
+
+# Gateway local ops (poll evidence, session logs)
+gateway/start-log.txt
+gateway/*-evidence.jsonl
+gateway/poll-*.log
+
+# Flutter CLI logs (apps/mobile/*.log already covered by *.log)
+apps/mobile/flutter_*.log
