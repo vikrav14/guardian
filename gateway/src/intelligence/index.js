@@ -60,6 +60,78 @@ function isInsideGeofence(location, geofence) {
   return haversineMeters(lat, lng, centerLat, centerLng) <= radius;
 }
 
+function formatAccuracyLabel(accuracy) {
+  const source = String(accuracy || '').toLowerCase();
+  if (source === 'gps') return 'satellite GPS';
+  if (source === 'wifi') return 'WiFi positioning (approximate)';
+  if (source === 'lbs') return 'cell tower positioning (approximate)';
+  return null;
+}
+
+function buildLocationContext(device, now) {
+  const location = device.location;
+  const recordedAt = asDate(location?.recordedAt);
+  const ageMinutes = recordedAt ? minutesSince(recordedAt, now) : null;
+  const accuracy = String(device.accuracySource || location?.accuracySource || '').toLowerCase();
+  const lat = Number(location?.lat);
+  const lng = Number(location?.lng);
+  const hasCoords =
+    Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+
+  return {
+    recordedAt,
+    ageMinutes,
+    accuracy,
+    hasCoords,
+    accuracyLabel: formatAccuracyLabel(accuracy),
+  };
+}
+
+function locationAgePhrase(ageMinutes) {
+  const rounded = Math.max(1, Math.round(ageMinutes));
+  if (rounded < 60) return `${rounded} minute${rounded === 1 ? '' : 's'}`;
+  const hours = Math.round(rounded / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'}`;
+}
+
+function deviceDisplayName(device = {}) {
+  const nickname = String(device.nickname || '').trim();
+  if (nickname) return nickname;
+  const relationship = String(device.relationship || '').trim();
+  if (relationship) return relationship;
+  const name = String(device.name || '').trim();
+  if (name && !name.toLowerCase().startsWith('device ')) {
+    const cleaned = name.replace(/(?:'s)?\s+(?:pendant|device)$/i, '').trim();
+    return cleaned || name;
+  }
+  return 'Your loved one';
+}
+
+/**
+ * User-facing alert copy for push/in-app notifications — no ISO timestamps or jargon.
+ */
+function buildOfflineAlertCopy(device, staleMinutes, loc = buildLocationContext(device)) {
+  const who = deviceDisplayName(device);
+  const contactPhrase = locationAgePhrase(staleMinutes);
+  const title = `${who} hasn't checked in`;
+
+  let message =
+    `We haven't heard from ${who} for ${contactPhrase}. Live tracking is paused — the pendant may be off, out of coverage, or unable to reach the server.`;
+
+  if (loc.hasCoords && loc.ageMinutes != null) {
+    const fixPhrase = locationAgePhrase(loc.ageMinutes);
+    message += ` The map shows their last known position from ${fixPhrase} ago`;
+    if (loc.accuracyLabel) {
+      message += ` (${loc.accuracyLabel})`;
+    }
+    message += '. They may have moved since then.';
+  } else {
+    message += ' Last known location is unavailable.';
+  }
+
+  return { title, message };
+}
+
 function finalizeInsight(raw) {
   const suppressBelow = raw.suppressBelow ?? 50;
   const confidence = Math.round(Math.max(0, Math.min(100, raw.confidence ?? 0)));
@@ -98,14 +170,38 @@ function ruleOffline(device, config, now) {
     60 + Math.round((staleMinutes - offlineThreshold) * 3)
   );
 
+  const loc = buildLocationContext(device, now);
+  const contactPhrase = locationAgePhrase(staleMinutes);
+
+  let inference =
+    `No contact for ${contactPhrase}. Live tracking is unavailable — the pendant may be off, out of coverage, or unable to reach the server.`;
+
+  if (loc.hasCoords && loc.ageMinutes != null) {
+    const fixPhrase = locationAgePhrase(loc.ageMinutes);
+    inference += ` The map pin shows their last known position from ${fixPhrase} ago`;
+    if (loc.accuracyLabel) {
+      inference += ` (${loc.accuracyLabel})`;
+    }
+    inference += '. They may have moved since then.';
+  } else {
+    inference += ' Last known location is unavailable.';
+  }
+
+  const facts = [
+    { field: 'lastHeartbeatAt', value: lastHeartbeat.toISOString() },
+    { field: 'minutesSinceHeartbeat', value: Math.round(staleMinutes) },
+    { field: 'online', value: device.online === true },
+  ];
+  if (loc.recordedAt) {
+    facts.push({ field: 'location.recordedAt', value: loc.recordedAt.toISOString() });
+    facts.push({ field: 'locationAgeMinutes', value: Math.round(loc.ageMinutes) });
+  }
+  if (loc.accuracy) facts.push({ field: 'accuracySource', value: loc.accuracy });
+
   return finalizeInsight({
     id: 'offline',
-    facts: [
-      { field: 'lastHeartbeatAt', value: lastHeartbeat.toISOString() },
-      { field: 'minutesSinceHeartbeat', value: Math.round(staleMinutes) },
-      { field: 'online', value: device.online === true },
-    ],
-    inference: `No heartbeat for ${Math.round(staleMinutes)} minutes (last at ${lastHeartbeat.toISOString()}). Device may be unreachable.`,
+    facts,
+    inference,
     confidence,
     level: staleMinutes >= offlineThreshold * 2 ? 'urgent' : 'warning',
     suppressBelow: 50,
@@ -178,13 +274,21 @@ function ruleStaleGps(device, config, now) {
   }
   if (accuracy) facts.push({ field: 'accuracySource', value: accuracy });
 
+  const accuracyLabel = formatAccuracyLabel(accuracy);
   let inference;
   let confidence;
   if (coordsInvalid) {
-    inference = 'GPS coordinates are invalid or missing.';
+    inference =
+      'Still waiting for a clear location from the pendant. This usually updates once it has a stronger signal.';
     confidence = 85;
   } else {
-    inference = `Last GPS fix is ${Math.round(ageMinutes)} minutes old (recorded ${recordedAt.toISOString()}). Location may be outdated.`;
+    const fixPhrase = locationAgePhrase(ageMinutes);
+    inference = `Last saw them about ${fixPhrase} ago`;
+    if (accuracy === 'wifi' || accuracy === 'lbs') {
+      inference += ' (approximate)';
+    }
+    inference +=
+      '. The map may be a little behind until a fresher update arrives.';
     confidence = Math.min(95, 55 + Math.round(ageMinutes));
   }
 
@@ -325,5 +429,9 @@ module.exports = {
   resolveHomeGeofence,
   shouldCreateOfflineAlert,
   resetIntelligenceStateForTests,
+  buildOfflineAlertCopy,
+  buildLocationContext,
+  deviceDisplayName,
+  locationAgePhrase,
   DEFAULT_CONFIG,
 };

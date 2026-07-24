@@ -52,6 +52,89 @@ void main() {
       expect(distance, greaterThan(0.1));
       expect(distance, lessThan(0.5));
     });
+
+    test('ignores GPS teleports and placeholder coordinates', () {
+      final points = [
+        const LocationHistoryPoint(lat: -20.02, lng: 57.59),
+        const LocationHistoryPoint(lat: 22.68, lng: 113.99),
+        const LocationHistoryPoint(lat: -20.03, lng: 57.60),
+      ];
+
+      expect(journeyDistanceKm(points), 0);
+    });
+  });
+
+  group('buildJourneyStats', () {
+    test('uses stored journey distances when records exist', () {
+      final points = _line(
+        count: 3,
+        startLat: -20.2642,
+        startLng: 57.4791,
+        latStep: 0.001,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 17, 20),
+        step: const Duration(minutes: 1),
+      );
+      final journeys = [
+        JourneyRecord(
+          id: 'j1',
+          startAt: DateTime(2026, 7, 22, 17, 20),
+          endAt: DateTime(2026, 7, 22, 17, 22),
+          distanceKm: 2.349,
+          pointCount: 13,
+          polyline: '',
+        ),
+      ];
+
+      final stats = buildJourneyStats(points, journeys: journeys);
+      expect(stats.distanceKm, 2.349);
+      expect(stats.pointCount, 3);
+    });
+
+    test('falls back to journey metadata when points are empty', () {
+      final journeys = [
+        JourneyRecord(
+          id: 'j1',
+          startAt: DateTime(2026, 7, 23, 16, 14),
+          endAt: DateTime(2026, 7, 23, 17, 3),
+          distanceKm: 2.674,
+          pointCount: 22,
+          polyline: '',
+        ),
+      ];
+
+      final stats = buildJourneyStats(const [], journeys: journeys);
+      expect(stats.distanceKm, 2.674);
+      expect(stats.pointCount, 22);
+      expect(stats.duration, const Duration(minutes: 49));
+    });
+  });
+
+  group('filterOutlierPoints', () {
+    test('removes factory placeholder coordinates', () {
+      final points = [
+        const LocationHistoryPoint(lat: -20.02, lng: 57.59),
+        const LocationHistoryPoint(lat: 22.68, lng: 113.99),
+        const LocationHistoryPoint(lat: -20.03, lng: 57.60),
+      ];
+
+      final filtered = filterOutlierPoints(points);
+      expect(filtered.length, 2);
+      expect(filtered.first.lat, closeTo(-20.02, 0.001));
+      expect(filtered.last.lat, closeTo(-20.03, 0.001));
+    });
+
+    test('removes equator noise from compressed journey polylines', () {
+      final points = [
+        const LocationHistoryPoint(lat: -20.02418, lng: 57.59117),
+        const LocationHistoryPoint(lat: 0.62588, lng: 57.59626),
+        const LocationHistoryPoint(lat: -20.02915, lng: 57.59604),
+      ];
+
+      final filtered = filterOutlierPoints(points);
+      expect(filtered.length, 2);
+      expect(filtered.every((p) => p.lat < -5), isTrue);
+    });
   });
 
   group('journeyDuration', () {
@@ -615,6 +698,42 @@ void main() {
     });
   });
 
+  group('pointsFromJourneyRecords', () {
+    test('expands today Bouboush gateway polylines with bad segment removed', () {
+      final journeys = [
+        JourneyRecord(
+          id: 'j1',
+          startAt: DateTime.utc(2026, 7, 23, 12, 14, 38),
+          endAt: DateTime.utc(2026, 7, 23, 12, 28, 0),
+          polyline: r'b~eyBygo~I|Wy^}Wx^??xRyPbD_M????????????cD~L',
+          distanceKm: 2.349,
+          pointCount: 13,
+        ),
+        JourneyRecord(
+          id: 'j2',
+          startAt: DateTime.utc(2026, 7, 23, 12, 34, 9),
+          endAt: DateTime.utc(2026, 7, 23, 12, 42, 0),
+          polyline: r'`wfyBsgp~I??',
+          distanceKm: 0,
+          pointCount: 2,
+        ),
+        JourneyRecord(
+          id: 'j3',
+          startAt: DateTime.utc(2026, 7, 23, 12, 47, 18),
+          endAt: DateTime.utc(2026, 7, 23, 13, 3, 0),
+          polyline: r'd}fyBgfp~IcEk@????xDJDD_EQ',
+          distanceKm: 0.325,
+          pointCount: 7,
+        ),
+      ];
+
+      final points = pointsFromJourneyRecords(journeys);
+      expect(points, isNotEmpty);
+      expect(points.length, greaterThanOrEqualTo(18));
+      expect(points.every((p) => p.lat < -5), isTrue);
+    });
+  });
+
   group('buildJourneyDayData', () {
     test('merges dwell segments into timeline labels', () {
       final start = DateTime(2026, 7, 22, 9, 0);
@@ -670,6 +789,34 @@ void main() {
             .label,
         contains('09:00'),
       );
+    });
+  });
+
+  group('bearingDegrees', () {
+    test('north is ~0° and east is ~90°', () {
+      expect(
+        bearingDegrees(-20.03, 57.59, -20.02, 57.59),
+        closeTo(0, 1),
+      );
+      expect(
+        bearingDegrees(-20.03, 57.59, -20.03, 57.60),
+        closeTo(90, 2),
+      );
+    });
+
+    test('bearingAtRouteIndex uses forward segment', () {
+      final points = _line(
+        count: 4,
+        startLat: -20.2642,
+        startLng: 57.4791,
+        latStep: 0.001,
+        lngStep: 0,
+        startTime: DateTime(2026, 7, 22, 17, 20),
+        step: const Duration(minutes: 1),
+      );
+      final bearing = bearingAtRouteIndex(points, 1);
+      expect(bearing, isNotNull);
+      expect(bearing!, closeTo(0, 5));
     });
   });
 }

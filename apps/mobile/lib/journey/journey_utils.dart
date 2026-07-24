@@ -9,6 +9,10 @@ import '../safe_zones/safe_zone_logic.dart';
 import 'journey_models.dart';
 
 const _earthRadiusM = 6371000.0;
+const maxReasonableSegmentMeters = 5000.0;
+const maxMapClusterRadiusMeters = 25000.0;
+const _factoryLat = 22.68;
+const _factoryLng = 113.99;
 const stoppedSpeedKmh = 1.0;
 const walkingSpeedKmh = 6.0;
 const bicycleSpeedKmh = 20.0;
@@ -17,6 +21,128 @@ const runningMaxSpeedKmh = 25.0;
 const runningMaxDuration = Duration(minutes: 3);
 const _minStoppedPoints = 3;
 
+/// Shenzhen factory placeholder coords sometimes appear before geolocation resolves.
+bool isKnownPlaceholderCoord(double lat, double lng) {
+  if (lat.abs() < 0.0001 && lng.abs() < 0.0001) return true;
+  if ((lat - _factoryLat).abs() < 0.05 && (lng - _factoryLng).abs() < 0.05) {
+    return true;
+  }
+  return false;
+}
+
+bool isPlausibleCoord(double lat, double lng) {
+  if (lat.isNaN || lng.isNaN) return false;
+  if (lat.abs() > 90 || lng.abs() > 180) return false;
+  if (isKnownPlaceholderCoord(lat, lng)) return false;
+  // Sign-corruption noise: lat ≈ 0 while lng looks like Mauritius.
+  if (lat > -5 && lat < 5 && lng > 55 && lng < 60) return false;
+  return true;
+}
+
+/// Clockwise degrees from true north (0–360) between two coordinates.
+double bearingDegrees(double lat1, double lng1, double lat2, double lng2) {
+  final phi1 = lat1 * math.pi / 180;
+  final phi2 = lat2 * math.pi / 180;
+  final dLambda = (lng2 - lng1) * math.pi / 180;
+  final y = math.sin(dLambda) * math.cos(phi2);
+  final x = math.cos(phi1) * math.sin(phi2) -
+      math.sin(phi1) * math.cos(phi2) * math.cos(dLambda);
+  final theta = math.atan2(y, x);
+  return (theta * 180 / math.pi + 360) % 360;
+}
+
+/// Travel heading at [index] along [points] (forward segment, else backward).
+double? bearingAtRouteIndex(List<LocationHistoryPoint> points, int index) {
+  if (points.length < 2 || index < 0 || index >= points.length) return null;
+
+  if (index < points.length - 1) {
+    final from = points[index];
+    final to = points[index + 1];
+    if (from.lat != to.lat || from.lng != to.lng) {
+      return bearingDegrees(from.lat, from.lng, to.lat, to.lng);
+    }
+  }
+  if (index > 0) {
+    final from = points[index - 1];
+    final to = points[index];
+    return bearingDegrees(from.lat, from.lng, to.lat, to.lng);
+  }
+  return null;
+}
+
+/// Drops placeholder coords and GPS teleports for map display and bounds.
+List<LocationHistoryPoint> filterOutlierPoints(
+  List<LocationHistoryPoint> points,
+) {
+  if (points.isEmpty) return points;
+
+  final kept = <LocationHistoryPoint>[];
+  for (final point in points) {
+    if (!isPlausibleCoord(point.lat, point.lng)) continue;
+    if (kept.isEmpty) {
+      kept.add(point);
+      continue;
+    }
+    final previous = kept.last;
+    final hop = haversineMeters(
+      previous.lat,
+      previous.lng,
+      point.lat,
+      point.lng,
+    );
+    if (hop <= maxReasonableSegmentMeters) {
+      kept.add(point);
+    }
+  }
+
+  return kept.isEmpty && points.isNotEmpty
+      ? points.where((p) => isPlausibleCoord(p.lat, p.lng)).toList(growable: false)
+      : kept;
+}
+
+/// Subset of [points] safe for map camera fit (no world-spanning bounds).
+List<LocationHistoryPoint> pointsForMapBounds(
+  List<LocationHistoryPoint> points,
+) {
+  final filtered = filterOutlierPoints(points);
+  if (filtered.length <= 1) return filtered;
+
+  var latSum = 0.0;
+  var lngSum = 0.0;
+  for (final point in filtered) {
+    latSum += point.lat;
+    lngSum += point.lng;
+  }
+  final centerLat = latSum / filtered.length;
+  final centerLng = lngSum / filtered.length;
+
+  final clustered = filtered
+      .where(
+        (point) =>
+            haversineMeters(centerLat, centerLng, point.lat, point.lng) <=
+            maxMapClusterRadiusMeters,
+      )
+      .toList(growable: false);
+
+  return clustered.isEmpty ? [filtered.first] : clustered;
+}
+
+double journeyDistanceKmFromRecords(List<JourneyRecord> journeys) {
+  return journeys.fold(0.0, (sum, journey) => sum + journey.distanceKm);
+}
+
+int journeyPointCountFromRecords(List<JourneyRecord> journeys) {
+  return journeys.fold(0, (sum, journey) => sum + journey.pointCount);
+}
+
+Duration journeyDurationFromRecords(List<JourneyRecord> journeys) {
+  if (journeys.isEmpty) return Duration.zero;
+  final sorted = List<JourneyRecord>.from(journeys)
+    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  final delta = sorted.last.endAt.difference(sorted.first.startAt);
+  return delta.isNegative ? Duration.zero : delta;
+}
+
 /// Total path length in kilometres from consecutive GPS points.
 double journeyDistanceKm(List<LocationHistoryPoint> points) {
   if (points.length < 2) return 0;
@@ -24,7 +150,12 @@ double journeyDistanceKm(List<LocationHistoryPoint> points) {
   for (var i = 1; i < points.length; i++) {
     final a = points[i - 1];
     final b = points[i];
-    meters += haversineMeters(a.lat, a.lng, b.lat, b.lng);
+    if (!isPlausibleCoord(a.lat, a.lng) || !isPlausibleCoord(b.lat, b.lng)) {
+      continue;
+    }
+    final hop = haversineMeters(a.lat, a.lng, b.lat, b.lng);
+    if (hop > maxReasonableSegmentMeters) continue;
+    meters += hop;
   }
   return meters / 1000.0;
 }
@@ -38,13 +169,29 @@ Duration journeyDuration(List<LocationHistoryPoint> points) {
   return delta.isNegative ? Duration.zero : delta;
 }
 
-JourneyStats buildJourneyStats(List<LocationHistoryPoint> points) {
+JourneyStats buildJourneyStats(
+  List<LocationHistoryPoint> points, {
+  List<JourneyRecord> journeys = const [],
+}) {
+  final hasPoints = points.isNotEmpty;
+  final distanceKm = journeys.isNotEmpty
+      ? journeyDistanceKmFromRecords(journeys)
+      : journeyDistanceKm(points);
+
   return JourneyStats(
-    pointCount: points.length,
-    distanceKm: journeyDistanceKm(points),
-    duration: journeyDuration(points),
-    startTime: points.firstOrNull?.recordedAt,
-    endTime: points.lastOrNull?.recordedAt,
+    pointCount: hasPoints
+        ? points.length
+        : journeyPointCountFromRecords(journeys),
+    distanceKm: distanceKm,
+    duration: hasPoints
+        ? journeyDuration(points)
+        : journeyDurationFromRecords(journeys),
+    startTime: hasPoints
+        ? points.firstOrNull?.recordedAt
+        : journeys.firstOrNull?.startAt,
+    endTime: hasPoints
+        ? points.lastOrNull?.recordedAt
+        : journeys.lastOrNull?.endAt,
   );
 }
 
@@ -123,7 +270,11 @@ double? effectiveSpeedKmh(LocationHistoryPoint from, LocationHistoryPoint to) {
   if (t1 == null || t2 == null) return null;
   final hours = t2.difference(t1).inMilliseconds / 3600000.0;
   if (hours <= 0) return null;
+  if (!isPlausibleCoord(from.lat, from.lng) || !isPlausibleCoord(to.lat, to.lng)) {
+    return null;
+  }
   final meters = haversineMeters(from.lat, from.lng, to.lat, to.lng);
+  if (meters > maxReasonableSegmentMeters) return null;
   return (meters / 1000.0) / hours;
 }
 
@@ -1210,7 +1361,11 @@ List<LocationHistoryPoint> pointsFromJourneyRecords(List<JourneyRecord> journeys
   for (final journey in sorted) {
     points.addAll(_pointsFromJourneyRecord(journey));
   }
-  return points;
+  final filtered = filterOutlierPoints(points);
+  if (filtered.isNotEmpty) return filtered;
+  return points
+      .where((p) => !isKnownPlaceholderCoord(p.lat, p.lng))
+      .toList(growable: false);
 }
 
 List<LocationHistoryPoint> _pointsFromJourneyRecord(JourneyRecord journey) {

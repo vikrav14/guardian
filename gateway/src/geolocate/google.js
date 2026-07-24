@@ -28,6 +28,26 @@ function isMacAddress(field) {
   return /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(String(field || '').trim());
 }
 
+function isUsableMac(field) {
+  if (!isMacAddress(field)) return false;
+  const mac = normalizeMac(field);
+  return mac !== '00:00:00:00:00:00' && mac !== 'ff:ff:ff:ff:ff:ff';
+}
+
+/** Scan pre-WiFi fields for MCC/MNC/LAC/cellId (V28C buries them after status bytes). */
+function findCellBlockStart(fields) {
+  for (let i = 0; i + 3 < fields.length; i++) {
+    const mcc = parseInt(fields[i], 10);
+    const mnc = parseInt(fields[i + 1], 10);
+    const lac = parseInt(fields[i + 2], 10);
+    const cellId = parseInt(fields[i + 3], 10);
+    if (isValidMcc(mcc) && !Number.isNaN(mnc) && !Number.isNaN(lac) && !Number.isNaN(cellId)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function isValidMcc(value) {
   return Number.isInteger(value) && value >= 200 && value <= 999;
 }
@@ -44,7 +64,7 @@ function parseLteExtras(extras) {
 
   for (let i = 0; i < extras.length; i++) {
     const field = extras[i]?.trim();
-    if (!field || !isMacAddress(field)) continue;
+    if (!field || !isUsableMac(field)) continue;
 
     const ap = { macAddress: normalizeMac(field) };
     const next = extras[i + 1]?.trim();
@@ -58,7 +78,7 @@ function parseLteExtras(extras) {
     wifiAccessPoints.push(ap);
   }
 
-  const firstMacIdx = extras.findIndex((f) => isMacAddress(f?.trim()));
+  const firstMacIdx = extras.findIndex((f) => isUsableMac(f?.trim()));
   let cellFields = (firstMacIdx >= 0 ? extras.slice(0, firstMacIdx) : extras)
     .map((f) => f?.trim())
     .filter(Boolean);
@@ -75,56 +95,55 @@ function parseLteExtras(extras) {
     }
   }
 
-  if (cellFields.length >= 4) {
-    const mcc = parseInt(cellFields[0], 10);
-    const mnc = parseInt(cellFields[1], 10);
-    const lac = parseInt(cellFields[2], 10);
-    const cellId = parseInt(cellFields[3], 10);
+  const cellStart = findCellBlockStart(cellFields);
+  if (cellStart >= 0 && cellStart + 3 < cellFields.length) {
+    const mcc = parseInt(cellFields[cellStart], 10);
+    const mnc = parseInt(cellFields[cellStart + 1], 10);
+    const lac = parseInt(cellFields[cellStart + 2], 10);
+    const cellId = parseInt(cellFields[cellStart + 3], 10);
 
-    if (isValidMcc(mcc) && !Number.isNaN(mnc) && !Number.isNaN(lac) && !Number.isNaN(cellId)) {
-      const primary = {
+    const primary = {
+      mobileCountryCode: mcc,
+      mobileNetworkCode: mnc,
+      locationAreaCode: lac,
+      cellId,
+    };
+    let idx = cellStart + 4;
+
+    const primarySignal = cellFields[idx] ? parseSignal(cellFields[idx]) : null;
+    if (primarySignal != null) {
+      primary.signalStrength = primarySignal;
+      idx += 1;
+    } else if (cellFields[idx]) {
+      const maybeCount = parseInt(cellFields[idx], 10);
+      if (!Number.isNaN(maybeCount) && maybeCount >= 1 && maybeCount <= 10) {
+        idx += 1;
+      }
+    }
+
+    cellTowers.push(primary);
+
+    while (idx + 2 <= cellFields.length) {
+      const nLac = parseInt(cellFields[idx], 10);
+      const nCellId = parseInt(cellFields[idx + 1], 10);
+      if (Number.isNaN(nLac) || Number.isNaN(nCellId) || nCellId < 1000) break;
+
+      const neighbor = {
         mobileCountryCode: mcc,
         mobileNetworkCode: mnc,
-        locationAreaCode: lac,
-        cellId,
+        locationAreaCode: nLac,
+        cellId: nCellId,
       };
-      let idx = 4;
+      idx += 2;
 
-      const primarySignal = cellFields[idx] ? parseSignal(cellFields[idx]) : null;
-      if (primarySignal != null) {
-        primary.signalStrength = primarySignal;
-        idx += 1;
-      } else if (cellFields[idx]) {
-        const maybeCount = parseInt(cellFields[idx], 10);
-        if (!Number.isNaN(maybeCount) && maybeCount >= 1 && maybeCount <= 10) {
+      if (cellFields[idx]) {
+        const nSig = parseSignal(cellFields[idx]);
+        if (nSig != null) {
+          neighbor.signalStrength = nSig;
           idx += 1;
         }
       }
-
-      cellTowers.push(primary);
-
-      while (idx + 2 <= cellFields.length) {
-        const nLac = parseInt(cellFields[idx], 10);
-        const nCellId = parseInt(cellFields[idx + 1], 10);
-        if (Number.isNaN(nLac) || Number.isNaN(nCellId)) break;
-
-        const neighbor = {
-          mobileCountryCode: mcc,
-          mobileNetworkCode: mnc,
-          locationAreaCode: nLac,
-          cellId: nCellId,
-        };
-        idx += 2;
-
-        if (cellFields[idx]) {
-          const nSig = parseSignal(cellFields[idx]);
-          if (nSig != null) {
-            neighbor.signalStrength = nSig;
-            idx += 1;
-          }
-        }
-        cellTowers.push(neighbor);
-      }
+      cellTowers.push(neighbor);
     }
   }
 

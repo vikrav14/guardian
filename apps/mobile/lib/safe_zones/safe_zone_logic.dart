@@ -207,9 +207,19 @@ bool isEmergencyAlert(GuardianAlert alert) {
   if (alert.resolved) return false;
   final type = alert.type.toLowerCase();
   if (type == 'sos' || type == 'fall') return true;
-  return alert.severity.toLowerCase() == 'critical' &&
-      type != 'geofence_enter' &&
-      type != 'geofence_exit';
+  if (alert.severity.toLowerCase() != 'critical') return false;
+  // Prolonged offline (and similar) can be severity "critical" but are not
+  // SOS / rescue emergencies — those belong in Attention, not SOS.
+  switch (type) {
+    case 'offline':
+    case 'geofence_enter':
+    case 'geofence_exit':
+    case 'low_battery':
+    case 'stale_gps':
+      return false;
+    default:
+      return true;
+  }
 }
 
 bool alertMatchesZone(GuardianAlert alert, Geofence zone) {

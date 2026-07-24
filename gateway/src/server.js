@@ -2,6 +2,11 @@ const net = require('net');
 
 const config = require('./config');
 
+const { logNgrokHint } = require('./ngrok-hint');
+const { maybeAnnounceConnecting } = require('./connection-handshake');
+const { buildSessionPersistPatch, shouldForceSessionPersist, buildPresenceTouchPatch, SESSION_LIVE_PACKETS } = require('./connection-live');
+const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offline');
+
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
 
 const {
@@ -9,6 +14,8 @@ const {
   initFirestore,
 
   getDb,
+
+  getDeviceDocument,
 
   upsertDevice,
 
@@ -28,6 +35,8 @@ const {
 
 const { evaluateGeofenceTransitions } = require('./geofence');
 
+const { geolocateFromV } = require('./geolocate/google');
+
 const { startHttpServer } = require('./http');
 
 const {
@@ -43,6 +52,10 @@ const {
   unregisterSession,
 
   getSession,
+
+  touchSessionActivity,
+
+  noteSessionPacket,
 
 } = require('./sessions');
 
@@ -108,9 +121,13 @@ setInterval(() => {
 
 
 
-async function persistDeviceState(imei, patch, gateReason) {
+async function persistDeviceState(imei, patch, gateReason, session) {
 
-  await upsertDevice(imei, patch);
+  const sessionPatch = buildSessionPersistPatch(session, patch);
+
+  await upsertDevice(imei, sessionPatch);
+
+  if (session) session.lastPresenceAt = Date.now();
 
   recordPersist(imei, {
 
@@ -126,6 +143,15 @@ async function persistDeviceState(imei, patch, gateReason) {
 
   }
 
+}
+
+/** While TCP is live, keep Online even when write-gate skips a full update. */
+async function touchPresenceIfNeeded(imei, session) {
+  const patch = buildPresenceTouchPatch(session);
+  if (!patch) return false;
+  await upsertDevice(imei, patch);
+  console.log(`[presence] touch ${imei} (network session still live)`);
+  return true;
 }
 
 
@@ -219,7 +245,7 @@ async function resolveGeolocation(event) {
 
 
 
-async function applyEvents(events) {
+async function applyEvents(events, session) {
 
   for (const event of events) {
 
@@ -239,46 +265,31 @@ async function applyEvents(events) {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
 
-
-
-      if (event.type === 'login') {
-
-        onDeviceConnect(event.imei);
-
-        await persistDeviceState(
-
+      if (event.imei) {
+        await maybeAnnounceConnecting(
+          session,
           event.imei,
-
-          {
-
-            ...devicePatch,
-
-            online: true,
-
-            lastHeartbeatAt: new Date(),
-
-            createdAt: new Date(),
-
-          },
-
-          'login'
-
+          devicePatch,
+          upsertDevice,
+          onDeviceConnect,
+          cancelPendingOffline
         );
+      }
 
-      } else if (event.type === 'location') {
+      if (event.type === 'location') {
         const resolved = await resolveGeolocation(event);
         if (!resolved?.location || typeof resolved.location.lat !== 'number') {
           continue;
         }
-        event = resolved;
+        const locEvent = resolved;
 
-        updateLiveState(event.imei, {
+        updateLiveState(locEvent.imei, {
 
-          location: event.location,
+          location: locEvent.location,
 
-          speedKmh: event.speedKmh,
+          speedKmh: locEvent.speedKmh,
 
-          accuracySource: event.accuracySource,
+          accuracySource: locEvent.accuracySource,
 
         });
 
@@ -290,15 +301,15 @@ async function applyEvents(events) {
 
         let exitTransition = null;
 
-        if (db && event.location) {
+        if (db && locEvent.location) {
 
           const transitions = await evaluateGeofenceTransitions(
 
             db,
 
-            event.imei,
+            locEvent.imei,
 
-            event.location
+            locEvent.location
 
           );
 
@@ -306,9 +317,9 @@ async function applyEvents(events) {
 
           for (const t of transitions) {
 
-            console.log(`[geofence] ${event.imei} ${t.type}: ${t.message}`);
+            console.log(`[geofence] ${locEvent.imei} ${t.type}: ${t.message}`);
 
-            await createAlert(event.imei, t);
+            await createAlert(locEvent.imei, t);
 
             if (t.type === 'geofence_exit') {
 
@@ -322,15 +333,15 @@ async function applyEvents(events) {
 
 
 
-        trackPointForDwell(event.imei, {
+        trackPointForDwell(locEvent.imei, {
 
-          lat: event.location.lat,
+          lat: locEvent.location.lat,
 
-          lng: event.location.lng,
+          lng: locEvent.location.lng,
 
-          speedKmh: event.speedKmh,
+          speedKmh: locEvent.speedKmh,
 
-          recordedAt: event.location.recordedAt,
+          recordedAt: locEvent.location.recordedAt,
 
           geofenceId: exitTransition?.payload?.geofenceId || null,
 
@@ -344,19 +355,19 @@ async function applyEvents(events) {
 
         const journeyResult = trackPointForJourney(
 
-          event.imei,
+          locEvent.imei,
 
           {
 
-            lat: event.location.lat,
+            lat: locEvent.location.lat,
 
-            lng: event.location.lng,
+            lng: locEvent.location.lng,
 
-            speedKmh: event.speedKmh,
+            speedKmh: locEvent.speedKmh,
 
-            accuracySource: event.accuracySource,
+            accuracySource: locEvent.accuracySource,
 
-            recordedAt: event.location.recordedAt,
+            recordedAt: locEvent.location.recordedAt,
 
           },
 
@@ -378,19 +389,19 @@ async function applyEvents(events) {
 
         if (journeyResult.flushes.length) {
 
-          await flushJourneys(event.imei, journeyResult.flushes);
+          await flushJourneys(locEvent.imei, journeyResult.flushes);
 
         }
 
 
 
-        const gate = shouldPersist(event.imei, {
+        const gate = shouldPersist(locEvent.imei, {
 
           eventType: 'location',
 
-          location: event.location,
+          location: locEvent.location,
 
-          batteryPercent: event.batteryPercent,
+          batteryPercent: locEvent.batteryPercent,
 
           geofenceTransition,
 
@@ -398,11 +409,11 @@ async function applyEvents(events) {
 
 
 
-        if (gate.persist) {
+        if (gate.persist || shouldForceSessionPersist(session)) {
 
           await persistDeviceState(
 
-            event.imei,
+            locEvent.imei,
 
             {
 
@@ -412,57 +423,59 @@ async function applyEvents(events) {
 
               lastHeartbeatAt: new Date(),
 
-              location: event.location,
+              location: locEvent.location,
 
-              speedKmh: event.speedKmh,
+              speedKmh: locEvent.speedKmh,
 
-              course: event.course,
+              course: locEvent.course,
 
-              accuracySource: event.accuracySource,
+              accuracySource: locEvent.accuracySource,
 
-              ...(event.batteryPercent != null
+              ...(locEvent.batteryPercent != null
 
-                ? { batteryPercent: event.batteryPercent }
+                ? { batteryPercent: locEvent.batteryPercent }
 
                 : {}),
 
             },
 
-            gate.reason
+            gate.persist ? gate.reason : 'session_live',
+
+            session
 
           );
 
           if (shouldAppendLocationHistory(gate)) {
 
-            await appendLocation(event.imei, {
+            await appendLocation(locEvent.imei, {
 
-              lat: event.location.lat,
+              lat: locEvent.location.lat,
 
-              lng: event.location.lng,
+              lng: locEvent.location.lng,
 
-              speedKmh: event.speedKmh,
+              speedKmh: locEvent.speedKmh,
 
-              accuracySource: event.accuracySource,
+              accuracySource: locEvent.accuracySource,
 
-              recordedAt: event.location.recordedAt,
+              recordedAt: locEvent.location.recordedAt,
 
             });
 
           }
 
-          await refreshDeviceIntelligence(event.imei, {
+          await refreshDeviceIntelligence(locEvent.imei, {
 
-            ...getLiveDeviceState(event.imei),
+            ...getLiveDeviceState(locEvent.imei),
 
             lastHeartbeatAt: new Date(),
 
-            location: event.location,
+            location: locEvent.location,
 
-            speedKmh: event.speedKmh,
+            speedKmh: locEvent.speedKmh,
 
-            accuracySource: event.accuracySource,
+            accuracySource: locEvent.accuracySource,
 
-            batteryPercent: event.batteryPercent,
+            batteryPercent: locEvent.batteryPercent,
 
           });
 
@@ -470,11 +483,13 @@ async function applyEvents(events) {
 
           recordSkip();
 
+          await touchPresenceIfNeeded(locEvent.imei, session);
+
         }
 
 
 
-        await maybeFlushDwell(event.imei);
+        await maybeFlushDwell(locEvent.imei);
 
       } else if (event.type === 'heartbeat') {
 
@@ -498,7 +513,7 @@ async function applyEvents(events) {
 
 
 
-        if (gate.persist) {
+        if (gate.persist || shouldForceSessionPersist(session)) {
 
           await persistDeviceState(
 
@@ -518,7 +533,9 @@ async function applyEvents(events) {
 
             },
 
-            gate.reason
+            gate.persist ? gate.reason : 'session_live',
+
+            session
 
           );
 
@@ -537,6 +554,8 @@ async function applyEvents(events) {
         } else {
 
           recordSkip();
+
+          await touchPresenceIfNeeded(event.imei, session);
 
         }
 
@@ -630,7 +649,7 @@ async function applyEvents(events) {
 
 
 
-        await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm');
+        await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session);
 
         if (alarmEvent.location) {
 
@@ -718,23 +737,13 @@ async function applyEvents(events) {
 
       } else if (event.type === 'imei_report') {
 
-        await persistDeviceState(
+        await upsertDevice(event.imei, {
 
-          event.imei,
+          protocolId: event.protocolId,
 
-          {
+          fullImei: event.fullImei,
 
-            online: true,
-
-            protocolId: event.protocolId,
-
-            fullImei: event.fullImei,
-
-          },
-
-          'imei_report'
-
-        );
+        });
 
         console.log(
 
@@ -792,9 +801,11 @@ const server = net.createServer((socket) => {
 
     if (!session) return;
 
-
+    noteSessionPacket(socket);
 
     session.buffer = Buffer.concat([session.buffer, chunk]);
+
+    touchSessionActivity(socket);
 
     const { frames, rest } = extractFrames(session.buffer);
 
@@ -814,7 +825,7 @@ const server = net.createServer((socket) => {
 
       }
 
-      applyEvents(events).catch((err) => {
+      applyEvents(events, session).catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 
@@ -860,11 +871,15 @@ const server = net.createServer((socket) => {
 
       }
 
-      upsertDevice(session.imei, { online: false }).catch((err) => {
-
-        console.error('[gateway] offline update failed', err.message);
-
-      });
+      const reachedLive = (session.persistCount || 0) >= SESSION_LIVE_PACKETS;
+      if (reachedLive) {
+        scheduleDeviceOffline(
+          session.imei,
+          upsertDevice,
+          config.offlineDebounceMs,
+          getDeviceDocument
+        );
+      }
 
       onDeviceDisconnect(session.imei);
 
@@ -899,6 +914,8 @@ server.listen(config.port, config.host, () => {
     `[write-gate] min=${config.writeGateMinMetres}m heartbeat=${config.writeGateHeartbeatMinutes}min history=${config.writeGateHistoryMinutes}min dwell=${config.dwellMinMinutes}min journeyIdle=${config.journeyIdleMinutes}min`
 
   );
+
+  logNgrokHint(config.port).catch(() => {});
 
 });
 

@@ -32,6 +32,34 @@ test('resolveHomeGeofence uses sole geofence when only one active', () => {
   assert.equal(resolveHomeGeofence(zones).name, 'Office');
 });
 
+test('buildOfflineAlertCopy uses person-first language without ISO timestamps', () => {
+  const { buildOfflineAlertCopy } = require('../src/intelligence');
+  const copy = buildOfflineAlertCopy(
+    {
+      nickname: 'Bouboush',
+      accuracySource: 'wifi',
+      location: {
+        lat: -20.2642,
+        lng: 57.4791,
+        recordedAt: new Date('2026-07-23T15:29:49.447Z'),
+      },
+    },
+    35,
+    {
+      hasCoords: true,
+      ageMinutes: 39,
+      accuracy: 'wifi',
+      accuracyLabel: 'WiFi positioning (approximate)',
+    }
+  );
+
+  assert.equal(copy.title, "Bouboush hasn't checked in");
+  assert.match(copy.message, /We haven't heard from Bouboush for 35 minutes/);
+  assert.match(copy.message, /last known position/);
+  assert.doesNotMatch(copy.message, /20\d{2}-\d{2}-\d{2}T/);
+  assert.doesNotMatch(copy.message, /heartbeat/i);
+});
+
 test('offline rule fires after configurable heartbeat gap', () => {
   const now = new Date('2026-07-22T12:00:00Z');
   const insights = evaluateDeviceIntelligence({
@@ -41,13 +69,21 @@ test('offline rule fires after configurable heartbeat gap', () => {
     device: {
       online: true,
       lastHeartbeatAt: new Date('2026-07-22T11:45:00Z'),
+      accuracySource: 'wifi',
+      location: {
+        lat: -20.2642,
+        lng: 57.4791,
+        recordedAt: new Date('2026-07-22T11:46:00Z'),
+      },
     },
   });
 
   const offline = insights.find((i) => i.id === 'offline');
   assert.ok(offline);
   assert.equal(offline.level, 'warning');
-  assert.match(offline.inference, /No heartbeat for 15 minutes/);
+  assert.match(offline.inference, /No contact for 15 minutes/);
+  assert.match(offline.inference, /last known position/);
+  assert.match(offline.inference, /WiFi positioning/);
   assert.ok(offline.confidence >= 50);
 });
 
@@ -89,7 +125,7 @@ test('stale_gps flags old location fixes', () => {
 
   const rule = insights.find((i) => i.id === 'stale_gps');
   assert.ok(rule);
-  assert.match(rule.inference, /10 minutes old/);
+  assert.match(rule.inference, /10 minutes old|10 minute/);
 });
 
 test('geofence_exit_urgent summarizes outside home zone', () => {

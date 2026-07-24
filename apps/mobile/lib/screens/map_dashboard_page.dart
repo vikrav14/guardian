@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -7,9 +8,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../dashboard/device_connectivity.dart';
 import '../dashboard/dashboard_status_colors.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/dashboard_insight.dart';
+import '../dashboard/linking_story.dart';
 import '../dashboard/device_card_visibility.dart';
 import '../dashboard/device_formatters.dart';
 import '../models/alert.dart';
@@ -23,9 +26,11 @@ import '../widgets/brand/dodo_ai_icon.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/dashboard/dashboard_desktop_top_bar.dart';
 import '../widgets/dashboard/desktop_dashboard_layout.dart';
+import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/dashboard/smart_device_map_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/map_avatar_overlay.dart';
+import '../widgets/map/map_my_location_avatar_button.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_page.dart';
 
@@ -44,12 +49,16 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   bool _myLocationEnabled = false;
   double _zoom = 13;
   Timer? _emergencyHoldTimer;
+  Timer? _linkingTimer;
+  int _linkingTick = 0;
   int _emergencyHoldTenths = 0;
   Map<String, BitmapDescriptor> _markerIcons = const {};
   String _markerFingerprint = '';
   int _markerGeneration = 0;
   Set<Circle> _cachedCircles = const {};
   String _cachedCirclesKey = '';
+  String _geofenceFingerprint = '';
+  int _lastGeofenceCount = 0;
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
   StreamSubscription<List<GuardianAlert>>? _alertsSubscription;
   List<GuardianAlert> _alerts = const [];
@@ -64,6 +73,9 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   String? get _selectedImei => _dashboard.selectedImei;
   String? get _error => _dashboard.error?.toString();
   bool get _loading => _dashboard.loading;
+
+  bool _isReconnecting(Device device) => _dashboard.isReconnecting(device);
+  bool _isLive(Device device) => _dashboard.isLive(device);
 
   @override
   void initState() {
@@ -80,6 +92,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureDeviceCardPrefsLoaded();
       _syncDeviceCardVisibility();
+      _syncLinkingAnimation();
     });
   }
 
@@ -144,11 +157,111 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   void _onDashboardChanged() {
     if (!mounted) return;
     setState(() {});
+    _syncLinkingAnimation();
     _ensureDeviceCardPrefsLoaded();
     _syncDeviceCardVisibility();
     unawaited(_refreshMarkerIcons());
     _fitIfNeeded(_devices);
+    _fitGeofencesIfNeeded();
     _followSelected(_devices);
+  }
+
+  void _syncLinkingAnimation() {
+    final linking = _selected?.isReconnecting ?? false;
+    if (linking && _linkingTimer == null) {
+      _linkingTimer = Timer.periodic(linkingMessageHold, (_) {
+        if (!mounted) return;
+        setState(() => _linkingTick++);
+      });
+    } else if (!linking) {
+      _linkingTimer?.cancel();
+      _linkingTimer = null;
+      if (_linkingTick != 0) {
+        _linkingTick = 0;
+      }
+    }
+  }
+
+  List<Geofence> get _mapGeofences {
+    final imei = _selectedImei;
+    final active = _geofences.where((zone) {
+      if (!zone.active) return false;
+      if (zone.lat == 0 && zone.lng == 0) return false;
+      if (imei == null) return true;
+      return zone.imei == imei;
+    });
+    return active.toList();
+  }
+
+  String _geofencesFingerprint(List<Geofence> zones) {
+    return zones
+        .map(
+          (zone) =>
+              '${zone.id}|${zone.imei}|${zone.lat}|${zone.lng}|${zone.radiusMeters}',
+        )
+        .join('||');
+  }
+
+  double _zoomForGeofenceRadius(double radiusMeters, double lat) {
+    final cosLat = math.cos(lat * math.pi / 180).abs().clamp(0.01, 1.0);
+    final metersPerPixelTarget = radiusMeters / 55;
+    final zoom = math.log(156543 * cosLat / metersPerPixelTarget) / math.ln2;
+    return zoom.clamp(13.0, 18.0);
+  }
+
+  void _fitGeofencesIfNeeded() {
+    final zones = _mapGeofences;
+    final fingerprint = _geofencesFingerprint(zones);
+    if (fingerprint == _geofenceFingerprint) return;
+
+    final isNewZone = zones.length > _lastGeofenceCount;
+    _geofenceFingerprint = fingerprint;
+    _lastGeofenceCount = zones.length;
+    _cachedCirclesKey = '';
+
+    if (zones.isEmpty || _mapController == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _mapController == null) return;
+      try {
+        if (zones.length == 1 && isNewZone) {
+          final zone = zones.first;
+          final zoom = _zoomForGeofenceRadius(zone.radiusMeters, zone.lat);
+          await _animateTo(LatLng(zone.lat, zone.lng), zoom: zoom);
+          return;
+        }
+
+        var minLat = zones.first.lat;
+        var maxLat = zones.first.lat;
+        var minLng = zones.first.lng;
+        var maxLng = zones.first.lng;
+        for (final zone in zones) {
+          final latPad = zone.radiusMeters / 111000;
+          final lngPad = zone.radiusMeters / (111000 * math.cos(zone.lat * math.pi / 180));
+          minLat = math.min(minLat, zone.lat - latPad);
+          maxLat = math.max(maxLat, zone.lat + latPad);
+          minLng = math.min(minLng, zone.lng - lngPad);
+          maxLng = math.max(maxLng, zone.lng + lngPad);
+        }
+        for (final device in _devices) {
+          if (!device.hasFreshLocation) continue;
+          final loc = device.location!;
+          minLat = math.min(minLat, loc.lat);
+          maxLat = math.max(maxLat, loc.lat);
+          minLng = math.min(minLng, loc.lng);
+          maxLng = math.max(maxLng, loc.lng);
+        }
+        await _mapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(
+              southwest: LatLng(minLat, minLng),
+              northeast: LatLng(maxLat, maxLng),
+            ),
+            56,
+          ),
+        );
+      } catch (_) {}
+    });
   }
 
   Future<void> _refreshMarkerIcons() async {
@@ -205,6 +318,45 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     } catch (_) {
       // Own-location is a nice-to-have overlay; ignore failures.
     }
+  }
+
+  Future<void> _recenterOnMyLocation() async {
+    try {
+      if (!_myLocationEnabled) {
+        await _requestLocationPermission();
+        if (!_myLocationEnabled) return;
+      }
+      final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      await _animateTo(LatLng(position.latitude, position.longitude), zoom: 16);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read your location')),
+        );
+      }
+    }
+  }
+
+  String _guardianInitials() {
+    final user = FirebaseAuth.instance.currentUser;
+    return initialsFor(
+      user?.displayName?.trim().isNotEmpty == true
+          ? user!.displayName!
+          : (user?.email ?? 'G'),
+    );
+  }
+
+  Widget _mapMeButton({required double bottom}) {
+    return Positioned(
+      right: 14,
+      bottom: bottom,
+      child: MapMyLocationAvatarButton(
+        initials: _guardianInitials(),
+        tooltip: 'My location',
+        onPressed: () => unawaited(_recenterOnMyLocation()),
+      ),
+    );
   }
 
   Future<void> _animateTo(LatLng target, {double? zoom}) async {
@@ -274,6 +426,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   @override
   void dispose() {
     _emergencyHoldTimer?.cancel();
+    _linkingTimer?.cancel();
     _alertsSubscription?.cancel();
     _mapCameraGeneration.dispose();
     _dashboard
@@ -355,25 +508,22 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   Set<Circle> _circles() {
-    final key = _geofences
-        .map(
-          (zone) =>
-              '${zone.id}|${zone.active}|${zone.lat}|${zone.lng}|${zone.radiusMeters}',
-        )
-        .join('||');
+    final zones = _mapGeofences;
+    final key =
+        '${_selectedImei ?? 'all'}|${_geofencesFingerprint(zones)}';
     if (key == _cachedCirclesKey) return _cachedCircles;
     _cachedCirclesKey = key;
     _cachedCircles = {
-      for (final zone in _geofences)
-        if (zone.active && (zone.lat != 0 || zone.lng != 0))
-          Circle(
-            circleId: CircleId(zone.id),
-            center: LatLng(zone.lat, zone.lng),
-            radius: zone.radiusMeters,
-            fillColor: GuardianColors.safe.withValues(alpha: 0.12),
-            strokeColor: GuardianColors.safe,
-            strokeWidth: 2,
-          ),
+      for (final zone in zones)
+        Circle(
+          circleId: CircleId(zone.id),
+          center: LatLng(zone.lat, zone.lng),
+          radius: zone.radiusMeters,
+          fillColor: GuardianColors.safe.withValues(alpha: 0.22),
+          strokeColor: GuardianColors.safe,
+          strokeWidth: 3,
+          zIndex: 1,
+        ),
     };
     return _cachedCircles;
   }
@@ -581,10 +731,20 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
             top: 16,
             left: 16,
             child: StatusPill(
-              label: selected?.online == true ? '● Live' : 'Map',
-              tone: selected?.online == true ? PillTone.safe : PillTone.neutral,
+              label: selected == null
+                  ? 'Map'
+                  : _isReconnecting(selected)
+                      ? 'Linking up'
+                      : (_isLive(selected) ? '● Live' : 'Map'),
+              tone: selected == null
+                  ? PillTone.neutral
+                  : _isReconnecting(selected)
+                      ? PillTone.neutral
+                      : (_isLive(selected) ? PillTone.safe : PillTone.neutral),
             ),
           ),
+          // Above Google zoom controls (bottom-right), stock my-location size.
+          _mapMeButton(bottom: 108),
           if (selected != null)
             _deviceCardMinimized
                 ? Positioned(
@@ -611,10 +771,12 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     required Device? selected,
     required LatLng center,
     required String userInitials,
-    required int onlineCount,
-    required bool allSafe,
     required DashboardInsight insight,
   }) {
+    final mood = dashboardSafetyMood(_devices);
+    final onlineCount = _devices
+        .where((d) => d.connectivityPhase() == DeviceConnectivityPhase.live)
+        .length;
     final quickActions = selected == null
         ? null
         : _QuickActions(
@@ -674,14 +836,16 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
       body: DesktopDashboardLayout(
         topBar: DashboardDesktopTopBar(userInitials: userInitials),
         safetySummary: _SafetyHero(
-          safe: allSafe,
+          safe: mood == DashboardSafetyMood.allClear,
           onlineCount: onlineCount,
           totalCount: _devices.length,
           updated: selected == null
               ? 'Waiting for a linked device'
               : deviceUpdatedLabel(selected),
+          titleOverride: dashboardSafetyTitle(_devices),
+          subtitleOverride: dashboardSafetySubtitle(_devices),
         ),
-        liveStatus: _LiveStatusBar(device: selected),
+        liveStatus: _LiveStatusBar(device: selected, linkingTick: _linkingTick),
         map: _desktopMapPanel(center: center, selected: selected),
         devices: _DesktopDevicesCard(
           devices: _devices,
@@ -721,17 +885,20 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
         ? LatLng(selected!.location!.lat, selected.location!.lng)
         : _mauritius;
 
-    final onlineCount = _devices.where((device) => device.online).length;
-    final allSafe = _devices.isNotEmpty && onlineCount == _devices.length;
-    final insight = buildDashboardInsight(selected);
+    final insight = buildDashboardInsightForDevice(
+      selected,
+      linkingTick: _linkingTick,
+    );
+    final mood = dashboardSafetyMood(_devices);
+    final onlineCount = _devices
+        .where((d) => d.connectivityPhase() == DeviceConnectivityPhase.live)
+        .length;
 
     if (MediaQuery.sizeOf(context).width >= GuardianBreakpoints.expanded) {
       return _buildDesktopDashboard(
         selected: selected,
         center: center,
         userInitials: userInitials,
-        onlineCount: onlineCount,
-        allSafe: allSafe,
         insight: insight,
       );
     }
@@ -775,15 +942,17 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                   sliver: SliverList.list(
                     children: [
                       _SafetyHero(
-                        safe: allSafe,
+                        safe: mood == DashboardSafetyMood.allClear,
                         onlineCount: onlineCount,
                         totalCount: _devices.length,
                         updated: selected == null
                             ? 'Waiting for a linked device'
                             : deviceUpdatedLabel(selected),
+                        titleOverride: dashboardSafetyTitle(_devices),
+                        subtitleOverride: dashboardSafetySubtitle(_devices),
                       ),
                       const SizedBox(height: 10),
-                      _LiveStatusBar(device: selected),
+                      _LiveStatusBar(device: selected, linkingTick: _linkingTick),
                       const SizedBox(height: 12),
                       SizedBox(
                         height: 300,
@@ -832,13 +1001,26 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                 top: 14,
                                 left: 14,
                                 child: StatusPill(
-                                  label: selected?.online == true
+                                  label: selected != null &&
+                                          _isLive(selected)
                                       ? '● Live'
-                                      : 'Map',
-                                  tone: selected?.online == true
+                                      : (selected != null &&
+                                              _isReconnecting(selected)
+                                          ? 'Linking up'
+                                          : 'Map'),
+                                  tone: selected != null &&
+                                          _isLive(selected)
                                       ? PillTone.safe
-                                      : PillTone.neutral,
+                                      : (selected != null &&
+                                              _isReconnecting(selected)
+                                          ? PillTone.warning
+                                          : PillTone.neutral),
                                 ),
+                              ),
+                              _mapMeButton(
+                                bottom: selected != null && !_deviceCardMinimized
+                                    ? 118
+                                    : 14,
                               ),
                               if (selected != null)
                                 Positioned(
@@ -1040,6 +1222,11 @@ class _DesktopDevicesCard extends StatelessWidget {
   final String? selectedImei;
   final ValueChanged<Device> onSelect;
 
+  bool _isLive(Device device) =>
+      device.connectivityPhase() == DeviceConnectivityPhase.live;
+
+  bool _isReconnecting(Device device) => device.isReconnecting;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
@@ -1057,7 +1244,7 @@ class _DesktopDevicesCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${devices.where((device) => device.online).length} online',
+                '${devices.where(_isLive).length} online',
                 style: TextStyle(
                   fontSize: 9,
                   color: colors.textMuted,
@@ -1131,14 +1318,18 @@ class _DesktopDevicesCard extends StatelessWidget {
                                               ),
                                             ),
                                             Text(
-                                              device.online
+                                              _isLive(device)
                                                   ? '$relation● Online • GPS ${device.hasFreshLocation ? 'active' : 'waiting'}'
-                                                  : '$relation○ Offline',
+                                                  : _isReconnecting(device)
+                                                      ? '$relation◌ Linking up'
+                                                      : '$relation○ Offline',
                                               style: TextStyle(
                                                 fontSize: 9,
-                                                color: device.online
+                                                color: _isLive(device)
                                                     ? colors.accent
-                                                    : colors.textMuted,
+                                                    : _isReconnecting(device)
+                                                        ? GuardianColors.accent
+                                                        : colors.textMuted,
                                               ),
                                             ),
                                           ],
@@ -1176,21 +1367,26 @@ class _SafetyHero extends StatelessWidget {
     required this.onlineCount,
     required this.totalCount,
     required this.updated,
+    this.titleOverride,
+    this.subtitleOverride,
   });
 
   final bool safe;
   final int onlineCount;
   final int totalCount;
   final String updated;
+  final String? titleOverride;
+  final String? subtitleOverride;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final title = totalCount == 0
-        ? 'Let’s connect someone you care about'
-        : safe
-        ? 'Everyone you care about is safe'
-        : 'A device needs your attention';
+    final title = titleOverride ??
+        (totalCount == 0
+            ? "Let's connect someone you care about"
+            : safe
+                ? 'Everyone you care about is safe'
+                : 'A device needs your attention');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
@@ -1238,9 +1434,10 @@ class _SafetyHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  totalCount == 0
-                      ? 'No linked devices'
-                      : '$onlineCount online  •  ${totalCount - onlineCount} offline',
+                  subtitleOverride ??
+                      (totalCount == 0
+                          ? 'No linked devices'
+                          : '$onlineCount online  ·  ${totalCount - onlineCount} offline'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1270,54 +1467,105 @@ class _SafetyHero extends StatelessWidget {
 }
 
 class _LiveStatusBar extends StatelessWidget {
-  const _LiveStatusBar({required this.device});
+  const _LiveStatusBar({required this.device, this.linkingTick = 0});
 
   final Device? device;
+  final int linkingTick;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final connected = device?.online == true;
-    final gps = device?.hasFreshLocation == true;
-    final approximate = device?.hasApproximateLocation == true;
-    final battery = device?.batteryPercent;
+    final selected = device;
+    final phase =
+        selected?.connectivityPhase() ?? DeviceConnectivityPhase.offline;
+    final reconnecting = phase == DeviceConnectivityPhase.reconnecting;
+
+    if (reconnecting && selected != null) {
+      final story = linkingStoryMetrics(selected, tick: linkingTick);
+      return AnimatedSwitcher(
+        duration: const Duration(milliseconds: 350),
+        child: Container(
+          key: const ValueKey('linking-story-metrics'),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < story.length; i++)
+                _LiveMetric(
+                  metric: DashboardFlagMetric.values[i],
+                  icon: story[i].icon,
+                  label: story[i].label,
+                  active: story[i].state == LinkingStoryMetricState.complete,
+                  colorsOverride: linkingStoryMetricColors(story[i].state),
+                  showPulse: story[i].state == LinkingStoryMetricState.active,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final connected = phase == DeviceConnectivityPhase.live;
+    final gps = selected?.hasFreshLocation == true;
+    final approximate = selected?.hasApproximateLocation == true;
+    final battery = selected?.batteryPercent;
     final batteryHealthy = dashboardBatteryHealthy(battery);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          _LiveMetric(
-            metric: DashboardFlagMetric.connectivity,
-            icon: Icons.sensors_rounded,
-            label: connected ? 'Live' : 'Offline',
-            active: connected,
-          ),
-          _LiveMetric(
-            metric: DashboardFlagMetric.gps,
-            icon: Icons.gps_fixed_rounded,
-            label: approximate
-                ? 'Approximate'
-                : (gps ? 'GPS active' : 'GPS waiting'),
-            active: gps,
-          ),
-          _LiveMetric(
-            metric: DashboardFlagMetric.battery,
-            icon: Icons.battery_5_bar_rounded,
-            label: battery == null ? 'Battery —' : '$battery%',
-            active: batteryHealthy,
-          ),
-          _LiveMetric(
-            metric: DashboardFlagMetric.signal,
-            icon: Icons.signal_cellular_alt_rounded,
-            label: connected ? 'Connected' : 'No signal',
-            active: connected,
-          ),
-        ],
+    final connectivityColors = selected == null
+        ? flagMetricColors(DashboardFlagMetric.connectivity, false)
+        : connectivityMetricColors(selected);
+    final signalColors = flagMetricColors(DashboardFlagMetric.signal, connected);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      child: Container(
+        key: const ValueKey('live-metrics'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _LiveMetric(
+              metric: DashboardFlagMetric.connectivity,
+              icon: Icons.sensors_rounded,
+              label: selected == null
+                  ? 'Offline'
+                  : deviceConnectivityLabel(selected),
+              active: connected,
+              colorsOverride: connectivityColors,
+            ),
+            _LiveMetric(
+              metric: DashboardFlagMetric.gps,
+              icon: Icons.gps_fixed_rounded,
+              label: approximate
+                  ? 'Approximate'
+                  : (gps ? 'GPS active' : 'GPS waiting'),
+              active: gps,
+            ),
+            _LiveMetric(
+              metric: DashboardFlagMetric.battery,
+              icon: Icons.battery_5_bar_rounded,
+              label: battery == null ? 'Battery —' : '$battery%',
+              active: batteryHealthy,
+            ),
+            _LiveMetric(
+              metric: DashboardFlagMetric.signal,
+              icon: Icons.signal_cellular_alt_rounded,
+              label: selected == null ? 'No signal' : deviceSignalLabel(selected),
+              active: connected,
+              colorsOverride: signalColors,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1329,30 +1577,39 @@ class _LiveMetric extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.active,
+    this.colorsOverride,
+    this.showPulse = false,
   });
 
   final DashboardFlagMetric metric;
   final IconData icon;
   final String label;
   final bool active;
+  final FlagMetricColors? colorsOverride;
+  final bool showPulse;
 
   @override
   Widget build(BuildContext context) {
-    final colors = flagMetricColors(metric, active);
+    // Always prefer flag stripe colors for the metric; only linking story
+    // may override (progress states), never connectivity red on signal green.
+    final colors = colorsOverride ?? flagMetricColors(metric, active);
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           decoration: BoxDecoration(
             color: colors.background,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 17, color: colors.foreground),
-              const SizedBox(height: 3),
+              if (showPulse)
+                ReconnectingPulse(size: 4, iconSize: 14, color: colors.foreground)
+              else
+                Icon(icon, size: 14, color: colors.foreground),
+              const SizedBox(height: 4),
               Text(
                 label,
                 maxLines: 1,
@@ -1360,8 +1617,9 @@ class _LiveMetric extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
                   color: colors.foreground,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                 ),
               ),
             ],
@@ -1438,20 +1696,32 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
     final nextKey = _propsKey(widget);
     if (nextKey == _mapKey) return;
     _mapKey = nextKey;
-    _map = _buildMap(widget);
+    setState(() => _map = _buildMap(widget));
   }
 
   Object _propsKey(_StableGoogleMap config) {
+    final circleKey = config.circles
+        .map(
+          (circle) =>
+              '${circle.circleId.value}|${circle.center.latitude}|'
+              '${circle.center.longitude}|${circle.radius}',
+        )
+        .join(';');
+    final markerKey = config.markers.map((m) => m.markerId.value).join(';');
     return Object.hash(
-      config.markers,
-      config.circles,
+      markerKey,
+      circleKey,
       config.myLocationEnabled,
       config.zoomControlsEnabled,
     );
   }
 
   Widget _buildMap(_StableGoogleMap config) {
+    final circleKey = config.circles.map((c) => c.circleId.value).join('-');
     return GoogleMap(
+      key: ValueKey(
+        'dashboard-map-$circleKey-${config.markers.length}',
+      ),
       initialCameraPosition: config.initialCameraPosition,
       markers: config.markers,
       circles: config.circles,
@@ -1503,6 +1773,11 @@ class _PremiumDeviceCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onUnlink;
+
+  bool get _isReconnecting => device.isReconnecting;
+
+  bool get _isLive =>
+      device.connectivityPhase() == DeviceConnectivityPhase.live;
 
   @override
   Widget build(BuildContext context) {
@@ -1597,20 +1872,22 @@ class _PremiumDeviceCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${device.online ? '● Online' : '○ Offline'}'
-                  '${device.displayName != device.relationshipLabel ? '  •  ${device.relationshipLabel}' : ''}',
+                  _isReconnecting
+                      ? '● Linking up'
+                      : _isLive
+                          ? '● Online'
+                          : '○ Offline'
+                              '${device.displayName != device.relationshipLabel ? '  •  ${device.relationshipLabel}' : ''}',
                   style: TextStyle(
                     fontSize: 11,
-                    color: device.online
-                        ? colors.accent
+                    color: _isReconnecting || _isLive
+                        ? GuardianColors.accent
                         : colors.textMuted,
                   ),
                 ),
                 const Spacer(),
                 Text(
-                  device.hasApproximateLocation
-                      ? 'Approximate location  •  $updated'
-                      : '${device.hasFreshLocation ? 'GPS active' : 'GPS waiting'}  •  $updated',
+                  '${deviceLocationStatusLabel(device)}  •  $updated',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1643,19 +1920,21 @@ class _GuardianAiCard extends StatelessWidget {
         ? GuardianColors.warningBg
         : colors.accentMuted;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [colors.surface, background.withValues(alpha: 0.72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [colors.surface, background.withValues(alpha: 0.55)],
         ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GuardianAiIcon(
-            size: 44,
+            size: 40,
             backgroundColor: background,
             accentColor: color,
             warning: warning,
@@ -1665,25 +1944,48 @@ class _GuardianAiCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Guardian AI',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 5),
                 Text(
-                  insight.title,
-                  style: const TextStyle(
-                    fontSize: 15,
+                  'Guardian AI',
+                  style: TextStyle(
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                    color: colors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  insight.detail,
-                  style: TextStyle(
-                    fontSize: 11,
-                    height: 1.45,
-                    color: colors.textSecondary,
+                const SizedBox(height: 6),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 450),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: Text(
+                    insight.title,
+                    key: ValueKey('title-${insight.title}'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 450),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  child: Text(
+                    insight.detail,
+                    key: ValueKey('detail-${insight.detail}'),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ),
               ],

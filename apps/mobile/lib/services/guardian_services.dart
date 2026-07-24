@@ -211,14 +211,14 @@ class DeviceService {
 
   /// Streams compressed journeys for a calendar day.
   Stream<List<JourneyRecord>> watchDayJourneys(String imei, DateTime day) {
-    final start = DateTime(day.year, day.month, day.day);
-    final end = start.add(const Duration(days: 1));
+    final localStart = DateTime(day.year, day.month, day.day);
+    final localEnd = localStart.add(const Duration(days: 1));
     return _db
         .collection('devices')
         .doc(imei)
         .collection('journeys')
-        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('startAt', isLessThan: Timestamp.fromDate(end))
+        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(localStart))
+        .where('startAt', isLessThan: Timestamp.fromDate(localEnd))
         .orderBy('startAt')
         .snapshots()
         .map((snap) => snap.docs.map(JourneyRecord.fromDoc).toList());

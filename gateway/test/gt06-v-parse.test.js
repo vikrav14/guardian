@@ -94,3 +94,54 @@ test('handlePacket emits location_parse_error for bare V without extras', () => 
   assert.equal(events[0].type, 'location_parse_error');
   assert.equal(events[0].reason, 'gps_not_fixed');
 });
+
+test('parseLteExtras finds Mauritius cell block after V28C status prefix', () => {
+  const extras = [
+    '0.0', '0', '100', '80', '0', '0', '00000000', '1', '0',
+    '617', '1', '53', '203778', '169', '1', '',
+    'A4:08:EA:56:E7:BD', '-87', '0.0',
+  ];
+  const { wifiAccessPoints, cellTowers } = parseLteExtras(extras);
+
+  assert.equal(cellTowers.length, 1);
+  assert.deepEqual(cellTowers[0], {
+    mobileCountryCode: 617,
+    mobileNetworkCode: 1,
+    locationAreaCode: 53,
+    cellId: 203778,
+  });
+  assert.equal(wifiAccessPoints.length, 1);
+  assert.equal(wifiAccessPoints[0].macAddress, 'a4:08:ea:56:e7:bd');
+});
+
+test('parseLteExtras drops null WiFi MAC 00:00:00:00:00:00 from V28C scan', () => {
+  const extras = [
+    '0.0', '0', '87', '54', '0', '0', '00000000', '1', '0',
+    '617', '1', '53', '203798', '164', '3', '',
+    '82:A9:DD:18:18:6C', '-85', '', '00:00:00:00:00:00', '-85', '',
+    '80:3F:5D:8D:11:A3', '-93', '0.0',
+  ];
+  const { wifiAccessPoints, cellTowers } = parseLteExtras(extras);
+
+  assert.equal(cellTowers.length, 1);
+  assert.equal(cellTowers[0].cellId, 203798);
+  assert.equal(wifiAccessPoints.length, 2);
+  assert.equal(wifiAccessPoints[0].macAddress, '82:a9:dd:18:18:6c');
+  assert.equal(wifiAccessPoints[1].macAddress, '80:3f:5d:8d:11:a3');
+});
+
+test('parseLocationData handles live Bouboush V UD_LTE payload', () => {
+  const fields = [
+    '230726', '080947', 'V', '22.683546', 'N', '113.9907380', 'E', '0.00', '0.0',
+    '0.0', '0', '100', '80', '0', '0', '00000000', '1', '0',
+    '617', '1', '53', '203778', '169', '1', '',
+    'A4:08:EA:56:E7:BD', '-87', '0.0',
+  ];
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.needsGeolocation, true);
+  assert.equal(loc.accuracySource, 'wifi');
+  assert.equal(loc.wifiAccessPoints.length, 1);
+  assert.equal(loc.cellTowers.length, 1);
+  assert.equal(loc.cellTowers[0].mobileCountryCode, 617);
+});

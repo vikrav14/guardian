@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
+import 'device_connectivity.dart';
 
 class DashboardController extends ChangeNotifier {
   DashboardController({
@@ -33,6 +34,15 @@ class DashboardController extends ChangeNotifier {
     );
   }
 
+  DeviceConnectivityPhase connectivityPhase(Device device, {DateTime? now}) =>
+      device.connectivityPhase(now: now);
+
+  bool isReconnecting(Device device, {DateTime? now}) =>
+      connectivityPhase(device, now: now) == DeviceConnectivityPhase.reconnecting;
+
+  bool isLive(Device device, {DateTime? now}) =>
+      connectivityPhase(device, now: now) == DeviceConnectivityPhase.live;
+
   void start() {
     _deviceSubscription ??= _deviceService.watchLinkedDevices().listen(
       (nextDevices) {
@@ -52,10 +62,17 @@ class DashboardController extends ChangeNotifier {
         notifyListeners();
       },
     );
-    _geofenceSubscription ??= _geofenceService.watchAll().listen((zones) {
-      geofences = zones;
-      notifyListeners();
-    });
+    _geofenceSubscription ??= _geofenceService.watchAll().listen(
+      (zones) {
+        geofences = zones;
+        notifyListeners();
+      },
+      onError: (Object error) {
+        if (kDebugMode) {
+          debugPrint('Geofence stream error: $error');
+        }
+      },
+    );
   }
 
   void select(String imei) {

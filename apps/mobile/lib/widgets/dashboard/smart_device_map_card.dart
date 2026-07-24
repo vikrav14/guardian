@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../dashboard/dashboard_status_colors.dart';
 import '../../dashboard/device_card_visibility.dart';
+import '../../dashboard/device_connectivity.dart';
 import '../../dashboard/device_formatters.dart';
 import '../../models/alert.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../cards/guardian_card.dart';
 import '../guardian_widgets.dart';
+import 'reconnecting_pulse.dart';
 
 /// Floating person/device card on the map — expandable or a minimized chip.
 class SmartDeviceMapCard extends StatelessWidget {
@@ -136,6 +138,11 @@ class _ExpandedDeviceCard extends StatelessWidget {
   final VoidCallback onMinimize;
   final bool showAllGoodHint;
 
+  bool get _isReconnecting => device.isReconnecting;
+
+  bool get _isLive =>
+      device.connectivityPhase() == DeviceConnectivityPhase.live;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
@@ -156,23 +163,27 @@ class _ExpandedDeviceCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: device.online ? colors.accent : colors.textMuted,
-                    shape: BoxShape.circle,
+                if (_isReconnecting)
+                  const ReconnectingStatusChip(label: 'Linking up', compact: true)
+                else ...[
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: _isLive ? colors.accent : colors.textMuted,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  device.online ? 'Live' : 'Offline',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: device.online ? colors.accent : colors.textMuted,
+                  const SizedBox(width: 6),
+                  Text(
+                    deviceConnectivityLabel(device),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: _isLive ? colors.accent : colors.textMuted,
+                    ),
                   ),
-                ),
+                ],
                 const Spacer(),
                 PopupMenuButton<String>(
                   tooltip: 'Card options',
@@ -263,9 +274,11 @@ class _ExpandedDeviceCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: device.isMoving
                         ? colors.accent
-                        : device.online
-                            ? colors.textSecondary
-                            : colors.textMuted,
+                        : _isReconnecting
+                            ? colors.accent
+                            : device.online
+                                ? colors.textSecondary
+                                : colors.textMuted,
                   ),
                 ),
                 if (device.isMoving && device.speedKmh != null) ...[

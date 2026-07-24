@@ -10,16 +10,19 @@ import 'journey_utils.dart';
 class JourneyReplayController extends ChangeNotifier {
   JourneyReplayController({
     required List<LocationHistoryPoint> rawPoints,
+    List<JourneyRecord> journeys = const [],
     List<Geofence> geofences = const [],
     List<JourneyEvent>? timelineEvents,
     JourneyGpsContext? gpsContext,
   })  : rawPoints = List<LocationHistoryPoint>.unmodifiable(rawPoints),
-        smoothedPoints = smoothRouteForDisplay(rawPoints),
-        routeSegments = buildRouteSegments(rawPoints),
-        displayRouteSegments = buildRouteSegments(smoothRouteForDisplay(rawPoints)),
+        smoothedPoints = smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
+        routeSegments = buildRouteSegments(filterOutlierPoints(rawPoints)),
+        displayRouteSegments = buildRouteSegments(
+          smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
+        ),
         events = timelineEvents ??
             detectJourneyEvents(rawPoints, geofences: geofences),
-        stats = buildJourneyStats(rawPoints),
+        stats = buildJourneyStats(rawPoints, journeys: journeys),
         insights = buildJourneyInsights(
           rawPoints,
           geofences: geofences,
@@ -80,6 +83,10 @@ class JourneyReplayController extends ChangeNotifier {
     return smoothedPoints[currentIndex];
   }
 
+  /// Clockwise degrees from north for the current replay position.
+  double? get currentBearing =>
+      bearingAtRouteIndex(smoothedPoints, currentIndex);
+
   List<LocationHistoryPoint> get visibleRoutePoints {
     if (smoothedPoints.isEmpty) return const [];
     return smoothedPoints.sublist(0, currentIndex + 1);
@@ -95,9 +102,17 @@ class JourneyReplayController extends ChangeNotifier {
 
   String? get currentNarration => _currentNarration;
 
+  /// Wall-clock time for a full replay at 1×. Long journeys compress so playback
+  /// stays responsive instead of running at real-world duration.
   int get replayDurationMs {
+    const maxWallClockMs = 45000;
+    const minWallClockMs = 8000;
     final ms = stats.duration.inMilliseconds;
-    return ms > 0 ? ms : smoothedPoints.length * 1000;
+    final base = ms > 0 ? ms : smoothedPoints.length * 500;
+    if (base <= maxWallClockMs) {
+      return base.clamp(minWallClockMs, maxWallClockMs);
+    }
+    return maxWallClockMs;
   }
 
   bool get shouldMoveCamera =>

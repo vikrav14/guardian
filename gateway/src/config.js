@@ -47,6 +47,32 @@ const config = {
   ),
   intelligenceCheckIntervalMs: Number(process.env.INTELLIGENCE_CHECK_INTERVAL_MS || 60_000),
 
+  /**
+   * Close idle TCP only after a long quiet stretch. Stationary pendants can
+   * easily go 5+ minutes between packets — Offline must mean "really gone",
+   * not "between heartbeats".
+   */
+  tcpIdleMinutes: Number(process.env.TCP_IDLE_MINUTES || 12),
+
+  /** Must exceed writeGateHeartbeatMinutes — heartbeats can be write-gated that long. */
+  connectionStaleMinutes: Math.max(
+    Number(process.env.CONNECTION_STALE_MINUTES || 10),
+    Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) + 2
+  ),
+
+  /**
+   * Close zombie TCP with no packets. Keep in lockstep with tcpIdleMinutes so we
+   * never kill a live quiet session early and flash Offline for the family.
+   */
+  tcpSilentSeconds: Math.max(
+    Number(process.env.TCP_SILENT_SECONDS || 0) ||
+      Number(process.env.TCP_IDLE_MINUTES || 12) * 60,
+    Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) * 60
+  ),
+
+  /** Wait before writing offline after TCP close — absorbs ngrok/carrier reconnect blips. */
+  offlineDebounceMs: Number(process.env.OFFLINE_DEBOUNCE_MS || 15_000),
+
   // Command Center / ops API (GET /ops/metrics, /ops/cost-estimate)
   adminApiKey: process.env.ADMIN_API_KEY || '',
   adminEmails: (process.env.ADMIN_EMAILS || 'vikrav14@gmail.com')

@@ -3,6 +3,16 @@ const { haversineMeters } = require('./geofence');
 const config = require('./config');
 
 const STATIONARY_SPEED_KMH = 1;
+const MAX_JOURNEY_SEGMENT_METRES = 5000;
+
+function isPlausibleCoord(lat, lng) {
+  if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return false;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+  if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return false;
+  if (Math.abs(lat - 22.68) < 0.05 && Math.abs(lng - 113.99) < 0.05) return false;
+  if (lat > -5 && lat < 5 && lng > 55 && lng < 60) return false;
+  return true;
+}
 
 function sameCalendarDay(a, b) {
   const d1 = a instanceof Date ? a : new Date(a);
@@ -51,6 +61,19 @@ function normalizePoint(point) {
   };
 }
 
+function shouldAcceptJourneyPoint(point, reference) {
+  if (!isPlausibleCoord(point.lat, point.lng)) return false;
+  if (
+    reference &&
+    typeof reference.lat === 'number' &&
+    typeof reference.lng === 'number'
+  ) {
+    const hop = haversineMeters(reference.lat, reference.lng, point.lat, point.lng);
+    if (hop > MAX_JOURNEY_SEGMENT_METRES) return false;
+  }
+  return true;
+}
+
 function startJourney(state, point, now) {
   const normalized = normalizePoint(point);
   state.currentJourney = {
@@ -68,6 +91,8 @@ function addJourneyPoint(state, point, now) {
 
   const normalized = normalizePoint(point);
   const last = journey.points[journey.points.length - 1];
+  if (!shouldAcceptJourneyPoint(normalized, last)) return;
+
   journey.points.push(normalized);
   journey.lastPointAt = now;
 
@@ -166,6 +191,9 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   }
 
   if (moving) {
+    if (!shouldAcceptJourneyPoint(point, reference)) {
+      return { flushes, started: false };
+    }
     startJourney(state, point, now);
     return { flushes, started: true };
   }
@@ -184,5 +212,7 @@ module.exports = {
   hasActiveJourney,
   journeyDistanceKm,
   isMoving,
+  isPlausibleCoord,
+  shouldAcceptJourneyPoint,
   sameCalendarDay,
 };

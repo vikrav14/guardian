@@ -258,7 +258,7 @@ class JourneyDayData {
   final List<DwellSegment> dwells;
   final List<JourneyRecord> journeys;
 
-  bool get isEmpty => points.isEmpty;
+  bool get isEmpty => points.isEmpty && journeys.isEmpty && dwells.isEmpty;
 }
 
 DateTime? _asDateTime(dynamic value) {

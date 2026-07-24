@@ -29,7 +29,15 @@ function authHeaders(): HeadersInit {
 }
 
 async function fetchOps<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  } catch {
+    const hint = API_BASE
+      ? `Check that the gateway is running at ${API_BASE}.`
+      : 'Start the gateway in another terminal: cd gateway && npm start (listens on port 9001).';
+    throw new Error(`Cannot reach ops API (${path}). ${hint}`);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Request failed (${res.status})`);

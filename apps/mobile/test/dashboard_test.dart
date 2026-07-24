@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/dashboard/dashboard_insight.dart';
+import 'package:guardian/dashboard/linking_story.dart';
 import 'package:guardian/dashboard/dashboard_status_colors.dart';
 import 'package:guardian/dashboard/device_card_visibility.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
@@ -11,6 +12,22 @@ import 'package:guardian/widgets/dashboard/desktop_dashboard_layout.dart';
 import 'package:guardian/widgets/dashboard/smart_device_map_card.dart';
 
 void main() {
+  test('Guardian insight shows linking copy during gateway handshake', () {
+    final now = DateTime.now();
+    final device = Device(
+      imei: '1',
+      online: false,
+      nickname: 'Bouboush',
+      connectionState: 'connecting',
+      connectingAt: now,
+    );
+
+    final insight = linkingGuardianInsight(device, now: now, tick: 0);
+    expect(insight.title, contains('Bouboush'));
+    expect(insight.detail, isNotEmpty);
+    expect(insight.tone, DashboardInsightTone.neutral);
+  });
+
   test('Guardian insight prioritizes offline and low-battery states', () {
     const offline = Device(imei: '1', online: false, batteryPercent: 10);
     const lowBattery = Device(imei: '2', online: true, batteryPercent: 10);
@@ -52,8 +69,41 @@ void main() {
     );
 
     final insight = buildDashboardInsight(device);
-    expect(insight.title, 'GPS data may be stale');
+    expect(insight.title, 'Location may be outdated');
     expect(insight.tone, DashboardInsightTone.warning);
+  });
+
+  test('offline insight explains last known location age', () {
+    final heartbeat = DateTime.now().subtract(const Duration(minutes: 40));
+    final recorded = heartbeat.subtract(const Duration(minutes: 2));
+    final device = Device(
+      imei: '1',
+      online: false,
+      accuracySource: 'wifi',
+      lastHeartbeatAt: heartbeat,
+      location: DeviceLocation(
+        lat: -20.2,
+        lng: 57.5,
+        recordedAt: recorded,
+      ),
+    );
+
+    final insight = buildDashboardInsight(device);
+    expect(insight.title, 'Last known location may be outdated');
+    expect(insight.detail, contains('Last seen'));
+    expect(insight.detail, contains('approximate'));
+  });
+
+  test('device location status label distinguishes offline last known fix', () {
+    const offline = Device(imei: '1', online: false);
+    final offlineWithFix = Device(
+      imei: '2',
+      online: false,
+      location: DeviceLocation(lat: -20.2, lng: 57.5),
+    );
+
+    expect(deviceLocationStatusLabel(offline), 'Location unavailable');
+    expect(deviceLocationStatusLabel(offlineWithFix), 'Last known location');
   });
 
   test('Guardian insight reports normal only with live GPS', () {
@@ -61,6 +111,7 @@ void main() {
     final device = Device(
       imei: '1',
       online: true,
+      connectionState: 'live',
       batteryPercent: 70,
       location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
       lastHeartbeatAt: now,
@@ -74,6 +125,7 @@ void main() {
     final device = Device(
       imei: '1',
       online: true,
+      connectionState: 'live',
       batteryPercent: 70,
       lastHeartbeatAt: heartbeat,
       location: DeviceLocation(
@@ -98,11 +150,12 @@ void main() {
   });
 
   test('device movement label ignores stale speed from old simulator data', () {
-    final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+    final heartbeat = DateTime.now();
     final staleRecorded = heartbeat.subtract(const Duration(minutes: 11));
     final device = Device(
       imei: '1',
       online: true,
+      connectionState: 'live',
       speedKmh: 45,
       lastHeartbeatAt: heartbeat,
       location: DeviceLocation(
@@ -116,8 +169,31 @@ void main() {
     expect(device.isMoving, isFalse);
   });
 
+  test('device movement label uses reconnecting state during handshake', () {
+    final now = DateTime.now();
+    final reconnecting = Device(
+      imei: '1',
+      online: false,
+      connectionState: 'connecting',
+      connectingAt: now.subtract(const Duration(seconds: 30)),
+    );
+
+    expect(deviceMovementLabel(reconnecting), 'Linking up');
+  });
+
+  test('device movement label shows offline when pendant is off', () {
+    final device = Device(
+      imei: '1',
+      online: false,
+      connectionState: 'offline',
+      disconnectedAt: DateTime.now().subtract(const Duration(minutes: 2)),
+    );
+
+    expect(deviceMovementLabel(device), 'Not connected');
+  });
+
   test('device movement label uses speed threshold, not online flag', () {
-    final now = DateTime(2026, 7, 22, 13, 40);
+    final now = DateTime.now();
     final freshLocation = DeviceLocation(
       lat: -20.2,
       lng: 57.5,
@@ -127,6 +203,7 @@ void main() {
     final stationary = Device(
       imei: '2',
       online: true,
+      connectionState: 'live',
       speedKmh: 0,
       location: freshLocation,
       lastHeartbeatAt: now,
@@ -134,6 +211,7 @@ void main() {
     final moving = Device(
       imei: '3',
       online: true,
+      connectionState: 'live',
       speedKmh: 12,
       location: freshLocation,
       lastHeartbeatAt: now,
@@ -141,6 +219,7 @@ void main() {
     final staleSpeed = Device(
       imei: '4',
       online: true,
+      connectionState: 'live',
       speedKmh: 45,
       location: DeviceLocation(
         lat: -20.2,
@@ -194,6 +273,7 @@ void main() {
     final healthy = Device(
       imei: '1',
       online: true,
+      connectionState: 'live',
       batteryPercent: 70,
       location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
       lastHeartbeatAt: now,
@@ -226,6 +306,7 @@ void main() {
       nickname: 'Bouboush',
       relationship: 'Wife',
       online: true,
+      connectionState: 'live',
       batteryPercent: 52,
       location: DeviceLocation(lat: -20.2, lng: 57.5, recordedAt: now),
       lastHeartbeatAt: now,

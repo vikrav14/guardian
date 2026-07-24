@@ -37,6 +37,21 @@ const double deviceMovingSpeedThresholdKmh = 5;
 /// Location older than this gap behind the last heartbeat is treated as stale.
 const Duration deviceLocationFreshnessSlack = Duration(minutes: 8);
 
+/// Last Firestore contact older than this is not treated as live, even if `online: true`.
+/// Must exceed the gateway write-gate heartbeat interval and normal quiet gaps
+/// (stationary pendants often go several minutes between packets).
+const Duration deviceLiveContactThreshold = Duration(minutes: 12);
+
+class DevicePositioningDescription {
+  const DevicePositioningDescription({
+    required this.label,
+    required this.approximate,
+  });
+
+  final String label;
+  final bool approximate;
+}
+
 class DeviceIntelligence {
   const DeviceIntelligence({
     required this.insights,
@@ -114,6 +129,9 @@ class Device {
     this.accuracySource,
     this.location,
     this.lastHeartbeatAt,
+    this.disconnectedAt,
+    this.connectionState,
+    this.connectingAt,
     this.updatedAt,
     this.simNumber,
     this.avatarUrl,
@@ -133,6 +151,10 @@ class Device {
   final String? accuracySource;
   final DeviceLocation? location;
   final DateTime? lastHeartbeatAt;
+  final DateTime? disconnectedAt;
+  /// Gateway connection phase: `live`, `connecting`, or `offline`.
+  final String? connectionState;
+  final DateTime? connectingAt;
   final DateTime? updatedAt;
   final String? simNumber;
   final String? avatarUrl;
@@ -171,6 +193,15 @@ class Device {
     return _legacyPersonName ?? 'Family member';
   }
 
+  /// Gateway says connected and we heard from the pendant recently.
+  bool get hasRecentContact {
+    final contact = lastHeartbeatAt ?? updatedAt;
+    if (contact == null) return false;
+    return DateTime.now().difference(contact) <= deviceLiveContactThreshold;
+  }
+
+  bool get isLiveConnected => online && hasRecentContact;
+
   /// True when [location] has coordinates and was recorded near the last contact.
   ///
   /// Prevents simulator or old GPS writes from showing a map pin after the real
@@ -193,6 +224,26 @@ class Device {
     if (!hasFreshLocation) return false;
     final source = accuracySource?.toLowerCase();
     return source == 'wifi' || source == 'lbs';
+  }
+
+  /// Human-readable fix type for Guardian AI and map labels.
+  DevicePositioningDescription? get positioningDescription {
+    final source = accuracySource?.toLowerCase();
+    return switch (source) {
+      'gps' => const DevicePositioningDescription(
+          label: 'satellite GPS',
+          approximate: false,
+        ),
+      'wifi' => const DevicePositioningDescription(
+          label: 'WiFi positioning',
+          approximate: true,
+        ),
+      'lbs' => const DevicePositioningDescription(
+          label: 'cell tower positioning',
+          approximate: true,
+        ),
+      _ => null,
+    };
   }
 
   bool get isMoving =>
@@ -228,6 +279,9 @@ class Device {
             : null,
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
+      disconnectedAt: _asDateTime(data['disconnectedAt']),
+      connectionState: data['connectionState'] as String?,
+      connectingAt: _asDateTime(data['connectingAt']),
       updatedAt: _asDateTime(data['updatedAt']),
       simNumber: data['simNumber'] as String?,
       avatarUrl: data['avatarUrl'] as String?,
