@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../journey/journey_map_controls.dart';
-import '../journey/journey_map_styles.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_replay_controller.dart';
 import '../journey/journey_share.dart';
@@ -26,6 +24,7 @@ import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand/dodo_ai_icon.dart';
 import '../widgets/layout/guardian_page_frame.dart';
+import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
 
@@ -1687,14 +1686,6 @@ class _JourneyMapState extends State<_JourneyMap> {
     }).toSet();
   }
 
-  List<Map<String, dynamic>> _mapStyleForReplay() {
-    final replayTime = interpolateJourneyTime(
-      widget.replay.rawPoints,
-      widget.replay.progress,
-    );
-    return journeyMapStyleForReplay(replayTime);
-  }
-
   void _onMapCameraMove(CameraPosition position) {
     _mapCameraGeneration.value++;
   }
@@ -1706,7 +1697,6 @@ class _JourneyMapState extends State<_JourneyMap> {
     final cameraTarget = routePoints.isNotEmpty
         ? LatLng(routePoints.first.lat, routePoints.first.lng)
         : _kMauritiusFallback;
-    final mapStyle = _mapStyleForReplay();
 
     return Stack(
       fit: StackFit.expand,
@@ -1732,9 +1722,13 @@ class _JourneyMapState extends State<_JourneyMap> {
             replayAvatarIcon: _replayAvatarIcon,
           ),
           mapType: widget.mapType,
-          style: mapStyle.isEmpty ? null : jsonEncode(mapStyle),
+          style: widget.mapType == MapType.normal
+              ? GuardianMapPresentation.style
+              : null,
+          webCameraControlEnabled: false,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
+          myLocationEnabled: false,
           myLocationButtonEnabled: false,
           tiltGesturesEnabled: false,
           rotateGesturesEnabled: false,

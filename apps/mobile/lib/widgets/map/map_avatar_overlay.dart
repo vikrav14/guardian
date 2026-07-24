@@ -317,8 +317,10 @@ class _TrackedPersonPin extends StatelessWidget {
   final String? imageUrl;
 
   static double avatarSize(bool selected) => selected ? 48 : 42;
-  static double markerSize(bool selected) => avatarSize(selected) + 12;
-  static double markerHeight(bool selected) => avatarSize(selected) + 15;
+  static double markerSize(bool selected) =>
+      selected ? 118 : avatarSize(selected) + 12;
+  static double markerHeight(bool selected) =>
+      selected ? 89 : avatarSize(selected) + 15;
 
   @override
   Widget build(BuildContext context) {
@@ -337,6 +339,36 @@ class _TrackedPersonPin extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.topCenter,
           children: [
+            if (selected)
+              Positioned(
+                top: 0,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 112),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: GuardianColors.forest,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: GuardianColors.forest.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 3,
               child: Transform.rotate(
@@ -354,33 +386,37 @@ class _TrackedPersonPin extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
-              width: avatar + 8,
-              height: avatar + 8,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: ringColor,
-                  width: selected ? 3 : 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (selected ? GuardianColors.safe : color).withValues(
-                      alpha: selected ? 0.24 : 0.14,
-                    ),
-                    blurRadius: selected ? 16 : 10,
-                    offset: const Offset(0, 5),
+            Positioned(
+              top: selected ? 27 : 0,
+              child: Container(
+                width: avatar + 8,
+                height: avatar + 8,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ringColor,
+                    width: selected ? 3 : 2,
                   ),
-                ],
-              ),
-              child: AvatarBubble(
-                initials: initials,
-                color: color,
-                size: avatar,
-                ringWidth: 0,
-                imageUrl: imageUrl,
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          (selected ? GuardianColors.safe : color).withValues(
+                        alpha: selected ? 0.24 : 0.14,
+                      ),
+                      blurRadius: selected ? 16 : 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: AvatarBubble(
+                  initials: initials,
+                  color: color,
+                  size: avatar,
+                  ringWidth: 0,
+                  imageUrl: imageUrl,
+                ),
               ),
             ),
           ],

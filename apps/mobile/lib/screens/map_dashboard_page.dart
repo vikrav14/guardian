@@ -18,6 +18,7 @@ import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
+import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_page.dart';
@@ -231,6 +232,27 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final z = zoom ?? _zoom;
     await controller.animateCamera(CameraUpdate.newLatLngZoom(target, z));
     _zoom = z;
+  }
+
+  Future<void> _changeMapZoom(double delta) async {
+    final controller = _mapController;
+    if (controller == null) return;
+    final next = (_zoom + delta).clamp(3.0, 20.0).toDouble();
+    _zoom = next;
+    await controller.animateCamera(CameraUpdate.zoomTo(next));
+  }
+
+  VoidCallback? _centerTrackedPersonAction(Device? device) {
+    if (device == null || !device.hasFreshLocation) return null;
+    return () {
+      final location = device.location!;
+      unawaited(
+        _animateTo(
+          LatLng(location.lat, location.lng),
+          zoom: math.max(_zoom, 15.0).toDouble(),
+        ),
+      );
+    };
   }
 
   void _fitIfNeeded(List<Device> devices) {
@@ -494,7 +516,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                             builder: (context, constraints) {
                               final compact = constraints.maxWidth < 640;
                               return SizedBox(
-                                height: compact ? 230 : 300,
+                                height: compact ? 270 : 360,
                                 child: Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(28),
@@ -565,6 +587,25 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                                 _mapStatusLabel(selected),
                                           ),
                                         ),
+                                        Positioned(
+                                          top: 18,
+                                          right: 18,
+                                          child: GuardianMapControlRail(
+                                            trackedName:
+                                                selected?.displayName ??
+                                                    'tracked person',
+                                            onZoomIn: () => unawaited(
+                                              _changeMapZoom(1),
+                                            ),
+                                            onZoomOut: () => unawaited(
+                                              _changeMapZoom(-1),
+                                            ),
+                                            onCenterTrackedPerson:
+                                                _centerTrackedPersonAction(
+                                              selected,
+                                            ),
+                                          ),
+                                        ),
                                         if (selected != null)
                                           Positioned(
                                             right: 18,
@@ -572,20 +613,36 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                             child: Material(
                                               color: GuardianColors.forest,
                                               borderRadius:
-                                                  BorderRadius.circular(14),
+                                                  BorderRadius.circular(999),
                                               child: InkWell(
                                                 onTap: () =>
                                                     _openHistory(selected),
                                                 borderRadius:
-                                                    BorderRadius.circular(14),
+                                                    BorderRadius.circular(999),
                                                 child: const SizedBox(
-                                                  width: 44,
+                                                  width: 118,
                                                   height: 44,
-                                                  child: Icon(
-                                                    Icons
-                                                        .arrow_forward_ios_rounded,
-                                                    size: 17,
-                                                    color: Colors.white,
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.route_rounded,
+                                                        size: 18,
+                                                        color: Colors.white,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Journey',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w800,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               ),
@@ -2347,16 +2404,20 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
       initialCameraPosition: config.initialCameraPosition,
       markers: config.markers,
       circles: config.circles,
+      style: GuardianMapPresentation.style,
       myLocationButtonEnabled: false,
       // Home shows pendant locations only. Guardian Eye will be introduced
       // later as a separate experience, not as a persistent guardian marker.
       myLocationEnabled: false,
+      // Google enables a large arrow/zoom camera pad on web by default.
+      // Guardian supplies a smaller pendant-focused control rail instead.
+      webCameraControlEnabled: false,
       zoomControlsEnabled: config.zoomControlsEnabled,
       mapToolbarEnabled: false,
       compassEnabled: false,
       indoorViewEnabled: false,
       trafficEnabled: false,
-      buildingsEnabled: true,
+      buildingsEnabled: false,
       onMapCreated: config.onMapCreated,
       onCameraMove: config.onCameraMove,
       onCameraIdle: config.onCameraIdle,
