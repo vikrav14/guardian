@@ -1042,12 +1042,15 @@ class _DodoStagePlaceholder extends StatelessWidget {
           );
 
           if (split) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(flex: 11, child: stage),
-                Expanded(flex: 10, child: copy),
-              ],
+            return SizedBox(
+              height: 250,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 11, child: stage),
+                  Expanded(flex: 10, child: copy),
+                ],
+              ),
             );
           }
           return Column(
