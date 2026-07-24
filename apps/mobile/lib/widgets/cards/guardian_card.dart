@@ -13,6 +13,8 @@ class GuardianCard extends StatelessWidget {
     this.glass = false,
     this.color,
     this.onTap,
+    this.borderColor,
+    this.elevation = 1,
   });
 
   final Widget child;
@@ -21,6 +23,8 @@ class GuardianCard extends StatelessWidget {
   final bool glass;
   final Color? color;
   final VoidCallback? onTap;
+  final Color? borderColor;
+  final double elevation;
 
   @override
   Widget build(BuildContext context) {
@@ -36,15 +40,17 @@ class GuardianCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: glass
+              color: borderColor ?? (glass
                   ? Colors.white.withValues(alpha: 0.45)
-                  : colors.border,
+                  : colors.border),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.055),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
+                color: colors.textPrimary.withValues(
+                  alpha: 0.035 + (elevation * 0.018),
+                ),
+                blurRadius: 18 + (elevation * 6),
+                offset: Offset(0, 6 + (elevation * 3)),
               ),
             ],
           ),

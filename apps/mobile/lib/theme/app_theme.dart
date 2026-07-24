@@ -62,7 +62,8 @@ ThemeData buildGuardianTheme({
     ),
     cardTheme: CardThemeData(
       color: semantic.surface,
-      elevation: 0,
+      elevation: highContrast ? 0 : 1,
+      shadowColor: semantic.textPrimary.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(GuardianRadius.large),
         side: BorderSide(color: semantic.border, width: borderWidth),
@@ -72,11 +73,31 @@ ThemeData buildGuardianTheme({
       style: ElevatedButton.styleFrom(
         backgroundColor: semantic.accent,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(GuardianRadius.medium),
         ),
         textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        foregroundColor: semantic.textPrimary,
+        backgroundColor: semantic.surface.withValues(alpha: 0.82),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(GuardianRadius.medium),
+          side: BorderSide(color: semantic.border),
+        ),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      elevation: 0,
+      height: 70,
+      backgroundColor: semantic.glass,
+      indicatorColor: semantic.accentMuted,
+      labelTextStyle: WidgetStatePropertyAll(
+        GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(

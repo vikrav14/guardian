@@ -16,11 +16,11 @@ class GuardianColors {
   static const accentBg = Color(0xFFE6F1FB);
   static const accentText = Color(0xFF0C447C);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF7F8FA);
-  static const textPrimary = Color(0xFF1A1A1A);
-  static const textSecondary = Color(0xFF6B7280);
-  static const textMuted = Color(0xFF9B9A94);
-  static const border = Color(0xFFE7E5DF);
+  static const surfaceMuted = Color(0xFFF5F7F5);
+  static const textPrimary = Color(0xFF16211C);
+  static const textSecondary = Color(0xFF5F6C66);
+  static const textMuted = Color(0xFF8B9690);
+  static const border = Color(0xFFE2EAE5);
 
   // Mauritius flag palette for dashboard status chips (red → blue → yellow → green).
   static const flagRed = Color(0xFFEA2839);
@@ -76,17 +76,17 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
 
   /// Default light theme — lagoon glass surfaces.
   static const islandGlass = GuardianThemeColors(
-    canvas: GuardianColors.surfaceMuted,
+    canvas: Color(0xFFF3F7F4),
     surface: GuardianColors.surface,
-    surfaceMuted: Color(0xFFF2F6F4),
-    sidebar: Color(0xFFF2F4F6),
-    glass: Color(0xDFFFFFFF),
+    surfaceMuted: Color(0xFFEDF4F0),
+    sidebar: Color(0xFFF0F4F1),
+    glass: Color(0xEBFFFFFF),
     textPrimary: GuardianColors.textPrimary,
     textSecondary: GuardianColors.textSecondary,
     textMuted: GuardianColors.textMuted,
-    border: Color(0xB3E2EAE6),
-    accent: GuardianColors.safe,
-    accentMuted: GuardianColors.safeBg,
+    border: Color(0x99DDE8E1),
+    accent: Color(0xFF087A57),
+    accentMuted: Color(0xFFE1F3EB),
   );
 
   /// Dark theme — Le Morne basalt at dusk.

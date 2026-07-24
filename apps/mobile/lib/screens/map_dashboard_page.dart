@@ -918,18 +918,34 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
+        child: Stack(
+          children: [
+            const Positioned(
+              top: -90,
+              right: -70,
+              child: _AmbientGlow(size: 250, color: Color(0x2E4AC99B)),
+            ),
+            const Positioned(
+              top: 310,
+              left: -100,
+              child: _AmbientGlow(size: 230, color: Color(0x1FE8B765)),
+            ),
+            Center(
+              child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
                     child: Row(
                       children: [
-                        const GuardianBrandMark(size: 36, iconScale: 0.58),
-                        const SizedBox(width: 10),
+                        const GuardianBrandMark(
+                          size: 42,
+                          borderRadius: 14,
+                          iconScale: 0.58,
+                        ),
+                        const SizedBox(width: 12),
                         const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -947,6 +963,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                           icon: const Icon(Icons.notifications_none_rounded),
                           tooltip: 'Open alerts',
                         ),
+                        const SizedBox(width: 8),
                         GuardianHeaderAvatar(
                           initials: userInitials,
                           color: context.guardianColors.accent,
@@ -957,7 +974,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                  padding: const EdgeInsets.fromLTRB(14, 5, 14, 30),
                   sliver: SliverList.list(
                     children: [
                       _SafetyHero(
@@ -970,14 +987,30 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                         titleOverride: dashboardSafetyTitle(_devices),
                         subtitleOverride: dashboardSafetySubtitle(_devices),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       _LiveStatusBar(device: selected, linkingTick: _linkingTick),
                       const SizedBox(height: 12),
                       SizedBox(
-                        height: 300,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: Stack(
+                        height: 334,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: context.guardianColors.textPrimary
+                                    .withValues(alpha: 0.11),
+                                blurRadius: 34,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(29),
+                            child: Stack(
                             fit: StackFit.expand,
                             children: [
                               Positioned.fill(
@@ -1040,6 +1073,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                   ),
                                 ),
                             ],
+                            ),
                           ),
                         ),
                       ),
@@ -1206,6 +1240,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
               ],
             ),
           ),
+            ),
+          ],
         ),
       ),
     );
@@ -1213,10 +1249,32 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
 }
 
 const _dashboardHeaderTitleStyle = TextStyle(
-  fontSize: 22,
+  fontSize: 23,
   fontWeight: FontWeight.w800,
+  letterSpacing: -0.65,
   height: 1.0,
 );
+
+class _AmbientGlow extends StatelessWidget {
+  const _AmbientGlow({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [color, color.withValues(alpha: 0)],
+            ),
+          ),
+        ),
+      );
+}
 
 class _GuardianSloganText extends StatelessWidget {
   const _GuardianSloganText();
@@ -1410,15 +1468,23 @@ class _SafetyHero extends StatelessWidget {
                 ? 'Everyone you care about is safe'
                 : 'A device needs your attention');
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(18, 17, 16, 17),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [
+            colors.surface,
+            colors.accentMuted.withValues(alpha: 0.55),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
         boxShadow: [
           BoxShadow(
-            color: colors.textPrimary.withValues(alpha: 0.07),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: colors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -1426,14 +1492,14 @@ class _SafetyHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           GuardianAiIcon(
-            size: 58,
+            size: 66,
             backgroundColor:
                 safe ? GuardianColors.safeBg : GuardianColors.warningBg,
             accentColor:
                 safe ? GuardianColors.safe : GuardianColors.warning,
             warning: totalCount > 0 && !safe,
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1444,9 +1510,10 @@ class _SafetyHero extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 16,
-                    height: 1.2,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    height: 1.18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1506,9 +1573,16 @@ class _LiveStatusBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colors.border),
+            color: colors.glass,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.75)),
+            boxShadow: [
+              BoxShadow(
+                color: colors.textPrimary.withValues(alpha: 0.055),
+                blurRadius: 22,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1541,12 +1615,19 @@ class _LiveStatusBar extends StatelessWidget {
       duration: const Duration(milliseconds: 350),
       child: Container(
         key: const ValueKey('live-metrics'),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: colors.border),
+          color: colors.glass,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.75)),
+          boxShadow: [
+            BoxShadow(
+              color: colors.textPrimary.withValues(alpha: 0.055),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1612,12 +1693,22 @@ class _LiveMetric extends StatelessWidget {
     final colors = colorsOverride ?? flagMetricColors(metric, active);
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 3),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
           decoration: BoxDecoration(
-            color: colors.background,
-            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: [
+                colors.background,
+                colors.background.withValues(alpha: 0.68),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: colors.foreground.withValues(alpha: 0.08),
+            ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1625,16 +1716,16 @@ class _LiveMetric extends StatelessWidget {
               if (showPulse)
                 ReconnectingPulse(size: 4, iconSize: 14, color: colors.foreground)
               else
-                Icon(icon, size: 14, color: colors.foreground),
-              const SizedBox(height: 4),
+                Icon(icon, size: 15, color: colors.foreground),
+              const SizedBox(height: 5),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 9.2,
+                  fontWeight: FontWeight.w800,
                   height: 1.1,
                   color: colors.foreground,
                 ),
@@ -2376,13 +2467,24 @@ class _EmergencyHoldCard extends StatelessWidget {
       onTapUp: sending ? null : (_) => onCancel(),
       onTapCancel: sending ? null : onCancel,
       child: Container(
-        height: 82,
+        height: 88,
         decoration: BoxDecoration(
-          color: GuardianColors.dangerBg,
-          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFF6F4), GuardianColors.dangerBg],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(
             color: GuardianColors.danger.withValues(alpha: 0.22),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: GuardianColors.danger.withValues(alpha: 0.10),
+              blurRadius: 24,
+              offset: const Offset(0, 9),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -2401,8 +2503,8 @@ class _EmergencyHoldCard extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 52,
+                    height: 52,
                     decoration: const BoxDecoration(
                       color: GuardianColors.danger,
                       shape: BoxShape.circle,
@@ -2422,8 +2524,9 @@ class _EmergencyHoldCard extends StatelessWidget {
                         const Text(
                           'Emergency',
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.25,
                             color: GuardianColors.dangerText,
                           ),
                         ),

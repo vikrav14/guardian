@@ -614,16 +614,18 @@ class MobileBottomBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.glass,
-        border: Border(top: BorderSide(color: colors.border)),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.72)),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, -8),
+            color: colors.textPrimary.withValues(alpha: 0.09),
+            blurRadius: 30,
+            offset: const Offset(0, -10),
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 7),
       child: SafeArea(
         top: false,
         child: Row(
@@ -633,20 +635,38 @@ class MobileBottomBar extends StatelessWidget {
             return Expanded(
               child: InkWell(
                 onTap: () => onTap(index),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 3,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(items[index].icon, size: 22, color: color),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        width: 42,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: active ? colors.accentMuted : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          items[index].icon,
+                          size: 21,
+                          color: color,
+                        ),
+                      ),
                       const SizedBox(height: 3),
                       Text(
                         items[index].label,
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 9.5,
                           color: color,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
                     ],
