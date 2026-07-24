@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
@@ -34,7 +36,7 @@ List<GuardianDestination> guardianDestinations(BuildContext context) {
 /// Guardian uses one navigation model on every platform. Wide screens gain
 /// breathing room around the app content, rather than switching to a separate
 /// legacy desktop shell.
-class MobileBottomBar extends StatelessWidget {
+class MobileBottomBar extends StatefulWidget {
   const MobileBottomBar({
     super.key,
     required this.currentIndex,
@@ -47,9 +49,59 @@ class MobileBottomBar extends StatelessWidget {
   final VoidCallback onSos;
 
   @override
+  State<MobileBottomBar> createState() => _MobileBottomBarState();
+}
+
+class _MobileBottomBarState extends State<MobileBottomBar> {
+  Timer? _sosHoldTimer;
+  int _sosHoldTenths = 0;
+  bool _sosCompleted = false;
+
+  void _startSosHold() {
+    if (_sosHoldTimer != null || _sosCompleted) return;
+    setState(() => _sosHoldTenths = 0);
+    _sosHoldTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _sosHoldTenths++);
+      if (_sosHoldTenths >= 30) {
+        timer.cancel();
+        _sosHoldTimer = null;
+        _sosCompleted = true;
+        widget.onSos();
+      }
+    });
+  }
+
+  void _cancelSosHold() {
+    _sosHoldTimer?.cancel();
+    _sosHoldTimer = null;
+    if (!mounted) return;
+    setState(() {
+      _sosHoldTenths = 0;
+      _sosCompleted = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _sosHoldTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final items = guardianDestinations(context);
+    final progress = (_sosHoldTenths / 30).clamp(0.0, 1.0).toDouble();
+    final remainingSeconds = (3 - progress * 3).ceil().clamp(1, 3);
+    final holdLabel = _sosCompleted
+        ? 'SENT'
+        : _sosHoldTenths > 0
+        ? '$remainingSeconds SEC'
+        : '3 SEC';
 
     return SafeArea(
       top: false,
@@ -76,19 +128,19 @@ class MobileBottomBar extends StatelessWidget {
               children: [
                 _DestinationButton(
                   item: items[0],
-                  active: currentIndex == 0,
-                  onTap: () => onTap(0),
+                  active: widget.currentIndex == 0,
+                  onTap: () => widget.onTap(0),
                 ),
                 _DestinationButton(
                   item: items[1],
-                  active: currentIndex == 1,
-                  onTap: () => onTap(1),
+                  active: widget.currentIndex == 1,
+                  onTap: () => widget.onTap(1),
                 ),
                 Expanded(
                   child: Center(
                     child: Semantics(
                       button: true,
-                      label: 'SOS emergency',
+                      label: 'SOS emergency. Hold for 3 seconds.',
                       child: Material(
                         color: GuardianColors.danger,
                         shape: const CircleBorder(),
@@ -98,20 +150,55 @@ class MobileBottomBar extends StatelessWidget {
                         ),
                         child: InkWell(
                           customBorder: const CircleBorder(),
-                          onTap: onSos,
-                          child: const SizedBox(
+                          onTap: () {},
+                          onTapDown: (_) => _startSosHold(),
+                          onTapUp: (_) => _cancelSosHold(),
+                          onTapCancel: _cancelSosHold,
+                          child: SizedBox(
                             width: 56,
                             height: 56,
-                            child: Center(
-                              child: Text(
-                                'SOS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.2,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (_sosHoldTenths > 0)
+                                  Positioned.fill(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(3),
+                                      child: CircularProgressIndicator(
+                                        value: progress,
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                        backgroundColor: Colors.white24,
+                                      ),
+                                    ),
+                                  ),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      'SOS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        height: 1,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      holdLabel,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 7,
+                                        height: 1,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.35,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ),
@@ -121,13 +208,13 @@ class MobileBottomBar extends StatelessWidget {
                 ),
                 _DestinationButton(
                   item: items[2],
-                  active: currentIndex == 2,
-                  onTap: () => onTap(2),
+                  active: widget.currentIndex == 2,
+                  onTap: () => widget.onTap(2),
                 ),
                 _DestinationButton(
                   item: items[3],
-                  active: currentIndex == 3,
-                  onTap: () => onTap(3),
+                  active: widget.currentIndex == 3,
+                  onTap: () => widget.onTap(3),
                 ),
               ],
             ),

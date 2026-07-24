@@ -18,13 +18,19 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  final _dashboardKey = GlobalKey<MapDashboardPageState>();
 
   void _goToTab(int index) => setState(() => _index = index);
 
+  void _sendSos() {
+    _goToTab(0);
+    _dashboardKey.currentState?.sendHelpFromNavigation();
+  }
+
   @override
   Widget build(BuildContext context) {
-    const pages = [
-      MapDashboardPage(),
+    final pages = [
+      MapDashboardPage(key: _dashboardKey),
       SafeZonesPage(),
       AlertsPage(),
       AccountPage(),
@@ -54,7 +60,7 @@ class _HomeShellState extends State<HomeShell> {
                     child: MobileBottomBar(
                       currentIndex: _index,
                       onTap: _goToTab,
-                      onSos: () => _goToTab(0),
+                      onSos: _sendSos,
                     ),
                   ),
                 ],

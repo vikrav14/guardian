@@ -29,20 +29,18 @@ class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
 
   @override
-  State<MapDashboardPage> createState() => _MapDashboardPageState();
+  State<MapDashboardPage> createState() => MapDashboardPageState();
 }
 
-class _MapDashboardPageState extends State<MapDashboardPage> {
+class MapDashboardPageState extends State<MapDashboardPage> {
   GoogleMapController? _mapController;
   late final DashboardController _dashboard;
   bool _didFit = false;
   bool _sendingHelp = false;
   bool _myLocationEnabled = false;
   double _zoom = 13;
-  Timer? _emergencyHoldTimer;
   Timer? _linkingTimer;
   int _linkingTick = 0;
-  int _emergencyHoldTenths = 0;
   Map<String, BitmapDescriptor> _markerIcons = const {};
   String _markerFingerprint = '';
   int _markerGeneration = 0;
@@ -353,7 +351,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
 
   @override
   void dispose() {
-    _emergencyHoldTimer?.cancel();
     _linkingTimer?.cancel();
     _mapCameraGeneration.dispose();
     _dashboard
@@ -388,30 +385,14 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     );
   }
 
-  void _startEmergencyHold(Device device) {
+  void sendHelpFromNavigation() {
+    final device = _selected;
+    if (device == null) {
+      _showUnavailable('No pendant is available for an SOS alert.');
+      return;
+    }
     if (_sendingHelp) return;
-    _emergencyHoldTimer?.cancel();
-    setState(() => _emergencyHoldTenths = 0);
-    _emergencyHoldTimer = Timer.periodic(const Duration(milliseconds: 100), (
-      timer,
-    ) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() => _emergencyHoldTenths++);
-      if (_emergencyHoldTenths >= 30) {
-        timer.cancel();
-        _sendHelp(device);
-      }
-    });
-  }
-
-  void _cancelEmergencyHold() {
-    if (_emergencyHoldTenths >= 30) return;
-    _emergencyHoldTimer?.cancel();
-    _emergencyHoldTimer = null;
-    if (mounted) setState(() => _emergencyHoldTenths = 0);
+    unawaited(_sendHelp(device));
   }
 
   Device? get _selected {
@@ -475,10 +456,7 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _sendingHelp = false;
-          _emergencyHoldTenths = 0;
-        });
+        setState(() => _sendingHelp = false);
       }
     }
   }
@@ -704,13 +682,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                 'Messaging is not connected for this pendant yet.',
                               ),
                               onHistory: () => _openHistory(selected),
-                            ),
-                            const SizedBox(height: 18),
-                            _EmergencyHoldCard(
-                              progress: _emergencyHoldTenths / 30,
-                              sending: _sendingHelp,
-                              onStart: () => _startEmergencyHold(selected),
-                              onCancel: _cancelEmergencyHold,
                             ),
                           ],
                         ],
@@ -2460,117 +2431,4 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
 
   @override
   Widget build(BuildContext context) => _map;
-}
-
-class _EmergencyHoldCard extends StatelessWidget {
-  const _EmergencyHoldCard({
-    required this.progress,
-    required this.sending,
-    required this.onStart,
-    required this.onCancel,
-  });
-
-  final double progress;
-  final bool sending;
-  final VoidCallback onStart;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final remaining = (3 - progress * 3).ceil().clamp(1, 3);
-    final holding = progress > 0 && progress < 1;
-    return GestureDetector(
-      onTapDown: sending ? null : (_) => onStart(),
-      onTapUp: sending ? null : (_) => onCancel(),
-      onTapCancel: sending ? null : onCancel,
-      child: Container(
-        height: 88,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFF6F4), GuardianColors.dangerBg],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: GuardianColors.danger.withValues(alpha: 0.22),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: GuardianColors.danger.withValues(alpha: 0.10),
-              blurRadius: 24,
-              offset: const Offset(0, 9),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: progress.clamp(0, 1),
-                child: Container(
-                  color: GuardianColors.danger.withValues(alpha: 0.14),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: const BoxDecoration(
-                      color: GuardianColors.danger,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.sos_rounded,
-                      color: Colors.white,
-                      size: 25,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Emergency',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.25,
-                            color: GuardianColors.dangerText,
-                          ),
-                        ),
-                        Text(
-                          sending
-                              ? 'Sending alert…'
-                              : holding
-                              ? 'Keep holding • $remaining'
-                              : 'Hold for 3 seconds',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: GuardianColors.dangerText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.touch_app_rounded,
-                    color: GuardianColors.danger,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
