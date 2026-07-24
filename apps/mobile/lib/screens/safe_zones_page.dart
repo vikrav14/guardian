@@ -9,6 +9,7 @@ import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/safe_zones/safe_zone_card.dart';
 import '../widgets/safe_zones/safe_zones_hero.dart';
+import '../widgets/layout/guardian_page_frame.dart';
 import 'location_picker_page.dart';
 
 class SafeZonesPage extends StatelessWidget {
@@ -203,7 +204,11 @@ class SafeZonesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: SafeArea(child: _SafeZonesBody(onCreateZone: _createZone)),
+      body: SafeArea(
+        child: GuardianPageFrame(
+          child: _SafeZonesBody(onCreateZone: _createZone),
+        ),
+      ),
     );
   }
 }
@@ -261,9 +266,17 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                         SafeZonesHero(summary: hero),
                         const SizedBox(height: GuardianSpacing.md),
                         if (zones.isEmpty)
-                          Text(
-                            'No safe zones yet. Tap + to create a radius around home, school, or another place you care about.',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                          GuardianEmptyState(
+                            icon: Icons.shield_outlined,
+                            title: 'Create your first safe zone',
+                            message:
+                                'Add home, school, or another familiar place. Guardian will gently tell you when someone arrives or leaves.',
+                            action: FilledButton.icon(
+                              onPressed: () =>
+                                  widget.onCreateZone(context, devices),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Add a safe zone'),
+                            ),
                           )
                         else
                           for (final zone in zones) ...[

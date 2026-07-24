@@ -5,6 +5,7 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../widgets/layout/guardian_page_frame.dart';
 
 enum _AlertTone { danger, warning, neutral }
 
@@ -73,15 +74,11 @@ class AlertsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 19,
-          fontWeight: FontWeight.w600,
-        );
-
     return Scaffold(
       backgroundColor: colors.canvas,
       body: SafeArea(
-        child: StreamBuilder<List<Device>>(
+        child: GuardianPageFrame(
+          child: StreamBuilder<List<Device>>(
           stream: DeviceService().watchLinkedDevices(),
           builder: (context, deviceSnapshot) {
             final devices = deviceSnapshot.data ?? const <Device>[];
@@ -105,26 +102,21 @@ class AlertsPage extends StatelessWidget {
                 final open = alerts.where((a) => !a.resolved).toList();
 
                 return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
                   children: [
-                    Text('Alerts', style: titleStyle),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${recent.length} in the last 24 hours',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                    GuardianPageHeader(
+                      title: 'Alerts',
+                      subtitle: recent.isEmpty
+                          ? 'Everything is calm right now'
+                          : '${recent.length} in the last 24 hours',
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 20),
                     if (open.isEmpty && alerts.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          'No alerts yet. SOS and other events will appear here.',
-                          style: TextStyle(color: colors.textSecondary),
-                        ),
+                      const GuardianEmptyState(
+                        icon: Icons.check_rounded,
+                        title: 'Everyone is all clear',
+                        message:
+                            'SOS, safe-zone, battery, and connection alerts will appear here when they need you.',
                       )
                     else ...[
                       for (final alert in open) ...[
@@ -191,6 +183,7 @@ class AlertsPage extends StatelessWidget {
               },
             );
           },
+        ),
         ),
       ),
     );
