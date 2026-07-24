@@ -140,7 +140,7 @@ class GuardianDodo3d extends StatelessWidget {
         image: true,
         label: action.semanticLabel,
         child: Image.asset(
-          DodoAiIcon.assetPath,
+          GuardianBrandMark.assetPath,
           fit: BoxFit.contain,
           excludeFromSemantics: true,
         ),
@@ -155,7 +155,7 @@ class GuardianDodo3d extends StatelessWidget {
           key: ValueKey(action.assetPath),
           src: dodoViewerAssetSource(action.assetPath, isWeb: kIsWeb),
           poster: dodoViewerAssetSource(
-            DodoAiIcon.assetPath,
+            GuardianBrandMark.assetPath,
             isWeb: kIsWeb,
           ),
           alt: action.semanticLabel,
