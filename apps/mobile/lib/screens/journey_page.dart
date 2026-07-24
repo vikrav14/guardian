@@ -26,6 +26,8 @@ import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand/dodo_ai_icon.dart';
 import '../widgets/layout/guardian_page_frame.dart';
+import '../widgets/map/map_avatar_overlay.dart';
+import '../widgets/map/person_map_marker.dart';
 
 const _kMauritiusFallback = LatLng(-20.026, 57.596);
 
@@ -408,6 +410,9 @@ class _JourneyPageState extends State<JourneyPage> {
 
                         return _JourneyScreenLayout(
                           replay: replay,
+                          deviceName: widget.deviceName,
+                          imei: widget.imei,
+                          avatarUrl: device?.avatarUrl ?? widget.avatarUrl,
                           selectedDay: _day,
                           weather: weather,
                           mapType: _mapType,
@@ -453,6 +458,9 @@ class _JourneyPageState extends State<JourneyPage> {
 class _JourneyScreenLayout extends StatelessWidget {
   const _JourneyScreenLayout({
     required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
     required this.selectedDay,
     required this.weather,
     required this.mapType,
@@ -474,6 +482,9 @@ class _JourneyScreenLayout extends StatelessWidget {
   });
 
   final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
   final DateTime selectedDay;
   final TypicalWeather weather;
   final MapType mapType;
@@ -511,6 +522,9 @@ class _JourneyScreenLayout extends StatelessWidget {
             );
             final mapCard = _JourneyMapCard(
               replay: replay,
+              deviceName: deviceName,
+              imei: imei,
+              avatarUrl: avatarUrl,
               weatherLabel: _weatherLabel,
               mapType: mapType,
               showHeatmap: showHeatmap,
@@ -874,6 +888,9 @@ class _JourneyMetricCard extends StatelessWidget {
 class _JourneyMapCard extends StatelessWidget {
   const _JourneyMapCard({
     required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
     required this.weatherLabel,
     required this.mapType,
     required this.showHeatmap,
@@ -894,6 +911,9 @@ class _JourneyMapCard extends StatelessWidget {
   });
 
   final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
   final String weatherLabel;
   final MapType mapType;
   final bool showHeatmap;
@@ -1051,6 +1071,9 @@ class _JourneyMapCard extends StatelessWidget {
               children: [
                 _JourneyMap(
                   replay: replay,
+                  deviceName: deviceName,
+                  imei: imei,
+                  avatarUrl: avatarUrl,
                   mapType: mapType,
                   showHeatmap: showHeatmap,
                   comparePoints: comparePoints,
@@ -1077,7 +1100,12 @@ class _JourneyMapCard extends StatelessWidget {
                   bottom: JourneyScreenTheme.playbackBottomOffset +
                       JourneyScreenTheme.playbackCollapsedHeight +
                       8,
-                  child: const Center(child: JourneyRouteLegend()),
+                  child: Center(
+                    child: JourneyRouteLegend(
+                      trackedPersonLabel: deviceName,
+                      trackedPersonColor: avatarColorForKey(imei),
+                    ),
+                  ),
                 ),
                 Positioned(
                   left: 12,
@@ -1477,6 +1505,9 @@ class _JourneyEventRow extends StatelessWidget {
 class _JourneyMap extends StatefulWidget {
   const _JourneyMap({
     required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
     required this.onMapCreated,
     required this.mapType,
     required this.showHeatmap,
@@ -1485,6 +1516,9 @@ class _JourneyMap extends StatefulWidget {
   });
 
   final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
   final ValueChanged<GoogleMapController> onMapCreated;
   final MapType mapType;
   final bool showHeatmap;
@@ -1498,6 +1532,9 @@ class _JourneyMap extends StatefulWidget {
 class _JourneyMapState extends State<_JourneyMap> {
   GoogleMapController? _mapController;
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
+  BitmapDescriptor? _replayAvatarIcon;
+  String _avatarFingerprint = '';
+  int _avatarGeneration = 0;
 
   @override
   void initState() {
@@ -1506,10 +1543,53 @@ class _JourneyMapState extends State<_JourneyMap> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    unawaited(_refreshReplayAvatarIcon());
+  }
+
+  @override
+  void didUpdateWidget(covariant _JourneyMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.replay != widget.replay) {
+      oldWidget.replay.removeListener(_onReplayChanged);
+      widget.replay.addListener(_onReplayChanged);
+    }
+    if (oldWidget.deviceName != widget.deviceName ||
+        oldWidget.imei != widget.imei ||
+        oldWidget.avatarUrl != widget.avatarUrl) {
+      unawaited(_refreshReplayAvatarIcon());
+    }
+  }
+
+  @override
   void dispose() {
     widget.replay.removeListener(_onReplayChanged);
     _mapCameraGeneration.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshReplayAvatarIcon() async {
+    if (kIsWeb) return;
+    final fingerprint =
+        '${widget.imei}|${widget.deviceName}|${widget.avatarUrl ?? ''}';
+    if (fingerprint == _avatarFingerprint) return;
+    _avatarFingerprint = fingerprint;
+    final generation = ++_avatarGeneration;
+
+    try {
+      final icon = await PersonMapMarker.create(
+        initials: initialsFor(widget.deviceName),
+        color: avatarColorForKey(widget.imei),
+        selected: true,
+        surfaceColor: context.guardianColors.surface,
+        imageUrl: widget.avatarUrl,
+      );
+      if (!mounted || generation != _avatarGeneration) return;
+      setState(() => _replayAvatarIcon = icon);
+    } catch (_) {
+      // Keep the standard replay marker if an avatar cannot be rendered.
+    }
   }
 
   void _onReplayChanged() {
@@ -1649,6 +1729,7 @@ class _JourneyMapState extends State<_JourneyMap> {
           markers: buildJourneyColoredMarkers(
             replay,
             includeCurrentMarker: !kIsWeb,
+            replayAvatarIcon: _replayAvatarIcon,
           ),
           mapType: widget.mapType,
           style: mapStyle.isEmpty ? null : jsonEncode(mapStyle),
@@ -1661,10 +1742,23 @@ class _JourneyMapState extends State<_JourneyMap> {
         ValueListenableBuilder<int>(
           valueListenable: _mapCameraGeneration,
           builder: (context, generation, _) {
-            return JourneyReplayPulseOverlay(
+            final point = replay.currentPoint;
+            if (!kIsWeb || !replay.isReplayMode || point == null) {
+              return const SizedBox.shrink();
+            }
+            return JourneyMapAvatarOverlay(
               controller: _mapController,
-              replay: replay,
+              slots: [
+                JourneyMapAvatarSlot(
+                  id: 'replay-${widget.imei}',
+                  latLng: LatLng(point.lat, point.lng),
+                  selected: true,
+                ),
+              ],
               cameraGeneration: generation,
+              deviceName: widget.deviceName,
+              imei: widget.imei,
+              avatarUrl: widget.avatarUrl,
             );
           },
         ),

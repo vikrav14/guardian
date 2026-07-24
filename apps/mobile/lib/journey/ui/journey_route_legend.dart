@@ -4,8 +4,15 @@ import 'journey_screen_theme.dart';
 
 /// Optional bottom-center route marker legend.
 class JourneyRouteLegend extends StatelessWidget {
-  const JourneyRouteLegend({super.key, this.visible = true});
+  const JourneyRouteLegend({
+    super.key,
+    required this.trackedPersonLabel,
+    required this.trackedPersonColor,
+    this.visible = true,
+  });
 
+  final String trackedPersonLabel;
+  final Color trackedPersonColor;
   final bool visible;
 
   @override
@@ -24,7 +31,11 @@ class JourneyRouteLegend extends StatelessWidget {
           const _LegendDivider(),
           _LegendDot(color: JourneyScreenTheme.markerEnd, label: 'End'),
           const _LegendDivider(),
-          _LegendDot(color: JourneyScreenTheme.markerCurrent, label: 'Now', pulse: true),
+          _LegendDot(
+            color: trackedPersonColor,
+            label: trackedPersonLabel,
+            pulse: true,
+          ),
         ],
       ),
     );
@@ -57,6 +68,8 @@ class _LegendDot extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: JourneyScreenTheme.textStyle(
             fontSize: 10,
             fontWeight: FontWeight.w600,
