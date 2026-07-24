@@ -1630,7 +1630,7 @@ class _LiveStatusBar extends StatelessWidget {
           ],
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _LiveMetric(
               metric: DashboardFlagMetric.connectivity,
