@@ -39,93 +39,147 @@ class MobileBottomBar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    required this.onSos,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final VoidCallback onSos;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final items = guardianDestinations(context);
 
-    return ColoredBox(
-      color: colors.canvas,
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Container(
-              height: 66,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: colors.glass,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.78),
+    return SafeArea(
+      top: false,
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Container(
+            height: 76,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: colors.glass,
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(color: Colors.white),
+              boxShadow: [
+                BoxShadow(
+                  color: GuardianColors.forest.withValues(alpha: 0.18),
+                  blurRadius: 34,
+                  offset: const Offset(0, 14),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colors.textPrimary.withValues(alpha: 0.10),
-                    blurRadius: 28,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: List.generate(items.length, (index) {
-                  final item = items[index];
-                  final active = currentIndex == index;
-                  return Expanded(
+              ],
+            ),
+            child: Row(
+              children: [
+                _DestinationButton(
+                  item: items[0],
+                  active: currentIndex == 0,
+                  onTap: () => onTap(0),
+                ),
+                _DestinationButton(
+                  item: items[1],
+                  active: currentIndex == 1,
+                  onTap: () => onTap(1),
+                ),
+                Expanded(
+                  child: Center(
                     child: Semantics(
-                      selected: active,
                       button: true,
-                      label: item.label,
-                      child: InkWell(
-                        onTap: () => onTap(index),
-                        borderRadius: BorderRadius.circular(18),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          curve: Curves.easeOutCubic,
-                          decoration: BoxDecoration(
-                            color:
-                                active ? colors.accentMuted : Colors.transparent,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                active ? item.activeIcon : item.icon,
-                                size: 22,
-                                color:
-                                    active ? colors.accent : colors.textMuted,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                item.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                      label: 'SOS emergency',
+                      child: Material(
+                        color: GuardianColors.danger,
+                        shape: const CircleBorder(),
+                        elevation: 8,
+                        shadowColor: GuardianColors.danger.withValues(
+                          alpha: 0.45,
+                        ),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: onSos,
+                          child: const SizedBox(
+                            width: 56,
+                            height: 56,
+                            child: Center(
+                              child: Text(
+                                'SOS',
                                 style: TextStyle(
-                                  fontSize: 10,
-                                  color:
-                                      active ? colors.accent : colors.textMuted,
-                                  fontWeight:
-                                      active ? FontWeight.w800 : FontWeight.w600,
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.2,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  );
-                }),
-              ),
+                  ),
+                ),
+                _DestinationButton(
+                  item: items[2],
+                  active: currentIndex == 2,
+                  onTap: () => onTap(2),
+                ),
+                _DestinationButton(
+                  item: items[3],
+                  active: currentIndex == 3,
+                  onTap: () => onTap(3),
+                ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DestinationButton extends StatelessWidget {
+  const _DestinationButton({
+    required this.item,
+    required this.active,
+    required this.onTap,
+  });
+
+  final GuardianDestination item;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Expanded(
+      child: Semantics(
+        selected: active,
+        button: true,
+        label: item.label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                active ? item.activeIcon : item.icon,
+                size: 21,
+                color: active ? GuardianColors.safe : colors.textMuted,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: active ? GuardianColors.safe : colors.textMuted,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),

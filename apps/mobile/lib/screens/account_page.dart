@@ -168,19 +168,20 @@ class AccountPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
-        child: GuardianPageFrame(
-          child: ListView(
+      body: GuardianPageFrame(
+        maxWidth: 920,
+        child: ListView(
           padding: const EdgeInsets.fromLTRB(
             GuardianSpacing.md,
             GuardianSpacing.lg,
             GuardianSpacing.md,
-            GuardianSpacing.md,
+            118,
           ),
           children: [
             const GuardianPageHeader(
-              title: 'Your Guardian circle',
-              subtitle: 'People, pendants, and preferences in one place',
+              eyebrow: 'YOUR GUARDIAN CIRCLE',
+              title: 'Account & family',
+              subtitle: 'People, pendant and preferences in one calm place.',
             ),
             const SizedBox(height: GuardianSpacing.lg),
             GuardianCard(
@@ -416,7 +417,6 @@ class AccountPage extends StatelessWidget {
               ],
             ),
           ],
-        ),
         ),
       ),
     );

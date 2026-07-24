@@ -62,10 +62,10 @@ ThemeData buildGuardianTheme({
     ),
     cardTheme: CardThemeData(
       color: semantic.surface,
-      elevation: highContrast ? 0 : 1,
-      shadowColor: semantic.textPrimary.withValues(alpha: 0.08),
+      elevation: 0,
+      shadowColor: semantic.textPrimary.withValues(alpha: 0.06),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GuardianRadius.large),
+        borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: semantic.border, width: borderWidth),
       ),
     ),
@@ -76,7 +76,7 @@ ThemeData buildGuardianTheme({
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(GuardianRadius.medium),
+          borderRadius: BorderRadius.circular(14),
         ),
         textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
       ),

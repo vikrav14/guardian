@@ -60,7 +60,7 @@ class JourneyHeader extends StatelessWidget {
     return Container(
       height: JourneyScreenTheme.headerHeight,
       decoration: BoxDecoration(
-        color: JourneyScreenTheme.background,
+        color: const Color(0xFFFBFAF6),
         border: Border(
           bottom: BorderSide(color: JourneyScreenTheme.cardBorder),
         ),
@@ -71,7 +71,10 @@ class JourneyHeader extends StatelessWidget {
           IconButton(
             tooltip: 'Back',
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded, color: JourneyScreenTheme.textPrimary),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: JourneyScreenTheme.textPrimary,
+            ),
             constraints: const BoxConstraints(
               minWidth: JourneyScreenTheme.minTouchTarget,
               minHeight: JourneyScreenTheme.minTouchTarget,
@@ -116,7 +119,7 @@ class JourneyHeader extends StatelessWidget {
           PopupMenuButton<String>(
             tooltip: 'More',
             icon: const Icon(Icons.more_vert_rounded, color: JourneyScreenTheme.textPrimary),
-            color: JourneyScreenTheme.cardFill,
+            color: Colors.white,
             onSelected: (value) {
               switch (value) {
                 case 'share':

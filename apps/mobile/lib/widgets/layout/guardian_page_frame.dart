@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
-import '../brand/dodo_ai_icon.dart';
 
 /// Shared responsive frame for every primary Guardian destination.
 ///
@@ -11,7 +10,7 @@ class GuardianPageFrame extends StatelessWidget {
   const GuardianPageFrame({
     super.key,
     required this.child,
-    this.maxWidth = 560,
+    this.maxWidth = 1180,
   });
 
   final Widget child;
@@ -51,41 +50,51 @@ class GuardianPageHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.action,
-    this.showDodo = true,
+    this.eyebrow,
   });
 
   final String title;
   final String subtitle;
   final Widget? action;
-  final bool showDodo;
+  final String? eyebrow;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (showDodo) ...[
-          const GuardianBrandMark(size: 44, borderRadius: 15, iconScale: 0.62),
-          const SizedBox(width: 12),
-        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (eyebrow != null) ...[
+                Text(
+                  eyebrow!.toUpperCase(),
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
               Text(
                 title,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontSize: 23,
+                      fontSize: 30,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
+                      letterSpacing: -1,
                     ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colors.textSecondary,
-                      height: 1.3,
+                      fontSize: 12,
+                      height: 1.4,
                     ),
               ),
             ],

@@ -692,7 +692,7 @@ class _JourneyMapState extends State<_JourneyMap> {
 
   List<Map<String, dynamic>> _mapStyleForReplay() {
     if (!widget.replay.isReplayMode || !widget.replay.isPlaying) {
-      return JourneyMapStyles.dark;
+      return JourneyMapStyles.light;
     }
 
     final time = interpolateJourneyTime(widget.replay.rawPoints, widget.replay.progress);

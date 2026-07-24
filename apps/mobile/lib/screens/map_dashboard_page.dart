@@ -13,19 +13,12 @@ import '../dashboard/dashboard_status_colors.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/dashboard_insight.dart';
 import '../dashboard/linking_story.dart';
-import '../dashboard/device_card_visibility.dart';
 import '../dashboard/device_formatters.dart';
-import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
-import '../navigation/home_shell_scope.dart';
-import '../services/device_card_preferences.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
-import '../widgets/brand/dodo_ai_icon.dart';
-import '../widgets/cards/guardian_card.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
-import '../widgets/dashboard/smart_device_map_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/map_my_location_avatar_button.dart';
@@ -58,11 +51,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   String _geofenceFingerprint = '';
   int _lastGeofenceCount = 0;
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
-  StreamSubscription<List<GuardianAlert>>? _alertsSubscription;
-  List<GuardianAlert> _alerts = const [];
-  bool _deviceCardMinimized = false;
-  String? _loadedCardPrefsImei;
-  final Map<String, bool> _attentionByImei = {};
 
   static const _mauritius = LatLng(-20.2642, 57.4791);
 
@@ -84,100 +72,22 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     return 'Connected • Locating';
   }
 
-  PillTone _mapStatusTone(Device? device) {
-    if (device == null || !_isLive(device)) {
-      return device != null && _isReconnecting(device)
-          ? PillTone.warning
-          : PillTone.neutral;
-    }
-    return device.hasFreshLocation && !device.hasApproximateLocation
-        ? PillTone.safe
-        : PillTone.warning;
-  }
-
   @override
   void initState() {
     super.initState();
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
-    _alertsSubscription = AlertService().watchLinkedAlerts().listen((alerts) {
-      if (!mounted) return;
-      setState(() => _alerts = alerts);
-      _syncDeviceCardVisibility();
-    });
     _requestLocationPermission();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureDeviceCardPrefsLoaded();
-      _syncDeviceCardVisibility();
       _syncLinkingAnimation();
     });
-  }
-
-  List<GuardianAlert> _alertsForDevice(String imei) {
-    return _alerts
-        .where((alert) => alert.imei == imei && !alert.resolved)
-        .toList();
-  }
-
-  Future<void> _loadDeviceCardPrefs(String imei) async {
-    final minimized = await DeviceCardPreferences.loadMinimized(imei);
-    if (!mounted || _selectedImei != imei) return;
-    setState(() => _deviceCardMinimized = minimized);
-    _syncDeviceCardVisibility();
-  }
-
-  void _syncDeviceCardVisibility() {
-    final device = _selected;
-    if (device == null) return;
-    final imei = device.imei;
-    final needsAttention = deviceNeedsMapCardAttention(
-      device,
-      alerts: _alertsForDevice(imei),
-    );
-    final wasAttention = _attentionByImei[imei] ?? false;
-    if (needsAttention && !wasAttention && _deviceCardMinimized) {
-      setState(() => _deviceCardMinimized = false);
-      unawaited(DeviceCardPreferences.saveMinimized(imei, false));
-    }
-    _attentionByImei[imei] = needsAttention;
-  }
-
-  void _setDeviceCardMinimized(bool minimized) {
-    final imei = _selectedImei;
-    if (imei == null) return;
-    setState(() => _deviceCardMinimized = minimized);
-    unawaited(DeviceCardPreferences.saveMinimized(imei, minimized));
-  }
-
-  void _ensureDeviceCardPrefsLoaded() {
-    final imei = _selectedImei;
-    if (imei == null || imei == _loadedCardPrefsImei) return;
-    _loadedCardPrefsImei = imei;
-    unawaited(_loadDeviceCardPrefs(imei));
-  }
-
-  Widget _selectedDeviceMapCard({
-    required Device device,
-    required VoidCallback onOpen,
-  }) {
-    return SmartDeviceMapCard(
-      device: device,
-      updated: deviceUpdatedLabel(device),
-      onOpen: onOpen,
-      minimized: _deviceCardMinimized,
-      onMinimize: () => _setDeviceCardMinimized(true),
-      onExpand: () => _setDeviceCardMinimized(false),
-      alerts: _alertsForDevice(device.imei),
-    );
   }
 
   void _onDashboardChanged() {
     if (!mounted) return;
     setState(() {});
     _syncLinkingAnimation();
-    _ensureDeviceCardPrefsLoaded();
-    _syncDeviceCardVisibility();
     unawaited(_refreshMarkerIcons());
     _fitIfNeeded(_devices);
     _fitGeofencesIfNeeded();
@@ -445,7 +355,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   void dispose() {
     _emergencyHoldTimer?.cancel();
     _linkingTimer?.cancel();
-    _alertsSubscription?.cancel();
     _mapCameraGeneration.dispose();
     _dashboard
       ..removeListener(_onDashboardChanged)
@@ -596,103 +505,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     }
   }
 
-  Future<void> _unlink(Device device) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Unlink pendant?'),
-        content: Text(
-          '${device.displayName} will disappear from your account. '
-          'The pendant itself is not reset — you can link it again with the IMEI.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: GuardianColors.danger,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Unlink'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-
-    try {
-      await DeviceService().unlinkPendant(device.imei);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${device.displayName} unlinked')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not unlink pendant: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _rename(Device device) async {
-    final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
-    final relationshipCtrl = TextEditingController(
-      text: device.relationship ?? device.relationshipLabel,
-    );
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Who is wearing Guardian?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nicknameCtrl,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Nickname (optional)',
-                hintText: 'e.g. Mimi',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: relationshipCtrl,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Relationship',
-                hintText: 'e.g. Mum, Dad, Grandad',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && mounted) {
-      await DeviceService().updatePersonIdentity(
-        device.imei,
-        nickname: nicknameCtrl.text,
-        relationship: relationshipCtrl.text,
-      );
-    }
-    nicknameCtrl.dispose();
-    relationshipCtrl.dispose();
-  }
-
   void _openHistory(Device device) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -706,10 +518,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
     );
   }
 
-  void _openSafeZones() {
-    HomeShellScope.maybeOf(context)?.goToTab(1);
-  }
-
   void _showUnavailable(String message) {
     ScaffoldMessenger.of(
       context,
@@ -719,12 +527,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
-    final user = FirebaseAuth.instance.currentUser;
-    final userInitials = initialsFor(
-      user?.displayName?.trim().isNotEmpty == true
-          ? user!.displayName!
-          : (user?.email ?? 'G'),
-    );
     final center = selected?.hasFreshLocation == true
         ? LatLng(selected!.location!.lat, selected.location!.lng)
         : _mauritius;
@@ -733,308 +535,197 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
       selected,
       linkingTick: _linkingTick,
     );
-    final mood = dashboardSafetyMood(_devices);
-    final onlineCount = _devices
-        .where((d) => d.connectivityPhase() == DeviceConnectivityPhase.live)
-        .length;
 
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned(
-              top: -90,
-              right: -70,
-              child: _AmbientGlow(size: 250, color: Color(0x2E4AC99B)),
-            ),
-            const Positioned(
-              top: 310,
-              left: -100,
-              child: _AmbientGlow(size: 230, color: Color(0x1FE8B765)),
-            ),
-            Center(
-              child: ConstrainedBox(
-            // Home is intentionally a calm, mobile-first care experience on
-            // every platform. Desktop gets breathing room around the same
-            // composition instead of an unrelated command-centre UI.
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
-                    child: Row(
+      body: Stack(
+        children: [
+          const Positioned(
+            top: -90,
+            right: -70,
+            child: _AmbientGlow(size: 300, color: Color(0x2E4AC99B)),
+          ),
+          const Positioned(
+            top: 310,
+            left: -100,
+            child: _AmbientGlow(size: 260, color: Color(0x1FE8B765)),
+          ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(18, 24, 18, 118),
+                    sliver: SliverList.list(
                       children: [
-                        const GuardianBrandMark(
-                          size: 42,
-                          borderRadius: 14,
-                          iconScale: 0.58,
-                        ),
-                        const SizedBox(width: 12),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Guardian',
-                              style: _dashboardHeaderTitleStyle,
+                        if (selected?.isReconnecting == true)
+                          _LinkingPrototype(
+                            device: selected!,
+                            insight: insight,
+                            tick: _linkingTick,
+                          )
+                        else ...[
+                          _PrototypeCareCard(
+                            device: selected,
+                            insight: insight,
+                            linkingTick: _linkingTick,
+                          ),
+                          const SizedBox(height: 18),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final compact = constraints.maxWidth < 640;
+                              return SizedBox(
+                                height: compact ? 230 : 300,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(28),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: GuardianColors.forest
+                                            .withValues(alpha: 0.11),
+                                        blurRadius: 38,
+                                        offset: const Offset(0, 15),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(27),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        Positioned.fill(
+                                          child: _StableGoogleMap(
+                                            initialCameraPosition:
+                                                CameraPosition(
+                                              target: center,
+                                              zoom: _zoom,
+                                            ),
+                                            markers: _markers(),
+                                            circles: _circles(),
+                                            myLocationEnabled:
+                                                _myLocationEnabled,
+                                            zoomControlsEnabled: false,
+                                            onMapCreated: (controller) {
+                                              _mapController = controller;
+                                              _mapCameraGeneration.value++;
+                                              _fitIfNeeded(_devices);
+                                            },
+                                            onCameraMove: _onMapCameraMove,
+                                            onCameraIdle: () =>
+                                                _mapCameraGeneration.value++,
+                                          ),
+                                        ),
+                                        _webMapAvatarOverlay(),
+                                        if (_loading)
+                                          const Center(
+                                            child:
+                                                CircularProgressIndicator(),
+                                          ),
+                                        if (_error != null)
+                                          Center(
+                                            child:
+                                                _MapMessage(message: _error!),
+                                          ),
+                                        if (!_loading &&
+                                            _error == null &&
+                                            _devices.isEmpty)
+                                          const Center(
+                                            child: _MapMessage(
+                                              message:
+                                                  'No linked device is reporting yet.',
+                                            ),
+                                          ),
+                                        Positioned(
+                                          top: 18,
+                                          left: 18,
+                                          child: _PrototypeMapLabel(
+                                            device: selected,
+                                            status:
+                                                _mapStatusLabel(selected),
+                                          ),
+                                        ),
+                                        _mapMeButton(
+                                          bottom: selected == null ? 18 : 76,
+                                        ),
+                                        if (selected != null)
+                                          Positioned(
+                                            right: 18,
+                                            bottom: 18,
+                                            child: Material(
+                                              color: GuardianColors.forest,
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                              child: InkWell(
+                                                onTap: () =>
+                                                    _openHistory(selected),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                child: const SizedBox(
+                                                  width: 44,
+                                                  height: 44,
+                                                  child: Icon(
+                                                    Icons
+                                                        .arrow_forward_ios_rounded,
+                                                    size: 17,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (selected != null) ...[
+                            const SizedBox(height: 18),
+                            _PrototypeHomePanels(
+                              device: selected,
+                              insight: insight,
+                              onCall: () => _callDevice(selected),
+                              onLocate: () {
+                                if (selected.hasFreshLocation) {
+                                  final location = selected.location!;
+                                  _animateTo(
+                                    LatLng(location.lat, location.lng),
+                                    zoom: 16,
+                                  );
+                                }
+                              },
+                              onMessage: () => _showUnavailable(
+                                'Messaging is not connected for this pendant yet.',
+                              ),
+                              onHistory: () => _openHistory(selected),
                             ),
-                            _GuardianSloganText(),
+                            const SizedBox(height: 18),
+                            _EmergencyHoldCard(
+                              progress: _emergencyHoldTenths / 30,
+                              sending: _sendingHelp,
+                              onStart: () => _startEmergencyHold(selected),
+                              onCancel: _cancelEmergencyHold,
+                            ),
                           ],
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () =>
-                              HomeShellScope.maybeOf(context)?.goToTab(2),
-                          icon: const Icon(Icons.notifications_none_rounded),
-                          tooltip: 'Open alerts',
-                        ),
-                        const SizedBox(width: 8),
-                        GuardianHeaderAvatar(
-                          initials: userInitials,
-                          color: context.guardianColors.accent,
-                          size: 36,
-                        ),
+                        ],
                       ],
                     ),
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(14, 5, 14, 30),
-                  sliver: SliverList.list(
-                    children: [
-                      _SafetyHero(
-                        safe: mood == DashboardSafetyMood.allClear,
-                        onlineCount: onlineCount,
-                        totalCount: _devices.length,
-                        updated: selected == null
-                            ? 'Waiting for a linked device'
-                            : deviceUpdatedLabel(selected),
-                        titleOverride: dashboardSafetyTitle(_devices),
-                        subtitleOverride: dashboardSafetySubtitle(_devices),
-                      ),
-                      const SizedBox(height: 14),
-                      _LiveStatusBar(device: selected, linkingTick: _linkingTick),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 272,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: context.guardianColors.textPrimary
-                                    .withValues(alpha: 0.11),
-                                blurRadius: 34,
-                                offset: const Offset(0, 14),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(29),
-                            child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Positioned.fill(
-                                child: _StableGoogleMap(
-                                  initialCameraPosition: CameraPosition(
-                                    target: center,
-                                    zoom: _zoom,
-                                  ),
-                                  markers: _markers(),
-                                  circles: _circles(),
-                                  myLocationEnabled: _myLocationEnabled,
-                                  zoomControlsEnabled: false,
-                                  onMapCreated: (controller) {
-                                    _mapController = controller;
-                                    _mapCameraGeneration.value++;
-                                    _fitIfNeeded(_devices);
-                                  },
-                                  onCameraMove: _onMapCameraMove,
-                                  onCameraIdle: () =>
-                                      _mapCameraGeneration.value++,
-                                ),
-                              ),
-                              _webMapAvatarOverlay(),
-                              if (_loading)
-                                const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              if (_error != null)
-                                Center(child: _MapMessage(message: _error!)),
-                              if (!_loading &&
-                                  _error == null &&
-                                  _devices.isEmpty)
-                                const Center(
-                                  child: _MapMessage(
-                                    message:
-                                        'No linked device is reporting yet.',
-                                  ),
-                                ),
-                              Positioned(
-                                top: 14,
-                                left: 14,
-                                child: StatusPill(
-                                  label: _mapStatusLabel(selected),
-                                  tone: _mapStatusTone(selected),
-                                ),
-                              ),
-                              _mapMeButton(
-                                bottom: selected != null && !_deviceCardMinimized
-                                    ? 118
-                                    : 14,
-                              ),
-                              if (selected != null)
-                                Positioned(
-                                  left: 14,
-                                  right: _deviceCardMinimized ? null : 14,
-                                  bottom: 14,
-                                  child: _selectedDeviceMapCard(
-                                    device: selected,
-                                    onOpen: () => _openHistory(selected),
-                                  ),
-                                ),
-                            ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      _GuardianAiCard(insight: insight),
-                      if (selected != null) ...[
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Quick actions'),
-                        const SizedBox(height: 10),
-                        _QuickActions(
-                          onCall: () => _callDevice(selected),
-                          onLocate: () {
-                            if (selected.hasFreshLocation) {
-                              final location = selected.location!;
-                              _animateTo(
-                                LatLng(location.lat, location.lng),
-                                zoom: 16,
-                              );
-                            }
-                          },
-                          onMessage: () => _showUnavailable(
-                            'Messaging is not connected for this pendant yet.',
-                          ),
-                          onSiren: () => _showUnavailable(
-                            'Remote siren has no vendor-confirmed command for this device.',
-                          ),
-                          onHistory: () => _openHistory(selected),
-                          onSafeZone: _openSafeZones,
-                        ),
-                        const SizedBox(height: 18),
-                        _TimelineCard(
-                          device: selected,
-                          updated: deviceUpdatedLabel(selected),
-                          onOpen: () => _openHistory(selected),
-                        ),
-                        if (_devices.isNotEmpty) ...[
-                          const SizedBox(height: 18),
-                          const _SectionTitle(title: 'People you care for'),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 164,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _devices.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(width: 10),
-                              itemBuilder: (context, index) {
-                                final device = _devices[index];
-                                return _PremiumDeviceCard(
-                                  device: device,
-                                  selected: device.imei == _selectedImei,
-                                  updated: deviceUpdatedLabel(device),
-                                  onTap: () {
-                                    _dashboard.select(device.imei);
-                                    if (device.hasFreshLocation) {
-                                      _animateTo(
-                                        LatLng(
-                                          device.location!.lat,
-                                          device.location!.lng,
-                                        ),
-                                        zoom: 15,
-                                      );
-                                    }
-                                  },
-                                  onRename: () => _rename(device),
-                                  onUnlink: () => _unlink(device),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                        if (_geofences.isNotEmpty) ...[
-                          const SizedBox(height: 18),
-                          const _SectionTitle(title: 'Safe zones'),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 96,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _geofences.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(width: 10),
-                              itemBuilder: (_, index) =>
-                                  _SafeZoneCard(zone: _geofences[index]),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Health & activity'),
-                        const SizedBox(height: 10),
-                        const Row(
-                          children: [
-                            Expanded(
-                              child: _UnavailableSignalCard(
-                                icon: Icons.favorite_rounded,
-                                title: 'Heart rate',
-                              ),
-                            ),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: _UnavailableSignalCard(
-                                icon: Icons.directions_walk_rounded,
-                                title: 'Activity',
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        _EmergencyHoldCard(
-                          progress: _emergencyHoldTenths / 30,
-                          sending: _sendingHelp,
-                          onStart: () => _startEmergencyHold(selected),
-                          onCancel: _cancelEmergencyHold,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
-
-const _dashboardHeaderTitleStyle = TextStyle(
-  fontSize: 23,
-  fontWeight: FontWeight.w800,
-  letterSpacing: -0.65,
-  height: 1.0,
-);
 
 class _AmbientGlow extends StatelessWidget {
   const _AmbientGlow({required this.size, required this.color});
@@ -1057,122 +748,1357 @@ class _AmbientGlow extends StatelessWidget {
       );
 }
 
-class _GuardianSloganText extends StatelessWidget {
-  const _GuardianSloganText();
-
-  @override
-  Widget build(BuildContext context) => Text(
-        'Always close. Always caring.',
-        style: TextStyle(
-          color: context.guardianColors.textMuted,
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.15,
-        ),
-      );
-}
-
-class _SafetyHero extends StatelessWidget {
-  const _SafetyHero({
-    required this.safe,
-    required this.onlineCount,
-    required this.totalCount,
-    required this.updated,
-    this.titleOverride,
-    this.subtitleOverride,
+class _PrototypeCareCard extends StatelessWidget {
+  const _PrototypeCareCard({
+    required this.device,
+    required this.insight,
+    required this.linkingTick,
   });
 
-  final bool safe;
-  final int onlineCount;
-  final int totalCount;
-  final String updated;
-  final String? titleOverride;
-  final String? subtitleOverride;
+  final Device? device;
+  final DashboardInsight insight;
+  final int linkingTick;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final title = titleOverride ??
-        (totalCount == 0
-            ? "Let's connect someone you care about"
-            : safe
-                ? 'Everyone you care about is safe'
-                : 'A device needs your attention');
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 17, 16, 17),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.surface,
-            colors.accentMuted.withValues(alpha: 0.55),
+        color: colors.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.09),
+            blurRadius: 42,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 850;
+          final summary = _CarePersonSummary(device: device);
+          final comms = _DodoStagePlaceholder(
+            device: device,
+            insight: insight,
+          );
+          final metrics = _LiveStatusBar(
+            device: device,
+            linkingTick: linkingTick,
+          );
+
+          if (!wide) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                summary,
+                const SizedBox(height: 18),
+                comms,
+                const SizedBox(height: 14),
+                metrics,
+              ],
+            );
+          }
+
+          return SizedBox(
+            height: 238,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 18, child: summary),
+                const SizedBox(width: 22),
+                Expanded(flex: 49, child: comms),
+                const SizedBox(width: 22),
+                Expanded(flex: 25, child: metrics),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CarePersonSummary extends StatelessWidget {
+  const _CarePersonSummary({required this.device});
+
+  final Device? device;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final name = device?.displayName ?? 'Someone you care for';
+    final relationship = device?.relationshipLabel ?? 'No pendant linked';
+    final live =
+        device?.connectivityPhase() == DeviceConnectivityPhase.live;
+    final status = device == null
+        ? 'Waiting'
+        : device!.isReconnecting
+            ? 'Linking'
+            : live
+                ? 'Live'
+                : 'Offline';
+    final statusColor = live ? GuardianColors.safe : GuardianColors.warning;
+    final statusBackground =
+        live ? GuardianColors.safeBg : GuardianColors.warningBg;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = constraints.maxWidth >= 320;
+        final avatar = AvatarBubble(
+          initials: initialsFor(name),
+          color: GuardianColors.safe,
+          size: 76,
+          imageUrl: device?.avatarUrl,
+        );
+        final copy = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              horizontal ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          children: [
+            Text(
+              'YOU’RE CARING FOR',
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.25,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: horizontal ? TextAlign.left : TextAlign.center,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 25,
+                height: 1.08,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.8,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              relationship,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusBackground,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              device == null
+                  ? 'Connect a pendant to begin'
+                  : deviceUpdatedLabel(device!),
+              style: TextStyle(color: colors.textMuted, fontSize: 10),
+            ),
           ],
+        );
+
+        if (horizontal) {
+          return Row(
+            children: [
+              avatar,
+              const SizedBox(width: 15),
+              Expanded(child: copy),
+            ],
+          );
+        }
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [avatar, const SizedBox(height: 14), copy],
+        );
+      },
+    );
+  }
+}
+
+class _DodoStagePlaceholder extends StatelessWidget {
+  const _DodoStagePlaceholder({
+    required this.device,
+    required this.insight,
+    this.linking = false,
+  });
+
+  final Device? device;
+  final DashboardInsight insight;
+  final bool linking;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final offline = device != null &&
+        device!.connectivityPhase() == DeviceConnectivityPhase.offline;
+    final rightNow = linking
+        ? 'Scanning for the pendant'
+        : offline
+            ? 'Listening for the pendant'
+            : device?.hasApproximateLocation == true
+                ? 'Checking the latest location'
+                : 'Listening to the pendant';
+    final detail = linking
+        ? 'Secure connection in progress'
+        : offline
+            ? 'Pendant → Claude-backed AI → family reconnection update'
+            : 'Pendant → Claude-backed AI → WhatsApp → family';
+
+    return Container(
+      key: const ValueKey('guardian-dodo-3d-slot'),
+      constraints: const BoxConstraints(minHeight: 238),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEAF9F1), Color(0xFFF8FBF2), Color(0xFFFFF5DB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFD5EADF)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final split = constraints.maxWidth >= 430;
+          final stage = _DodoVisualStage(
+            title: rightNow,
+            detail: detail,
+            linking: linking,
+          );
+          final copy = Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 14,
+                      color: GuardianColors.safe,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'GUARDIAN COMMS',
+                      style: TextStyle(
+                        color: GuardianColors.safe,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  linking
+                      ? 'I’m making secure contact.'
+                      : offline
+                          ? 'I’m keeping every channel open.'
+                          : 'I’ve got every channel covered.',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 21,
+                    height: 1.1,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+                const SizedBox(height: 9),
+                Text(
+                  linking
+                      ? insight.detail
+                      : 'Pendant updates, Claude-backed AI checks, WhatsApp, and your family circle stay in one calm flow.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 11,
+                    height: 1.55,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (split) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 11, child: stage),
+                Expanded(flex: 10, child: copy),
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: 250, child: stage),
+              copy,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DodoVisualStage extends StatelessWidget {
+  const _DodoVisualStage({
+    required this.title,
+    required this.detail,
+    required this.linking,
+  });
+
+  final String title;
+  final String detail;
+  final bool linking;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [
+                Color(0xFFFFFFFF),
+                Color(0xFFDFF3E8),
+                Color(0xFFCFE4DA),
+              ],
+              stops: [0.08, 0.48, 1],
+            ),
+          ),
+        ),
+        Center(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 148,
+                height: 148,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: GuardianColors.safe.withValues(alpha: 0.13),
+                    width: 2,
+                  ),
+                ),
+              ),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.72),
+                  boxShadow: [
+                    BoxShadow(
+                      color: GuardianColors.safe.withValues(alpha: 0.12),
+                      blurRadius: 32,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  linking
+                      ? Icons.radar_rounded
+                      : Icons.view_in_ar_outlined,
+                  color: GuardianColors.safe.withValues(alpha: 0.55),
+                  size: 34,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: 15,
+          top: 14,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: GuardianColors.forest,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4CDD91),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  '3D DODO STAGE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: GuardianColors.forest.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF57E69A),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'RIGHT NOW',
+                        style: TextStyle(
+                          color: Color(0xFFA8C8B9),
+                          fontSize: 7,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFB8D3C6),
+                          fontSize: 7,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PrototypeMapLabel extends StatelessWidget {
+  const _PrototypeMapLabel({
+    required this.device,
+    required this.status,
+  });
+
+  final Device? device;
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final live =
+        device?.connectivityPhase() == DeviceConnectivityPhase.live;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
-            color: colors.textPrimary.withValues(alpha: 0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 12),
+            color: GuardianColors.forest.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          GuardianAiIcon(
-            size: 66,
-            backgroundColor:
-                safe ? GuardianColors.safeBg : GuardianColors.warningBg,
-            accentColor:
-                safe ? GuardianColors.safe : GuardianColors.warning,
-            warning: totalCount > 0 && !safe,
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: live ? GuardianColors.safe : GuardianColors.warning,
+              shape: BoxShape.circle,
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  device == null
+                      ? status
+                      : '${device!.displayName} • $status',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (device != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    deviceUpdatedLabel(device!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: colors.textSecondary, fontSize: 9),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrototypeHomePanels extends StatelessWidget {
+  const _PrototypeHomePanels({
+    required this.device,
+    required this.insight,
+    required this.onCall,
+    required this.onLocate,
+    required this.onMessage,
+    required this.onHistory,
+  });
+
+  final Device device;
+  final DashboardInsight insight;
+  final VoidCallback onCall;
+  final VoidCallback onLocate;
+  final VoidCallback onMessage;
+  final VoidCallback onHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    final quick = _PrototypeQuickActions(
+      onCall: onCall,
+      onLocate: onLocate,
+      onMessage: onMessage,
+    );
+    final activity = _CommunicationActivityCard(insight: insight);
+    final today = _PrototypeTodayCard(
+      device: device,
+      onHistory: onHistory,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 850) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              quick,
+              const SizedBox(height: 14),
+              activity,
+              const SizedBox(height: 14),
+              today,
+            ],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 14, child: quick),
+              const SizedBox(width: 18),
+              Expanded(flex: 10, child: activity),
+              const SizedBox(width: 18),
+              Expanded(flex: 10, child: today),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PrototypePanel extends StatelessWidget {
+  const _PrototypePanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _PrototypeQuickActions extends StatelessWidget {
+  const _PrototypeQuickActions({
+    required this.onCall,
+    required this.onLocate,
+    required this.onMessage,
+  });
+
+  final VoidCallback onCall;
+  final VoidCallback onLocate;
+  final VoidCallback onMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PrototypePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _PrototypePanelHeading(
+            eyebrow: 'QUICK ACTIONS',
+            title: 'What do you need?',
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _PrototypeAction(
+                  icon: Icons.call_rounded,
+                  title: 'Call pendant',
+                  subtitle: 'Speak instantly',
+                  color: GuardianColors.safe,
+                  background: GuardianColors.safeBg,
+                  onTap: onCall,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _PrototypeAction(
+                  icon: Icons.location_on_outlined,
+                  title: 'View location',
+                  subtitle: 'Open live map',
+                  color: GuardianColors.accent,
+                  background: GuardianColors.accentBg,
+                  onTap: onLocate,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _PrototypeAction(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: 'Ask Guardian',
+                  subtitle: 'On WhatsApp',
+                  color: GuardianColors.whatsapp,
+                  background: GuardianColors.safeBg,
+                  onTap: onMessage,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrototypeAction extends StatelessWidget {
+  const _PrototypeAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.background,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final Color background;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Material(
+      color: const Color(0xFFFBFCFB),
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(17),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(17),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, size: 19, color: color),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.textMuted, fontSize: 8),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommunicationActivityCard extends StatelessWidget {
+  const _CommunicationActivityCard({required this.insight});
+
+  final DashboardInsight insight;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return _PrototypePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2ECFB),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 19,
+                  color: Color(0xFF8058BE),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: _PrototypePanelHeading(
+                  eyebrow: 'COMMUNICATION ACTIVITY',
+                  title: 'Everything is flowing',
+                  compact: true,
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: GuardianColors.safeBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  '●  Live',
+                  style: TextStyle(
+                    color: GuardianColors.safe,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _ActivityRow(
+            icon: Icons.sensors_rounded,
+            color: GuardianColors.accent,
+            background: GuardianColors.accentBg,
+            title: 'Pendant signal received',
+            note: 'Location and battery checked',
+            trailing: 'now',
+          ),
+          _ActivityRow(
+            icon: Icons.auto_awesome_rounded,
+            color: const Color(0xFF8058BE),
+            background: const Color(0xFFF2ECFB),
+            title: insight.title,
+            note: 'Guardian AI • Backed by Claude',
+            trailing: 'now',
+          ),
+          _ActivityRow(
+            icon: Icons.chat_bubble_outline_rounded,
+            color: GuardianColors.whatsapp,
+            background: GuardianColors.safeBg,
+            title: 'WhatsApp is ready',
+            note: 'Ask for an update anytime',
+            trailing: '24/7',
+            divider: false,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            insight.detail,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 8,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({
+    required this.icon,
+    required this.color,
+    required this.background,
+    required this.title,
+    required this.note,
+    required this.trailing,
+    this.divider = true,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+  final String title;
+  final String note;
+  final String trailing;
+  final bool divider;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        border:
+            divider ? Border(bottom: BorderSide(color: colors.border)) : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 15, color: color),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    height: 1.18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitleOverride ??
-                      (totalCount == 0
-                          ? 'No linked devices'
-                          : '$onlineCount online  ·  ${totalCount - onlineCount} offline'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.2,
-                    color: colors.textSecondary,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  updated,
+                  note,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.textMuted, fontSize: 7),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            trailing,
+            style: TextStyle(color: colors.textMuted, fontSize: 7),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrototypeTodayCard extends StatelessWidget {
+  const _PrototypeTodayCard({
+    required this.device,
+    required this.onHistory,
+  });
+
+  final Device device;
+  final VoidCallback onHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final locationLabel = device.hasApproximateLocation
+        ? 'Approximate location'
+        : device.hasFreshLocation
+            ? 'Latest position received'
+            : 'Waiting for a position';
+    return _PrototypePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: _PrototypePanelHeading(
+                  eyebrow: 'TODAY',
+                  title: 'A calm day so far',
+                  compact: true,
+                ),
+              ),
+              TextButton(
+                onPressed: onHistory,
+                child: const Text(
+                  'View journey',
+                  style: TextStyle(fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: GuardianColors.safeBg,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  size: 18,
+                  color: GuardianColors.safe,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      locationLabel,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      deviceUpdatedLabel(device),
+                      style: TextStyle(color: colors.textMuted, fontSize: 9),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.surfaceMuted,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              'Journey details stay together on the Journey screen.',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 9,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrototypePanelHeading extends StatelessWidget {
+  const _PrototypePanelHeading({
+    required this.eyebrow,
+    required this.title,
+    this.compact = false,
+  });
+
+  final String eyebrow;
+  final String title;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: colors.textMuted,
+            fontSize: compact ? 8 : 9,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          maxLines: compact ? 2 : 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: compact ? 13 : 18,
+            height: 1.18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LinkingPrototype extends StatelessWidget {
+  const _LinkingPrototype({
+    required this.device,
+    required this.insight,
+    required this.tick,
+  });
+
+  final Device device;
+  final DashboardInsight insight;
+  final int tick;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final metrics = linkingStoryMetrics(device, tick: tick);
+    final activeStep =
+        linkingStoryStep(device).clamp(0, metrics.length - 1);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            AvatarBubble(
+              initials: initialsFor(device.displayName),
+              color: GuardianColors.safe,
+              size: 70,
+              imageUrl: device.avatarUrl,
+            ),
+            const SizedBox(width: 17),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${device.displayName.toUpperCase()}’S PENDANT',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Linking up…',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 34,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'This normally takes less than a minute.',
+                    style:
+                        TextStyle(color: colors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _DodoStagePlaceholder(
+          device: device,
+          insight: insight,
+          linking: true,
+        ),
+        const SizedBox(height: 18),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 800 ? 4 : 1;
+            if (columns == 1) {
+              return Column(
+                children: [
+                  for (var i = 0; i < metrics.length; i++) ...[
+                    _LinkingStepCard(
+                      index: i,
+                      metric: metrics[i],
+                      active: i == activeStep,
+                    ),
+                    if (i < metrics.length - 1)
+                      const SizedBox(height: 10),
+                  ],
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < metrics.length; i++) ...[
+                  Expanded(
+                    child: _LinkingStepCard(
+                      index: i,
+                      metric: metrics[i],
+                      active: i == activeStep,
+                    ),
+                  ),
+                  if (i < metrics.length - 1)
+                    const SizedBox(width: 13),
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 18),
+        Align(
+          alignment: Alignment.center,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: GuardianColors.forest,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.shield_outlined, size: 20, color: Colors.white),
+                SizedBox(width: 11),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your connection is secure',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Guardian will switch to Live automatically.',
+                      style: TextStyle(
+                        color: Color(0xFFAEC1B8),
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LinkingStepCard extends StatelessWidget {
+  const _LinkingStepCard({
+    required this.index,
+    required this.metric,
+    required this.active,
+  });
+
+  final int index;
+  final LinkingStoryMetric metric;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final complete = metric.state == LinkingStoryMetricState.complete;
+    final foreground = complete
+        ? GuardianColors.safe
+        : active
+            ? GuardianColors.accent
+            : colors.textMuted;
+    final background = complete
+        ? GuardianColors.safeBg
+        : active
+            ? GuardianColors.accentBg
+            : colors.surfaceMuted;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 132),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: complete
+            ? const Color(0xFFF1FBF5)
+            : colors.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(
+          color: active ? GuardianColors.accent : colors.border,
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: GuardianColors.accent.withValues(alpha: 0.12),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(metric.icon, color: foreground, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'STEP ${index + 1}',
                   style: TextStyle(
-                    fontSize: 11,
-                    height: 1.2,
                     color: colors.textMuted,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  metric.label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  complete
+                      ? 'Complete'
+                      : active
+                          ? 'Working on this now…'
+                          : 'Waiting for the previous step',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 10,
+                    height: 1.4,
                   ),
                 ),
               ],
+            ),
+          ),
+          Text(
+            complete
+                ? '✓'
+                : active
+                    ? '•••'
+                    : '${index + 1}',
+            style: TextStyle(
+              color: foreground,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
@@ -1197,6 +2123,18 @@ class _LiveStatusBar extends StatelessWidget {
 
     if (reconnecting && selected != null) {
       final story = linkingStoryMetrics(selected, tick: linkingTick);
+      final metricWidgets = [
+        for (var i = 0; i < story.length; i++)
+          _LiveMetric(
+            metric: DashboardFlagMetric.values[i],
+            icon: story[i].icon,
+            title: const ['Pendant', 'Location', 'Battery', 'Network'][i],
+            label: story[i].label,
+            active: story[i].state == LinkingStoryMetricState.complete,
+            colorsOverride: linkingStoryMetricColors(story[i].state),
+            showPulse: story[i].state == LinkingStoryMetricState.active,
+          ),
+      ];
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
         child: Container(
@@ -1215,21 +2153,7 @@ class _LiveStatusBar extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              for (var i = 0; i < story.length; i++)
-                _LiveMetric(
-                  metric: DashboardFlagMetric.values[i],
-                  icon: story[i].icon,
-                  title: const ['Pendant', 'Location', 'Battery', 'Network'][i],
-                  label: story[i].label,
-                  active: story[i].state == LinkingStoryMetricState.complete,
-                  colorsOverride: linkingStoryMetricColors(story[i].state),
-                  showPulse: story[i].state == LinkingStoryMetricState.active,
-                ),
-            ],
-          ),
+          child: _MetricLayout(children: metricWidgets),
         ),
       );
     }
@@ -1243,6 +2167,42 @@ class _LiveStatusBar extends StatelessWidget {
         ? flagMetricColors(DashboardFlagMetric.connectivity, false)
         : connectivityMetricColors(selected);
     final signalColors = flagMetricColors(DashboardFlagMetric.signal, connected);
+    final metricWidgets = [
+      _LiveMetric(
+        metric: DashboardFlagMetric.connectivity,
+        icon: Icons.sensors_rounded,
+        title: 'Pendant',
+        label: selected == null
+            ? 'Offline'
+            : deviceConnectivityLabel(selected),
+        active: connected,
+        colorsOverride: connectivityColors,
+      ),
+      _LiveMetric(
+        metric: DashboardFlagMetric.gps,
+        icon: Icons.gps_fixed_rounded,
+        title: 'Location',
+        label: approximate
+            ? 'Approximate'
+            : (gps ? 'GPS active' : 'GPS waiting'),
+        active: gps,
+      ),
+      _LiveMetric(
+        metric: DashboardFlagMetric.battery,
+        icon: Icons.battery_5_bar_rounded,
+        title: 'Battery',
+        label: battery == null ? 'Battery —' : '$battery%',
+        active: batteryHealthy,
+      ),
+      _LiveMetric(
+        metric: DashboardFlagMetric.signal,
+        icon: Icons.signal_cellular_alt_rounded,
+        title: 'Network',
+        label: selected == null ? 'No signal' : deviceSignalLabel(selected),
+        active: connected,
+        colorsOverride: signalColors,
+      ),
+    ];
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 350),
       child: Container(
@@ -1261,46 +2221,46 @@ class _LiveStatusBar extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: _MetricLayout(children: metricWidgets),
+      ),
+    );
+  }
+}
+
+class _MetricLayout extends StatelessWidget {
+  const _MetricLayout({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 320) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: children,
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _LiveMetric(
-              metric: DashboardFlagMetric.connectivity,
-              icon: Icons.sensors_rounded,
-              title: 'Pendant',
-              label: selected == null
-                  ? 'Offline'
-                  : deviceConnectivityLabel(selected),
-              active: connected,
-              colorsOverride: connectivityColors,
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children.take(2).toList(),
+              ),
             ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.gps,
-              icon: Icons.gps_fixed_rounded,
-              title: 'Location',
-              label: approximate
-                  ? 'Approximate'
-                  : (gps ? 'GPS active' : 'GPS waiting'),
-              active: gps,
-            ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.battery,
-              icon: Icons.battery_5_bar_rounded,
-              title: 'Battery',
-              label: battery == null ? 'Battery —' : '$battery%',
-              active: batteryHealthy,
-            ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.signal,
-              icon: Icons.signal_cellular_alt_rounded,
-              title: 'Network',
-              label: selected == null ? 'No signal' : deviceSignalLabel(selected),
-              active: connected,
-              colorsOverride: signalColors,
+            const SizedBox(height: 6),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children.skip(2).toList(),
+              ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1499,535 +2459,6 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
 
   @override
   Widget build(BuildContext context) => _map;
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-    );
-  }
-}
-
-class _PremiumDeviceCard extends StatelessWidget {
-  const _PremiumDeviceCard({
-    required this.device,
-    required this.selected,
-    required this.updated,
-    required this.onTap,
-    required this.onRename,
-    required this.onUnlink,
-  });
-
-  final Device device;
-  final bool selected;
-  final String updated;
-  final VoidCallback onTap;
-  final VoidCallback onRename;
-  final VoidCallback onUnlink;
-
-  bool get _isReconnecting => device.isReconnecting;
-
-  bool get _isLive =>
-      device.connectivityPhase() == DeviceConnectivityPhase.live;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final color = avatarColorForKey(device.imei);
-    final battery = (device.batteryPercent ?? 0).clamp(0, 100) / 100;
-    final batteryColors = flagMetricColors(
-      DashboardFlagMetric.battery,
-      dashboardBatteryHealthy(device.batteryPercent),
-    );
-    return SizedBox(
-      width: 220,
-      child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onRename,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: selected ? colors.accent : colors.border,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    AvatarBubble(
-                      initials: initialsFor(device.displayName),
-                      color: color,
-                      size: 42,
-                      imageUrl: device.avatarUrl,
-                    ),
-                    const Spacer(),
-                    PopupMenuButton<String>(
-                      icon: Icon(Icons.more_horiz, size: 18, color: colors.textMuted),
-                      padding: EdgeInsets.zero,
-                      tooltip: 'Pendant options',
-                      onSelected: (value) {
-                        if (value == 'rename') onRename();
-                        if (value == 'unlink') onUnlink();
-                      },
-                      itemBuilder: (ctx) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Text('Edit name'),
-                        ),
-                        PopupMenuItem(
-                          value: 'unlink',
-                          child: Text('Unlink pendant'),
-                        ),
-                      ],
-                    ),
-                    SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CircularProgressIndicator(
-                            value: device.batteryPercent == null ? 0 : battery,
-                            strokeWidth: 3,
-                            backgroundColor: batteryColors.background,
-                            color: batteryColors.foreground,
-                          ),
-                          Text(
-                            device.batteryPercent == null
-                                ? '—'
-                                : '${device.batteryPercent}%',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  device.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _isReconnecting
-                      ? '● Linking up'
-                      : _isLive
-                          ? '● Online'
-                          : '○ Offline'
-                              '${device.displayName != device.relationshipLabel ? '  •  ${device.relationshipLabel}' : ''}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _isReconnecting || _isLive
-                        ? GuardianColors.accent
-                        : colors.textMuted,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${deviceLocationStatusLabel(device)}  •  $updated',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GuardianAiCard extends StatelessWidget {
-  const _GuardianAiCard({required this.insight});
-
-  final DashboardInsight insight;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final warning =
-        insight.tone == DashboardInsightTone.warning ||
-        insight.tone == DashboardInsightTone.danger;
-    final color = warning ? GuardianColors.warning : colors.accent;
-    final background = warning
-        ? GuardianColors.warningBg
-        : colors.accentMuted;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.surface, background.withValues(alpha: 0.55)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GuardianAiIcon(
-            size: 40,
-            backgroundColor: background,
-            accentColor: color,
-            warning: warning,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Guardian AI',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 450),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: Text(
-                    insight.title,
-                    key: ValueKey('title-${insight.title}'),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      height: 1.25,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 450),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  child: Text(
-                    insight.detail,
-                    key: ValueKey('detail-${insight.detail}'),
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({
-    required this.onCall,
-    required this.onLocate,
-    required this.onMessage,
-    required this.onSiren,
-    required this.onHistory,
-    required this.onSafeZone,
-  });
-
-  final VoidCallback onCall;
-  final VoidCallback onLocate;
-  final VoidCallback onMessage;
-  final VoidCallback onSiren;
-  final VoidCallback onHistory;
-  final VoidCallback onSafeZone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final actions = [
-      (Icons.call_rounded, 'Call', onCall),
-      (Icons.my_location_rounded, 'Locate', onLocate),
-      (Icons.chat_bubble_outline_rounded, 'Message', onMessage),
-      (Icons.volume_up_rounded, 'Siren', onSiren),
-      (Icons.route_rounded, 'Journey', onHistory),
-      (Icons.location_on_outlined, 'Safe zone', onSafeZone),
-    ];
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceEvenly,
-        runSpacing: 14,
-        children: [
-          for (final action in actions)
-            SizedBox(
-              width: 76,
-              child: InkWell(
-                onTap: action.$3,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: colors.accentMuted,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          action.$1,
-                          size: 20,
-                          color: colors.accent,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(action.$2, style: const TextStyle(fontSize: 10)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineCard extends StatelessWidget {
-  const _TimelineCard({
-    required this.device,
-    required this.updated,
-    required this.onOpen,
-  });
-
-  final Device device;
-  final String updated;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Today',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              TextButton(onPressed: onOpen, child: const Text('View journey')),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: colors.accentMuted,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.location_on_rounded,
-                  size: 17,
-                  color: colors.accent,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      device.hasApproximateLocation
-                          ? 'Approximate location'
-                          : (device.hasFreshLocation
-                              ? 'Latest position received'
-                              : 'Waiting for a position'),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (device.hasApproximateLocation) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.accentMuted,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'Approximate location',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: colors.accent,
-                          ),
-                        ),
-                      ),
-                    ],
-                    Text(
-                      updated,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Journey events appear when location history is enabled on the gateway.',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SafeZoneCard extends StatelessWidget {
-  const _SafeZoneCard({required this.zone});
-
-  final Geofence zone;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      width: 180,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.home_rounded, color: colors.accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  zone.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  zone.active
-                      ? 'Active • ${zone.radiusMeters.round()} m'
-                      : 'Paused',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UnavailableSignalCard extends StatelessWidget {
-  const _UnavailableSignalCard({required this.icon, required this.title});
-
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.textMuted),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  'Sensor not connected',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _EmergencyHoldCard extends StatelessWidget {

@@ -1,25 +1,20 @@
 import 'package:flutter/material.dart';
 
-/// Journey screen design tokens — dark map-first layout.
-///
-/// Text colors here are always light-on-dark. Do not use [GuardianThemeColors]
-/// text roles on journey chrome; the app theme may be a light palette.
+/// Journey screen design tokens aligned with Guardian's calm care experience.
 abstract final class JourneyScreenTheme {
-  static const background = Color(0xFF0B1220);
+  static const background = Color(0xFFEDF1ED);
 
-  /// Floating panels over the map — opaque enough for readable labels.
-  static const cardFill = Color(0xE6141E30); // rgba(20,30,48,0.90)
-  static const cardBorder = Color(0x4DFFFFFF);
+  static const cardFill = Color(0xF7FFFFFF);
+  static const cardBorder = Color(0xFFE7ECE8);
 
-  static const accent = Color(0xFF3B82F6);
-  static const success = Color(0xFF10B981);
-  static const warning = Color(0xFFF59E0B);
-  static const danger = Color(0xFFEF4444);
+  static const accent = Color(0xFF286BF3);
+  static const success = Color(0xFF28A66D);
+  static const warning = Color(0xFFD89B18);
+  static const danger = Color(0xFFE83D45);
 
-  /// Light text for dark journey chrome (WCAG-friendly on cardFill/background).
-  static const textPrimary = Color(0xFFF8FAFC);
-  static const textSecondary = Color(0xFFCBD5E1);
-  static const textMuted = Color(0xFF94A3B8);
+  static const textPrimary = Color(0xFF10233F);
+  static const textSecondary = Color(0xFF60746B);
+  static const textMuted = Color(0xFF89978E);
 
   static const markerStart = success;
   static const markerStop = warning;
@@ -64,11 +59,11 @@ abstract final class JourneyScreenTheme {
   static double get assistantBottomOffset =>
       mapAttributionInset + playbackCollapsedHeight + spacing2;
 
-  /// Solid pill background for map FAB menu items (opaque — readable on any map).
-  static const fabItemFill = Color(0xFF1E293B);
+  /// Solid pill background for map controls.
+  static const fabItemFill = Color(0xFF173C32);
   static const fabItemFillActive = Color(0xFF2563EB);
 
-  /// Forces light text/icons for all journey map overlays (avoids app light-theme bleed).
+  /// Gives all journey overlays the same light Guardian chrome.
   static Widget chrome({required Widget child}) {
     const textTheme = TextTheme(
       bodyLarge: TextStyle(color: textPrimary),
@@ -80,8 +75,13 @@ abstract final class JourneyScreenTheme {
     );
     return Theme(
       data: ThemeData(
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: success,
+          brightness: Brightness.light,
+          surface: cardFill,
+        ),
         textTheme: textTheme,
         iconTheme: const IconThemeData(color: textPrimary),
       ),
@@ -121,9 +121,9 @@ abstract final class JourneyScreenTheme {
         border: Border.all(color: cardBorder),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x66000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
+            color: Color(0x1A173C32),
+            blurRadius: 28,
+            offset: Offset(0, 10),
           ),
         ],
       );

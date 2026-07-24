@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../navigation/home_shell_scope.dart';
+import '../theme/app_theme.dart';
+import '../widgets/layout/guardian_app_header.dart';
 import '../widgets/navigation/guardian_navigation.dart';
 import 'account_page.dart';
 import 'alerts_page.dart';
@@ -32,10 +34,33 @@ class _HomeShellState extends State<HomeShell> {
       goToTab: _goToTab,
       sidebarCollapsed: true,
       child: Scaffold(
-        body: IndexedStack(index: _index, children: pages),
-        bottomNavigationBar: MobileBottomBar(
-          currentIndex: _index,
-          onTap: _goToTab,
+        backgroundColor: context.guardianColors.canvas,
+        extendBody: true,
+        body: Column(
+          children: [
+            GuardianAppHeader(
+              onHome: () => _goToTab(0),
+              onAlerts: () => _goToTab(2),
+              onAccount: () => _goToTab(3),
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  IndexedStack(index: _index, children: pages),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 10,
+                    child: MobileBottomBar(
+                      currentIndex: _index,
+                      onTap: _goToTab,
+                      onSos: () => _goToTab(0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
