@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -21,7 +19,6 @@ import '../theme/app_theme.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/map_avatar_overlay.dart';
-import '../widgets/map/map_my_location_avatar_button.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_page.dart';
 
@@ -37,7 +34,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
   bool _didFit = false;
   bool _sendingHelp = false;
-  bool _myLocationEnabled = false;
   double _zoom = 13;
   Timer? _linkingTimer;
   int _linkingTick = 0;
@@ -76,7 +72,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
-    _requestLocationPermission();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncLinkingAnimation();
     });
@@ -228,61 +223,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     }
     if (!mounted || generation != _markerGeneration) return;
     setState(() => _markerIcons = Map.fromEntries(entries));
-  }
-
-  Future<void> _requestLocationPermission() async {
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) return;
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      final granted =
-          permission == LocationPermission.always ||
-          permission == LocationPermission.whileInUse;
-      if (mounted) setState(() => _myLocationEnabled = granted);
-    } catch (_) {
-      // Own-location is a nice-to-have overlay; ignore failures.
-    }
-  }
-
-  Future<void> _recenterOnMyLocation() async {
-    try {
-      if (!_myLocationEnabled) {
-        await _requestLocationPermission();
-        if (!_myLocationEnabled) return;
-      }
-      final position = await Geolocator.getCurrentPosition();
-      if (!mounted) return;
-      await _animateTo(LatLng(position.latitude, position.longitude), zoom: 16);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not read your location')),
-        );
-      }
-    }
-  }
-
-  String _guardianInitials() {
-    final user = FirebaseAuth.instance.currentUser;
-    return initialsFor(
-      user?.displayName?.trim().isNotEmpty == true
-          ? user!.displayName!
-          : (user?.email ?? 'G'),
-    );
-  }
-
-  Widget _mapMeButton({required double bottom}) {
-    return Positioned(
-      right: 14,
-      bottom: bottom,
-      child: MapMyLocationAvatarButton(
-        initials: _guardianInitials(),
-        tooltip: 'My location',
-        onPressed: () => unawaited(_recenterOnMyLocation()),
-      ),
-    );
   }
 
   Future<void> _animateTo(LatLng target, {double? zoom}) async {
@@ -585,8 +525,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                             ),
                                             markers: _markers(),
                                             circles: _circles(),
-                                            myLocationEnabled:
-                                                _myLocationEnabled,
                                             zoomControlsEnabled: false,
                                             onMapCreated: (controller) {
                                               _mapController = controller;
@@ -626,9 +564,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                             status:
                                                 _mapStatusLabel(selected),
                                           ),
-                                        ),
-                                        _mapMeButton(
-                                          bottom: selected == null ? 18 : 76,
                                         ),
                                         if (selected != null)
                                           Positioned(
@@ -2349,7 +2284,6 @@ class _StableGoogleMap extends StatefulWidget {
     required this.initialCameraPosition,
     required this.markers,
     required this.circles,
-    required this.myLocationEnabled,
     required this.zoomControlsEnabled,
     required this.onMapCreated,
     required this.onCameraMove,
@@ -2359,7 +2293,6 @@ class _StableGoogleMap extends StatefulWidget {
   final CameraPosition initialCameraPosition;
   final Set<Marker> markers;
   final Set<Circle> circles;
-  final bool myLocationEnabled;
   final bool zoomControlsEnabled;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
@@ -2401,7 +2334,6 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
     return Object.hash(
       markerKey,
       circleKey,
-      config.myLocationEnabled,
       config.zoomControlsEnabled,
     );
   }
@@ -2416,7 +2348,9 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
       markers: config.markers,
       circles: config.circles,
       myLocationButtonEnabled: false,
-      myLocationEnabled: config.myLocationEnabled,
+      // Home shows pendant locations only. Guardian Eye will be introduced
+      // later as a separate experience, not as a persistent guardian marker.
+      myLocationEnabled: false,
       zoomControlsEnabled: config.zoomControlsEnabled,
       mapToolbarEnabled: false,
       compassEnabled: false,
