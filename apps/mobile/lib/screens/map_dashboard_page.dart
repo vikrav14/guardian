@@ -16,7 +16,7 @@ import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
-import '../widgets/dashboard/dodo_3d_stage.dart';
+import '../widgets/dashboard/dodo_stage.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -39,6 +39,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   double _zoom = 13;
   Timer? _linkingTimer;
   int _linkingTick = 0;
+  String? _linkingStoryImei;
+  bool _linkingStoryFullyShown = false;
+  bool _wasSelectedReconnecting = false;
   Map<String, BitmapDescriptor> _markerIcons = const {};
   String _markerFingerprint = '';
   int _markerGeneration = 0;
@@ -81,6 +84,15 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   void _onDashboardChanged() {
     if (!mounted) return;
+    final selected = _selected;
+    final reconnecting = selected?.isReconnecting ?? false;
+    if (reconnecting &&
+        (!_wasSelectedReconnecting ||
+            _linkingStoryImei != selected?.imei)) {
+      _linkingStoryImei = selected?.imei;
+      _linkingStoryFullyShown = false;
+    }
+    _wasSelectedReconnecting = reconnecting;
     setState(() {});
     _syncLinkingAnimation();
     unawaited(_refreshMarkerIcons());
@@ -465,6 +477,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _markLinkingStoryFullyShown() {
+    if (!mounted || _linkingStoryFullyShown) return;
+    setState(() => _linkingStoryFullyShown = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
@@ -476,6 +493,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       selected,
       linkingTick: _linkingTick,
     );
+    final showLinkingStory = selected != null &&
+        (selected.isReconnecting ||
+            (_isLive(selected) &&
+                _linkingStoryImei == selected.imei &&
+                !_linkingStoryFullyShown));
+    final visibleLinkingStep = selected?.isReconnecting == true
+        ? linkingStoryStep(selected!)
+        : linkingDodoStageScenes.length - 1;
 
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
@@ -500,11 +525,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                     padding: const EdgeInsets.fromLTRB(18, 24, 18, 118),
                     sliver: SliverList.list(
                       children: [
-                        if (selected?.isReconnecting == true)
+                        if (showLinkingStory)
                           _LinkingPrototype(
                             device: selected!,
                             insight: insight,
                             tick: _linkingTick,
+                            linkingStep: visibleLinkingStep,
+                            onSequenceShown: _markLinkingStoryFullyShown,
                           )
                         else ...[
                           _PrototypeCareCard(
@@ -905,11 +932,13 @@ class _DodoStagePlaceholder extends StatelessWidget {
     required this.device,
     required this.insight,
     this.linking = false,
+    this.linkingStep,
   });
 
   final Device? device;
   final DashboardInsight insight;
   final bool linking;
+  final int? linkingStep;
 
   @override
   Widget build(BuildContext context) {
@@ -923,7 +952,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
             : DodoStageMode.active;
 
     return Container(
-      key: const ValueKey('guardian-dodo-3d-slot'),
+      key: const ValueKey('guardian-dodo-stage'),
       constraints: const BoxConstraints(minHeight: 238),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -938,7 +967,15 @@ class _DodoStagePlaceholder extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final split = constraints.maxWidth >= 430;
-          final stage = _DodoVisualStage(mode: stageMode);
+          final stage = _DodoVisualStage(
+            mode: stageMode,
+            linkingStep: linking && device != null
+                ? (linkingStep ?? linkingStoryStep(device!)).clamp(
+                    0,
+                    linkingDodoStageScenes.length - 1,
+                  )
+                : null,
+          );
           final copy = Padding(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
             child: Column(
@@ -1019,66 +1056,25 @@ class _DodoStagePlaceholder extends StatelessWidget {
   }
 }
 
-class _DodoVisualStage extends StatefulWidget {
-  const _DodoVisualStage({required this.mode});
+class _DodoVisualStage extends StatelessWidget {
+  const _DodoVisualStage({
+    required this.mode,
+    this.linkingStep,
+  });
 
   final DodoStageMode mode;
-
-  @override
-  State<_DodoVisualStage> createState() => _DodoVisualStageState();
-}
-
-class _DodoVisualStageState extends State<_DodoVisualStage> {
-  static const _sceneHold = Duration(seconds: 6);
-
-  Timer? _sceneTimer;
-  int _sceneIndex = 0;
-  bool? _reduceMotion;
-
-  List<DodoStageScene> get _scenes => dodoStageScenesFor(widget.mode);
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (_reduceMotion != reduceMotion) {
-      _reduceMotion = reduceMotion;
-      _sceneIndex = 0;
-      _syncSceneTimer();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _DodoVisualStage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.mode != oldWidget.mode) {
-      _sceneIndex = 0;
-      _syncSceneTimer();
-    }
-  }
-
-  void _syncSceneTimer() {
-    _sceneTimer?.cancel();
-    _sceneTimer = null;
-    if (_reduceMotion == true || _scenes.length < 2) return;
-    _sceneTimer = Timer.periodic(_sceneHold, (_) {
-      if (!mounted) return;
-      setState(() {
-        _sceneIndex = (_sceneIndex + 1) % _scenes.length;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _sceneTimer?.cancel();
-    super.dispose();
-  }
+  final int? linkingStep;
 
   @override
   Widget build(BuildContext context) {
-    final scene = _scenes[_sceneIndex % _scenes.length];
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final linking = mode == DodoStageMode.linking;
+    final visibleLinkingStep = (linkingStep ?? 0)
+        .clamp(0, linkingDodoStageScenes.length - 1);
+    final scene = linking
+        ? dodoStageSceneForLinkingStep(visibleLinkingStep)
+        : dodoStageSceneForMode(mode);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -1094,34 +1090,15 @@ class _DodoVisualStageState extends State<_DodoVisualStage> {
             ),
           ),
         ),
-        Center(
-          child: Container(
-            width: 162,
-            height: 162,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: GuardianColors.safe.withValues(alpha: 0.13),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: GuardianColors.safe.withValues(alpha: 0.1),
-                  blurRadius: 42,
-                ),
-              ],
-            ),
-          ),
-        ),
         Positioned.fill(
-          top: 2,
-          bottom: 45,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: GuardianDodo3d(
+          child: AnimatedSwitcher(
+            duration:
+                reduceMotion ? Duration.zero : const Duration(milliseconds: 450),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: GuardianDodoStageImage(
               key: ValueKey(scene.action),
               action: scene.action,
-              reduceMotion: _reduceMotion ?? false,
             ),
           ),
         ),
@@ -1131,8 +1108,11 @@ class _DodoVisualStageState extends State<_DodoVisualStage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: GuardianColors.forest,
+              color: Colors.white.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: GuardianColors.safe.withValues(alpha: 0.18),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1141,15 +1121,19 @@ class _DodoVisualStageState extends State<_DodoVisualStage> {
                   width: 6,
                   height: 6,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF4CDD91),
+                    color: GuardianColors.safe,
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Text(
-                  '3D DODO STAGE',
-                  style: TextStyle(
-                    color: Colors.white,
+                Text(
+                  linking
+                      ? 'STEP ${visibleLinkingStep + 1} OF ${linkingDodoStageScenes.length}'
+                      : mode == DodoStageMode.active
+                          ? 'LIVE'
+                          : 'LISTENING',
+                  style: const TextStyle(
+                    color: GuardianColors.forest,
                     fontSize: 8,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
@@ -1159,6 +1143,32 @@ class _DodoVisualStageState extends State<_DodoVisualStage> {
             ),
           ),
         ),
+        if (linking)
+          Positioned(
+            right: 16,
+            top: 20,
+            child: Row(
+              children: [
+                for (var i = 0; i < linkingDodoStageScenes.length; i++) ...[
+                  AnimatedContainer(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 300),
+                    width: i == visibleLinkingStep ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i <= visibleLinkingStep
+                          ? GuardianColors.safe
+                          : GuardianColors.safe.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  if (i < linkingDodoStageScenes.length - 1)
+                    const SizedBox(width: 5),
+                ],
+              ],
+            ),
+          ),
         Positioned(
           left: 16,
           right: 16,
@@ -1836,23 +1846,113 @@ class _PrototypePanelHeading extends StatelessWidget {
   }
 }
 
-class _LinkingPrototype extends StatelessWidget {
+class _LinkingPrototype extends StatefulWidget {
   const _LinkingPrototype({
     required this.device,
     required this.insight,
     required this.tick,
+    required this.linkingStep,
+    this.onSequenceShown,
   });
 
   final Device device;
   final DashboardInsight insight;
   final int tick;
+  final int linkingStep;
+  final VoidCallback? onSequenceShown;
+
+  @override
+  State<_LinkingPrototype> createState() => _LinkingPrototypeState();
+}
+
+class _LinkingPrototypeState extends State<_LinkingPrototype> {
+  Timer? _stepTimer;
+  int _visibleStep = 0;
+  int _targetStep = 0;
+  DateTime _visibleSince = DateTime.now();
+  bool _didReportSequence = false;
+
+  int get _clampedTarget =>
+      widget.linkingStep.clamp(0, linkingDodoStageScenes.length - 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _targetStep = _clampedTarget;
+    _scheduleNext();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LinkingPrototype oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextTarget = _clampedTarget;
+    if (nextTarget < _visibleStep) {
+      _stepTimer?.cancel();
+      _stepTimer = null;
+      _visibleStep = 0;
+      _visibleSince = DateTime.now();
+      _didReportSequence = false;
+    }
+    _targetStep = nextTarget;
+    _scheduleNext();
+  }
+
+  void _scheduleNext() {
+    if (_stepTimer != null) return;
+
+    final shownFor = DateTime.now().difference(_visibleSince);
+    final remaining = shownFor >= dodoLinkingStepMinimumHold
+        ? Duration.zero
+        : dodoLinkingStepMinimumHold - shownFor;
+
+    if (_visibleStep >= _targetStep) {
+      final finalStep = linkingDodoStageScenes.length - 1;
+      if (_targetStep != finalStep || _didReportSequence) return;
+      _stepTimer = Timer(remaining, () {
+        _stepTimer = null;
+        if (!mounted || _didReportSequence) return;
+        _didReportSequence = true;
+        widget.onSequenceShown?.call();
+      });
+      return;
+    }
+
+    _stepTimer = Timer(remaining, () {
+      _stepTimer = null;
+      if (!mounted) return;
+      if (_visibleStep < _targetStep) {
+        setState(() {
+          _visibleStep++;
+          _visibleSince = DateTime.now();
+        });
+      }
+      _scheduleNext();
+    });
+  }
+
+  @override
+  void dispose() {
+    _stepTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final metrics = linkingStoryMetrics(device, tick: tick);
-    final activeStep =
-        linkingStoryStep(device).clamp(0, metrics.length - 1);
+    final sourceMetrics =
+        linkingStoryMetrics(widget.device, tick: widget.tick);
+    final metrics = [
+      for (var i = 0; i < sourceMetrics.length; i++)
+        LinkingStoryMetric(
+          label: sourceMetrics[i].label,
+          icon: sourceMetrics[i].icon,
+          state: i < _visibleStep
+              ? LinkingStoryMetricState.complete
+              : i == _visibleStep
+                  ? LinkingStoryMetricState.active
+                  : LinkingStoryMetricState.pending,
+        ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1860,10 +1960,10 @@ class _LinkingPrototype extends StatelessWidget {
         Row(
           children: [
             AvatarBubble(
-              initials: initialsFor(device.displayName),
+              initials: initialsFor(widget.device.displayName),
               color: GuardianColors.safe,
               size: 70,
-              imageUrl: device.avatarUrl,
+              imageUrl: widget.device.avatarUrl,
             ),
             const SizedBox(width: 17),
             Expanded(
@@ -1871,7 +1971,7 @@ class _LinkingPrototype extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${device.displayName.toUpperCase()}’S PENDANT',
+                    '${widget.device.displayName.toUpperCase()}’S PENDANT',
                     style: TextStyle(
                       color: colors.textMuted,
                       fontSize: 9,
@@ -1903,9 +2003,10 @@ class _LinkingPrototype extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _DodoStagePlaceholder(
-          device: device,
-          insight: insight,
+          device: widget.device,
+          insight: widget.insight,
           linking: true,
+          linkingStep: _visibleStep,
         ),
         const SizedBox(height: 18),
         LayoutBuilder(
@@ -1918,7 +2019,7 @@ class _LinkingPrototype extends StatelessWidget {
                     _LinkingStepCard(
                       index: i,
                       metric: metrics[i],
-                      active: i == activeStep,
+                      active: i == _visibleStep,
                     ),
                     if (i < metrics.length - 1)
                       const SizedBox(height: 10),
@@ -1935,7 +2036,7 @@ class _LinkingPrototype extends StatelessWidget {
                       child: _LinkingStepCard(
                         index: i,
                         metric: metrics[i],
-                        active: i == activeStep,
+                        active: i == _visibleStep,
                       ),
                     ),
                     if (i < metrics.length - 1)
