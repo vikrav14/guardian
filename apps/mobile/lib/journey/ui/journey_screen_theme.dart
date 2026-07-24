@@ -7,7 +7,7 @@ abstract final class JourneyScreenTheme {
   static const cardFill = Color(0xF7FFFFFF);
   static const cardBorder = Color(0xFFE7ECE8);
 
-  static const accent = Color(0xFF286BF3);
+  static const accent = Color(0xFF28A66D);
   static const success = Color(0xFF28A66D);
   static const warning = Color(0xFFD89B18);
   static const danger = Color(0xFFE83D45);
@@ -16,10 +16,10 @@ abstract final class JourneyScreenTheme {
   static const textSecondary = Color(0xFF60746B);
   static const textMuted = Color(0xFF89978E);
 
-  static const markerStart = success;
+  static const markerStart = Color(0xFF173C32);
   static const markerStop = warning;
   static const markerEnd = danger;
-  static const markerCurrent = accent;
+  static const markerCurrent = Color(0xFF286BF3);
 
   static const spacing = 8.0;
   static const spacing2 = 16.0;
@@ -47,9 +47,9 @@ abstract final class JourneyScreenTheme {
   /// Insets passed to [GoogleMap.padding] so native map UI stays visible.
   static EdgeInsets get mapControlPadding => EdgeInsets.only(
         top: spacing,
-        right: drawerCollapsedWidth + spacing2,
+        right: spacing2,
         bottom: mapAttributionInset + playbackCollapsedHeight + spacing3,
-        left: spacing,
+        left: spacing2,
       );
 
   /// Bottom offset for floating playback bar (above map attribution).
