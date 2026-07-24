@@ -42,4 +42,14 @@ void main() {
       isTrue,
     );
   });
+
+  test('Dodo viewer expands Flutter asset keys for the browser', () {
+    const asset = 'assets/models/dodo/guardian_dodo_idle.glb';
+
+    expect(
+      dodoViewerAssetSource(asset, isWeb: true),
+      'assets/assets/models/dodo/guardian_dodo_idle.glb',
+    );
+    expect(dodoViewerAssetSource(asset, isWeb: false), asset);
+  });
 }

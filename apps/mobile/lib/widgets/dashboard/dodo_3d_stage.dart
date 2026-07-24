@@ -58,6 +58,16 @@ extension DodoStageActionPresentation on DodoStageAction {
       };
 }
 
+String dodoViewerAssetSource(
+  String flutterAssetPath, {
+  required bool isWeb,
+}) {
+  // Flutter Web serves application assets beneath an additional `assets/`
+  // URL prefix. ModelViewer renders native HTML and does not resolve Flutter
+  // asset keys for us, so the browser URL must be expanded explicitly.
+  return isWeb ? 'assets/$flutterAssetPath' : flutterAssetPath;
+}
+
 const _activeScenes = <DodoStageScene>[
   DodoStageScene(
     action: DodoStageAction.pendantListen,
@@ -143,7 +153,11 @@ class GuardianDodo3d extends StatelessWidget {
       child: IgnorePointer(
         child: ModelViewer(
           key: ValueKey(action.assetPath),
-          src: action.assetPath,
+          src: dodoViewerAssetSource(action.assetPath, isWeb: kIsWeb),
+          poster: dodoViewerAssetSource(
+            DodoAiIcon.assetPath,
+            isWeb: kIsWeb,
+          ),
           alt: action.semanticLabel,
           backgroundColor: Colors.transparent,
           ar: false,
