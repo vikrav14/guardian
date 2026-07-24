@@ -1931,21 +1931,23 @@ class _LinkingPrototype extends StatelessWidget {
                 ],
               );
             }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < metrics.length; i++) ...[
-                  Expanded(
-                    child: _LinkingStepCard(
-                      index: i,
-                      metric: metrics[i],
-                      active: i == activeStep,
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < metrics.length; i++) ...[
+                    Expanded(
+                      child: _LinkingStepCard(
+                        index: i,
+                        metric: metrics[i],
+                        active: i == activeStep,
+                      ),
                     ),
-                  ),
-                  if (i < metrics.length - 1)
-                    const SizedBox(width: 13),
+                    if (i < metrics.length - 1)
+                      const SizedBox(width: 13),
+                  ],
                 ],
-              ],
+              ),
             );
           },
         ),
@@ -2239,26 +2241,20 @@ class _MetricLayout extends StatelessWidget {
         if (constraints.maxWidth >= 320) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: children,
+            children: [
+              for (final child in children) Expanded(child: child),
+            ],
           );
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children.take(2).toList(),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children.skip(2).toList(),
-              ),
-            ),
-          ],
+        return GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          primary: false,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 2,
+          childAspectRatio: 1.25,
+          children: children,
         );
       },
     );
@@ -2289,59 +2285,61 @@ class _LiveMetric extends StatelessWidget {
     // Always prefer flag stripe colors for the metric; only linking story
     // may override (progress states), never connectivity red on signal green.
     final colors = colorsOverride ?? flagMetricColors(metric, active);
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                colors.background,
-                colors.background.withValues(alpha: 0.68),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(
-              color: colors.foreground.withValues(alpha: 0.08),
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (showPulse)
-                ReconnectingPulse(size: 4, iconSize: 14, color: colors.foreground)
-              else
-                Icon(icon, size: 15, color: colors.foreground),
-              const SizedBox(height: 5),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w600,
-                  color: context.guardianColors.textMuted,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 9.2,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  color: colors.foreground,
-                ),
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colors.background,
+              colors.background.withValues(alpha: 0.68),
             ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: colors.foreground.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (showPulse)
+              ReconnectingPulse(
+                size: 4,
+                iconSize: 14,
+                color: colors.foreground,
+              )
+            else
+              Icon(icon, size: 15, color: colors.foreground),
+            const SizedBox(height: 5),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w600,
+                color: context.guardianColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.2,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+                color: colors.foreground,
+              ),
+            ),
+          ],
         ),
       ),
     );
