@@ -16,6 +16,7 @@ import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../widgets/dashboard/dodo_3d_stage.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -915,18 +916,11 @@ class _DodoStagePlaceholder extends StatelessWidget {
     final colors = context.guardianColors;
     final offline = device != null &&
         device!.connectivityPhase() == DeviceConnectivityPhase.offline;
-    final rightNow = linking
-        ? 'Scanning for the pendant'
+    final stageMode = linking
+        ? DodoStageMode.linking
         : offline
-            ? 'Listening for the pendant'
-            : device?.hasApproximateLocation == true
-                ? 'Checking the latest location'
-                : 'Listening to the pendant';
-    final detail = linking
-        ? 'Secure connection in progress'
-        : offline
-            ? 'Pendant → Claude-backed AI → family reconnection update'
-            : 'Pendant → Claude-backed AI → WhatsApp → family';
+            ? DodoStageMode.offline
+            : DodoStageMode.active;
 
     return Container(
       key: const ValueKey('guardian-dodo-3d-slot'),
@@ -944,11 +938,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final split = constraints.maxWidth >= 430;
-          final stage = _DodoVisualStage(
-            title: rightNow,
-            detail: detail,
-            linking: linking,
-          );
+          final stage = _DodoVisualStage(mode: stageMode);
           final copy = Padding(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
             child: Column(
@@ -1029,19 +1019,66 @@ class _DodoStagePlaceholder extends StatelessWidget {
   }
 }
 
-class _DodoVisualStage extends StatelessWidget {
-  const _DodoVisualStage({
-    required this.title,
-    required this.detail,
-    required this.linking,
-  });
+class _DodoVisualStage extends StatefulWidget {
+  const _DodoVisualStage({required this.mode});
 
-  final String title;
-  final String detail;
-  final bool linking;
+  final DodoStageMode mode;
+
+  @override
+  State<_DodoVisualStage> createState() => _DodoVisualStageState();
+}
+
+class _DodoVisualStageState extends State<_DodoVisualStage> {
+  static const _sceneHold = Duration(seconds: 6);
+
+  Timer? _sceneTimer;
+  int _sceneIndex = 0;
+  bool? _reduceMotion;
+
+  List<DodoStageScene> get _scenes => dodoStageScenesFor(widget.mode);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reduceMotion != reduceMotion) {
+      _reduceMotion = reduceMotion;
+      _sceneIndex = 0;
+      _syncSceneTimer();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DodoVisualStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.mode != oldWidget.mode) {
+      _sceneIndex = 0;
+      _syncSceneTimer();
+    }
+  }
+
+  void _syncSceneTimer() {
+    _sceneTimer?.cancel();
+    _sceneTimer = null;
+    if (_reduceMotion == true || _scenes.length < 2) return;
+    _sceneTimer = Timer.periodic(_sceneHold, (_) {
+      if (!mounted) return;
+      setState(() {
+        _sceneIndex = (_sceneIndex + 1) % _scenes.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sceneTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scene = _scenes[_sceneIndex % _scenes.length];
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -1058,42 +1095,34 @@ class _DodoVisualStage extends StatelessWidget {
           ),
         ),
         Center(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 148,
-                height: 148,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: GuardianColors.safe.withValues(alpha: 0.13),
-                    width: 2,
-                  ),
-                ),
+          child: Container(
+            width: 162,
+            height: 162,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: GuardianColors.safe.withValues(alpha: 0.13),
+                width: 2,
               ),
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.72),
-                  boxShadow: [
-                    BoxShadow(
-                      color: GuardianColors.safe.withValues(alpha: 0.12),
-                      blurRadius: 32,
-                    ),
-                  ],
+              boxShadow: [
+                BoxShadow(
+                  color: GuardianColors.safe.withValues(alpha: 0.1),
+                  blurRadius: 42,
                 ),
-                child: Icon(
-                  linking
-                      ? Icons.radar_rounded
-                      : Icons.view_in_ar_outlined,
-                  color: GuardianColors.safe.withValues(alpha: 0.55),
-                  size: 34,
-                ),
-              ),
-            ],
+              ],
+            ),
+          ),
+        ),
+        Positioned.fill(
+          top: 2,
+          bottom: 45,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: GuardianDodo3d(
+              key: ValueKey(scene.action),
+              action: scene.action,
+              reduceMotion: _reduceMotion ?? false,
+            ),
           ),
         ),
         Positioned(
@@ -1166,7 +1195,7 @@ class _DodoVisualStage extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        title,
+                        scene.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1177,7 +1206,7 @@ class _DodoVisualStage extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        detail,
+                        scene.detail,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
