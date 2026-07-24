@@ -56,59 +56,66 @@ List<LinkingStoryMetric> linkingStoryMetrics(
   final battery = device.batteryPercent;
   final variant = tick % 2;
 
-  LinkingStoryMetricState stateFor(int metricStep) {
-    if (step > metricStep) return LinkingStoryMetricState.complete;
-    if (step == metricStep) return LinkingStoryMetricState.active;
-    return LinkingStoryMetricState.pending;
-  }
-
-  final wakeLabel = step >= 1
-      ? 'Awake'
-      : (variant == 0 ? 'Waking $name' : 'Checking in');
-
-  final linkLabel = switch (step) {
-    >= 2 => 'Secure link',
-    1 => (variant == 0 ? 'Connecting' : 'Making contact'),
-    _ => 'Waiting',
-  };
-
-  final locationLabel = battery != null
-      ? '$battery%'
-      : switch (step) {
-          >= 3 => 'Ready',
-          2 => (variant == 0 ? 'Finding $name' : 'Searching'),
-          _ => '—',
-        };
-
-  final readyLabel = switch (step) {
-    3 => (variant == 0 ? 'Almost there' : 'Ready soon'),
-    >= 2 => 'Preparing',
-    1 => 'Listening',
-    _ => 'Stand by',
-  };
+  final hasSession = deviceHasSessionHeartbeat(device);
+  final hasLocation =
+      device.hasFreshLocation || device.hasApproximateLocation;
+  final pendantState = step >= 1
+      ? LinkingStoryMetricState.complete
+      : LinkingStoryMetricState.active;
+  final networkState = hasSession
+      ? LinkingStoryMetricState.complete
+      : step >= 1
+          ? LinkingStoryMetricState.active
+          : LinkingStoryMetricState.pending;
+  final locationState = hasLocation
+      ? LinkingStoryMetricState.complete
+      : hasSession
+          ? LinkingStoryMetricState.active
+          : LinkingStoryMetricState.pending;
+  final batteryState = battery != null
+      ? LinkingStoryMetricState.complete
+      : hasSession
+          ? LinkingStoryMetricState.active
+          : LinkingStoryMetricState.pending;
 
   return [
     LinkingStoryMetric(
-      label: wakeLabel,
-      icon: step >= 1 ? Icons.wb_sunny_outlined : Icons.bedtime_outlined,
-      state: stateFor(0),
+      label: step >= 1
+          ? 'Pendant awake'
+          : (variant == 0 ? 'Waking $name' : 'Checking pendant'),
+      icon: step >= 1 ? Icons.sensors_rounded : Icons.bedtime_outlined,
+      state: pendantState,
     ),
     LinkingStoryMetric(
-      label: linkLabel,
-      icon: step >= 2 ? Icons.lock_outline_rounded : Icons.wifi_tethering_rounded,
-      state: stateFor(1),
+      label: hasSession
+          ? 'Network ready'
+          : (step >= 1
+              ? (variant == 0 ? 'Securing link' : 'Making contact')
+              : 'Network waiting'),
+      icon: hasSession
+          ? Icons.lock_outline_rounded
+          : Icons.wifi_tethering_rounded,
+      state: networkState,
     ),
     LinkingStoryMetric(
-      label: locationLabel,
-      icon: battery != null
-          ? Icons.battery_5_bar_rounded
+      label: device.hasApproximateLocation
+          ? 'Approx. location'
+          : device.hasFreshLocation
+              ? 'Precise location'
+              : hasSession
+                  ? (variant == 0 ? 'Finding $name' : 'Locating…')
+                  : 'Location waiting',
+      icon: device.hasFreshLocation && !device.hasApproximateLocation
+          ? Icons.gps_fixed_rounded
           : Icons.explore_outlined,
-      state: step >= 2 ? LinkingStoryMetricState.active : stateFor(2),
+      state: locationState,
     ),
     LinkingStoryMetric(
-      label: readyLabel,
-      icon: step >= 3 ? Icons.favorite_outline_rounded : Icons.radar_rounded,
-      state: stateFor(3),
+      label: battery == null
+          ? (hasSession ? 'Reading battery' : 'Battery waiting')
+          : '$battery% battery',
+      icon: Icons.battery_5_bar_rounded,
+      state: batteryState,
     ),
   ];
 }

@@ -77,6 +77,26 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
   bool _isReconnecting(Device device) => _dashboard.isReconnecting(device);
   bool _isLive(Device device) => _dashboard.isLive(device);
 
+  String _mapStatusLabel(Device? device) {
+    if (device == null) return 'Map';
+    if (_isReconnecting(device)) return 'Linking up';
+    if (!_isLive(device)) return 'Last known location';
+    if (device.hasApproximateLocation) return 'Approximate location';
+    if (device.hasFreshLocation) return '● Live location';
+    return 'Connected • Locating';
+  }
+
+  PillTone _mapStatusTone(Device? device) {
+    if (device == null || !_isLive(device)) {
+      return device != null && _isReconnecting(device)
+          ? PillTone.warning
+          : PillTone.neutral;
+    }
+    return device.hasFreshLocation && !device.hasApproximateLocation
+        ? PillTone.safe
+        : PillTone.warning;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -731,16 +751,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
             top: 16,
             left: 16,
             child: StatusPill(
-              label: selected == null
-                  ? 'Map'
-                  : _isReconnecting(selected)
-                      ? 'Linking up'
-                      : (_isLive(selected) ? '● Live' : 'Map'),
-              tone: selected == null
-                  ? PillTone.neutral
-                  : _isReconnecting(selected)
-                      ? PillTone.neutral
-                      : (_isLive(selected) ? PillTone.safe : PillTone.neutral),
+              label: _mapStatusLabel(selected),
+              tone: _mapStatusTone(selected),
             ),
           ),
           // Above Google zoom controls (bottom-right), stock my-location size.
@@ -918,15 +930,22 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                       children: [
                         const GuardianBrandMark(size: 36, iconScale: 0.58),
                         const SizedBox(width: 10),
-                        const Text(
-                          'Guardian',
-                          style: _dashboardHeaderTitleStyle,
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Guardian',
+                              style: _dashboardHeaderTitleStyle,
+                            ),
+                            _GuardianSloganText(),
+                          ],
                         ),
                         const Spacer(),
                         IconButton(
-                          onPressed: () {},
+                          onPressed: () =>
+                              HomeShellScope.maybeOf(context)?.goToTab(2),
                           icon: const Icon(Icons.notifications_none_rounded),
-                          tooltip: 'Notifications',
+                          tooltip: 'Open alerts',
                         ),
                         GuardianHeaderAvatar(
                           initials: userInitials,
@@ -1001,20 +1020,8 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                                 top: 14,
                                 left: 14,
                                 child: StatusPill(
-                                  label: selected != null &&
-                                          _isLive(selected)
-                                      ? '● Live'
-                                      : (selected != null &&
-                                              _isReconnecting(selected)
-                                          ? 'Linking up'
-                                          : 'Map'),
-                                  tone: selected != null &&
-                                          _isLive(selected)
-                                      ? PillTone.safe
-                                      : (selected != null &&
-                                              _isReconnecting(selected)
-                                          ? PillTone.warning
-                                          : PillTone.neutral),
+                                  label: _mapStatusLabel(selected),
+                                  tone: _mapStatusTone(selected),
                                 ),
                               ),
                               _mapMeButton(
@@ -1211,6 +1218,21 @@ const _dashboardHeaderTitleStyle = TextStyle(
   height: 1.0,
 );
 
+class _GuardianSloganText extends StatelessWidget {
+  const _GuardianSloganText();
+
+  @override
+  Widget build(BuildContext context) => Text(
+        'Always close. Always caring.',
+        style: TextStyle(
+          color: context.guardianColors.textMuted,
+          fontSize: 9,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.15,
+        ),
+      );
+}
+
 class _DesktopDevicesCard extends StatelessWidget {
   const _DesktopDevicesCard({
     required this.devices,
@@ -1403,18 +1425,13 @@ class _SafetyHero extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: safe ? GuardianColors.safeBg : GuardianColors.warningBg,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(
-              safe ? Icons.verified_user_rounded : Icons.shield_outlined,
-              size: 32,
-              color: safe ? GuardianColors.safe : GuardianColors.warning,
-            ),
+          GuardianAiIcon(
+            size: 58,
+            backgroundColor:
+                safe ? GuardianColors.safeBg : GuardianColors.warningBg,
+            accentColor:
+                safe ? GuardianColors.safe : GuardianColors.warning,
+            warning: totalCount > 0 && !safe,
           ),
           const SizedBox(width: 14),
           Expanded(
