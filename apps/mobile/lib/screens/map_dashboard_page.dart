@@ -906,15 +906,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
         .where((d) => d.connectivityPhase() == DeviceConnectivityPhase.live)
         .length;
 
-    if (MediaQuery.sizeOf(context).width >= GuardianBreakpoints.expanded) {
-      return _buildDesktopDashboard(
-        selected: selected,
-        center: center,
-        userInitials: userInitials,
-        insight: insight,
-      );
-    }
-
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
       body: SafeArea(
@@ -932,7 +923,10 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
             ),
             Center(
               child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 820),
+            // Home is intentionally a calm, mobile-first care experience on
+            // every platform. Desktop gets breathing room around the same
+            // composition instead of an unrelated command-centre UI.
+            constraints: const BoxConstraints(maxWidth: 520),
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
@@ -987,11 +981,11 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                         titleOverride: dashboardSafetyTitle(_devices),
                         subtitleOverride: dashboardSafetySubtitle(_devices),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       _LiveStatusBar(device: selected, linkingTick: _linkingTick),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       SizedBox(
-                        height: 334,
+                        height: 272,
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(30),
@@ -1077,42 +1071,6 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                           ),
                         ),
                       ),
-                      if (_devices.isNotEmpty) ...[
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'My devices'),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 164,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _devices.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 10),
-                            itemBuilder: (context, index) {
-                              final device = _devices[index];
-                              return _PremiumDeviceCard(
-                                device: device,
-                                selected: device.imei == _selectedImei,
-                                updated: deviceUpdatedLabel(device),
-                                onTap: () {
-                                  _dashboard.select(device.imei);
-                                  if (device.hasFreshLocation) {
-                                    _animateTo(
-                                      LatLng(
-                                        device.location!.lat,
-                                        device.location!.lng,
-                                      ),
-                                      zoom: 15,
-                                    );
-                                  }
-                                },
-                                onRename: () => _rename(device),
-                                onUnlink: () => _unlink(device),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 18),
                       _GuardianAiCard(insight: insight),
                       if (selected != null) ...[
@@ -1190,6 +1148,42 @@ class _MapDashboardPageState extends State<MapDashboardPage> {
                           updated: deviceUpdatedLabel(selected),
                           onOpen: () => _openHistory(selected),
                         ),
+                        if (_devices.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          const _SectionTitle(title: 'People you care for'),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 164,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _devices.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: 10),
+                              itemBuilder: (context, index) {
+                                final device = _devices[index];
+                                return _PremiumDeviceCard(
+                                  device: device,
+                                  selected: device.imei == _selectedImei,
+                                  updated: deviceUpdatedLabel(device),
+                                  onTap: () {
+                                    _dashboard.select(device.imei);
+                                    if (device.hasFreshLocation) {
+                                      _animateTo(
+                                        LatLng(
+                                          device.location!.lat,
+                                          device.location!.lng,
+                                        ),
+                                        zoom: 15,
+                                      );
+                                    }
+                                  },
+                                  onRename: () => _rename(device),
+                                  onUnlink: () => _unlink(device),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                         if (_geofences.isNotEmpty) ...[
                           const SizedBox(height: 18),
                           const _SectionTitle(title: 'Safe zones'),
@@ -1585,12 +1579,13 @@ class _LiveStatusBar extends StatelessWidget {
             ],
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               for (var i = 0; i < story.length; i++)
                 _LiveMetric(
                   metric: DashboardFlagMetric.values[i],
                   icon: story[i].icon,
+                  title: const ['Pendant', 'Location', 'Battery', 'Network'][i],
                   label: story[i].label,
                   active: story[i].state == LinkingStoryMetricState.complete,
                   colorsOverride: linkingStoryMetricColors(story[i].state),
@@ -1635,6 +1630,7 @@ class _LiveStatusBar extends StatelessWidget {
             _LiveMetric(
               metric: DashboardFlagMetric.connectivity,
               icon: Icons.sensors_rounded,
+              title: 'Pendant',
               label: selected == null
                   ? 'Offline'
                   : deviceConnectivityLabel(selected),
@@ -1644,6 +1640,7 @@ class _LiveStatusBar extends StatelessWidget {
             _LiveMetric(
               metric: DashboardFlagMetric.gps,
               icon: Icons.gps_fixed_rounded,
+              title: 'Location',
               label: approximate
                   ? 'Approximate'
                   : (gps ? 'GPS active' : 'GPS waiting'),
@@ -1652,12 +1649,14 @@ class _LiveStatusBar extends StatelessWidget {
             _LiveMetric(
               metric: DashboardFlagMetric.battery,
               icon: Icons.battery_5_bar_rounded,
+              title: 'Battery',
               label: battery == null ? 'Battery —' : '$battery%',
               active: batteryHealthy,
             ),
             _LiveMetric(
               metric: DashboardFlagMetric.signal,
               icon: Icons.signal_cellular_alt_rounded,
+              title: 'Network',
               label: selected == null ? 'No signal' : deviceSignalLabel(selected),
               active: connected,
               colorsOverride: signalColors,
@@ -1673,6 +1672,7 @@ class _LiveMetric extends StatelessWidget {
   const _LiveMetric({
     required this.metric,
     required this.icon,
+    required this.title,
     required this.label,
     required this.active,
     this.colorsOverride,
@@ -1681,6 +1681,7 @@ class _LiveMetric extends StatelessWidget {
 
   final DashboardFlagMetric metric;
   final IconData icon;
+  final String title;
   final String label;
   final bool active;
   final FlagMetricColors? colorsOverride;
@@ -1718,6 +1719,18 @@ class _LiveMetric extends StatelessWidget {
               else
                 Icon(icon, size: 15, color: colors.foreground),
               const SizedBox(height: 5),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w600,
+                  color: context.guardianColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 2),
               Text(
                 label,
                 maxLines: 1,
