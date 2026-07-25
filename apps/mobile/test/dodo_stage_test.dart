@@ -12,7 +12,9 @@ void main() {
     expect(useDodoDesktopHeroLayout(849), isFalse);
     expect(useDodoWideSceneLayout(680), isTrue);
     expect(useDodoWideSceneLayout(390), isFalse);
-    expect(dodoDesktopHeroHeight, 430);
+    expect(dodoDesktopHeroHeight, 300);
+    expect(dodoCompactStageHeight, 220);
+    expect(dodoDesktopStageFlex, lessThan(dodoDesktopStatusFlex));
   });
 
   test('linking Dodo stage follows the real connection process in order', () {
@@ -41,8 +43,8 @@ void main() {
   });
 
   test('live artwork greets while process artwork remains fully visible', () {
-    expect(DodoStageAction.idle.imageFit, BoxFit.cover);
-    expect(DodoStageAction.idle.imageAlignment.y, lessThan(0));
+    expect(DodoStageAction.idle.imageFit, BoxFit.contain);
+    expect(DodoStageAction.idle.imageAlignment, Alignment.center);
     expect(DodoStageAction.networkSearch.imageFit, BoxFit.contain);
     expect(DodoStageAction.aiCheck.imageAlignment, Alignment.center);
     expect(DodoStageAction.aiCheck.shortLabel, 'GUARDIAN AI');

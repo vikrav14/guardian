@@ -798,10 +798,10 @@ class _PrototypeCareCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 66, child: comms),
+                Expanded(flex: dodoDesktopStageFlex, child: comms),
                 const SizedBox(width: 18),
                 Expanded(
-                  flex: 34,
+                  flex: dodoDesktopStatusFlex,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -819,7 +819,7 @@ class _PrototypeCareCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      SizedBox(height: 142, child: metrics),
+                      SizedBox(height: 108, child: metrics),
                     ],
                   ),
                 ),
@@ -973,7 +973,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
 
     return Container(
       key: const ValueKey('guardian-dodo-stage'),
-      constraints: const BoxConstraints(minHeight: 238),
+      constraints: const BoxConstraints(minHeight: dodoCompactStageHeight),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -1061,7 +1061,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
 
           if (split) {
             return SizedBox(
-              height: 250,
+              height: dodoCompactStageHeight,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1074,7 +1074,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: 250, child: stage),
+              SizedBox(height: dodoCompactStageHeight, child: stage),
               copy,
             ],
           );

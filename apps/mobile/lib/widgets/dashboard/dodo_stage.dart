@@ -5,7 +5,10 @@ enum DodoStageMode { active, offline, linking }
 const dodoLinkingStepMinimumHold = Duration(seconds: 5);
 const dodoDesktopHeroMinimumWidth = 850.0;
 const dodoWideSceneMinimumWidth = 680.0;
-const dodoDesktopHeroHeight = 430.0;
+const dodoDesktopHeroHeight = 300.0;
+const dodoCompactStageHeight = 220.0;
+const dodoDesktopStageFlex = 48;
+const dodoDesktopStatusFlex = 52;
 
 bool useDodoDesktopHeroLayout(double width) =>
     width >= dodoDesktopHeroMinimumWidth;
@@ -58,12 +61,9 @@ extension DodoStageActionPresentation on DodoStageAction {
           'Guardian Dodo is checking the pendant update with AI',
       };
 
-  BoxFit get imageFit =>
-      this == DodoStageAction.idle ? BoxFit.cover : BoxFit.contain;
+  BoxFit get imageFit => BoxFit.contain;
 
-  Alignment get imageAlignment => this == DodoStageAction.idle
-      ? const Alignment(0, -0.55)
-      : Alignment.center;
+  Alignment get imageAlignment => Alignment.center;
 
   String get shortLabel => switch (this) {
         DodoStageAction.idle => 'LIVE',
@@ -133,17 +133,20 @@ class GuardianDodoStageImage extends StatelessWidget {
     return Semantics(
       image: true,
       label: action.semanticLabel,
-      child: Image.asset(
-        action.assetPath,
-        fit: action.imageFit,
-        alignment: action.imageAlignment,
-        excludeFromSemantics: true,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(
-            Icons.shield_outlined,
-            size: 54,
-            color: Color(0xFF367A5D),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Image.asset(
+          action.assetPath,
+          fit: action.imageFit,
+          alignment: action.imageAlignment,
+          excludeFromSemantics: true,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (context, error, stackTrace) => const Center(
+            child: Icon(
+              Icons.shield_outlined,
+              size: 54,
+              color: Color(0xFF367A5D),
+            ),
           ),
         ),
       ),
