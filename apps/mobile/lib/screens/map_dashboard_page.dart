@@ -769,7 +769,7 @@ class _PrototypeCareCard extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 850;
+          final wide = useDodoDesktopHeroLayout(constraints.maxWidth);
           final summary = _CarePersonSummary(device: device);
           final comms = _DodoStagePlaceholder(
             device: device,
@@ -794,15 +794,35 @@ class _PrototypeCareCard extends StatelessWidget {
           }
 
           return SizedBox(
-            height: 238,
+            height: dodoDesktopHeroHeight,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(flex: 18, child: summary),
-                const SizedBox(width: 22),
-                Expanded(flex: 49, child: comms),
-                const SizedBox(width: 22),
-                Expanded(flex: 25, child: metrics),
+                Expanded(flex: 66, child: comms),
+                const SizedBox(width: 18),
+                Expanded(
+                  flex: 34,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: colors.glass,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                          child: summary,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(height: 142, child: metrics),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -966,6 +986,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final wideScene = useDodoWideSceneLayout(constraints.maxWidth);
           final split = constraints.maxWidth >= 430;
           final stage = _DodoVisualStage(
             mode: stageMode,
@@ -1031,6 +1052,13 @@ class _DodoStagePlaceholder extends StatelessWidget {
             ),
           );
 
+          if (wideScene) {
+            return SizedBox(
+              height: dodoDesktopHeroHeight,
+              child: stage,
+            );
+          }
+
           if (split) {
             return SizedBox(
               height: 250,
@@ -1075,160 +1103,165 @@ class _DodoVisualStage extends StatelessWidget {
     final scene = linking
         ? dodoStageSceneForLinkingStep(visibleLinkingStep)
         : dodoStageSceneForMode(mode);
-    return Stack(
-      fit: StackFit.expand,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              colors: [
-                Color(0xFFFFFFFF),
-                Color(0xFFDFF3E8),
-                Color(0xFFCFE4DA),
-              ],
-              stops: [0.08, 0.48, 1],
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: AnimatedSwitcher(
-            duration:
-                reduceMotion ? Duration.zero : const Duration(milliseconds: 450),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: GuardianDodoStageImage(
-              key: ValueKey(scene.action),
-              action: scene.action,
-            ),
-          ),
-        ),
-        Positioned(
-          left: 15,
-          top: 14,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: GuardianColors.safe.withValues(alpha: 0.18),
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Color(0xFFFFFFFF),
+                      Color(0xFFDFF3E8),
+                      Color(0xFFCFE4DA),
+                    ],
+                    stops: [0.08, 0.48, 1],
+                  ),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: GuardianColors.safe,
-                    shape: BoxShape.circle,
+              Positioned.fill(
+                child: AnimatedSwitcher(
+                  duration: reduceMotion
+                      ? Duration.zero
+                      : const Duration(milliseconds: 450),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: GuardianDodoStageImage(
+                    key: ValueKey(scene.action),
+                    action: scene.action,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  linking
-                      ? 'STEP ${visibleLinkingStep + 1} OF ${linkingDodoStageScenes.length}'
-                      : mode == DodoStageMode.active
-                          ? 'LIVE'
-                          : 'LISTENING',
-                  style: const TextStyle(
-                    color: GuardianColors.forest,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (linking)
-          Positioned(
-            right: 16,
-            top: 20,
-            child: Row(
-              children: [
-                for (var i = 0; i < linkingDodoStageScenes.length; i++) ...[
-                  AnimatedContainer(
-                    duration: reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 300),
-                    width: i == visibleLinkingStep ? 18 : 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: i <= visibleLinkingStep
-                          ? GuardianColors.safe
-                          : GuardianColors.safe.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
+              ),
+              Positioned(
+                left: 15,
+                top: 14,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: GuardianColors.safe.withValues(alpha: 0.18),
                     ),
                   ),
-                  if (i < linkingDodoStageScenes.length - 1)
-                    const SizedBox(width: 5),
-                ],
-              ],
-            ),
-          ),
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: GuardianColors.forest.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF57E69A),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'RIGHT NOW',
-                        style: TextStyle(
-                          color: Color(0xFFA8C8B9),
-                          fontSize: 7,
-                          fontWeight: FontWeight.w800,
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: GuardianColors.safe,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        linking
+                            ? 'STEP ${visibleLinkingStep + 1} OF ${linkingDodoStageScenes.length}'
+                            : mode == DodoStageMode.active
+                                ? 'LIVE'
+                                : 'LISTENING',
+                        style: const TextStyle(
+                          color: GuardianColors.forest,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
                           letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        scene.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        scene.detail,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFFB8D3C6),
-                          fontSize: 7,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (linking)
+                Positioned(
+                  right: 16,
+                  top: 20,
+                  child: Row(
+                    children: [
+                      for (var i = 0;
+                          i < linkingDodoStageScenes.length;
+                          i++) ...[
+                        AnimatedContainer(
+                          duration: reduceMotion
+                              ? Duration.zero
+                              : const Duration(milliseconds: 300),
+                          width: i == visibleLinkingStep ? 18 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: i <= visibleLinkingStep
+                                ? GuardianColors.safe
+                                : GuardianColors.safe.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        if (i < linkingDodoStageScenes.length - 1)
+                          const SizedBox(width: 5),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Container(
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          color: GuardianColors.forest.withValues(alpha: 0.97),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF57E69A),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'RIGHT NOW',
+                      style: TextStyle(
+                        color: Color(0xFFA8C8B9),
+                        fontSize: 7,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      scene.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      scene.detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFFB8D3C6),
+                        fontSize: 8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],

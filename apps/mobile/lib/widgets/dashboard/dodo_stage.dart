@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 enum DodoStageMode { active, offline, linking }
 
 const dodoLinkingStepMinimumHold = Duration(seconds: 5);
+const dodoDesktopHeroMinimumWidth = 850.0;
+const dodoWideSceneMinimumWidth = 680.0;
+const dodoDesktopHeroHeight = 430.0;
+
+bool useDodoDesktopHeroLayout(double width) =>
+    width >= dodoDesktopHeroMinimumWidth;
+
+bool useDodoWideSceneLayout(double width) => width >= dodoWideSceneMinimumWidth;
 
 enum DodoStageAction {
   idle,
@@ -112,7 +120,7 @@ class GuardianDodoStageImage extends StatelessWidget {
       label: action.semanticLabel,
       child: Image.asset(
         action.assetPath,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         alignment: Alignment.center,
         excludeFromSemantics: true,
         filterQuality: FilterQuality.high,

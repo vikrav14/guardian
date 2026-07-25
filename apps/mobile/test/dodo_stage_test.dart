@@ -6,6 +6,14 @@ void main() {
     expect(dodoLinkingStepMinimumHold, const Duration(seconds: 5));
   });
 
+  test('Dodo owns two columns on desktop and stacks on smaller screens', () {
+    expect(useDodoDesktopHeroLayout(1180), isTrue);
+    expect(useDodoDesktopHeroLayout(849), isFalse);
+    expect(useDodoWideSceneLayout(680), isTrue);
+    expect(useDodoWideSceneLayout(390), isFalse);
+    expect(dodoDesktopHeroHeight, 430);
+  });
+
   test('linking Dodo stage follows the real connection process in order', () {
     expect(
       linkingDodoStageScenes.map((scene) => scene.action),
