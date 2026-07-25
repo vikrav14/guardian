@@ -1103,167 +1103,101 @@ class _DodoVisualStage extends StatelessWidget {
     final scene = linking
         ? dodoStageSceneForLinkingStep(visibleLinkingStep)
         : dodoStageSceneForMode(mode);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    colors: [
-                      Color(0xFFFFFFFF),
-                      Color(0xFFDFF3E8),
-                      Color(0xFFCFE4DA),
-                    ],
-                    stops: [0.08, 0.48, 1],
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: AnimatedSwitcher(
-                  duration: reduceMotion
-                      ? Duration.zero
-                      : const Duration(milliseconds: 450),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: GuardianDodoStageImage(
-                    key: ValueKey(scene.action),
-                    action: scene.action,
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 15,
-                top: 14,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: GuardianColors.safe.withValues(alpha: 0.18),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          color: GuardianColors.safe,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        linking
-                            ? 'STEP ${visibleLinkingStep + 1} OF ${linkingDodoStageScenes.length}'
-                            : mode == DodoStageMode.active
-                                ? 'LIVE'
-                                : 'LISTENING',
-                        style: const TextStyle(
-                          color: GuardianColors.forest,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (linking)
-                Positioned(
-                  right: 16,
-                  top: 20,
-                  child: Row(
-                    children: [
-                      for (var i = 0;
-                          i < linkingDodoStageScenes.length;
-                          i++) ...[
-                        AnimatedContainer(
-                          duration: reduceMotion
-                              ? Duration.zero
-                              : const Duration(milliseconds: 300),
-                          width: i == visibleLinkingStep ? 18 : 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: i <= visibleLinkingStep
-                                ? GuardianColors.safe
-                                : GuardianColors.safe.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        if (i < linkingDodoStageScenes.length - 1)
-                          const SizedBox(width: 5),
-                      ],
-                    ],
-                  ),
-                ),
-            ],
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [
+                Color(0xFFFFFFFF),
+                Color(0xFFDFF3E8),
+                Color(0xFFCFE4DA),
+              ],
+              stops: [0.08, 0.48, 1],
+            ),
           ),
         ),
-        Container(
-          constraints: const BoxConstraints(minHeight: 58),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: GuardianColors.forest.withValues(alpha: 0.97),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF57E69A),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'RIGHT NOW',
-                      style: TextStyle(
-                        color: Color(0xFFA8C8B9),
-                        fontSize: 7,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      scene.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      scene.detail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFFB8D3C6),
-                        fontSize: 8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        Positioned.fill(
+          child: AnimatedSwitcher(
+            duration: reduceMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 450),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: GuardianDodoStageImage(
+              key: ValueKey(scene.action),
+              action: scene.action,
+            ),
           ),
         ),
+        Positioned(
+          left: 15,
+          top: 14,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: GuardianColors.safe.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: GuardianColors.safe,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  linking
+                      ? 'STEP ${visibleLinkingStep + 1}  ·  ${scene.action.shortLabel}'
+                      : mode == DodoStageMode.active
+                          ? 'LIVE'
+                          : 'LISTENING',
+                  style: const TextStyle(
+                    color: GuardianColors.forest,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (linking)
+          Positioned(
+            right: 16,
+            top: 20,
+            child: Row(
+              children: [
+                for (var i = 0; i < linkingDodoStageScenes.length; i++) ...[
+                  AnimatedContainer(
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 300),
+                    width: i == visibleLinkingStep ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: i <= visibleLinkingStep
+                          ? GuardianColors.safe
+                          : GuardianColors.safe.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  if (i < linkingDodoStageScenes.length - 1)
+                    const SizedBox(width: 5),
+                ],
+              ],
+            ),
+          ),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/widgets/dashboard/dodo_stage.dart';
 
@@ -37,6 +38,14 @@ void main() {
       assets.every((asset) => asset.startsWith('assets/dodo/stages/')),
       isTrue,
     );
+  });
+
+  test('live artwork greets while process artwork remains fully visible', () {
+    expect(DodoStageAction.idle.imageFit, BoxFit.cover);
+    expect(DodoStageAction.idle.imageAlignment.y, lessThan(0));
+    expect(DodoStageAction.networkSearch.imageFit, BoxFit.contain);
+    expect(DodoStageAction.aiCheck.imageAlignment, Alignment.center);
+    expect(DodoStageAction.aiCheck.shortLabel, 'GUARDIAN AI');
   });
 
   test('linking step selection is safely clamped', () {

@@ -57,6 +57,21 @@ extension DodoStageActionPresentation on DodoStageAction {
         DodoStageAction.aiCheck =>
           'Guardian Dodo is checking the pendant update with AI',
       };
+
+  BoxFit get imageFit =>
+      this == DodoStageAction.idle ? BoxFit.cover : BoxFit.contain;
+
+  Alignment get imageAlignment => this == DodoStageAction.idle
+      ? const Alignment(0, -0.55)
+      : Alignment.center;
+
+  String get shortLabel => switch (this) {
+        DodoStageAction.idle => 'LIVE',
+        DodoStageAction.pendantListen => 'PENDANT',
+        DodoStageAction.networkSearch => 'NETWORK',
+        DodoStageAction.locationSearch => 'LOCATION',
+        DodoStageAction.aiCheck => 'GUARDIAN AI',
+      };
 }
 
 const _liveScene = DodoStageScene(
@@ -120,8 +135,8 @@ class GuardianDodoStageImage extends StatelessWidget {
       label: action.semanticLabel,
       child: Image.asset(
         action.assetPath,
-        fit: BoxFit.contain,
-        alignment: Alignment.center,
+        fit: action.imageFit,
+        alignment: action.imageAlignment,
         excludeFromSemantics: true,
         filterQuality: FilterQuality.high,
         errorBuilder: (context, error, stackTrace) => const Center(
