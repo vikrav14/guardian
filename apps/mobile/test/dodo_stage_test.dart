@@ -35,7 +35,7 @@ void main() {
         .toSet();
 
     expect(assets, hasLength(DodoStageAction.values.length));
-    expect(assets.every((asset) => asset.endsWith('.webp')), isTrue);
+    expect(assets.every((asset) => asset.endsWith('.png')), isTrue);
     expect(
       assets.every((asset) => asset.startsWith('assets/dodo/stages/')),
       isTrue,

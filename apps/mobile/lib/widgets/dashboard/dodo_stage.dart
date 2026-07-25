@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:guardian/theme/colors.dart';
 
 enum DodoStageMode { active, offline, linking }
 
@@ -38,15 +39,15 @@ class DodoStageScene {
 extension DodoStageActionPresentation on DodoStageAction {
   String get assetPath => switch (this) {
         DodoStageAction.idle =>
-          'assets/dodo/stages/guardian_dodo_live.webp',
+          'assets/dodo/stages/guardian_dodo_live.png',
         DodoStageAction.pendantListen =>
-          'assets/dodo/stages/guardian_dodo_pendant.webp',
+          'assets/dodo/stages/guardian_dodo_pendant.png',
         DodoStageAction.networkSearch =>
-          'assets/dodo/stages/guardian_dodo_network.webp',
+          'assets/dodo/stages/guardian_dodo_network.png',
         DodoStageAction.locationSearch =>
-          'assets/dodo/stages/guardian_dodo_location.webp',
+          'assets/dodo/stages/guardian_dodo_location.png',
         DodoStageAction.aiCheck =>
-          'assets/dodo/stages/guardian_dodo_ai.webp',
+          'assets/dodo/stages/guardian_dodo_ai.png',
       };
 
   String get semanticLabel => switch (this) {
@@ -134,18 +135,29 @@ class GuardianDodoStageImage extends StatelessWidget {
       image: true,
       label: action.semanticLabel,
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Image.asset(
-          action.assetPath,
-          fit: action.imageFit,
-          alignment: action.imageAlignment,
-          excludeFromSemantics: true,
-          filterQuality: FilterQuality.high,
-          errorBuilder: (context, error, stackTrace) => const Center(
-            child: Icon(
-              Icons.shield_outlined,
-              size: 54,
-              color: Color(0xFF367A5D),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: GuardianColors.safe.withValues(alpha: 0.14),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Image.asset(
+            action.assetPath,
+            fit: action.imageFit,
+            alignment: action.imageAlignment,
+            excludeFromSemantics: true,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) => const Center(
+              child: Icon(
+                Icons.shield_outlined,
+                size: 54,
+                color: Color(0xFF367A5D),
+              ),
             ),
           ),
         ),

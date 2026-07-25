@@ -976,13 +976,16 @@ class _DodoStagePlaceholder extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: dodoCompactStageHeight),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEAF9F1), Color(0xFFF8FBF2), Color(0xFFFFF5DB)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: GuardianColors.ivory,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFD5EADF)),
+        border: Border.all(color: GuardianColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1031,10 +1034,10 @@ class _DodoStagePlaceholder extends StatelessWidget {
                           : 'I’ve got every channel covered.',
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 21,
-                    height: 1.1,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: -0.6,
+                    fontSize: 18,
+                    height: 1.15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.4,
                   ),
                 ),
                 const SizedBox(height: 9),
@@ -1106,15 +1109,21 @@ class _DodoVisualStage extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              colors: [
-                Color(0xFFFFFFFF),
-                Color(0xFFDFF3E8),
-                Color(0xFFCFE4DA),
-              ],
-              stops: [0.08, 0.48, 1],
+        Center(
+          child: FractionallySizedBox(
+            widthFactor: 0.88,
+            heightFactor: 0.92,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    GuardianColors.flagGreenBg.withValues(alpha: 0.55),
+                    GuardianColors.flagBlueBg.withValues(alpha: 0.22),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.52, 1.0],
+                ),
+              ),
             ),
           ),
         ),
