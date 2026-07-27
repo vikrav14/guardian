@@ -61,6 +61,7 @@ Live device state. Document ID = device IMEI (digits only).
 | lastAlarm | map \| null | `{ type, at, raw }` |
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
+| fallDetection | map \| null | App-cached request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. V46/V48/V52 only. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
@@ -152,19 +153,35 @@ Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after l
 
 ## `deviceCommands/{commandId}`
 
-App-originated downlink commands the gateway sends to the pendant by SMS (see `gateway/src/commands.js`).
+App-originated downlink commands the gateway delivers to the pendant, either by SMS (V28C) or over the live TCP session (V46/V48/V52 -- no SMS equivalent exists for these; see `gateway/src/commands.js`).
 
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` (last two unverified against this exact device -- see commands.js) |
-| params | map | Command-specific, e.g. `{ phone }` or `{ slot, phone }` |
+| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` (SMS; last two unverified against V28C specifically) \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` (TCP downlink, V46/V48/V52 only -- requires a live session) |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
-| result | map \| null | `{ text, simNumber, result }` once sent |
+| result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |
 | createdBy | string | uid |
 | createdAt | timestamp | |
 | completedAt | timestamp \| null | |
+
+## `medicationReminders/{reminderId}`
+
+App-side record of what's been scheduled, since the device has no "list my reminders" query command -- this is what the app displays/edits; saving or deleting also enqueues a matching `deviceCommands` entry (`set_medication_reminder`) so the pendant itself stays in sync. V46/V48/V52 only.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| imei | string | Target device |
+| time | string | `HH:MM`, 24-hour |
+| frequency | number | `1` (once) \| `2` (daily) \| `3` (weekly) |
+| week | string \| null | 7-digit Sun->Sat on/off mask, only when frequency is 3 |
+| text | string | Plain reminder text (device stores hex-UTF16 encoded, gateway handles the conversion) |
+| enabled | boolean | |
+| createdBy | string | uid |
+| createdAt | timestamp | |
+| updatedAt | timestamp | |
 
 ## `notificationLogs/{logId}`
 
@@ -208,7 +225,7 @@ Geofence evaluation and safety alerts run on **every** valid in-memory GPS fix, 
 ## Security (summary)
 
 - Clients authenticate with Firebase Auth.
-- Guardians may **read** `devices` / `alerts` / `geofences` only when `imei` is in `users/{uid}.linkedImeis`.
-- Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences, and resolve alerts for linked devices.
+- Guardians may **read** `devices` / `alerts` / `geofences` / `medicationReminders` only when `imei` is in `users/{uid}.linkedImeis`.
+- Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences and medication reminders, and resolve alerts for linked devices.
 - Wearer photos live in Firebase Storage at `deviceAvatars/{imei}/avatar`; Storage rules restrict access to signed-in guardians linked to that IMEI and enforce image content under 5 MB.
 - Gateway uses **Admin SDK** (bypasses rules). See [rules.example](rules.example).

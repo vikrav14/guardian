@@ -89,6 +89,10 @@ function fallSensitivityCommand(level) {
  * - frequency: 1 (once) | 2 (daily) | 3 (weekly)
  * - week: 7-digit Sun->Sat on/off mask, required when frequency is 3
  * - text: plain reminder text, auto-encoded to the device's hex-UTF16 format
+ * - enabled: on/off bit in the time segment (protocol doc: "1 is on, 0 is
+ *   off"). Defaults true; all 3 vendor example captures happen to use 1,
+ *   so this is the confirmed value for "on" -- 0 for "off" is documented
+ *   in the prose but not demonstrated in a capture.
  *
  * Note: in all 3 vendor example captures, the "remind number" field right
  * after the time segment is always identical to the frequency digit (1, 2,
@@ -96,7 +100,7 @@ function fallSensitivityCommand(level) {
  * their test data or a real requirement, so this builder follows the
  * confirmed pattern rather than guessing at an independent value.
  */
-function medicationReminderCommand({ time, frequency, week, text }) {
+function medicationReminderCommand({ time, frequency, week, text, enabled = true }) {
   const freq = Number(frequency);
   if (![1, 2, 3].includes(freq)) {
     throw new Error('Medication reminder frequency must be 1 (once), 2 (daily), or 3 (weekly)');
@@ -104,7 +108,7 @@ function medicationReminderCommand({ time, frequency, week, text }) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time || '')) {
     throw new Error('Medication reminder time must be HH:MM (24-hour)');
   }
-  let timeSegment = `${time}-1-${freq}`;
+  let timeSegment = `${time}-${enabled ? 1 : 0}-${freq}`;
   if (freq === 3) {
     if (!/^[01]{7}$/.test(week || '')) {
       throw new Error('Weekly medication reminder requires a 7-digit Sun-Sat week mask, e.g. 0111110');

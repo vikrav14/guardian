@@ -7,6 +7,7 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
+import '../models/medication_reminder.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
 import 'imei_utils.dart';
@@ -149,6 +150,35 @@ class DeviceService {
       'simNumber': trimmed.isEmpty ? FieldValue.delete() : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// a live connection to the gateway (see DeviceCommandService.setFallDetection
+  /// and setFallSensitivity). Caches the requested state on the device doc
+  /// since the device has no read-back command; the cache reflects what was
+  /// last *asked for*, not confirmed device state.
+  Future<void> updateFallDetectionPrefs(
+    String imei, {
+    required bool enabled,
+    required bool dialMonitorOnFall,
+    required int sensitivityLevel,
+  }) async {
+    await _db.collection('devices').doc(imei).update({
+      'fallDetection': {
+        'enabled': enabled,
+        'dialMonitorOnFall': dialMonitorOnFall,
+        'sensitivityLevel': sensitivityLevel,
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final commands = DeviceCommandService(db: _db, auth: _auth);
+    await commands.setFallDetection(
+      imei,
+      enabled: enabled,
+      dialMonitorOnFall: dialMonitorOnFall,
+    );
+    await commands.setFallSensitivity(imei, sensitivityLevel);
   }
 
   /// Links a pendant IMEI to the signed-in guardian's account.
@@ -392,6 +422,88 @@ class GeofenceService {
 
   Future<void> delete(String id) async {
     await _db.collection('geofences').doc(id).delete();
+  }
+}
+
+/// V46/V48/V52 only. The device has no "list my reminders" query command,
+/// so this collection is the app's own record of what's been scheduled —
+/// saving or deleting also enqueues a matching `set_medication_reminder`
+/// deviceCommand so the pendant itself stays in sync (see
+/// DeviceCommandService.setMedicationReminder and gateway/src/commands.js).
+class MedicationReminderService {
+  MedicationReminderService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<MedicationReminder>> watchForDevice(String imei) {
+    return _db
+        .collection('medicationReminders')
+        .where('imei', isEqualTo: imei)
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map(MedicationReminder.fromDoc).toList()
+            ..sort((a, b) => a.time.compareTo(b.time)),
+        );
+  }
+
+  Future<void> create({
+    required String imei,
+    required String time,
+    required int frequency,
+    required String text,
+    String? week,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+
+    await _db.collection('medicationReminders').add({
+      'imei': imei,
+      'time': time,
+      'frequency': frequency,
+      'week': frequency == 3 ? week : null,
+      'text': text.trim(),
+      'enabled': true,
+      'createdBy': uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await DeviceCommandService(
+      db: _db,
+      auth: _auth,
+    ).setMedicationReminder(
+      imei,
+      time: time,
+      frequency: frequency,
+      week: week,
+      text: text,
+    );
+  }
+
+  Future<void> setEnabled(MedicationReminder reminder, bool enabled) async {
+    await _db.collection('medicationReminders').doc(reminder.id).update({
+      'enabled': enabled,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await DeviceCommandService(
+      db: _db,
+      auth: _auth,
+    ).setMedicationReminder(
+      reminder.imei,
+      time: reminder.time,
+      frequency: reminder.frequency,
+      week: reminder.week,
+      text: reminder.text,
+      enabled: enabled,
+    );
+  }
+
+  Future<void> delete(String id) async {
+    await _db.collection('medicationReminders').doc(id).delete();
   }
 }
 
@@ -845,5 +957,43 @@ class DeviceCommandService {
   /// against the V28C specifically — see class doc.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
+  }
+
+  /// V46/V48/V52 only — TCP downlink, no SMS equivalent exists. Requires the
+  /// device to currently hold a live connection to the gateway; fails
+  /// clearly (not silently) if it doesn't. See gateway/src/commands.js.
+  Future<void> setFallDetection(
+    String imei, {
+    required bool enabled,
+    bool dialMonitorOnFall = false,
+  }) {
+    return _enqueue(imei, 'set_fall_detection', {
+      'enabled': enabled,
+      'dialMonitorOnFall': dialMonitorOnFall,
+    });
+  }
+
+  /// V46/V48/V52 only. [level] is 0-6.
+  Future<void> setFallSensitivity(String imei, int level) {
+    return _enqueue(imei, 'set_fall_sensitivity', {'level': level});
+  }
+
+  /// V46/V48/V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
+  /// (daily), or 3 (weekly, requires [week] as a 7-digit Sun->Sat mask).
+  Future<void> setMedicationReminder(
+    String imei, {
+    required String time,
+    required int frequency,
+    required String text,
+    String? week,
+    bool enabled = true,
+  }) {
+    return _enqueue(imei, 'set_medication_reminder', {
+      'time': time,
+      'frequency': frequency,
+      'text': text.trim(),
+      if (frequency == 3) 'week': week,
+      'enabled': enabled,
+    });
   }
 }

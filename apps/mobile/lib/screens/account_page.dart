@@ -15,6 +15,7 @@ import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
+import 'care_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
@@ -860,6 +861,24 @@ Future<void> _showDeviceSettingsDialog(
                             ),
                       child: const Text('Save SIM number'),
                     ),
+                  ),
+                  const Divider(height: 24),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.favorite_outline),
+                    title: const Text('Care settings'),
+                    subtitle: const Text(
+                      'Fall detection & medication reminders — V46/V48/V52 only',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CareSettingsPage(device: device),
+                        ),
+                      );
+                    },
                   ),
                   const Divider(height: 24),
                   Text(

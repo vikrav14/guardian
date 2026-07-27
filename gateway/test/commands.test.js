@@ -100,6 +100,13 @@ test('medicationReminderCommand matches all 3 vendor example captures (once/dail
   );
 });
 
+test('medicationReminderCommand sets the on/off segment to 0 when disabled', () => {
+  assert.equal(
+    medicationReminderCommand({ time: '06:22', frequency: 1, text: 'ff', enabled: false }),
+    'TAKEPILLS,06:22-0-1,1,00660066'
+  );
+});
+
 test('medicationReminderCommand rejects a weekly reminder with no week mask', () => {
   assert.throws(
     () => medicationReminderCommand({ time: '07:00', frequency: 3, text: 'weekly' }),

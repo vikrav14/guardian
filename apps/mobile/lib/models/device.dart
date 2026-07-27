@@ -136,6 +136,9 @@ class Device {
     this.simNumber,
     this.avatarUrl,
     this.intelligence,
+    this.fallDetectionEnabled,
+    this.fallDetectionDialMonitor,
+    this.fallDetectionSensitivity,
   });
 
   final String imei;
@@ -159,6 +162,13 @@ class Device {
   final String? simNumber;
   final String? avatarUrl;
   final DeviceIntelligence? intelligence;
+
+  /// Last preference the app asked the pendant for -- V46/V48/V52 only.
+  /// The device has no "read back my fall-detection config" command, so
+  /// this is a cache of the last request, not confirmed device state.
+  final bool? fallDetectionEnabled;
+  final bool? fallDetectionDialMonitor;
+  final int? fallDetectionSensitivity;
 
   String? get _legacyPersonName {
     final value = name?.trim();
@@ -290,6 +300,12 @@ class Device {
             ? Map<String, dynamic>.from(data['intelligence'] as Map)
             : null,
       ),
+      fallDetectionEnabled: (data['fallDetection'] as Map?)?['enabled'] as bool?,
+      fallDetectionDialMonitor:
+          (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
+      fallDetectionSensitivity:
+          ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
+              ?.toInt(),
     );
   }
 }
