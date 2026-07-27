@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
+import 'package:guardian/journey/journey_replay_controller.dart';
 import 'package:guardian/journey/journey_utils.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/models/geofence.dart';
@@ -178,6 +179,38 @@ void main() {
       expect(smoothed.length, lessThan(noisy.length));
       expect(smoothed.first.lat, closeTo(noisy.first.lat, 0.0001));
       expect(smoothed.last.lat, closeTo(noisy.last.lat, 0.0001));
+    });
+
+    test('replay display processing preserves the recorded source points', () {
+      final recorded = _line(
+        count: 8,
+        startLat: -20.02418,
+        startLng: 57.59117,
+        latStep: 0.0004,
+        lngStep: 0.0003,
+        startTime: DateTime(2026, 7, 24, 15, 19),
+        step: const Duration(minutes: 2),
+      );
+      final originalCoordinates = [
+        for (final point in recorded) (point.lat, point.lng, point.recordedAt),
+      ];
+
+      final replay = JourneyReplayController(rawPoints: recorded);
+
+      expect(recorded.length, originalCoordinates.length);
+      expect(
+        [
+          for (final point in recorded) (point.lat, point.lng, point.recordedAt),
+        ],
+        originalCoordinates,
+      );
+      expect(replay.rawPoints, isNot(same(recorded)));
+      expect(
+        () => replay.rawPoints.add(recorded.first),
+        throwsUnsupportedError,
+      );
+
+      replay.dispose();
     });
   });
 

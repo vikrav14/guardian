@@ -211,6 +211,7 @@ class _JourneyMapAvatarOverlayState extends State<JourneyMapAvatarOverlay> {
           if (_positions.containsKey(slot.id))
             _JourneyAvatarMarker(
               position: _positions[slot.id]!,
+              label: widget.deviceName,
               initials: initials,
               color: color,
               selected: slot.selected,
@@ -224,6 +225,7 @@ class _JourneyMapAvatarOverlayState extends State<JourneyMapAvatarOverlay> {
 class _JourneyAvatarMarker extends StatelessWidget {
   const _JourneyAvatarMarker({
     required this.position,
+    required this.label,
     required this.initials,
     required this.color,
     required this.selected,
@@ -231,26 +233,25 @@ class _JourneyAvatarMarker extends StatelessWidget {
   });
 
   final Offset position;
+  final String label;
   final String initials;
   final Color color;
   final bool selected;
   final String? imageUrl;
 
-  static const _markerSize = 58.0;
-  static const _selectedSize = 62.0;
-
   @override
   Widget build(BuildContext context) {
-    final size = selected ? _selectedSize : _markerSize;
+    final markerSize = _TrackedPersonPin.markerSize(selected);
+    final markerHeight = _TrackedPersonPin.markerHeight(selected);
     return Positioned(
-      left: position.dx - size / 2,
-      top: position.dy - size,
+      left: position.dx - markerSize / 2,
+      top: position.dy - markerHeight,
       child: PointerInterceptor(
-        child: AvatarBubble(
+        child: _TrackedPersonPin(
+          label: label,
           initials: initials,
           color: color,
-          size: size,
-          ringWidth: selected ? 3 : 2,
+          selected: selected,
           imageUrl: imageUrl,
         ),
       ),
@@ -271,27 +272,154 @@ class _AvatarMarker extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  static const _markerSize = 58.0;
-  static const _selectedSize = 62.0;
-
   @override
   Widget build(BuildContext context) {
-    final size = selected ? _selectedSize : _markerSize;
+    final markerSize = _TrackedPersonPin.markerSize(selected);
+    final markerHeight = _TrackedPersonPin.markerHeight(selected);
     final color = avatarColorForKey(device.imei);
     return Positioned(
-      left: position.dx - size / 2,
-      top: position.dy - size,
+      left: position.dx - markerSize / 2,
+      top: position.dy - markerHeight,
       child: PointerInterceptor(
         child: GestureDetector(
           onTap: onTap,
           behavior: HitTestBehavior.opaque,
-          child: AvatarBubble(
+          child: _TrackedPersonPin(
+            label: device.displayName,
             initials: initialsFor(device.displayName),
             color: color,
-            size: size,
-            ringWidth: selected ? 3 : 2,
+            selected: selected,
             imageUrl: device.avatarUrl,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact person-first map marker shared by live tracking and journey replay.
+///
+/// The stable per-device colour and initials remain useful when no photo is
+/// available, while the white pointer keeps the exact map position readable.
+class _TrackedPersonPin extends StatelessWidget {
+  const _TrackedPersonPin({
+    required this.label,
+    required this.initials,
+    required this.color,
+    required this.selected,
+    this.imageUrl,
+  });
+
+  final String label;
+  final String initials;
+  final Color color;
+  final bool selected;
+  final String? imageUrl;
+
+  static double avatarSize(bool selected) => selected ? 48 : 42;
+  static double markerSize(bool selected) =>
+      selected ? 118 : avatarSize(selected) + 12;
+  static double markerHeight(bool selected) =>
+      selected ? 89 : avatarSize(selected) + 15;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = avatarSize(selected);
+    final width = markerSize(selected);
+    final height = markerHeight(selected);
+    final ringColor = color;
+
+    return Semantics(
+      label: '$label location',
+      image: true,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            if (selected)
+              Positioned(
+                top: 0,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 112),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: GuardianColors.forest,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: GuardianColors.forest.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              bottom: 3,
+              child: Transform.rotate(
+                angle: 0.785398,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      right: BorderSide(color: ringColor, width: 2),
+                      bottom: BorderSide(color: ringColor, width: 2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: selected ? 27 : 0,
+              child: Container(
+                width: avatar + 8,
+                height: avatar + 8,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: ringColor,
+                    width: selected ? 3 : 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          (selected ? GuardianColors.safe : color).withValues(
+                        alpha: selected ? 0.24 : 0.14,
+                      ),
+                      blurRadius: selected ? 16 : 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: AvatarBubble(
+                  initials: initials,
+                  color: color,
+                  size: avatar,
+                  ringWidth: 0,
+                  imageUrl: imageUrl,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

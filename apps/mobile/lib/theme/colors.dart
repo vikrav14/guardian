@@ -3,24 +3,30 @@ import 'package:flutter/material.dart';
 class GuardianColors {
   GuardianColors._();
 
-  static const safe = Color(0xFF00A86B);
-  static const safeBg = Color(0xFFE1F5EE);
-  static const safeText = Color(0xFF085041);
-  static const warning = Color(0xFFEF9F27);
-  static const warningBg = Color(0xFFFAEEDA);
-  static const warningText = Color(0xFF854F0B);
-  static const danger = Color(0xFFE53935);
-  static const dangerBg = Color(0xFFFCEBEB);
-  static const dangerText = Color(0xFF791F1F);
-  static const accent = Color(0xFF378ADD);
-  static const accentBg = Color(0xFFE6F1FB);
-  static const accentText = Color(0xFF0C447C);
+  static const safe = Color(0xFF28A66D);
+  static const safeBg = Color(0xFFE9F8F0);
+  static const safeText = Color(0xFF166B48);
+  static const warning = Color(0xFFD89B18);
+  static const warningBg = Color(0xFFFFF6DC);
+  static const warningText = Color(0xFF7D5A08);
+  static const danger = Color(0xFFE83D45);
+  static const dangerBg = Color(0xFFFFECEE);
+  static const dangerText = Color(0xFF8C252B);
+  static const accent = Color(0xFF286BF3);
+  static const accentBg = Color(0xFFEEF4FF);
+  static const accentText = Color(0xFF214FAD);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFF7F8FA);
-  static const textPrimary = Color(0xFF1A1A1A);
-  static const textSecondary = Color(0xFF6B7280);
-  static const textMuted = Color(0xFF9B9A94);
-  static const border = Color(0xFFE7E5DF);
+  static const surfaceMuted = Color(0xFFF7F9F7);
+  static const textPrimary = Color(0xFF10233F);
+  static const textSecondary = Color(0xFF60746B);
+  static const textMuted = Color(0xFF89978E);
+  static const border = Color(0xFFE7ECE8);
+
+  static const forest = Color(0xFF173C32);
+  static const ivory = Color(0xFFFBFAF6);
+  static const canvas = Color(0xFFEDF1ED);
+  static const aiYellow = Color(0xFFF2C85B);
+  static const whatsapp = Color(0xFF15975A);
 
   // Mauritius flag palette for dashboard status chips (red → blue → yellow → green).
   static const flagRed = Color(0xFFEA2839);
@@ -76,15 +82,15 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
 
   /// Default light theme — lagoon glass surfaces.
   static const islandGlass = GuardianThemeColors(
-    canvas: GuardianColors.surfaceMuted,
+    canvas: GuardianColors.canvas,
     surface: GuardianColors.surface,
-    surfaceMuted: Color(0xFFF2F6F4),
-    sidebar: Color(0xFFF2F4F6),
-    glass: Color(0xDFFFFFFF),
+    surfaceMuted: GuardianColors.surfaceMuted,
+    sidebar: GuardianColors.ivory,
+    glass: Color(0xF2FFFFFF),
     textPrimary: GuardianColors.textPrimary,
     textSecondary: GuardianColors.textSecondary,
     textMuted: GuardianColors.textMuted,
-    border: Color(0xB3E2EAE6),
+    border: GuardianColors.border,
     accent: GuardianColors.safe,
     accentMuted: GuardianColors.safeBg,
   );

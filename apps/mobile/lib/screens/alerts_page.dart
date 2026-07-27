@@ -5,6 +5,7 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../widgets/layout/guardian_page_frame.dart';
 
 enum _AlertTone { danger, warning, neutral }
 
@@ -55,11 +56,23 @@ class AlertsPage extends StatelessWidget {
   ) {
     switch (tone) {
       case _AlertTone.danger:
-        return (GuardianColors.dangerBg, GuardianColors.dangerText, GuardianColors.danger);
+        return (
+          semantic.surface,
+          semantic.textPrimary,
+          GuardianColors.danger,
+        );
       case _AlertTone.warning:
-        return (GuardianColors.warningBg, GuardianColors.warningText, GuardianColors.warning);
+        return (
+          semantic.surface,
+          semantic.textPrimary,
+          GuardianColors.warning,
+        );
       case _AlertTone.neutral:
-        return (semantic.surface, semantic.textPrimary, semantic.textSecondary);
+        return (
+          semantic.surface,
+          semantic.textPrimary,
+          GuardianColors.accent,
+        );
     }
   }
 
@@ -73,14 +86,10 @@ class AlertsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 19,
-          fontWeight: FontWeight.w600,
-        );
-
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
+      body: GuardianPageFrame(
+        maxWidth: 920,
         child: StreamBuilder<List<Device>>(
           stream: DeviceService().watchLinkedDevices(),
           builder: (context, deviceSnapshot) {
@@ -105,28 +114,64 @@ class AlertsPage extends StatelessWidget {
                 final open = alerts.where((a) => !a.resolved).toList();
 
                 return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(18, 24, 18, 118),
                   children: [
-                    Text('Alerts', style: titleStyle),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${recent.length} in the last 24 hours',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                    ),
-                    const SizedBox(height: 14),
-                    if (open.isEmpty && alerts.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
+                    GuardianPageHeader(
+                      eyebrow: 'THE IMPORTANT MOMENTS',
+                      title: 'Alerts',
+                      subtitle:
+                          'Clear, calm updates—only when something matters.',
+                      action: Container(
+                        width: 42,
+                        height: 42,
                         decoration: BoxDecoration(
                           color: colors.surface,
                           borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colors.border),
                         ),
-                        child: Text(
-                          'No alerts yet. SOS and other events will appear here.',
-                          style: TextStyle(color: colors.textSecondary),
+                        child: Icon(
+                          Icons.tune_rounded,
+                          size: 19,
+                          color: colors.textPrimary,
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _AlertFilterChip(label: 'All', active: true),
+                          SizedBox(width: 7),
+                          _AlertFilterChip(label: 'Safety'),
+                          SizedBox(width: 7),
+                          _AlertFilterChip(label: 'Device'),
+                          SizedBox(width: 7),
+                          _AlertFilterChip(label: 'Places'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (open.isEmpty && alerts.isEmpty)
+                      const GuardianEmptyState(
+                        icon: Icons.check_rounded,
+                        title: 'Everyone is all clear',
+                        message:
+                            'SOS, safe-zone, battery, and connection alerts will appear here when they need you.',
                       )
                     else ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(6, 7, 6, 9),
+                        child: Text(
+                          recent.isEmpty ? 'EARLIER' : 'TODAY',
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
                       for (final alert in open) ...[
                         _AlertCard(
                           title: alertDisplayTitle(
@@ -147,12 +192,22 @@ class AlertsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                       ],
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
                           color: colors.surface,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: colors.border),
+                          boxShadow: [
+                            BoxShadow(
+                              color: GuardianColors.forest.withValues(
+                                alpha: 0.05,
+                              ),
+                              blurRadius: 26,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
                         child: Column(
                           children: [
@@ -197,6 +252,36 @@ class AlertsPage extends StatelessWidget {
   }
 }
 
+class _AlertFilterChip extends StatelessWidget {
+  const _AlertFilterChip({required this.label, this.active = false});
+
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+      decoration: BoxDecoration(
+        color: active ? GuardianColors.forest : colors.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: active ? GuardianColors.forest : colors.border,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: active ? Colors.white : colors.textSecondary,
+          fontSize: 11,
+          fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
 class _AlertCard extends StatelessWidget {
   const _AlertCard({
     required this.title,
@@ -224,35 +309,44 @@ class _AlertCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, iconFg) = colors;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: tone == _AlertTone.neutral
-            ? Border.all(color: borderColor)
-            : null,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 9),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: iconFg.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+              color: iconFg.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 17, color: iconFg),
+            child: Icon(icon, size: 19, color: iconFg),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
                 ),
                 if (body.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -261,14 +355,17 @@ class _AlertCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.35,
-                      color: fg.withValues(alpha: 0.88),
+                      color: context.guardianColors.textSecondary,
                     ),
                   ),
                 ],
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 11, color: fg.withValues(alpha: 0.72)),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: context.guardianColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -285,6 +382,12 @@ class _AlertCard extends StatelessWidget {
               action,
               style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
             ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: context.guardianColors.textMuted,
           ),
         ],
       ),

@@ -13,6 +13,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
+import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
 import 'emergency_contacts_page.dart';
 
@@ -167,15 +168,22 @@ class AccountPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
+      body: GuardianPageFrame(
+        maxWidth: 920,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             GuardianSpacing.md,
             GuardianSpacing.lg,
             GuardianSpacing.md,
-            GuardianSpacing.md,
+            118,
           ),
           children: [
+            const GuardianPageHeader(
+              eyebrow: 'YOUR GUARDIAN CIRCLE',
+              title: 'Account & family',
+              subtitle: 'People, pendant and preferences in one calm place.',
+            ),
+            const SizedBox(height: GuardianSpacing.lg),
             GuardianCard(
               child: Column(
                 children: [

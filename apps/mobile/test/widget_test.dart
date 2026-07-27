@@ -145,11 +145,35 @@ void main() {
       expect(find.text('Safe zones'), findsOneWidget);
       expect(find.text('Alerts'), findsOneWidget);
       expect(find.text('Account'), findsOneWidget);
+      expect(find.text('3 SEC'), findsOneWidget);
 
       await tester.tap(find.text('Alerts'));
       expect(tapped, 2);
     },
   );
+
+  testWidgets('SOS requires a full three-second hold', (tester) async {
+    var sosTriggered = false;
+    await tester.pumpWidget(
+      _wrap(
+        MobileBottomBar(
+          currentIndex: 0,
+          onTap: (_) {},
+          onSos: () => sosTriggered = true,
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('SOS')),
+    );
+    await tester.pump(const Duration(milliseconds: 2900));
+    expect(sosTriggered, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(sosTriggered, isTrue);
+    await gesture.up();
+  });
 
   testWidgets('GuardianBottomNav shows French labels when locale is fr', (
     tester,

@@ -3,9 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../../theme/app_theme.dart';
 import '../../widgets/guardian_widgets.dart';
-import 'journey_screen_theme.dart';
 
-/// Formats the center date label, e.g. "Yesterday, Jul 22, 2026".
+/// Formats the selected date consistently across the Journey experience.
 String formatJourneyHeaderDate(DateTime day) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -21,7 +20,6 @@ String formatJourneyHeaderDate(DateTime day) {
   };
 }
 
-/// 72px top bar: back, avatar, name, online pill, date picker, overflow menu.
 class JourneyHeader extends StatelessWidget {
   const JourneyHeader({
     super.key,
@@ -52,194 +50,333 @@ class JourneyHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = initialsFor(deviceName);
-    final avatarColor = avatarColorForKey(imei);
-    final dateLabel = formatJourneyHeaderDate(selectedDay);
-    final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final colors = context.guardianColors;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 620;
+    final showDirectActions = width >= 820;
 
-    return Container(
-      height: JourneyScreenTheme.headerHeight,
-      decoration: BoxDecoration(
-        color: JourneyScreenTheme.background,
-        border: Border(
-          bottom: BorderSide(color: JourneyScreenTheme.cardBorder),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: JourneyScreenTheme.spacing),
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: 'Back',
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded, color: JourneyScreenTheme.textPrimary),
-            constraints: const BoxConstraints(
-              minWidth: JourneyScreenTheme.minTouchTarget,
-              minHeight: JourneyScreenTheme.minTouchTarget,
-            ),
+    return Material(
+      color: GuardianColors.ivory.withValues(alpha: 0.96),
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          height: compact ? 76 : 84,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 24),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          AvatarBubble(
-            initials: initials,
-            color: avatarColor,
-            size: 36,
-            imageUrl: avatarUrl,
-          ),
-          const SizedBox(width: JourneyScreenTheme.spacing),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  deviceName,
-                  style: JourneyScreenTheme.textStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                _OnlinePill(isOnline: isOnline),
-              ],
-            ),
-          ),
-          if (isWide) ...[
-            const Spacer(),
-            _DatePickerButton(label: dateLabel, onTap: onDateTap),
-            const Spacer(),
-          ] else
-            Expanded(
-              child: Center(
-                child: _DatePickerButton(label: dateLabel, onTap: onDateTap),
+          child: Row(
+            children: [
+              _HeaderIconButton(
+                tooltip: 'Back to Home',
+                icon: Icons.arrow_back_rounded,
+                onTap: onBack,
               ),
-            ),
-          PopupMenuButton<String>(
-            tooltip: 'More',
-            icon: const Icon(Icons.more_vert_rounded, color: JourneyScreenTheme.textPrimary),
-            color: JourneyScreenTheme.cardFill,
-            onSelected: (value) {
-              switch (value) {
-                case 'share':
-                  onShare();
-                case 'compare':
-                  onCompare();
-                case 'settings':
-                  onSettings();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'share',
-                child: Text('Share journey', style: JourneyScreenTheme.textStyle(fontSize: 14)),
+              SizedBox(width: compact ? 5 : 10),
+              AvatarBubble(
+                initials: initialsFor(deviceName),
+                color: avatarColorForKey(imei),
+                size: compact ? 38 : 42,
+                imageUrl: avatarUrl,
               ),
-              PopupMenuItem(
-                value: 'compare',
-                child: Row(
+              SizedBox(width: compact ? 8 : 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      compareActive ? 'Exit compare' : 'Compare days',
-                      style: JourneyScreenTheme.textStyle(fontSize: 14),
+                      deviceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: compact ? 17 : 20,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.35,
+                      ),
                     ),
-                    if (compareActive) ...[
-                      const Spacer(),
-                      const Icon(Icons.check_rounded, size: 16, color: JourneyScreenTheme.accent),
-                    ],
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Text(
+                          'Journeys',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colors.border,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        _OnlineStatus(isOnline: isOnline),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              PopupMenuItem(
-                value: 'settings',
-                child: Text('Journey settings', style: JourneyScreenTheme.textStyle(fontSize: 14)),
+              SizedBox(width: compact ? 5 : 14),
+              _DatePickerButton(
+                label: compact
+                    ? _compactDateLabel(selectedDay)
+                    : formatJourneyHeaderDate(selectedDay),
+                compact: compact,
+                onTap: onDateTap,
+              ),
+              if (showDirectActions) ...[
+                const SizedBox(width: 8),
+                _HeaderIconButton(
+                  tooltip: 'Share journey',
+                  icon: Icons.ios_share_rounded,
+                  onTap: onShare,
+                ),
+                const SizedBox(width: 6),
+                _HeaderIconButton(
+                  tooltip:
+                      compareActive ? 'Exit comparison' : 'Compare journeys',
+                  icon: Icons.compare_arrows_rounded,
+                  active: compareActive,
+                  onTap: onCompare,
+                ),
+              ],
+              PopupMenuButton<String>(
+                tooltip: 'Journey options',
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  color: colors.textPrimary,
+                  size: 21,
+                ),
+                color: colors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'share':
+                      onShare();
+                    case 'compare':
+                      onCompare();
+                    case 'settings':
+                      onSettings();
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!showDirectActions)
+                    const PopupMenuItem(
+                      value: 'share',
+                      child: _MenuLabel(
+                        icon: Icons.ios_share_rounded,
+                        label: 'Share journey',
+                      ),
+                    ),
+                  if (!showDirectActions)
+                    PopupMenuItem(
+                      value: 'compare',
+                      child: _MenuLabel(
+                        icon: Icons.compare_arrows_rounded,
+                        label:
+                            compareActive ? 'Exit comparison' : 'Compare days',
+                      ),
+                    ),
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: _MenuLabel(
+                      icon: Icons.tune_rounded,
+                      label: 'Journey settings',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
+
+  String _compactDateLabel(DateTime day) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(day.year, day.month, day.day);
+    final diff = target.difference(today).inDays;
+    final prefix = switch (diff) {
+      0 => 'Today',
+      -1 => 'Yesterday',
+      _ => DateFormat.E().format(day),
+    };
+    return '$prefix · ${DateFormat.MMMd().format(day)}';
+  }
 }
 
-class _OnlinePill extends StatelessWidget {
-  const _OnlinePill({required this.isOnline});
+class _OnlineStatus extends StatelessWidget {
+  const _OnlineStatus({required this.isOnline});
 
   final bool isOnline;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: (isOnline ? JourneyScreenTheme.success : Colors.grey)
-            .withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: isOnline ? JourneyScreenTheme.success : Colors.grey,
-              shape: BoxShape.circle,
-            ),
+    final color = isOnline ? GuardianColors.safe : context.guardianColors.textMuted;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          isOnline ? 'Online' : 'Offline',
+          style: TextStyle(
+            color: color,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
           ),
-          const SizedBox(width: 4),
-          Text(
-            isOnline ? 'Online' : 'Offline',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: isOnline ? JourneyScreenTheme.success : Colors.grey,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _DatePickerButton extends StatelessWidget {
-  const _DatePickerButton({required this.label, required this.onTap});
+  const _DatePickerButton({
+    required this.label,
+    required this.compact,
+    required this.onTap,
+  });
 
   final String label;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.guardianColors;
     return Material(
-      color: Colors.transparent,
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(JourneyScreenTheme.radiusMedium),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: JourneyScreenTheme.spacing2,
-            vertical: JourneyScreenTheme.spacing,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: BoxConstraints(maxWidth: compact ? 128 : 220),
+          height: compact ? 38 : 42,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(
+                Icons.calendar_month_outlined,
+                color: GuardianColors.safe,
+                size: compact ? 16 : 18,
+              ),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
-                  style: JourneyScreenTheme.textStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: compact ? 9 : 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              const Icon(
-                Icons.arrow_drop_down_rounded,
-                color: JourneyScreenTheme.textSecondary,
-                size: 20,
+              const SizedBox(width: 3),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: colors.textMuted,
+                size: 17,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: active ? GuardianColors.safeBg : colors.surface,
+        borderRadius: BorderRadius.circular(13),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(13),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: active ? GuardianColors.safe : colors.border,
+              ),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              icon,
+              size: 19,
+              color: active ? GuardianColors.safe : colors.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuLabel extends StatelessWidget {
+  const _MenuLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: colors.textSecondary),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,20 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../journey/journey_map_controls.dart';
-import '../journey/journey_map_styles.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_replay_controller.dart';
 import '../journey/journey_share.dart';
 import '../journey/journey_utils.dart';
 import '../journey/ui/journey_assistant_button.dart';
 import '../journey/ui/journey_compare_banner.dart';
-import '../journey/ui/journey_details_drawer.dart';
-import '../journey/ui/journey_fab_menu.dart';
 import '../journey/ui/journey_header.dart';
 import '../journey/ui/journey_map_markers.dart';
 import '../journey/ui/journey_playback_bar.dart';
@@ -24,6 +21,12 @@ import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../models/device.dart';
 import '../services/guardian_services.dart';
+import '../theme/app_theme.dart';
+import '../widgets/brand/dodo_ai_icon.dart';
+import '../widgets/layout/guardian_page_frame.dart';
+import '../widgets/map/guardian_map_presentation.dart';
+import '../widgets/map/map_avatar_overlay.dart';
+import '../widgets/map/person_map_marker.dart';
 
 const _kMauritiusFallback = LatLng(-20.026, 57.596);
 
@@ -298,129 +301,153 @@ class _JourneyPageState extends State<JourneyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+
     return Scaffold(
-      backgroundColor: JourneyScreenTheme.background,
+      backgroundColor: colors.canvas,
       body: JourneyScreenTheme.chrome(
         child: Column(
           children: [
             StreamBuilder<List<Device>>(
-            stream: DeviceService().watchLinkedDevices(),
-            builder: (context, deviceSnapshot) {
-              final device = deviceSnapshot.data
-                  ?.where((d) => d.imei == widget.imei)
-                  .firstOrNull;
-
-              return JourneyHeader(
-                deviceName: widget.deviceName,
-                imei: widget.imei,
-                avatarUrl: widget.avatarUrl,
-                selectedDay: _day,
-                isOnline: device?.online ?? false,
-                compareActive: _compareMode,
-                onBack: () => Navigator.maybePop(context),
-                onDateTap: _openTimeMachine,
-                onShare: () {
-                  final points = _cachedPoints;
-                  if (points == null || points.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No journey data to share yet.')),
-                    );
-                    return;
-                  }
-                  _shareJourney(points);
-                },
-                onCompare: () {
-                  final points = _cachedPoints;
-                  if (points != null) _toggleCompareMode(points);
-                },
-                onSettings: _showJourneySettings,
-              );
-            },
-          ),
-          Expanded(
-            child: StreamBuilder<List<Device>>(
               stream: DeviceService().watchLinkedDevices(),
               builder: (context, deviceSnapshot) {
                 final device = deviceSnapshot.data
                     ?.where((d) => d.imei == widget.imei)
                     .firstOrNull;
-                final gpsContext = journeyGpsContextForDevice(
-                  device,
-                  isViewingToday: _isToday,
-                );
 
-                return StreamBuilder<JourneyDayData>(
-                  key: ValueKey(_day),
-                  stream: DeviceService().watchDayJourneyData(
-                    widget.imei,
-                    _day,
-                    geofences: _geofences,
-                  ),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          '${snapshot.error}',
-                          style: JourneyScreenTheme.textStyle(color: JourneyScreenTheme.textSecondary),
+                return JourneyHeader(
+                  deviceName: widget.deviceName,
+                  imei: widget.imei,
+                  avatarUrl: widget.avatarUrl,
+                  selectedDay: _day,
+                  isOnline: device?.online ?? false,
+                  compareActive: _compareMode,
+                  onBack: () => Navigator.maybePop(context),
+                  onDateTap: _openTimeMachine,
+                  onShare: () {
+                    final points = _cachedPoints;
+                    if (points == null || points.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No journey data to share yet.'),
                         ),
                       );
+                      return;
                     }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final dayData = snapshot.data!;
-                    if (dayData.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            'No journey data for this day.',
-                            style: JourneyScreenTheme.textStyle(color: JourneyScreenTheme.textSecondary),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final replay = _controllerFor(dayData, gpsContext: gpsContext);
-                    final weather = typicalWeatherForMonth(_day.month);
-
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _fitBounds(replay.smoothedPoints);
-                    });
-
-                    return _JourneyScreenLayout(
-                      replay: replay,
-                      weather: weather,
-                      mapType: _mapType,
-                      showHeatmap: _showHeatmap,
-                      compareMode: _compareMode,
-                      compareDay: _compareDay,
-                      comparePoints: _comparePoints,
-                      similarityPercent: _similarityPercent,
-                      loadingCompare: _loadingCompare,
-                      onMapCreated: (c) {
-                        _mapController = c;
-                        _fitBounds(replay.smoothedPoints);
-                      },
-                      onHeatmapToggle: () => setState(() => _showHeatmap = !_showHeatmap),
-                      onMapTypeToggle: () => setState(() {
-                        _mapType =
-                            _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
-                      }),
-                      onCompareToggle: () => _toggleCompareMode(dayData.points),
-                      onTimeMachine: _openTimeMachine,
-                      onCenterMap: () => _centerMap(replay),
-                      onMapLockToggle: () => _toggleMapLock(replay),
-                      onWeatherInfo: () => _showWeatherInfo(weather),
-                      onCompareDismiss: () => _toggleCompareMode(dayData.points),
-                    );
+                    _shareJourney(points);
                   },
+                  onCompare: () {
+                    final points = _cachedPoints;
+                    if (points != null) _toggleCompareMode(points);
+                  },
+                  onSettings: _showJourneySettings,
                 );
               },
             ),
-          ),
-        ],
+            Expanded(
+              child: GuardianPageFrame(
+                maxWidth: 1360,
+                child: StreamBuilder<List<Device>>(
+                  stream: DeviceService().watchLinkedDevices(),
+                  builder: (context, deviceSnapshot) {
+                    final device = deviceSnapshot.data
+                        ?.where((d) => d.imei == widget.imei)
+                        .firstOrNull;
+                    final gpsContext = journeyGpsContextForDevice(
+                      device,
+                      isViewingToday: _isToday,
+                    );
+
+                    return StreamBuilder<JourneyDayData>(
+                      key: ValueKey(_day),
+                      stream: DeviceService().watchDayJourneyData(
+                        widget.imei,
+                        _day,
+                        geofences: _geofences,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return _JourneyMessageState(
+                            icon: Icons.cloud_off_rounded,
+                            title: 'Journey unavailable',
+                            message:
+                                'Guardian could not load this recorded route. '
+                                'Your saved journey data has not been changed.',
+                            actionLabel: 'Choose another day',
+                            onAction: _openTimeMachine,
+                          );
+                        }
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: GuardianColors.safe,
+                            ),
+                          );
+                        }
+                        final dayData = snapshot.data!;
+                        if (dayData.isEmpty) {
+                          return _JourneyMessageState(
+                            icon: Icons.route_outlined,
+                            title: 'No journey recorded',
+                            message:
+                                'There is no movement history for '
+                                '${formatJourneyHeaderDate(_day)}.',
+                            actionLabel: 'Choose another day',
+                            onAction: _openTimeMachine,
+                          );
+                        }
+
+                        final replay = _controllerFor(
+                          dayData,
+                          gpsContext: gpsContext,
+                        );
+                        final weather = typicalWeatherForMonth(_day.month);
+
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _fitBounds(replay.smoothedPoints);
+                        });
+
+                        return _JourneyScreenLayout(
+                          replay: replay,
+                          deviceName: widget.deviceName,
+                          imei: widget.imei,
+                          avatarUrl: device?.avatarUrl ?? widget.avatarUrl,
+                          selectedDay: _day,
+                          weather: weather,
+                          mapType: _mapType,
+                          showHeatmap: _showHeatmap,
+                          compareMode: _compareMode,
+                          compareDay: _compareDay,
+                          comparePoints: _comparePoints,
+                          similarityPercent: _similarityPercent,
+                          loadingCompare: _loadingCompare,
+                          onMapCreated: (c) {
+                            _mapController = c;
+                            _fitBounds(replay.smoothedPoints);
+                          },
+                          onHeatmapToggle: () =>
+                              setState(() => _showHeatmap = !_showHeatmap),
+                          onMapTypeToggle: () => setState(() {
+                            _mapType = _mapType == MapType.normal
+                                ? MapType.hybrid
+                                : MapType.normal;
+                          }),
+                          onCompareToggle: () =>
+                              _toggleCompareMode(dayData.points),
+                          onTimeMachine: _openTimeMachine,
+                          onCenterMap: () => _centerMap(replay),
+                          onMapLockToggle: () => _toggleMapLock(replay),
+                          onWeatherInfo: () => _showWeatherInfo(weather),
+                          onCompareDismiss: () =>
+                              _toggleCompareMode(dayData.points),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -430,6 +457,10 @@ class _JourneyPageState extends State<JourneyPage> {
 class _JourneyScreenLayout extends StatelessWidget {
   const _JourneyScreenLayout({
     required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
+    required this.selectedDay,
     required this.weather,
     required this.mapType,
     required this.showHeatmap,
@@ -450,6 +481,10 @@ class _JourneyScreenLayout extends StatelessWidget {
   });
 
   final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
+  final DateTime selectedDay;
   final TypicalWeather weather;
   final MapType mapType;
   final bool showHeatmap;
@@ -475,91 +510,1003 @@ class _JourneyScreenLayout extends StatelessWidget {
     return ListenableBuilder(
       listenable: replay,
       builder: (context, _) {
-        return JourneyScreenTheme.chrome(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-            Positioned.fill(
-              child: _JourneyMap(
-                replay: replay,
-                mapType: mapType,
-                showHeatmap: showHeatmap,
-                comparePoints: comparePoints,
-                compareMode: compareMode,
-                onMapCreated: onMapCreated,
-              ),
-            ),
-            if (compareMode)
-              Positioned(
-                top: JourneyScreenTheme.spacing,
-                left: 0,
-                right: JourneyScreenTheme.drawerCollapsedWidth + 8,
-                child: JourneyCompareBanner(
-                  compareDay: compareDay,
-                  similarityPercent: similarityPercent,
-                  loading: loadingCompare,
-                  primaryStats: replay.stats,
-                  comparePoints: comparePoints,
-                  onDismiss: onCompareDismiss,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 980;
+            final horizontalPadding = constraints.maxWidth < 600 ? 14.0 : 24.0;
+            final overview = _JourneyOverview(
+              replay: replay,
+              selectedDay: selectedDay,
+              weather: weather,
+            );
+            final mapCard = _JourneyMapCard(
+              replay: replay,
+              deviceName: deviceName,
+              imei: imei,
+              avatarUrl: avatarUrl,
+              weatherLabel: _weatherLabel,
+              mapType: mapType,
+              showHeatmap: showHeatmap,
+              compareMode: compareMode,
+              compareDay: compareDay,
+              comparePoints: comparePoints,
+              similarityPercent: similarityPercent,
+              loadingCompare: loadingCompare,
+              onMapCreated: onMapCreated,
+              onHeatmapToggle: onHeatmapToggle,
+              onMapTypeToggle: onMapTypeToggle,
+              onCompareToggle: onCompareToggle,
+              onTimeMachine: onTimeMachine,
+              onCenterMap: onCenterMap,
+              onMapLockToggle: onMapLockToggle,
+              onWeatherInfo: onWeatherInfo,
+              onCompareDismiss: onCompareDismiss,
+            );
+            final insight = _JourneyInsightPanel(
+              replay: replay,
+              weather: weather,
+            );
+
+            if (isWide) {
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  18,
+                  horizontalPadding,
+                  22,
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    overview,
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: mapCard),
+                          const SizedBox(width: 14),
+                          SizedBox(width: 310, child: insight),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final mapHeight = constraints.maxWidth < 520 ? 480.0 : 540.0;
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                14,
+                horizontalPadding,
+                28,
               ),
-            Positioned(
-              top: JourneyScreenTheme.spacing2,
-              right: JourneyScreenTheme.spacing2,
-              child: JourneyFabMenu(
-                showHeatmap: showHeatmap,
-                mapType: mapType,
-                compareMode: compareMode,
-                mapLocked: !replay.followCamera,
-                weatherLabel: _weatherLabel,
-                onLockToggle: onMapLockToggle,
-                onMapTypeToggle: onMapTypeToggle,
-                onHistory: onTimeMachine,
-                onWeatherInfo: onWeatherInfo,
-                onCenterMap: onCenterMap,
-                onHeatmapToggle: onHeatmapToggle,
-                onCompareToggle: onCompareToggle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  overview,
+                  const SizedBox(height: 14),
+                  SizedBox(height: mapHeight, child: mapCard),
+                  const SizedBox(height: 14),
+                  insight,
+                ],
               ),
-            ),
-            Positioned(
-              top: 0,
-              bottom: 0,
-              right: 0,
-              child: JourneyDetailsDrawer(
-                replay: replay,
-                weather: weather,
-              ),
-            ),
-            Positioned(
-              left: JourneyScreenTheme.spacing2,
-              right: JourneyScreenTheme.drawerCollapsedWidth + JourneyScreenTheme.spacing2,
-              bottom: JourneyScreenTheme.playbackBottomOffset +
-                  JourneyScreenTheme.playbackCollapsedHeight +
-                  JourneyScreenTheme.spacing,
-              child: const Center(child: JourneyRouteLegend()),
-            ),
-            Positioned(
-              left: JourneyScreenTheme.spacing2,
-              right: JourneyScreenTheme.drawerCollapsedWidth + JourneyScreenTheme.spacing2,
-              bottom: JourneyScreenTheme.playbackBottomOffset,
-              child: JourneyPlaybackBar(replay: replay),
-            ),
-            Positioned(
-              left: JourneyScreenTheme.spacing2,
-              bottom: JourneyScreenTheme.assistantBottomOffset,
-              child: JourneyAssistantButton(replay: replay),
-            ),
-          ],
-        ),
+            );
+          },
         );
       },
     );
   }
 }
 
+class _JourneyMessageState extends StatelessWidget {
+  const _JourneyMessageState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: GuardianEmptyState(
+            icon: icon,
+            title: title,
+            message: message,
+            action: ElevatedButton.icon(
+              onPressed: onAction,
+              icon: const Icon(Icons.calendar_month_rounded, size: 18),
+              label: Text(actionLabel),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyOverview extends StatelessWidget {
+  const _JourneyOverview({
+    required this.replay,
+    required this.selectedDay,
+    required this.weather,
+  });
+
+  final JourneyReplayController replay;
+  final DateTime selectedDay;
+  final TypicalWeather weather;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final stats = replay.stats;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'RECORDED JOURNEY',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _overviewTitle(selectedDay),
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 24,
+                      height: 1.08,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _journeyTimeRange(stats),
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.wb_sunny_outlined,
+                    color: GuardianColors.warning,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${weather.tempC}° · ${weather.label}',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 13),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 10.0;
+            final columns = constraints.maxWidth >= 760
+                ? 4
+                : constraints.maxWidth >= 390
+                ? 2
+                : 1;
+            final width =
+                (constraints.maxWidth - (gap * (columns - 1))) / columns;
+            final metrics = [
+              (
+                icon: Icons.route_rounded,
+                label: 'Distance',
+                value: '${stats.distanceKm.toStringAsFixed(1)} km',
+                color: GuardianColors.safe,
+              ),
+              (
+                icon: Icons.schedule_rounded,
+                label: 'Travel time',
+                value: formatJourneyDuration(stats.duration),
+                color: const Color(0xFF5079C9),
+              ),
+              (
+                icon: Icons.pause_circle_outline_rounded,
+                label: 'Stops',
+                value: '${replay.insights.stopCount}',
+                color: GuardianColors.warning,
+              ),
+              (
+                icon: Icons.gps_fixed_rounded,
+                label: 'GPS record',
+                value: replay.insights.gpsQualityLabel,
+                color: const Color(0xFF8C6FC7),
+              ),
+            ];
+
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final metric in metrics)
+                  SizedBox(
+                    width: width,
+                    child: _JourneyMetricCard(
+                      icon: metric.icon,
+                      label: metric.label,
+                      value: metric.value,
+                      color: metric.color,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String _overviewTitle(DateTime day) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(day.year, day.month, day.day);
+    final difference = target.difference(today).inDays;
+    if (difference == 0) return 'Today so far';
+    if (difference == -1) return 'Yesterday’s route';
+    return '${DateFormat.EEEE().format(day)}’s route';
+  }
+
+  String _journeyTimeRange(JourneyStats stats) {
+    final start = stats.startTime;
+    final end = stats.endTime;
+    if (start == null || end == null) {
+      return '${stats.pointCount} recorded location points';
+    }
+    return '${DateFormat.Hm().format(start)}–${DateFormat.Hm().format(end)}'
+        ' · ${stats.pointCount} recorded location points';
+  }
+}
+
+class _JourneyMetricCard extends StatelessWidget {
+  const _JourneyMetricCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      height: 76,
+      padding: const EdgeInsets.symmetric(horizontal: 13),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.055),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.25,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyMapCard extends StatelessWidget {
+  const _JourneyMapCard({
+    required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
+    required this.weatherLabel,
+    required this.mapType,
+    required this.showHeatmap,
+    required this.compareMode,
+    required this.compareDay,
+    required this.comparePoints,
+    required this.similarityPercent,
+    required this.loadingCompare,
+    required this.onMapCreated,
+    required this.onHeatmapToggle,
+    required this.onMapTypeToggle,
+    required this.onCompareToggle,
+    required this.onTimeMachine,
+    required this.onCenterMap,
+    required this.onMapLockToggle,
+    required this.onWeatherInfo,
+    required this.onCompareDismiss,
+  });
+
+  final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
+  final String weatherLabel;
+  final MapType mapType;
+  final bool showHeatmap;
+  final bool compareMode;
+  final DateTime? compareDay;
+  final List<LocationHistoryPoint>? comparePoints;
+  final int? similarityPercent;
+  final bool loadingCompare;
+  final ValueChanged<GoogleMapController> onMapCreated;
+  final VoidCallback onHeatmapToggle;
+  final VoidCallback onMapTypeToggle;
+  final VoidCallback onCompareToggle;
+  final VoidCallback onTimeMachine;
+  final VoidCallback onCenterMap;
+  final VoidCallback onMapLockToggle;
+  final VoidCallback onWeatherInfo;
+  final VoidCallback onCompareDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final isSatellite = mapType == MapType.hybrid;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.1),
+            blurRadius: 30,
+            offset: const Offset(0, 13),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 58,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 9, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: GuardianColors.safeBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.map_outlined,
+                      color: GuardianColors.safe,
+                      size: 19,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Route replay',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          replay.isReplayMode
+                              ? 'Following the recorded route'
+                              : 'Complete recorded route',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: Row(
+                        children: [
+                          _JourneyMapTool(
+                            tooltip: 'Choose date',
+                            icon: Icons.calendar_month_outlined,
+                            onTap: onTimeMachine,
+                          ),
+                          _JourneyMapTool(
+                            tooltip: weatherLabel,
+                            icon: Icons.wb_sunny_outlined,
+                            onTap: onWeatherInfo,
+                          ),
+                          _JourneyMapTool(
+                            tooltip: replay.followCamera
+                                ? 'Stop following'
+                                : 'Follow replay',
+                            icon: replay.followCamera
+                                ? Icons.gps_fixed_rounded
+                                : Icons.gps_off_rounded,
+                            active: replay.followCamera,
+                            onTap: onMapLockToggle,
+                          ),
+                          _JourneyMapTool(
+                            tooltip:
+                                isSatellite ? 'Street map' : 'Satellite map',
+                            icon: isSatellite
+                                ? Icons.map_outlined
+                                : Icons.satellite_alt_outlined,
+                            active: isSatellite,
+                            onTap: onMapTypeToggle,
+                          ),
+                          _JourneyMapTool(
+                            tooltip: showHeatmap ? 'Show route' : 'Heat map',
+                            icon: showHeatmap
+                                ? Icons.route_rounded
+                                : Icons.blur_on_rounded,
+                            active: showHeatmap,
+                            onTap: onHeatmapToggle,
+                          ),
+                          _JourneyMapTool(
+                            tooltip: 'Center route',
+                            icon: Icons.center_focus_strong_rounded,
+                            onTap: onCenterMap,
+                          ),
+                          _JourneyMapTool(
+                            tooltip: compareMode
+                                ? 'Exit comparison'
+                                : 'Compare days',
+                            icon: Icons.compare_arrows_rounded,
+                            active: compareMode,
+                            onTap: onCompareToggle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _JourneyMap(
+                  replay: replay,
+                  deviceName: deviceName,
+                  imei: imei,
+                  avatarUrl: avatarUrl,
+                  mapType: mapType,
+                  showHeatmap: showHeatmap,
+                  comparePoints: comparePoints,
+                  compareMode: compareMode,
+                  onMapCreated: onMapCreated,
+                ),
+                if (compareMode)
+                  Positioned(
+                    top: 10,
+                    left: 4,
+                    right: 4,
+                    child: JourneyCompareBanner(
+                      compareDay: compareDay,
+                      similarityPercent: similarityPercent,
+                      loading: loadingCompare,
+                      primaryStats: replay.stats,
+                      comparePoints: comparePoints,
+                      onDismiss: onCompareDismiss,
+                    ),
+                  ),
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: JourneyScreenTheme.playbackBottomOffset +
+                      JourneyScreenTheme.playbackCollapsedHeight +
+                      8,
+                  child: Center(
+                    child: JourneyRouteLegend(
+                      trackedPersonLabel: deviceName,
+                      trackedPersonColor: avatarColorForKey(imei),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: JourneyScreenTheme.playbackBottomOffset,
+                  child: JourneyPlaybackBar(replay: replay),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyMapTool extends StatelessWidget {
+  const _JourneyMapTool({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Padding(
+      padding: const EdgeInsets.only(left: 5),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: active ? GuardianColors.safeBg : colors.surfaceMuted,
+          borderRadius: BorderRadius.circular(11),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(11),
+            child: SizedBox(
+              width: 36,
+              height: 36,
+              child: Icon(
+                icon,
+                size: 18,
+                color: active ? GuardianColors.safe : colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyInsightPanel extends StatelessWidget {
+  const _JourneyInsightPanel({
+    required this.replay,
+    required this.weather,
+  });
+
+  final JourneyReplayController replay;
+  final TypicalWeather weather;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final stats = replay.stats;
+    final insights = replay.insights;
+    final highlights = replay.highlights;
+    final events = replay.events.take(4).toList(growable: false);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.075),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(17),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const GuardianAiIcon(size: 34),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Guardian’s view',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const Text(
+                        'Guardian AI · Backed by Claude',
+                        style: TextStyle(
+                          color: GuardianColors.safe,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: GuardianColors.safeBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${insights.confidenceScore}%',
+                    style: const TextStyle(
+                      color: GuardianColors.safeText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 13),
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: GuardianColors.safeBg.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                insights.routeSummary,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 12,
+                  height: 1.45,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 17),
+            _JourneyPanelTitle(label: 'Journey details'),
+            const SizedBox(height: 9),
+            _JourneyDetailRow(
+              icon: Icons.play_circle_outline_rounded,
+              label: 'Started',
+              value: _formatTime(stats.startTime),
+            ),
+            _JourneyDetailRow(
+              icon: Icons.flag_outlined,
+              label: 'Finished',
+              value: _formatTime(stats.endTime),
+            ),
+            _JourneyDetailRow(
+              icon: Icons.speed_rounded,
+              label: 'Average speed',
+              value: insights.avgSpeedKmh == null
+                  ? 'Not available'
+                  : '${insights.avgSpeedKmh!.toStringAsFixed(1)} km/h',
+            ),
+            _JourneyDetailRow(
+              icon: Icons.flash_on_rounded,
+              label: 'Highest speed',
+              value: highlights.highestSpeedKmh == null
+                  ? 'Not available'
+                  : '${highlights.highestSpeedKmh!.toStringAsFixed(0)} km/h',
+            ),
+            _JourneyDetailRow(
+              icon: Icons.wb_sunny_outlined,
+              label: 'Typical weather',
+              value: '${weather.tempC}° · ${weather.label}',
+            ),
+            if (events.isNotEmpty) ...[
+              const SizedBox(height: 13),
+              _JourneyPanelTitle(label: 'Route moments'),
+              const SizedBox(height: 8),
+              for (var index = 0; index < events.length; index++)
+                _JourneyEventRow(
+                  event: events[index],
+                  isLast: index == events.length - 1,
+                ),
+            ],
+            const SizedBox(height: 13),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+              decoration: BoxDecoration(
+                color: colors.surfaceMuted,
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Need more context?',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'Ask Guardian about this route',
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  JourneyAssistantButton(replay: replay),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime? time) {
+    if (time == null) return 'Not recorded';
+    return DateFormat.Hm().format(time);
+  }
+}
+
+class _JourneyPanelTitle extends StatelessWidget {
+  const _JourneyPanelTitle({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Text(
+      label.toUpperCase(),
+      style: TextStyle(
+        color: colors.textMuted,
+        fontSize: 8,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.05,
+      ),
+    );
+  }
+}
+
+class _JourneyDetailRow extends StatelessWidget {
+  const _JourneyDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: GuardianColors.safe),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyEventRow extends StatelessWidget {
+  const _JourneyEventRow({
+    required this.event,
+    required this.isLast,
+  });
+
+  final JourneyEvent event;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final color = _colorFor(event.type);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 18,
+            child: Column(
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.28),
+                        blurRadius: 7,
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      color: colors.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 11),
+              child: Text(
+                event.label,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 10,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _colorFor(JourneyEventType type) {
+    return switch (type) {
+      JourneyEventType.leftHome => const Color(0xFF5079C9),
+      JourneyEventType.walking => GuardianColors.safe,
+      JourneyEventType.vehicle => const Color(0xFF5079C9),
+      JourneyEventType.stopped => GuardianColors.warning,
+      JourneyEventType.arrived => GuardianColors.safe,
+      JourneyEventType.dwell => const Color(0xFF8C6FC7),
+    };
+  }
+}
+
 class _JourneyMap extends StatefulWidget {
   const _JourneyMap({
     required this.replay,
+    required this.deviceName,
+    required this.imei,
+    this.avatarUrl,
     required this.onMapCreated,
     required this.mapType,
     required this.showHeatmap,
@@ -568,6 +1515,9 @@ class _JourneyMap extends StatefulWidget {
   });
 
   final JourneyReplayController replay;
+  final String deviceName;
+  final String imei;
+  final String? avatarUrl;
   final ValueChanged<GoogleMapController> onMapCreated;
   final MapType mapType;
   final bool showHeatmap;
@@ -581,6 +1531,9 @@ class _JourneyMap extends StatefulWidget {
 class _JourneyMapState extends State<_JourneyMap> {
   GoogleMapController? _mapController;
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
+  BitmapDescriptor? _replayAvatarIcon;
+  String _avatarFingerprint = '';
+  int _avatarGeneration = 0;
 
   @override
   void initState() {
@@ -589,10 +1542,53 @@ class _JourneyMapState extends State<_JourneyMap> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    unawaited(_refreshReplayAvatarIcon());
+  }
+
+  @override
+  void didUpdateWidget(covariant _JourneyMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.replay != widget.replay) {
+      oldWidget.replay.removeListener(_onReplayChanged);
+      widget.replay.addListener(_onReplayChanged);
+    }
+    if (oldWidget.deviceName != widget.deviceName ||
+        oldWidget.imei != widget.imei ||
+        oldWidget.avatarUrl != widget.avatarUrl) {
+      unawaited(_refreshReplayAvatarIcon());
+    }
+  }
+
+  @override
   void dispose() {
     widget.replay.removeListener(_onReplayChanged);
     _mapCameraGeneration.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshReplayAvatarIcon() async {
+    if (kIsWeb) return;
+    final fingerprint =
+        '${widget.imei}|${widget.deviceName}|${widget.avatarUrl ?? ''}';
+    if (fingerprint == _avatarFingerprint) return;
+    _avatarFingerprint = fingerprint;
+    final generation = ++_avatarGeneration;
+
+    try {
+      final icon = await PersonMapMarker.create(
+        initials: initialsFor(widget.deviceName),
+        color: avatarColorForKey(widget.imei),
+        selected: true,
+        surfaceColor: context.guardianColors.surface,
+        imageUrl: widget.avatarUrl,
+      );
+      if (!mounted || generation != _avatarGeneration) return;
+      setState(() => _replayAvatarIcon = icon);
+    } catch (_) {
+      // Keep the standard replay marker if an avatar cannot be rendered.
+    }
   }
 
   void _onReplayChanged() {
@@ -690,18 +1686,6 @@ class _JourneyMapState extends State<_JourneyMap> {
     }).toSet();
   }
 
-  List<Map<String, dynamic>> _mapStyleForReplay() {
-    if (!widget.replay.isReplayMode || !widget.replay.isPlaying) {
-      return JourneyMapStyles.dark;
-    }
-
-    final time = interpolateJourneyTime(widget.replay.rawPoints, widget.replay.progress);
-    if (time != null && !isEveningOrNight(time)) {
-      return JourneyMapStyles.light;
-    }
-    return JourneyMapStyles.dark;
-  }
-
   void _onMapCameraMove(CameraPosition position) {
     _mapCameraGeneration.value++;
   }
@@ -713,7 +1697,6 @@ class _JourneyMapState extends State<_JourneyMap> {
     final cameraTarget = routePoints.isNotEmpty
         ? LatLng(routePoints.first.lat, routePoints.first.lng)
         : _kMauritiusFallback;
-    final mapStyle = _mapStyleForReplay();
 
     return Stack(
       fit: StackFit.expand,
@@ -736,11 +1719,16 @@ class _JourneyMapState extends State<_JourneyMap> {
           markers: buildJourneyColoredMarkers(
             replay,
             includeCurrentMarker: !kIsWeb,
+            replayAvatarIcon: _replayAvatarIcon,
           ),
           mapType: widget.mapType,
-          style: mapStyle.isEmpty ? null : jsonEncode(mapStyle),
+          style: widget.mapType == MapType.normal
+              ? GuardianMapPresentation.style
+              : null,
+          webCameraControlEnabled: false,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
+          myLocationEnabled: false,
           myLocationButtonEnabled: false,
           tiltGesturesEnabled: false,
           rotateGesturesEnabled: false,
@@ -748,10 +1736,23 @@ class _JourneyMapState extends State<_JourneyMap> {
         ValueListenableBuilder<int>(
           valueListenable: _mapCameraGeneration,
           builder: (context, generation, _) {
-            return JourneyReplayPulseOverlay(
+            final point = replay.currentPoint;
+            if (!kIsWeb || !replay.isReplayMode || point == null) {
+              return const SizedBox.shrink();
+            }
+            return JourneyMapAvatarOverlay(
               controller: _mapController,
-              replay: replay,
+              slots: [
+                JourneyMapAvatarSlot(
+                  id: 'replay-${widget.imei}',
+                  latLng: LatLng(point.lat, point.lng),
+                  selected: true,
+                ),
+              ],
               cameraGeneration: generation,
+              deviceName: widget.deviceName,
+              imei: widget.imei,
+              avatarUrl: widget.avatarUrl,
             );
           },
         ),
