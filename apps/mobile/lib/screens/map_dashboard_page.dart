@@ -1119,13 +1119,15 @@ class _DodoVisualStage extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Center(
+        Align(
+          alignment: Alignment.bottomRight,
           child: FractionallySizedBox(
-            widthFactor: 0.88,
-            heightFactor: 0.92,
+            widthFactor: 0.62,
+            heightFactor: 0.95,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
+                  center: Alignment.bottomRight,
                   colors: [
                     GuardianColors.flagGreenBg.withValues(alpha: 0.55),
                     GuardianColors.flagBlueBg.withValues(alpha: 0.22),
@@ -1137,16 +1139,21 @@ class _DodoVisualStage extends StatelessWidget {
             ),
           ),
         ),
-        Positioned.fill(
-          child: AnimatedSwitcher(
-            duration: reduceMotion
-                ? Duration.zero
-                : const Duration(milliseconds: 450),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: GuardianDodoStageImage(
-              key: ValueKey(scene.action),
-              action: scene.action,
+        Align(
+          alignment: Alignment.bottomRight,
+          child: FractionallySizedBox(
+            widthFactor: 0.48,
+            heightFactor: 0.92,
+            child: AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 450),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: GuardianDodoStageImage(
+                key: ValueKey(scene.action),
+                action: scene.action,
+              ),
             ),
           ),
         ),
