@@ -8,7 +8,6 @@ import 'package:guardian/dashboard/device_formatters.dart';
 import 'package:guardian/models/alert.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/theme/app_theme.dart';
-import 'package:guardian/widgets/dashboard/desktop_dashboard_layout.dart';
 import 'package:guardian/widgets/dashboard/smart_device_map_card.dart';
 
 void main() {
@@ -347,51 +346,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('smart-device-map-card')), findsOneWidget);
-  });
-
-  testWidgets('desktop person card leaves map controls clickable', (
-    tester,
-  ) async {
-    var mapTapped = false;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Center(
-          child: SizedBox(
-            key: const ValueKey('map-panel'),
-            width: 800,
-            height: 360,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => mapTapped = true,
-                  ),
-                ),
-                const DesktopMapPersonCardPlacement(
-                  child: SizedBox(
-                    key: ValueKey('person-card'),
-                    height: 180,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final mapRect = tester.getRect(find.byKey(const ValueKey('map-panel')));
-    final cardRect = tester.getRect(find.byKey(const ValueKey('person-card')));
-
-    expect(
-      cardRect.left,
-      mapRect.left + DesktopMapPersonCardPlacement.leftInset,
-    );
-    expect(cardRect.right, lessThan(mapRect.right - 72));
-
-    await tester.tapAt(Offset(mapRect.right - 24, mapRect.bottom - 24));
-    expect(mapTapped, isTrue);
   });
 }

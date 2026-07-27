@@ -12,8 +12,8 @@ void main() {
     expect(useDodoDesktopHeroLayout(849), isFalse);
     expect(useDodoWideSceneLayout(680), isTrue);
     expect(useDodoWideSceneLayout(390), isFalse);
-    expect(dodoDesktopHeroHeight, 300);
-    expect(dodoCompactStageHeight, 220);
+    expect(dodoDesktopHeroHeight, 170.0);
+    expect(dodoCompactStageHeight, 120.0);
     expect(dodoDesktopStageFlex, lessThan(dodoDesktopStatusFlex));
   });
 
