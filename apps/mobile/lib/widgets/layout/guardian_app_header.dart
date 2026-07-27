@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../brand/guardian_pin_logo.dart';
 import '../guardian_widgets.dart';
 
 class GuardianAppHeader extends StatelessWidget {
@@ -43,71 +44,26 @@ class GuardianAppHeader extends StatelessWidget {
                 child: InkWell(
                   onTap: onHome,
                   borderRadius: BorderRadius.circular(16),
-                  child: Row(
-                    children: [
-                      Transform.rotate(
-                        angle: -0.07,
-                        child: Container(
-                          width: compact ? 39 : 44,
-                          height: compact ? 39 : 44,
-                          decoration: BoxDecoration(
-                            color: GuardianColors.safe,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: GuardianColors.safe.withValues(
-                                  alpha: 0.2,
+                  child: GuardianHeaderBrandMark(
+                    iconSize: compact ? 39 : 44,
+                    wordmarkSize: compact ? 20 : 24,
+                    caption: compact
+                        ? null
+                        : Text.rich(
+                            TextSpan(
+                              text: 'Know they ',
+                              children: const [
+                                TextSpan(
+                                  text: 'are safe',
+                                  style: TextStyle(color: GuardianColors.safe),
                                 ),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.shield_outlined,
-                            color: Colors.white,
-                            size: 25,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Guardian',
+                              ],
+                            ),
                             style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: compact ? 20 : 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.8,
-                              height: 1,
+                              color: colors.textSecondary,
+                              fontSize: 11,
                             ),
                           ),
-                          if (!compact) ...[
-                            const SizedBox(height: 4),
-                            Text.rich(
-                              TextSpan(
-                                text: 'Know they ',
-                                children: const [
-                                  TextSpan(
-                                    text: 'are safe',
-                                    style: TextStyle(
-                                      color: GuardianColors.safe,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              style: TextStyle(
-                                color: colors.textSecondary,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
                   ),
                 ),
               ),
