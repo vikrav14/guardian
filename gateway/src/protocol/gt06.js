@@ -1,6 +1,11 @@
 /**
- * ReachFar V28C ASCII protocol decoder.
- * Format: [CS*YYYYYYYYYY*LEN*command,data...]
+ * ReachFar ASCII protocol decoder — covers both the V28C protocol doc and
+ * the V46-V48-V52 protocol doc (2021-12-20). Both share the same
+ * [CS*YYYYYYYYYY*LEN*command,data...] framing, LK/UD/AL structure, and
+ * Appendix I positioning field layout (including the A/V validity flag),
+ * so one decoder serves both device families. V46/V48/V52-only commands
+ * (health, pedometer, pill reminders, etc.) are additive — a V28C device
+ * simply never sends them.
  * - CS: 2-byte factory code (e.g., "3G", "SG")
  * - YYYYYYYYYY: 10-digit device ID (protocol id; full IMEI is 15 digits — see imei.js)
  * - LEN: 4-char ASCII hex content length
@@ -16,11 +21,19 @@ const { parseLteExtras, isPlaceholderCoords } = require('../geolocate/google');
 
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
+// Includes V46/V48/V52-only additions confirmed in the 2021-12-20 protocol
+// doc and its companion example captures. 'profile'/'PROFILE' and
+// 'oxygen'/'hrtstart' case variants are both listed because the vendor's
+// own example captures aren't consistent about case on the ack.
 const SERVER_ONLY_COMMANDS = new Set([
-  'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'PHBX',
-  'SMSONOFF', 'profile', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
+  'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
+  'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
+  // V46-V48-V52 additions
+  'hrtstart', 'SEDENTARY', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
+  'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
+  'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
 ]);
 
 function parseLocationData(fields) {
@@ -222,6 +235,23 @@ function handlePacket(decoded, session) {
     const hb = parseLkData([command, ...args]);
     acks.push(buildAckFrame(protocolId, 'LK'));
     events.push({ type: 'heartbeat', ...eventMeta, ...hb });
+  } else if (command === 'UD2') {
+    // V46-V48-V52: blind-spot re-upload (data buffered while offline).
+    // "Server no need reply" per the protocol doc — no ack pushed.
+    const loc = parseLocationData(args);
+    if (loc && !loc.error) {
+      events.push({ type: 'location', ...eventMeta, ...loc, blindSpotReupload: true });
+    } else {
+      events.push({
+        type: 'location_parse_error',
+        ...eventMeta,
+        command,
+        reason: loc?.error || 'invalid_location',
+        gpsFlag: args[2] || null,
+        argCount: args.length,
+        payloadPreview: truncatePayloadPreview(args),
+      });
+    }
   } else if (command.startsWith('UD')) {
     // Location upload: UD, UD_LTE, UD_WCDMA, etc.
     const loc = parseLocationData(args);
@@ -239,6 +269,41 @@ function handlePacket(decoded, session) {
         payloadPreview: truncatePayloadPreview(args),
       });
     }
+  } else if (command === 'oxygen') {
+    // V46-V48-V52: SpO2 upload. [type, oxy]. Server must reply with a
+    // status code: 1=normal, 0=process disorderly, 2=parameter error.
+    const [oxyType, oxyValue] = args;
+    const oxy = parseFloat(oxyValue);
+    acks.push(buildAckFrame(protocolId, `oxygen,${Number.isNaN(oxy) ? 2 : 1}`));
+    if (!Number.isNaN(oxy)) {
+      events.push({
+        type: 'health_reading',
+        ...eventMeta,
+        metric: 'spo2',
+        value: oxy,
+        measurementType: oxyType ?? null,
+      });
+    }
+  } else if (command === 'bphrt') {
+    // V46-V48-V52: heart rate + blood pressure upload after `hrtstart`.
+    // Only 3 leading fields are confirmed from the vendor's example
+    // (systolic, diastolic, heart rate); trailing fields are unconfirmed
+    // and left unparsed rather than guessed. No documented ack for this
+    // one specifically — sending a bare ack defensively, matching this
+    // decoder's existing fallback behavior for undocumented-ack uploads.
+    const [systolic, diastolic, heartRate] = args;
+    acks.push(buildAckFrame(protocolId, 'bphrt'));
+    const hr = parseInt(heartRate, 10);
+    const sys = parseInt(systolic, 10);
+    const dia = parseInt(diastolic, 10);
+    events.push({
+      type: 'health_reading',
+      ...eventMeta,
+      metric: 'heart_rate_bp',
+      heartRate: Number.isNaN(hr) ? null : hr,
+      systolic: Number.isNaN(sys) ? null : sys,
+      diastolic: Number.isNaN(dia) ? null : dia,
+    });
   } else if (command.startsWith('AL')) {
     // Alarm upload: AL, AL_LTE, AL_WCDMA, etc.
     const alarmStateField = args.length > 0 ? args[args.length - 1] : null;
@@ -255,8 +320,16 @@ function handlePacket(decoded, session) {
       alarmCode = stateField;
       const stateBits = parseInt(stateField, 16);
       if (!Number.isNaN(stateBits)) {
+        // Bit 21 = fall, matching the existing (already-relied-upon) V28C
+        // reading. NOTE: the vendor's own docs disagree with each other
+        // here — the V28C doc and the V46-V48-V52 protocol doc both say
+        // bit 22 = fall, but the V46-V48-V52 *example* doc's own appendix
+        // says bit 21 = fall and bit 22 = heart-rate-abnormal. Left as-is
+        // (bit 21 = fall) since that's what's already working; bit 22 is
+        // added below as a new, additive alarm type that V28C never used.
         if ((stateBits & (1 << 16)) !== 0) alarmType = 'sos';
         else if ((stateBits & (1 << 21)) !== 0) alarmType = 'fall';
+        else if ((stateBits & (1 << 22)) !== 0) alarmType = 'heart_rate_abnormal';
         else if ((stateBits & (1 << 20)) !== 0) alarmType = 'geofence_exit';
         else if ((stateBits & (1 << 19)) !== 0) alarmType = 'geofence_enter';
         else if ((stateBits & (1 << 17)) !== 0) alarmType = 'low_battery';
