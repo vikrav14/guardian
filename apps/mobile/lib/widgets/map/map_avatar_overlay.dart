@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../dashboard/device_connectivity.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../guardian_widgets.dart';
@@ -290,6 +291,9 @@ class _AvatarMarker extends StatelessWidget {
             color: color,
             selected: selected,
             imageUrl: device.avatarUrl,
+            // Pendant is off/out of coverage: this is a last-known position,
+            // not a live one -- fade it so that reads clearly on the map.
+            faded: device.isTrulyOffline,
           ),
         ),
       ),
@@ -308,6 +312,7 @@ class _TrackedPersonPin extends StatelessWidget {
     required this.color,
     required this.selected,
     this.imageUrl,
+    this.faded = false,
   });
 
   final String label;
@@ -315,6 +320,12 @@ class _TrackedPersonPin extends StatelessWidget {
   final Color color;
   final bool selected;
   final String? imageUrl;
+  final bool faded;
+
+  /// Opacity applied to a last-known pin once the pendant is offline --
+  /// visible enough to still read the position, faint enough to read as
+  /// "not live" at a glance.
+  static const double fadedOpacity = 0.5;
 
   static double avatarSize(bool selected) => selected ? 48 : 42;
   static double markerSize(bool selected) =>
@@ -329,8 +340,8 @@ class _TrackedPersonPin extends StatelessWidget {
     final height = markerHeight(selected);
     final ringColor = color;
 
-    return Semantics(
-      label: '$label location',
+    final pin = Semantics(
+      label: faded ? '$label last known location, pendant offline' : '$label location',
       image: true,
       child: SizedBox(
         width: width,
@@ -423,5 +434,8 @@ class _TrackedPersonPin extends StatelessWidget {
         ),
       ),
     );
+
+    if (!faded) return pin;
+    return Opacity(opacity: fadedOpacity, child: pin);
   }
 }

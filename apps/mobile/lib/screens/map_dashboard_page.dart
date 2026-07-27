@@ -38,6 +38,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   bool _didFit = false;
   bool _sendingHelp = false;
   double _zoom = 13;
+  MapType _mapType = MapType.normal;
   Timer? _linkingTimer;
   int _linkingTick = 0;
   String? _linkingStoryImei;
@@ -256,6 +257,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     await controller.animateCamera(CameraUpdate.zoomTo(next));
   }
 
+  void _toggleMapType() {
+    setState(() {
+      _mapType = _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
+    });
+  }
+
   VoidCallback? _centerTrackedPersonAction(Device? device) {
     if (device == null || !device.hasFreshLocation) return null;
     return () {
@@ -385,6 +392,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             markerId: MarkerId(device.imei),
             position: LatLng(device.location!.lat, device.location!.lng),
             icon: _markerIcons[device.imei]!,
+            // Pendant is off/out of coverage: this is a last-known position,
+            // not a live one -- fade it so that reads clearly on the map.
+            alpha: device.isTrulyOffline ? 0.5 : 1.0,
             zIndexInt: device.imei == _selectedImei ? 2 : 1,
             onTap: () => _dashboard.select(device.imei),
           ),
@@ -585,6 +595,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                             ),
                                             markers: _markers(),
                                             circles: _circles(),
+                                            mapType: _mapType,
                                             zoomControlsEnabled: false,
                                             onMapCreated: (controller) {
                                               _mapController = controller;
@@ -642,6 +653,10 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                                 _centerTrackedPersonAction(
                                               selected,
                                             ),
+                                            isSatelliteView:
+                                                _mapType != MapType.normal,
+                                            onToggleSatelliteView:
+                                                _toggleMapType,
                                           ),
                                         ),
                                         if (selected != null)
@@ -2464,6 +2479,7 @@ class _StableGoogleMap extends StatefulWidget {
     required this.initialCameraPosition,
     required this.markers,
     required this.circles,
+    required this.mapType,
     required this.zoomControlsEnabled,
     required this.onMapCreated,
     required this.onCameraMove,
@@ -2473,6 +2489,7 @@ class _StableGoogleMap extends StatefulWidget {
   final CameraPosition initialCameraPosition;
   final Set<Marker> markers;
   final Set<Circle> circles;
+  final MapType mapType;
   final bool zoomControlsEnabled;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
@@ -2515,6 +2532,7 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
       markerKey,
       circleKey,
       config.zoomControlsEnabled,
+      config.mapType,
     );
   }
 
@@ -2527,7 +2545,13 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
       initialCameraPosition: config.initialCameraPosition,
       markers: config.markers,
       circles: config.circles,
-      style: GuardianMapPresentation.style,
+      mapType: config.mapType,
+      // The custom style (roads/water recoloured for a calmer look) only
+      // applies to the normal map type -- satellite/hybrid imagery ignores
+      // it, so there is nothing to turn off when switching views.
+      style: config.mapType == MapType.normal
+          ? GuardianMapPresentation.style
+          : null,
       myLocationButtonEnabled: false,
       // Home shows pendant locations only. Guardian Eye will be introduced
       // later as a separate experience, not as a persistent guardian marker.

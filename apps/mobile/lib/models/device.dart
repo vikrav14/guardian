@@ -215,12 +215,17 @@ class Device {
   /// True when [location] has coordinates and was recorded near the last contact.
   ///
   /// Prevents simulator or old GPS writes from showing a map pin after the real
-  /// device reconnects with heartbeats only (no fresh fix yet).
+  /// device reconnects with heartbeats only (no fresh fix yet). Once the
+  /// pendant goes offline this check is skipped entirely -- an offline device
+  /// will never send a newer heartbeat to "catch up" to, so the last known
+  /// fix should keep showing (faded) rather than disappear once it crosses
+  /// the slack window.
   bool get hasFreshLocation {
     final loc = location;
     if (loc == null || !loc.isValid) return false;
     final recorded = loc.recordedAt;
     if (recorded == null) return false;
+    if (!online) return true;
     final contact = lastHeartbeatAt ?? updatedAt;
     if (contact != null &&
         contact.difference(recorded) > deviceLocationFreshnessSlack) {

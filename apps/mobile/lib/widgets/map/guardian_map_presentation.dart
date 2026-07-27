@@ -96,12 +96,16 @@ class GuardianMapControlRail extends StatelessWidget {
     required this.onZoomIn,
     required this.onZoomOut,
     this.onCenterTrackedPerson,
+    this.isSatelliteView = false,
+    this.onToggleSatelliteView,
   });
 
   final String trackedName;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback? onCenterTrackedPerson;
+  final bool isSatelliteView;
+  final VoidCallback? onToggleSatelliteView;
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +146,19 @@ class GuardianMapControlRail extends StatelessWidget {
               onPressed: onCenterTrackedPerson,
               accent: true,
             ),
+            if (onToggleSatelliteView != null) ...[
+              const SizedBox(height: 3),
+              _GuardianMapControl(
+                tooltip: isSatelliteView
+                    ? 'Switch to map view'
+                    : 'Switch to satellite view',
+                icon: isSatelliteView
+                    ? Icons.map_outlined
+                    : Icons.satellite_alt_outlined,
+                onPressed: onToggleSatelliteView,
+                accent: isSatelliteView,
+              ),
+            ],
           ],
         ),
       ),
