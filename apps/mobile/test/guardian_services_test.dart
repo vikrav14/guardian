@@ -110,6 +110,30 @@ void main() {
       );
     });
 
+    test('unlinkPendant removes a linked IMEI without deleting the device doc',
+        () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': ['861397053141170', '861397053139877'],
+      });
+      await db.collection('devices').doc('861397053139877').set({
+        'online': true,
+        'batteryPercent': 80,
+      });
+
+      await DeviceService(db: db, auth: auth).unlinkPendant('861397053139877');
+
+      final userDoc = await db.collection('users').doc('u1').get();
+      expect(userDoc.data()!['linkedImeis'], ['861397053141170']);
+      final deviceDoc =
+          await db.collection('devices').doc('861397053139877').get();
+      expect(deviceDoc.exists, isTrue);
+    });
+
     test('renameDevice sets name and clears it when blank', () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(

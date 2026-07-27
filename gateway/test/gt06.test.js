@@ -61,7 +61,7 @@ test('handlePacket parses a valid UD_LTE location', () => {
   assert.equal(events[0].course, 0);
 });
 
-test('handlePacket ignores UD_LTE when GPS is not fixed (V)', () => {
+test('handlePacket ignores UD_LTE when GPS is V with no WiFi/cell data', () => {
   const payload = '241122,062109,V,22.653729,N,114.014600,E,0.0,0';
   const frame = asciiFrame('3G', '9705314117', 'UD_LTE', payload);
   const decoded = decodeFrame(frame);
@@ -142,8 +142,80 @@ test('handlePacket parses AL_LTE SOS alarm with alarmCode from state field', () 
   assert.equal(acks[0].toString('ascii'), '[SG*9705314117*0002*AL]');
 });
 
-test('handlePacket parses AL_LTE with gps=V as alarm without location', () => {
-  const payload = '241122,062109,V,22.653729,N,114.014600,E,0,0,00010000';
+test('handlePacket parses UD2 blind-spot re-upload with no ack (server no need reply)', () => {
+  const payload = '241122,062109,A,22.653729,N,114.014600,E,0.0,45';
+  const frame = asciiFrame('3G', '9705314117', 'UD2', payload);
+  const decoded = decodeFrame(frame);
+  const session = {};
+
+  const { acks, events } = handlePacket(decoded, session);
+
+  assert.equal(acks.length, 0);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'location');
+  assert.equal(events[0].blindSpotReupload, true);
+});
+
+test('handlePacket parses oxygen (SpO2) upload and acks with status 1', () => {
+  const frame = asciiFrame('3G', '9705314117', 'oxygen', '0,98');
+  const decoded = decodeFrame(frame);
+  const session = {};
+
+  const { acks, events } = handlePacket(decoded, session);
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'health_reading');
+  assert.equal(events[0].metric, 'spo2');
+  assert.equal(events[0].value, 98);
+  assert.equal(acks[0].toString('ascii'), '[SG*9705314117*0008*oxygen,1]');
+});
+
+test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
+  const frame = asciiFrame('3G', '9705314117', 'bphrt', '120,72,72,,,,');
+  const decoded = decodeFrame(frame);
+  const session = {};
+
+  const { acks, events } = handlePacket(decoded, session);
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'health_reading');
+  assert.equal(events[0].metric, 'heart_rate_bp');
+  assert.equal(events[0].systolic, 120);
+  assert.equal(events[0].diastolic, 72);
+  assert.equal(events[0].heartRate, 72);
+  assert.equal(acks.length, 1);
+});
+
+test('handlePacket parses AL_LTE heart-rate-abnormal alarm from bit 22 (additive, V46-V48-V52 only)', () => {
+  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00400000';
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
+  const decoded = decodeFrame(frame);
+  const session = {};
+
+  const { events } = handlePacket(decoded, session);
+
+  assert.equal(events[0].type, 'alarm');
+  assert.equal(events[0].alarmType, 'heart_rate_abnormal');
+  assert.equal(events[0].severity, 'warning');
+});
+
+test('handlePacket still classifies bit 21 as fall (unchanged, matches existing V28C behavior)', () => {
+  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00200000';
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
+  const decoded = decodeFrame(frame);
+  const session = {};
+
+  const { events } = handlePacket(decoded, session);
+
+  assert.equal(events[0].alarmType, 'fall');
+  assert.equal(events[0].severity, 'critical');
+});
+
+test('handlePacket parses AL_LTE with gps=V as alarm with geolocation when WiFi present', () => {
+  const payload = [
+    '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0', '0',
+    '617', '1', '12345', '67890123', '1', '', 'aa:bb:cc:dd:ee:ff', '-70', '00010000',
+  ].join(',');
   const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
   const decoded = decodeFrame(frame);
   const session = {};
@@ -152,6 +224,6 @@ test('handlePacket parses AL_LTE with gps=V as alarm without location', () => {
 
   assert.equal(events[0].type, 'alarm');
   assert.equal(events[0].alarmType, 'sos');
-  assert.equal(events[0].alarmCode, '00010000');
-  assert.equal(events[0].location, undefined);
+  assert.equal(events[0].needsGeolocation, true);
+  assert.equal(events[0].accuracySource, 'wifi');
 });

@@ -7,6 +7,9 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
+import '../models/medication_reminder.dart';
+import '../journey/journey_models.dart';
+import '../journey/journey_utils.dart';
 import 'imei_utils.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
@@ -33,6 +36,67 @@ Stream<List<String>> _watchLinkedImeis(
 
 // Firestore whereIn supports at most 30 values per query.
 const _maxWhereIn = 30;
+
+Stream<T> _combineLatest3<A, B, C, T>(
+  Stream<A> streamA,
+  Stream<B> streamB,
+  Stream<C> streamC,
+  T Function(A a, B b, C c) combiner,
+) {
+  late StreamSubscription<A> subA;
+  late StreamSubscription<B> subB;
+  late StreamSubscription<C> subC;
+  A? latestA;
+  B? latestB;
+  C? latestC;
+  var anyEvent = false;
+
+  final controller = StreamController<T>();
+
+  void emit() {
+    if (latestA != null && latestB != null && latestC != null) {
+      controller.add(combiner(latestA as A, latestB as B, latestC as C));
+    }
+  }
+
+  controller.onListen = () {
+    subA = streamA.listen(
+      (value) {
+        latestA = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+    subB = streamB.listen(
+      (value) {
+        latestB = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+    subC = streamC.listen(
+      (value) {
+        latestC = value;
+        anyEvent = true;
+        emit();
+      },
+      onError: controller.addError,
+    );
+  };
+
+  controller.onCancel = () async {
+    await subA.cancel();
+    await subB.cancel();
+    await subC.cancel();
+    if (!anyEvent) {
+      // Allow empty combine when all streams complete without data.
+    }
+  };
+
+  return controller.stream;
+}
 
 class DeviceService {
   DeviceService({FirebaseFirestore? db, FirebaseAuth? auth})
@@ -88,6 +152,35 @@ class DeviceService {
     });
   }
 
+  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// a live connection to the gateway (see DeviceCommandService.setFallDetection
+  /// and setFallSensitivity). Caches the requested state on the device doc
+  /// since the device has no read-back command; the cache reflects what was
+  /// last *asked for*, not confirmed device state.
+  Future<void> updateFallDetectionPrefs(
+    String imei, {
+    required bool enabled,
+    required bool dialMonitorOnFall,
+    required int sensitivityLevel,
+  }) async {
+    await _db.collection('devices').doc(imei).update({
+      'fallDetection': {
+        'enabled': enabled,
+        'dialMonitorOnFall': dialMonitorOnFall,
+        'sensitivityLevel': sensitivityLevel,
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final commands = DeviceCommandService(db: _db, auth: _auth);
+    await commands.setFallDetection(
+      imei,
+      enabled: enabled,
+      dialMonitorOnFall: dialMonitorOnFall,
+    );
+    await commands.setFallSensitivity(imei, sensitivityLevel);
+  }
+
   /// Links a pendant IMEI to the signed-in guardian's account.
   ///
   /// Uses the 15-digit label/SMS IMEI (10-digit protocol ids are normalized).
@@ -109,6 +202,24 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
+  /// Removes a pendant IMEI from the signed-in guardian's linked set.
+  ///
+  /// Does not delete `devices/{imei}` — only drops access for this account.
+  Future<void> unlinkPendant(String rawImei) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+
+    final imei = canonicalDeviceImei(rawImei.trim());
+    if (imei == null || !isFullImei(imei)) {
+      throw StateError('Invalid pendant IMEI');
+    }
+
+    await _db.collection('users').doc(user.uid).set({
+      'linkedImeis': FieldValue.arrayRemove([imei]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Streams the given day's location history for a pendant (requires the
   /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
@@ -126,6 +237,119 @@ class DeviceService {
         .orderBy('recordedAt')
         .snapshots()
         .map((snap) => snap.docs.map(LocationHistoryPoint.fromDoc).toList());
+  }
+
+  /// Streams compressed journeys for a calendar day.
+  Stream<List<JourneyRecord>> watchDayJourneys(String imei, DateTime day) {
+    final localStart = DateTime(day.year, day.month, day.day);
+    final localEnd = localStart.add(const Duration(days: 1));
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('journeys')
+        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(localStart))
+        .where('startAt', isLessThan: Timestamp.fromDate(localEnd))
+        .orderBy('startAt')
+        .snapshots()
+        .map((snap) => snap.docs.map(JourneyRecord.fromDoc).toList());
+  }
+
+  /// Streams gateway dwell segments for a calendar day.
+  Stream<List<DwellSegment>> watchDaySegments(String imei, DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('segments')
+        .where('from', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('from', isLessThan: Timestamp.fromDate(end))
+        .orderBy('from')
+        .snapshots()
+        .map((snap) => snap.docs.map(DwellSegment.fromDoc).toList());
+  }
+
+  /// Journeys + dwell segments + legacy location history merged for Journey replay.
+  Stream<JourneyDayData> watchDayJourneyData(
+    String imei,
+    DateTime day, {
+    List<Geofence> geofences = const [],
+  }) {
+    return _combineLatest3(
+      watchDayHistory(imei, day),
+      watchDayJourneys(imei, day),
+      watchDaySegments(imei, day),
+      (locations, journeys, segments) => buildJourneyDayData(
+        locationPoints: locations,
+        journeys: journeys,
+        dwells: segments,
+        geofences: geofences,
+      ),
+    );
+  }
+
+  /// One-shot fetch for compare mode and share exports.
+  Future<JourneyDayData> fetchDayJourneyData(
+    String imei,
+    DateTime day, {
+    List<Geofence> geofences = const [],
+  }) {
+    return watchDayJourneyData(imei, day, geofences: geofences).first;
+  }
+
+  /// One-shot fetch for compare mode and share exports.
+  Future<List<LocationHistoryPoint>> fetchDayHistory(
+    String imei,
+    DateTime day,
+  ) {
+    return watchDayHistory(imei, day).first;
+  }
+
+  /// Returns calendar days (midnight local) that have at least one location fix
+  /// within [lookbackDays] ending today — used by Journey Time Machine memories.
+  Future<Set<DateTime>> fetchDaysWithHistory(
+    String imei, {
+    int lookbackDays = 60,
+  }) async {
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day)
+        .subtract(Duration(days: lookbackDays));
+    final end = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+    final snap = await _db
+        .collection('devices')
+        .doc(imei)
+        .collection('locations')
+        .where('recordedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('recordedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .orderBy('recordedAt')
+        .get();
+
+    final days = <DateTime>{};
+    for (final doc in snap.docs) {
+      final ts = doc.data()['recordedAt'];
+      if (ts is! Timestamp) continue;
+      final dt = ts.toDate();
+      days.add(DateTime(dt.year, dt.month, dt.day));
+    }
+
+    final journeySnap = await _db
+        .collection('devices')
+        .doc(imei)
+        .collection('journeys')
+        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .orderBy('startAt')
+        .get();
+
+    for (final doc in journeySnap.docs) {
+      final ts = doc.data()['startAt'];
+      if (ts is! Timestamp) continue;
+      final dt = ts.toDate();
+      days.add(DateTime(dt.year, dt.month, dt.day));
+    }
+
+    return days;
   }
 
   /// Streams only the devices this signed-in guardian is linked to.
@@ -198,6 +422,88 @@ class GeofenceService {
 
   Future<void> delete(String id) async {
     await _db.collection('geofences').doc(id).delete();
+  }
+}
+
+/// V46/V48/V52 only. The device has no "list my reminders" query command,
+/// so this collection is the app's own record of what's been scheduled —
+/// saving or deleting also enqueues a matching `set_medication_reminder`
+/// deviceCommand so the pendant itself stays in sync (see
+/// DeviceCommandService.setMedicationReminder and gateway/src/commands.js).
+class MedicationReminderService {
+  MedicationReminderService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<MedicationReminder>> watchForDevice(String imei) {
+    return _db
+        .collection('medicationReminders')
+        .where('imei', isEqualTo: imei)
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map(MedicationReminder.fromDoc).toList()
+            ..sort((a, b) => a.time.compareTo(b.time)),
+        );
+  }
+
+  Future<void> create({
+    required String imei,
+    required String time,
+    required int frequency,
+    required String text,
+    String? week,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+
+    await _db.collection('medicationReminders').add({
+      'imei': imei,
+      'time': time,
+      'frequency': frequency,
+      'week': frequency == 3 ? week : null,
+      'text': text.trim(),
+      'enabled': true,
+      'createdBy': uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await DeviceCommandService(
+      db: _db,
+      auth: _auth,
+    ).setMedicationReminder(
+      imei,
+      time: time,
+      frequency: frequency,
+      week: week,
+      text: text,
+    );
+  }
+
+  Future<void> setEnabled(MedicationReminder reminder, bool enabled) async {
+    await _db.collection('medicationReminders').doc(reminder.id).update({
+      'enabled': enabled,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await DeviceCommandService(
+      db: _db,
+      auth: _auth,
+    ).setMedicationReminder(
+      reminder.imei,
+      time: reminder.time,
+      frequency: reminder.frequency,
+      week: reminder.week,
+      text: reminder.text,
+      enabled: enabled,
+    );
+  }
+
+  Future<void> delete(String id) async {
+    await _db.collection('medicationReminders').doc(id).delete();
   }
 }
 
@@ -651,5 +957,43 @@ class DeviceCommandService {
   /// against the V28C specifically — see class doc.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
+  }
+
+  /// V46/V48/V52 only — TCP downlink, no SMS equivalent exists. Requires the
+  /// device to currently hold a live connection to the gateway; fails
+  /// clearly (not silently) if it doesn't. See gateway/src/commands.js.
+  Future<void> setFallDetection(
+    String imei, {
+    required bool enabled,
+    bool dialMonitorOnFall = false,
+  }) {
+    return _enqueue(imei, 'set_fall_detection', {
+      'enabled': enabled,
+      'dialMonitorOnFall': dialMonitorOnFall,
+    });
+  }
+
+  /// V46/V48/V52 only. [level] is 0-6.
+  Future<void> setFallSensitivity(String imei, int level) {
+    return _enqueue(imei, 'set_fall_sensitivity', {'level': level});
+  }
+
+  /// V46/V48/V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
+  /// (daily), or 3 (weekly, requires [week] as a 7-digit Sun->Sat mask).
+  Future<void> setMedicationReminder(
+    String imei, {
+    required String time,
+    required int frequency,
+    required String text,
+    String? week,
+    bool enabled = true,
+  }) {
+    return _enqueue(imei, 'set_medication_reminder', {
+      'time': time,
+      'frequency': frequency,
+      'text': text.trim(),
+      if (frequency == 3) 'week': week,
+      'enabled': enabled,
+    });
   }
 }

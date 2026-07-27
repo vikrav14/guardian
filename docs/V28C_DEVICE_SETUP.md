@@ -248,10 +248,30 @@ Device sends frames like:
 
 Gateway **must** reply with ACK frames, e.g. `[SG*2104327437*0002*LK]`. The decoder in `gateway/src/protocol/gt06.js` handles this automatically.
 
+### WiFi/cell geolocation (gps=V)
+
+Indoors the pendant often sends `UD_LTE` with `gps=V` and WiFi MAC / LBS cell fields instead of satellite coordinates. The gateway calls the [Google Geolocation API](https://developers.google.com/maps/documentation/geolocation/overview) to resolve those to lat/lng.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Library**, enable **Geolocation API** (same project as Maps is fine).
+2. Create or reuse an API key and set in `gateway/.env`:
+
+```env
+GOOGLE_GEOLOCATION_API_KEY=your-key-here
+FIRESTORE_DISABLED=false
+```
+
+3. Restart the gateway. Successful lookups log like:
+
+```text
+[geolocate] 861397053141170 wifi=3 cells=1 → -20.261, 57.478 acc=45m
+```
+
+Without the key (or with `FIRESTORE_DISABLED=true`), V packets are parsed but geolocation is skipped — no crash, no fabricated coordinates.
+
 ### Firebase / app
 
 - `devices/{imei}` → `online: true`, `lastHeartbeatAt` recent
-- `location.lat` / `location.lng` populated when GPS valid (`A` in protocol)
+- `location.lat` / `location.lng` populated when GPS valid (`A` in protocol) or geolocated from WiFi/cell (`V` + Google Geolocation API)
 - Map dashboard shows the wearer (outdoors may take a few minutes for first GPS fix)
 
 ### Simulator check (no pendant)
@@ -270,7 +290,7 @@ npm run simulate -- --host 127.0.0.1 --port 9000 --imei YOUR_IMEI
 | No SMS reply from pendant | SIM seated correctly; SMS credit/plan active; center number set (Step 1); try sending from a different phone |
 | SMS works but no TCP connection | Re-check APN (`61701` not `46230`); confirm ngrok TCP tunnel still running; re-send `ip,...#` with current ngrok host/port |
 | ngrok URL changed | Every ngrok restart → new host/port → must re-send `ip,{host},{port}#` |
-| Gateway sees connection but no location | Normal indoors — GPS mark `V` (invalid) is ignored by gateway; move outside; wait for `UD_LTE` with `A` |
+| Gateway sees connection but no location | Indoors GPS may be `V` — gateway geolocates WiFi/cell when `GOOGLE_GEOLOCATION_API_KEY` is set; move outside for satellite `A` fixes |
 | Device in Firestore but not in app | IMEI not in your `linkedImeis` — use the **15-digit** label/SMS IMEI, not the 10-digit protocol id; check Firestore rules deployed |
 | App empty after TCP connect | Gateway may have written under the old 10-digit doc id — restart gateway (normalization migrates on next heartbeat) or manually merge `devices/9705314117` into `devices/861397053141170` |
 | `FIRESTORE_DISABLED=true` | Gateway runs but app stays empty — set to `false` and restart |

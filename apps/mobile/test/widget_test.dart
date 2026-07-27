@@ -8,10 +8,7 @@ import 'package:guardian/main.dart';
 import 'package:guardian/navigation/home_shell_scope.dart';
 import 'package:guardian/theme/app_theme.dart';
 import 'package:guardian/widgets/guardian_widgets.dart';
-import 'package:guardian/widgets/dashboard/desktop_dashboard_layout.dart';
-import 'package:guardian/widgets/dashboard/responsive_layout.dart';
 import 'package:guardian/widgets/navigation/guardian_navigation.dart';
-import 'package:guardian/widgets/theme/theme_picker.dart';
 
 Widget _wrap(Widget child, {Locale locale = const Locale('en')}) {
   return MaterialApp(
@@ -120,11 +117,35 @@ void main() {
       expect(find.text('Safe zones'), findsOneWidget);
       expect(find.text('Alerts'), findsOneWidget);
       expect(find.text('Account'), findsOneWidget);
+      expect(find.text('3 SEC'), findsOneWidget);
 
       await tester.tap(find.text('Alerts'));
       expect(tapped, 2);
     },
   );
+
+  testWidgets('SOS requires a full three-second hold', (tester) async {
+    var sosTriggered = false;
+    await tester.pumpWidget(
+      _wrap(
+        MobileBottomBar(
+          currentIndex: 0,
+          onTap: (_) {},
+          onSos: () => sosTriggered = true,
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('SOS')),
+    );
+    await tester.pump(const Duration(milliseconds: 2900));
+    expect(sosTriggered, isFalse);
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(sosTriggered, isTrue);
+    await gesture.up();
+  });
 
   testWidgets('GuardianBottomNav shows French labels when locale is fr', (
     tester,
@@ -142,138 +163,27 @@ void main() {
     expect(find.text('Compte'), findsOneWidget);
   });
 
-  testWidgets('DesktopSidebar uses the same destinations and reports taps', (
+  testWidgets('HomeShellScope exposes sidebar collapse to descendants', (
     tester,
   ) async {
-    var tapped = -1;
-    await tester.pumpWidget(
-      _wrap(DesktopSidebar(currentIndex: 0, onTap: (i) => tapped = i)),
-    );
-
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Safe zones'), findsOneWidget);
-    expect(find.text('Alerts'), findsOneWidget);
-    expect(find.text('Account'), findsOneWidget);
-
-    await tester.tap(find.text('Account'));
-    expect(tapped, 3);
-  });
-
-  testWidgets('Theme sidebar toggle and dialog do not crash', (tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(
-      _wrap(DesktopSidebar(currentIndex: 0, onTap: (_) {})),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Theme'));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-    expect(find.text('Island Glass'), findsOneWidget);
-
-    GuardianThemeId? selected;
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildGuardianTheme(),
-        localizationsDelegates: guardianLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: GuardianThemeScope(
-          themeId: GuardianThemeId.defaultTheme,
-          onThemeChanged: (theme) => selected = theme,
-          child: Theme(
-            data: buildGuardianTheme(),
-            child: Builder(
-              builder: (context) => Scaffold(
-                body: FilledButton(
-                  onPressed: () => showThemePickerDialog(context),
-                  child: const Text('open-theme'),
-                ),
-              ),
-            ),
+        home: HomeShellScope(
+          currentIndex: 0,
+          goToTab: (_) {},
+          sidebarCollapsed: true,
+          child: Builder(
+            builder: (context) {
+              final collapsed =
+                  HomeShellScope.maybeOf(context)?.sidebarCollapsed ?? false;
+              return Text(collapsed ? 'sidebar-collapsed' : 'sidebar-expanded');
+            },
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('open-theme'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Le Morne'));
-    await tester.pumpAndSettle();
-
-    expect(tester.takeException(), isNull);
-    expect(selected, GuardianThemeId.leMorne);
-  });
-
-  testWidgets('Theme flyout stays visible beside main content', (tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    GuardianThemeId? selected;
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('en'),
-        supportedLocales: AppLocalizations.supportedLocales,
-        localizationsDelegates: guardianLocalizationsDelegates,
-        home: GuardianThemeScope(
-          themeId: GuardianThemeId.defaultTheme,
-          onThemeChanged: (theme) => selected = theme,
-          child: Theme(
-            data: buildGuardianTheme(),
-            child: Scaffold(
-              body: Row(
-                children: [
-                  DesktopSidebar(currentIndex: 0, onTap: (_) {}),
-                  Expanded(
-                    child: Container(color: Colors.blue),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Theme'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Island Glass'), findsOneWidget);
-    expect(find.text('Le Morne'), findsOneWidget);
-    expect(find.text('Elder Care'), findsOneWidget);
-
-    await tester.tap(find.text('Le Morne'));
-    await tester.pumpAndSettle();
-
-    expect(selected, GuardianThemeId.leMorne);
-    expect(find.text('Le Morne'), findsNothing);
-  });
-
-  testWidgets('ResponsiveLayout switches at the desktop breakpoint', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    tester.view.physicalSize = const Size(500, 800);
-    await tester.pumpWidget(
-      _wrap(
-        const ResponsiveLayout(
-          mobile: Text('mobile-layout'),
-          desktop: Text('desktop-layout'),
-        ),
-      ),
-    );
-    expect(find.text('mobile-layout'), findsOneWidget);
-
-    tester.view.physicalSize = const Size(1200, 800);
-    await tester.pumpAndSettle();
-    expect(find.text('desktop-layout'), findsOneWidget);
+    expect(find.text('sidebar-collapsed'), findsOneWidget);
   });
 
   testWidgets('HomeShellScope forwards tab changes to the shell', (
@@ -297,39 +207,6 @@ void main() {
 
     await tester.tap(find.text('open-safe-zones'));
     expect(tab, 1);
-  });
-
-  testWidgets('Desktop dashboard grid renders without overflow', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1000, 920);
-    addTearDown(tester.view.reset);
-
-    Widget panel(String label) => ColoredBox(
-      color: Colors.white,
-      child: Center(child: Text(label)),
-    );
-
-    await tester.pumpWidget(
-      _wrap(
-        DesktopDashboardLayout(
-          topBar: panel('header'),
-          safetySummary: panel('safety'),
-          liveStatus: panel('status'),
-          map: panel('map'),
-          devices: panel('devices'),
-          aiInsight: panel('ai'),
-          timeline: panel('timeline'),
-          quickActions: panel('actions'),
-          bottomStatus: panel('bottom'),
-        ),
-      ),
-    );
-
-    expect(find.text('map'), findsOneWidget);
-    expect(find.text('timeline'), findsOneWidget);
-    expect(tester.takeException(), isNull);
   });
 
   test('Kreol Morisien translations are present for the core nav labels', () {

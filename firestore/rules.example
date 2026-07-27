@@ -45,8 +45,11 @@ service cloud.firestore {
 
     match /devices/{imei} {
       allow read: if linkedTo(imei);
-      // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer
-      // and set the wearable's SIM number (used for calls / SMS commands).
+      // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer,
+      // set the wearable's SIM number (used for calls / SMS commands), and
+      // cache the last fall-detection preference they asked the pendant for
+      // (V46/V48/V52 only -- the device has no read-back command, so this
+      // is a request cache, not confirmed device state; see commands.js).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
@@ -55,6 +58,7 @@ service cloud.firestore {
               'relationship',
               'avatarUrl',
               'simNumber',
+              'fallDetection',
               'updatedAt'
             ]);
       allow create, delete: if false;
@@ -63,9 +67,28 @@ service cloud.firestore {
         allow read: if linkedTo(imei);
         allow write: if false;
       }
+
+      match /segments/{segmentId} {
+        allow read: if linkedTo(imei);
+        allow write: if false;
+      }
+
+      match /journeys/{journeyId} {
+        allow read: if linkedTo(imei);
+        allow write: if false;
+      }
     }
 
     match /geofences/{geofenceId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if signedIn()
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if linkedTo(resource.data.imei)
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /medicationReminders/{reminderId} {
       allow read: if linkedTo(resource.data.imei);
       allow create: if signedIn()
         && linkedTo(request.resource.data.imei)

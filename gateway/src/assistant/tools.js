@@ -1,4 +1,5 @@
 const { normalizeE164 } = require('../notify');
+const { haversineMeters } = require('../geofence');
 
 /**
  * Resolve which guardian + devices a WhatsApp sender may ask about.
@@ -117,12 +118,12 @@ async function getBattery(ctx, { device_name: deviceName, imei } = {}) {
 
 async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, imei } = {}) {
   const device = deviceName || imei ? findDevice(ctx.devices, imei || deviceName) : null;
-  let query = db.collection('alerts').orderBy('createdAt', 'descending').limit(Math.min(20, Number(limit) || 5));
+  let query = db.collection('alerts').orderBy('createdAt', 'desc').limit(Math.min(20, Number(limit) || 5));
   if (device) {
     query = db
       .collection('alerts')
       .where('imei', '==', device.imei)
-      .orderBy('createdAt', 'descending')
+      .orderBy('createdAt', 'desc')
       .limit(Math.min(20, Number(limit) || 5));
   }
   try {
@@ -143,7 +144,7 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
     };
   } catch (err) {
     // Missing composite index — fall back to recent global filter in memory
-    const snap = await db.collection('alerts').orderBy('createdAt', 'descending').limit(30).get();
+    const snap = await db.collection('alerts').orderBy('createdAt', 'desc').limit(30).get();
     let alerts = snap.docs.map((doc) => {
       const d = doc.data() || {};
       return {
@@ -171,6 +172,105 @@ function listDevices(ctx) {
       online: d.online === true,
       batteryPercent: d.batteryPercent ?? null,
     })),
+  };
+}
+
+async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) {
+    return { error: 'No matching pendant.' };
+  }
+
+  const intelligence = device.intelligence || {};
+  const topInsight = intelligence.topInsight || null;
+
+  return {
+    name: deviceLabel(device),
+    imei: device.imei,
+    online: device.online === true,
+    updatedAt:
+      intelligence.updatedAt?.toDate?.()?.toISOString?.() || intelligence.updatedAt || null,
+    topInsight: topInsight
+      ? {
+          id: topInsight.id || null,
+          facts: Array.isArray(topInsight.facts) ? topInsight.facts : [],
+          inference: topInsight.inference || null,
+          confidence: topInsight.confidence ?? null,
+          level: topInsight.level || null,
+        }
+      : null,
+    insightCount: Array.isArray(intelligence.insights) ? intelligence.insights.length : 0,
+  };
+}
+
+async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name: deviceName, imei } = {}) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) {
+    return { error: 'No matching pendant.' };
+  }
+
+  const loc = device.location || {};
+  if (loc.lat == null || loc.lng == null) {
+    return {
+      name: deviceLabel(device),
+      imei: device.imei,
+      atGeofence: false,
+      reason: 'no_gps_fix',
+    };
+  }
+
+  if (!db) {
+    return { error: 'Live geofence lookup unavailable.' };
+  }
+
+  const snap = await db
+    .collection('geofences')
+    .where('imei', '==', device.imei)
+    .where('active', '==', true)
+    .get();
+
+  const query = String(geofenceName || '').trim().toLowerCase();
+  if (!query) {
+    return { error: 'geofence_name is required.' };
+  }
+
+  let matched = null;
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+    const name = String(data.name || '').trim();
+    if (name.toLowerCase() === query || name.toLowerCase().includes(query)) {
+      matched = { id: doc.id, ...data };
+      break;
+    }
+  }
+
+  if (!matched) {
+    return {
+      name: deviceLabel(device),
+      imei: device.imei,
+      geofenceName: geofenceName || null,
+      atGeofence: false,
+      reason: 'geofence_not_found',
+    };
+  }
+
+  const center = matched.center || {};
+  const lat = Number(center.lat);
+  const lng = Number(center.lng);
+  const radius = Number(matched.radiusMeters) || 150;
+  const distanceMeters = haversineMeters(loc.lat, loc.lng, lat, lng);
+  const inside = distanceMeters <= radius;
+
+  return {
+    name: deviceLabel(device),
+    imei: device.imei,
+    geofenceName: matched.name || geofenceName,
+    geofenceId: matched.id,
+    atGeofence: inside,
+    distanceMeters: Math.round(distanceMeters),
+    radiusMeters: radius,
+    lat: loc.lat,
+    lng: loc.lng,
   };
 }
 
@@ -217,6 +317,34 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'get_device_intelligence',
+    description:
+      'Get gateway rule-based insights for a pendant (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'is_at_geofence',
+    description:
+      'Check whether a pendant is currently inside a named safe zone (distance check). Returns facts only.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        geofence_name: { type: 'string', description: 'Safe zone name, e.g. Home or School' },
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+      },
+      required: ['geofence_name'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 async function runTool(db, ctx, name, input) {
@@ -229,6 +357,10 @@ async function runTool(db, ctx, name, input) {
       return getBattery(ctx, input || {});
     case 'get_recent_alerts':
       return getRecentAlerts(db, ctx, input || {});
+    case 'get_device_intelligence':
+      return getDeviceIntelligence(ctx, input || {});
+    case 'is_at_geofence':
+      return isAtGeofence(db, ctx, input || {});
     default:
       return { error: `Unknown tool ${name}` };
   }
@@ -239,4 +371,6 @@ module.exports = {
   TOOL_DEFINITIONS,
   runTool,
   deviceLabel,
+  getDeviceIntelligence,
+  isAtGeofence,
 };

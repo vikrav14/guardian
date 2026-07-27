@@ -8,6 +8,7 @@ class GuardianAlert {
     required this.severity,
     required this.message,
     required this.resolved,
+    this.title,
     this.createdAt,
     this.resolvedAt,
     this.payload,
@@ -19,6 +20,7 @@ class GuardianAlert {
   final String severity;
   final String message;
   final bool resolved;
+  final String? title;
   final DateTime? createdAt;
   final DateTime? resolvedAt;
   final Map<String, dynamic>? payload;
@@ -32,6 +34,7 @@ class GuardianAlert {
       severity: (data['severity'] as String?) ?? 'info',
       message: (data['message'] as String?) ?? 'Alert',
       resolved: data['resolved'] == true,
+      title: data['title'] as String?,
       createdAt: _asDateTime(data['createdAt']),
       resolvedAt: _asDateTime(data['resolvedAt']),
       payload: data['payload'] is Map

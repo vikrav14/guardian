@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../navigation/home_shell_scope.dart';
-import '../widgets/dashboard/responsive_layout.dart';
+import '../theme/app_theme.dart';
+import '../widgets/layout/guardian_app_header.dart';
 import '../widgets/navigation/guardian_navigation.dart';
 import 'account_page.dart';
 import 'alerts_page.dart';
@@ -17,13 +18,19 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  final _dashboardKey = GlobalKey<MapDashboardPageState>();
 
   void _goToTab(int index) => setState(() => _index = index);
 
+  void _sendSos() {
+    _goToTab(0);
+    _dashboardKey.currentState?.sendHelpFromNavigation();
+  }
+
   @override
   Widget build(BuildContext context) {
-    const pages = [
-      MapDashboardPage(),
+    final pages = [
+      MapDashboardPage(key: _dashboardKey),
       SafeZonesPage(),
       AlertsPage(),
       AccountPage(),
@@ -31,26 +38,35 @@ class _HomeShellState extends State<HomeShell> {
     return HomeShellScope(
       currentIndex: _index,
       goToTab: _goToTab,
-      child: ResponsiveLayout(
-        mobile: Scaffold(
-          body: IndexedStack(index: _index, children: pages),
-          bottomNavigationBar: MobileBottomBar(
-            currentIndex: _index,
-            onTap: _goToTab,
-          ),
-        ),
-        desktop: Scaffold(
-          body: Row(
-            children: [
-              DesktopSidebar(
-                currentIndex: _index,
-                onTap: _goToTab,
+      sidebarCollapsed: true,
+      child: Scaffold(
+        backgroundColor: context.guardianColors.canvas,
+        extendBody: true,
+        body: Column(
+          children: [
+            GuardianAppHeader(
+              onHome: () => _goToTab(0),
+              onAlerts: () => _goToTab(2),
+              onAccount: () => _goToTab(3),
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  IndexedStack(index: _index, children: pages),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 10,
+                    child: MobileBottomBar(
+                      currentIndex: _index,
+                      onTap: _goToTab,
+                      onSos: _sendSos,
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: IndexedStack(index: _index, children: pages),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

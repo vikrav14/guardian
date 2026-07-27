@@ -109,6 +109,55 @@ void main() {
       expect(device.hasFreshLocation, isTrue);
       expect(device.isMoving, isTrue);
     });
+
+    test('keeps showing the last known fix once the pendant is offline', () {
+      final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+      // Same shape as the "rejects coordinates older than last heartbeat"
+      // case above -- a 10 minute gap past the 8 minute slack -- but offline
+      // this time. An offline pendant will never send a newer heartbeat to
+      // close that gap, so the last known position should still show.
+      final device = Device(
+        imei: '861397053141170',
+        online: false,
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.261286,
+          lng: 57.477801,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 10)),
+        ),
+      );
+
+      expect(device.hasFreshLocation, isTrue);
+    });
+
+    test('hasApproximateLocation when accuracySource is wifi or lbs', () {
+      final heartbeat = DateTime.utc(2026, 7, 22, 13, 40);
+      final wifiDevice = Device(
+        imei: '1',
+        online: true,
+        accuracySource: 'wifi',
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.2,
+          lng: 57.5,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      expect(wifiDevice.hasApproximateLocation, isTrue);
+
+      final gpsDevice = Device(
+        imei: '2',
+        online: true,
+        accuracySource: 'gps',
+        lastHeartbeatAt: heartbeat,
+        location: DeviceLocation(
+          lat: -20.2,
+          lng: 57.5,
+          recordedAt: heartbeat.subtract(const Duration(minutes: 1)),
+        ),
+      );
+      expect(gpsDevice.hasApproximateLocation, isFalse);
+    });
   });
 
   group('GuardianAlert.fromDoc', () {

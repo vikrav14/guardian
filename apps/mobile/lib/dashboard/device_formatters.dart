@@ -1,9 +1,27 @@
 import '../models/device.dart';
+import 'device_connectivity.dart';
 
 String deviceMovementLabel(Device device) {
-  if (!device.online) return 'Not connected';
-  if (device.isMoving) return 'Moving';
-  return 'Stationary';
+  return switch (device.connectivityPhase()) {
+    DeviceConnectivityPhase.live when device.isMoving => 'Moving',
+    DeviceConnectivityPhase.live => 'Stationary',
+    DeviceConnectivityPhase.reconnecting => 'Linking up',
+    DeviceConnectivityPhase.offline => 'Not connected',
+  };
+}
+
+String deviceLocationStatusLabel(Device device) {
+  return switch (device.connectivityPhase()) {
+    DeviceConnectivityPhase.reconnecting => 'Last known location',
+    DeviceConnectivityPhase.offline =>
+      device.location?.isValid == true
+          ? 'Last known location'
+          : 'Location unavailable',
+    DeviceConnectivityPhase.live when device.hasApproximateLocation =>
+      'Approximate location',
+    DeviceConnectivityPhase.live when device.hasFreshLocation => 'Satellite GPS',
+    DeviceConnectivityPhase.live => 'Waiting for location',
+  };
 }
 
 String deviceUpdatedLabel(Device device, {DateTime? now}) {

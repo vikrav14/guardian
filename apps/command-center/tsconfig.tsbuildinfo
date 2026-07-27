@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/loginpage.tsx","./src/api.ts","./src/firebase.ts","./src/main.tsx","./src/vite-env.d.ts","./src/tabs/aitab.tsx","./src/tabs/financetab.tsx","./src/tabs/fleettab.tsx","./src/tabs/growthtab.tsx","./src/tabs/operationstab.tsx"],"version":"5.9.3"}

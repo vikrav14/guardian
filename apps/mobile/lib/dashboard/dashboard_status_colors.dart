@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/device.dart';
 import '../theme/colors.dart';
+import 'device_connectivity.dart';
+import 'linking_story.dart';
 
 /// The four dashboard status chips mapped to Mauritius flag stripes:
 /// red (connectivity), blue (GPS), yellow (battery), green (signal).
@@ -57,5 +60,33 @@ FlagMetricColors flagMetricColors(DashboardFlagMetric metric, bool active) {
   }
 }
 
+FlagMetricColors connectivityMetricColors(Device device, {DateTime? now}) {
+  return switch (device.connectivityPhase(now: now)) {
+    DeviceConnectivityPhase.live =>
+      flagMetricColors(DashboardFlagMetric.connectivity, true),
+    DeviceConnectivityPhase.reconnecting => (
+        foreground: GuardianColors.accent,
+        background: GuardianColors.accentBg,
+      ),
+    DeviceConnectivityPhase.offline =>
+      flagMetricColors(DashboardFlagMetric.connectivity, false),
+  };
+}
+
 bool dashboardBatteryHealthy(int? percent) =>
     percent != null && percent > dashboardBatteryHealthyThreshold;
+
+FlagMetricColors linkingStoryMetricColors(LinkingStoryMetricState state) {
+  return switch (state) {
+    LinkingStoryMetricState.complete =>
+      flagMetricColors(DashboardFlagMetric.signal, true),
+    LinkingStoryMetricState.active => (
+        foreground: GuardianColors.accent,
+        background: GuardianColors.accentBg,
+      ),
+    LinkingStoryMetricState.pending => (
+        foreground: GuardianColors.flagBlueMuted,
+        background: GuardianColors.flagBlueBgMuted,
+      ),
+  };
+}

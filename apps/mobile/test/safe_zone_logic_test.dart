@@ -3,6 +3,7 @@ import 'package:guardian/models/alert.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/models/geofence.dart';
 import 'package:guardian/safe_zones/safe_zone_logic.dart';
+import 'package:guardian/theme/colors.dart';
 
 void main() {
   final freshAt = DateTime.utc(2026, 7, 22, 12, 0);
@@ -58,11 +59,19 @@ void main() {
   });
 
   test('styleForCategory uses approved zone colors', () {
-    expect(styleForCategory(SafeZoneCategory.home).color.toARGB32(), 0xFF378ADD);
+    // Home/hiking/other intentionally reuse the shared design-system tokens
+    // (not bespoke hex) so they stay in sync with GuardianColors automatically.
+    expect(
+      styleForCategory(SafeZoneCategory.home).color.toARGB32(),
+      GuardianColors.accent.toARGB32(),
+    );
     expect(styleForCategory(SafeZoneCategory.school).color.toARGB32(), 0xFF7C3AED);
     expect(styleForCategory(SafeZoneCategory.church).color.toARGB32(), 0xFFEA580C);
     expect(styleForCategory(SafeZoneCategory.work).color.toARGB32(), 0xFF6B7280);
-    expect(styleForCategory(SafeZoneCategory.hiking).color.toARGB32(), 0xFF00A86B);
+    expect(
+      styleForCategory(SafeZoneCategory.hiking).color.toARGB32(),
+      GuardianColors.safe.toARGB32(),
+    );
   });
 
   test('isDeviceInsideZone uses haversine distance against radius', () {

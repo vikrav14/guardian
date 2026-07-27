@@ -4,8 +4,42 @@
       "collectionGroup": "alerts",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "imei", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "imei",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "journeys",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "imei",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "startAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "segments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "imei",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "from",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

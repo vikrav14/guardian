@@ -13,7 +13,9 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
+import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
+import 'care_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
@@ -167,15 +169,22 @@ class AccountPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
+      body: GuardianPageFrame(
+        maxWidth: 920,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
             GuardianSpacing.md,
             GuardianSpacing.lg,
             GuardianSpacing.md,
-            GuardianSpacing.md,
+            118,
           ),
           children: [
+            const GuardianPageHeader(
+              eyebrow: 'YOUR GUARDIAN CIRCLE',
+              title: 'Account & family',
+              subtitle: 'People, pendant and preferences in one calm place.',
+            ),
+            const SizedBox(height: GuardianSpacing.lg),
             GuardianCard(
               child: Column(
                 children: [
@@ -218,6 +227,7 @@ class AccountPage extends StatelessWidget {
                       _DeviceRow(
                         device: devices[i],
                         showDivider: i < devices.length - 1,
+                        onUnlink: () => _confirmUnlinkPendant(context, devices[i]),
                       ),
                     GuardianSettingsRow(
                       icon: Icons.link_rounded,
@@ -566,10 +576,15 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
 }
 
 class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({required this.device, required this.showDivider});
+  const _DeviceRow({
+    required this.device,
+    required this.showDivider,
+    required this.onUnlink,
+  });
 
   final Device device;
   final bool showDivider;
+  final VoidCallback onUnlink;
 
   @override
   Widget build(BuildContext context) {
@@ -604,6 +619,19 @@ class _DeviceRow extends StatelessWidget {
             device.online ? 'Online' : 'Offline',
             style: textTheme.labelSmall,
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, size: 18),
+            tooltip: 'Pendant options',
+            onSelected: (value) {
+              if (value == 'unlink') onUnlink();
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'unlink',
+                child: Text('Unlink pendant'),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Person and device settings',
@@ -612,6 +640,48 @@ class _DeviceRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Unlink pendant?'),
+      content: Text(
+        '${device.displayName} will disappear from your account. '
+        'The pendant itself is not reset — you can link it again with the IMEI.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: GuardianColors.danger,
+          ),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Unlink'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+
+  try {
+    await DeviceService().unlinkPendant(device.imei);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${device.displayName} unlinked')),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not unlink pendant: $e')),
+      );
+    }
   }
 }
 
@@ -793,6 +863,24 @@ Future<void> _showDeviceSettingsDialog(
                     ),
                   ),
                   const Divider(height: 24),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.favorite_outline),
+                    title: const Text('Care settings'),
+                    subtitle: const Text(
+                      'Fall detection & medication reminders — V46/V48/V52 only',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CareSettingsPage(device: device),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 24),
                   Text(
                     'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
                     style: TextStyle(
@@ -918,6 +1006,47 @@ Future<void> _showDeviceSettingsDialog(
               ),
             ),
             actions: [
+              TextButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final confirmed = await showDialog<bool>(
+                          context: ctx,
+                          builder: (confirmCtx) => AlertDialog(
+                            title: const Text('Unlink pendant?'),
+                            content: Text(
+                              '${device.displayName} will disappear from your account. '
+                              'The pendant itself is not reset — you can link it again with the IMEI.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(confirmCtx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: GuardianColors.danger,
+                                ),
+                                onPressed: () =>
+                                    Navigator.pop(confirmCtx, true),
+                                child: const Text('Unlink'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !ctx.mounted) return;
+                        await run(
+                          () => DeviceService().unlinkPendant(device.imei),
+                          '${device.displayName} unlinked',
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                style: TextButton.styleFrom(
+                  foregroundColor: GuardianColors.danger,
+                ),
+                child: const Text('Unlink pendant'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Close'),

@@ -408,12 +408,12 @@ class GuardianListGroup extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(GuardianRadius.large),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.055),
-            blurRadius: 24,
+            color: GuardianColors.forest.withValues(alpha: 0.055),
+            blurRadius: 28,
             offset: const Offset(0, 10),
           ),
         ],
@@ -459,7 +459,17 @@ class GuardianSettingsRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: iconColor),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: danger
+                    ? GuardianColors.dangerBg
+                    : colors.accentMuted,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, size: 19, color: iconColor),
+            ),
             const SizedBox(width: GuardianSpacing.sm),
             Expanded(
               child: Text(
@@ -575,6 +585,10 @@ class GuardianBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MobileBottomBar(currentIndex: currentIndex, onTap: onTap);
+    return MobileBottomBar(
+      currentIndex: currentIndex,
+      onTap: onTap,
+      onSos: () => onTap(0),
+    );
   }
 }

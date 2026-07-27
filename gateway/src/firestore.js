@@ -5,6 +5,19 @@ const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
 const { sendDeviceCommand } = require('./commands');
 const { isFullImei, isProtocolId, normalizeImei } = require('./imei');
+const {
+  evaluateDeviceIntelligence,
+  shouldCreateOfflineAlert,
+  buildOfflineAlertCopy,
+  buildLocationContext,
+} = require('./intelligence');
+const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
+const { listConnectedImeis, findSocketsForDevice, listSilentConnectedImeis } = require('./sessions');
+const { hasPendingOffline } = require('./device-offline');
+const {
+  connectionStaleMinutes,
+  shouldReconcileStaleOnline,
+} = require('./device-presence');
 
 let db = null;
 let enabled = false;
@@ -94,12 +107,34 @@ async function upsertDevice(imei, patch = {}) {
     updatedAt: nowTs(),
   };
 
+  if (Object.prototype.hasOwnProperty.call(rest, 'online')) {
+    if (rest.online === true) {
+      data.disconnectedAt = admin.firestore.FieldValue.delete();
+      if (!Object.prototype.hasOwnProperty.call(rest, 'connectionState')) {
+        data.connectionState = 'live';
+      }
+    } else if (rest.online === false) {
+      const linking = rest.connectionState === 'connecting';
+      if (rest.disconnectedAt === undefined && !linking) {
+        data.disconnectedAt = nowTs();
+      }
+      if (!Object.prototype.hasOwnProperty.call(rest, 'connectionState')) {
+        data.connectionState = 'offline';
+      }
+    }
+  }
+
+  if (rest.connectionState === 'live') {
+    data.connectingAt = admin.firestore.FieldValue.delete();
+  }
+
   if (protocolId && isProtocolId(protocolId) && isFullImei(canonicalImei)) {
     data.protocolId = protocolId;
   }
 
   if (!enabled) {
     console.log(`[firestore:dry-run] devices/${canonicalImei}`, JSON.stringify(data));
+    incrementMetric('firestoreWrites');
     if (protocolId && protocolId !== canonicalImei) {
       console.log(`[firestore:dry-run] would migrate devices/${protocolId} → devices/${canonicalImei}`);
     }
@@ -112,6 +147,7 @@ async function upsertDevice(imei, patch = {}) {
 
   const ref = db.collection('devices').doc(canonicalImei);
   await ref.set(data, { merge: true });
+  incrementMetric('firestoreWrites');
 }
 
 async function appendLocation(imei, point) {
@@ -130,10 +166,41 @@ async function appendLocation(imei, point) {
   await db.collection('devices').doc(imei).collection('locations').add(data);
 }
 
+async function appendSegment(imei, segment) {
+  const data = {
+    ...segment,
+    createdAt: nowTs(),
+  };
+
+  if (!enabled) {
+    console.log(`[firestore:dry-run] devices/${imei}/segments`, JSON.stringify(data));
+    return;
+  }
+
+  await db.collection('devices').doc(imei).collection('segments').add(data);
+}
+
+async function appendJourney(imei, journey) {
+  const data = {
+    ...journey,
+    createdAt: nowTs(),
+  };
+
+  if (!enabled) {
+    console.log(`[firestore:dry-run] devices/${imei}/journeys`, JSON.stringify(data));
+    return null;
+  }
+
+  const ref = await db.collection('devices').doc(imei).collection('journeys').add(data);
+  return ref.id;
+}
+
 // Push notifications go to the guardian's own app for anything alert-worthy.
 function shouldNotify(alert) {
   const t = String(alert.type || '').toLowerCase();
-  return ['sos', 'fall', 'geofence_exit', 'geofence_enter', 'low_battery'].includes(t);
+  return ['sos', 'fall', 'geofence_exit', 'geofence_enter', 'low_battery', 'offline'].includes(
+    t
+  );
 }
 
 // SMS/WhatsApp to emergency contacts stays reserved for the urgent subset.
@@ -209,10 +276,14 @@ async function createAlert(imei, alert) {
 
   if (!enabled) {
     console.log(`[firestore:dry-run] alerts`, JSON.stringify(data));
+    incrementAlert(alert.type || 'unknown');
+    incrementMetric('firestoreWrites');
     await deliverAlertNotifications(imei, data, null);
     return null;
   }
 
+  incrementAlert(alert.type || 'unknown');
+  incrementMetric('firestoreWrites');
   const ref = await db.collection('alerts').add(data);
   // Deliver immediately for gateway-originated alerts (watcher also covers app SOS).
   await deliverAlertNotifications(imei, data, ref.id);
@@ -301,10 +372,202 @@ function startPendingCommandWatcher() {
   console.log('[commands] watching deviceCommands with status=pending');
 }
 
+function intelligenceConfig() {
+  return {
+    offlineMinutes: config.intelligenceOfflineMinutes,
+    offlineAlertCooldownMinutes: config.intelligenceOfflineAlertCooldownMinutes,
+  };
+}
+
+async function loadActiveGeofences(db, imei) {
+  const snap = await db
+    .collection('geofences')
+    .where('imei', '==', imei)
+    .where('active', '==', true)
+    .get();
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+async function hasOpenOfflineAlert(db, imei) {
+  const snap = await db
+    .collection('alerts')
+    .where('imei', '==', imei)
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .get();
+  return snap.docs.some((doc) => {
+    const data = doc.data() || {};
+    return data.type === 'offline' && data.resolved !== true;
+  });
+}
+
+async function refreshDeviceIntelligence(imei, deviceOverride = null) {
+  const canonicalImei = normalizeImei(imei);
+  const db = getDb();
+  const cfg = intelligenceConfig();
+
+  let device = deviceOverride;
+  if (!device && db) {
+    const snap = await db.collection('devices').doc(canonicalImei).get();
+    device = snap.exists ? { imei: canonicalImei, ...snap.data() } : null;
+  }
+  if (!device) return [];
+
+  const geofences = db ? await loadActiveGeofences(db, canonicalImei) : [];
+  const insights = evaluateDeviceIntelligence({
+    imei: canonicalImei,
+    device,
+    geofences,
+    config: cfg,
+  });
+
+  const payload = {
+    updatedAt: nowTs(),
+    insights,
+    topInsight: insights[0] || null,
+  };
+
+  if (!enabled) {
+    console.log(
+      `[firestore:dry-run] devices/${canonicalImei}.intelligence`,
+      JSON.stringify(payload)
+    );
+  } else {
+    await db.collection('devices').doc(canonicalImei).set({ intelligence: payload }, { merge: true });
+  }
+
+  const offlineInsight = insights.find(
+    (item) => item.id === 'offline' && item.confidence >= item.suppressBelow
+  );
+  if (offlineInsight) {
+    const staleMinutes =
+      offlineInsight.facts.find((f) => f.field === 'minutesSinceHeartbeat')?.value ??
+      config.intelligenceOfflineMinutes;
+    const loc = buildLocationContext(device);
+    const alertCopy = buildOfflineAlertCopy(device, staleMinutes, loc);
+
+    if (device.online !== false) {
+      await upsertDevice(canonicalImei, { online: false, connectionState: 'offline' });
+    }
+
+    const canCreate =
+      shouldCreateOfflineAlert(canonicalImei, cfg) &&
+      db &&
+      !(await hasOpenOfflineAlert(db, canonicalImei));
+
+    if (canCreate) {
+      await createAlert(canonicalImei, {
+        type: 'offline',
+        severity: offlineInsight.level === 'urgent' ? 'critical' : 'warning',
+        title: alertCopy.title,
+        message: alertCopy.message,
+        payload: {
+          source: 'intelligence',
+          facts: offlineInsight.facts,
+          confidence: offlineInsight.confidence,
+        },
+      });
+    }
+  }
+
+  return insights;
+}
+
+async function reconcileStaleOnlineFlags() {
+  const db = getDb();
+  if (!db || !enabled) return 0;
+
+  const activeImeis = listConnectedImeis();
+  const silentImeis = listSilentConnectedImeis(config.tcpSilentSeconds * 1000);
+  const staleMinutes = connectionStaleMinutes(config);
+  const snap = await db.collection('devices').where('online', '==', true).get();
+  let cleared = 0;
+
+  for (const silentImei of silentImeis) {
+    for (const { socket } of findSocketsForDevice(silentImei)) {
+      console.log(`[intelligence] closing silent TCP for ${silentImei} (no packets)`);
+      try {
+        socket.destroy();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }
+
+  for (const doc of snap.docs) {
+    if (hasPendingOffline(doc.id)) continue;
+
+    const device = doc.data();
+    // Any open TCP counts as connected. Silent sockets are closed above; do not
+    // also force offline here while the socket is still registered.
+    if (activeImeis.has(doc.id)) continue;
+
+    if (
+      !shouldReconcileStaleOnline(device, {
+        staleMinutes,
+      })
+    ) {
+      continue;
+    }
+
+    await upsertDevice(doc.id, { online: false, connectionState: 'offline' });
+    cleared += 1;
+  }
+
+  if (cleared > 0) {
+    console.log(`[intelligence] cleared stale online flag on ${cleared} device(s)`);
+  }
+  return cleared;
+}
+
+async function checkOfflineDevices() {
+  const db = getDb();
+  if (!db) return;
+
+  await reconcileStaleOnlineFlags();
+
+  const snap = await db.collection('devices').where('online', '==', true).get();
+  for (const doc of snap.docs) {
+    try {
+      await refreshDeviceIntelligence(doc.id, { imei: doc.id, ...doc.data() });
+    } catch (err) {
+      console.error('[intelligence] refresh failed', doc.id, err.message);
+    }
+  }
+}
+
+function startIntelligenceMonitor() {
+  if (config.firestoreDisabled) return;
+  const intervalMs = config.intelligenceCheckIntervalMs;
+  reconcileStaleOnlineFlags().catch((err) => {
+    console.error('[intelligence] startup reconcile failed', err.message);
+  });
+  setInterval(() => {
+    checkOfflineDevices().catch((err) => {
+      console.error('[intelligence] periodic check failed', err.message);
+    });
+  }, intervalMs);
+  console.log(`[intelligence] monitoring offline devices every ${intervalMs / 1000}s`);
+}
+
+async function getDeviceDocument(imei) {
+  const db = getDb();
+  if (!db || !enabled) return null;
+  const canonicalImei = normalizeImei(imei);
+  const snap = await db.collection('devices').doc(canonicalImei).get();
+  return snap.exists ? snap.data() : null;
+}
+
 module.exports = {
   initFirestore,
   getDb,
+  getDeviceDocument,
   upsertDevice,
   appendLocation,
+  appendSegment,
+  appendJourney,
   createAlert,
+  refreshDeviceIntelligence,
+  reconcileStaleOnlineFlags,
+  startIntelligenceMonitor,
 };
