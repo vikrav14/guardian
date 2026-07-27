@@ -17,6 +17,7 @@ import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/dodo_stage.dart';
+import '../widgets/dashboard/family_device_strip.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -539,6 +540,15 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                             insight: insight,
                             linkingTick: _linkingTick,
                           ),
+                          if (_devices.length > 1) ...[
+                            const SizedBox(height: 18),
+                            FamilyDeviceStrip(
+                              devices: _devices,
+                              selectedImei: _selectedImei,
+                              onSelect: (imei) =>
+                                  setState(() => _dashboard.select(imei)),
+                            ),
+                          ],
                           const SizedBox(height: 18),
                           LayoutBuilder(
                             builder: (context, constraints) {
