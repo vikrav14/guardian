@@ -54,7 +54,7 @@ async function flushMetricsToFirestore() {
 
   const snapshot = getSnapshot();
   const todayRef = db.collection('ops').doc('metrics').collection('daily').doc(snapshot.date);
-  const todayLiveRef = db.collection('ops').doc('metrics').doc('today');
+  const todayLiveRef = db.collection('ops').doc('metrics');
 
   const payload = {
     ...snapshot.counters,
