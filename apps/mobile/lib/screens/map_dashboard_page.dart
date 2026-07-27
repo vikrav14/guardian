@@ -1510,19 +1510,21 @@ class _LiveStatusBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: colors.border),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < story.length; i++)
-                _LiveMetric(
-                  metric: DashboardFlagMetric.values[i],
-                  icon: story[i].icon,
-                  label: story[i].label,
-                  active: story[i].state == LinkingStoryMetricState.complete,
-                  colorsOverride: linkingStoryMetricColors(story[i].state),
-                  showPulse: story[i].state == LinkingStoryMetricState.active,
-                ),
-            ],
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < story.length; i++)
+                  _LiveMetric(
+                    metric: DashboardFlagMetric.values[i],
+                    icon: story[i].icon,
+                    label: story[i].label,
+                    active: story[i].state == LinkingStoryMetricState.complete,
+                    colorsOverride: linkingStoryMetricColors(story[i].state),
+                    showPulse: story[i].state == LinkingStoryMetricState.active,
+                  ),
+              ],
+            ),
           ),
         ),
       );
@@ -1548,40 +1550,42 @@ class _LiveStatusBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: colors.border),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _LiveMetric(
-              metric: DashboardFlagMetric.connectivity,
-              icon: Icons.sensors_rounded,
-              label: selected == null
-                  ? 'Offline'
-                  : deviceConnectivityLabel(selected),
-              active: connected,
-              colorsOverride: connectivityColors,
-            ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.gps,
-              icon: Icons.gps_fixed_rounded,
-              label: approximate
-                  ? 'Approximate'
-                  : (gps ? 'GPS active' : 'GPS waiting'),
-              active: gps,
-            ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.battery,
-              icon: Icons.battery_5_bar_rounded,
-              label: battery == null ? 'Battery —' : '$battery%',
-              active: batteryHealthy,
-            ),
-            _LiveMetric(
-              metric: DashboardFlagMetric.signal,
-              icon: Icons.signal_cellular_alt_rounded,
-              label: selected == null ? 'No signal' : deviceSignalLabel(selected),
-              active: connected,
-              colorsOverride: signalColors,
-            ),
-          ],
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _LiveMetric(
+                metric: DashboardFlagMetric.connectivity,
+                icon: Icons.sensors_rounded,
+                label: selected == null
+                    ? 'Offline'
+                    : deviceConnectivityLabel(selected),
+                active: connected,
+                colorsOverride: connectivityColors,
+              ),
+              _LiveMetric(
+                metric: DashboardFlagMetric.gps,
+                icon: Icons.gps_fixed_rounded,
+                label: approximate
+                    ? 'Approximate'
+                    : (gps ? 'GPS active' : 'GPS waiting'),
+                active: gps,
+              ),
+              _LiveMetric(
+                metric: DashboardFlagMetric.battery,
+                icon: Icons.battery_5_bar_rounded,
+                label: battery == null ? 'Battery —' : '$battery%',
+                active: batteryHealthy,
+              ),
+              _LiveMetric(
+                metric: DashboardFlagMetric.signal,
+                icon: Icons.signal_cellular_alt_rounded,
+                label: selected == null ? 'No signal' : deviceSignalLabel(selected),
+                active: connected,
+                colorsOverride: signalColors,
+              ),
+            ],
+          ),
         ),
       ),
     );
