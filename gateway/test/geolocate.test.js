@@ -63,7 +63,18 @@ test('geolocateFromV skips when API key missing', async (t) => {
   const { geolocateFromV, clearGeolocationCache } = require('../src/geolocate/google');
   clearGeolocationCache();
 
+  // dotenv (loaded by ../src/config) fills in any env var absent from
+  // process.env, so deleting GOOGLE_GEOLOCATION_API_KEY above doesn't
+  // actually simulate "missing" in a dev environment that has a real
+  // .env on disk -- it just gets reloaded on the require above. Clear it
+  // on the resolved config object itself so this test holds regardless
+  // of what's in .env.
+  const config = require('../src/config');
+  const realApiKey = config.googleGeolocationApiKey;
+  config.googleGeolocationApiKey = '';
+
   t.after(() => {
+    config.googleGeolocationApiKey = realApiKey;
     delete require.cache[require.resolve('../src/config')];
     delete require.cache[require.resolve('../src/geolocate/google')];
   });

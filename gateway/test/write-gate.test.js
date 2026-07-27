@@ -8,6 +8,8 @@ const {
   heartbeatCapDue,
   batteryChanged,
   onDeviceConnect,
+  seedLastKnownLocation,
+  isImplausibleJump,
 } = require('../src/live-cache');
 
 function baseLocation(lat = -20.2642, lng = 57.4791) {
@@ -126,4 +128,62 @@ test('heartbeatCapDue false before interval', () => {
   const now = new Date('2026-07-22T12:04:00Z');
   const state = { lastHeartbeatPersistAt: new Date('2026-07-22T12:00:00Z') };
   assert.equal(heartbeatCapDue(state, now), false);
+});
+
+test('isImplausibleJump flags a hemisphere-sign flip but not island-scale travel', () => {
+  const mauritius = { lat: -20.03, lng: 57.59 };
+  const mirroredHemisphere = { lat: 20.03, lng: 57.59 }; // sign-flip bug, ~4440km away
+  const acrossTheIsland = { lat: -20.35, lng: 57.35 }; // ~40km, still Mauritius
+
+  assert.equal(isImplausibleJump(mauritius, mirroredHemisphere), true);
+  assert.equal(isImplausibleJump(mauritius, acrossTheIsland), false);
+  assert.equal(isImplausibleJump(null, mirroredHemisphere), false);
+});
+
+test('shouldPersist holds back a fix that jumps implausibly far from the seeded position', () => {
+  const imei = 'WG8';
+  onDeviceConnect(imei);
+  seedLastKnownLocation(imei, { lat: -20.03, lng: 57.59 });
+
+  const gate = shouldPersist(imei, {
+    eventType: 'location',
+    location: baseLocation(20.03, 57.59), // sign-flip bug
+  });
+
+  assert.equal(gate.persist, false);
+  assert.equal(gate.reason, 'jump_suspect');
+});
+
+test('shouldPersist trusts an implausible jump once a second fix corroborates it', () => {
+  const imei = 'WG9';
+  onDeviceConnect(imei);
+  seedLastKnownLocation(imei, { lat: -20.03, lng: 57.59 });
+
+  const first = shouldPersist(imei, {
+    eventType: 'location',
+    location: baseLocation(20.03, 57.59),
+  });
+  assert.equal(first.persist, false);
+  assert.equal(first.reason, 'jump_suspect');
+
+  const second = shouldPersist(imei, {
+    eventType: 'location',
+    location: baseLocation(20.0301, 57.5901), // agrees with the suspect fix, not the old one
+  });
+  assert.equal(second.persist, true);
+  assert.equal(second.reason, 'jump_corroborated');
+});
+
+test('shouldPersist does not flag a legitimate first fix seeded from a nearby position', () => {
+  const imei = 'WG10';
+  onDeviceConnect(imei);
+  seedLastKnownLocation(imei, { lat: -20.03, lng: 57.59 });
+
+  const gate = shouldPersist(imei, {
+    eventType: 'location',
+    location: baseLocation(-20.031, 57.591),
+  });
+
+  assert.equal(gate.persist, true);
+  assert.equal(gate.reason, 'first_fix');
 });

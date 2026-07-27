@@ -28,6 +28,23 @@ const ALARM_PERSIST_TYPES = new Set([
   'geofence_exit',
 ]);
 
+/**
+ * A single fix landing further than this from the last known-good position
+ * is treated as suspect rather than trusted outright (e.g. a hemisphere-sign
+ * glitch on a raw GPS/LBS fix puts a Mauritius pendant near Oman -- a real
+ * jump this large happens too, but never within one report interval). It
+ * only holds the display back one cycle: a second fix that agrees with the
+ * suspect one (not the old position) is trusted immediately.
+ */
+const JUMP_SANITY_METERS = 250_000;
+
+function isImplausibleJump(fromLocation, toLocation, thresholdMeters = JUMP_SANITY_METERS) {
+  if (!fromLocation || !toLocation) return false;
+  if (typeof toLocation.lat !== 'number' || typeof toLocation.lng !== 'number') return false;
+  return haversineMeters(fromLocation.lat, fromLocation.lng, toLocation.lat, toLocation.lng)
+    >= thresholdMeters;
+}
+
 let skippedCount = 0;
 let persistedCount = 0;
 
@@ -38,6 +55,7 @@ function emptyState() {
     lastPersistedAt: null,
     lastHeartbeatPersistAt: null,
     pendingFirstFix: true,
+    pendingSuspectLocation: null,
     liveLocation: null,
     liveBattery: null,
     liveSpeedKmh: null,
@@ -57,6 +75,17 @@ function getState(imei) {
 function onDeviceConnect(imei) {
   const state = getState(imei);
   state.pendingFirstFix = true;
+}
+
+/**
+ * Seed the reconnect-time reference position from Firestore (the in-memory
+ * cache is wiped on every disconnect, so without this the jump-sanity check
+ * has nothing to compare a fresh session's first fix against).
+ */
+function seedLastKnownLocation(imei, location) {
+  if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
+  const state = getState(imei);
+  state.lastPersistedLocation = { lat: location.lat, lng: location.lng };
 }
 
 function onDeviceDisconnect(imei) {
@@ -135,6 +164,18 @@ function shouldPersist(imei, context) {
   }
 
   if (eventType === 'location' && location) {
+    if (isImplausibleJump(state.lastPersistedLocation, location)) {
+      if (state.pendingSuspectLocation && !isImplausibleJump(state.pendingSuspectLocation, location)) {
+        // A second fix agreeing with the suspect one, not the old position --
+        // this is a real relocation, not a glitched single sample.
+        state.pendingSuspectLocation = null;
+        return { persist: true, reason: 'jump_corroborated', appendHistory: true };
+      }
+      state.pendingSuspectLocation = { lat: location.lat, lng: location.lng };
+      return { persist: false, reason: 'jump_suspect', appendHistory: false };
+    }
+    state.pendingSuspectLocation = null;
+
     if (state.pendingFirstFix) {
       return { persist: true, reason: 'first_fix', appendHistory: true };
     }
@@ -234,6 +275,7 @@ function resetCacheForTests() {
 module.exports = {
   onDeviceConnect,
   onDeviceDisconnect,
+  seedLastKnownLocation,
   updateLiveState,
   getLiveDeviceState,
   shouldPersist,
@@ -250,4 +292,6 @@ module.exports = {
   movedEnough,
   heartbeatCapDue,
   batteryChanged,
+  isImplausibleJump,
+  JUMP_SANITY_METERS,
 };

@@ -65,6 +65,8 @@ const {
 
   onDeviceDisconnect,
 
+  seedLastKnownLocation,
+
   updateLiveState,
 
   getLiveDeviceState,
@@ -86,6 +88,8 @@ const {
   getWriteGateStats,
 
   resetWriteGateStats,
+
+  JUMP_SANITY_METERS,
 
 } = require('./live-cache');
 
@@ -272,7 +276,9 @@ async function applyEvents(events, session) {
           devicePatch,
           upsertDevice,
           onDeviceConnect,
-          cancelPendingOffline
+          cancelPendingOffline,
+          getDeviceDocument,
+          seedLastKnownLocation
         );
       }
 
@@ -411,6 +417,15 @@ async function applyEvents(events, session) {
 
         if (gate.persist || shouldForceSessionPersist(session)) {
 
+          const locationIsSuspect = gate.reason === 'jump_suspect';
+
+          if (locationIsSuspect) {
+            console.warn(
+              `[write-gate] ${locEvent.imei} suspect fix ${locEvent.location.lat},${locEvent.location.lng} `
+              + `(>${JUMP_SANITY_METERS / 1000}km from last known) held back pending a corroborating fix`
+            );
+          }
+
           await persistDeviceState(
 
             locEvent.imei,
@@ -423,13 +438,17 @@ async function applyEvents(events, session) {
 
               lastHeartbeatAt: new Date(),
 
-              location: locEvent.location,
+              ...(locationIsSuspect ? {} : {
 
-              speedKmh: locEvent.speedKmh,
+                location: locEvent.location,
 
-              course: locEvent.course,
+                speedKmh: locEvent.speedKmh,
 
-              accuracySource: locEvent.accuracySource,
+                course: locEvent.course,
+
+                accuracySource: locEvent.accuracySource,
+
+              }),
 
               ...(locEvent.batteryPercent != null
 

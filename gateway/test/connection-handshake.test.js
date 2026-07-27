@@ -41,6 +41,55 @@ test('maybeAnnounceConnecting writes connecting once per TCP session', async () 
   assert.ok(writes[0].patch.connectingAt instanceof Date);
 });
 
+test('maybeAnnounceConnecting seeds the last-known location from Firestore', async () => {
+  const session = {};
+  const upsertDevice = async () => {};
+  const getDeviceDocument = async () => ({ location: { lat: -20.03, lng: 57.59 } });
+  const seeded = [];
+  const seedLastKnownLocation = (imei, location) => seeded.push({ imei, location });
+
+  await maybeAnnounceConnecting(
+    session,
+    '861397053141170',
+    {},
+    upsertDevice,
+    () => {},
+    () => {},
+    getDeviceDocument,
+    seedLastKnownLocation
+  );
+
+  assert.equal(seeded.length, 1);
+  assert.equal(seeded[0].imei, '861397053141170');
+  assert.deepEqual(seeded[0].location, { lat: -20.03, lng: 57.59 });
+});
+
+test('maybeAnnounceConnecting tolerates a Firestore lookup failure when seeding', async () => {
+  const session = {};
+  const upsertDevice = async () => {};
+  const getDeviceDocument = async () => {
+    throw new Error('firestore unavailable');
+  };
+  let seeded = 0;
+  const seedLastKnownLocation = () => {
+    seeded += 1;
+  };
+
+  const result = await maybeAnnounceConnecting(
+    session,
+    '861397053141170',
+    {},
+    upsertDevice,
+    () => {},
+    () => {},
+    getDeviceDocument,
+    seedLastKnownLocation
+  );
+
+  assert.equal(result, true);
+  assert.equal(seeded, 0);
+});
+
 test('maybeAnnounceConnecting skips when session or imei missing', async () => {
   let writes = 0;
   const upsertDevice = async () => {
