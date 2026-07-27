@@ -6,8 +6,8 @@ enum DodoStageMode { active, offline, linking }
 const dodoLinkingStepMinimumHold = Duration(seconds: 5);
 const dodoDesktopHeroMinimumWidth = 850.0;
 const dodoWideSceneMinimumWidth = 680.0;
-const dodoDesktopHeroHeight = 300.0;
-const dodoCompactStageHeight = 220.0;
+const dodoDesktopHeroHeight = 170.0;
+const dodoCompactStageHeight = 120.0;
 const dodoDesktopStageFlex = 48;
 const dodoDesktopStatusFlex = 52;
 
