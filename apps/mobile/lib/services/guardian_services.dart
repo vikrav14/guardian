@@ -181,6 +181,27 @@ class DeviceService {
     await commands.setFallSensitivity(imei, sensitivityLevel);
   }
 
+  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// a live connection to the gateway (see
+  /// DeviceCommandService.setUploadInterval). Without this, the pendant's
+  /// default reporting interval is long and irregular -- the map can show a
+  /// last-known fix that's 20-30+ minutes old even while the pendant is
+  /// online and checking in every ~5 minutes. Caches the requested interval
+  /// on the device doc since there's no read-back command; the cache
+  /// reflects what was last *asked for*, not confirmed device state.
+  Future<void> updateLocationReportingInterval(
+    String imei, {
+    required int seconds,
+  }) async {
+    await _db.collection('devices').doc(imei).update({
+      'locationReportingIntervalSeconds': seconds,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final commands = DeviceCommandService(db: _db, auth: _auth);
+    await commands.setUploadInterval(imei, seconds);
+  }
+
   /// Links a pendant IMEI to the signed-in guardian's account.
   ///
   /// Uses the 15-digit label/SMS IMEI (10-digit protocol ids are normalized).
@@ -995,5 +1016,13 @@ class DeviceCommandService {
       if (frequency == 3) 'week': week,
       'enabled': enabled,
     });
+  }
+
+  /// V46/V48/V52 only. Sets the pendant's standing location-reporting
+  /// interval so it keeps sending fresh fixes on its own, instead of
+  /// falling back to its long, irregular default between fixes. [seconds]
+  /// is a UX guardrail (10-3600), not a vendor-documented limit.
+  Future<void> setUploadInterval(String imei, int seconds) {
+    return _enqueue(imei, 'set_upload_interval', {'seconds': seconds});
   }
 }

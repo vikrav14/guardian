@@ -139,6 +139,7 @@ class Device {
     this.fallDetectionEnabled,
     this.fallDetectionDialMonitor,
     this.fallDetectionSensitivity,
+    this.locationReportingIntervalSeconds,
   });
 
   final String imei;
@@ -169,6 +170,11 @@ class Device {
   final bool? fallDetectionEnabled;
   final bool? fallDetectionDialMonitor;
   final int? fallDetectionSensitivity;
+
+  /// Last upload interval the app asked the pendant for, in seconds --
+  /// V46/V48/V52 only. Same "request cache, not confirmed state" caveat as
+  /// the fall detection fields above; there's no read-back command.
+  final int? locationReportingIntervalSeconds;
 
   String? get _legacyPersonName {
     final value = name?.trim();
@@ -311,6 +317,8 @@ class Device {
       fallDetectionSensitivity:
           ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
               ?.toInt(),
+      locationReportingIntervalSeconds:
+          (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
     );
   }
 }

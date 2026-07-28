@@ -121,12 +121,28 @@ function medicationReminderCommand({ time, frequency, week, text, enabled = true
   return `TAKEPILLS,${timeSegment},${freq},${textToHexUtf16(text)}`;
 }
 
+/**
+ * Standing location-reporting interval. TCP downlink only (protocol doc
+ * section II.1: `[CS*IMEI*LEN*UPLOAD,time interval]`, unit seconds). The
+ * vendor doc gives no min/max -- the 10s floor and 3600s ceiling here are
+ * our own UX guardrail against battery-draining or effectively-disabled
+ * settings, not a protocol requirement.
+ */
+function uploadIntervalCommand(seconds) {
+  const n = Number(seconds);
+  if (!Number.isInteger(n) || n < 10 || n > 3600) {
+    throw new Error('Upload interval must be an integer between 10 and 3600 seconds');
+  }
+  return `UPLOAD,${n}`;
+}
+
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
+  'set_upload_interval',
 ]);
 
 const BUILDERS = {
@@ -138,6 +154,7 @@ const BUILDERS = {
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
   set_medication_reminder: (params) => medicationReminderCommand(params),
+  set_upload_interval: ({ seconds }) => uploadIntervalCommand(seconds),
 };
 
 /**
@@ -185,5 +202,6 @@ module.exports = {
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
+  uploadIntervalCommand,
   textToHexUtf16,
 };

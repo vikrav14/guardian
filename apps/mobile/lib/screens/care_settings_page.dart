@@ -26,12 +26,21 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   late double _sensitivity;
   bool _savingFall = false;
 
+  late int _uploadIntervalSeconds;
+  bool _savingInterval = false;
+
+  static const _uploadIntervalPresets = [30, 60, 120, 300];
+
   @override
   void initState() {
     super.initState();
     _fallEnabled = widget.device.fallDetectionEnabled ?? false;
     _dialMonitor = widget.device.fallDetectionDialMonitor ?? false;
     _sensitivity = (widget.device.fallDetectionSensitivity ?? 3).toDouble();
+    final savedInterval = widget.device.locationReportingIntervalSeconds;
+    _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
+        ? savedInterval!
+        : 60;
   }
 
   Future<void> _saveFallDetection() async {
@@ -54,6 +63,27 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       );
     } finally {
       if (mounted) setState(() => _savingFall = false);
+    }
+  }
+
+  Future<void> _saveUploadInterval() async {
+    setState(() => _savingInterval = true);
+    try {
+      await DeviceService().updateLocationReportingInterval(
+        widget.device.imei,
+        seconds: _uploadIntervalSeconds,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location update frequency sent to pendant')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not reach pendant: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingInterval = false);
     }
   }
 
@@ -107,6 +137,8 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildFallDetectionCard(colors),
+                const SizedBox(height: GuardianSpacing.lg),
+                _buildLocationUpdatesCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildMedicationCard(colors),
               ],
@@ -184,6 +216,72 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             child: FilledButton(
               onPressed: _savingFall ? null : _saveFallDetection,
               child: _savingFall
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationUpdatesCard(GuardianThemeColors colors) {
+    String label(int seconds) => seconds < 60 ? '${seconds}s' : '${seconds ~/ 60}m';
+
+    return GuardianCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: GuardianColors.accentBg,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.location_on_outlined, color: GuardianColors.accent, size: 17),
+              ),
+              const SizedBox(width: GuardianSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Location updates', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text('How often the pendant reports its position', style: TextStyle(color: colors.textMuted, fontSize: 11.5)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          SegmentedButton<int>(
+            segments: [
+              for (final seconds in _uploadIntervalPresets)
+                ButtonSegment(value: seconds, label: Text(label(seconds))),
+            ],
+            selected: {_uploadIntervalSeconds},
+            onSelectionChanged: (s) =>
+                setState(() => _uploadIntervalSeconds = s.first),
+          ),
+          const SizedBox(height: GuardianSpacing.sm),
+          Text(
+            'More frequent updates give a fresher map but use more pendant '
+            'battery. Without this set, the pendant\'s default interval is '
+            'long and irregular.',
+            style: TextStyle(color: colors.textMuted, fontSize: 11),
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: _savingInterval ? null : _saveUploadInterval,
+              child: _savingInterval
                   ? const SizedBox(
                       width: 16,
                       height: 16,

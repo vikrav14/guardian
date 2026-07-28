@@ -10,6 +10,7 @@ const {
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
+  uploadIntervalCommand,
   textToHexUtf16,
 } = require('../src/commands');
 
@@ -125,6 +126,26 @@ test('sendDeviceCommand routes TCP-only types over downlink and fails clearly wi
   const db = {};
   await assert.rejects(
     () => sendDeviceCommand(db, '861397053141170', 'set_fall_detection', { enabled: true }),
+    /no active connection right now/
+  );
+});
+
+test('uploadIntervalCommand matches the vendor doc syntax', () => {
+  assert.equal(uploadIntervalCommand(10), 'UPLOAD,10');
+  assert.equal(uploadIntervalCommand(60), 'UPLOAD,60');
+  assert.equal(uploadIntervalCommand(3600), 'UPLOAD,3600');
+});
+
+test('uploadIntervalCommand rejects out-of-range or non-integer intervals', () => {
+  assert.throws(() => uploadIntervalCommand(5), /10 and 3600/);
+  assert.throws(() => uploadIntervalCommand(3601), /10 and 3600/);
+  assert.throws(() => uploadIntervalCommand(30.5), /10 and 3600/);
+});
+
+test('sendDeviceCommand routes set_upload_interval over downlink and fails clearly with no live session', async () => {
+  const db = {};
+  await assert.rejects(
+    () => sendDeviceCommand(db, '861397053141170', 'set_upload_interval', { seconds: 60 }),
     /no active connection right now/
   );
 });

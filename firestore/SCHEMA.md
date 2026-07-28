@@ -62,6 +62,7 @@ Live device state. Document ID = device IMEI (digits only).
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
 | fallDetection | map \| null | App-cached request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. V46/V48/V52 only. |
+| locationReportingIntervalSeconds | number \| null | App-cached request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. V46/V48/V52 only. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
@@ -158,8 +159,8 @@ App-originated downlink commands the gateway delivers to the pendant, either by 
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` (SMS; last two unverified against V28C specifically) \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` (TCP downlink, V46/V48/V52 only -- requires a live session) |
-| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }` |
+| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` (SMS; last two unverified against V28C specifically) \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval` (TCP downlink, V46/V48/V52 only -- requires a live session) |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |

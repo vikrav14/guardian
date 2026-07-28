@@ -47,9 +47,10 @@ service cloud.firestore {
       allow read: if linkedTo(imei);
       // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer,
       // set the wearable's SIM number (used for calls / SMS commands), and
-      // cache the last fall-detection preference they asked the pendant for
-      // (V46/V48/V52 only -- the device has no read-back command, so this
-      // is a request cache, not confirmed device state; see commands.js).
+      // cache the last fall-detection / location-reporting-interval
+      // preference they asked the pendant for (V46/V48/V52 only -- the
+      // device has no read-back command, so this is a request cache, not
+      // confirmed device state; see commands.js).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
@@ -59,6 +60,7 @@ service cloud.firestore {
               'avatarUrl',
               'simNumber',
               'fallDetection',
+              'locationReportingIntervalSeconds',
               'updatedAt'
             ]);
       allow create, delete: if false;
