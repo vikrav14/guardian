@@ -784,11 +784,18 @@ class _PrototypeCareCard extends StatelessWidget {
     required this.device,
     required this.insight,
     required this.linkingTick,
+    this.linkingStep,
   });
 
   final Device? device;
   final DashboardInsight insight;
   final int linkingTick;
+
+  /// Non-null while the pendant is still linking up -- keeps this same
+  /// compact card in place and just cycles the Dodo stage through its
+  /// connection-process poses instead of swapping to a separate,
+  /// bigger "Linking up…" layout.
+  final int? linkingStep;
 
   @override
   Widget build(BuildContext context) {
@@ -814,10 +821,13 @@ class _PrototypeCareCard extends StatelessWidget {
           final comms = _DodoStagePlaceholder(
             device: device,
             insight: insight,
+            linking: linkingStep != null,
+            linkingStep: linkingStep,
           );
           final metrics = _LiveStatusBar(
             device: device,
             linkingTick: linkingTick,
+            linkingStep: linkingStep,
           );
 
           if (!wide) {
@@ -1961,278 +1971,35 @@ class _LinkingPrototypeState extends State<_LinkingPrototype> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final sourceMetrics =
-        linkingStoryMetrics(widget.device, tick: widget.tick);
-    final metrics = [
-      for (var i = 0; i < sourceMetrics.length; i++)
-        LinkingStoryMetric(
-          label: sourceMetrics[i].label,
-          icon: sourceMetrics[i].icon,
-          state: i < _visibleStep
-              ? LinkingStoryMetricState.complete
-              : i == _visibleStep
-                  ? LinkingStoryMetricState.active
-                  : LinkingStoryMetricState.pending,
-        ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            AvatarBubble(
-              initials: initialsFor(widget.device.displayName),
-              color: GuardianColors.safe,
-              size: 70,
-              imageUrl: widget.device.avatarUrl,
-            ),
-            const SizedBox(width: 17),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${widget.device.displayName.toUpperCase()}’S PENDANT',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Linking up…',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 34,
-                      height: 1,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    'This normally takes less than a minute.',
-                    style:
-                        TextStyle(color: colors.textSecondary, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _DodoStagePlaceholder(
-          device: widget.device,
-          insight: widget.insight,
-          linking: true,
-          linkingStep: _visibleStep,
-        ),
-        const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 800 ? 4 : 1;
-            if (columns == 1) {
-              return Column(
-                children: [
-                  for (var i = 0; i < metrics.length; i++) ...[
-                    _LinkingStepCard(
-                      index: i,
-                      metric: metrics[i],
-                      active: i == _visibleStep,
-                    ),
-                    if (i < metrics.length - 1)
-                      const SizedBox(height: 10),
-                  ],
-                ],
-              );
-            }
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < metrics.length; i++) ...[
-                    Expanded(
-                      child: _LinkingStepCard(
-                        index: i,
-                        metric: metrics[i],
-                        active: i == _visibleStep,
-                      ),
-                    ),
-                    if (i < metrics.length - 1)
-                      const SizedBox(width: 13),
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 18),
-        Align(
-          alignment: Alignment.center,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: GuardianColors.forest,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.shield_outlined, size: 20, color: Colors.white),
-                SizedBox(width: 11),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your connection is secure',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Guardian will switch to Live automatically.',
-                      style: TextStyle(
-                        color: Color(0xFFAEC1B8),
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LinkingStepCard extends StatelessWidget {
-  const _LinkingStepCard({
-    required this.index,
-    required this.metric,
-    required this.active,
-  });
-
-  final int index;
-  final LinkingStoryMetric metric;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final complete = metric.state == LinkingStoryMetricState.complete;
-    final foreground = complete
-        ? GuardianColors.safe
-        : active
-            ? GuardianColors.accent
-            : colors.textMuted;
-    final background = complete
-        ? GuardianColors.safeBg
-        : active
-            ? GuardianColors.accentBg
-            : colors.surfaceMuted;
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 132),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: complete
-            ? const Color(0xFFF1FBF5)
-            : colors.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(21),
-        border: Border.all(
-          color: active ? GuardianColors.accent : colors.border,
-        ),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: GuardianColors.accent.withValues(alpha: 0.12),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(metric.icon, color: foreground, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'STEP ${index + 1}',
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  metric.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  complete
-                      ? 'Complete'
-                      : active
-                          ? 'Working on this now…'
-                          : 'Waiting for the previous step',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 10,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            complete
-                ? '✓'
-                : active
-                    ? '•••'
-                    : '${index + 1}',
-            style: TextStyle(
-              color: foreground,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+    // Same compact card the live dashboard uses -- just with the Dodo
+    // stage cycling through connection-process poses (pendant awake,
+    // network, location, battery, then live) instead of a separate,
+    // bigger "Linking up…" layout with its own header and step cards.
+    return _PrototypeCareCard(
+      device: widget.device,
+      insight: widget.insight,
+      linkingTick: widget.tick,
+      linkingStep: _visibleStep,
     );
   }
 }
 
 class _LiveStatusBar extends StatelessWidget {
-  const _LiveStatusBar({required this.device, this.linkingTick = 0});
+  const _LiveStatusBar({
+    required this.device,
+    this.linkingTick = 0,
+    this.linkingStep,
+  });
 
   final Device? device;
   final int linkingTick;
+
+  /// The Dodo stage's current paced step (0-3). When set, each metric's
+  /// complete/active/pending visual state follows this same narrative
+  /// pace instead of the metric's own real-data readiness -- otherwise a
+  /// fast network/location/battery reading can turn every card green
+  /// while the Dodo is still only midway through telling the story.
+  final int? linkingStep;
 
   @override
   Widget build(BuildContext context) {
@@ -2244,16 +2011,35 @@ class _LiveStatusBar extends StatelessWidget {
 
     if (reconnecting && selected != null) {
       final story = linkingStoryMetrics(selected, tick: linkingTick);
+      // linkingStoryMetrics returns steps in this exact order (pendant,
+      // network, location, battery) -- matching titles, not the unrelated
+      // Pendant/Location/Battery/Network column order the live status bar
+      // uses once connected.
+      const stepTitles = ['Pendant', 'Network', 'Location', 'Battery'];
+      const stepMetrics = [
+        DashboardFlagMetric.connectivity,
+        DashboardFlagMetric.signal,
+        DashboardFlagMetric.gps,
+        DashboardFlagMetric.battery,
+      ];
+      final pacedStep = linkingStep;
+      LinkingStoryMetricState stateFor(int i) {
+        if (pacedStep == null) return story[i].state;
+        if (i < pacedStep) return LinkingStoryMetricState.complete;
+        if (i == pacedStep) return LinkingStoryMetricState.active;
+        return LinkingStoryMetricState.pending;
+      }
+
       final metricWidgets = [
         for (var i = 0; i < story.length; i++)
           _LiveMetric(
-            metric: DashboardFlagMetric.values[i],
+            metric: stepMetrics[i],
             icon: story[i].icon,
-            title: const ['Pendant', 'Location', 'Battery', 'Network'][i],
+            title: stepTitles[i],
             label: story[i].label,
-            active: story[i].state == LinkingStoryMetricState.complete,
-            colorsOverride: linkingStoryMetricColors(story[i].state),
-            showPulse: story[i].state == LinkingStoryMetricState.active,
+            active: stateFor(i) == LinkingStoryMetricState.complete,
+            colorsOverride: linkingStoryMetricColors(stateFor(i)),
+            showPulse: stateFor(i) == LinkingStoryMetricState.active,
           ),
       ];
       return AnimatedSwitcher(
