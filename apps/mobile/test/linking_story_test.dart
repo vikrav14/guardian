@@ -19,7 +19,7 @@ void main() {
     expect(metrics[1].label, anyOf('Securing link', 'Making contact'));
     expect(metrics[1].state, LinkingStoryMetricState.active);
     expect(metrics[2].label, 'Location waiting');
-    expect(metrics[3].label, 'Battery waiting');
+    expect(metrics[3].label, 'Guardian AI waiting');
   });
 
   test('linking story advances after session heartbeat', () {
@@ -46,7 +46,7 @@ void main() {
     expect(metrics[3].state, LinkingStoryMetricState.active);
   });
 
-  test('linking cards report approximate location and battery evidence', () {
+  test('linking cards report approximate location and Guardian AI readiness', () {
     final now = DateTime.now();
     final device = Device(
       imei: '1',
@@ -62,7 +62,7 @@ void main() {
     final metrics = linkingStoryMetrics(device, now: now);
     expect(metrics[2].label, 'Approx. location');
     expect(metrics[2].state, LinkingStoryMetricState.complete);
-    expect(metrics[3].label, '76% battery');
+    expect(metrics[3].label, 'Guardian AI ready');
     expect(metrics[3].state, LinkingStoryMetricState.complete);
   });
 

@@ -2012,10 +2012,10 @@ class _LiveStatusBar extends StatelessWidget {
     if (reconnecting && selected != null) {
       final story = linkingStoryMetrics(selected, tick: linkingTick);
       // linkingStoryMetrics returns steps in this exact order (pendant,
-      // network, location, battery) -- matching titles, not the unrelated
-      // Pendant/Location/Battery/Network column order the live status bar
-      // uses once connected.
-      const stepTitles = ['Pendant', 'Network', 'Location', 'Battery'];
+      // network, location, Guardian AI) -- matching titles, not the
+      // unrelated Pendant/Location/Battery/Network column order the live
+      // status bar uses once connected.
+      const stepTitles = ['Pendant', 'Network', 'Location', 'Guardian AI'];
       const stepMetrics = [
         DashboardFlagMetric.connectivity,
         DashboardFlagMetric.signal,

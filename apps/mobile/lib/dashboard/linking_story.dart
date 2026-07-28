@@ -53,7 +53,6 @@ List<LinkingStoryMetric> linkingStoryMetrics(
 }) {
   final step = linkingStoryStep(device, now: now);
   final name = device.displayName;
-  final battery = device.batteryPercent;
   final variant = tick % 2;
 
   final hasSession = deviceHasSessionHeartbeat(device);
@@ -72,7 +71,11 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       : hasSession
           ? LinkingStoryMetricState.active
           : LinkingStoryMetricState.pending;
-  final batteryState = battery != null
+  // Guardian AI / WhatsApp checks -- the last narrative beat, matching the
+  // Dodo stage's own "GUARDIAN AI" step. There's no separate readiness
+  // signal for this one beyond the pendant already having a location, so
+  // it completes alongside it.
+  final aiState = hasLocation
       ? LinkingStoryMetricState.complete
       : hasSession
           ? LinkingStoryMetricState.active
@@ -111,11 +114,13 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       state: locationState,
     ),
     LinkingStoryMetric(
-      label: battery == null
-          ? (hasSession ? 'Reading battery' : 'Battery waiting')
-          : '$battery% battery',
-      icon: Icons.battery_5_bar_rounded,
-      state: batteryState,
+      label: hasLocation
+          ? 'Guardian AI ready'
+          : hasSession
+              ? (variant == 0 ? 'Warming up Guardian AI' : 'Connecting WhatsApp')
+              : 'Guardian AI waiting',
+      icon: Icons.auto_awesome_rounded,
+      state: aiState,
     ),
   ];
 }
