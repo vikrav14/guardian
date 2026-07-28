@@ -188,6 +188,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           minLng = math.min(minLng, loc.lng);
           maxLng = math.max(maxLng, loc.lng);
         }
+        _mapCameraGeneration.value++;
         await _mapController!.animateCamera(
           CameraUpdate.newLatLngBounds(
             LatLngBounds(
@@ -197,6 +198,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             56,
           ),
         );
+        _mapCameraGeneration.value++;
       } catch (_) {}
     });
   }
@@ -245,8 +247,17 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final controller = _mapController;
     if (controller == null) return;
     final z = zoom ?? _zoom;
+    // google_maps_flutter_web doesn't reliably fire onCameraMove/onCameraIdle
+    // for a programmatic animateCamera the way it does for user gestures, so
+    // the avatar overlay's other markers were left stuck at their pre-move
+    // screen position for the whole animation -- looking like they'd
+    // vanished until the map's own idle callback eventually caught up.
+    // Bumping the generation directly around the animation keeps the
+    // overlay in sync without waiting on that callback.
+    _mapCameraGeneration.value++;
     await controller.animateCamera(CameraUpdate.newLatLngZoom(target, z));
     _zoom = z;
+    _mapCameraGeneration.value++;
   }
 
   Future<void> _changeMapZoom(double delta) async {
@@ -254,7 +265,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     if (controller == null) return;
     final next = (_zoom + delta).clamp(3.0, 20.0).toDouble();
     _zoom = next;
+    _mapCameraGeneration.value++;
     await controller.animateCamera(CameraUpdate.zoomTo(next));
+    _mapCameraGeneration.value++;
   }
 
   void _toggleMapType() {
@@ -300,6 +313,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             minLng = minLng < p.longitude ? minLng : p.longitude;
             maxLng = maxLng > p.longitude ? maxLng : p.longitude;
           }
+          _mapCameraGeneration.value++;
           await _mapController!.animateCamera(
             CameraUpdate.newLatLngBounds(
               LatLngBounds(
@@ -309,6 +323,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               48,
             ),
           );
+          _mapCameraGeneration.value++;
         }
         _didFit = true;
       } catch (_) {}
