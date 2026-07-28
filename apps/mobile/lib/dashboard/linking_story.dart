@@ -39,13 +39,11 @@ class LinkingStoryMetric {
     required this.label,
     required this.icon,
     required this.state,
-    this.imagePath,
   });
 
   final String label;
   final IconData icon;
   final LinkingStoryMetricState state;
-  final String? imagePath;
 }
 
 List<LinkingStoryMetric> linkingStoryMetrics(
@@ -123,7 +121,6 @@ List<LinkingStoryMetric> linkingStoryMetrics(
               : 'Guardian AI waiting',
       icon: Icons.auto_awesome_rounded,
       state: aiState,
-      imagePath: 'assets/images/dodo_ai_guardian.png',
     ),
   ];
 }

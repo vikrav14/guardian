@@ -1190,10 +1190,16 @@ class _DodoVisualStage extends StatelessWidget {
                   : const Duration(milliseconds: 450),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: GuardianDodoStageImage(
-                key: ValueKey(scene.action),
-                action: scene.action,
-              ),
+              child: linking && visibleLinkingStep == 3
+                  ? Image.asset(
+                      'assets/images/dodo_ai_guardian.png',
+                      key: const ValueKey('dodo-ai-guardian'),
+                      fit: BoxFit.contain,
+                    )
+                  : GuardianDodoStageImage(
+                      key: ValueKey(scene.action),
+                      action: scene.action,
+                    ),
             ),
           ),
         ),
@@ -2040,7 +2046,6 @@ class _LiveStatusBar extends StatelessWidget {
             active: stateFor(i) == LinkingStoryMetricState.complete,
             colorsOverride: linkingStoryMetricColors(stateFor(i)),
             showPulse: stateFor(i) == LinkingStoryMetricState.active,
-            imagePath: story[i].imagePath,
           ),
       ];
       return AnimatedSwitcher(
@@ -2176,7 +2181,6 @@ class _LiveMetric extends StatelessWidget {
     required this.active,
     this.colorsOverride,
     this.showPulse = false,
-    this.imagePath,
   });
 
   final DashboardFlagMetric metric;
@@ -2186,7 +2190,6 @@ class _LiveMetric extends StatelessWidget {
   final bool active;
   final FlagMetricColors? colorsOverride;
   final bool showPulse;
-  final String? imagePath;
 
   @override
   Widget build(BuildContext context) {
@@ -2220,8 +2223,6 @@ class _LiveMetric extends StatelessWidget {
                 iconSize: 14,
                 color: colors.foreground,
               )
-            else if (imagePath != null)
-              SizedBox(width: 24, height: 24, child: Image.asset(imagePath!))
             else
               Icon(icon, size: 15, color: colors.foreground),
             const SizedBox(height: 5),
