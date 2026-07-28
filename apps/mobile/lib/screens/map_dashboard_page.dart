@@ -2040,6 +2040,7 @@ class _LiveStatusBar extends StatelessWidget {
             active: stateFor(i) == LinkingStoryMetricState.complete,
             colorsOverride: linkingStoryMetricColors(stateFor(i)),
             showPulse: stateFor(i) == LinkingStoryMetricState.active,
+            imagePath: story[i].imagePath,
           ),
       ];
       return AnimatedSwitcher(
@@ -2175,6 +2176,7 @@ class _LiveMetric extends StatelessWidget {
     required this.active,
     this.colorsOverride,
     this.showPulse = false,
+    this.imagePath,
   });
 
   final DashboardFlagMetric metric;
@@ -2184,6 +2186,7 @@ class _LiveMetric extends StatelessWidget {
   final bool active;
   final FlagMetricColors? colorsOverride;
   final bool showPulse;
+  final String? imagePath;
 
   @override
   Widget build(BuildContext context) {
@@ -2217,6 +2220,8 @@ class _LiveMetric extends StatelessWidget {
                 iconSize: 14,
                 color: colors.foreground,
               )
+            else if (imagePath != null)
+              SizedBox(width: 24, height: 24, child: Image.asset(imagePath!))
             else
               Icon(icon, size: 15, color: colors.foreground),
             const SizedBox(height: 5),
