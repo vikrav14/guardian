@@ -6,6 +6,7 @@ const { logNgrokHint } = require('./ngrok-hint');
 const { maybeAnnounceConnecting } = require('./connection-handshake');
 const { buildSessionPersistPatch, shouldForceSessionPersist, buildPresenceTouchPatch, SESSION_LIVE_PACKETS } = require('./connection-live');
 const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offline');
+const { correctFleetHemisphere } = require('./fleet-hemisphere');
 
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
 
@@ -287,7 +288,7 @@ async function applyEvents(events, session) {
         if (!resolved?.location || typeof resolved.location.lat !== 'number') {
           continue;
         }
-        const locEvent = resolved;
+        const locEvent = correctFleetHemisphere(resolved);
 
         updateLiveState(locEvent.imei, {
 
@@ -588,6 +589,8 @@ async function applyEvents(events, session) {
           } else {
             alarmEvent = { ...event, location: undefined };
           }
+        } else if (alarmEvent.location) {
+          alarmEvent = correctFleetHemisphere(alarmEvent);
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
