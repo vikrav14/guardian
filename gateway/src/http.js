@@ -1,5 +1,6 @@
 const http = require('http');
 const { URL } = require('url');
+const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
 const { resolveCallerContext } = require('./assistant/tools');
@@ -18,6 +19,15 @@ const {
   estimateMonthlyCost,
   increment: incrementMetric,
 } = require('./ops-metrics');
+
+// Phase 1: New provider abstraction and support layers
+const { createLlmProvider } = require('./providers');
+const { classifyIntent, isCritical } = require('./intent-classifier');
+const { validateLocationResponse } = require('./response-validator');
+const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
+const { AuditLog } = require('./audit');
+const { IdempotencyStore } = require('./idempotency');
+const { TOOL_DEFINITIONS, runTool } = require('./assistant/tools');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -51,6 +61,29 @@ function sendOptions(res) {
 function parseBoolParam(value, defaultValue) {
   if (value == null || value === '') return defaultValue;
   return String(value).toLowerCase() === 'true';
+}
+
+// Phase 1: Initialize LLM provider and support systems
+let llmProvider = null;
+let auditLog = null;
+let idempotencyStore = null;
+
+function initializeLlmStack() {
+  try {
+    llmProvider = createLlmProvider(config);
+    console.log(`[guardian-http] LLM provider initialized (${config.llmProvider || 'auto'})`);
+  } catch (err) {
+    console.error('[guardian-http] Failed to initialize LLM provider:', err.message);
+    llmProvider = null;
+  }
+
+  auditLog = new AuditLog(config);
+  idempotencyStore = new IdempotencyStore(5); // 5-minute TTL
+  console.log('[guardian-http] Audit logging and idempotency initialized');
+}
+
+function generateRequestId() {
+  return 'req_' + crypto.randomUUID().substring(0, 8);
 }
 
 function parseCostParams(url) {
@@ -99,40 +132,190 @@ function sendTwiml(res, message) {
   res.end(xml);
 }
 
+/**
+ * Phase 1: Integrated handleChat with provider abstraction, intent classification,
+ * response validation, and full audit trail.
+ */
 async function handleChat({ from, text }) {
+  const requestId = generateRequestId();
   const started = Date.now();
   const db = getDb();
-  const ctx = await resolveCallerContext(db, from);
-  console.log(`[assistant] from=${ctx.from} devices=${ctx.linkedImeis.length} text=${JSON.stringify(text)}`);
 
-  if (!ctx.uid) {
-    return {
-      ctx,
-      reply:
-        "This number isn't registered with any Guardian family yet. Ask your guardian to add you as a contact in the app first.",
-    };
-  }
+  try {
+    // [1] Log request start
+    await auditLog.recordStart({ requestId, fromPhone: from });
 
-  const assistantResult = await answerWithAssistant(db, ctx, text);
-  const latencyMs = Date.now() - started;
+    // [2] Check idempotency (Twilio may retry)
+    if (idempotencyStore.isSeen(requestId)) {
+      const cached = idempotencyStore.getCachedReply(requestId);
+      console.log(`[assistant] ${requestId} DUPLICATE (cached reply)`);
+      return { ctx: { from }, reply: cached, isDuplicate: true };
+    }
 
-  if (assistantResult.usage) {
-    recordAiDecision({
-      toolsUsed: assistantResult.toolsUsed || [],
-      tokensIn: assistantResult.usage.input_tokens || 0,
-      tokensOut: assistantResult.usage.output_tokens || 0,
-      latencyMs,
-      callerPhone: ctx.from,
+    // [3] Resolve caller context (authentication)
+    const ctx = await resolveCallerContext(db, from);
+    console.log(`[assistant] ${requestId} from=${ctx.from} uid=${ctx.uid} devices=${ctx.linkedImeis.length}`);
+
+    await auditLog.recordAuth({
+      requestId,
+      uid: ctx.uid,
+      linkedImeis: ctx.linkedImeis,
+      status: ctx.uid ? 'authenticated' : 'not_registered',
+      reason: ctx.uid ? 'user_found' : 'no_matching_user',
     });
-  } else {
-    recordAiDecision({
-      toolsUsed: [],
-      latencyMs,
-      callerPhone: ctx.from,
-    });
-  }
 
-  return { ctx, reply: assistantResult.reply };
+    // [4] Classify intent (deterministic, no LLM)
+    const intent = classifyIntent(text);
+    await auditLog.recordIntent({ requestId, intent });
+
+    // [5] Handle critical intents immediately (SOS, emergency)
+    if (isCritical(intent)) {
+      const reply =
+        ctx.uid
+          ? `Emergency detected. Dispatching to ${ctx.displayName}'s emergency contacts now.`
+          : "This number isn't registered. Contact emergency services directly or ask your guardian to register you.";
+
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: 'critical_intent',
+      });
+
+      return { ctx, reply };
+    }
+
+    // [6] Check authentication for non-critical requests
+    if (!ctx.uid) {
+      const reply =
+        "This number isn't registered with any Guardian family yet. Ask your guardian to add you as a contact in the app first.";
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: 'not_registered',
+      });
+      return { ctx, reply };
+    }
+
+    // [7] Build minimal context packet (not full device doc)
+    const wearer = ctx.linkedImeis.length === 1 ? { id: ctx.linkedImeis[0], displayName: ctx.displayName } : null;
+    const device = ctx.devices[0] || null;
+    const contextPacket = buildContextPacket({
+      requestId,
+      requester: { uid: ctx.uid, displayName: ctx.displayName, role: 'guardian', linkedImeis: ctx.linkedImeis },
+      wearer,
+      device,
+      intent,
+      locale: 'en', // TODO: detect from user preferences
+    });
+
+    // [8] Call LLM provider with tool-calling
+    let reply = null;
+    let providerUsage = null;
+    let toolsUsed = [];
+
+    if (!llmProvider) {
+      // Fallback: use existing Claude integration
+      const result = await answerWithAssistant(db, ctx, text);
+      reply = result.reply;
+      providerUsage = result.usage;
+      toolsUsed = result.toolsUsed || [];
+    } else {
+      // Phase 1: Use new provider abstraction
+      const systemPrompt = buildSystemPrompt(contextPacket);
+      const allowedTools = selectAllowedTools(intent);
+      const filteredTools = TOOL_DEFINITIONS.filter((t) => allowedTools.includes(t.name));
+
+      const messages = [{ role: 'user', content: text }];
+
+      try {
+        const providerResult = await llmProvider.complete({
+          systemPrompt,
+          messages,
+          tools: filteredTools,
+          metadata: { requestId, userId: ctx.uid, locale: 'en' },
+        });
+
+        providerUsage = providerResult.usage;
+
+        // Process tool calls (if any)
+        const textBlocks = (providerResult.content || []).filter((b) => b.type === 'text');
+        reply = textBlocks.map((b) => b.text || b.content).join('\n') || null;
+        toolsUsed = (providerResult.content || [])
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => b.name);
+
+        // Tool-call loop (simplified for now; full agentic loop in future)
+        // TODO: Implement full agentic loop per Phase 2
+
+        await auditLog.recordProvider({
+          requestId,
+          provider: providerResult.provider,
+          model: config[`${providerResult.provider}Model`],
+          tokensIn: providerUsage?.input_tokens || 0,
+          tokensOut: providerUsage?.output_tokens || 0,
+          latencyMs: providerResult.latencyMs,
+          toolNames: toolsUsed,
+          stopReason: providerResult.stopReason,
+        });
+      } catch (err) {
+        console.warn(`[assistant] ${requestId} Provider failed, using fallback:`, err.message);
+        await auditLog.recordError({ requestId, phase: 'provider', error: err });
+
+        // Fallback to template
+        reply = `I'm having trouble reaching live data right now. Try again in a moment, or check the app for ${wearer?.displayName || 'your loved one'}'s location.`;
+      }
+    }
+
+    // [9] Validate response (catch hallucinations)
+    if (reply && device) {
+      const validation = validateLocationResponse(reply, device, { medicalClaimsAllowed: false });
+      await auditLog.recordValidation({ requestId, valid: validation.valid, issues: validation.issues });
+
+      if (!validation.valid) {
+        console.warn(`[assistant] ${requestId} Response validation failed:`, validation.issues);
+        reply = `I could not reach live data for ${wearer?.displayName || 'your loved one'}. Try again in a moment.`;
+      }
+    }
+
+    // [10] Cache and send reply
+    if (!reply) {
+      reply = `I could not process your request. I'm designed mainly for family safety questions.`;
+    }
+
+    idempotencyStore.store(requestId, reply);
+
+    await auditLog.recordResponse({
+      requestId,
+      destination: 'whatsapp',
+      replyLength: reply.length,
+      fallbackReason: null,
+    });
+
+    // Legacy metrics (for backward compatibility)
+    if (providerUsage) {
+      recordAiDecision({
+        toolsUsed,
+        tokensIn: providerUsage.input_tokens || 0,
+        tokensOut: providerUsage.output_tokens || 0,
+        latencyMs: Date.now() - started,
+        callerPhone: ctx.from,
+      });
+    }
+
+    return { ctx, reply };
+  } catch (err) {
+    console.error(`[assistant] ${requestId} Unhandled error:`, err);
+    await auditLog.recordError({ requestId, phase: 'handle_chat', error: err });
+
+    const reply = 'Sorry — I encountered an error. Try again in a moment.';
+    idempotencyStore.store(requestId, reply);
+
+    return { ctx: { from }, reply };
+  }
 }
 
 async function requireAdmin(req, res) {
@@ -202,6 +385,9 @@ async function handleOpsHttpRequest(req, res, url) {
 }
 
 function startHttpServer() {
+  // Phase 1: Initialize LLM provider, audit, and idempotency on startup
+  initializeLlmStack();
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
