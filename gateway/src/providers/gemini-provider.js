@@ -1,4 +1,5 @@
 const LlmProvider = require('./llm-provider');
+const { adaptToolsForGemini } = require('../gemini-tools-adapter');
 
 /**
  * Google Gemini Flash provider (paid tier).
@@ -37,7 +38,12 @@ class GeminiProvider extends LlmProvider {
       // Convert Anthropic message format to Gemini format
       const history = messages.slice(0, -1).map((m) => ({
         role: m.role === 'user' ? 'user' : 'model',
-        parts: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        parts: [
+          {
+            text:
+              typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+          },
+        ],
       }));
 
       const userMessage = messages[messages.length - 1];
@@ -46,13 +52,16 @@ class GeminiProvider extends LlmProvider {
           ? userMessage.content
           : JSON.stringify(userMessage.content);
 
+      // Adapt Anthropic tool format to Gemini format
+      const geminiTools = tools && tools.length > 0 ? adaptToolsForGemini(tools) : undefined;
+
       const result = await model.generateContent({
+        systemInstruction: systemPrompt || undefined,
         contents: [
-          ...(systemPrompt ? [{ role: 'user', parts: systemPrompt }] : []),
           ...history,
-          { role: 'user', parts: userContent },
+          { role: 'user', parts: [{ text: userContent }] },
         ],
-        tools: tools && tools.length > 0 ? { functionDeclarations: tools } : undefined,
+        tools: geminiTools ? { functionDeclarations: geminiTools } : undefined,
       });
 
       const response = result.response;

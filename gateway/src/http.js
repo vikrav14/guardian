@@ -216,6 +216,7 @@ async function handleChat({ from, text }) {
     let reply = null;
     let providerUsage = null;
     let toolsUsed = [];
+    let lastLocationToolResult = null; // Capture location result for validation (outer scope)
 
     if (!llmProvider) {
       // Fallback: use existing Claude integration
@@ -232,35 +233,86 @@ async function handleChat({ from, text }) {
       const messages = [{ role: 'user', content: text }];
 
       try {
-        const providerResult = await llmProvider.complete({
-          systemPrompt,
-          messages,
-          tools: filteredTools,
-          metadata: { requestId, userId: ctx.uid, locale: 'en' },
-        });
+        // Full agentic loop: call provider, execute tools, repeat until text response
+        let finalReply = null;
+        let lastProviderResult = null;
+        const currentMessages = [...messages];
+        let roundCount = 0;
+        const maxRounds = 3;
 
-        providerUsage = providerResult.usage;
+        while (roundCount < maxRounds && !finalReply) {
+          roundCount += 1;
 
-        // Process tool calls (if any)
-        const textBlocks = (providerResult.content || []).filter((b) => b.type === 'text');
-        reply = textBlocks.map((b) => b.text || b.content).join('\n') || null;
-        toolsUsed = (providerResult.content || [])
-          .filter((b) => b.type === 'tool_use')
-          .map((b) => b.name);
+          lastProviderResult = await llmProvider.complete({
+            systemPrompt,
+            messages: currentMessages,
+            tools: filteredTools,
+            metadata: { requestId, userId: ctx.uid, locale: 'en' },
+          });
 
-        // Tool-call loop (simplified for now; full agentic loop in future)
-        // TODO: Implement full agentic loop per Phase 2
+          providerUsage = lastProviderResult.usage;
 
-        await auditLog.recordProvider({
-          requestId,
-          provider: providerResult.provider,
-          model: config[`${providerResult.provider}Model`],
-          tokensIn: providerUsage?.input_tokens || 0,
-          tokensOut: providerUsage?.output_tokens || 0,
-          latencyMs: providerResult.latencyMs,
-          toolNames: toolsUsed,
-          stopReason: providerResult.stopReason,
-        });
+          // Handle tool use first (if stopReason is tool_use, prioritize that over text)
+          const toolUses = (lastProviderResult.content || []).filter((b) => b.type === 'tool_use');
+
+          if (toolUses.length > 0) {
+            // Claude wants to use tools — execute them and continue loop
+            // Don't return text yet, even if present
+          } else {
+            // No tools called — check for text response
+            const textBlocks = (lastProviderResult.content || []).filter((b) => b.type === 'text');
+            if (textBlocks.length > 0) {
+              finalReply = textBlocks.map((b) => b.text || b.content).join('\n');
+              break;
+            } else {
+              // No text and no tools = error
+              break;
+            }
+          }
+
+          // Execute tools
+          const toolResults = [];
+          for (const toolUse of toolUses) {
+            toolsUsed.push(toolUse.name);
+            try {
+              const result = await runTool(db, ctx, toolUse.name, toolUse.input || {});
+              // Capture location result for validation
+              if (toolUse.name === 'get_last_location') {
+                lastLocationToolResult = result;
+              }
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUse.id,
+                content: JSON.stringify(result),
+              });
+            } catch (err) {
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: toolUse.id,
+                content: JSON.stringify({ error: err.message }),
+              });
+            }
+          }
+
+          // Add assistant response + tool results to message history for next round
+          currentMessages.push({ role: 'assistant', content: lastProviderResult.content });
+          currentMessages.push({ role: 'user', content: toolResults });
+        }
+
+        reply = finalReply;
+
+        if (lastProviderResult) {
+          await auditLog.recordProvider({
+            requestId,
+            provider: lastProviderResult.provider,
+            model: config[`${lastProviderResult.provider}Model`],
+            tokensIn: providerUsage?.input_tokens || 0,
+            tokensOut: providerUsage?.output_tokens || 0,
+            latencyMs: lastProviderResult.latencyMs,
+            toolNames: toolsUsed,
+            stopReason: lastProviderResult.stopReason,
+          });
+        }
       } catch (err) {
         console.warn(`[assistant] ${requestId} Provider failed, using fallback:`, err.message);
         await auditLog.recordError({ requestId, phase: 'provider', error: err });
@@ -271,8 +323,9 @@ async function handleChat({ from, text }) {
     }
 
     // [9] Validate response (catch hallucinations)
-    if (reply && device) {
-      const validation = validateLocationResponse(reply, device, { medicalClaimsAllowed: false });
+    // Use the actual tool result for validation, not the raw device object
+    if (reply && lastLocationToolResult) {
+      const validation = validateLocationResponse(reply, lastLocationToolResult, { medicalClaimsAllowed: false });
       await auditLog.recordValidation({ requestId, valid: validation.valid, issues: validation.issues });
 
       if (!validation.valid) {

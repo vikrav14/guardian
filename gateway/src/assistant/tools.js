@@ -91,7 +91,7 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
     online: device.online === true,
     lat: loc.lat ?? null,
     lng: loc.lng ?? null,
-    accuracySource: device.accuracySource || null,
+    accuracySource: loc.accuracySource || null,
     speedKmh: device.speedKmh ?? null,
     updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
     mapsUrl:

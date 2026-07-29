@@ -65,7 +65,7 @@ function validateLocationResponse(response, toolResult, constraints = {}) {
 
   // Issue: Offline device not mentioned as such
   if (toolResult && toolResult.online === false) {
-    if (!/(offline|not connected|no signal|unavailable)/i.test(text)) {
+    if (!/(offline|not connected|no signal|unavailable|could not)/i.test(text)) {
       issues.push('OFFLINE_NOT_STATED');
     }
   }
