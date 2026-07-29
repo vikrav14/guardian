@@ -36,7 +36,10 @@ const config = {
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
 
-  // Claude (WhatsApp AI assistant)
+  // LLM Providers (primary: Gemini, fallback: Anthropic, offline: Template)
+  llmProvider: process.env.LLM_PROVIDER || 'gemini', // 'gemini' | 'anthropic' | 'template'
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
 
