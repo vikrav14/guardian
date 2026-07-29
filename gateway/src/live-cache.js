@@ -196,7 +196,9 @@ function shouldPersist(imei, context) {
       return { persist: true, reason: 'battery_changed', appendHistory: false };
     }
     if (heartbeatCapDue(state, now)) {
-      return { persist: true, reason: 'heartbeat_cap', appendHistory: false };
+      // On heartbeat cap, always refresh location if we have live data
+      // This ensures location updates at least every ~5 min even if device is stationary
+      return { persist: true, reason: 'heartbeat_cap', appendHistory: false, includeLocation: true };
     }
     return { persist: false, reason: null, appendHistory: false };
   }

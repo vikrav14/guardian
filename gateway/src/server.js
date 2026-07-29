@@ -535,6 +535,8 @@ async function applyEvents(events, session) {
 
         if (gate.persist || shouldForceSessionPersist(session)) {
 
+          const liveState = getLiveDeviceState(event.imei);
+
           await persistDeviceState(
 
             event.imei,
@@ -550,6 +552,10 @@ async function applyEvents(events, session) {
               batteryPercent: event.batteryPercent,
 
               ...(event.accuracySource ? { accuracySource: event.accuracySource } : {}),
+
+              // On heartbeat_cap, include current location if available (keeps location fresh even when stationary)
+
+              ...(gate.includeLocation && liveState.location ? { location: liveState.location } : {}),
 
             },
 
