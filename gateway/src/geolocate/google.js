@@ -244,6 +244,61 @@ function clearGeolocationCache() {
   cache.clear();
 }
 
+/**
+ * Reverse geocode lat/lng to a place name via Google Maps API.
+ * Returns the best human-readable location name (address, locality, or administrative area).
+ *
+ * @returns {Promise<string|null>} Place name or null if lookup fails / API unavailable
+ */
+async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+
+  const apiKey = config.googleGeolocationApiKey;
+  if (!apiKey) {
+    return null; // API key not configured
+  }
+
+  if (config.firestoreDisabled && options.respectFirestoreDisabled !== false) {
+    return null;
+  }
+
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/geocode/json?` +
+      `latlng=${lat},${lng}&key=${encodeURIComponent(apiKey)}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[reverse-geocode] API error ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data.results) || data.results.length === 0) {
+      return null;
+    }
+
+    // Extract the best formatted address or component name
+    // Order: formatted_address (full) > first area_level_1 > first locality
+    const firstResult = data.results[0];
+    if (firstResult.formatted_address) {
+      return firstResult.formatted_address;
+    }
+
+    // Fallback: find locality or administrative area
+    for (const component of firstResult.address_components || []) {
+      if (component.types.includes('locality') || component.types.includes('administrative_area_level_1')) {
+        return component.long_name;
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('[reverse-geocode] request failed:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   geolocateFromV,
   parseLteExtras,
@@ -252,4 +307,5 @@ module.exports = {
   isPlaceholderCoords,
   cacheKey,
   clearGeolocationCache,
+  reverseGeocodeToPlaceName,
 };

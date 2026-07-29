@@ -27,3 +27,15 @@
 {"requestId":"req_5df3d722","phase":"provider","data":{"provider":"anthropic","model":"claude-haiku-4-5-20251001","tokensIn":1005,"tokensOut":90,"latencyMs":1610,"toolNames":["get_last_location"],"stopReason":"end_turn"},"timestamp":1785366549844}
 {"requestId":"req_5df3d722","phase":"validation","data":{"valid":true,"issueCount":0,"issues":[]},"timestamp":1785366549845}
 {"requestId":"req_5df3d722","phase":"response","data":{"destination":"whatsapp","replyLength":299,"fallbackReason":null,"status":"sent"},"timestamp":1785366549846}
+{"requestId":"req_9062fc17","phase":"start","fromPhone":"+23058590100","data":{"status":"request_received"},"timestamp":1785366826692}
+{"requestId":"req_9062fc17","phase":"auth","uid":"GIGI1yfpNsXXTqvF0hrNpjc0lWg1","data":{"status":"authenticated","reason":"user_found","linkedImeis":2},"timestamp":1785366827008}
+{"requestId":"req_9062fc17","phase":"intent","data":{"type":"LOCATION_REQUEST","urgency":3,"confidence":0.9,"matched":1},"timestamp":1785366827009}
+{"requestId":"req_9062fc17","phase":"provider","data":{"provider":"anthropic","model":"claude-haiku-4-5-20251001","tokensIn":1014,"tokensOut":64,"latencyMs":1265,"toolNames":["get_last_location"],"stopReason":"end_turn"},"timestamp":1785366829637}
+{"requestId":"req_9062fc17","phase":"validation","data":{"valid":true,"issueCount":0,"issues":[]},"timestamp":1785366829638}
+{"requestId":"req_9062fc17","phase":"response","data":{"destination":"whatsapp","replyLength":183,"fallbackReason":null,"status":"sent"},"timestamp":1785366829639}
+{"requestId":"req_c77775ff","phase":"start","fromPhone":"+23058590100","data":{"status":"request_received"},"timestamp":1785366868919}
+{"requestId":"req_c77775ff","phase":"auth","uid":"GIGI1yfpNsXXTqvF0hrNpjc0lWg1","data":{"status":"authenticated","reason":"user_found","linkedImeis":2},"timestamp":1785366869157}
+{"requestId":"req_c77775ff","phase":"intent","data":{"type":"LOCATION_REQUEST","urgency":3,"confidence":0.9,"matched":1},"timestamp":1785366869158}
+{"requestId":"req_c77775ff","phase":"provider","data":{"provider":"anthropic","model":"claude-haiku-4-5-20251001","tokensIn":1019,"tokensOut":59,"latencyMs":1717,"toolNames":["get_last_location"],"stopReason":"end_turn"},"timestamp":1785366872113}
+{"requestId":"req_c77775ff","phase":"validation","data":{"valid":true,"issueCount":0,"issues":[]},"timestamp":1785366872114}
+{"requestId":"req_c77775ff","phase":"response","data":{"destination":"whatsapp","replyLength":230,"fallbackReason":null,"status":"sent"},"timestamp":1785366872114}
