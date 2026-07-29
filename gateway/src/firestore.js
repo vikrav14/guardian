@@ -136,13 +136,9 @@ async function upsertDevice(imei, patch = {}) {
   // Phase 1: Reverse geocoding — populate placeLabel from lat/lng if not already set
   if (data.location && typeof data.location.lat === 'number' && typeof data.location.lng === 'number') {
     if (!data.location.placeLabel) {
-      console.log(`[reverse-geocode] attempting geocode for ${canonicalImei} @ ${data.location.lat},${data.location.lng}`);
       const placeLabel = await reverseGeocodeToPlaceName(data.location.lat, data.location.lng);
       if (placeLabel) {
-        console.log(`[reverse-geocode] ${canonicalImei} → "${placeLabel}"`);
         data.location = { ...data.location, placeLabel };
-      } else {
-        console.log(`[reverse-geocode] ${canonicalImei} no result`);
       }
     }
   }
