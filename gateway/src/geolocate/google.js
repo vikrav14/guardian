@@ -3,9 +3,13 @@ const crypto = require('crypto');
 const config = require('../config');
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
+const REVERSE_GEOCODE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** @type {Map<string, { result: object, expiresAt: number }>} */
 const cache = new Map();
+
+/** @type {Map<string, { result: string, expiresAt: number }>} */
+const reverseGeocodeCache = new Map();
 
 function cacheKey({ wifiAccessPoints = [], cellTowers = [] }) {
   const payload = JSON.stringify({
@@ -242,16 +246,28 @@ async function geolocateFromV({ wifiAccessPoints = [], cellTowers = [] } = {}, o
 
 function clearGeolocationCache() {
   cache.clear();
+  reverseGeocodeCache.clear();
+}
+
+function reverseGeocodeCacheKey(lat, lng) {
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
 }
 
 /**
  * Reverse geocode lat/lng to a place name via Google Maps API.
  * Returns the best human-readable location name (address, locality, or administrative area).
+ * Results are cached to ensure consistent place names for the same coordinates.
  *
  * @returns {Promise<string|null>} Place name or null if lookup fails / API unavailable
  */
 async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+
+  const cacheKey = reverseGeocodeCacheKey(lat, lng);
+  const cached = reverseGeocodeCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.result;
+  }
 
   const apiKey = config.googleGeolocationApiKey;
   if (!apiKey) {
@@ -281,37 +297,63 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
     // Extract the best place name with priority on specific neighborhoods/areas
     // Priority order: neighborhood > sublocality > locality > administrative_area_level_1
     const firstResult = data.results[0];
+    let placeName = null;
 
     // Look for the most specific location type first
     for (const component of firstResult.address_components || []) {
       if (component.types.includes('neighborhood')) {
-        return component.long_name;
+        placeName = component.long_name;
+        break;
       }
     }
 
-    for (const component of firstResult.address_components || []) {
-      if (component.types.includes('sublocality')) {
-        return component.long_name;
+    if (!placeName) {
+      for (const component of firstResult.address_components || []) {
+        if (component.types.includes('sublocality')) {
+          placeName = component.long_name;
+          break;
+        }
       }
     }
 
-    for (const component of firstResult.address_components || []) {
-      if (component.types.includes('locality')) {
-        return component.long_name;
+    if (!placeName) {
+      for (const component of firstResult.address_components || []) {
+        if (component.types.includes('locality')) {
+          placeName = component.long_name;
+          break;
+        }
       }
     }
 
-    for (const component of firstResult.address_components || []) {
-      if (component.types.includes('administrative_area_level_1')) {
-        return component.long_name;
+    if (!placeName) {
+      for (const component of firstResult.address_components || []) {
+        if (component.types.includes('administrative_area_level_1')) {
+          placeName = component.long_name;
+          break;
+        }
       }
     }
 
-    return null;
+    if (placeName) {
+      reverseGeocodeCache.set(cacheKey, {
+        result: placeName,
+        expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+      });
+    }
+
+    return placeName;
   } catch (err) {
     console.warn('[reverse-geocode] request failed:', err.message);
     return null;
   }
+}
+
+function setCachedPlaceName(lat, lng, placeName) {
+  const cacheKey = reverseGeocodeCacheKey(lat, lng);
+  reverseGeocodeCache.set(cacheKey, {
+    result: placeName,
+    expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+  });
 }
 
 module.exports = {
@@ -323,4 +365,5 @@ module.exports = {
   cacheKey,
   clearGeolocationCache,
   reverseGeocodeToPlaceName,
+  setCachedPlaceName,
 };
