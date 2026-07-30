@@ -85,8 +85,10 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
     return { error: 'No matching pendant. Ask list_devices first.' };
   }
   const loc = device.location || {};
-  // Filter GPS noise: speeds under 0.5 km/h are noise from stationary device
-  const speedKmh = device.speedKmh != null && device.speedKmh >= 0.5 ? device.speedKmh : 0;
+  // Filter GPS noise & stale low speeds: walking speed (~5 km/h) threshold.
+  // Speeds under 5 km/h are too slow to be real movement (likely GPS noise or stale data).
+  // Real movement is typically faster (car ~30+ km/h, bike ~15+ km/h, jogging ~10+ km/h).
+  const speedKmh = device.speedKmh != null && device.speedKmh >= 5 ? device.speedKmh : 0;
   return {
     name: deviceLabel(device),
     imei: device.imei,
