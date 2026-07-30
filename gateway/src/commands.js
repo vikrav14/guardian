@@ -143,6 +143,7 @@ const TCP_ONLY_TYPES = new Set([
   'set_fall_sensitivity',
   'set_medication_reminder',
   'set_upload_interval',
+  'ring_to_find',
 ]);
 
 const BUILDERS = {
