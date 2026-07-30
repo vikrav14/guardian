@@ -175,8 +175,8 @@ If tools fail, say you could not verify location.`;
   if (intent.type === 'DEVICE_COMMAND') {
     return `${base}
 You can send SMS commands to the device: ring (sound/vibrate alert), locate (GPS ping).
-Ask which device if multiple are linked.
-Confirm the command with the user before sending.
+Ask which device only if multiple are linked and the user didn't specify.
+If user specified a device name, send the command immediately without asking for confirmation again.
 Report when command was sent and estimated execution time (~30s).
 If device is offline, warn that command may not be received immediately.
 If tool fails, say you could not send the command.`;

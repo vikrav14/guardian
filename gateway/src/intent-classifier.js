@@ -66,14 +66,25 @@ function classifyIntent(text) {
     };
   }
 
-  // Location request
-  const locationMatch = findKeywordMatch(lower, KEYWORDS.LOCATION);
-  if (locationMatch.found) {
+  // Device command (ring, locate, etc — more urgent than reminders)
+  const commandMatch = findKeywordMatch(lower, KEYWORDS.DEVICE_COMMAND);
+  if (commandMatch.found) {
     return {
-      type: 'LOCATION_REQUEST',
-      urgency: 3,
+      type: 'DEVICE_COMMAND',
+      urgency: 6,
       confidence: 0.90,
-      matchedKeywords: locationMatch.keywords,
+      matchedKeywords: commandMatch.keywords,
+    };
+  }
+
+  // Reminder/medication (check before general location, since "schedule pill" is more specific)
+  const reminderMatch = findKeywordMatch(lower, KEYWORDS.REMINDER);
+  if (reminderMatch.found) {
+    return {
+      type: 'REMINDER_REQUEST',
+      urgency: 4,
+      confidence: 0.85,
+      matchedKeywords: reminderMatch.keywords,
     };
   }
 
@@ -88,17 +99,6 @@ function classifyIntent(text) {
     };
   }
 
-  // Device command (ring, locate, etc — more urgent than reminders)
-  const commandMatch = findKeywordMatch(lower, KEYWORDS.DEVICE_COMMAND);
-  if (commandMatch.found) {
-    return {
-      type: 'DEVICE_COMMAND',
-      urgency: 6,
-      confidence: 0.90,
-      matchedKeywords: commandMatch.keywords,
-    };
-  }
-
   // Device status
   const statusMatch = findKeywordMatch(lower, KEYWORDS.DEVICE_STATUS);
   if (statusMatch.found) {
@@ -110,14 +110,14 @@ function classifyIntent(text) {
     };
   }
 
-  // Reminder/medication
-  const reminderMatch = findKeywordMatch(lower, KEYWORDS.REMINDER);
-  if (reminderMatch.found) {
+  // Location request (check last among functional intents; "at", "where", "locate" are generic)
+  const locationMatch = findKeywordMatch(lower, KEYWORDS.LOCATION);
+  if (locationMatch.found) {
     return {
-      type: 'REMINDER_REQUEST',
-      urgency: 4,
-      confidence: 0.85,
-      matchedKeywords: reminderMatch.keywords,
+      type: 'LOCATION_REQUEST',
+      urgency: 3,
+      confidence: 0.90,
+      matchedKeywords: locationMatch.keywords,
     };
   }
 

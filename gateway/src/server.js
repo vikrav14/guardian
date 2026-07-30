@@ -40,6 +40,8 @@ const { geolocateFromV } = require('./geolocate/google');
 
 const { startHttpServer } = require('./http');
 
+const { startReminderScheduler } = require('./reminder-scheduler');
+
 const {
   incrementEvent,
   recordWriteGate,
@@ -104,6 +106,7 @@ startHttpServer();
 
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
+  startReminderScheduler(getDb(), { checkIntervalMs: 60000 });
 }
 
 

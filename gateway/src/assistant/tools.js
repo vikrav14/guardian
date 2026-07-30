@@ -1,5 +1,7 @@
-const { normalizeE164 } = require('../notify');
+const { normalizeE164, sendWhatsApp } = require('../notify');
 const { haversineMeters } = require('../geofence');
+const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
+const { getPendingAction, removePendingAction } = require('../pending-actions');
 
 /**
  * Resolve which guardian + devices a WhatsApp sender may ask about.
@@ -302,28 +304,51 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
     return { error: 'Device command service unavailable.' };
   }
 
-  // Store command in Firestore for the device
-  const commandRef = db.collection('devices').doc(device.imei).collection('commands').doc();
-  const now = new Date();
-  await commandRef.set({
-    type: cmd,
-    status: 'pending',
-    createdAt: now,
-    createdBy: ctx.uid || 'unknown',
-    attempts: 0,
-    lastAttemptAt: null,
-  });
+  try {
+    // Map command aliases to actual command types
+    const typeMap = {
+      ring: 'ring_to_find',
+      locate: 'ring_to_find',
+      vibrate: 'ring_to_find',
+      alarm: 'ring_to_find',
+    };
+    const actualType = typeMap[cmd] || cmd;
 
-  return {
-    name: deviceLabel(device),
-    imei: device.imei,
-    commandType: cmd,
-    commandId: commandRef.id,
-    status: 'sent',
-    sentAt: now.toISOString(),
-    online: device.online === true,
-    estimatedWaitSeconds: device.online ? 30 : null,
-  };
+    // Send the command to the device
+    const result = await sendDeviceCommandImpl(db, device.imei, actualType, {});
+
+    // Store command in Firestore for audit
+    const commandRef = db.collection('devices').doc(device.imei).collection('commands').doc();
+    const now = new Date();
+    await commandRef.set({
+      type: cmd,
+      status: 'sent',
+      createdAt: now,
+      createdBy: ctx.uid || 'unknown',
+      sentVia: result.channel,
+      commandText: result.text,
+      deviceResponse: null,
+    });
+
+    return {
+      name: deviceLabel(device),
+      imei: device.imei,
+      commandType: cmd,
+      commandId: commandRef.id,
+      status: 'sent',
+      sentAt: now.toISOString(),
+      online: device.online === true,
+      channel: result.channel,
+      estimatedWaitSeconds: 30,
+    };
+  } catch (err) {
+    return {
+      error: `Could not send command: ${err.message}`,
+      name: deviceLabel(device),
+      imei: device.imei,
+      online: device.online === true,
+    };
+  }
 }
 
 async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: scheduledTime, frequency = 'daily', device_name: deviceName, imei } = {}) {
@@ -373,6 +398,26 @@ async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: sc
     frequency: frequency || 'daily',
     status: 'scheduled',
     createdAt: now.toISOString(),
+  };
+}
+
+async function checkPendingAction(db, ctx) {
+  if (!db || !ctx.uid) {
+    return { pendingAction: null };
+  }
+
+  const pending = await getPendingAction(db, ctx.uid);
+  if (!pending) {
+    return { pendingAction: null };
+  }
+
+  return {
+    pendingAction: {
+      id: pending.id,
+      type: pending.action.type,
+      device: pending.action.device,
+      createdAtSeconds: Math.floor(pending.createdAt.getTime() / 1000),
+    },
   };
 }
 
@@ -479,6 +524,11 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'check_pending_action',
+    description: 'Check if there is a pending action awaiting confirmation (e.g., ring device, schedule reminder).',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
 ];
 
 async function runTool(db, ctx, name, input) {
@@ -499,6 +549,8 @@ async function runTool(db, ctx, name, input) {
       return sendDeviceCommand(db, ctx, input || {});
     case 'schedule_reminder':
       return scheduleReminder(db, ctx, input || {});
+    case 'check_pending_action':
+      return checkPendingAction(db, ctx);
     default:
       return { error: `Unknown tool ${name}` };
   }
