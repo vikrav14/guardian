@@ -495,6 +495,19 @@ function startHttpServer() {
           command === 'CR'
             ? sendContinuousReporting(imei)
             : sendDownlinkCommand(imei, command);
+
+        // Auto-stop ring after 60 seconds (device firmware doesn't auto-stop as documented)
+        if (command === 'find#' && result.ok) {
+          setTimeout(() => {
+            try {
+              sendContinuousReporting(imei);
+              console.log(`[ring-auto-stop] sent CR to ${imei} to interrupt ring after 60s`);
+            } catch (err) {
+              console.error(`[ring-auto-stop] failed for ${imei}:`, err.message);
+            }
+          }, 60_000);
+        }
+
         sendJson(res, result.ok ? 200 : 404, result);
         return;
       }
