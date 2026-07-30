@@ -85,6 +85,8 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
     return { error: 'No matching pendant. Ask list_devices first.' };
   }
   const loc = device.location || {};
+  // Filter GPS noise: speeds under 0.5 km/h are noise from stationary device
+  const speedKmh = device.speedKmh != null && device.speedKmh >= 0.5 ? device.speedKmh : 0;
   return {
     name: deviceLabel(device),
     imei: device.imei,
@@ -93,7 +95,7 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
     lng: loc.lng ?? null,
     placeLabel: loc.placeLabel || null,
     accuracySource: loc.accuracySource || null,
-    speedKmh: device.speedKmh ?? null,
+    speedKmh: speedKmh,
     updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
     mapsUrl:
       loc.lat != null && loc.lng != null
