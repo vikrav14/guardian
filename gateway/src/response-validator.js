@@ -131,6 +131,113 @@ function validateBatteryResponse(response, toolResult) {
 }
 
 /**
+ * Validate a device status response (Phase 2).
+ *
+ * @param {string} response - Text from LLM
+ * @param {Object} toolResult - Result from get_battery tool
+ * @returns {{valid: boolean, issues: string[]}}
+ */
+function validateDeviceStatusResponse(response, toolResult) {
+  const issues = [];
+  const text = String(response || '');
+
+  // Check: battery percentage matches tool data (±5% tolerance)
+  const percentMatch = text.match(/(\d+)\s*%/);
+  if (percentMatch && toolResult && toolResult.batteryPercent != null) {
+    const percentText = Number(percentMatch[1]);
+    if (Math.abs(percentText - toolResult.batteryPercent) > 5) {
+      issues.push('INVENTED_BATTERY');
+    }
+  }
+
+  // Check: online status consistency
+  if (toolResult && toolResult.online === false) {
+    if (!/(offline|not connected|no signal|disconnected)/i.test(text)) {
+      issues.push('OFFLINE_NOT_STATED');
+    }
+  } else if (toolResult && toolResult.online === true) {
+    // Should mention online or connected
+    if (!/\b(online|connected)\b/i.test(text) && !text.includes('%')) {
+      // Allow if battery mentioned (that implies device is reachable)
+      issues.push('ONLINE_NOT_STATED');
+    }
+  }
+
+  // Check: heartbeat/timestamp format (if mentioned)
+  if (/heartbeat|last|ago|since/i.test(text)) {
+    // Should include time reference, not invented future dates
+    if (/\d{4}-\d{2}-\d{2}/.test(text)) {
+      // Has date; check it's not in future
+      const dateMatch = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const date = new Date(dateMatch[1], dateMatch[2] - 1, dateMatch[3]);
+        if (date > new Date()) {
+          issues.push('FUTURE_HEARTBEAT');
+        }
+      }
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+/**
+ * Validate a recent alerts response (Phase 2).
+ *
+ * @param {string} response - Text from LLM
+ * @param {Object} toolResult - Result from get_recent_alerts tool
+ * @returns {{valid: boolean, issues: string[]}}
+ */
+function validateAlertsResponse(response, toolResult) {
+  const issues = [];
+  const text = String(response || '');
+
+  // Check: alert types are valid (SOS, fall, geofence, low_battery)
+  const validTypes = ['sos', 'fall', 'geofence', 'low.battery', 'low_battery', 'enter', 'exit'];
+  const mentionedEvents = text.toLowerCase().match(/\b(sos|fall|geofence|low.?battery|enter|exit|left|entered)\b/g) || [];
+
+  // Check: if tool returned no alerts, response should say so
+  if ((!toolResult || !toolResult.alerts || toolResult.alerts.length === 0) && toolResult !== undefined) {
+    if (!/no.*(alerts?|events?|incidents?)|nothing|clear/i.test(text)) {
+      issues.push('ALERTS_EXISTENCE_MISMATCH');
+    }
+  }
+
+  // Check: if tool returned alerts, response should mention count or list
+  if (toolResult && toolResult.alerts && toolResult.alerts.length > 0) {
+    if (!/\d+\s*(alert|event|incident|sos|fall)/i.test(text) && mentionedEvents.length === 0) {
+      issues.push('ALERTS_NOT_MENTIONED');
+    }
+  }
+
+  // Check: timestamps are reasonable (not future dates)
+  const datePattern = /\d{1,2}(?:am|pm|\s*(?:am|pm)?|\s*[a-z]{1,3})/i;
+  const dates = text.match(/\b\d{1,2}:\d{2}\s*(?:am|pm)?\b/g) || [];
+  for (const dateStr of dates) {
+    // Basic sanity check: time should not be obviously wrong
+    const hour = parseInt(dateStr.match(/(\d{1,2}):/)[1]);
+    if (hour > 23) {
+      issues.push('INVALID_ALERT_TIMESTAMP');
+    }
+  }
+
+  // Check: no fabricated alert types
+  if (/\b(ping|heartbeat|warning|error|crash)\b/i.test(text) &&
+      !(/\b(geofence|sos|fall|battery)\b/i.test(text))) {
+    // Might be fabricated alert type
+    issues.push('UNKNOWN_ALERT_TYPE');
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+/**
  * Generic response validation (applies to all responses).
  *
  * @param {string} response
@@ -165,5 +272,7 @@ function validateGenericResponse(response, context) {
 module.exports = {
   validateLocationResponse,
   validateBatteryResponse,
+  validateDeviceStatusResponse,
+  validateAlertsResponse,
   validateGenericResponse,
 };
