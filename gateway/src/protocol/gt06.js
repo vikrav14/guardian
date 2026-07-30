@@ -349,7 +349,8 @@ function handlePacket(decoded, session) {
       events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
     }
   } else if (command === 'CONFIG') {
-    // Vendor PDF: reply CONFIG,1 (not bare CONFIG)
+    // Device firmware self-test packet — contains device state including UL (upload interval).
+    // Per V28C protocol: reply CONFIG,1 (not bare CONFIG).
     acks.push(buildAckFrame(protocolId, 'CONFIG,1'));
     if (fullImeiHint && isFullImei(fullImeiHint)) {
       events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });

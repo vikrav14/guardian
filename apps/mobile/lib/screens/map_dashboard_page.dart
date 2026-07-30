@@ -1190,10 +1190,16 @@ class _DodoVisualStage extends StatelessWidget {
                   : const Duration(milliseconds: 450),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: GuardianDodoStageImage(
-                key: ValueKey(scene.action),
-                action: scene.action,
-              ),
+              child: linking && visibleLinkingStep == 3
+                  ? Image.asset(
+                      'assets/images/dodo_ai_guardian.png',
+                      key: const ValueKey('dodo-ai-guardian'),
+                      fit: BoxFit.contain,
+                    )
+                  : GuardianDodoStageImage(
+                      key: ValueKey(scene.action),
+                      action: scene.action,
+                    ),
             ),
           ),
         ),

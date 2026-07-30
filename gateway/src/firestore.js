@@ -12,6 +12,7 @@ const {
   buildLocationContext,
 } = require('./intelligence');
 const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
+const { reverseGeocodeToPlaceName } = require('./geolocate/google');
 const { listConnectedImeis, findSocketsForDevice, listSilentConnectedImeis } = require('./sessions');
 const { hasPendingOffline } = require('./device-offline');
 const {
@@ -130,6 +131,16 @@ async function upsertDevice(imei, patch = {}) {
 
   if (protocolId && isProtocolId(protocolId) && isFullImei(canonicalImei)) {
     data.protocolId = protocolId;
+  }
+
+  // Phase 1: Reverse geocoding — populate placeLabel from lat/lng if not already set
+  if (data.location && typeof data.location.lat === 'number' && typeof data.location.lng === 'number') {
+    if (!data.location.placeLabel) {
+      const placeLabel = await reverseGeocodeToPlaceName(data.location.lat, data.location.lng);
+      if (placeLabel) {
+        data.location = { ...data.location, placeLabel };
+      }
+    }
   }
 
   if (!enabled) {

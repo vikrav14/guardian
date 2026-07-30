@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Guardian · Home dashboard prototypes (V52 care language)</title>
+  <style>
+    :root {
+      --safe: #28a66d;
+      --safe-bg: #e9f8f0;
+      --safe-text: #166b48;
+      --warning: #d89b18;
+      --warning-bg: #fff6dc;
+      --danger: #e83d45;
+      --danger-bg: #ffecee;
+      --accent: #286bf3;
+      --accent-bg: #eef4ff;
+      --surface: #ffffff;
+      --muted: #f7f9f7;
+      --text: #10233f;
+      --text-2: #60746b;
+      --text-3: #89978e;
+      --border: #e7ece8;
+      --forest: #173c32;
+      --ivory: #fbfaf6;
+      --canvas: #edf1ed;
+      --flag-red-bg: #fce8ea;
+      --flag-blue-bg: #e6eef9;
+      --flag-yellow-bg: #fff4cc;
+      --flag-green-bg: #e1f5ee;
+      --flag-red: #ea2839;
+      --flag-blue: #003da5;
+      --flag-yellow: #c99700;
+      --flag-green: #00a551;
+      --shadow: 0 14px 36px rgba(23, 60, 50, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 85% -10%, rgba(74, 201, 155, 0.18), transparent 42%),
+        radial-gradient(circle at 0% 30%, rgba(232, 183, 101, 0.14), transparent 40%),
+        var(--canvas);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .page { max-width: 1100px; margin: 0 auto; padding: 22px 16px 100px; }
+    .brief {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+    .brief h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.4px; }
+    .brief p { margin: 0 0 10px; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+    .locks {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+    }
+    .lock {
+      font-size: 11px; font-weight: 800;
+      background: var(--safe-bg); color: var(--safe-text);
+      border-radius: 999px; padding: 6px 10px;
+    }
+    .lock.warn { background: var(--warning-bg); color: #8a6208; }
+    .proto-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 14px; }
+    .proto-tab {
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+    .proto-tab.active {
+      background: var(--forest);
+      border-color: var(--forest);
+      color: white;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 12px;
+      background: linear-gradient(145deg, #1f7a55, var(--forest));
+      color: white; display: grid; place-items: center; font-weight: 800;
+    }
+    .brand h2 { margin: 0; font-size: 18px; }
+    .brand p { margin: 0; font-size: 11px; color: var(--text-3); }
+    .card {
+      background: white;
+      border: 1px solid white;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .card.ivory { background: var(--ivory); border-color: var(--border); }
+    .eyebrow {
+      font-size: 9px; font-weight: 900; letter-spacing: 1.1px;
+      color: var(--text-3); text-transform: uppercase; margin: 0 0 4px;
+    }
+    .name {
+      margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.8px; line-height: 1;
+    }
+    .headline {
+      margin: 8px 0 0; font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+      color: var(--forest);
+    }
+    .sub { margin: 6px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.45; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 800;
+    }
+    .pill.live { background: var(--safe-bg); color: var(--safe-text); }
+    .pill.muted { background: var(--muted); color: var(--text-2); }
+    .pill.locating { background: var(--accent-bg); color: #214fad; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .person { display: flex; gap: 14px; align-items: center; }
+    .avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(145deg, #8fd4b0, #2f6f56);
+      color: white; display: grid; place-items: center; font-weight: 800; font-size: 20px;
+      flex-shrink: 0; border: 3px solid white; box-shadow: 0 4px 14px rgba(23,60,50,.12);
+    }
+    .avatar.kid { background: linear-gradient(145deg, #7eb6d6, #3d6f8f); }
+    .avatar.elder { background: linear-gradient(145deg, #e8b765, #a67a2a); }
+    .status-strip {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-top: 14px; padding: 6px; border-radius: 22px;
+      background: linear-gradient(180deg, rgba(247,249,247,.9), rgba(255,255,255,.55));
+      border: 1px solid var(--border);
+    }
+    .status {
+      background: white; border-radius: 18px; padding: 14px 12px 12px; min-height: 100px;
+      box-shadow: 0 1px 0 rgba(23,60,50,.04); position: relative; overflow: hidden;
+    }
+    .status::before {
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      border-radius: 0 3px 3px 0; background: currentColor; opacity: .55;
+    }
+    .status .k {
+      font-size: 10px; font-weight: 800; letter-spacing: .4px;
+      text-transform: uppercase; color: var(--text-3);
+    }
+    .status .v {
+      font-size: 20px; font-weight: 800; margin: 8px 0 2px; letter-spacing: -.5px;
+    }
+    .status .u { font-size: 11px; color: var(--text-2); }
+    .status.pendant { color: var(--flag-red); }
+    .status.location { color: var(--flag-blue); }
+    .status.battery { color: var(--flag-yellow); }
+    .status.network { color: var(--flag-green); }
+    .dodo-map {
+      display: grid; grid-template-columns: 1fr 1.35fr; gap: 12px; margin-top: 14px;
+    }
+    .dodo {
+      min-height: 220px; border-radius: 22px; border: 1px solid var(--border);
+      background:
+        radial-gradient(circle at 50% 45%, rgba(40,166,109,.16), transparent 55%),
+        var(--ivory);
+      display: grid; place-items: center; position: relative; overflow: hidden;
+    }
+    .dodo-badge {
+      position: absolute; left: 12px; top: 12px;
+      background: white; border-radius: 999px; padding: 5px 10px;
+      font-size: 8px; font-weight: 900; letter-spacing: 1px; color: var(--forest);
+      border: 1px solid rgba(40,166,109,.18);
+    }
+    .bird {
+      width: 110px; height: 110px; border-radius: 50%;
+      background: linear-gradient(160deg, #7eb6d6, #4d7a8f);
+      position: relative; box-shadow: 0 10px 24px rgba(23,60,50,.12);
+    }
+    .bird::after {
+      content: "DODO"; position: absolute; inset: 0; display: grid; place-items: center;
+      color: white; font-weight: 900; font-size: 14px; letter-spacing: 1px;
+    }
+    .map {
+      min-height: 220px; border-radius: 22px; border: 1.5px solid white;
+      box-shadow: var(--shadow); position: relative; overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.35), transparent 30%),
+        repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(23,60,50,.04) 29px),
+        repeating-linear-gradient(90deg, transparent, transparent 28px, rgba(23,60,50,.04) 29px),
+        #dfe9e2;
+    }
+    .map-label {
+      position: absolute; left: 14px; top: 14px;
+      background: rgba(255,255,255,.96); border-radius: 16px; padding: 10px 12px;
+      box-shadow: var(--shadow); max-width: 70%;
+    }
+    .map-label strong { display: block; font-size: 13px; }
+    .map-label span { font-size: 11px; color: var(--text-2); }
+    .pin {
+      position: absolute; left: 54%; top: 48%; transform: translate(-50%, -100%);
+      width: 46px; height: 46px; border-radius: 50%;
+      border: 3px solid white; box-shadow: 0 8px 18px rgba(23,60,50,.25);
+      background: linear-gradient(145deg, #8fd4b0, #2f6f56);
+      display: grid; place-items: center; color: white; font-weight: 800; font-size: 12px;
+    }
+    .pin::after {
+      content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+      border: 7px solid transparent; border-top-color: #2f6f56;
+    }
+    .pin.faded { opacity: .72; }
+    .family {
+      display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px;
+    }
+    .chip-person {
+      min-width: 148px; background: white; border: 1.5px solid var(--border);
+      border-radius: 20px; padding: 12px; cursor: pointer; box-shadow: var(--shadow);
+    }
+    .chip-person.selected {
+      border-color: var(--forest);
+      box-shadow: 0 0 0 2px rgba(23,60,50,.12), var(--shadow);
+    }
+    .chip-person .n { font-weight: 800; font-size: 14px; margin-top: 8px; }
+    .chip-person .s { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+    .actions {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px;
+    }
+    .action {
+      border: 1px solid var(--border); background: var(--muted); border-radius: 18px;
+      padding: 14px 12px; text-align: left; font: inherit; cursor: pointer;
+    }
+    .action strong { display: block; font-size: 13px; }
+    .action span { font-size: 11px; color: var(--text-2); }
+    .action.sos {
+      background: var(--danger); border-color: var(--danger); color: white;
+    }
+    .action.sos span { color: rgba(255,255,255,.85); }
+    .soon {
+      display: inline-block; margin-left: 6px; font-size: 8px; font-weight: 900;
+      letter-spacing: .5px; text-transform: uppercase;
+      background: var(--warning-bg); color: #8a6208; padding: 2px 6px; border-radius: 999px;
+    }
+    .vitals {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px;
+    }
+    .vital {
+      background: white; border: 1px solid var(--border); border-radius: 16px; padding: 12px;
+    }
+    .vital .k { font-size: 10px; font-weight: 800; color: var(--text-3); text-transform: uppercase; }
+    .vital .v { font-size: 20px; font-weight: 800; margin-top: 6px; }
+    .peace-hero {
+      padding: 28px 22px; border-radius: 28px; margin-bottom: 14px;
+      background:
+        radial-gradient(circle at 90% 10%, rgba(40,166,109,.22), transparent 40%),
+        linear-gradient(160deg, #1a4a3c, var(--forest));
+      color: white; box-shadow: var(--shadow);
+    }
+    .peace-hero .eyebrow { color: rgba(255,255,255,.65); }
+    .peace-hero .name { color: white; font-size: 34px; }
+    .peace-hero .headline { color: #b8f0d2; font-size: 20px; }
+    .peace-hero .sub { color: rgba(255,255,255,.78); }
+    .nav {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      width: min(420px, calc(100% - 24px));
+      background: rgba(255,255,255,.96); border: 1px solid var(--border);
+      border-radius: 999px; box-shadow: var(--shadow);
+      display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr;
+      align-items: center; padding: 8px 10px; gap: 4px;
+    }
+    .nav span {
+      text-align: center; font-size: 10px; font-weight: 800; color: var(--text-3);
+    }
+    .nav span.active { color: var(--forest); }
+    .nav .sos-btn {
+      width: 54px; height: 54px; border-radius: 50%; background: var(--danger);
+      color: white; display: grid; place-items: center; font-weight: 900; font-size: 12px;
+      box-shadow: 0 8px 20px rgba(232,61,69,.35); margin: -18px auto 0;
+    }
+    .note {
+      margin-top: 10px; padding: 12px 14px; border-radius: 16px;
+      background: var(--accent-bg); color: #214fad; font-size: 12px; line-height: 1.45;
+    }
+    @media (max-width: 760px) {
+      .status-strip, .vitals, .actions, .dodo-map { grid-template-columns: 1fr 1fr; }
+      .dodo-map { grid-template-columns: 1fr; }
+      .name { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="brief">
+      <h1>Guardian home — V52 care language, kids &amp; elderly first</h1>
+      <p>
+        Same product you have live (pendant + GPS A + linking Dodo). The V52 watch prototype’s
+        calm care UI is the visual system. Extra watch features (vitals, camera, meds) appear as
+        <strong>optional layers</strong> — never block the map or safety status.
+      </p>
+      <div class="locks">
+        <span class="lock">Locked: GPS A / WiFi path unchanged</span>
+        <span class="lock">Locked: Linking + Dodo stages</span>
+        <span class="lock">Locked: Locating last-known pins</span>
+        <span class="lock warn">Prototype only — not Flutter yet</span>
+      </div>
+      <div class="proto-tabs" role="tablist">
+        <button class="proto-tab active" data-proto="a" type="button">A · Peace of mind</button>
+        <button class="proto-tab" data-proto="b" type="button">B · Care strip (V52 closest)</button>
+        <button class="proto-tab" data-proto="c" type="button">C · Family first</button>
+      </div>
+    </div>
+
+    <!-- A: Peace of mind -->
+    <section class="screen active" id="proto-a">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark">G</div>
+          <div>
+            <h2>Guardian</h2>
+            <p>Know they are safe</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="peace-hero">
+        <p class="eyebrow">You’re caring for</p>
+        <h3 class="name">Dexter</h3>
+        <p class="headline">All clear — he’s where he should be</p>
+        <p class="sub">Satellite GPS · Lower Vale · Updated just now</p>
+        <div class="meta" style="margin-top:14px">
+          <span class="pill live" style="background:rgba(255,255,255,.16);color:#fff"><span class="dot"></span> Live</span>
+          <span class="pill muted" style="background:rgba(255,255,255,.12);color:#dff5e8">Battery 92%</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="map" style="min-height:280px">
+          <div class="map-label">
+            <strong>Dexter · Live · Lower Vale</strong>
+            <span>Satellite GPS · Updated now</span>
+          </div>
+          <div class="pin">D</div>
+        </div>
+        <div class="actions">
+          <button class="action" type="button"><strong>Call</strong><span>Pendant SIM</span></button>
+          <button class="action" type="button"><strong>Journey</strong><span>Today’s path</span></button>
+          <button class="action sos" type="button"><strong>SOS</strong><span>Alert family</span></button>
+        </div>
+      </div>
+
+      <div class="card ivory">
+        <p class="eyebrow">Guardian Dodo</p>
+        <p class="sub" style="margin:0">Same linking / live / offline stages as today — only shown when something needs explaining.</p>
+        <div class="dodo" style="margin-top:12px;min-height:140px">
+          <div class="dodo-badge">LIVE</div>
+          <div class="bird"></div>
+        </div>
+      </div>
+
+      <p class="note">
+        <strong>Why this works for grandparents:</strong> one sentence answer first (“all clear”),
+        huge map second, SOS unmistakable. Kids’ guardians get the same calm — no medical clutter
+        unless a V52 watch is linked.
+      </p>
+    </section>
+
+    <!-- B: Care strip V52 -->
+    <section class="screen" id="proto-b">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark">G</div>
+          <div>
+            <h2>Guardian</h2>
+            <p>Know they are safe</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card ivory">
+        <div class="person">
+          <div class="avatar kid">D</div>
+          <div style="flex:1">
+            <p class="eyebrow">You’re caring for</p>
+            <h3 class="name">Dexter</h3>
+            <div class="meta">
+              <span class="pill live"><span class="dot"></span> Live</span>
+              <span class="pill muted">Updated now</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-strip" aria-label="Care status">
+          <div class="status pendant">
+            <div class="k">Pendant</div>
+            <div class="v">Live</div>
+            <div class="u">Connected</div>
+          </div>
+          <div class="status location">
+            <div class="k">Location</div>
+            <div class="v" style="font-size:16px;padding-top:4px">GPS active</div>
+            <div class="u">Lower Vale</div>
+          </div>
+          <div class="status battery">
+            <div class="k">Battery</div>
+            <div class="v">92%</div>
+            <div class="u">Healthy</div>
+          </div>
+          <div class="status network">
+            <div class="k">Network</div>
+            <div class="v" style="font-size:16px;padding-top:4px">Connected</div>
+            <div class="u">my.t / Emtel</div>
+          </div>
+        </div>
+
+        <div class="dodo-map">
+          <div class="dodo">
+            <div class="dodo-badge">STEP · LIVE</div>
+            <div class="bird"></div>
+          </div>
+          <div class="map">
+            <div class="map-label">
+              <strong>Dexter · Live · Lower Vale</strong>
+              <span>Satellite GPS</span>
+            </div>
+            <div class="pin">D</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="action" type="button"><strong>Call pendant</strong><span>Voice</span></button>
+          <button class="action" type="button"><strong>View journey</strong><span>Today</span></button>
+          <button class="action" type="button"><strong>Ask Guardian</strong><span>WhatsApp / AI</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">If they wear a V52 watch <span class="soon">Later</span></p>
+        <div class="vitals">
+          <div class="vital"><div class="k">Heart</div><div class="v">78</div></div>
+          <div class="vital"><div class="k">SpO2</div><div class="v">97%</div></div>
+          <div class="vital"><div class="k">BP</div><div class="v">122/79</div></div>
+          <div class="vital"><div class="k">Temp</div><div class="v">36.7°</div></div>
+        </div>
+        <p class="sub">Hidden for pendant-only accounts. Same dashboard shell.</p>
+      </div>
+
+      <p class="note">
+        <strong>Closest to current app + V52 HTML.</strong> Flag-coloured status tiles, ivory care
+        card, Dodo beside map. Best migration path with least relearning.
+      </p>
+    </section>
+
+    <!-- C: Family first -->
+    <section class="screen" id="proto-c">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark">G</div>
+          <div>
+            <h2>Guardian</h2>
+            <p>Your family circle</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="family">
+        <div class="chip-person selected">
+          <div class="avatar kid" style="width:44px;height:44px;font-size:14px">D</div>
+          <div class="n">Dexter</div>
+          <div class="s">Live · Lower Vale</div>
+        </div>
+        <div class="chip-person">
+          <div class="avatar elder" style="width:44px;height:44px;font-size:14px">B</div>
+          <div class="n">Bouboush</div>
+          <div class="s">Live · Locating</div>
+        </div>
+        <div class="chip-person" style="opacity:.75;border-style:dashed">
+          <div class="avatar" style="width:44px;height:44px;font-size:18px;background:#c9d2cc">+</div>
+          <div class="n">Add person</div>
+          <div class="s">Link a pendant</div>
+        </div>
+      </div>
+
+      <div class="card ivory">
+        <div class="person">
+          <div class="avatar kid">D</div>
+          <div>
+            <p class="eyebrow">Selected</p>
+            <h3 class="name">Dexter</h3>
+            <p class="headline" style="font-size:16px">Safe near home</p>
+            <div class="meta">
+              <span class="pill live"><span class="dot"></span> Live</span>
+              <span class="pill locating">Satellite GPS</span>
+            </div>
+          </div>
+        </div>
+        <div class="map" style="margin-top:14px;min-height:260px">
+          <div class="map-label">
+            <strong>Family on map</strong>
+            <span>Dexter solid · Bouboush Locating (softer pin)</span>
+          </div>
+          <div class="pin">D</div>
+          <div class="pin faded" style="left:38%;top:58%">B</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="status-strip">
+          <div class="status pendant"><div class="k">Pendant</div><div class="v">Live</div><div class="u">OK</div></div>
+          <div class="status location"><div class="k">Place</div><div class="v" style="font-size:15px;padding-top:6px">Lower Vale</div><div class="u">GPS A</div></div>
+          <div class="status battery"><div class="k">Battery</div><div class="v">92%</div><div class="u">OK</div></div>
+          <div class="status network"><div class="k">Signal</div><div class="v" style="font-size:15px;padding-top:6px">Strong</div><div class="u">Connected</div></div>
+        </div>
+      </div>
+
+      <p class="note">
+        <strong>Best when you have kids + parents on one account.</strong> Family strip is the
+        hero; map shows everyone with Live / Locating / Offline opacity we already built.
+      </p>
+    </section>
+  </div>
+
+  <nav class="nav" aria-label="App navigation">
+    <span class="active">Home</span>
+    <span>Zones</span>
+    <div class="sos-btn">SOS</div>
+    <span>Alerts</span>
+    <span>Account</span>
+  </nav>
+
+  <script>
+    const tabs = document.querySelectorAll('.proto-tab');
+    const screens = {
+      a: document.getElementById('proto-a'),
+      b: document.getElementById('proto-b'),
+      c: document.getElementById('proto-c'),
+    };
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        Object.values(screens).forEach((s) => s.classList.remove('active'));
+        screens[tab.dataset.proto].classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>

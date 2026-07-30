@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Guardian · V52 Care UI Prototype</title>
+  <style>
+    :root {
+      --safe: #28a66d;
+      --safe-bg: #e9f8f0;
+      --safe-text: #166b48;
+      --warning: #d89b18;
+      --warning-bg: #fff6dc;
+      --danger: #e83d45;
+      --danger-bg: #ffecee;
+      --accent: #286bf3;
+      --accent-bg: #eef4ff;
+      --surface: #ffffff;
+      --muted: #f7f9f7;
+      --text: #10233f;
+      --text-2: #60746b;
+      --text-3: #89978e;
+      --border: #e7ece8;
+      --forest: #173c32;
+      --ivory: #fbfaf6;
+      --canvas: #edf1ed;
+      --flag-red-bg: #fce8ea;
+      --flag-blue-bg: #e6eef9;
+      --flag-yellow-bg: #fff4cc;
+      --flag-green-bg: #e1f5ee;
+      --flag-red: #ea2839;
+      --flag-blue: #003da5;
+      --flag-yellow: #c99700;
+      --flag-green: #00a551;
+      --radius: 22px;
+      --shadow: 0 14px 36px rgba(23, 60, 50, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 85% -10%, rgba(74, 201, 155, 0.18), transparent 42%),
+        radial-gradient(circle at 0% 30%, rgba(232, 183, 101, 0.14), transparent 40%),
+        var(--canvas);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 18px 110px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 11px;
+      background: linear-gradient(145deg, #1f7a55, var(--forest));
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+    .brand p {
+      margin: 0;
+      color: var(--text-3);
+      font-size: 11px;
+    }
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+    .chip.active {
+      background: var(--forest);
+      border-color: var(--forest);
+      color: white;
+    }
+    .chip.soon {
+      opacity: 0.72;
+      border-style: dashed;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      border: 0;
+      background: transparent;
+      color: var(--text-3);
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .tab.active {
+      background: white;
+      color: var(--forest);
+      box-shadow: var(--shadow);
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .card {
+      background: white;
+      border: 1px solid white;
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .card.ivory { background: var(--ivory); border-color: var(--border); }
+
+    .person {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #8fd4b0, #2f6f56);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .eyebrow {
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 1.1px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      margin: 0 0 4px;
+    }
+    .name {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: -0.8px;
+      font-weight: 800;
+    }
+    .meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .pill.live { background: var(--safe-bg); color: var(--safe-text); }
+    .pill.watch { background: var(--accent-bg); color: #214fad; }
+    .pill.muted { background: var(--muted); color: var(--text-2); }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 6px;
+      padding: 4px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(247,249,247,.9), rgba(255,255,255,.55));
+      border: 1px solid var(--border);
+    }
+    .status {
+      border: 0;
+      background: white;
+      border-radius: 18px;
+      padding: 14px 12px 12px;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      box-shadow: 0 1px 0 rgba(23,60,50,.04);
+      transition: transform .15s ease, box-shadow .15s ease;
+      position: relative;
+      overflow: hidden;
+      min-height: 96px;
+    }
+    .status:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+    .status::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: currentColor;
+      opacity: 0.55;
+    }
+    .status .ico {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      margin-bottom: 10px;
+      background: var(--muted);
+    }
+    .status .k {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .status .v {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 4px 0 2px;
+      letter-spacing: -0.6px;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    .status .u {
+      font-size: 10px;
+      color: var(--text-2);
+      line-height: 1.3;
+    }
+    .status.heart { color: var(--flag-red); }
+    .status.heart .ico { background: var(--flag-red-bg); }
+    .status.spo2 { color: var(--flag-blue); }
+    .status.spo2 .ico { background: var(--flag-blue-bg); }
+    .status.bp { color: var(--flag-yellow); }
+    .status.bp .ico { background: var(--flag-yellow-bg); }
+    .status.network { color: var(--flag-green); }
+    .status.network .ico { background: var(--flag-green-bg); }
+    .status.network .v { font-size: 16px; letter-spacing: -0.3px; padding-top: 4px; }
+
+    .dodo-row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 12px;
+      margin: 14px 0 4px;
+    }
+    .dodo {
+      min-height: 170px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(40,166,109,.18), transparent 55%),
+        var(--ivory);
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .dodo-badge {
+      position: absolute;
+      left: 12px; top: 12px;
+      background: white;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: var(--forest);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(40,166,109,.18);
+    }
+    .bird {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: linear-gradient(160deg, #7eb6d6, #4d7a8f);
+      position: relative;
+      box-shadow: 0 12px 28px rgba(23,60,50,.16);
+    }
+    .bird::after {
+      content: "";
+      position: absolute;
+      width: 28px; height: 18px;
+      background: #c47a3a;
+      border-radius: 40% 60% 50% 50%;
+      right: -6px; top: 42%;
+    }
+    .copy h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+    .copy p {
+      margin: 0;
+      color: var(--text-2);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .label-ai {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--safe);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 1.1px;
+      margin-bottom: 8px;
+    }
+
+    .map {
+      height: 220px;
+      border-radius: 24px;
+      background:
+        linear-gradient(rgba(255,255,255,.15), rgba(255,255,255,.15)),
+        radial-gradient(circle at 62% 48%, #88c9a2 0 8px, transparent 9px),
+        linear-gradient(135deg, #c9dbd1, #e8efe9 40%, #d5e4dc);
+      border: 1.5px solid white;
+      box-shadow: var(--shadow);
+      position: relative;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .map-pin {
+      position: absolute;
+      left: 58%;
+      top: 42%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 3px solid white;
+      background: linear-gradient(145deg, #8fd4b0, #2f6f56);
+      box-shadow: 0 8px 20px rgba(16,35,63,.2);
+    }
+    .map-label {
+      position: absolute;
+      left: 14px; top: 14px;
+      background: rgba(255,255,255,.94);
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 11px;
+      box-shadow: var(--shadow);
+    }
+    .map-label strong { display: block; font-size: 12px; margin-bottom: 2px; }
+    .map-label span { color: var(--text-2); }
+    .journey {
+      position: absolute;
+      right: 14px; bottom: 14px;
+      background: var(--forest);
+      color: white;
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 1fr;
+      gap: 14px;
+    }
+    .panel h4 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      letter-spacing: -0.2px;
+    }
+    .action {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--muted);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+    }
+    .action:hover { background: white; box-shadow: var(--shadow); }
+    .action .ico {
+      width: 34px; height: 34px; border-radius: 12px;
+      display: grid; place-items: center;
+      background: white;
+      font-size: 14px;
+      border: 1px solid var(--border);
+    }
+    .action strong { display: block; font-size: 12px; }
+    .action span { font-size: 10px; color: var(--text-2); }
+    .action.new .ico { background: var(--accent-bg); border-color: transparent; }
+    .action.soon { opacity: 0.7; border-style: dashed; }
+
+    .feed-item {
+      display: grid;
+      grid-template-columns: 10px 1fr auto;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .feed-item:last-child { border-bottom: 0; }
+    .feed-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      margin-top: 4px;
+      background: var(--safe);
+    }
+    .feed-dot.warn { background: var(--warning); }
+    .feed-dot.danger { background: var(--danger); }
+    .feed-item time { color: var(--text-3); font-size: 10px; white-space: nowrap; }
+
+    .today-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .today-row:last-child { border-bottom: 0; }
+    .today-row .l { color: var(--text-2); }
+    .today-row .r { font-weight: 800; }
+    .today-row.soon .r { color: var(--text-3); font-weight: 700; }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin: 18px 0 10px;
+    }
+    .list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .list-row:last-child { border-bottom: 0; }
+    .list-row strong { display: block; font-size: 13px; }
+    .list-row span { font-size: 11px; color: var(--text-2); }
+    .toggle {
+      width: 42px; height: 24px; border-radius: 999px;
+      background: var(--safe);
+      position: relative;
+    }
+    .toggle::after {
+      content: "";
+      position: absolute;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: white;
+      top: 3px; right: 3px;
+    }
+    .toggle.off { background: #c9d2cc; }
+    .toggle.off::after { left: 3px; right: auto; }
+    .badge-soon {
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--warning);
+      background: var(--warning-bg);
+      border-radius: 999px;
+      padding: 4px 8px;
+    }
+
+    .alert {
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .alert:last-child { border-bottom: 0; }
+    .alert-ico {
+      width: 42px; height: 42px; border-radius: 14px;
+      display: grid; place-items: center;
+      font-size: 16px;
+    }
+    .alert h5 { margin: 0 0 4px; font-size: 13px; }
+    .alert p { margin: 0; font-size: 11px; color: var(--text-2); line-height: 1.4; }
+    .alert time { font-size: 10px; color: var(--text-3); }
+    .new-tag {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      background: var(--accent-bg);
+      color: #214fad;
+      padding: 2px 6px;
+      border-radius: 999px;
+      vertical-align: middle;
+    }
+
+    .note {
+      margin-top: 8px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: var(--warning-bg);
+      color: var(--warning);
+      font-size: 11px;
+      line-height: 1.45;
+      border: 1px dashed rgba(216,155,24,.35);
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 18px;
+      width: min(420px, calc(100% - 28px));
+      background: rgba(255,255,255,.96);
+      border: 1px solid white;
+      border-radius: 24px;
+      box-shadow: 0 18px 40px rgba(16,35,63,.14);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      padding: 10px 8px;
+      backdrop-filter: blur(10px);
+      z-index: 20;
+    }
+    .nav-btn {
+      border: 0;
+      background: transparent;
+      color: var(--text-3);
+      font-size: 10px;
+      font-weight: 700;
+      display: grid;
+      gap: 4px;
+      place-items: center;
+      cursor: pointer;
+    }
+    .nav-btn.active { color: var(--safe); }
+    .nav-btn .n { font-size: 16px; }
+    .sos {
+      width: 52px; height: 52px;
+      margin-top: -28px;
+      border-radius: 50%;
+      background: var(--danger);
+      color: white;
+      border: 4px solid white;
+      box-shadow: 0 10px 24px rgba(232,61,69,.35);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      line-height: 1.15;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(16,35,63,.35);
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 40;
+      padding: 18px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .sheet {
+      width: min(480px, 100%);
+      background: white;
+      border-radius: 24px 24px 18px 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .sheet h3 { margin: 0 0 6px; }
+    .sheet p { margin: 0 0 14px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+    .sheet button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px;
+      background: var(--forest);
+      color: white;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    @media (max-width: 900px) {
+      .status-strip { grid-template-columns: repeat(2, 1fr); }
+      .dodo-row, .panels { grid-template-columns: 1fr; }
+      .map { height: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">G</div>
+        <div>
+          <h1>Guardian</h1>
+          <p>V52 care UI prototype · glance only</p>
+        </div>
+      </div>
+      <div class="chip-row">
+        <button class="chip active" id="modeWatch" type="button">V52 Watch</button>
+        <button class="chip" id="modePendant" type="button">V28C Pendant</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-screen="home">Home</button>
+      <button class="tab" data-screen="alerts">Alerts</button>
+      <button class="tab" data-screen="account">Account · Care</button>
+    </div>
+
+    <!-- HOME -->
+    <section class="screen active" id="home">
+      <div class="card">
+        <div class="person">
+          <div class="avatar">B</div>
+          <div>
+            <p class="eyebrow">You’re caring for</p>
+            <h2 class="name">Bouboush</h2>
+            <div class="meta">
+              <span class="pill muted">Wife</span>
+              <span class="pill live"><span class="dot"></span> Live</span>
+              <span class="pill watch" id="modelPill">Watch · V52</span>
+              <span class="pill muted">Updated 2m ago</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dodo-row">
+          <div class="dodo">
+            <div class="dodo-badge"><span class="dot" style="background:var(--safe)"></span> LIVE</div>
+            <div class="bird" title="Dodo placeholder"></div>
+          </div>
+          <div class="copy">
+            <div class="label-ai">✦ GUARDIAN COMMS</div>
+            <h3>I’ve got every channel covered.</h3>
+            <p>Watch updates, Claude-backed AI checks, WhatsApp, and your family circle stay in one calm flow. Vitals sit below for a calm glance.</p>
+          </div>
+        </div>
+
+        <div class="status-strip" id="vitalsStrip">
+          <button class="status heart" type="button" data-sheet="hr">
+            <div class="ico">♥</div>
+            <div class="k">Heart</div>
+            <div class="v">72</div>
+            <div class="u">bpm · 8m ago</div>
+          </button>
+          <button class="status spo2" type="button" data-sheet="spo2">
+            <div class="ico">O₂</div>
+            <div class="k">SpO₂</div>
+            <div class="v">98%</div>
+            <div class="u">Blood oxygen</div>
+          </button>
+          <button class="status bp" type="button" data-sheet="bp">
+            <div class="ico">BP</div>
+            <div class="k">Blood pressure</div>
+            <div class="v">118/76</div>
+            <div class="u">mmHg</div>
+          </button>
+          <button class="status network" type="button" data-sheet="network">
+            <div class="ico">📶</div>
+            <div class="k">Network</div>
+            <div class="v">Connected</div>
+            <div class="u">4G · strong</div>
+          </button>
+        </div>
+        <div class="note" id="vitalsNote" hidden>
+          V28C mode: health tiles hide. Keep network / connectivity only for the pendant.
+        </div>
+      </div>
+
+      <div class="map">
+        <div class="map-label">
+          <strong>Bouboush · Near home</strong>
+          <span>Updated 2m ago</span>
+        </div>
+        <div class="map-pin"></div>
+        <button class="journey" type="button">Journey</button>
+      </div>
+
+      <div class="panels">
+        <div class="card">
+          <h4>What do you need?</h4>
+          <button class="action" type="button">
+            <span class="ico">📞</span>
+            <span><strong>Call watch</strong><span>Cellular call</span></span>
+          </button>
+          <button class="action new" type="button" data-sheet="talk">
+            <span class="ico">🎙️</span>
+            <span><strong>Talk to Bouboush</strong><span>In-app voice chat · V52</span></span>
+          </button>
+          <button class="action" type="button">
+            <span class="ico">📍</span>
+            <span><strong>View location</strong><span>Open map focus</span></span>
+          </button>
+          <button class="action soon" type="button" data-sheet="video">
+            <span class="ico">📹</span>
+            <span><strong>Video call</strong><span>Hidden until verified</span></span>
+          </button>
+        </div>
+
+        <div class="card">
+          <h4>Everything is flowing <span class="pill live" style="margin-left:6px">Live</span></h4>
+          <div class="feed-item">
+            <span class="feed-dot"></span>
+            <div>Watch signal received</div>
+            <time>2m</time>
+          </div>
+          <div class="feed-item">
+            <span class="feed-dot"></span>
+            <div>Heart rate looked steady</div>
+            <time>8m</time>
+          </div>
+          <div class="feed-item">
+            <span class="feed-dot warn"></span>
+            <div>Next pill reminder at 20:00</div>
+            <time>today</time>
+          </div>
+          <div class="feed-item">
+            <span class="feed-dot"></span>
+            <div>WhatsApp is ready</div>
+            <time>24/7</time>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Today</h4>
+          <div class="today-row">
+            <span class="l">Next pill</span>
+            <span class="r">Blood pressure · 20:00</span>
+          </div>
+          <div class="today-row">
+            <span class="l">Steps</span>
+            <span class="r">3,240 / 5,000</span>
+          </div>
+          <div class="today-row">
+            <span class="l">Last vitals</span>
+            <span class="r">HR 72 · SpO₂ 98%</span>
+          </div>
+          <div class="today-row">
+            <span class="l">Temperature</span>
+            <span class="r">36.6°C</span>
+          </div>
+          <div class="today-row soon" id="todaySoon">
+            <span class="l">Sedentary</span>
+            <span class="r">On · quiet 22:00–07:00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ALERTS -->
+    <section class="screen" id="alerts">
+      <div class="card">
+        <p class="eyebrow">Alerts</p>
+        <h2 class="name" style="font-size:24px;margin-bottom:8px">Needs a glance</h2>
+        <p style="margin:0 0 8px;color:var(--text-2);font-size:12px">Existing SOS / fall / geofence stay. V52 adds take-off and optional health alerts.</p>
+
+        <div class="alert">
+          <div class="alert-ico" style="background:var(--danger-bg)">📷</div>
+          <div>
+            <h5>SOS pressed <span class="new-tag">PHOTO</span></h5>
+            <p>Bouboush held SOS. Emergency photo attached when the watch uploads it.</p>
+          </div>
+          <time>12m</time>
+        </div>
+        <div class="alert">
+          <div class="alert-ico" style="background:var(--warning-bg)">⌚</div>
+          <div>
+            <h5>Watch may have been removed <span class="new-tag">V52</span></h5>
+            <p>Take-off alert after ~3 minutes off the wrist.</p>
+          </div>
+          <time>1h</time>
+        </div>
+        <div class="alert">
+          <div class="alert-ico" style="background:var(--danger-bg)">↓</div>
+          <div>
+            <h5>Possible fall</h5>
+            <p>Fall detection fired. Sensitivity is set in Account → Safety.</p>
+          </div>
+          <time>Yesterday</time>
+        </div>
+        <div class="alert">
+          <div class="alert-ico" style="background:var(--accent-bg)">♥</div>
+          <div>
+            <h5>Heart rate above your threshold <span class="new-tag">V52</span></h5>
+            <p>Reference only — not a medical diagnosis. Thresholds live under Care.</p>
+          </div>
+          <time>Mon</time>
+        </div>
+      </div>
+    </section>
+
+    <!-- ACCOUNT -->
+    <section class="screen" id="account">
+      <div class="card">
+        <p class="eyebrow">Device</p>
+        <h2 class="name" style="font-size:24px">Bouboush’s watch</h2>
+        <div class="meta" style="margin-bottom:8px">
+          <span class="pill watch">V52</span>
+          <span class="pill muted">ID · 10-digit</span>
+          <span class="pill live">Online</span>
+        </div>
+        <div class="note">Settings below are UI homes. Commands stay disabled until supplier protocol docs arrive.</div>
+      </div>
+
+      <div class="section-title">1 · Identity</div>
+      <div class="card">
+        <div class="list-row"><div><strong>Nickname</strong><span>Bouboush</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Relationship</strong><span>Wife</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Model</strong><span>Watch · V52</span></div><span class="badge-soon">auto</span></div>
+      </div>
+
+      <div class="section-title">2 · Safety</div>
+      <div class="card">
+        <div class="list-row"><div><strong>SOS numbers</strong><span>3 contacts</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Fall detection</strong><span>On · sensitivity 3 / 6</span></div><div class="toggle"></div></div>
+        <div class="list-row"><div><strong>Take-off alert</strong><span>Notify if watch leaves the wrist</span></div><div class="toggle"></div></div>
+        <div class="list-row"><div><strong>Find watch</strong><span>Ring the device nearby</span></div><span>›</span></div>
+      </div>
+
+      <div class="section-title">3 · Care</div>
+      <div class="card">
+        <div class="list-row"><div><strong>Medications</strong><span>Next: BP tablet · 20:00</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Sedentary reminder</strong><span>Quiet 22:00–07:00</span></div><div class="toggle"></div></div>
+        <div class="list-row"><div><strong>Vitals thresholds</strong><span>HR high 110 · low 45</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Step goal</strong><span>5,000 / day</span></div><span>›</span></div>
+      </div>
+
+      <div class="section-title">4 · Calls</div>
+      <div class="card">
+        <div class="list-row"><div><strong>Watch phonebook</strong><span>12 of 15 family numbers</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Answer mode</strong><span>Auto-answer after 2 rings</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Safe mode</strong><span>Only SOS + phonebook can call in</span></div><div class="toggle off"></div></div>
+        <div class="list-row"><div><strong>Listen in</strong><span>Privacy consent required</span></div><span class="badge-soon">verify</span></div>
+      </div>
+
+      <div class="section-title">5 · Advanced</div>
+      <div class="card">
+        <div class="list-row"><div><strong>GPS upload interval</strong><span>10 minutes (battery-friendly)</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Talking clock</strong><span>On</span></div><div class="toggle"></div></div>
+        <div class="list-row"><div><strong>Remote reboot</strong><span>Restart the watch</span></div><span>›</span></div>
+        <div class="list-row"><div><strong>Remote power-off</strong><span>Cannot turn back on remotely</span></div><span class="badge-soon">caution</span></div>
+      </div>
+    </section>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Primary">
+    <button class="nav-btn active" data-screen="home" type="button"><span class="n">⌂</span>Home</button>
+    <button class="nav-btn" type="button"><span class="n">◎</span>Safe zones</button>
+    <div style="display:grid;place-items:center"><div class="sos">SOS<br>3 SEC</div></div>
+    <button class="nav-btn" data-screen="alerts" type="button"><span class="n">🔔</span>Alerts</button>
+    <button class="nav-btn" data-screen="account" type="button"><span class="n">☺</span>Account</button>
+  </nav>
+
+  <div class="modal-backdrop" id="sheet">
+    <div class="sheet">
+      <h3 id="sheetTitle">Detail</h3>
+      <p id="sheetBody">Placeholder.</p>
+      <button type="button" id="sheetClose">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const screens = document.querySelectorAll('.screen');
+    const tabs = document.querySelectorAll('.tab');
+    const navBtns = document.querySelectorAll('.nav-btn[data-screen]');
+    const vitals = document.getElementById('vitalsStrip');
+    const vitalsNote = document.getElementById('vitalsNote');
+    const modelPill = document.getElementById('modelPill');
+    const modeWatch = document.getElementById('modeWatch');
+    const modePendant = document.getElementById('modePendant');
+    const sheet = document.getElementById('sheet');
+    const sheetTitle = document.getElementById('sheetTitle');
+    const sheetBody = document.getElementById('sheetBody');
+
+    const copy = {
+      hr: ['Heart rate', 'Latest reading from the watch. For reference only — not medical advice. Thresholds live under Account → Care.'],
+      spo2: ['Blood oxygen', 'SpO₂ from the last measurement. Wear the watch snug for a cleaner reading.'],
+      bp: ['Blood pressure', 'Latest BP reading uploaded by the watch after an on-wrist measurement.'],
+      network: ['Network', 'Cellular link between the watch and Guardian. Live / linking / offline still drive the care card badge.'],
+      talk: ['Talk to Bouboush', 'In-app voice chat over data (no call charge). UI home reserved — wait for protocol docs before enabling.'],
+      video: ['Video call', 'Vendor claims HD video. Keep hidden until we verify against real hardware.'],
+    };
+
+    function showScreen(id) {
+      screens.forEach((s) => s.classList.toggle('active', s.id === id));
+      tabs.forEach((t) => t.classList.toggle('active', t.dataset.screen === id));
+      navBtns.forEach((b) => b.classList.toggle('active', b.dataset.screen === id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    tabs.forEach((t) => t.addEventListener('click', () => showScreen(t.dataset.screen)));
+    navBtns.forEach((b) => b.addEventListener('click', () => showScreen(b.dataset.screen)));
+
+    document.querySelectorAll('[data-sheet]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const key = el.dataset.sheet;
+        const [title, body] = copy[key] || ['Detail', 'Prototype placeholder.'];
+        sheetTitle.textContent = title;
+        sheetBody.textContent = body;
+        sheet.classList.add('open');
+      });
+    });
+    document.getElementById('sheetClose').addEventListener('click', () => sheet.classList.remove('open'));
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.classList.remove('open'); });
+
+    function setMode(watch) {
+      modeWatch.classList.toggle('active', watch);
+      modePendant.classList.toggle('active', !watch);
+      vitalsNote.hidden = watch;
+      modelPill.textContent = watch ? 'Watch · V52' : 'Pendant · V28C';
+      vitals.querySelectorAll('.status.heart, .status.spo2, .status.bp').forEach((el) => {
+        el.style.display = watch ? '' : 'none';
+      });
+      vitals.style.gridTemplateColumns = watch ? 'repeat(4, 1fr)' : '1fr';
+      document.querySelectorAll('.action.new, .action.soon, .today-row.soon').forEach((el) => {
+        el.style.display = watch ? '' : 'none';
+      });
+    }
+    modeWatch.addEventListener('click', () => setMode(true));
+    modePendant.addEventListener('click', () => setMode(false));
+  </script>
+</body>
+</html>

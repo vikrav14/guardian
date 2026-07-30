@@ -82,17 +82,30 @@ function findDevice(devices, query) {
 async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
-    return { error: 'No matching pendant. Ask list_devices first.' };
+    return { error: 'No matching watch. Ask list_devices first.' };
   }
   const loc = device.location || {};
+  // Filter GPS noise & stale low speeds: walking speed (~5 km/h) threshold.
+  // Speeds under 5 km/h are too slow to be real movement (likely GPS noise or stale data).
+  // Real movement is typically faster (car ~30+ km/h, bike ~15+ km/h, jogging ~10+ km/h).
+  const speedKmh = device.speedKmh != null && device.speedKmh >= 5 ? device.speedKmh : 0;
+
+  // Consider online if recent heartbeat (within 15 min) — device connects periodically to send data
+  const lastHeartbeatTime = device.lastHeartbeatAt?.toDate?.() || device.lastHeartbeatAt;
+  const now = new Date();
+  const heartbeatAgeMs = lastHeartbeatTime ? now.getTime() - lastHeartbeatTime.getTime() : Infinity;
+  const isRecentlyActive = heartbeatAgeMs < 15 * 60 * 1000; // 15 minutes
+
   return {
     name: deviceLabel(device),
     imei: device.imei,
-    online: device.online === true,
+    online: isRecentlyActive,
+    batteryPercent: device.batteryPercent ?? null,
     lat: loc.lat ?? null,
     lng: loc.lng ?? null,
-    accuracySource: device.accuracySource || null,
-    speedKmh: device.speedKmh ?? null,
+    placeLabel: loc.placeLabel || null,
+    accuracySource: loc.accuracySource || null,
+    speedKmh: speedKmh,
     updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
     mapsUrl:
       loc.lat != null && loc.lng != null
@@ -104,7 +117,7 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
 async function getBattery(ctx, { device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
-    return { error: 'No matching pendant.' };
+    return { error: 'No matching watch.' };
   }
   return {
     name: deviceLabel(device),
@@ -178,7 +191,7 @@ function listDevices(ctx) {
 async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
-    return { error: 'No matching pendant.' };
+    return { error: 'No matching watch.' };
   }
 
   const intelligence = device.intelligence || {};
@@ -206,7 +219,7 @@ async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}
 async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
-    return { error: 'No matching pendant.' };
+    return { error: 'No matching watch.' };
   }
 
   const loc = device.location || {};
@@ -277,12 +290,12 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
 const TOOL_DEFINITIONS = [
   {
     name: 'list_devices',
-    description: 'List pendants this family can see (names, IMEI, online, battery).',
+    description: 'List watches this family can see (names, IMEI, online, battery).',
     input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'get_last_location',
-    description: 'Get the latest GPS location for a pendant by friendly name or IMEI.',
+    description: 'Get the latest GPS location for a watch by friendly name or IMEI.',
     input_schema: {
       type: 'object',
       properties: {
@@ -294,7 +307,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_battery',
-    description: 'Get battery percent and last heartbeat for a pendant.',
+    description: 'Get battery percent and last heartbeat for a watch.',
     input_schema: {
       type: 'object',
       properties: {
@@ -306,7 +319,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'get_recent_alerts',
-    description: 'Get recent SOS / fall / geofence alerts for the family or one pendant.',
+    description: 'Get recent SOS / fall / geofence alerts for the family or one watch.',
     input_schema: {
       type: 'object',
       properties: {
@@ -320,7 +333,7 @@ const TOOL_DEFINITIONS = [
   {
     name: 'get_device_intelligence',
     description:
-      'Get gateway rule-based insights for a pendant (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
+      'Get gateway rule-based insights for a watch (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
     input_schema: {
       type: 'object',
       properties: {
@@ -333,7 +346,7 @@ const TOOL_DEFINITIONS = [
   {
     name: 'is_at_geofence',
     description:
-      'Check whether a pendant is currently inside a named safe zone (distance check). Returns facts only.',
+      'Check whether a watch is currently inside a named safe zone (distance check). Returns facts only.',
     input_schema: {
       type: 'object',
       properties: {
