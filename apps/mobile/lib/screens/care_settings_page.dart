@@ -350,7 +350,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                       onToggle: (enabled) => MedicationReminderService()
                           .setEnabled(reminder, enabled),
                       onDelete: () =>
-                          MedicationReminderService().delete(reminder.id),
+                          MedicationReminderService().delete(reminder.id, imei: reminder.imei),
                     ),
                 ],
               );

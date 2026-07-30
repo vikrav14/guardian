@@ -523,8 +523,19 @@ class MedicationReminderService {
     );
   }
 
-  Future<void> delete(String id) async {
+  Future<void> delete(String id, {String? imei}) async {
+    // Delete from app's record
     await _db.collection('medicationReminders').doc(id).delete();
+
+    // Also delete from device's reminder collection (where scheduler reads from)
+    if (imei != null) {
+      await _db
+          .collection('devices')
+          .doc(imei)
+          .collection('reminders')
+          .doc(id)
+          .delete();
+    }
   }
 }
 
