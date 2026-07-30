@@ -238,6 +238,56 @@ function validateAlertsResponse(response, toolResult) {
 }
 
 /**
+ * Validate a safe zone check response (Phase 3a).
+ *
+ * @param {string} response - Text from LLM
+ * @param {Object} toolResult - Result from is_at_geofence tool
+ * @returns {{valid: boolean, issues: string[]}}
+ */
+function validateSafeZoneResponse(response, toolResult) {
+  const issues = [];
+  const text = String(response || '');
+
+  // Check: geofence found/not found matches tool result
+  if (toolResult && toolResult.geofenceName) {
+    // Tool found the geofence; response should answer yes/no
+    if (!/\b(yes|no|inside|outside|at|not at)\b/i.test(text)) {
+      issues.push('GEOFENCE_ANSWER_MISSING');
+    }
+
+    // Check: if inside, should confirm it
+    if (toolResult.atGeofence === true) {
+      if (!/\b(yes|inside|at|confirmed)\b/i.test(text)) {
+        issues.push('INSIDE_GEOFENCE_NOT_CONFIRMED');
+      }
+    } else if (toolResult.atGeofence === false) {
+      // Outside geofence
+      if (!/\b(no|outside|not at|left)\b/i.test(text)) {
+        issues.push('OUTSIDE_GEOFENCE_NOT_STATED');
+      }
+    }
+
+    // Check: distance mentioned if available
+    if (toolResult.distanceMeters != null && toolResult.distanceMeters > 0) {
+      if (!/\d+\s*(m|meter|km|foot|mile)/i.test(text) && !(/\d+\s*minute/i.test(text))) {
+        // Allow if distance omitted but other details present
+        // Don't flag as error - distance is optional
+      }
+    }
+  } else if (!toolResult || !toolResult.geofenceName) {
+    // Tool didn't find geofence; response should say so
+    if (!/not.*set.*up|don't.*have|geofence.*not.*found|zone.*unknown/i.test(text)) {
+      issues.push('GEOFENCE_NOT_FOUND_NOT_STATED');
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+/**
  * Generic response validation (applies to all responses).
  *
  * @param {string} response
@@ -274,5 +324,6 @@ module.exports = {
   validateBatteryResponse,
   validateDeviceStatusResponse,
   validateAlertsResponse,
+  validateSafeZoneResponse,
   validateGenericResponse,
 };
