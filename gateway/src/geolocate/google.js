@@ -278,16 +278,31 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
       return null;
     }
 
-    // Extract the best formatted address or component name
-    // Order: formatted_address (full) > first area_level_1 > first locality
+    // Extract the best place name with priority on specific neighborhoods/areas
+    // Priority order: neighborhood > sublocality > locality > administrative_area_level_1
     const firstResult = data.results[0];
-    if (firstResult.formatted_address) {
-      return firstResult.formatted_address;
+
+    // Look for the most specific location type first
+    for (const component of firstResult.address_components || []) {
+      if (component.types.includes('neighborhood')) {
+        return component.long_name;
+      }
     }
 
-    // Fallback: find locality or administrative area
     for (const component of firstResult.address_components || []) {
-      if (component.types.includes('locality') || component.types.includes('administrative_area_level_1')) {
+      if (component.types.includes('sublocality')) {
+        return component.long_name;
+      }
+    }
+
+    for (const component of firstResult.address_components || []) {
+      if (component.types.includes('locality')) {
+        return component.long_name;
+      }
+    }
+
+    for (const component of firstResult.address_components || []) {
+      if (component.types.includes('administrative_area_level_1')) {
         return component.long_name;
       }
     }
