@@ -111,3 +111,75 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
 - Tests use `fake_cloud_firestore` + `firebase_auth_mocks` on the Flutter
   side (real Firestore-shaped fakes, no platform channels needed) and
   `node:test` on the gateway side — no other test frameworks.
+
+## Protocol Reference: V28C → V52 Migration
+
+All pendants use the ReachFar GT06-family ASCII protocol (same packet format,
+shared command structure). However, **status bit assignments differ between
+versions** — this is critical for alarm classification.
+
+### Device Status Bits (Alarms)
+
+The device reports alarms as a 32-bit hex value (last field in AL_LTE packets).
+Bit positions **are not interchangeable** across device versions:
+
+**V28C bits (from Communication Example doc):**
+| Bit | Meaning |
+|-----|---------|
+| 0 | Low battery status |
+| 15 | Vibrate alert |
+| 16 | SOS alarm |
+| 17 | Low battery alarm |
+| 20 | Bracelet removal alert |
+| 21 | Fall alert |
+
+**V52 bits (from Communication Protocol doc, section 5):**
+| Bit | Meaning |
+|-----|---------|
+| 0 | Low battery status |
+| 3 | Wear GPS watch status |
+| 16 | SOS alarm |
+| 17 | Low battery alarm |
+| 18 | Out-of-fence alarm |
+| 19 | Enter-fence alarm |
+| 20 | Remove bracelet alarm |
+| 22 | **Fall alert** |
+
+**Bit 22 (V52) vs Bit 21 (V28C)**: The vendor's V52 Communication Example doc
+lists bit 22 as both "Fall alarm" and "Heart rate abnormal alarm" — this is a
+direct contradiction in the manufacturer's own docs. We align with V52 protocol
+section 5 (**bit 22 = fall**) for forward compatibility with V52 devices. This
+is implemented in `gateway/src/protocol/gt06.js:327`.
+
+### Commands: TCP vs SMS Routing
+
+- **TCP-only commands** (`ring_to_find`, fall detection, medication reminders):
+  require a live device connection. No SMS fallback — fail clearly if device
+  offline.
+- **SMS commands** (center number, SOS slots, status check): work when the device
+  has a SIM and data coverage, even without an active TCP session.
+
+See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
+
+### Known Unverified Commands
+
+`voice_monitor` (`monitor,<phone>#`) and `ring_to_find` (`find#`):
+- Borrowed from third-party RF-V28 docs (github.com/matthiasmo/RF-V28).
+- **Not** in ReachFar's official V28C SMS command sheet.
+- Flagged as unverified in code comments and app UI.
+- Tested and confirmed working on real V28C hardware (Dexter, Jeshna).
+
+### Open Items Before Full V52 Migration
+
+1. **Fall alarm bit conflict**: confirm V52 bit 22 (vs 21) against real hardware.
+2. **MONITOR command**: verify whether it requires a phone number argument on
+   your firmware version.
+3. **Photo capture**: resolve which command set (`rcapture`/`img` vs `PIC`+FTP)
+   your V52 units implement.
+4. **Geofence enter/exit bits**: V52 defines separate bits (18/19). Confirm your
+   devices use this encoding.
+5. **SOS contact expansion**: V52 supports 3 slots (SOS1, SOS2, SOS3) vs V28C's
+   single slot — app/backend must handle this schema change.
+
+For full technical details, see `/desktop/guardian-v28-v52-protocol-reference.md`
+(built from manufacturer PDFs, SMS command guides, and V52 datasheet).

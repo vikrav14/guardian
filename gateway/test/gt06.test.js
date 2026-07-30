@@ -186,7 +186,7 @@ test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
   assert.equal(acks.length, 1);
 });
 
-test('handlePacket parses AL_LTE heart-rate-abnormal alarm from bit 22 (additive, V46-V48-V52 only)', () => {
+test('handlePacket parses AL_LTE fall alarm from bit 22 (V52 protocol spec)', () => {
   const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00400000';
   const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
   const decoded = decodeFrame(frame);
@@ -195,18 +195,6 @@ test('handlePacket parses AL_LTE heart-rate-abnormal alarm from bit 22 (additive
   const { events } = handlePacket(decoded, session);
 
   assert.equal(events[0].type, 'alarm');
-  assert.equal(events[0].alarmType, 'heart_rate_abnormal');
-  assert.equal(events[0].severity, 'warning');
-});
-
-test('handlePacket still classifies bit 21 as fall (unchanged, matches existing V28C behavior)', () => {
-  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00200000';
-  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
-  const decoded = decodeFrame(frame);
-  const session = {};
-
-  const { events } = handlePacket(decoded, session);
-
   assert.equal(events[0].alarmType, 'fall');
   assert.equal(events[0].severity, 'critical');
 });

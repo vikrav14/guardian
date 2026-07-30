@@ -15,7 +15,7 @@ const KEYWORDS = {
   LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
   DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
-  DEVICE_COMMAND: ['ring', 'locate', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
+  DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
   REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
   SAFE_ZONE: ['home', 'school', 'work', 'zone'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],

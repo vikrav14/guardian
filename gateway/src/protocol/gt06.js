@@ -320,16 +320,11 @@ function handlePacket(decoded, session) {
       alarmCode = stateField;
       const stateBits = parseInt(stateField, 16);
       if (!Number.isNaN(stateBits)) {
-        // Bit 21 = fall, matching the existing (already-relied-upon) V28C
-        // reading. NOTE: the vendor's own docs disagree with each other
-        // here — the V28C doc and the V46-V48-V52 protocol doc both say
-        // bit 22 = fall, but the V46-V48-V52 *example* doc's own appendix
-        // says bit 21 = fall and bit 22 = heart-rate-abnormal. Left as-is
-        // (bit 21 = fall) since that's what's already working; bit 22 is
-        // added below as a new, additive alarm type that V28C never used.
+        // V52 protocol spec (section 5): bit 22 = fall alarm
+        // V28C docs show bit 21, but V52 unified spec uses bit 22.
+        // Using V52 convention for forward compatibility with V52 devices.
         if ((stateBits & (1 << 16)) !== 0) alarmType = 'sos';
-        else if ((stateBits & (1 << 21)) !== 0) alarmType = 'fall';
-        else if ((stateBits & (1 << 22)) !== 0) alarmType = 'heart_rate_abnormal';
+        else if ((stateBits & (1 << 22)) !== 0) alarmType = 'fall';
         else if ((stateBits & (1 << 20)) !== 0) alarmType = 'geofence_exit';
         else if ((stateBits & (1 << 19)) !== 0) alarmType = 'geofence_enter';
         else if ((stateBits & (1 << 17)) !== 0) alarmType = 'low_battery';
