@@ -185,9 +185,9 @@ If tool fails, say you could not send the command.`;
   if (intent.type === 'REMINDER_REQUEST') {
     return `${base}
 You can schedule pill/medication reminders for the wearer.
-Ask for: what medicine, what time, and which days.
-Use 24-hour time format (e.g., "14:30" not "2:30 PM").
-Confirm the reminder with the user before scheduling.
+If user gave all details (medicine, time, frequency), call schedule_reminder immediately.
+Otherwise ask for: what medicine, what time, and which days.
+Always use 24-hour time format (e.g., "14:30" not "2:30 PM").
 Report when the reminder was set and when it will trigger.
 If tool fails, say you could not schedule the reminder.`;
   }
