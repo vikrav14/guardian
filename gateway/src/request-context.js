@@ -25,6 +25,9 @@ function buildContextPacket({
   intent,
   locale = 'en',
 }) {
+  const allowedTools = selectAllowedTools(intent);
+  const systemPrompt = buildSystemPrompt({ ...intent, allowedTools });
+
   return {
     requestId,
     mode: 'guardian',
@@ -46,8 +49,9 @@ function buildContextPacket({
       lastHeartbeat: device?.lastHeartbeatAt,
       activeIncident: false, // Will expand in Phase 2
     },
-    allowedTools: selectAllowedTools(intent),
+    allowedTools,
     conversationSummary: intent?.type || 'UNCLEAR',
+    systemPrompt,
     constraints: {
       maxResponseSentences: 3,
       medicalClaimsAllowed: false,
@@ -70,7 +74,7 @@ function selectAllowedTools(intent) {
   // Always allow device list
   tools.push('list_devices');
 
-  // Location tools for location requests
+  // Location tools for location requests (Phase 1)
   if (intent.type === 'LOCATION_REQUEST' || intent.type === 'SAFE_ZONE_CHECK') {
     tools.push('get_last_location');
     if (intent.type === 'SAFE_ZONE_CHECK') {
@@ -78,10 +82,15 @@ function selectAllowedTools(intent) {
     }
   }
 
-  // Status tools for device status requests
+  // Status tools for device status requests (Phase 2)
   if (intent.type === 'DEVICE_STATUS') {
     tools.push('get_battery');
     tools.push('get_device_intelligence');
+  }
+
+  // Alert tools for alert queries (Phase 2)
+  if (intent.type === 'RECENT_ALERTS') {
+    tools.push('get_recent_alerts');
   }
 
   // Alerts for general help
@@ -101,24 +110,58 @@ function selectAllowedTools(intent) {
 }
 
 /**
- * Build system prompt based on context.
+ * Build system prompt based on intent type.
  *
- * Keep brief, focused on constraints.
- *
- * @param {Object} context - Result from buildContextPacket()
+ * @param {Object} intent - Result from classifyIntent()
  * @returns {string} System prompt
  */
-function buildSystemPrompt(context) {
-  return `You are Guardian, a calm family safety assistant for Mauritius.
+function buildSystemPrompt(intent) {
+  const base = `You are Guardian, a calm family safety assistant for Mauritius.
 You help families check on loved ones via WhatsApp.
-Be brief (${context.constraints.maxResponseSentences} short sentences max).
+Be brief (3 short sentences max).
 Use tools to answer with real data.
-Report tool facts only — never invent coordinates, battery %, or health readings.
+Report tool facts only — never invent coordinates, battery %, or health readings.`;
+
+  if (intent.type === 'LOCATION_REQUEST') {
+    return `${base}
 🚨 CRITICAL: Always use placeLabel from location tool if available — it's the recorded location name from the device, more accurate than guessing from coordinates.
 If a watch is offline, say so clearly.
 Always mention battery % and online status when you provide location data.
 Include maps URLs when you have location data.
 Speak naturally using place names (e.g., "Lower Vale", "Quatre Bornes"), not raw coordinates.
+If tools fail, say you could not reach live data.`;
+  }
+
+  if (intent.type === 'DEVICE_STATUS') {
+    return `${base}
+Summarize battery %, online status, and last heartbeat timestamp.
+Be direct: "X% battery, online since Y" or "X% battery, offline since Y".
+If device is stationary (speed ~0 km/h), mention that.
+If any insights available from device intelligence, mention the top one only.
+If tools fail, say you could not reach live data.`;
+  }
+
+  if (intent.type === 'RECENT_ALERTS') {
+    return `${base}
+Show recent critical events: SOS, falls, geofence transitions.
+Format: event type, severity, timestamp.
+If no alerts in past 24 hours, say "No recent alerts".
+Sort by most recent first.
+Mention only confirmed alerts, never speculate.
+If tools fail, say you could not reach alert history.`;
+  }
+
+  if (intent.type === 'SAFE_ZONE_CHECK') {
+    return `${base}
+Check if watch is inside the named geofence/safe zone.
+Be direct: "Yes, Mum is at home" or "No, Dexter left school at X time".
+Include distance if available.
+If geofence not found, say "I don't have that zone set up".
+If tools fail, say you could not verify location.`;
+  }
+
+  // Default for other intents
+  return `${base}
 If tools fail, say you could not reach live data.`;
 }
 
