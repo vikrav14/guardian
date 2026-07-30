@@ -345,6 +345,8 @@ async function handleChat({ from, text }) {
         validation = validateSafeZoneResponse(reply, lastLocationToolResult);
       } else if (intent.type === 'DEVICE_COMMAND') {
         validation = validateDeviceCommandResponse(reply, lastLocationToolResult);
+      } else if (intent.type === 'VOICE_MONITOR') {
+        validation = validateDeviceCommandResponse(reply, lastLocationToolResult);
       } else if (intent.type === 'REMINDER_REQUEST') {
         validation = validateReminderResponse(reply, lastLocationToolResult);
       }

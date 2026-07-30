@@ -16,6 +16,7 @@ const KEYWORDS = {
   DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
   DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
+  VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
   REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
   SAFE_ZONE: ['home', 'school', 'work', 'zone'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],
@@ -74,6 +75,17 @@ function classifyIntent(text) {
       urgency: 6,
       confidence: 0.90,
       matchedKeywords: commandMatch.keywords,
+    };
+  }
+
+  // Voice monitoring (listen-in feature)
+  const voiceMatch = findKeywordMatch(lower, KEYWORDS.VOICE_MONITOR);
+  if (voiceMatch.found) {
+    return {
+      type: 'VOICE_MONITOR',
+      urgency: 7,
+      confidence: 0.85,
+      matchedKeywords: voiceMatch.keywords,
     };
   }
 

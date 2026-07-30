@@ -296,8 +296,8 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
   }
 
   const cmd = String(commandType || '').toLowerCase().trim();
-  if (!['ring', 'locate', 'vibrate', 'alarm'].includes(cmd)) {
-    return { error: `Unknown command: ${commandType}. Supported: ring, locate, vibrate, alarm.` };
+  if (!['ring', 'locate', 'vibrate', 'alarm', 'listen', 'monitor'].includes(cmd)) {
+    return { error: `Unknown command: ${commandType}. Supported: ring, locate, vibrate, alarm, listen, monitor.` };
   }
 
   if (!db) {
@@ -311,6 +311,8 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
       locate: 'ring_to_find',
       vibrate: 'ring_to_find',
       alarm: 'ring_to_find',
+      listen: 'voice_monitor',
+      monitor: 'voice_monitor',
     };
     const actualType = typeMap[cmd] || cmd;
 
@@ -509,11 +511,11 @@ const TOOL_DEFINITIONS = [
   {
     name: 'send_device_command',
     description:
-      'Send a command to a watch: ring (sound/vibrate alert) or locate (trigger GPS ping). Supported: ring, locate, vibrate, alarm.',
+      'Send a command to a watch: ring (sound/vibrate alert), locate (GPS ping), or listen (voice monitor). Supported: ring, locate, vibrate, alarm, listen, monitor.',
     input_schema: {
       type: 'object',
       properties: {
-        command_type: { type: 'string', description: 'Command type: ring, locate, vibrate, or alarm' },
+        command_type: { type: 'string', description: 'Command type: ring, locate, vibrate, alarm, listen, or monitor' },
         device_name: { type: 'string' },
         imei: { type: 'string' },
       },
