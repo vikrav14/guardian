@@ -225,9 +225,9 @@ async function handleChat({ from, text }) {
       providerUsage = result.usage;
       toolsUsed = result.toolsUsed || [];
     } else {
-      // Phase 1: Use new provider abstraction
-      const systemPrompt = buildSystemPrompt(contextPacket);
-      const allowedTools = selectAllowedTools(intent);
+      // Phase 1 & 2: Use new provider abstraction with intent-specific prompts
+      const systemPrompt = contextPacket.systemPrompt; // Already computed by buildContextPacket
+      const allowedTools = contextPacket.allowedTools; // Already computed by buildContextPacket
       const filteredTools = TOOL_DEFINITIONS.filter((t) => allowedTools.includes(t.name));
 
       const messages = [{ role: 'user', content: text }];
