@@ -80,6 +80,9 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
   they're being listened to — a real privacy/consent question, not just a
   testing caveat. Worth a deliberate decision before this is used on a real
   person.
+- Ring/locate command (`find#`) has no documented stop/silence command. The
+  device rings for exactly 1 minute, then stops automatically (V46-V48-V52
+  protocol section 22). No remote way to silence it mid-alert.
 
 ## Dev setup
 
