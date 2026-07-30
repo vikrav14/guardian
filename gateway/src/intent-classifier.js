@@ -13,9 +13,10 @@
 const KEYWORDS = {
   CRITICAL: ['sos', 'help', 'emergency', 'urgent', 'danger', 'hospital', 'police'],
   LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
-  DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected'],
+  DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
+  RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
   REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember'],
-  SAFE_ZONE: ['home', 'school', 'work', 'zone', 'geofence'],
+  SAFE_ZONE: ['home', 'school', 'work', 'zone'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],
 };
 
@@ -72,6 +73,17 @@ function classifyIntent(text) {
       urgency: 3,
       confidence: 0.90,
       matchedKeywords: locationMatch.keywords,
+    };
+  }
+
+  // Recent alerts (check before device status, requires explicit alert/event keyword)
+  const alertMatch = findKeywordMatch(lower, KEYWORDS.RECENT_ALERTS);
+  if (alertMatch.found) {
+    return {
+      type: 'RECENT_ALERTS',
+      urgency: 5,
+      confidence: 0.90,
+      matchedKeywords: alertMatch.keywords,
     };
   }
 
@@ -161,8 +173,30 @@ function requiresLocation(intent) {
   return intent.type === 'LOCATION_REQUEST' || intent.type === 'SAFE_ZONE_CHECK';
 }
 
+/**
+ * Check if an intent requires status tools (battery, heartbeat, online).
+ *
+ * @param {Object} intent - Result from classifyIntent()
+ * @returns {boolean}
+ */
+function requiresStatus(intent) {
+  return intent.type === 'DEVICE_STATUS';
+}
+
+/**
+ * Check if an intent requires alert tools.
+ *
+ * @param {Object} intent - Result from classifyIntent()
+ * @returns {boolean}
+ */
+function requiresAlerts(intent) {
+  return intent.type === 'RECENT_ALERTS';
+}
+
 module.exports = {
   classifyIntent,
   isCritical,
   requiresLocation,
+  requiresStatus,
+  requiresAlerts,
 };
