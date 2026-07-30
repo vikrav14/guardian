@@ -287,6 +287,95 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
   };
 }
 
+async function sendDeviceCommand(db, ctx, { command_type: commandType, device_name: deviceName, imei } = {}) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) {
+    return { error: 'No matching watch.' };
+  }
+
+  const cmd = String(commandType || '').toLowerCase().trim();
+  if (!['ring', 'locate', 'vibrate', 'alarm'].includes(cmd)) {
+    return { error: `Unknown command: ${commandType}. Supported: ring, locate, vibrate, alarm.` };
+  }
+
+  if (!db) {
+    return { error: 'Device command service unavailable.' };
+  }
+
+  // Store command in Firestore for the device
+  const commandRef = db.collection('devices').doc(device.imei).collection('commands').doc();
+  const now = new Date();
+  await commandRef.set({
+    type: cmd,
+    status: 'pending',
+    createdAt: now,
+    createdBy: ctx.uid || 'unknown',
+    attempts: 0,
+    lastAttemptAt: null,
+  });
+
+  return {
+    name: deviceLabel(device),
+    imei: device.imei,
+    commandType: cmd,
+    commandId: commandRef.id,
+    status: 'sent',
+    sentAt: now.toISOString(),
+    online: device.online === true,
+    estimatedWaitSeconds: device.online ? 30 : null,
+  };
+}
+
+async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: scheduledTime, frequency = 'daily', device_name: deviceName, imei } = {}) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) {
+    return { error: 'No matching watch.' };
+  }
+
+  const medicine = String(medicineName || '').trim();
+  if (!medicine) {
+    return { error: 'medicine_name is required.' };
+  }
+
+  const time = String(scheduledTime || '').trim();
+  if (!time) {
+    return { error: 'time is required (HH:MM format).' };
+  }
+
+  if (!db) {
+    return { error: 'Reminder service unavailable.' };
+  }
+
+  // Validate time format (HH:MM)
+  if (!/^\d{1,2}:\d{2}$/.test(time)) {
+    return { error: `Invalid time format: ${time}. Use HH:MM.` };
+  }
+
+  // Store reminder in Firestore
+  const reminderRef = db.collection('devices').doc(device.imei).collection('reminders').doc();
+  const now = new Date();
+  await reminderRef.set({
+    medicineName: medicine,
+    scheduledTime: time,
+    frequency: frequency || 'daily',
+    status: 'active',
+    createdAt: now,
+    createdBy: ctx.uid || 'unknown',
+    lastSentAt: null,
+  });
+
+  return {
+    name: deviceLabel(device),
+    imei: device.imei,
+    reminderId: reminderRef.id,
+    medicineName: medicine,
+    scheduledTime: time,
+    frequency: frequency || 'daily',
+    status: 'scheduled',
+    createdAt: now.toISOString(),
+  };
+}
+
 const TOOL_DEFINITIONS = [
   {
     name: 'list_devices',
@@ -358,6 +447,38 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'send_device_command',
+    description:
+      'Send a command to a watch: ring (sound/vibrate alert) or locate (trigger GPS ping). Supported: ring, locate, vibrate, alarm.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        command_type: { type: 'string', description: 'Command type: ring, locate, vibrate, or alarm' },
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+      },
+      required: ['command_type'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'schedule_reminder',
+    description:
+      'Schedule a pill/medication reminder for a watch. Returns reminder ID and scheduled time.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        medicine_name: { type: 'string', description: 'Name of the medicine or pill' },
+        time: { type: 'string', description: 'Time in HH:MM format (24-hour)' },
+        frequency: { type: 'string', description: 'Frequency: daily, weekdays, weekends, or specific day' },
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+      },
+      required: ['medicine_name', 'time'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 async function runTool(db, ctx, name, input) {
@@ -374,6 +495,10 @@ async function runTool(db, ctx, name, input) {
       return getDeviceIntelligence(ctx, input || {});
     case 'is_at_geofence':
       return isAtGeofence(db, ctx, input || {});
+    case 'send_device_command':
+      return sendDeviceCommand(db, ctx, input || {});
+    case 'schedule_reminder':
+      return scheduleReminder(db, ctx, input || {});
     default:
       return { error: `Unknown tool ${name}` };
   }

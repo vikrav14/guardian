@@ -93,6 +93,18 @@ function selectAllowedTools(intent) {
     tools.push('get_recent_alerts');
   }
 
+  // Device command tools for ring/locate commands (Phase 3c)
+  if (intent.type === 'DEVICE_COMMAND') {
+    tools.push('send_device_command');
+    tools.push('list_devices');
+  }
+
+  // Reminder tools for pill/medication reminders (Phase 3b)
+  if (intent.type === 'REMINDER_REQUEST') {
+    tools.push('schedule_reminder');
+    tools.push('list_devices');
+  }
+
   // Alerts for general help
   if (intent.type === 'GENERAL_HELP') {
     tools.push('get_recent_alerts');
@@ -158,6 +170,26 @@ Be direct: "Yes, Mum is at home" or "No, Dexter left school at X time".
 Include distance if available.
 If geofence not found, say "I don't have that zone set up".
 If tools fail, say you could not verify location.`;
+  }
+
+  if (intent.type === 'DEVICE_COMMAND') {
+    return `${base}
+You can send SMS commands to the device: ring (sound/vibrate alert), locate (GPS ping).
+Ask which device if multiple are linked.
+Confirm the command with the user before sending.
+Report when command was sent and estimated execution time (~30s).
+If device is offline, warn that command may not be received immediately.
+If tool fails, say you could not send the command.`;
+  }
+
+  if (intent.type === 'REMINDER_REQUEST') {
+    return `${base}
+You can schedule pill/medication reminders for the wearer.
+Ask for: what medicine, what time, and which days.
+Use 24-hour time format (e.g., "14:30" not "2:30 PM").
+Confirm the reminder with the user before scheduling.
+Report when the reminder was set and when it will trigger.
+If tool fails, say you could not schedule the reminder.`;
   }
 
   // Default for other intents

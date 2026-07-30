@@ -15,7 +15,8 @@ const KEYWORDS = {
   LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
   DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
-  REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember'],
+  DEVICE_COMMAND: ['ring', 'locate', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
+  REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
   SAFE_ZONE: ['home', 'school', 'work', 'zone'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],
 };
@@ -84,6 +85,17 @@ function classifyIntent(text) {
       urgency: 5,
       confidence: 0.90,
       matchedKeywords: alertMatch.keywords,
+    };
+  }
+
+  // Device command (ring, locate, etc — more urgent than reminders)
+  const commandMatch = findKeywordMatch(lower, KEYWORDS.DEVICE_COMMAND);
+  if (commandMatch.found) {
+    return {
+      type: 'DEVICE_COMMAND',
+      urgency: 6,
+      confidence: 0.90,
+      matchedKeywords: commandMatch.keywords,
     };
   }
 
@@ -193,10 +205,32 @@ function requiresAlerts(intent) {
   return intent.type === 'RECENT_ALERTS';
 }
 
+/**
+ * Check if an intent requires reminder/medication tools.
+ *
+ * @param {Object} intent - Result from classifyIntent()
+ * @returns {boolean}
+ */
+function requiresReminder(intent) {
+  return intent.type === 'REMINDER_REQUEST';
+}
+
+/**
+ * Check if an intent requires device command tools.
+ *
+ * @param {Object} intent - Result from classifyIntent()
+ * @returns {boolean}
+ */
+function requiresCommand(intent) {
+  return intent.type === 'DEVICE_COMMAND';
+}
+
 module.exports = {
   classifyIntent,
   isCritical,
   requiresLocation,
   requiresStatus,
   requiresAlerts,
+  requiresReminder,
+  requiresCommand,
 };

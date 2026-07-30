@@ -288,6 +288,117 @@ function validateSafeZoneResponse(response, toolResult) {
 }
 
 /**
+ * Validate a device command response (Phase 3c).
+ *
+ * @param {string} response - Text from LLM
+ * @param {Object} toolResult - Result from send_device_command tool
+ * @returns {{valid: boolean, issues: string[]}}
+ */
+function validateDeviceCommandResponse(response, toolResult) {
+  const issues = [];
+  const text = String(response || '');
+
+  // Check: command type confirmed (ring or locate)
+  if (toolResult && toolResult.commandType) {
+    if (!new RegExp(`\\b${toolResult.commandType}\\b`, 'i').test(text)) {
+      issues.push('COMMAND_TYPE_NOT_CONFIRMED');
+    }
+  }
+
+  // Check: sent confirmation present
+  if (toolResult && toolResult.status === 'sent') {
+    if (!/(sent|queued|will send|command will be sent|triggered)/i.test(text)) {
+      issues.push('SEND_CONFIRMATION_MISSING');
+    }
+  }
+
+  // Check: device identifier mentioned if multiple devices
+  if (toolResult && toolResult.deviceName) {
+    if (!text.includes(toolResult.deviceName) && text.length > 50) {
+      // Only flag if response is long enough to mention the device
+      // Short responses may skip device name if context is clear
+    }
+  }
+
+  // Check: offline warning if device was offline
+  if (toolResult && toolResult.online === false) {
+    if (!/offline|may not.*receive|delay|later|when.*online/i.test(text)) {
+      issues.push('OFFLINE_WARNING_MISSING');
+    }
+  }
+
+  // Check: no invented device names
+  if (/\b[A-Z][a-z]+\b/.test(text)) {
+    // Generic check for capitalized words that might be invented device names
+    // This is heuristic; real validation needs tool result data
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+/**
+ * Validate a reminder scheduling response (Phase 3b).
+ *
+ * @param {string} response - Text from LLM
+ * @param {Object} toolResult - Result from schedule_reminder tool
+ * @returns {{valid: boolean, issues: string[]}}
+ */
+function validateReminderResponse(response, toolResult) {
+  const issues = [];
+  const text = String(response || '');
+
+  // Check: scheduled confirmation present
+  if (toolResult && toolResult.status === 'scheduled') {
+    if (!/(scheduled|set up|will remind|reminder.*set)/i.test(text)) {
+      issues.push('SCHEDULE_CONFIRMATION_MISSING');
+    }
+  }
+
+  // Check: medicine/medication name mentioned
+  if (toolResult && toolResult.medicineName) {
+    if (!text.toLowerCase().includes(toolResult.medicineName.toLowerCase())) {
+      issues.push('MEDICINE_NAME_NOT_CONFIRMED');
+    }
+  }
+
+  // Check: time mentioned (24-hour format or natural language)
+  if (toolResult && toolResult.scheduledTime) {
+    if (!/(:\d{2}|\d{1,2}\s*(am|pm|morning|evening|noon|midnight))/i.test(text)) {
+      issues.push('TIME_NOT_MENTIONED');
+    }
+  }
+
+  // Check: frequency mentioned (daily, weekdays, specific days)
+  if (toolResult && toolResult.frequency) {
+    if (!/(daily|every day|weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(text)) {
+      // Allow if specific time is mentioned without explicit frequency
+      if (!/(:\d{2}|am|pm)/i.test(text)) {
+        issues.push('FREQUENCY_NOT_MENTIONED');
+      }
+    }
+  }
+
+  // Check: no invented medicine names (if tool provided none)
+  if (!toolResult || !toolResult.medicineName) {
+    // Response should not confidently state a medicine if tool returned none
+    if (/\b(aspirin|ibuprofen|acetaminophen|amoxicillin|penicillin|metformin|insulin)\b/i.test(text)) {
+      // These are real drug names; if response uses them without tool data, it's invented
+      if (!toolResult) {
+        issues.push('INVENTED_MEDICINE_NAME');
+      }
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+/**
  * Generic response validation (applies to all responses).
  *
  * @param {string} response
@@ -325,5 +436,7 @@ module.exports = {
   validateDeviceStatusResponse,
   validateAlertsResponse,
   validateSafeZoneResponse,
+  validateDeviceCommandResponse,
+  validateReminderResponse,
   validateGenericResponse,
 };

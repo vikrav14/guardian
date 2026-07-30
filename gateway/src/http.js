@@ -23,7 +23,14 @@ const {
 // Phase 1: New provider abstraction and support layers
 const { createLlmProvider } = require('./providers');
 const { classifyIntent, isCritical } = require('./intent-classifier');
-const { validateLocationResponse } = require('./response-validator');
+const {
+  validateLocationResponse,
+  validateDeviceStatusResponse,
+  validateAlertsResponse,
+  validateSafeZoneResponse,
+  validateDeviceCommandResponse,
+  validateReminderResponse,
+} = require('./response-validator');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
@@ -323,14 +330,30 @@ async function handleChat({ from, text }) {
     }
 
     // [9] Validate response (catch hallucinations)
-    // Use the actual tool result for validation, not the raw device object
-    if (reply && lastLocationToolResult) {
-      const validation = validateLocationResponse(reply, lastLocationToolResult, { medicalClaimsAllowed: false });
+    // Apply intent-specific validation
+    if (reply) {
+      let validation = { valid: true, issues: [] };
+
+      if (intent.type === 'LOCATION_REQUEST' && lastLocationToolResult) {
+        validation = validateLocationResponse(reply, lastLocationToolResult, { medicalClaimsAllowed: false });
+      } else if (intent.type === 'DEVICE_STATUS' && lastLocationToolResult) {
+        validation = validateDeviceStatusResponse(reply, lastLocationToolResult);
+      } else if (intent.type === 'RECENT_ALERTS') {
+        // Validation for alerts (uses lastLocationToolResult but checks alert format)
+        validation = validateAlertsResponse(reply, lastLocationToolResult);
+      } else if (intent.type === 'SAFE_ZONE_CHECK' && lastLocationToolResult) {
+        validation = validateSafeZoneResponse(reply, lastLocationToolResult);
+      } else if (intent.type === 'DEVICE_COMMAND') {
+        validation = validateDeviceCommandResponse(reply, lastLocationToolResult);
+      } else if (intent.type === 'REMINDER_REQUEST') {
+        validation = validateReminderResponse(reply, lastLocationToolResult);
+      }
+
       await auditLog.recordValidation({ requestId, valid: validation.valid, issues: validation.issues });
 
       if (!validation.valid) {
         console.warn(`[assistant] ${requestId} Response validation failed:`, validation.issues);
-        reply = `I could not reach live data for ${wearer?.displayName || 'your loved one'}. Try again in a moment.`;
+        reply = `I could not process your request properly. Try again in a moment.`;
       }
     }
 
