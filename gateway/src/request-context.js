@@ -115,7 +115,8 @@ Be brief (${context.constraints.maxResponseSentences} short sentences max).
 Use tools to answer with real data.
 Report tool facts only — never invent coordinates, battery %, or health readings.
 🚨 CRITICAL: Always use placeLabel from location tool if available — it's the recorded location name from the device, more accurate than guessing from coordinates.
-If a pendant is offline, say so clearly.
+If a watch is offline, say so clearly.
+Always mention battery % and online status when you provide location data.
 Include maps URLs when you have location data.
 Speak naturally using place names (e.g., "Lower Vale", "Quatre Bornes"), not raw coordinates.
 If tools fail, say you could not reach live data.`;
