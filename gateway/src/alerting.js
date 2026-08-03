@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const Logger = require('./logger');
 const { metrics } = require('./metrics');
+const { sendCriticalAlert, sendWarningAlert } = require('./email-alert');
 
 const log = new Logger({ module: 'alerting' });
 
@@ -91,12 +92,15 @@ class AlertingSystem {
     if (criticalIntents > 0) {
       const lastCriticalAlert = this.lastAlerts['critical'];
       if (!lastCriticalAlert || Date.now() - lastCriticalAlert > 60000) {
-        this.logAlert('CRITICAL_EVENT', 'critical', `${criticalIntents} critical intent(s) detected`, {
+        const alert = this.logAlert('CRITICAL_EVENT', 'critical', `${criticalIntents} critical intent(s) detected`, {
           criticalIntents,
           timestamp: new Date().toISOString(),
         });
         this.lastAlerts['critical'] = Date.now();
         log.warn('CRITICAL EVENT ALERT', { criticalIntents });
+
+        // Send email
+        await sendCriticalAlert(this.email, alert);
       }
     }
 
@@ -106,13 +110,16 @@ class AlertingSystem {
       if (fallbackRate > THRESHOLDS.fallbackRatePercent) {
         const lastFallbackAlert = this.lastAlerts['fallback_rate'];
         if (!lastFallbackAlert || Date.now() - lastFallbackAlert > 300000) {
-          this.logAlert('HIGH_FALLBACK_RATE', 'warning', `Fallback rate ${fallbackRate.toFixed(1)}% (threshold: ${THRESHOLDS.fallbackRatePercent}%)`, {
+          const alert = this.logAlert('HIGH_FALLBACK_RATE', 'warning', `Fallback rate ${fallbackRate.toFixed(1)}% (threshold: ${THRESHOLDS.fallbackRatePercent}%)`, {
             fallbackRate: fallbackRate.toFixed(1),
             fallbacks,
             totalIntents,
           });
           this.lastAlerts['fallback_rate'] = Date.now();
           log.warn('FALLBACK RATE ALERT', { fallbackRate });
+
+          // Send email
+          await sendWarningAlert(this.email, alert);
         }
       }
     }
@@ -123,13 +130,16 @@ class AlertingSystem {
       if (errorRate > THRESHOLDS.llmErrorRatePercent) {
         const lastLlmAlert = this.lastAlerts['llm_error_rate'];
         if (!lastLlmAlert || Date.now() - lastLlmAlert > 300000) {
-          this.logAlert('HIGH_LLM_ERROR_RATE', 'warning', `LLM error rate ${errorRate.toFixed(1)}% (threshold: ${THRESHOLDS.llmErrorRatePercent}%)`, {
+          const alert = this.logAlert('HIGH_LLM_ERROR_RATE', 'warning', `LLM error rate ${errorRate.toFixed(1)}% (threshold: ${THRESHOLDS.llmErrorRatePercent}%)`, {
             errorRate: errorRate.toFixed(1),
             llmFailure,
             totalLlmCalls,
           });
           this.lastAlerts['llm_error_rate'] = Date.now();
           log.warn('LLM ERROR RATE ALERT', { errorRate });
+
+          // Send email
+          await sendWarningAlert(this.email, alert);
         }
       }
     }
@@ -141,13 +151,16 @@ class AlertingSystem {
       if (invalidRate > 10) {
         const lastValidationAlert = this.lastAlerts['validation_rate'];
         if (!lastValidationAlert || Date.now() - lastValidationAlert > 300000) {
-          this.logAlert('HIGH_VALIDATION_FAILURE', 'warning', `Response validation failure rate ${invalidRate.toFixed(1)}%`, {
+          const alert = this.logAlert('HIGH_VALIDATION_FAILURE', 'warning', `Response validation failure rate ${invalidRate.toFixed(1)}%`, {
             invalidRate: invalidRate.toFixed(1),
             invalidCount,
             totalResponses: totalLlmCalls,
           });
           this.lastAlerts['validation_rate'] = Date.now();
           log.warn('VALIDATION ALERT', { invalidRate });
+
+          // Send email
+          await sendWarningAlert(this.email, alert);
         }
       }
     }
