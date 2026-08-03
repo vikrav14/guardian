@@ -42,8 +42,6 @@ const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 
-const { startMonitoring: startAlertingMonitoring } = require('./alerting');
-
 const {
   incrementEvent,
   recordWriteGate,
@@ -105,8 +103,6 @@ initFirestore();
 startIntelligenceMonitor();
 
 startHttpServer();
-
-startAlertingMonitoring();
 
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
