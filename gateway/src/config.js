@@ -86,6 +86,9 @@ const config = {
 
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
+
+  // OpenWeatherMap API — weather context for device locations
+  openWeatherMapKey: process.env.OPEN_WEATHER_MAP_KEY || '',
 };
 
 module.exports = config;

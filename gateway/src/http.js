@@ -35,9 +35,13 @@ const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('.
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
 const { TOOL_DEFINITIONS, runTool } = require('./assistant/tools');
-const { alerting } = require('./alerting');
 const fs = require('fs');
 const path = require('path');
+const metrics = require('./metrics');
+
+console.log('[http] Metrics module loaded:', typeof metrics.trackIntent === 'function' ? '✓' : '✗');
+
+let alerting = null;
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -176,10 +180,16 @@ async function handleChat({ from, text }) {
 
     // [4] Classify intent (deterministic, no LLM)
     const intent = classifyIntent(text);
+    metrics.trackIntent(intent.type, intent.confidence, intent.urgency);
+    console.log(`[metrics] Tracked intent: type=${intent.type}, confidence=${intent.confidence}, urgency=${intent.urgency}`);
     await auditLog.recordIntent({ requestId, intent });
 
     // [5] Handle critical intents immediately (SOS, emergency)
     if (isCritical(intent)) {
+      // Track critical event
+      metrics.increment('critical_events', 1);
+      console.log(`[metrics] CRITICAL EVENT TRACKED - type=${intent.type}, total_critical=${metrics.getCounter('critical_events')}`);
+
       const reply =
         ctx.uid
           ? `Emergency detected. Dispatching to ${ctx.displayName}'s emergency contacts now.`
@@ -198,6 +208,8 @@ async function handleChat({ from, text }) {
 
     // [6] Check authentication for non-critical requests
     if (!ctx.uid) {
+      metrics.trackFallback('not_registered', { intentType: intent.type });
+
       const reply =
         "This number isn't registered with any Guardian family yet. Ask your guardian to add you as a contact in the app first.";
       idempotencyStore.store(requestId, reply);
@@ -253,14 +265,19 @@ async function handleChat({ from, text }) {
         while (roundCount < maxRounds && !finalReply) {
           roundCount += 1;
 
+          const llmStartTime = Date.now();
           lastProviderResult = await llmProvider.complete({
             systemPrompt,
             messages: currentMessages,
             tools: filteredTools,
             metadata: { requestId, userId: ctx.uid, locale: 'en' },
           });
+          const llmDurationMs = Date.now() - llmStartTime;
 
           providerUsage = lastProviderResult.usage;
+
+          // Track LLM call success
+          metrics.trackLLMCall(true, llmDurationMs, intent.type);
 
           // Handle tool use first (if stopReason is tool_use, prioritize that over text)
           const toolUses = (lastProviderResult.content || []).filter((b) => b.type === 'tool_use');
@@ -327,6 +344,10 @@ async function handleChat({ from, text }) {
         console.warn(`[assistant] ${requestId} Provider failed, using fallback:`, err.message);
         await auditLog.recordError({ requestId, phase: 'provider', error: err });
 
+        // Track LLM failure
+        metrics.trackLLMCall(false, 0, intent.type);
+        metrics.trackFallback('llm_error', { error: err.message, intentType: intent.type });
+
         // Fallback to template
         reply = `I'm having trouble reaching live data right now. Try again in a moment, or check the app for ${wearer?.displayName || 'your loved one'}'s location.`;
       }
@@ -356,14 +377,19 @@ async function handleChat({ from, text }) {
 
       await auditLog.recordValidation({ requestId, valid: validation.valid, issues: validation.issues });
 
+      // Track validation result
+      metrics.trackResponseValidation(validation.valid, validation.issues, intent.type);
+
       if (!validation.valid) {
         console.warn(`[assistant] ${requestId} Response validation failed:`, validation.issues);
+        metrics.trackFallback('validation_failed', { issues: validation.issues, intentType: intent.type });
         reply = `I could not process your request properly. Try again in a moment.`;
       }
     }
 
     // [10] Cache and send reply
     if (!reply) {
+      metrics.trackFallback('no_reply_generated', { intentType: intent.type });
       reply = `I could not process your request. I'm designed mainly for family safety questions.`;
     }
 
@@ -494,8 +520,109 @@ function startHttpServer() {
 
       // Alerts Summary
       if (req.method === 'GET' && url.pathname === '/alerts/summary') {
+        if (!alerting) {
+          sendJson(res, 503, { error: 'Alerting system not initialized' });
+          return;
+        }
         const summary = alerting.getSummary();
         sendJson(res, 200, summary);
+        return;
+      }
+
+      // Metrics Summary
+      if (req.method === 'GET' && url.pathname === '/metrics/summary') {
+        const summary = metrics.getSummary();
+
+        // Sum LLM metrics across all labels
+        let llmSuccessful = 0, llmFailed = 0;
+        for (const [key, data] of Object.entries(metrics.counters)) {
+          if (key.startsWith('llm_calls_successful')) llmSuccessful += data.value;
+          if (key.startsWith('llm_calls_failed')) llmFailed += data.value;
+        }
+
+        // Sum validation metrics across all labels
+        let validationValid = 0, validationTotal = 0;
+        for (const [key, data] of Object.entries(metrics.counters)) {
+          if (key.startsWith('response_validations_passed')) validationValid += data.value;
+          if (key.startsWith('response_validations_total')) validationTotal += data.value;
+        }
+
+        // Transform to dashboard-expected format
+        const response = {
+          intents: {
+            total: summary.intents_processed,
+            critical: summary.critical_events,
+          },
+          llm: {
+            successful: llmSuccessful,
+            failed: llmFailed,
+          },
+          validation: {
+            valid: validationValid,
+            responses_validated: validationTotal,
+          },
+          fallbacks: {
+            total: summary.fallback_count,
+          },
+          timing: summary.timing_stats,
+        };
+        sendJson(res, 200, response);
+        return;
+      }
+
+      // Metrics JSON (full export)
+      if (req.method === 'GET' && url.pathname === '/metrics/json') {
+        const summary = metrics.getSummary();
+        sendJson(res, 200, summary);
+        return;
+      }
+
+      // Device Context (weather + relevance)
+      if (req.method === 'GET' && url.pathname.match(/^\/devices\/[^/]+\/context/)) {
+        const match = url.pathname.match(/^\/devices\/([^/]+)\/context/);
+        const imei = match ? match[1] : null;
+
+        if (!imei) {
+          sendJson(res, 400, { error: 'IMEI required' });
+          return;
+        }
+
+        const db = getDb();
+        const deviceDoc = await db.collection('devices').doc(imei).get();
+
+        if (!deviceDoc.exists) {
+          sendJson(res, 404, { error: 'Device not found' });
+          return;
+        }
+
+        const deviceData = deviceDoc.data();
+        const device = {
+          online: deviceData.online || false,
+          lastSeenAt: deviceData.lastSeenAt?.toDate?.() || new Date().toISOString(),
+          batteryPercent: deviceData.batteryPercent || 0,
+          lastSeenMinutesAgo: Math.round((Date.now() - (deviceData.lastSeenAt?.toDate?.() || new Date()).getTime()) / 60000),
+        };
+
+        const location = {
+          lat: deviceData.lastLocation?.coordinates?.[1],
+          lng: deviceData.lastLocation?.coordinates?.[0],
+          placeName: deviceData.lastLocation?.placeName || 'Unknown location',
+          freshnessMinutes: device.lastSeenMinutesAgo,
+          accuracyClass: deviceData.lastLocation?.accuracyClass || 'unknown',
+        };
+
+        const person = {
+          displayName: deviceData.displayName || 'Device user',
+          age: deviceData.age || 25,
+          careContext: deviceData.careContext || 'general',
+        };
+
+        // Get context service (lazy init)
+        const ContextService = require('./context/contextService');
+        const contextService = new ContextService(config.openWeatherMapKey, llmProvider, config);
+        const context = await contextService.getDeviceContext(device, person, location);
+
+        sendJson(res, 200, context);
         return;
       }
 

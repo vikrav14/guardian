@@ -243,6 +243,154 @@
     .success-rate {
       color: #4caf50;
     }
+
+    .context-card {
+      grid-column: span 2;
+      background: linear-gradient(135deg, #1a1f28 0%, #252b37 100%);
+      border: 2px solid #3a4558;
+    }
+
+    .context-card h2 {
+      font-size: 16px;
+      color: #4caf50;
+      text-transform: none;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+
+    .weather-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .weather-icon {
+      font-size: 40px;
+    }
+
+    .weather-details {
+      flex-grow: 1;
+    }
+
+    .weather-condition {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .weather-temp {
+      font-size: 24px;
+      color: #4caf50;
+      font-weight: bold;
+    }
+
+    .weather-location {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .context-evaluation {
+      background: rgba(76, 175, 80, 0.1);
+      border-left: 3px solid #4caf50;
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+
+    .evaluation-severity {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .evaluation-message {
+      font-size: 13px;
+      color: #e0e0e0;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .evaluation-reasons {
+      font-size: 11px;
+      color: #999;
+    }
+
+    .context-explanation {
+      background: rgba(100, 150, 200, 0.08);
+      border-left: 3px solid #4a90e2;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #b0b5c0;
+      line-height: 1.5;
+      font-style: italic;
+    }
+
+    .context-explanation.unavailable {
+      opacity: 0.6;
+      font-style: normal;
+    }
+
+    .device-status {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #2a2f3a;
+      font-size: 11px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      background: #2a2f3a;
+      border-radius: 4px;
+      color: #888;
+    }
+
+    .status-badge.online {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+    }
+
+    .status-dot.online {
+      width: 8px;
+      height: 8px;
+      background: #4caf50;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    .status-dot.offline {
+      width: 8px;
+      height: 8px;
+      background: #ff6b6b;
+      border-radius: 50%;
+    }
+
+    .context-loading {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+      font-size: 13px;
+    }
+
+    .context-error {
+      color: #ff6b6b;
+    }
+
+    @media (max-width: 900px) {
+      .context-card {
+        grid-column: span 1;
+      }
+    }
   </style>
 </head>
 <body>
@@ -307,6 +455,16 @@
       </div>
     </div>
 
+    <!-- Context Intelligence Card -->
+    <div class="grid">
+      <div class="card context-card">
+        <h2>⚡ Around Them</h2>
+        <div id="contextContainer">
+          <div class="context-loading">Loading context...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Alert Summary -->
     <div class="grid">
       <div class="card">
@@ -348,35 +506,44 @@
         const response = await fetch(`${API_BASE}/metrics/summary`);
         const data = await response.json();
 
+        // Support both old and new format
+        const intentsTotal = data.intents?.total || data.intents_processed || 0;
+        const fallbackTotal = data.fallbacks?.total || data.fallback_count || 0;
+        const llmSuccessful = data.llm?.successful || 0;
+        const llmFailed = data.llm?.failed || 0;
+        const validationValid = data.validation?.valid || 0;
+        const validationTotal = data.validation?.responses_validated || 0;
+        const criticalCount = data.intents?.critical || 0;
+
         // Update main metrics
-        document.getElementById('intentsTotal').textContent = data.intents.total;
+        document.getElementById('intentsTotal').textContent = intentsTotal;
 
         // LLM metrics
-        const llmTotal = data.llm.successful + data.llm.failed;
-        const llmRate = llmTotal > 0 ? Math.round((data.llm.successful / llmTotal) * 100) : 0;
+        const llmTotal = llmSuccessful + llmFailed;
+        const llmRate = data.llm_success_rate || (llmTotal > 0 ? Math.round((llmSuccessful / llmTotal) * 100) : 0);
         document.getElementById('llmSuccessRate').textContent = llmRate + '%';
-        document.getElementById('llmStats').textContent = `${data.llm.successful}/${llmTotal}`;
+        document.getElementById('llmStats').textContent = `${llmSuccessful}/${llmTotal}`;
         document.getElementById('llmGaugeFill').style.width = llmRate + '%';
         document.getElementById('llmGaugeFill').style.background = llmRate >= 95 ? '#4caf50' : llmRate >= 90 ? '#ffa500' : '#ff6b6b';
 
         // Validation metrics
-        const validRate = data.validation.responses_validated > 0
-          ? Math.round((data.validation.valid / data.validation.responses_validated) * 100)
-          : 0;
+        const validRate = data.response_validation_rate || (validationTotal > 0
+          ? Math.round((validationValid / validationTotal) * 100)
+          : 0);
         document.getElementById('validationRate').textContent = validRate + '%';
-        document.getElementById('validationStats').textContent = `${data.validation.valid}/${data.validation.responses_validated}`;
+        document.getElementById('validationStats').textContent = `${validationValid}/${validationTotal}`;
         document.getElementById('validationGaugeFill').style.width = validRate + '%';
         document.getElementById('validationGaugeFill').style.background = validRate >= 95 ? '#4caf50' : validRate >= 90 ? '#ffa500' : '#ff6b6b';
 
         // Fallback metrics
-        const fallbackRate = data.intents.total > 0
-          ? Math.round((data.fallbacks.total / data.intents.total) * 100)
-          : 0;
+        const fallbackRate = data.fallback_rate || (intentsTotal > 0
+          ? Math.round((fallbackTotal / intentsTotal) * 100)
+          : 0);
         document.getElementById('fallbackRate').textContent = fallbackRate + '%';
-        document.getElementById('fallbackCount').textContent = data.fallbacks.total + ' fallback' + (data.fallbacks.total !== 1 ? 's' : '');
+        document.getElementById('fallbackCount').textContent = fallbackTotal + ' fallback' + (fallbackTotal !== 1 ? 's' : '');
 
         // Critical events
-        document.getElementById('criticalCount').textContent = data.intents.critical;
+        document.getElementById('criticalCount').textContent = criticalCount;
 
         // Update last updated time
         const now = new Date();
@@ -423,13 +590,124 @@
       }
     }
 
-    // Auto-refresh every 10 seconds
+    // Weather icon mapping
+    function getWeatherIcon(condition) {
+      const icons = {
+        'Thunderstorm': '⛈️',
+        'Tornado': '🌪️',
+        'Hurricane': '🌀',
+        'Cyclone': '🌀',
+        'Rain': '🌧️',
+        'Snow': '❄️',
+        'Clear': '☀️',
+        'Sunny': '☀️',
+        'Cloudy': '☁️',
+        'Partly Cloudy': '⛅',
+        'unknown': '❓',
+      };
+      return icons[condition] || '🌍';
+    }
+
+    async function refreshContext() {
+      try {
+        // Use demo IMEI for now (would be dynamic in production)
+        const imei = '861397053141170';
+        const response = await fetch(`${API_BASE}/devices/${imei}/context`);
+
+        if (!response.ok) {
+          throw new Error(`Device not found or error: ${response.status}`);
+        }
+
+        const context = await response.json();
+
+        const container = document.getElementById('contextContainer');
+
+        // Build context display
+        const weather = context.weather || {};
+        const evaluation = context.contextEvaluation || {};
+        const device = context.device || {};
+        const location = context.location || {};
+        const explanation = context.explanation;
+
+        const icon = getWeatherIcon(weather.condition);
+        const isOnline = device.online ? 'online' : 'offline';
+        const onlineBadgeClass = device.online ? 'online' : '';
+        const freshness = location.freshnessMinutes ? `${location.freshnessMinutes}m old` : 'unknown';
+        const reasonsText = evaluation.reasons && evaluation.reasons.length > 0
+          ? evaluation.reasons.join('; ')
+          : 'No specific concerns';
+
+        let html = `
+          <div class="weather-info">
+            <div class="weather-icon">${icon}</div>
+            <div class="weather-details">
+              <div class="weather-condition">${weather.condition || 'Unknown'}</div>
+              <div class="weather-temp">${weather.temperature !== null ? weather.temperature + '°C' : 'N/A'}</div>
+              <div class="weather-location">${location.placeName || 'Location unknown'}</div>
+            </div>
+          </div>
+        `;
+
+        if (evaluation.relevant) {
+          html += `
+            <div class="context-evaluation">
+              <div class="evaluation-severity">Alert Level: ${evaluation.severity.replace('_', ' ').toUpperCase()}</div>
+              <div class="evaluation-message">${evaluation.message || 'Context detected'}</div>
+              <div class="evaluation-reasons">📌 ${reasonsText}</div>
+            </div>
+          `;
+
+          if (explanation) {
+            html += `
+              <div class="context-explanation">
+                💭 "${explanation}"
+              </div>
+            `;
+          }
+        } else {
+          html += `
+            <div class="context-evaluation">
+              <div class="evaluation-severity">Status: NORMAL</div>
+              <div class="evaluation-message">${evaluation.message || 'No concerns detected'}</div>
+            </div>
+          `;
+        }
+
+        html += `
+          <div class="device-status">
+            <div class="status-badge ${onlineBadgeClass}">
+              <span class="status-dot ${isOnline}"></span>
+              ${isOnline.charAt(0).toUpperCase() + isOnline.slice(1)}
+            </div>
+            <div class="status-badge">🔋 ${device.batteryPercent || 0}%</div>
+            <div class="status-badge">📍 ${freshness}</div>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      } catch (err) {
+        console.error('Error fetching context:', err);
+        document.getElementById('contextContainer').innerHTML = `
+          <div class="context-loading context-error">
+            Unable to load context (device may not exist)
+          </div>
+        `;
+      }
+    }
+
+    // Auto-refresh every 10 seconds for main metrics
     setInterval(() => {
       refreshMetrics();
     }, 10000);
 
+    // Auto-refresh context every 10 minutes
+    setInterval(() => {
+      refreshContext();
+    }, 600000);
+
     // Initial load
     refreshMetrics();
+    refreshContext();
   </script>
 </body>
 </html>
