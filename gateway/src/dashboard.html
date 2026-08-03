@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guardian Alerting Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1419;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #2a2f3a;
+      padding-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .last-updated {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      background: #1a1f28;
+      border: 1px solid #2a2f3a;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 14px;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .card .value {
+      font-size: 36px;
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 5px;
+    }
+
+    .card .subtitle {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .card.critical .value {
+      color: #ff6b6b;
+    }
+
+    .card.warning .value {
+      color: #ffa500;
+    }
+
+    .card.success .value {
+      color: #4caf50;
+    }
+
+    .metric-bar {
+      width: 100%;
+      height: 8px;
+      background: #2a2f3a;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+      transition: width 0.3s ease;
+    }
+
+    .alerts-section {
+      margin-top: 30px;
+    }
+
+    .alerts-section h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+
+    .alerts-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1a1f28;
+      border: 1px solid #2a2f3a;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .alerts-table th {
+      background: #0f1419;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 12px;
+      color: #888;
+      text-transform: uppercase;
+      font-weight: 600;
+      border-bottom: 1px solid #2a2f3a;
+    }
+
+    .alerts-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #2a2f3a;
+      font-size: 13px;
+    }
+
+    .alerts-table tr:hover {
+      background: #252b37;
+    }
+
+    .alert-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .alert-critical {
+      background: #ff6b6b;
+      color: white;
+    }
+
+    .alert-warning {
+      background: #ffa500;
+      color: white;
+    }
+
+    .alert-info {
+      background: #4a90e2;
+      color: white;
+    }
+
+    .time {
+      color: #666;
+      font-size: 12px;
+    }
+
+    .no-alerts {
+      padding: 40px;
+      text-align: center;
+      color: #666;
+    }
+
+    .refresh-btn {
+      padding: 8px 16px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .refresh-btn:hover {
+      background: #45a049;
+    }
+
+    .rate-gauge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .gauge {
+      flex-grow: 1;
+      height: 6px;
+      background: #2a2f3a;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #ff6b6b);
+    }
+
+    .gauge-value {
+      font-size: 12px;
+      color: #888;
+      min-width: 40px;
+      text-align: right;
+    }
+
+    .error-rate {
+      color: #ff6b6b;
+    }
+
+    .success-rate {
+      color: #4caf50;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        <span class="status-dot"></span>
+        Guardian Alerting Dashboard
+      </h1>
+      <div>
+        <button class="refresh-btn" onclick="refreshMetrics()">↻ Refresh Now</button>
+        <div class="last-updated" id="lastUpdated"></div>
+      </div>
+    </div>
+
+    <!-- Metrics Grid -->
+    <div class="grid">
+      <div class="card success">
+        <h2>Intents Processed</h2>
+        <div class="value" id="intentsTotal">0</div>
+        <div class="subtitle">total requests</div>
+      </div>
+
+      <div class="card">
+        <h2>LLM Success Rate</h2>
+        <div class="value" id="llmSuccessRate">0%</div>
+        <div class="rate-gauge">
+          <div class="gauge">
+            <div class="gauge-fill" id="llmGaugeFill"></div>
+          </div>
+          <div class="gauge-value" id="llmStats">0/0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Response Validation</h2>
+        <div class="value" id="validationRate">0%</div>
+        <div class="rate-gauge">
+          <div class="gauge">
+            <div class="gauge-fill" id="validationGaugeFill"></div>
+          </div>
+          <div class="gauge-value" id="validationStats">0/0</div>
+        </div>
+      </div>
+
+      <div class="card warning">
+        <h2>Fallback Rate</h2>
+        <div class="value" id="fallbackRate">0%</div>
+        <div class="subtitle" id="fallbackCount">0 fallbacks</div>
+      </div>
+
+      <div class="card critical">
+        <h2>Critical Events</h2>
+        <div class="value" id="criticalCount">0</div>
+        <div class="subtitle">SOS/emergency detected</div>
+      </div>
+
+      <div class="card">
+        <h2>Avg Response Time</h2>
+        <div class="value" id="avgResponseTime">0ms</div>
+        <div class="subtitle" id="responseTimeRange">p95: 0ms</div>
+      </div>
+    </div>
+
+    <!-- Alert Summary -->
+    <div class="grid">
+      <div class="card">
+        <h2>Alerts (Last Hour)</h2>
+        <div class="value" id="alertsLastHour">0</div>
+        <div style="font-size: 12px; color: #666; margin-top: 10px;">
+          🔴 Critical: <span id="criticalAlerts">0</span> |
+          ⚠️ Warnings: <span id="warningAlerts">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Alerts Table -->
+    <div class="alerts-section">
+      <h2>Recent Alerts</h2>
+      <table class="alerts-table" id="alertsTable">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Severity</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="alertsBody">
+          <tr>
+            <td colspan="4" class="no-alerts">No alerts yet. System is healthy! ✅</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:9001';
+
+    async function refreshMetrics() {
+      try {
+        const response = await fetch(`${API_BASE}/metrics/summary`);
+        const data = await response.json();
+
+        // Update main metrics
+        document.getElementById('intentsTotal').textContent = data.intents.total;
+
+        // LLM metrics
+        const llmTotal = data.llm.successful + data.llm.failed;
+        const llmRate = llmTotal > 0 ? Math.round((data.llm.successful / llmTotal) * 100) : 0;
+        document.getElementById('llmSuccessRate').textContent = llmRate + '%';
+        document.getElementById('llmStats').textContent = `${data.llm.successful}/${llmTotal}`;
+        document.getElementById('llmGaugeFill').style.width = llmRate + '%';
+        document.getElementById('llmGaugeFill').style.background = llmRate >= 95 ? '#4caf50' : llmRate >= 90 ? '#ffa500' : '#ff6b6b';
+
+        // Validation metrics
+        const validRate = data.validation.responses_validated > 0
+          ? Math.round((data.validation.valid / data.validation.responses_validated) * 100)
+          : 0;
+        document.getElementById('validationRate').textContent = validRate + '%';
+        document.getElementById('validationStats').textContent = `${data.validation.valid}/${data.validation.responses_validated}`;
+        document.getElementById('validationGaugeFill').style.width = validRate + '%';
+        document.getElementById('validationGaugeFill').style.background = validRate >= 95 ? '#4caf50' : validRate >= 90 ? '#ffa500' : '#ff6b6b';
+
+        // Fallback metrics
+        const fallbackRate = data.intents.total > 0
+          ? Math.round((data.fallbacks.total / data.intents.total) * 100)
+          : 0;
+        document.getElementById('fallbackRate').textContent = fallbackRate + '%';
+        document.getElementById('fallbackCount').textContent = data.fallbacks.total + ' fallback' + (data.fallbacks.total !== 1 ? 's' : '');
+
+        // Critical events
+        document.getElementById('criticalCount').textContent = data.intents.critical;
+
+        // Update last updated time
+        const now = new Date();
+        document.getElementById('lastUpdated').textContent = `Updated: ${now.toLocaleTimeString()}`;
+
+        // Fetch alert summary
+        await refreshAlerts();
+      } catch (err) {
+        console.error('Error fetching metrics:', err);
+        document.getElementById('lastUpdated').textContent = 'Error loading metrics';
+      }
+    }
+
+    async function refreshAlerts() {
+      try {
+        const response = await fetch(`${API_BASE}/alerts/summary`);
+        const data = await response.json();
+
+        document.getElementById('alertsLastHour').textContent = data.totalLastHour;
+        document.getElementById('criticalAlerts').textContent = data.critical;
+        document.getElementById('warningAlerts').textContent = data.warnings;
+
+        // Update alerts table
+        const tbody = document.getElementById('alertsBody');
+        if (data.recentAlerts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="no-alerts">No alerts yet. System is healthy! ✅</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.recentAlerts.map(alert => {
+          const time = new Date(alert.timestamp).toLocaleTimeString();
+          const badgeClass = alert.severity === 'critical' ? 'alert-critical' : alert.severity === 'warning' ? 'alert-warning' : 'alert-info';
+          return `
+            <tr>
+              <td class="time">${time}</td>
+              <td>${alert.type}</td>
+              <td><span class="alert-badge ${badgeClass}">${alert.severity}</span></td>
+              <td>${alert.message}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('Error fetching alerts:', err);
+      }
+    }
+
+    // Auto-refresh every 10 seconds
+    setInterval(() => {
+      refreshMetrics();
+    }, 10000);
+
+    // Initial load
+    refreshMetrics();
+  </script>
+</body>
+</html>

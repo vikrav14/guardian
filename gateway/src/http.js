@@ -35,6 +35,9 @@ const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('.
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
 const { TOOL_DEFINITIONS, runTool } = require('./assistant/tools');
+const { alerting } = require('./alerting');
+const fs = require('fs');
+const path = require('path');
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -477,6 +480,22 @@ function startHttpServer() {
 
       if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true, service: 'guardian-gateway-http' });
+        return;
+      }
+
+      // Dashboard
+      if (req.method === 'GET' && url.pathname === '/dashboard') {
+        const dashboardPath = path.join(__dirname, 'dashboard.html');
+        const dashboard = fs.readFileSync(dashboardPath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(dashboard);
+        return;
+      }
+
+      // Alerts Summary
+      if (req.method === 'GET' && url.pathname === '/alerts/summary') {
+        const summary = alerting.getSummary();
+        sendJson(res, 200, summary);
         return;
       }
 
