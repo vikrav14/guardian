@@ -459,6 +459,14 @@
     <div class="grid">
       <div class="card context-card">
         <h2>⚡ Around Them</h2>
+        <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+          <label style="font-size: 12px; color: #888;">Device:</label>
+          <select id="deviceImeiSelect" style="padding: 6px; background: #2a2f3a; color: #fff; border: 1px solid #3a4558; border-radius: 4px; font-size: 12px;" onchange="refreshContext()">
+            <option value="861397053140768">Dexter</option>
+            <option value="861397053139877">Other Device</option>
+            <option value="861397053141170">Demo Device</option>
+          </select>
+        </div>
         <div id="contextContainer">
           <div class="context-loading">Loading context...</div>
         </div>
@@ -610,8 +618,8 @@
 
     async function refreshContext() {
       try {
-        // Use demo IMEI for now (would be dynamic in production)
-        const imei = '861397053141170';
+        // Get selected device IMEI from dropdown
+        const imei = document.getElementById('deviceImeiSelect').value;
         const response = await fetch(`${API_BASE}/devices/${imei}/context`);
 
         if (!response.ok) {
