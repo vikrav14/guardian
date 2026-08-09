@@ -235,6 +235,11 @@ function handlePacket(decoded, session) {
     const hb = parseLkData([command, ...args]);
     acks.push(buildAckFrame(protocolId, 'LK'));
     events.push({ type: 'heartbeat', ...eventMeta, ...hb });
+  } else if (command === 'TKQ') {
+    // V52: lightweight heartbeat/keepalive (sent immediately after LK during connection handshake)
+    // Treat as a valid session keepalive event to allow "connecting" → "live" transition
+    acks.push(buildAckFrame(protocolId, 'TKQ'));
+    events.push({ type: 'heartbeat', ...eventMeta });
   } else if (command === 'UD2') {
     // V46-V48-V52: blind-spot re-upload (data buffered while offline).
     // "Server no need reply" per the protocol doc — no ack pushed.
