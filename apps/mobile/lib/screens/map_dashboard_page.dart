@@ -27,7 +27,6 @@ import '../widgets/dashboard/quick_actions_panel.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
-import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_page.dart';
 
@@ -44,7 +43,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   bool _didFit = false;
   bool _sendingHelp = false;
   double _zoom = 13;
-  MapType _mapType = MapType.normal;
   Timer? _linkingTimer;
   int _linkingTick = 0;
   String? _linkingStoryImei;
@@ -53,7 +51,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Map<String, BitmapDescriptor> _markerIcons = const {};
   String _markerFingerprint = '';
   int _markerGeneration = 0;
-  Set<Circle> _cachedCircles = const {};
   String _cachedCirclesKey = '';
   String _geofenceFingerprint = '';
   int _lastGeofenceCount = 0;
@@ -64,20 +61,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   List<Device> get _devices => _dashboard.devices;
   List<Geofence> get _geofences => _dashboard.geofences;
   String? get _selectedImei => _dashboard.selectedImei;
-  String? get _error => _dashboard.error?.toString();
-  bool get _loading => _dashboard.loading;
 
-  bool _isReconnecting(Device device) => _dashboard.isReconnecting(device);
   bool _isLive(Device device) => _dashboard.isLive(device);
-
-  String _mapStatusLabel(Device? device) {
-    if (device == null) return 'Map';
-    if (_isReconnecting(device)) return 'Linking up';
-    if (!_isLive(device)) return 'Last known location';
-    if (device.hasApproximateLocation) return 'Approximate location';
-    if (device.hasFreshLocation) return '● Live location';
-    return 'Connected • Locating';
-  }
 
   @override
   void initState() {
@@ -266,35 +251,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     _mapCameraGeneration.value++;
   }
 
-  Future<void> _changeMapZoom(double delta) async {
-    final controller = _mapController;
-    if (controller == null) return;
-    final next = (_zoom + delta).clamp(3.0, 20.0).toDouble();
-    _zoom = next;
-    _mapCameraGeneration.value++;
-    await controller.animateCamera(CameraUpdate.zoomTo(next));
-    _mapCameraGeneration.value++;
-  }
-
-  void _toggleMapType() {
-    setState(() {
-      _mapType = _mapType == MapType.normal ? MapType.hybrid : MapType.normal;
-    });
-  }
-
-  VoidCallback? _centerTrackedPersonAction(Device? device) {
-    if (device == null || !device.hasFreshLocation) return null;
-    return () {
-      final location = device.location!;
-      unawaited(
-        _animateTo(
-          LatLng(location.lat, location.lng),
-          zoom: math.max(_zoom, 15.0).toDouble(),
-        ),
-      );
-    };
-  }
-
   void _fitIfNeeded(List<Device> devices) {
     if (_didFit) return;
     final points = devices
@@ -368,27 +324,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     super.dispose();
   }
 
-  void _onMapCameraMove(CameraPosition position) {
-    _zoom = position.zoom;
-    _mapCameraGeneration.value++;
-  }
-
-  Widget _webMapAvatarOverlay() {
-    if (!kIsWeb) return const SizedBox.shrink();
-    return ValueListenableBuilder<int>(
-      valueListenable: _mapCameraGeneration,
-      builder: (context, generation, _) {
-        return MapAvatarOverlay(
-          controller: _mapController,
-          devices: _devices,
-          selectedImei: _selectedImei,
-          cameraGeneration: generation,
-          onSelect: _dashboard.select,
-        );
-      },
-    );
-  }
-
   void sendHelpFromNavigation() {
     final device = _selected;
     if (device == null) {
@@ -401,44 +336,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Device? get _selected {
     return _dashboard.selected;
-  }
-
-  Set<Marker> _markers() {
-    if (kIsWeb) return const {};
-    return {
-      for (final device in _devices)
-        if (device.hasFreshLocation && _markerIcons.containsKey(device.imei))
-          Marker(
-            markerId: MarkerId(device.imei),
-            position: LatLng(device.location!.lat, device.location!.lng),
-            icon: _markerIcons[device.imei]!,
-            // Pendant is off/out of coverage: this is a last-known position,
-            // not a live one -- fade it so that reads clearly on the map.
-            alpha: device.isTrulyOffline ? 0.5 : 1.0,
-            zIndexInt: device.imei == _selectedImei ? 2 : 1,
-            onTap: () => _dashboard.select(device.imei),
-          ),
-    };
-  }
-
-  Set<Circle> _circles() {
-    final zones = _mapGeofences;
-    final key = '${_selectedImei ?? 'all'}|${_geofencesFingerprint(zones)}';
-    if (key == _cachedCirclesKey) return _cachedCircles;
-    _cachedCirclesKey = key;
-    _cachedCircles = {
-      for (final zone in zones)
-        Circle(
-          circleId: CircleId(zone.id),
-          center: LatLng(zone.lat, zone.lng),
-          radius: zone.radiusMeters,
-          fillColor: GuardianColors.safe.withValues(alpha: 0.22),
-          strokeColor: GuardianColors.safe,
-          strokeWidth: 3,
-          zIndex: 1,
-        ),
-    };
-    return _cachedCircles;
   }
 
   Future<void> _sendHelp(Device device) async {
@@ -561,9 +458,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
-    final center = selected?.hasFreshLocation == true
-        ? LatLng(selected!.location!.lat, selected.location!.lng)
-        : _mauritius;
 
     final insight = buildDashboardInsightForDevice(
       selected,
@@ -1132,74 +1026,6 @@ class _DodoVisualStage extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _PrototypeMapLabel extends StatelessWidget {
-  const _PrototypeMapLabel({required this.device, required this.status});
-
-  final Device? device;
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final live = device?.connectivityPhase() == DeviceConnectivityPhase.live;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: GuardianColors.forest.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: live ? GuardianColors.safe : GuardianColors.warning,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  device == null ? status : '${device!.displayName} • $status',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (device != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    deviceUpdatedLabel(device!),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: colors.textSecondary, fontSize: 9),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
