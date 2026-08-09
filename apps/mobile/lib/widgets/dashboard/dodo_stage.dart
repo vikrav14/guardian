@@ -55,9 +55,9 @@ extension DodoStageActionPresentation on DodoStageAction {
     DodoStageAction.networkSearch =>
       'Guardian Dodo is searching for the mobile network',
     DodoStageAction.locationSearch =>
-      'Guardian Dodo is finding the pendant location',
+      'Guardian Dodo is finding the watch location',
     DodoStageAction.aiCheck =>
-      'Guardian Dodo is checking the pendant update with AI',
+      'Guardian Dodo is checking the watch update with AI',
   };
 
   BoxFit get imageFit => BoxFit.contain;

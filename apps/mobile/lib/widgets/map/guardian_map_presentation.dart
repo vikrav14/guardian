@@ -87,7 +87,7 @@ abstract final class GuardianMapPresentation {
 
 /// Small Guardian-owned map controls.
 ///
-/// The centre action follows the selected pendant wearer. It never requests or
+/// The centre action follows the selected watch wearer. It never requests or
 /// uses the signed-in guardian's location.
 class GuardianMapControlRail extends StatelessWidget {
   const GuardianMapControlRail({

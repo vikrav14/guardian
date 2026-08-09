@@ -51,7 +51,7 @@ class AccountPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Enter the 15-digit IMEI printed on the pendant or returned '
+              'Enter the 15-digit IMEI printed on the watch or returned '
               'by the status SMS (ts#).',
             ),
             const SizedBox(height: 12),
@@ -89,7 +89,7 @@ class AccountPage extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Pendant linked — it will appear when the gateway receives data',
+              'Watch linked — it will appear when the gateway receives data',
             ),
           ),
         );
@@ -182,7 +182,7 @@ class AccountPage extends StatelessWidget {
             const GuardianPageHeader(
               eyebrow: 'YOUR GUARDIAN CIRCLE',
               title: 'Account & family',
-              subtitle: 'People, pendant and preferences in one calm place.',
+              subtitle: 'People, watch and preferences in one calm place.',
             ),
             const SizedBox(height: GuardianSpacing.lg),
             GuardianCard(
@@ -199,7 +199,7 @@ class AccountPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: GuardianSpacing.lg),
-            const GuardianSectionTitle('Pendants'),
+            const GuardianSectionTitle('Watchs'),
             const SizedBox(height: GuardianSpacing.sm),
             StreamBuilder<List<Device>>(
               stream: DeviceService().watchLinkedDevices(),
@@ -623,7 +623,7 @@ class _DeviceRow extends StatelessWidget {
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, size: 18),
-            tooltip: 'Pendant options',
+            tooltip: 'Watch options',
             onSelected: (value) {
               if (value == 'unlink') onUnlink();
             },
@@ -652,7 +652,7 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
       title: const Text('Unlink pendant?'),
       content: Text(
         '${device.displayName} will disappear from your account. '
-        'The pendant itself is not reset — you can link it again with the IMEI.',
+        'The watch itself is not reset — you can link it again with the IMEI.',
       ),
       actions: [
         TextButton(
@@ -842,7 +842,7 @@ Future<void> _showDeviceSettingsDialog(
                     controller: simCtrl,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
-                      labelText: "Pendant's SIM number",
+                      labelText: "Watch's SIM number",
                       hintText: '+230…',
                     ),
                   ),
@@ -882,7 +882,7 @@ Future<void> _showDeviceSettingsDialog(
                   ),
                   const Divider(height: 24),
                   Text(
-                    'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
+                    'Send SMS commands to the watch (see docs/reference/Switch-Server-SMS-Commands.pdf)',
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
@@ -1010,7 +1010,7 @@ Future<void> _showDeviceSettingsDialog(
                             title: const Text('Unlink pendant?'),
                             content: Text(
                               '${device.displayName} will disappear from your account. '
-                              'The pendant itself is not reset — you can link it again with the IMEI.',
+                              'The watch itself is not reset — you can link it again with the IMEI.',
                             ),
                             actions: [
                               TextButton(

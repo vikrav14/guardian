@@ -73,7 +73,7 @@ class SafeZonesPage extends StatelessWidget {
                       decoration: const InputDecoration(
                         labelText: 'Home WiFi name (optional)',
                         hintText:
-                            'Also counts as "inside" if the pendant supports it',
+                            'Also counts as "inside" if the watch supports it',
                       ),
                     ),
                     const SizedBox(height: 12),

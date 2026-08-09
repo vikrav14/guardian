@@ -37,7 +37,7 @@ class GuardianNowHero extends StatelessWidget {
           child: Column(
             children: [
               Text(
-                'No pendant linked',
+                'No watch linked',
                 style: textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,

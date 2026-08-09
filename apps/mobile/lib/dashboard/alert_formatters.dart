@@ -11,7 +11,7 @@ String alertDisplayTitle(GuardianAlert alert, {Device? device}) {
     'fall' => 'Possible fall detected',
     'geofence_exit' => 'Left safe zone',
     'geofence_enter' => 'Entered safe zone',
-    'low_battery' => 'Pendant battery low',
+    'low_battery' => 'Watch battery low',
     'offline' => "$person hasn't checked in",
     _ => alert.message.isNotEmpty ? alert.message : alert.type,
   };
@@ -64,7 +64,7 @@ String _humanizeLegacyOfflineMessage(String message) {
   ).firstMatch(message);
   final minutes = minutesMatch?.group(1);
   if (minutes != null) {
-    return 'We have not heard from the pendant for $minutes minutes. '
+    return 'We have not heard from the watch for $minutes minutes. '
         'The map may show an outdated last-known position until it reconnects.';
   }
   return 'Live tracking is paused. The map may show an outdated last-known position.';

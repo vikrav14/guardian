@@ -134,7 +134,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'These need the pendant to be online right now to take '
+                  'These need the watch to be online right now to take '
                   'effect — there is no SMS fallback for fall detection or '
                   'medication reminders.',
                   style: TextStyle(
@@ -304,7 +304,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                       ),
                     ),
                     Text(
-                      'How often the pendant reports its position',
+                      'How often the watch reports its position',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],
@@ -324,7 +324,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'More frequent updates give a fresher map but use more pendant '
+            'More frequent updates give a fresher map but use more watch '
             'battery. Without this set, the pendant\'s default interval is '
             'long and irregular.',
             style: TextStyle(color: colors.textMuted, fontSize: 11),

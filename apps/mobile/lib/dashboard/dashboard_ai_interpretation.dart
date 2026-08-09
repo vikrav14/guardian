@@ -51,7 +51,7 @@ List<String> buildGuardianActivities(Device? device) {
     return ['Waiting for device connection'];
   }
 
-  final activities = <String>['Pendant signal monitored'];
+  final activities = <String>['Watch signal monitored'];
 
   if (device.hasFreshLocation || device.hasApproximateLocation) {
     activities.add('Location received and evaluated');

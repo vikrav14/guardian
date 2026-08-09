@@ -109,8 +109,8 @@ String deviceConnectivityDetail(Device device, {DateTime? now}) {
   return switch (device.connectivityPhase(now: now)) {
     DeviceConnectivityPhase.live => 'Connected',
     DeviceConnectivityPhase.reconnecting =>
-      'Connecting to the pendant — waiting for network',
-    DeviceConnectivityPhase.offline => 'Pendant is off or out of coverage',
+      'Connecting to the watch — waiting for network',
+    DeviceConnectivityPhase.offline => 'Watch is off or out of coverage',
   };
 }
 

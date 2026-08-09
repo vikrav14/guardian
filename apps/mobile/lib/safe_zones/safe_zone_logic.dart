@@ -337,7 +337,7 @@ SafeZonesHeroSummary buildSafeZonesHeroSummary({
       totalZoneCount: zones.length,
       headline: 'Link a device to begin',
       detail:
-          'Safe zones need a linked pendant before they can show live status.',
+          'Safe zones need a linked watch before they can show live status.',
       tone: SafeZoneStatus.unknown,
       lastEventLabel: lastEvent == null ? null : heroEventLabel(lastEvent),
       lastEventAt: lastEvent?.createdAt,

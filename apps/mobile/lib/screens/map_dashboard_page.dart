@@ -327,7 +327,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   void sendHelpFromNavigation() {
     final device = _selected;
     if (device == null) {
-      _showUnavailable('No pendant is available for an SOS alert.');
+      _showUnavailable('No watch is available for an SOS alert.');
       return;
     }
     if (_sendingHelp) return;
@@ -552,7 +552,7 @@ class _PrototypeCareCard extends StatelessWidget {
   final DashboardInsight insight;
   final int linkingTick;
 
-  /// Non-null while the pendant is still linking up -- keeps this same
+  /// Non-null while the watch is still linking up -- keeps this same
   /// compact card in place and just cycles the Dodo stage through its
   /// connection-process poses instead of swapping to a separate,
   /// bigger "Linking up…" layout.
@@ -652,7 +652,7 @@ class _CarePersonSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final name = device?.displayName ?? 'Someone you care for';
-    final relationship = device?.relationshipLabel ?? 'No pendant linked';
+    final relationship = device?.relationshipLabel ?? 'No watch linked';
     final live = device?.connectivityPhase() == DeviceConnectivityPhase.live;
     final status = device == null
         ? 'Waiting'
@@ -730,7 +730,7 @@ class _CarePersonSummary extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               device == null
-                  ? 'Connect a pendant to begin'
+                  ? 'Connect a watch to begin'
                   : deviceUpdatedLabel(device!),
               style: TextStyle(color: colors.textMuted, fontSize: 10),
             ),
@@ -853,7 +853,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
                 Text(
                   linking
                       ? insight.detail
-                      : 'Pendant updates, Claude-backed AI checks, WhatsApp, and your family circle stay in one calm flow.',
+                      : 'Watch updates, Claude-backed AI checks, WhatsApp, and your family circle stay in one calm flow.',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 11,
@@ -1306,7 +1306,7 @@ class _CommunicationActivityCard extends StatelessWidget {
             icon: Icons.sensors_rounded,
             color: GuardianColors.accent,
             background: GuardianColors.accentBg,
-            title: 'Pendant signal received',
+            title: 'Watch signal received',
             note: 'Location and battery checked',
             trailing: 'now',
           ),
@@ -1698,7 +1698,7 @@ class _LiveStatusBar extends StatelessWidget {
       // network, location, Guardian AI) -- matching titles, not the
       // unrelated Pendant/Location/Battery/Network column order the live
       // status bar uses once connected.
-      const stepTitles = ['Pendant', 'Network', 'Location', 'Guardian AI'];
+      const stepTitles = ['Watch', 'Network', 'Location', 'Guardian AI'];
       const stepMetrics = [
         DashboardFlagMetric.connectivity,
         DashboardFlagMetric.signal,
@@ -1764,7 +1764,7 @@ class _LiveStatusBar extends StatelessWidget {
       _LiveMetric(
         metric: DashboardFlagMetric.connectivity,
         icon: Icons.sensors_rounded,
-        title: 'Pendant',
+        title: 'Watch',
         label: selected == null ? 'Offline' : deviceConnectivityLabel(selected),
         active: connected,
         colorsOverride: connectivityColors,
@@ -2028,7 +2028,7 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
           ? GuardianMapPresentation.style
           : null,
       myLocationButtonEnabled: false,
-      // Home shows pendant locations only. Guardian Eye will be introduced
+      // Home shows watch locations only. Guardian Eye will be introduced
       // later as a separate experience, not as a persistent guardian marker.
       myLocationEnabled: false,
       // Google enables a large arrow/zoom camera pad on web by default.

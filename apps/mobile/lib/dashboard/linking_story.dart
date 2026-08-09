@@ -72,7 +72,7 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       : LinkingStoryMetricState.pending;
   // Guardian AI / WhatsApp checks -- the last narrative beat, matching the
   // Dodo stage's own "GUARDIAN AI" step. There's no separate readiness
-  // signal for this one beyond the pendant already having a location, so
+  // signal for this one beyond the watch already having a location, so
   // it completes alongside it.
   final aiState = hasLocation
       ? LinkingStoryMetricState.complete
@@ -83,7 +83,7 @@ List<LinkingStoryMetric> linkingStoryMetrics(
   return [
     LinkingStoryMetric(
       label: step >= 1
-          ? 'Pendant awake'
+          ? 'Watch awake'
           : (variant == 0 ? 'Waking $name' : 'Checking pendant'),
       icon: step >= 1 ? Icons.sensors_rounded : Icons.bedtime_outlined,
       state: pendantState,
@@ -179,13 +179,13 @@ DashboardInsight linkingGuardianInsight(
 
   var details = switch (step) {
     0 => [
-      'The pendant has just come on.',
+      'The watch has just come on.',
       'Waking things up gently…',
       'Making sure everything is ready…',
       'Connecting to Guardian…',
     ],
     1 => [
-      'Linking up with the pendant now.',
+      'Linking up with the watch now.',
       'This usually only takes a moment.',
       'Stay with me — we’re getting there.',
     ],

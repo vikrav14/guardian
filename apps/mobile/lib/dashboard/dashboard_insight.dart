@@ -76,7 +76,7 @@ String _friendlyAgeLabel(Duration age) {
 String _offlineLocationDetail(Device device) {
   final recorded = device.location?.recordedAt;
   if (device.location?.isValid != true || recorded == null) {
-    return 'We can’t see a live location right now. Check the pendant is on, charged, and has coverage.';
+    return 'We can’t see a live location right now. Check the watch is on, charged, and has coverage.';
   }
 
   final ageLabel = _friendlyAgeLabel(DateTime.now().difference(recorded));
@@ -153,7 +153,7 @@ DashboardInsight _fallbackClientInsight(Device device) {
     return const DashboardInsight(
       title: 'Waiting for a location',
       detail:
-          'The pendant is connected. Looking for a clear position update now.',
+          'The watch is connected. Looking for a clear position update now.',
       tone: DashboardInsightTone.warning,
     );
   }

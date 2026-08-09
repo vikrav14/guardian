@@ -292,7 +292,7 @@ class _AvatarMarker extends StatelessWidget {
             color: color,
             selected: selected,
             imageUrl: device.avatarUrl,
-            // Pendant is off/out of coverage: this is a last-known position,
+            // Watch is off/out of coverage: this is a last-known position,
             // not a live one -- fade it so that reads clearly on the map.
             faded: device.isTrulyOffline,
           ),
@@ -323,7 +323,7 @@ class _TrackedPersonPin extends StatelessWidget {
   final String? imageUrl;
   final bool faded;
 
-  /// Opacity applied to a last-known pin once the pendant is offline --
+  /// Opacity applied to a last-known pin once the watch is offline --
   /// visible enough to still read the position, faint enough to read as
   /// "not live" at a glance.
   static const double fadedOpacity = 0.5;
@@ -343,7 +343,7 @@ class _TrackedPersonPin extends StatelessWidget {
 
     final pin = Semantics(
       label: faded
-          ? '$label last known location, pendant offline'
+          ? '$label last known location, watch offline'
           : '$label location',
       image: true,
       child: SizedBox(

@@ -168,14 +168,14 @@ class Device {
   final String? avatarUrl;
   final DeviceIntelligence? intelligence;
 
-  /// Last preference the app asked the pendant for -- V46/V48/V52 only.
+  /// Last preference the app asked the watch for -- V46/V48/V52 only.
   /// The device has no "read back my fall-detection config" command, so
   /// this is a cache of the last request, not confirmed device state.
   final bool? fallDetectionEnabled;
   final bool? fallDetectionDialMonitor;
   final int? fallDetectionSensitivity;
 
-  /// Last upload interval the app asked the pendant for, in seconds --
+  /// Last upload interval the app asked the watch for, in seconds --
   /// V46/V48/V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
@@ -213,7 +213,7 @@ class Device {
     return _legacyPersonName ?? 'Family member';
   }
 
-  /// Gateway says connected and we heard from the pendant recently.
+  /// Gateway says connected and we heard from the watch recently.
   bool get hasRecentContact {
     final contact = lastHeartbeatAt ?? updatedAt;
     if (contact == null) return false;
@@ -226,7 +226,7 @@ class Device {
   ///
   /// Prevents simulator or old GPS writes from showing a map pin after the real
   /// device reconnects with heartbeats only (no fresh fix yet). Once the
-  /// pendant goes offline this check is skipped entirely -- an offline device
+  /// watch goes offline this check is skipped entirely -- an offline device
   /// will never send a newer heartbeat to "catch up" to, so the last known
   /// fix should keep showing (faded) rather than disappear once it crosses
   /// the slack window.
@@ -288,61 +288,43 @@ class Device {
 
   factory Device.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
-    if (kDebugMode) {
-      debugPrint('[Device.fromDoc] Processing device ${doc.id}: keys=${data.keys.join(", ")}');
-      if (data.containsKey('intelligence')) {
-        debugPrint('[Device.fromDoc]   intelligence type: ${data['intelligence'].runtimeType}');
-        if (data['intelligence'] is Map) {
-          final intell = data['intelligence'] as Map;
-          debugPrint('[Device.fromDoc]   intelligence.insights type: ${intell['insights'].runtimeType}');
-        }
-      }
-    }
-    try {
-      return Device(
-        imei: doc.id,
-        name: data['name'] as String?,
-        nickname: data['nickname'] as String?,
-        relationship: data['relationship'] as String?,
-        online: data['online'] == true,
-        batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
-        speedKmh: data['speedKmh'] as num?,
-        course: data['course'] as num?,
-        accuracySource: data['accuracySource'] as String?,
-        location: DeviceLocation.fromMap(
-          data['location'] is Map
-              ? Map<String, dynamic>.from(data['location'] as Map)
-              : null,
-        ),
-        lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
-        disconnectedAt: _asDateTime(data['disconnectedAt']),
-        connectionState: data['connectionState'] as String?,
-        connectingAt: _asDateTime(data['connectingAt']),
-        updatedAt: _asDateTime(data['updatedAt']),
-        simNumber: data['simNumber'] as String?,
-        avatarUrl: data['avatarUrl'] as String?,
-        intelligence: DeviceIntelligence.fromMap(
-          data['intelligence'] is Map
-              ? Map<String, dynamic>.from(data['intelligence'] as Map)
-              : null,
-        ),
-        fallDetectionEnabled:
-            (data['fallDetection'] as Map?)?['enabled'] as bool?,
-        fallDetectionDialMonitor:
-            (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
-        fallDetectionSensitivity:
-            ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
-                ?.toInt(),
-        locationReportingIntervalSeconds:
-            (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[Device.fromDoc] ERROR for ${doc.id}: $e');
-        debugPrint('[Device.fromDoc] Data keys: ${data.keys.join(", ")}');
-      }
-      rethrow;
-    }
+    return Device(
+      imei: doc.id,
+      name: data['name'] as String?,
+      nickname: data['nickname'] as String?,
+      relationship: data['relationship'] as String?,
+      online: data['online'] == true,
+      batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
+      speedKmh: data['speedKmh'] as num?,
+      course: data['course'] as num?,
+      accuracySource: data['accuracySource'] as String?,
+      location: DeviceLocation.fromMap(
+        data['location'] is Map
+            ? Map<String, dynamic>.from(data['location'] as Map)
+            : null,
+      ),
+      lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
+      disconnectedAt: _asDateTime(data['disconnectedAt']),
+      connectionState: data['connectionState'] as String?,
+      connectingAt: _asDateTime(data['connectingAt']),
+      updatedAt: _asDateTime(data['updatedAt']),
+      simNumber: data['simNumber'] as String?,
+      avatarUrl: data['avatarUrl'] as String?,
+      intelligence: DeviceIntelligence.fromMap(
+        data['intelligence'] is Map
+            ? Map<String, dynamic>.from(data['intelligence'] as Map)
+            : null,
+      ),
+      fallDetectionEnabled:
+          (data['fallDetection'] as Map?)?['enabled'] as bool?,
+      fallDetectionDialMonitor:
+          (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
+      fallDetectionSensitivity:
+          ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
+              ?.toInt(),
+      locationReportingIntervalSeconds:
+          (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
+    );
   }
 }
 

@@ -27,24 +27,10 @@ Stream<List<String>> _watchLinkedImeis(
       .doc(uid)
       .snapshots()
       .map((snap) {
-        try {
-          final data = snap.data();
-          if (kDebugMode) {
-            debugPrint('[_watchLinkedImeis] User doc loaded: keys=${data?.keys.join(", ")}');
-          }
-          final raw =
-              (data?['linkedImeis'] as List?)?.whereType<String>() ??
-              const <String>[];
-          if (kDebugMode) {
-            debugPrint('[_watchLinkedImeis] linkedImeis deserialized: $raw');
-          }
-          return normalizeLinkedImeis(raw);
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('[_watchLinkedImeis] Error: $e');
-          }
-          rethrow;
-        }
+        final raw =
+            (snap.data()?['linkedImeis'] as List?)?.whereType<String>() ??
+            const <String>[];
+        return normalizeLinkedImeis(raw);
       })
       .distinct(linkedImeisEqual);
 }
@@ -191,7 +177,7 @@ class DeviceService {
   /// a live connection to the gateway (see
   /// DeviceCommandService.setUploadInterval). Without this, the pendant's
   /// default reporting interval is long and irregular -- the map can show a
-  /// last-known fix that's 20-30+ minutes old even while the pendant is
+  /// last-known fix that's 20-30+ minutes old even while the watch is
   /// online and checking in every ~5 minutes. Caches the requested interval
   /// on the device doc since there's no read-back command; the cache
   /// reflects what was last *asked for*, not confirmed device state.
@@ -208,10 +194,10 @@ class DeviceService {
     await commands.setUploadInterval(imei, seconds);
   }
 
-  /// Links a pendant IMEI to the signed-in guardian's account.
+  /// Links a watch IMEI to the signed-in guardian's account.
   ///
   /// Uses the 15-digit label/SMS IMEI (10-digit protocol ids are normalized).
-  /// The gateway creates `devices/{imei}` when the pendant first connects.
+  /// The gateway creates `devices/{imei}` when the watch first connects.
   Future<void> linkPendant(String rawImei) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
@@ -219,7 +205,7 @@ class DeviceService {
     final imei = canonicalDeviceImei(rawImei.trim());
     if (imei == null || !isFullImei(imei)) {
       throw StateError(
-        'Enter the 15-digit IMEI from the pendant label or status SMS',
+        'Enter the 15-digit IMEI from the watch label or status SMS',
       );
     }
 
@@ -229,7 +215,7 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
-  /// Removes a pendant IMEI from the signed-in guardian's linked set.
+  /// Removes a watch IMEI from the signed-in guardian's linked set.
   ///
   /// Does not delete `devices/{imei}` — only drops access for this account.
   Future<void> unlinkPendant(String rawImei) async {
@@ -238,7 +224,7 @@ class DeviceService {
 
     final imei = canonicalDeviceImei(rawImei.trim());
     if (imei == null || !isFullImei(imei)) {
-      throw StateError('Invalid pendant IMEI');
+      throw StateError('Invalid watch IMEI');
     }
 
     await _db.collection('users').doc(user.uid).set({
@@ -247,7 +233,7 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
-  /// Streams the given day's location history for a pendant (requires the
+  /// Streams the given day's location history for a watch (requires the
   /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
     String imei,
@@ -461,7 +447,7 @@ class GeofenceService {
 /// V46/V48/V52 only. The device has no "list my reminders" query command,
 /// so this collection is the app's own record of what's been scheduled —
 /// saving or deleting also enqueues a matching `set_medication_reminder`
-/// deviceCommand so the pendant itself stays in sync (see
+/// deviceCommand so the watch itself stays in sync (see
 /// DeviceCommandService.setMedicationReminder and gateway/src/commands.js).
 class MedicationReminderService {
   MedicationReminderService({FirebaseFirestore? db, FirebaseAuth? auth})
@@ -941,7 +927,7 @@ class FamilyService {
   }
 }
 
-/// Writes app-originated commands for the gateway to deliver to a pendant by
+/// Writes app-originated commands for the gateway to deliver to a watch by
 /// SMS (see gateway/src/commands.js). Center number, SOS numbers, and status
 /// check are from the vendor's own manual; voice monitoring is documented
 /// only for the closely related RF-V28 by a third-party source, not verified
@@ -986,13 +972,13 @@ class DeviceCommandService {
     return _enqueue(imei, 'check_status', const {});
   }
 
-  /// Triggers the pendant to silently call [listenerPhone] for one-way
+  /// Triggers the watch to silently call [listenerPhone] for one-way
   /// listening. Unverified against the V28C specifically — see class doc.
   Future<void> startVoiceMonitor(String imei, String listenerPhone) {
     return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
 
-  /// Makes the pendant sound an audible alert so it can be found. Unverified
+  /// Makes the watch sound an audible alert so it can be found. Unverified
   /// against the V28C specifically — see class doc.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
