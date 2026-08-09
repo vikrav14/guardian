@@ -1,13 +1,12 @@
-/// ReachFar V28C IMEI normalization — mirrors gateway/src/imei.js.
-///
-/// Protocol frames use a 10-digit id; Firestore `linkedImeis` and device
-/// document ids should always use the 15-digit label/SMS IMEI.
-
 const _imeiPrefix = '8613970';
 const _imeiDefaultSuffix = '0';
 
 String _digitsOnly(String value) => value.replaceAll(RegExp(r'\D'), '');
 
+/// ReachFar V28C IMEI normalization — mirrors gateway/src/imei.js.
+///
+/// Protocol frames use a 10-digit id; Firestore `linkedImeis` and device
+/// document ids should always use the 15-digit label/SMS IMEI.
 bool isProtocolId(String value) {
   final id = _digitsOnly(value);
   return id.length == 10 && RegExp(r'^\d+$').hasMatch(id);

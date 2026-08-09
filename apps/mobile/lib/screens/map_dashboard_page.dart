@@ -553,6 +553,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                       children: [
                         if (showLinkingStory)
                           _LinkingPrototype(
+                            // ignore: unnecessary_non_null_assertion
                             device: selected!,
                             insight: insight,
                             tick: _linkingTick,
