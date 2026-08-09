@@ -433,6 +433,94 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           ),
         ],
         const SizedBox(height: 18),
+        // Large prominent map card
+        if (selected != null)
+          Container(
+            height: 320,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                children: [
+                  _StableGoogleMap(
+                    initialCameraPosition: const CameraPosition(
+                      target: LatLng(-20.2642, 57.4791),
+                      zoom: 13,
+                    ),
+                    markers: const {},
+                    circles: const {},
+                    mapType: MapType.normal,
+                    zoomControlsEnabled: true,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                    },
+                    onCameraMove: (position) {},
+                    onCameraIdle: () {},
+                  ),
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: GuardianColors.accent,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Live',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Container(
+            height: 320,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: context.guardianColors.surface,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                'Link a watch to see the map',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
+        const SizedBox(height: 18),
         AroundThemPanel(
           device: selected,
           geofences: _geofences,
