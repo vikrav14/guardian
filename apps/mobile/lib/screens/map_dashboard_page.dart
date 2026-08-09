@@ -443,26 +443,33 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                 color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
+              color: context.guardianColors.surface,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Stack(
                 children: [
-                  _StableGoogleMap(
-                    initialCameraPosition: const CameraPosition(
-                      target: LatLng(-20.2642, 57.4791),
-                      zoom: 13,
+                  // Google Map rendering
+                  SizedBox.expand(
+                    child: GoogleMap(
+                      initialCameraPosition: const CameraPosition(
+                        target: LatLng(-20.2642, 57.4791),
+                        zoom: 13,
+                      ),
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                      },
+                      markers: const {},
+                      circles: const {},
+                      myLocationButtonEnabled: false,
+                      myLocationEnabled: false,
+                      webCameraControlEnabled: false,
+                      zoomControlsEnabled: true,
+                      mapToolbarEnabled: false,
+                      compassEnabled: false,
                     ),
-                    markers: const {},
-                    circles: const {},
-                    mapType: MapType.normal,
-                    zoomControlsEnabled: true,
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                    },
-                    onCameraMove: (position) {},
-                    onCameraIdle: () {},
                   ),
+                  // Live status indicator overlay
                   Positioned(
                     bottom: 16,
                     left: 16,
@@ -484,15 +491,26 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.location_on,
-                            size: 16,
-                            color: GuardianColors.accent,
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: GuardianColors.safe,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Live',
-                            style: Theme.of(context).textTheme.labelSmall,
+                            selected.displayName,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: GuardianColors.accent,
                           ),
                         ],
                       ),
