@@ -125,16 +125,21 @@ class GuardianNowHero extends StatelessWidget {
                             width: 2,
                           ),
                         ),
-                        child: Center(
-                          child: Text(
-                            displayName.isNotEmpty
-                                ? displayName[0].toUpperCase()
-                                : '?',
-                            style: textTheme.displaySmall?.copyWith(
-                              color: GuardianColors.accent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        child: ClipOval(
+                          child: d.avatarUrl != null && d.avatarUrl!.isNotEmpty
+                              ? Image.network(
+                                  d.avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      _AvatarFallback(
+                                    displayName: displayName,
+                                    textTheme: textTheme,
+                                  ),
+                                )
+                              : _AvatarFallback(
+                                  displayName: displayName,
+                                  textTheme: textTheme,
+                                ),
                         ),
                       ),
                       if (isLive)
@@ -423,6 +428,29 @@ class _ActionButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback({
+    required this.displayName,
+    required this.textTheme,
+  });
+
+  final String displayName;
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+        style: textTheme.displaySmall?.copyWith(
+          color: GuardianColors.accent,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
