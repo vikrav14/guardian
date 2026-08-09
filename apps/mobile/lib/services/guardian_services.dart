@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/alert.dart';
 import '../models/device.dart';
@@ -26,10 +27,24 @@ Stream<List<String>> _watchLinkedImeis(
       .doc(uid)
       .snapshots()
       .map((snap) {
-        final raw =
-            (snap.data()?['linkedImeis'] as List?)?.whereType<String>() ??
-            const <String>[];
-        return normalizeLinkedImeis(raw);
+        try {
+          final data = snap.data();
+          if (kDebugMode) {
+            debugPrint('[_watchLinkedImeis] User doc loaded: keys=${data?.keys.join(", ")}');
+          }
+          final raw =
+              (data?['linkedImeis'] as List?)?.whereType<String>() ??
+              const <String>[];
+          if (kDebugMode) {
+            debugPrint('[_watchLinkedImeis] linkedImeis deserialized: $raw');
+          }
+          return normalizeLinkedImeis(raw);
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[_watchLinkedImeis] Error: $e');
+          }
+          rethrow;
+        }
       })
       .distinct(linkedImeisEqual);
 }

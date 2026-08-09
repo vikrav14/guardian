@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class DeviceLocation {
   const DeviceLocation({
@@ -287,43 +288,61 @@ class Device {
 
   factory Device.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
-    return Device(
-      imei: doc.id,
-      name: data['name'] as String?,
-      nickname: data['nickname'] as String?,
-      relationship: data['relationship'] as String?,
-      online: data['online'] == true,
-      batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
-      speedKmh: data['speedKmh'] as num?,
-      course: data['course'] as num?,
-      accuracySource: data['accuracySource'] as String?,
-      location: DeviceLocation.fromMap(
-        data['location'] is Map
-            ? Map<String, dynamic>.from(data['location'] as Map)
-            : null,
-      ),
-      lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
-      disconnectedAt: _asDateTime(data['disconnectedAt']),
-      connectionState: data['connectionState'] as String?,
-      connectingAt: _asDateTime(data['connectingAt']),
-      updatedAt: _asDateTime(data['updatedAt']),
-      simNumber: data['simNumber'] as String?,
-      avatarUrl: data['avatarUrl'] as String?,
-      intelligence: DeviceIntelligence.fromMap(
-        data['intelligence'] is Map
-            ? Map<String, dynamic>.from(data['intelligence'] as Map)
-            : null,
-      ),
-      fallDetectionEnabled:
-          (data['fallDetection'] as Map?)?['enabled'] as bool?,
-      fallDetectionDialMonitor:
-          (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
-      fallDetectionSensitivity:
-          ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
-              ?.toInt(),
-      locationReportingIntervalSeconds:
-          (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
-    );
+    if (kDebugMode) {
+      debugPrint('[Device.fromDoc] Processing device ${doc.id}: keys=${data.keys.join(", ")}');
+      if (data.containsKey('intelligence')) {
+        debugPrint('[Device.fromDoc]   intelligence type: ${data['intelligence'].runtimeType}');
+        if (data['intelligence'] is Map) {
+          final intell = data['intelligence'] as Map;
+          debugPrint('[Device.fromDoc]   intelligence.insights type: ${intell['insights'].runtimeType}');
+        }
+      }
+    }
+    try {
+      return Device(
+        imei: doc.id,
+        name: data['name'] as String?,
+        nickname: data['nickname'] as String?,
+        relationship: data['relationship'] as String?,
+        online: data['online'] == true,
+        batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
+        speedKmh: data['speedKmh'] as num?,
+        course: data['course'] as num?,
+        accuracySource: data['accuracySource'] as String?,
+        location: DeviceLocation.fromMap(
+          data['location'] is Map
+              ? Map<String, dynamic>.from(data['location'] as Map)
+              : null,
+        ),
+        lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
+        disconnectedAt: _asDateTime(data['disconnectedAt']),
+        connectionState: data['connectionState'] as String?,
+        connectingAt: _asDateTime(data['connectingAt']),
+        updatedAt: _asDateTime(data['updatedAt']),
+        simNumber: data['simNumber'] as String?,
+        avatarUrl: data['avatarUrl'] as String?,
+        intelligence: DeviceIntelligence.fromMap(
+          data['intelligence'] is Map
+              ? Map<String, dynamic>.from(data['intelligence'] as Map)
+              : null,
+        ),
+        fallDetectionEnabled:
+            (data['fallDetection'] as Map?)?['enabled'] as bool?,
+        fallDetectionDialMonitor:
+            (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
+        fallDetectionSensitivity:
+            ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
+                ?.toInt(),
+        locationReportingIntervalSeconds:
+            (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[Device.fromDoc] ERROR for ${doc.id}: $e');
+        debugPrint('[Device.fromDoc] Data keys: ${data.keys.join(", ")}');
+      }
+      rethrow;
+    }
   }
 }
 
