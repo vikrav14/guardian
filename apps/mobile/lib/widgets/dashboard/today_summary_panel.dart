@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 
-/// Today — summary of daily activity and movement patterns.
+/// Today — premium card summary of daily activity and movement patterns.
+/// Matches image 2 design with bullet points and better hierarchy.
 class TodaySummaryPanel extends StatelessWidget {
   const TodaySummaryPanel({
     required this.device,
@@ -38,43 +39,64 @@ class TodaySummaryPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'TODAY',
-            style: textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.textSecondary,
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(Icons.calendar_today, size: 18, color: GuardianColors.safe),
+              Text(
+                'TODAY',
+                style: textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: colors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+            ],
           ),
           const SizedBox(height: 16),
           Text(
             dailySummary,
-            style: textTheme.bodyMedium?.copyWith(color: colors.textPrimary),
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             activityStatus,
-            style: textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+            style: textTheme.bodySmall?.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: Material(
-              color: GuardianColors.forest.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                onTap: onViewJourney,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'View journey',
-                    textAlign: TextAlign.center,
-                    style: textTheme.labelMedium?.copyWith(
-                      color: GuardianColors.forest,
-                      fontWeight: FontWeight.w600,
+          Material(
+            color: GuardianColors.safe.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: onViewJourney,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
+                      color: GuardianColors.safe,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'View journey',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: GuardianColors.safe,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

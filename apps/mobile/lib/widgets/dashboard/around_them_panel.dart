@@ -4,8 +4,8 @@ import '../../models/device.dart';
 import '../../models/geofence.dart';
 import '../../theme/app_theme.dart';
 
-/// Around Them — contextual intelligence panel showing location, weather,
-/// safe zones, and local context around the wearer.
+/// Around Them — premium 4-card grid showing location, weather, safe zones,
+/// and local context around the wearer. Matches image 2 design.
 class AroundThemPanel extends StatelessWidget {
   const AroundThemPanel({
     required this.device,
@@ -32,20 +32,14 @@ class AroundThemPanel extends StatelessWidget {
         .where((z) => z.imei == device!.imei && z.active)
         .toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: colors.surface,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+    final locationText = device!.hasFreshLocation ? 'Located' : 'Locating';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
             'AROUND THEM',
             style: textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
@@ -53,36 +47,67 @@ class AroundThemPanel extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 16),
-          _ContextRow(
-            label: 'Location',
-            value: device!.hasFreshLocation ? 'Located' : 'Locating',
-          ),
-          const SizedBox(height: 12),
-          _ContextRow(label: 'Weather', value: weatherStatus),
-          const SizedBox(height: 12),
-          _ContextRow(
-            label: 'Safe zones',
-            value: safeZones.isEmpty
-                ? 'No active zones'
-                : safeZones.length == 1
-                ? '1 zone nearby'
-                : '${safeZones.length} zones nearby',
-          ),
-          const SizedBox(height: 12),
-          _ContextRow(label: 'Local context', value: localContext),
-          const SizedBox(height: 12),
-          _ContextRow(label: 'Guardian AI', value: guardianIntelligence),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ContextCard(
+                icon: Icons.location_on_rounded,
+                color: GuardianColors.accent,
+                title: 'Location',
+                value: locationText,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ContextCard(
+                icon: Icons.cloud_rounded,
+                color: const Color(0xFF4AADD6),
+                title: 'Weather',
+                value: weatherStatus,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _ContextCard(
+                icon: Icons.shield_rounded,
+                color: const Color(0xFF9C6BA8),
+                title: 'Safe zone',
+                value: safeZones.isEmpty ? 'No active' : 'Inside safe zone',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ContextCard(
+                icon: Icons.info_outline_rounded,
+                color: const Color(0xFFF4A460),
+                title: 'Local context',
+                value: localContext,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _ContextRow extends StatelessWidget {
-  const _ContextRow({required this.label, required this.value});
+class _ContextCard extends StatelessWidget {
+  const _ContextCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.value,
+  });
 
-  final String label;
+  final IconData icon;
+  final Color color;
+  final String title;
   final String value;
 
   @override
@@ -90,27 +115,48 @@ class _ContextRow extends StatelessWidget {
     final colors = context.guardianColors;
     final textTheme = Theme.of(context).textTheme;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: textTheme.bodySmall?.copyWith(
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(
+          color: color.withValues(alpha: 0.15),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: color.withValues(alpha: 0.12),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
               color: colors.textSecondary,
-              fontWeight: FontWeight.w500,
             ),
           ),
-        ),
-        Expanded(
-          child: Text(
+          const SizedBox(height: 4),
+          Text(
             value,
-            style: textTheme.bodySmall?.copyWith(color: colors.textPrimary),
-            textAlign: TextAlign.end,
+            style: textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

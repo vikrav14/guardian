@@ -23,7 +23,6 @@ import '../widgets/dashboard/guardian_now_hero.dart';
 import '../widgets/dashboard/around_them_panel.dart';
 import '../widgets/dashboard/today_summary_panel.dart';
 import '../widgets/dashboard/guardian_intelligence_panel.dart';
-import '../widgets/dashboard/quick_actions_panel.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -418,7 +417,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
     return Column(
       children: [
-        GuardianNowHero(device: selected, aiInterpretation: aiInterpretation),
+        GuardianNowHero(
+          device: selected,
+          aiInterpretation: aiInterpretation,
+          onCall: selected != null ? () => _callDevice(selected) : null,
+          onViewLocation: selected != null ? () => {} : null,
+          onAskGuardian: selected != null ? () => {} : null,
+        ),
         if (_devices.length > 1) ...[
           const SizedBox(height: 18),
           FamilyDeviceStrip(
@@ -444,16 +449,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         ),
         const SizedBox(height: 18),
         GuardianIntelligencePanel(device: selected, activities: activities),
-        const SizedBox(height: 18),
-        QuickActionsPanel(
-          onCall: selected != null ? () => _callDevice(selected) : () {},
-          onViewLocation: selected != null ? () => {} : () {},
-          onAskGuardian: selected != null ? () => {} : () {},
-        ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
