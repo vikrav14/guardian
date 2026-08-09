@@ -205,9 +205,7 @@ class SafeZonesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: GuardianPageFrame(
-        child: _SafeZonesBody(onCreateZone: _createZone),
-      ),
+      body: GuardianPageFrame(child: _SafeZonesBody(onCreateZone: _createZone)),
     );
   }
 }
@@ -216,7 +214,7 @@ class _SafeZonesBody extends StatefulWidget {
   const _SafeZonesBody({required this.onCreateZone});
 
   final Future<void> Function(BuildContext context, List<Device> devices)
-      onCreateZone;
+  onCreateZone;
 
   @override
   State<_SafeZonesBody> createState() => _SafeZonesBodyState();
@@ -254,8 +252,7 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                 final displayZones = <Geofence>[];
                 final visibleKeys = <String>{};
                 for (final zone in zones) {
-                  final key =
-                      '${zone.imei}|${zone.name.trim().toLowerCase()}';
+                  final key = '${zone.imei}|${zone.name.trim().toLowerCase()}';
                   if (visibleKeys.add(key)) displayZones.add(zone);
                 }
 
@@ -268,8 +265,7 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                       subtitle:
                           'Get a gentle alert when someone arrives or leaves.',
                       action: FilledButton.icon(
-                        onPressed: () =>
-                            widget.onCreateZone(context, devices),
+                        onPressed: () => widget.onCreateZone(context, devices),
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: const Text('Add zone'),
                       ),
@@ -301,9 +297,8 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                           final gap = 16.0;
                           final width = columns == 1
                               ? constraints.maxWidth
-                              : (constraints.maxWidth -
-                                      gap * (columns - 1)) /
-                                  columns;
+                              : (constraints.maxWidth - gap * (columns - 1)) /
+                                    columns;
                           return Wrap(
                             spacing: gap,
                             runSpacing: gap,
@@ -315,8 +310,7 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                                     zone: zone,
                                     devices: devices,
                                     alerts: alerts,
-                                    onToggle: () =>
-                                        GeofenceService().setActive(
+                                    onToggle: () => GeofenceService().setActive(
                                       zone.id,
                                       !zone.active,
                                     ),
@@ -411,11 +405,7 @@ class _PrototypeSafeZoneFeature extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ZoneMiniMapPreview(
-                  zone: zone,
-                  device: device,
-                  height: 250,
-                ),
+                ZoneMiniMapPreview(zone: zone, device: device, height: 250),
                 copy,
               ],
             );

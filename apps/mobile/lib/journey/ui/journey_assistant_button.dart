@@ -6,10 +6,7 @@ import 'journey_screen_theme.dart';
 
 /// Small circular "Ask Guardian" button — opens AI narration sheet on tap.
 class JourneyAssistantButton extends StatelessWidget {
-  const JourneyAssistantButton({
-    super.key,
-    required this.replay,
-  });
+  const JourneyAssistantButton({super.key, required this.replay});
 
   final JourneyReplayController replay;
 
@@ -27,7 +24,9 @@ class JourneyAssistantButton extends StatelessWidget {
     final message = _narrationMessage();
     if (message == null || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No AI insights available for this journey.')),
+        const SnackBar(
+          content: Text('No AI insights available for this journey.'),
+        ),
       );
       return;
     }

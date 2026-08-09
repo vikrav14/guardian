@@ -15,7 +15,9 @@ class LocationHistoryPoint {
   final String? accuracySource;
   final DateTime? recordedAt;
 
-  factory LocationHistoryPoint.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory LocationHistoryPoint.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? <String, dynamic>{};
     return LocationHistoryPoint(
       lat: (data['lat'] as num?)?.toDouble() ?? 0,

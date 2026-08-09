@@ -38,41 +38,39 @@ class DodoStageScene {
 
 extension DodoStageActionPresentation on DodoStageAction {
   String get assetPath => switch (this) {
-        DodoStageAction.idle =>
-          'assets/dodo/stages/guardian_dodo_live.png',
-        DodoStageAction.pendantListen =>
-          'assets/dodo/stages/guardian_dodo_pendant.png',
-        DodoStageAction.networkSearch =>
-          'assets/dodo/stages/guardian_dodo_network.png',
-        DodoStageAction.locationSearch =>
-          'assets/dodo/stages/guardian_dodo_location.png',
-        DodoStageAction.aiCheck =>
-          'assets/dodo/stages/guardian_dodo_ai.png',
-      };
+    DodoStageAction.idle => 'assets/dodo/stages/guardian_dodo_live.png',
+    DodoStageAction.pendantListen =>
+      'assets/dodo/stages/guardian_dodo_pendant.png',
+    DodoStageAction.networkSearch =>
+      'assets/dodo/stages/guardian_dodo_network.png',
+    DodoStageAction.locationSearch =>
+      'assets/dodo/stages/guardian_dodo_location.png',
+    DodoStageAction.aiCheck => 'assets/dodo/stages/guardian_dodo_ai.png',
+  };
 
   String get semanticLabel => switch (this) {
-        DodoStageAction.idle => 'Guardian Dodo is live and ready',
-        DodoStageAction.pendantListen =>
-          'Guardian Dodo is listening for the pendant',
-        DodoStageAction.networkSearch =>
-          'Guardian Dodo is searching for the mobile network',
-        DodoStageAction.locationSearch =>
-          'Guardian Dodo is finding the pendant location',
-        DodoStageAction.aiCheck =>
-          'Guardian Dodo is checking the pendant update with AI',
-      };
+    DodoStageAction.idle => 'Guardian Dodo is live and ready',
+    DodoStageAction.pendantListen =>
+      'Guardian Dodo is listening for the pendant',
+    DodoStageAction.networkSearch =>
+      'Guardian Dodo is searching for the mobile network',
+    DodoStageAction.locationSearch =>
+      'Guardian Dodo is finding the pendant location',
+    DodoStageAction.aiCheck =>
+      'Guardian Dodo is checking the pendant update with AI',
+  };
 
   BoxFit get imageFit => BoxFit.contain;
 
   Alignment get imageAlignment => Alignment.center;
 
   String get shortLabel => switch (this) {
-        DodoStageAction.idle => 'LIVE',
-        DodoStageAction.pendantListen => 'PENDANT',
-        DodoStageAction.networkSearch => 'NETWORK',
-        DodoStageAction.locationSearch => 'LOCATION',
-        DodoStageAction.aiCheck => 'GUARDIAN AI',
-      };
+    DodoStageAction.idle => 'LIVE',
+    DodoStageAction.pendantListen => 'PENDANT',
+    DodoStageAction.networkSearch => 'NETWORK',
+    DodoStageAction.locationSearch => 'LOCATION',
+    DodoStageAction.aiCheck => 'GUARDIAN AI',
+  };
 }
 
 const _liveScene = DodoStageScene(
@@ -111,21 +109,20 @@ const linkingDodoStageScenes = <DodoStageScene>[
 ];
 
 DodoStageScene dodoStageSceneForLinkingStep(int step) {
-  return linkingDodoStageScenes[
-      step.clamp(0, linkingDodoStageScenes.length - 1)];
+  return linkingDodoStageScenes[step.clamp(
+    0,
+    linkingDodoStageScenes.length - 1,
+  )];
 }
 
 DodoStageScene dodoStageSceneForMode(DodoStageMode mode) => switch (mode) {
-      DodoStageMode.active => _liveScene,
-      DodoStageMode.offline => _offlineScene,
-      DodoStageMode.linking => linkingDodoStageScenes.first,
-    };
+  DodoStageMode.active => _liveScene,
+  DodoStageMode.offline => _offlineScene,
+  DodoStageMode.linking => linkingDodoStageScenes.first,
+};
 
 class GuardianDodoStageImage extends StatelessWidget {
-  const GuardianDodoStageImage({
-    required this.action,
-    super.key,
-  });
+  const GuardianDodoStageImage({required this.action, super.key});
 
   final DodoStageAction action;
 

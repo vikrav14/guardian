@@ -35,12 +35,18 @@ class JourneyCompareBanner extends StatelessWidget {
             SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: JourneyScreenTheme.accent),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: JourneyScreenTheme.accent,
+              ),
             ),
             const SizedBox(width: 10),
             Text(
               'Loading comparison…',
-              style: JourneyScreenTheme.textStyle(fontSize: 12, color: JourneyScreenTheme.textSecondary),
+              style: JourneyScreenTheme.textStyle(
+                fontSize: 12,
+                color: JourneyScreenTheme.textSecondary,
+              ),
             ),
           ],
         ),
@@ -55,7 +61,10 @@ class JourneyCompareBanner extends StatelessWidget {
     final compareStats = points != null && points.isNotEmpty
         ? buildJourneyStats(points)
         : null;
-    final narration = compareSimilarityNarration(similarityPercent!, compareDay!);
+    final narration = compareSimilarityNarration(
+      similarityPercent!,
+      compareDay!,
+    );
 
     return _BannerShell(
       child: Column(
@@ -82,7 +91,11 @@ class JourneyCompareBanner extends StatelessWidget {
                 tooltip: 'Exit compare',
                 visualDensity: VisualDensity.compact,
                 onPressed: onDismiss,
-                icon: const Icon(Icons.close_rounded, size: 18, color: JourneyScreenTheme.textMuted),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: JourneyScreenTheme.textMuted,
+                ),
               ),
             ],
           ),
@@ -141,7 +154,9 @@ class _BannerShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: JourneyScreenTheme.spacing2),
+      margin: const EdgeInsets.symmetric(
+        horizontal: JourneyScreenTheme.spacing2,
+      ),
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       decoration: JourneyScreenTheme.glassOverlay(),
       child: child,
@@ -171,7 +186,10 @@ class _CompareStat extends StatelessWidget {
         children: [
           Text(
             label,
-            style: JourneyScreenTheme.textStyle(fontSize: 9, color: JourneyScreenTheme.textMuted),
+            style: JourneyScreenTheme.textStyle(
+              fontSize: 9,
+              color: JourneyScreenTheme.textMuted,
+            ),
           ),
           Text(
             '${distance.toStringAsFixed(1)} km',

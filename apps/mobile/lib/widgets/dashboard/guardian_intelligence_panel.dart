@@ -57,38 +57,35 @@ class GuardianIntelligencePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...activities
-              .asMap()
-              .entries
-              .map(
-                (entry) => Padding(
-                  padding: EdgeInsets.only(
-                    bottom: entry.key < activities.length - 1 ? 12 : 0,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4, right: 10),
-                        child: Text(
-                          '●',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: GuardianColors.safe,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          entry.value,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          ...activities.asMap().entries.map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(
+                bottom: entry.key < activities.length - 1 ? 12 : 0,
               ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, right: 10),
+                    child: Text(
+                      '●',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: GuardianColors.safe,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      entry.value,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

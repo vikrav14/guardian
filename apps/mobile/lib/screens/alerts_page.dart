@@ -56,23 +56,11 @@ class AlertsPage extends StatelessWidget {
   ) {
     switch (tone) {
       case _AlertTone.danger:
-        return (
-          semantic.surface,
-          semantic.textPrimary,
-          GuardianColors.danger,
-        );
+        return (semantic.surface, semantic.textPrimary, GuardianColors.danger);
       case _AlertTone.warning:
-        return (
-          semantic.surface,
-          semantic.textPrimary,
-          GuardianColors.warning,
-        );
+        return (semantic.surface, semantic.textPrimary, GuardianColors.warning);
       case _AlertTone.neutral:
-        return (
-          semantic.surface,
-          semantic.textPrimary,
-          GuardianColors.accent,
-        );
+        return (semantic.surface, semantic.textPrimary, GuardianColors.accent);
     }
   }
 
@@ -109,7 +97,8 @@ class AlertsPage extends StatelessWidget {
                 final recent = alerts.where((a) {
                   final at = a.createdAt;
                   if (at == null) return true;
-                  return DateTime.now().difference(at) < const Duration(hours: 24);
+                  return DateTime.now().difference(at) <
+                      const Duration(hours: 24);
                 }).toList();
                 final open = alerts.where((a) => !a.resolved).toList();
 
@@ -219,7 +208,11 @@ class AlertsPage extends StatelessWidget {
                                 shape: BoxShape.circle,
                               ),
                               alignment: Alignment.center,
-                              child: const Icon(Icons.check, color: GuardianColors.safe, size: 20),
+                              child: const Icon(
+                                Icons.check,
+                                color: GuardianColors.safe,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -235,7 +228,10 @@ class AlertsPage extends StatelessWidget {
                             const SizedBox(height: 2),
                             Text(
                               'New alerts will show up here first',
-                              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -380,7 +376,11 @@ class _AlertCard extends StatelessWidget {
             ),
             child: Text(
               action,
-              style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 11,
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: 4),

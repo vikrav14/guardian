@@ -207,8 +207,8 @@ class _GuardianMapControl extends StatelessWidget {
                 color: !enabled
                     ? colors.textMuted.withValues(alpha: 0.45)
                     : accent
-                        ? colors.accent
-                        : colors.textSecondary,
+                    ? colors.accent
+                    : colors.textSecondary,
               ),
             ),
           ),

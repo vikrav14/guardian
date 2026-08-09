@@ -72,10 +72,7 @@ class SafeZoneCard extends StatelessWidget {
                   '${category.label} • ${zone.radiusMeters.round()} m',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
                 ),
                 const SizedBox(height: 7),
                 Row(
@@ -116,10 +113,7 @@ class SafeZoneCard extends StatelessWidget {
                 value: 'toggle',
                 child: Text(zone.active ? 'Pause' : 'Activate'),
               ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete'),
-              ),
+              const PopupMenuItem(value: 'delete', child: Text('Delete')),
             ],
           ),
         ],

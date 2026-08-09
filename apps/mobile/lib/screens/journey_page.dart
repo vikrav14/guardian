@@ -70,7 +70,9 @@ class _JourneyPageState extends State<JourneyPage> {
 
   bool get _isToday {
     final now = DateTime.now();
-    return _day.year == now.year && _day.month == now.month && _day.day == now.day;
+    return _day.year == now.year &&
+        _day.month == now.month &&
+        _day.day == now.day;
   }
 
   @override
@@ -78,7 +80,9 @@ class _JourneyPageState extends State<JourneyPage> {
     super.initState();
     GeofenceService().watchAll().listen((zones) {
       if (!mounted) return;
-      setState(() => _geofences = zones.where((z) => z.imei == widget.imei).toList());
+      setState(
+        () => _geofences = zones.where((z) => z.imei == widget.imei).toList(),
+      );
     });
     _loadDaysWithHistory();
   }
@@ -102,10 +106,13 @@ class _JourneyPageState extends State<JourneyPage> {
     final result = await shareJourneySummary(text);
     if (!mounted) return;
     final message = switch (result) {
-      ShareJourneyResult.copiedAndWhatsApp => 'Journey summary copied — opening WhatsApp…',
+      ShareJourneyResult.copiedAndWhatsApp =>
+        'Journey summary copied — opening WhatsApp…',
       ShareJourneyResult.copiedOnly => 'Journey summary copied to clipboard.',
     };
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openTimeMachine() async {
@@ -132,7 +139,9 @@ class _JourneyPageState extends State<JourneyPage> {
     });
   }
 
-  Future<void> _toggleCompareMode(List<LocationHistoryPoint> primaryPoints) async {
+  Future<void> _toggleCompareMode(
+    List<LocationHistoryPoint> primaryPoints,
+  ) async {
     if (_compareMode) {
       setState(() {
         _compareMode = false;
@@ -162,7 +171,10 @@ class _JourneyPageState extends State<JourneyPage> {
     });
 
     try {
-      final comparePoints = await DeviceService().fetchDayHistory(widget.imei, picked);
+      final comparePoints = await DeviceService().fetchDayHistory(
+        widget.imei,
+        picked,
+      );
       if (!mounted) return;
       final similarity = computeRouteSimilarity(primaryPoints, comparePoints);
       setState(() {
@@ -213,7 +225,10 @@ class _JourneyPageState extends State<JourneyPage> {
         a.isViewingToday == b.isViewingToday;
   }
 
-  bool _pointsEqual(List<LocationHistoryPoint> a, List<LocationHistoryPoint> b) {
+  bool _pointsEqual(
+    List<LocationHistoryPoint> a,
+    List<LocationHistoryPoint> b,
+  ) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       final left = a[i];
@@ -1027,8 +1042,9 @@ class _JourneyMapCard extends StatelessWidget {
                             onTap: onMapLockToggle,
                           ),
                           _JourneyMapTool(
-                            tooltip:
-                                isSatellite ? 'Street map' : 'Satellite map',
+                            tooltip: isSatellite
+                                ? 'Street map'
+                                : 'Satellite map',
                             icon: isSatellite
                                 ? Icons.map_outlined
                                 : Icons.satellite_alt_outlined,
@@ -1096,7 +1112,8 @@ class _JourneyMapCard extends StatelessWidget {
                 Positioned(
                   left: 12,
                   right: 12,
-                  bottom: JourneyScreenTheme.playbackBottomOffset +
+                  bottom:
+                      JourneyScreenTheme.playbackBottomOffset +
                       JourneyScreenTheme.playbackCollapsedHeight +
                       8,
                   child: Center(
@@ -1164,10 +1181,7 @@ class _JourneyMapTool extends StatelessWidget {
 }
 
 class _JourneyInsightPanel extends StatelessWidget {
-  const _JourneyInsightPanel({
-    required this.replay,
-    required this.weather,
-  });
+  const _JourneyInsightPanel({required this.replay, required this.weather});
 
   final JourneyReplayController replay;
   final TypicalWeather weather;
@@ -1227,8 +1241,10 @@ class _JourneyInsightPanel extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: GuardianColors.safeBg,
                     borderRadius: BorderRadius.circular(999),
@@ -1422,10 +1438,7 @@ class _JourneyDetailRow extends StatelessWidget {
 }
 
 class _JourneyEventRow extends StatelessWidget {
-  const _JourneyEventRow({
-    required this.event,
-    required this.isLast,
-  });
+  const _JourneyEventRow({required this.event, required this.isLast});
 
   final JourneyEvent event;
   final bool isLast;
@@ -1619,7 +1632,9 @@ class _JourneyMapState extends State<_JourneyMap> {
     if (!widget.showHeatmap) {
       final points = replay.smoothedPoints;
       if (points.length >= 2) {
-        final maxIndex = replay.isReplayMode ? replay.currentIndex : points.length - 1;
+        final maxIndex = replay.isReplayMode
+            ? replay.currentIndex
+            : points.length - 1;
         var segmentIndex = 0;
 
         for (final segment in replay.displayRouteSegments) {
@@ -1671,7 +1686,9 @@ class _JourneyMapState extends State<_JourneyMap> {
     final cells = buildHeatmapCells(widget.replay.rawPoints);
     if (cells.isEmpty) return const {};
 
-    final maxCount = cells.map((c) => c.visitCount).reduce((a, b) => a > b ? a : b);
+    final maxCount = cells
+        .map((c) => c.visitCount)
+        .reduce((a, b) => a > b ? a : b);
 
     return cells.map((cell) {
       final intensity = cell.visitCount / maxCount;
@@ -1679,8 +1696,12 @@ class _JourneyMapState extends State<_JourneyMap> {
         circleId: CircleId('heat_${cell.lat}_${cell.lng}'),
         center: LatLng(cell.lat, cell.lng),
         radius: 40 + (intensity * 60),
-        fillColor: JourneyScreenTheme.accent.withValues(alpha: 0.15 + intensity * 0.45),
-        strokeColor: JourneyScreenTheme.accent.withValues(alpha: 0.1 + intensity * 0.2),
+        fillColor: JourneyScreenTheme.accent.withValues(
+          alpha: 0.15 + intensity * 0.45,
+        ),
+        strokeColor: JourneyScreenTheme.accent.withValues(
+          alpha: 0.1 + intensity * 0.2,
+        ),
         strokeWidth: 1,
       );
     }).toSet();
@@ -1702,10 +1723,7 @@ class _JourneyMapState extends State<_JourneyMap> {
       fit: StackFit.expand,
       children: [
         GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: cameraTarget,
-            zoom: 14,
-          ),
+          initialCameraPosition: CameraPosition(target: cameraTarget, zoom: 14),
           padding: JourneyScreenTheme.mapControlPadding,
           onMapCreated: (controller) {
             _mapController = controller;

@@ -60,30 +60,21 @@ Stream<T> _combineLatest3<A, B, C, T>(
   }
 
   controller.onListen = () {
-    subA = streamA.listen(
-      (value) {
-        latestA = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
-    subB = streamB.listen(
-      (value) {
-        latestB = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
-    subC = streamC.listen(
-      (value) {
-        latestC = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
+    subA = streamA.listen((value) {
+      latestA = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
+    subB = streamB.listen((value) {
+      latestB = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
+    subC = streamC.listen((value) {
+      latestC = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
   };
 
   controller.onCancel = () async {
@@ -268,7 +259,10 @@ class DeviceService {
         .collection('devices')
         .doc(imei)
         .collection('journeys')
-        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(localStart))
+        .where(
+          'startAt',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(localStart),
+        )
         .where('startAt', isLessThan: Timestamp.fromDate(localEnd))
         .orderBy('startAt')
         .snapshots()
@@ -333,8 +327,11 @@ class DeviceService {
     int lookbackDays = 60,
   }) async {
     final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day)
-        .subtract(Duration(days: lookbackDays));
+    final start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: lookbackDays));
     final end = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
     final snap = await _db
@@ -465,8 +462,9 @@ class MedicationReminderService {
         .where('imei', isEqualTo: imei)
         .snapshots()
         .map(
-          (snap) => snap.docs.map(MedicationReminder.fromDoc).toList()
-            ..sort((a, b) => a.time.compareTo(b.time)),
+          (snap) =>
+              snap.docs.map(MedicationReminder.fromDoc).toList()
+                ..sort((a, b) => a.time.compareTo(b.time)),
         );
   }
 
@@ -492,10 +490,7 @@ class MedicationReminderService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(
-      db: _db,
-      auth: _auth,
-    ).setMedicationReminder(
+    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
       imei,
       time: time,
       frequency: frequency,
@@ -510,10 +505,7 @@ class MedicationReminderService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(
-      db: _db,
-      auth: _auth,
-    ).setMedicationReminder(
+    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
       reminder.imei,
       time: reminder.time,
       frequency: reminder.frequency,

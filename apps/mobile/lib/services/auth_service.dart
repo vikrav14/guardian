@@ -5,9 +5,9 @@ import 'push_service.dart';
 
 class AuthService {
   AuthService({FirebaseAuth? auth, FirebaseFirestore? db, PushService? push})
-      : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseFirestore.instance,
-        _push = push ?? PushService();
+    : _auth = auth ?? FirebaseAuth.instance,
+      _db = db ?? FirebaseFirestore.instance,
+      _push = push ?? PushService();
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;

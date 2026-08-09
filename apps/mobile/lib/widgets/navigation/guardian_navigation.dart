@@ -5,16 +5,16 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 
-typedef GuardianDestination = ({IconData icon, IconData activeIcon, String label});
+typedef GuardianDestination = ({
+  IconData icon,
+  IconData activeIcon,
+  String label,
+});
 
 List<GuardianDestination> guardianDestinations(BuildContext context) {
   final t = AppLocalizations.of(context)!;
   return [
-    (
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_rounded,
-      label: 'Home',
-    ),
+    (icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
     (
       icon: Icons.shield_outlined,
       activeIcon: Icons.shield_rounded,

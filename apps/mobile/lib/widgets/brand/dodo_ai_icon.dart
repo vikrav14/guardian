@@ -86,10 +86,7 @@ class GuardianAiIcon extends StatelessWidget {
       width: size,
       height: size,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: background,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: background, shape: BoxShape.circle),
         child: warning
             ? Icon(
                 Icons.warning_amber_rounded,

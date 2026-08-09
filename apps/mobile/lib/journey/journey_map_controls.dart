@@ -122,7 +122,9 @@ class _ControlChip extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.white.withValues(alpha: _kJourneyControlGlassBorderAlpha),
+                color: Colors.white.withValues(
+                  alpha: _kJourneyControlGlassBorderAlpha,
+                ),
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -163,7 +165,9 @@ class _WeatherChip extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.white.withValues(alpha: _kJourneyControlGlassBorderAlpha),
+                color: Colors.white.withValues(
+                  alpha: _kJourneyControlGlassBorderAlpha,
+                ),
               ),
               borderRadius: BorderRadius.circular(12),
             ),
@@ -251,7 +255,8 @@ Future<DateTime?> showTimeMachineSheet({
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: options.length,
-                    separatorBuilder: (context, index) => Divider(color: colors.border, height: 1),
+                    separatorBuilder: (context, index) =>
+                        Divider(color: colors.border, height: 1),
                     itemBuilder: (context, index) {
                       final option = options[index];
                       final isSelected = _sameDay(option.date, selectedDay);
@@ -260,18 +265,29 @@ Future<DateTime?> showTimeMachineSheet({
                         title: Text(
                           option.label,
                           style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                            color: isSelected ? colors.accent : colors.textPrimary,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            color: isSelected
+                                ? colors.accent
+                                : colors.textPrimary,
                           ),
                         ),
                         subtitle: option.subtitle != null
                             ? Text(
                                 option.subtitle!,
-                                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.textMuted,
+                                ),
                               )
                             : null,
                         trailing: isSelected
-                            ? Icon(Icons.check_rounded, color: colors.accent, size: 20)
+                            ? Icon(
+                                Icons.check_rounded,
+                                color: colors.accent,
+                                size: 20,
+                              )
                             : null,
                         onTap: () => Navigator.pop(context, option.date),
                       );
@@ -291,10 +307,9 @@ Future<DateTime?> showCompareDayPicker({
   required DateTime primaryDay,
   required Set<DateTime> daysWithData,
 }) {
-  final candidates = daysWithData
-      .where((d) => !_sameDay(d, primaryDay))
-      .toList()
-    ..sort((a, b) => b.compareTo(a));
+  final candidates =
+      daysWithData.where((d) => !_sameDay(d, primaryDay)).toList()
+        ..sort((a, b) => b.compareTo(a));
 
   final colors = context.guardianColors;
 
@@ -345,7 +360,8 @@ Future<DateTime?> showCompareDayPicker({
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: candidates.length.clamp(0, 14),
-                    separatorBuilder: (context, index) => Divider(color: colors.border, height: 1),
+                    separatorBuilder: (context, index) =>
+                        Divider(color: colors.border, height: 1),
                     itemBuilder: (context, index) {
                       final day = candidates[index];
                       return ListTile(

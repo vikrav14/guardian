@@ -141,8 +141,9 @@ class JourneyHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 _HeaderIconButton(
-                  tooltip:
-                      compareActive ? 'Exit comparison' : 'Compare journeys',
+                  tooltip: compareActive
+                      ? 'Exit comparison'
+                      : 'Compare journeys',
                   icon: Icons.compare_arrows_rounded,
                   active: compareActive,
                   onTap: onCompare,
@@ -183,8 +184,9 @@ class JourneyHeader extends StatelessWidget {
                       value: 'compare',
                       child: _MenuLabel(
                         icon: Icons.compare_arrows_rounded,
-                        label:
-                            compareActive ? 'Exit comparison' : 'Compare days',
+                        label: compareActive
+                            ? 'Exit comparison'
+                            : 'Compare days',
                       ),
                     ),
                   const PopupMenuItem(
@@ -224,7 +226,9 @@ class _OnlineStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isOnline ? GuardianColors.safe : context.guardianColors.textMuted;
+    final color = isOnline
+        ? GuardianColors.safe
+        : context.guardianColors.textMuted;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

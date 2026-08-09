@@ -47,10 +47,13 @@ List<JourneyDateOption> buildTimeMachineOptions({
   }
 
   // Last 7 calendar days with data (excluding today if already listed).
-  final last7 = sortedDays.where((d) {
-    final diff = today.difference(d).inDays;
-    return diff >= 0 && diff < 7;
-  }).take(7).toList();
+  final last7 = sortedDays
+      .where((d) {
+        final diff = today.difference(d).inDays;
+        return diff >= 0 && diff < 7;
+      })
+      .take(7)
+      .toList();
 
   for (final d in last7) {
     if (d == today || d == yesterday) continue;

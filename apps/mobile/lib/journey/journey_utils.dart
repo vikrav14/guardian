@@ -45,7 +45,8 @@ double bearingDegrees(double lat1, double lng1, double lat2, double lng2) {
   final phi2 = lat2 * math.pi / 180;
   final dLambda = (lng2 - lng1) * math.pi / 180;
   final y = math.sin(dLambda) * math.cos(phi2);
-  final x = math.cos(phi1) * math.sin(phi2) -
+  final x =
+      math.cos(phi1) * math.sin(phi2) -
       math.sin(phi1) * math.cos(phi2) * math.cos(dLambda);
   final theta = math.atan2(y, x);
   return (theta * 180 / math.pi + 360) % 360;
@@ -96,7 +97,9 @@ List<LocationHistoryPoint> filterOutlierPoints(
   }
 
   return kept.isEmpty && points.isNotEmpty
-      ? points.where((p) => isPlausibleCoord(p.lat, p.lng)).toList(growable: false)
+      ? points
+            .where((p) => isPlausibleCoord(p.lat, p.lng))
+            .toList(growable: false)
       : kept;
 }
 
@@ -201,7 +204,12 @@ List<LocationHistoryPoint> smoothRouteForDisplay(
   double epsilonMeters = 8.0,
 }) {
   if (points.length <= 2) return List<LocationHistoryPoint>.from(points);
-  final indices = _douglasPeuckerIndices(points, 0, points.length - 1, epsilonMeters);
+  final indices = _douglasPeuckerIndices(
+    points,
+    0,
+    points.length - 1,
+    epsilonMeters,
+  );
   indices.sort();
   return indices.map((i) => points[i]).toList(growable: false);
 }
@@ -270,7 +278,8 @@ double? effectiveSpeedKmh(LocationHistoryPoint from, LocationHistoryPoint to) {
   if (t1 == null || t2 == null) return null;
   final hours = t2.difference(t1).inMilliseconds / 3600000.0;
   if (hours <= 0) return null;
-  if (!isPlausibleCoord(from.lat, from.lng) || !isPlausibleCoord(to.lat, to.lng)) {
+  if (!isPlausibleCoord(from.lat, from.lng) ||
+      !isPlausibleCoord(to.lat, to.lng)) {
     return null;
   }
   final meters = haversineMeters(from.lat, from.lng, to.lat, to.lng);
@@ -341,8 +350,7 @@ JourneyEventType eventTypeForTransport(TransportMode mode) {
     TransportMode.stationary => JourneyEventType.stopped,
     TransportMode.walking ||
     TransportMode.bicycle ||
-    TransportMode.running =>
-      JourneyEventType.walking,
+    TransportMode.running => JourneyEventType.walking,
     TransportMode.vehicle => JourneyEventType.vehicle,
   };
 }
@@ -623,7 +631,8 @@ double _approximateRatio(List<LocationHistoryPoint> points) {
       .where((s) => s.isNotEmpty)
       .toList();
   if (sources.isEmpty) return 0;
-  return sources.where((s) => s == 'wifi' || s == 'lbs').length / sources.length;
+  return sources.where((s) => s == 'wifi' || s == 'lbs').length /
+      sources.length;
 }
 
 double _gpsRatio(List<LocationHistoryPoint> points) {
@@ -679,7 +688,10 @@ class JourneyGpsAssessment {
       metadataCoverage > 0 && (gpsRatio < 0.4 || approximateRatio > 0.5);
 
   bool get shouldCapConfidence =>
-      liveGpsUnreliable || metadataMissing || gpsQualityPoor || frozenCoordinates;
+      liveGpsUnreliable ||
+      metadataMissing ||
+      gpsQualityPoor ||
+      frozenCoordinates;
 }
 
 JourneyGpsContext journeyGpsContextForDevice(
@@ -742,7 +754,10 @@ JourneyGpsAssessment assessJourneyGps(
   );
 }
 
-String _gpsQualityLabel(JourneyQuality quality, JourneyGpsAssessment assessment) {
+String _gpsQualityLabel(
+  JourneyQuality quality,
+  JourneyGpsAssessment assessment,
+) {
   if (assessment.liveGpsUnreliable) {
     return 'GPS unavailable';
   }
@@ -763,7 +778,10 @@ String _gpsQualityLabel(JourneyQuality quality, JourneyGpsAssessment assessment)
   };
 }
 
-String _gpsHealthPhrase(JourneyQuality quality, JourneyGpsAssessment assessment) {
+String _gpsHealthPhrase(
+  JourneyQuality quality,
+  JourneyGpsAssessment assessment,
+) {
   if (assessment.shouldCapConfidence) {
     return 'GPS unreliable';
   }
@@ -801,9 +819,13 @@ JourneyQuality computeJourneyQuality(
   String label;
   if (assessment.metadataMissing) {
     label = 'Unknown';
-  } else if (fixesPerHour >= 30 && gpsRatio > 0.7 && assessment.approximateRatio <= 0.5) {
+  } else if (fixesPerHour >= 30 &&
+      gpsRatio > 0.7 &&
+      assessment.approximateRatio <= 0.5) {
     label = 'Excellent';
-  } else if (fixesPerHour >= 12 && gpsRatio > 0.4 && assessment.approximateRatio <= 0.5) {
+  } else if (fixesPerHour >= 12 &&
+      gpsRatio > 0.4 &&
+      assessment.approximateRatio <= 0.5) {
     label = 'Good';
   } else {
     label = 'Fair';
@@ -829,41 +851,50 @@ JourneyScoreBreakdown computeJourneyScore(
   final assessment = assessJourneyGps(points, gpsContext: gpsContext);
   final quality = computeJourneyQuality(points, gpsContext: gpsContext);
   final events = detectJourneyEvents(points, geofences: geofences);
-  final stopCount =
-      events.where((e) => e.type == JourneyEventType.stopped).length;
+  final stopCount = events
+      .where((e) => e.type == JourneyEventType.stopped)
+      .length;
   final gpsRatio = assessment.gpsRatio;
   final smoothed = smoothRouteForDisplay(points);
-  final compressionRatio =
-      points.isEmpty ? 1.0 : smoothed.length / points.length;
+  final compressionRatio = points.isEmpty
+      ? 1.0
+      : smoothed.length / points.length;
 
   var gpsAccuracy = assessment.shouldCapConfidence
       ? (gpsRatio * 25).round()
       : ((gpsRatio * 60) +
-              (quality.label == 'Excellent'
-                  ? 40
-                  : quality.label == 'Good'
-                      ? 25
-                      : 10))
-          .round();
+                (quality.label == 'Excellent'
+                    ? 40
+                    : quality.label == 'Good'
+                    ? 25
+                    : 10))
+            .round();
   gpsAccuracy = gpsAccuracy.clamp(0, 100);
 
-  final routeConsistency = ((compressionRatio.clamp(0.15, 1.0) * 70) +
-          (stopCount <= 2 ? 30 : stopCount <= 4 ? 15 : 0))
-      .round()
-      .clamp(0, 100);
+  final routeConsistency =
+      ((compressionRatio.clamp(0.15, 1.0) * 70) +
+              (stopCount <= 2
+                  ? 30
+                  : stopCount <= 4
+                  ? 15
+                  : 0))
+          .round()
+          .clamp(0, 100);
 
   final safety = (100 - (stopCount * 8).clamp(0, 40)).toInt().clamp(0, 100);
 
   final durationHours = journeyDuration(points).inMilliseconds / 3600000.0;
-  final fixesPerHour =
-      durationHours > 0 ? points.length / durationHours : points.length.toDouble();
-  final battery = (fixesPerHour >= 6
-          ? 95
-          : fixesPerHour >= 2
+  final fixesPerHour = durationHours > 0
+      ? points.length / durationHours
+      : points.length.toDouble();
+  final battery =
+      (fixesPerHour >= 6
+              ? 95
+              : fixesPerHour >= 2
               ? 75
               : 55)
-      .toInt()
-      .clamp(0, 100);
+          .toInt()
+          .clamp(0, 100);
 
   return JourneyScoreBreakdown(
     gpsAccuracy: gpsAccuracy,
@@ -873,7 +904,11 @@ JourneyScoreBreakdown computeJourneyScore(
   );
 }
 
-Duration _segmentDuration(List<LocationHistoryPoint> points, int start, int end) {
+Duration _segmentDuration(
+  List<LocationHistoryPoint> points,
+  int start,
+  int end,
+) {
   final startTime = points[start].recordedAt;
   final endTime = points[end].recordedAt;
   if (startTime == null || endTime == null) return Duration.zero;
@@ -890,7 +925,12 @@ int countSafeZonesVisited(
   for (final zone in zones) {
     if (!zone.active) continue;
     for (final point in points) {
-      final distance = haversineMeters(point.lat, point.lng, zone.lat, zone.lng);
+      final distance = haversineMeters(
+        point.lat,
+        point.lng,
+        zone.lat,
+        zone.lng,
+      );
       if (distance <= zone.radiusMeters) {
         visited.add(zone.id);
         break;
@@ -988,14 +1028,15 @@ JourneyHealth computeJourneyHealth(
   final stars = cappedOverall >= 90
       ? 5
       : cappedOverall >= 75
-          ? 4
-          : cappedOverall >= 60
-              ? 3
-              : cappedOverall >= 40
-                  ? 2
-                  : 1;
+      ? 4
+      : cappedOverall >= 60
+      ? 3
+      : cappedOverall >= 40
+      ? 2
+      : 1;
 
-  final assessment = gpsAssessment ??
+  final assessment =
+      gpsAssessment ??
       const JourneyGpsAssessment(
         metadataCoverage: 1,
         gpsRatio: 1,
@@ -1009,13 +1050,10 @@ JourneyHealth computeJourneyHealth(
   final routePhrase = insights.stopCount == 0
       ? 'Normal route, no detours'
       : insights.stopCount <= 2
-          ? 'Normal route, brief stops'
-          : 'Unusual stops detected';
+      ? 'Normal route, brief stops'
+      : 'Unusual stops detected';
 
-  return JourneyHealth(
-    stars: stars,
-    summary: '$routePhrase, $gpsPhrase',
-  );
+  return JourneyHealth(stars: stars, summary: '$routePhrase, $gpsPhrase');
 }
 
 JourneyInsights buildJourneyInsights(
@@ -1038,8 +1076,9 @@ JourneyInsights buildJourneyInsights(
 
   final stats = buildJourneyStats(points);
   final events = detectJourneyEvents(points, geofences: geofences);
-  final stopCount =
-      events.where((e) => e.type == JourneyEventType.stopped).length;
+  final stopCount = events
+      .where((e) => e.type == JourneyEventType.stopped)
+      .length;
 
   final durationHours = stats.duration.inMilliseconds / 3600000.0;
   final avgSpeed = durationHours > 0 ? stats.distanceKm / durationHours : null;
@@ -1047,7 +1086,8 @@ JourneyInsights buildJourneyInsights(
   final assessment = assessJourneyGps(points, gpsContext: gpsContext);
   final withTimestamps =
       points.where((p) => p.recordedAt != null).length / points.length;
-  final withSpeed = points.where((p) => p.speedKmh != null).length / points.length;
+  final withSpeed =
+      points.where((p) => p.speedKmh != null).length / points.length;
 
   var confidence = 0;
   if (withTimestamps > 0.8) confidence += 20;
@@ -1075,11 +1115,11 @@ JourneyInsights buildJourneyInsights(
   final routeSummary = stopCount >= 3
       ? 'Unusual stops detected ($stopCount pauses)'
       : stopCount >= 1
-          ? 'Brief stops along the route'
-          : 'Normal route pattern';
+      ? 'Brief stops along the route'
+      : 'Normal route pattern';
 
-  final explanation = assessment.warningMessage ??
-      'Based on ${points.length} GPS fixes';
+  final explanation =
+      assessment.warningMessage ?? 'Based on ${points.length} GPS fixes';
 
   return JourneyInsights(
     routeSummary: routeSummary,
@@ -1088,39 +1128,44 @@ JourneyInsights buildJourneyInsights(
     confidenceScore: confidence,
     confidenceExplanation: explanation,
     stopCount: stopCount,
-    highDataQuality: confidence >= 70 &&
+    highDataQuality:
+        confidence >= 70 &&
         !assessment.shouldCapConfidence &&
         quality.label == 'Excellent',
     confidenceSubtitle: assessment.warningMessage != null
         ? (assessment.liveGpsUnreliable
-            ? 'Limited GPS data'
-            : 'Limited confidence')
+              ? 'Limited GPS data'
+              : 'Limited confidence')
         : null,
   );
 }
 
-String narrationForEvent(JourneyEvent event, List<LocationHistoryPoint> points) {
+String narrationForEvent(
+  JourneyEvent event,
+  List<LocationHistoryPoint> points,
+) {
   return switch (event.type) {
     JourneyEventType.leftHome => 'Left home. Journey tracking started.',
-    JourneyEventType.walking => event.transportMode == TransportMode.running
-        ? 'Running detected. Pace looks brisk.'
-        : event.transportMode == TransportMode.bicycle
-            ? 'Cycling movement detected.'
-            : 'Walking movement detected.',
+    JourneyEventType.walking =>
+      event.transportMode == TransportMode.running
+          ? 'Running detected. Pace looks brisk.'
+          : event.transportMode == TransportMode.bicycle
+          ? 'Cycling movement detected.'
+          : 'Walking movement detected.',
     JourneyEventType.vehicle => () {
-        var totalSpeed = 0.0;
-        var count = 0;
-        for (var i = event.startIndex + 1; i <= event.endIndex; i++) {
-          final speed = effectiveSpeedKmh(points[i - 1], points[i]);
-          if (speed == null) continue;
-          totalSpeed += speed;
-          count++;
-        }
-        final avg = count == 0 ? null : totalSpeed / count;
-        return avg == null
-            ? 'Vehicle movement detected.'
-            : 'Vehicle movement detected. Average speed ${avg.toStringAsFixed(0)} km/h.';
-      }(),
+      var totalSpeed = 0.0;
+      var count = 0;
+      for (var i = event.startIndex + 1; i <= event.endIndex; i++) {
+        final speed = effectiveSpeedKmh(points[i - 1], points[i]);
+        if (speed == null) continue;
+        totalSpeed += speed;
+        count++;
+      }
+      final avg = count == 0 ? null : totalSpeed / count;
+      return avg == null
+          ? 'Vehicle movement detected.'
+          : 'Vehicle movement detected. Average speed ${avg.toStringAsFixed(0)} km/h.';
+    }(),
     JourneyEventType.stopped => 'Stop detected. Device stationary.',
     JourneyEventType.dwell => event.label,
     JourneyEventType.arrived => 'Arrived at destination. Journey complete.',
@@ -1144,7 +1189,8 @@ DateTime? interpolateJourneyTime(
   if (start == null || end == null) return null;
 
   final clamped = progress.clamp(0.0, 1.0);
-  final millis = start.millisecondsSinceEpoch +
+  final millis =
+      start.millisecondsSinceEpoch +
       ((end.millisecondsSinceEpoch - start.millisecondsSinceEpoch) * clamped)
           .round();
   return DateTime.fromMillisecondsSinceEpoch(millis);
@@ -1245,7 +1291,10 @@ int computeRouteSimilarity(
   if (startDist <= matchRadiusMeters) anchorScore += 0.5;
   if (endDist <= matchRadiusMeters) anchorScore += 0.5;
 
-  return ((overlapScore * 0.75 + anchorScore * 0.25) * 100).round().clamp(0, 100);
+  return ((overlapScore * 0.75 + anchorScore * 0.25) * 100).round().clamp(
+    0,
+    100,
+  );
 }
 
 List<LocationHistoryPoint> _samplePoints(
@@ -1254,9 +1303,7 @@ List<LocationHistoryPoint> _samplePoints(
 }) {
   if (points.length <= maxSamples) return points;
   final step = (points.length / maxSamples).ceil().clamp(1, points.length);
-  return [
-    for (var i = 0; i < points.length; i += step) points[i],
-  ];
+  return [for (var i = 0; i < points.length; i += step) points[i]];
 }
 
 String compareSimilarityNarration(int similarityPercent, DateTime compareDay) {
@@ -1276,26 +1323,18 @@ String compareSimilarityNarration(int similarityPercent, DateTime compareDay) {
 /// Typical Mauritius conditions placeholder — no live API.
 TypicalWeather typicalWeatherForMonth(int month) {
   return switch (month) {
-    12 || 1 || 2 || 3 => const TypicalWeather(
-        icon: '🌤',
-        label: 'Partly cloudy',
-        tempC: 28,
-      ),
-    4 || 5 || 10 || 11 => const TypicalWeather(
-        icon: '⛅',
-        label: 'Warm & humid',
-        tempC: 26,
-      ),
-    6 || 7 || 8 => const TypicalWeather(
-        icon: '☀️',
-        label: 'Dry season',
-        tempC: 24,
-      ),
-    _ => const TypicalWeather(
-        icon: '🌦',
-        label: 'Light showers',
-        tempC: 25,
-      ),
+    12 ||
+    1 ||
+    2 ||
+    3 => const TypicalWeather(icon: '🌤', label: 'Partly cloudy', tempC: 28),
+    4 ||
+    5 ||
+    10 ||
+    11 => const TypicalWeather(icon: '⛅', label: 'Warm & humid', tempC: 26),
+    6 ||
+    7 ||
+    8 => const TypicalWeather(icon: '☀️', label: 'Dry season', tempC: 24),
+    _ => const TypicalWeather(icon: '🌦', label: 'Light showers', tempC: 25),
   };
 }
 
@@ -1351,7 +1390,9 @@ List<({double lat, double lng})> decodePolyline(String encoded) {
 }
 
 /// Expand compressed journey polylines into timestamped GPS points.
-List<LocationHistoryPoint> pointsFromJourneyRecords(List<JourneyRecord> journeys) {
+List<LocationHistoryPoint> pointsFromJourneyRecords(
+  List<JourneyRecord> journeys,
+) {
   if (journeys.isEmpty) return const [];
 
   final sorted = List<JourneyRecord>.from(journeys)

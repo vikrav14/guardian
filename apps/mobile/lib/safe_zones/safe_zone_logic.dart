@@ -8,23 +8,10 @@ import '../models/geofence.dart';
 import '../theme/colors.dart';
 
 /// Inferred from [Geofence.name] — Firestore has no dedicated type field yet.
-enum SafeZoneCategory {
-  home,
-  school,
-  church,
-  work,
-  hiking,
-  other,
-}
+enum SafeZoneCategory { home, school, church, work, hiking, other }
 
 /// Visual + semantic status for a zone card chip.
-enum SafeZoneStatus {
-  safe,
-  outside,
-  emergency,
-  paused,
-  unknown,
-}
+enum SafeZoneStatus { safe, outside, emergency, paused, unknown }
 
 class SafeZoneCategoryStyle {
   const SafeZoneCategoryStyle({
@@ -181,7 +168,8 @@ double haversineMeters(double lat1, double lng1, double lat2, double lng2) {
   double toRad(double degrees) => degrees * math.pi / 180;
   final dLat = toRad(lat2 - lat1);
   final dLng = toRad(lng2 - lng1);
-  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
       math.cos(toRad(lat1)) *
           math.cos(toRad(lat2)) *
           math.sin(dLng / 2) *
@@ -474,9 +462,8 @@ String relativeTimeLabel(DateTime? timestamp, {DateTime? now}) {
 
 String zoneUpdatedLabel(Device? device, {DateTime? now}) {
   if (device == null) return 'No linked device';
-  final timestamp = device.location?.recordedAt ??
-      device.updatedAt ??
-      device.lastHeartbeatAt;
+  final timestamp =
+      device.location?.recordedAt ?? device.updatedAt ?? device.lastHeartbeatAt;
   if (timestamp == null) return 'Update time unavailable';
   return 'Updated ${relativeTimeLabel(timestamp, now: now)}';
 }

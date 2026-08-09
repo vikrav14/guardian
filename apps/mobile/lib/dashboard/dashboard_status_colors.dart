@@ -62,14 +62,18 @@ FlagMetricColors flagMetricColors(DashboardFlagMetric metric, bool active) {
 
 FlagMetricColors connectivityMetricColors(Device device, {DateTime? now}) {
   return switch (device.connectivityPhase(now: now)) {
-    DeviceConnectivityPhase.live =>
-      flagMetricColors(DashboardFlagMetric.connectivity, true),
+    DeviceConnectivityPhase.live => flagMetricColors(
+      DashboardFlagMetric.connectivity,
+      true,
+    ),
     DeviceConnectivityPhase.reconnecting => (
-        foreground: GuardianColors.accent,
-        background: GuardianColors.accentBg,
-      ),
-    DeviceConnectivityPhase.offline =>
-      flagMetricColors(DashboardFlagMetric.connectivity, false),
+      foreground: GuardianColors.accent,
+      background: GuardianColors.accentBg,
+    ),
+    DeviceConnectivityPhase.offline => flagMetricColors(
+      DashboardFlagMetric.connectivity,
+      false,
+    ),
   };
 }
 
@@ -78,15 +82,17 @@ bool dashboardBatteryHealthy(int? percent) =>
 
 FlagMetricColors linkingStoryMetricColors(LinkingStoryMetricState state) {
   return switch (state) {
-    LinkingStoryMetricState.complete =>
-      flagMetricColors(DashboardFlagMetric.signal, true),
+    LinkingStoryMetricState.complete => flagMetricColors(
+      DashboardFlagMetric.signal,
+      true,
+    ),
     LinkingStoryMetricState.active => (
-        foreground: GuardianColors.accent,
-        background: GuardianColors.accentBg,
-      ),
+      foreground: GuardianColors.accent,
+      background: GuardianColors.accentBg,
+    ),
     LinkingStoryMetricState.pending => (
-        foreground: GuardianColors.flagBlueMuted,
-        background: GuardianColors.flagBlueBgMuted,
-      ),
+      foreground: GuardianColors.flagBlueMuted,
+      background: GuardianColors.flagBlueBgMuted,
+    ),
   };
 }

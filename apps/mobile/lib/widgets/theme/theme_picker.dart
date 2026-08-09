@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../theme/app_theme.dart';
+
 /// Sidebar scenic overlay — unselected labels on the theme flyout.
 const _darkSurfaceLabel = Color(0xB3FFFFFF);
 const _darkSurfaceLabelHover = Colors.white;
@@ -68,8 +69,8 @@ class _ThemePickerTileState extends State<ThemePickerTile> {
     final labelColor = widget.selected
         ? GuardianColors.safeText
         : widget.onDarkSurface
-            ? (_hovered ? _darkSurfaceLabelHover : _darkSurfaceLabel)
-            : colors.textPrimary;
+        ? (_hovered ? _darkSurfaceLabelHover : _darkSurfaceLabel)
+        : colors.textPrimary;
     return MouseRegion(
       onEnter: widget.onDarkSurface && !widget.selected
           ? (_) => setState(() => _hovered = true)
@@ -103,8 +104,9 @@ class _ThemePickerTileState extends State<ThemePickerTile> {
                     widget.theme.displayName,
                     style: TextStyle(
                       fontSize: widget.dense ? 11 : 13,
-                      fontWeight:
-                          widget.selected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: widget.selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: labelColor,
                     ),
                   ),

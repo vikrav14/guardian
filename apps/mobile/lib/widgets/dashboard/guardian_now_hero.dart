@@ -11,19 +11,11 @@ class GuardianNowHero extends StatelessWidget {
   const GuardianNowHero({
     required this.device,
     required this.aiInterpretation,
-    this.onCall,
-    this.onViewLocation,
-    this.onAskGuardian,
-    this.onSOS,
     super.key,
   });
 
   final Device? device;
   final String aiInterpretation;
-  final VoidCallback? onCall;
-  final VoidCallback? onViewLocation;
-  final VoidCallback? onAskGuardian;
-  final VoidCallback? onSOS;
 
   @override
   Widget build(BuildContext context) {
@@ -91,8 +83,9 @@ class GuardianNowHero extends StatelessWidget {
         : (hasLocation ? 'Current location' : 'Locating...');
 
     final battery = d.batteryPercent;
-    final batteryText =
-        battery != null ? '$battery% battery' : 'Battery unknown';
+    final batteryText = battery != null
+        ? '$battery% battery'
+        : 'Battery unknown';
 
     final lastUpdate = d.lastHeartbeatAt;
     String updateText;
@@ -164,8 +157,10 @@ class GuardianNowHero extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   color: statusColor.withValues(alpha: 0.12),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 child: Text(
                   statusText,
                   style: textTheme.labelMedium?.copyWith(
@@ -228,97 +223,7 @@ class GuardianNowHero extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Quick action buttons
-          Row(
-            children: [
-              Expanded(
-                child: _HeroButton(
-                  label: 'Call',
-                  onPressed: onCall,
-                  isPrimary: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _HeroButton(
-                  label: 'Location',
-                  onPressed: onViewLocation,
-                  isPrimary: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _HeroButton(
-                  label: 'Ask',
-                  onPressed: onAskGuardian,
-                  isPrimary: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 56,
-                height: 48,
-                child: Material(
-                  color: GuardianColors.danger,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: onSOS,
-                    borderRadius: BorderRadius.circular(12),
-                    child: const Icon(
-                      Icons.sos,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeroButton extends StatelessWidget {
-  const _HeroButton({
-    required this.label,
-    required this.onPressed,
-    required this.isPrimary,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool isPrimary;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Material(
-      color: isPrimary
-          ? GuardianColors.safe
-          : colors.surfaceMuted,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: textTheme.labelMedium?.copyWith(
-              color: isPrimary
-                  ? Colors.white
-                  : colors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
       ),
     );
   }

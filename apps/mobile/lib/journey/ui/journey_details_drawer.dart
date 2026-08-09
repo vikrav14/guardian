@@ -26,11 +26,14 @@ class _JourneyDetailsDrawerState extends State<JourneyDetailsDrawer>
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.sizeOf(context).width >= GuardianBreakpoints.expanded;
+    final isWide =
+        MediaQuery.sizeOf(context).width >= GuardianBreakpoints.expanded;
     final expandedWidth = isWide
         ? JourneyScreenTheme.drawerExpandedWidthWide
         : JourneyScreenTheme.drawerExpandedWidth;
-    final width = _expanded ? expandedWidth : JourneyScreenTheme.drawerCollapsedWidth;
+    final width = _expanded
+        ? expandedWidth
+        : JourneyScreenTheme.drawerCollapsedWidth;
 
     return AnimatedContainer(
       duration: JourneyScreenTheme.animationDuration,
@@ -55,7 +58,9 @@ class _JourneyDetailsDrawerState extends State<JourneyDetailsDrawer>
                     weather: widget.weather,
                     onCollapse: () => setState(() => _expanded = false),
                   )
-                : _CollapsedHandle(onExpand: () => setState(() => _expanded = true)),
+                : _CollapsedHandle(
+                    onExpand: () => setState(() => _expanded = true),
+                  ),
           ),
         ),
       ),

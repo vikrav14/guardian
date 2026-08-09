@@ -40,7 +40,10 @@ class DeviceAvatarService {
 
     final String downloadUrl;
     try {
-      downloadUrl = await _uploadAvatarBytes(imei, image).timeout(uploadTimeout);
+      downloadUrl = await _uploadAvatarBytes(
+        imei,
+        image,
+      ).timeout(uploadTimeout);
     } on TimeoutException {
       throw const AvatarUpdateException(
         'Photo upload timed out. Check your connection and Firebase Storage '
@@ -91,12 +94,14 @@ class DeviceAvatarService {
     } on FirebaseException catch (error) {
       if (error.code != 'object-not-found') rethrow;
     }
-    await _devices.updateAvatarUrl(imei, null).timeout(
-      saveTimeout,
-      onTimeout: () => throw const AvatarUpdateException(
-        'The photo was removed from Storage, but the Firestore update timed out.',
-      ),
-    );
+    await _devices
+        .updateAvatarUrl(imei, null)
+        .timeout(
+          saveTimeout,
+          onTimeout: () => throw const AvatarUpdateException(
+            'The photo was removed from Storage, but the Firestore update timed out.',
+          ),
+        );
   }
 
   Future<String> _uploadAvatarBytes(String imei, AvatarImage image) async {

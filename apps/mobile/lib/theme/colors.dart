@@ -75,8 +75,10 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
   final Color textSecondary;
   final Color textMuted;
   final Color border;
+
   /// Primary action / online / selection accent (varies per theme).
   final Color accent;
+
   /// Subtle highlight behind selected rows, nav items, chips.
   final Color accentMuted;
 

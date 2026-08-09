@@ -70,11 +70,13 @@ class DeviceIntelligence {
     final rawInsights = map['insights'];
     final insights = rawInsights is List
         ? rawInsights
-            .whereType<Map>()
-            .map((item) => DeviceIntelligenceInsight.fromMap(
+              .whereType<Map>()
+              .map(
+                (item) => DeviceIntelligenceInsight.fromMap(
                   Map<String, dynamic>.from(item),
-                ))
-            .toList(growable: false)
+                ),
+              )
+              .toList(growable: false)
         : const <DeviceIntelligenceInsight>[];
 
     final topRaw = map['topInsight'];
@@ -156,6 +158,7 @@ class Device {
   final DeviceLocation? location;
   final DateTime? lastHeartbeatAt;
   final DateTime? disconnectedAt;
+
   /// Gateway connection phase: `live`, `connecting`, or `offline`.
   final String? connectionState;
   final DateTime? connectingAt;
@@ -252,17 +255,17 @@ class Device {
     final source = accuracySource?.toLowerCase();
     return switch (source) {
       'gps' => const DevicePositioningDescription(
-          label: 'satellite GPS',
-          approximate: false,
-        ),
+        label: 'satellite GPS',
+        approximate: false,
+      ),
       'wifi' => const DevicePositioningDescription(
-          label: 'WiFi positioning',
-          approximate: true,
-        ),
+        label: 'WiFi positioning',
+        approximate: true,
+      ),
       'lbs' => const DevicePositioningDescription(
-          label: 'cell tower positioning',
-          approximate: true,
-        ),
+        label: 'cell tower positioning',
+        approximate: true,
+      ),
       _ => null,
     };
   }
@@ -311,7 +314,8 @@ class Device {
             ? Map<String, dynamic>.from(data['intelligence'] as Map)
             : null,
       ),
-      fallDetectionEnabled: (data['fallDetection'] as Map?)?['enabled'] as bool?,
+      fallDetectionEnabled:
+          (data['fallDetection'] as Map?)?['enabled'] as bool?,
       fallDetectionDialMonitor:
           (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
       fallDetectionSensitivity:

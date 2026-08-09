@@ -54,13 +54,15 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fall detection settings sent to pendant')),
+        const SnackBar(
+          content: Text('Fall detection settings sent to pendant'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not reach pendant: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not reach pendant: $e')));
     } finally {
       if (mounted) setState(() => _savingFall = false);
     }
@@ -75,13 +77,15 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location update frequency sent to pendant')),
+        const SnackBar(
+          content: Text('Location update frequency sent to pendant'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not reach pendant: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not reach pendant: $e')));
     } finally {
       if (mounted) setState(() => _savingInterval = false);
     }
@@ -125,15 +129,19 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 Text(
                   'Care settings',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'These need the pendant to be online right now to take '
                   'effect — there is no SMS fallback for fall detection or '
                   'medication reminders.',
-                  style: TextStyle(color: colors.textSecondary, fontSize: 12.5, height: 1.4),
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildFallDetectionCard(colors),
@@ -163,15 +171,29 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   color: GuardianColors.dangerBg,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.emergency_outlined, color: GuardianColors.danger, size: 17),
+                child: const Icon(
+                  Icons.emergency_outlined,
+                  color: GuardianColors.danger,
+                  size: 17,
+                ),
               ),
               const SizedBox(width: GuardianSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Fall detection', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
-                    Text('Alerts the family if a fall is detected', style: TextStyle(color: colors.textMuted, fontSize: 11.5)),
+                    Text(
+                      'Fall detection',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'Alerts the family if a fall is detected',
+                      style: TextStyle(color: colors.textMuted, fontSize: 11.5),
+                    ),
                   ],
                 ),
               ),
@@ -185,16 +207,29 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             const Divider(height: GuardianSpacing.xl),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Auto-dial monitor number on fall', style: TextStyle(fontSize: 13.5)),
+              title: const Text(
+                'Auto-dial monitor number on fall',
+                style: TextStyle(fontSize: 13.5),
+              ),
               value: _dialMonitor,
               onChanged: (v) => setState(() => _dialMonitor = v),
             ),
             const SizedBox(height: GuardianSpacing.sm),
             Row(
               children: [
-                Text('Sensitivity', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(
+                  'Sensitivity',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
                 const Spacer(),
-                Text('${_sensitivity.round()} / 6', style: TextStyle(color: colors.textMuted, fontSize: 12.5)),
+                Text(
+                  '${_sensitivity.round()} / 6',
+                  style: TextStyle(color: colors.textMuted, fontSize: 12.5),
+                ),
               ],
             ),
             Slider(
@@ -219,7 +254,10 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Save'),
             ),
@@ -230,7 +268,8 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   }
 
   Widget _buildLocationUpdatesCard(GuardianThemeColors colors) {
-    String label(int seconds) => seconds < 60 ? '${seconds}s' : '${seconds ~/ 60}m';
+    String label(int seconds) =>
+        seconds < 60 ? '${seconds}s' : '${seconds ~/ 60}m';
 
     return GuardianCard(
       child: Column(
@@ -245,15 +284,29 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   color: GuardianColors.accentBg,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.location_on_outlined, color: GuardianColors.accent, size: 17),
+                child: const Icon(
+                  Icons.location_on_outlined,
+                  color: GuardianColors.accent,
+                  size: 17,
+                ),
               ),
               const SizedBox(width: GuardianSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Location updates', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
-                    Text('How often the pendant reports its position', style: TextStyle(color: colors.textMuted, fontSize: 11.5)),
+                    Text(
+                      'Location updates',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'How often the pendant reports its position',
+                      style: TextStyle(color: colors.textMuted, fontSize: 11.5),
+                    ),
                   ],
                 ),
               ),
@@ -285,7 +338,10 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Text('Save'),
             ),
@@ -309,11 +365,22 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   color: GuardianColors.warningBg,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.medication_outlined, color: GuardianColors.warning, size: 17),
+                child: const Icon(
+                  Icons.medication_outlined,
+                  color: GuardianColors.warning,
+                  size: 17,
+                ),
               ),
               const SizedBox(width: GuardianSpacing.sm),
               Expanded(
-                child: Text('Medication reminders', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15)),
+                child: Text(
+                  'Medication reminders',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
@@ -324,7 +391,9 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           StreamBuilder<List<MedicationReminder>>(
-            stream: MedicationReminderService().watchForDevice(widget.device.imei),
+            stream: MedicationReminderService().watchForDevice(
+              widget.device.imei,
+            ),
             builder: (context, snapshot) {
               final reminders = snapshot.data ?? const <MedicationReminder>[];
               if (!snapshot.hasData) {
@@ -349,8 +418,10 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                       reminder: reminder,
                       onToggle: (enabled) => MedicationReminderService()
                           .setEnabled(reminder, enabled),
-                      onDelete: () =>
-                          MedicationReminderService().delete(reminder.id, imei: reminder.imei),
+                      onDelete: () => MedicationReminderService().delete(
+                        reminder.id,
+                        imei: reminder.imei,
+                      ),
                     ),
                 ],
               );
@@ -384,15 +455,25 @@ class _ReminderTile extends StatelessWidget {
             width: 52,
             child: Text(
               reminder.time,
-              style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 13),
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
             ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(reminder.text, style: TextStyle(color: colors.textPrimary, fontSize: 13)),
-                Text(reminder.frequencyLabel, style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                Text(
+                  reminder.text,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                ),
+                Text(
+                  reminder.frequencyLabel,
+                  style: TextStyle(color: colors.textMuted, fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -463,9 +544,9 @@ class _AddReminderDialogState extends State<_AddReminderDialog> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not reach pendant: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not reach pendant: $e')));
         setState(() => _saving = false);
       }
     }
@@ -539,7 +620,10 @@ class _AddReminderDialogState extends State<_AddReminderDialog> {
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Text('Save'),
         ),

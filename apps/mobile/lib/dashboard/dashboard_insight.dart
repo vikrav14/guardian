@@ -26,20 +26,25 @@ DashboardInsightTone _toneForLevel(String level) {
 
 String _titleForInsight(String id, Device device) {
   return switch (id) {
-    'offline' => device.location?.isValid == true
-        ? 'Last known location may be outdated'
-        : 'Device not reachable',
+    'offline' =>
+      device.location?.isValid == true
+          ? 'Last known location may be outdated'
+          : 'Device not reachable',
     'low_battery_moving' => 'Low battery while moving',
-    'stale_gps' => device.hasApproximateLocation
-        ? 'Approximate location may be outdated'
-        : 'Location may be outdated',
+    'stale_gps' =>
+      device.hasApproximateLocation
+          ? 'Approximate location may be outdated'
+          : 'Location may be outdated',
     'geofence_exit_urgent' => 'Outside home zone',
     'battery_forecast' => 'Battery forecast',
     _ => 'Safety insight',
   };
 }
 
-DashboardInsight _fromIntelligence(DeviceIntelligence intelligence, Device device) {
+DashboardInsight _fromIntelligence(
+  DeviceIntelligence intelligence,
+  Device device,
+) {
   final top = intelligence.topInsight;
   if (top == null || top.confidence < top.suppressBelow) {
     return const DashboardInsight(
@@ -86,16 +91,16 @@ String _offlineLocationDetail(Device device) {
 String _detailForInsight(String id, Device device, String inference) {
   return switch (id) {
     'stale_gps' => () {
-        final recorded = device.location?.recordedAt;
-        if (recorded == null) {
-          return 'Still waiting for a clear location from the pendant.';
-        }
-        final age = _friendlyAgeLabel(DateTime.now().difference(recorded));
-        final approx = device.hasApproximateLocation
-            ? ' It was approximate, so the pin may be a little off.'
-            : '';
-        return 'Last saw them $age.$approx The map may be a little behind until a fresher update arrives.';
-      }(),
+      final recorded = device.location?.recordedAt;
+      if (recorded == null) {
+        return 'Still waiting for a clear location from the pendant.';
+      }
+      final age = _friendlyAgeLabel(DateTime.now().difference(recorded));
+      final approx = device.hasApproximateLocation
+          ? ' It was approximate, so the pin may be a little off.'
+          : '';
+      return 'Last saw them $age.$approx The map may be a little behind until a fresher update arrives.';
+    }(),
     'offline' => _offlineLocationDetail(device),
     _ => inference,
   };
@@ -122,7 +127,8 @@ DashboardInsight _fallbackClientInsight(Device device) {
   if (battery != null && battery < 10 && speed > 1 && device.hasFreshLocation) {
     return DashboardInsight(
       title: 'Low battery while moving',
-      detail: 'Battery at $battery% while moving at ${speed.toStringAsFixed(1)} km/h.',
+      detail:
+          'Battery at $battery% while moving at ${speed.toStringAsFixed(1)} km/h.',
       tone: DashboardInsightTone.warning,
     );
   }
@@ -181,7 +187,8 @@ DashboardInsight buildDashboardInsight(Device? device) {
   if (device == null) {
     return const DashboardInsight(
       title: 'Connect a device to begin',
-      detail: 'Guardian AI will summarize location, battery, and movement signals here.',
+      detail:
+          'Guardian AI will summarize location, battery, and movement signals here.',
       tone: DashboardInsightTone.neutral,
     );
   }

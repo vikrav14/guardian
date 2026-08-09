@@ -80,8 +80,10 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
         final screen = await controller.getScreenCoordinate(
           LatLng(location.lat, location.lng),
         );
-        positions[device.imei] =
-            Offset(screen.x.toDouble(), screen.y.toDouble());
+        positions[device.imei] = Offset(
+          screen.x.toDouble(),
+          screen.y.toDouble(),
+        );
       } catch (_) {
         // The map may not be ready yet.
       }
@@ -189,8 +191,7 @@ class _JourneyMapAvatarOverlayState extends State<JourneyMapAvatarOverlay> {
     for (final slot in widget.slots) {
       try {
         final screen = await controller.getScreenCoordinate(slot.latLng);
-        positions[slot.id] =
-            Offset(screen.x.toDouble(), screen.y.toDouble());
+        positions[slot.id] = Offset(screen.x.toDouble(), screen.y.toDouble());
       } catch (_) {
         // The map may not be ready yet.
       }
@@ -341,7 +342,9 @@ class _TrackedPersonPin extends StatelessWidget {
     final ringColor = color;
 
     final pin = Semantics(
-      label: faded ? '$label last known location, pendant offline' : '$label location',
+      label: faded
+          ? '$label last known location, pendant offline'
+          : '$label location',
       image: true,
       child: SizedBox(
         width: width,
@@ -355,8 +358,10 @@ class _TrackedPersonPin extends StatelessWidget {
                 top: 0,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 112),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: GuardianColors.forest,
                     borderRadius: BorderRadius.circular(999),
@@ -406,16 +411,11 @@ class _TrackedPersonPin extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: ringColor,
-                    width: selected ? 3 : 2,
-                  ),
+                  border: Border.all(color: ringColor, width: selected ? 3 : 2),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          (selected ? GuardianColors.safe : color).withValues(
-                        alpha: selected ? 0.24 : 0.14,
-                      ),
+                      color: (selected ? GuardianColors.safe : color)
+                          .withValues(alpha: selected ? 0.24 : 0.14),
                       blurRadius: selected ? 16 : 10,
                       offset: const Offset(0, 5),
                     ),

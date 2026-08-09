@@ -3,28 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../models/location_history_point.dart';
 
-enum JourneyEventType {
-  leftHome,
-  walking,
-  vehicle,
-  stopped,
-  arrived,
-  dwell,
-}
+enum JourneyEventType { leftHome, walking, vehicle, stopped, arrived, dwell }
 
-enum TransportMode {
-  stationary,
-  walking,
-  bicycle,
-  running,
-  vehicle,
-}
+enum TransportMode { stationary, walking, bicycle, running, vehicle }
 
-enum RouteSegmentColor {
-  green,
-  blue,
-  purple,
-}
+enum RouteSegmentColor { green, blue, purple }
 
 class JourneyEvent {
   const JourneyEvent({
@@ -96,10 +79,7 @@ class JourneyHighlights {
 }
 
 class JourneyQuality {
-  const JourneyQuality({
-    required this.fixCount,
-    required this.label,
-  });
+  const JourneyQuality({required this.fixCount, required this.label});
 
   final int fixCount;
   final String label;
@@ -108,10 +88,7 @@ class JourneyQuality {
 }
 
 class JourneyHealth {
-  const JourneyHealth({
-    required this.stars,
-    required this.summary,
-  });
+  const JourneyHealth({required this.stars, required this.summary});
 
   final int stars;
   final String summary;
@@ -231,14 +208,20 @@ class JourneyRecord {
     final rawEvents = data['events'];
     return JourneyRecord(
       id: doc.id,
-      startAt: _asDateTime(data['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
-      endAt: _asDateTime(data['endAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      startAt:
+          _asDateTime(data['startAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      endAt:
+          _asDateTime(data['endAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       polyline: data['polyline'] as String? ?? '',
       distanceKm: (data['distanceKm'] as num?)?.toDouble() ?? 0,
       pointCount: (data['pointCount'] as num?)?.toInt() ?? 0,
       compressed: data['compressed'] as bool? ?? true,
       events: rawEvents is List
-          ? rawEvents.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          ? rawEvents
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
           : const [],
     );
   }

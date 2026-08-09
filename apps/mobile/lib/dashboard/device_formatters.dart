@@ -19,7 +19,8 @@ String deviceLocationStatusLabel(Device device) {
           : 'Location unavailable',
     DeviceConnectivityPhase.live when device.hasApproximateLocation =>
       'Approximate location',
-    DeviceConnectivityPhase.live when device.hasFreshLocation => 'Satellite GPS',
+    DeviceConnectivityPhase.live when device.hasFreshLocation =>
+      'Satellite GPS',
     DeviceConnectivityPhase.live => 'Waiting for location',
   };
 }

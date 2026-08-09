@@ -28,7 +28,9 @@ class AroundThemPanel extends StatelessWidget {
 
     final colors = context.guardianColors;
     final textTheme = Theme.of(context).textTheme;
-    final safeZones = geofences.where((z) => z.imei == device!.imei && z.active).toList();
+    final safeZones = geofences
+        .where((z) => z.imei == device!.imei && z.active)
+        .toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -57,29 +59,20 @@ class AroundThemPanel extends StatelessWidget {
             value: device!.hasFreshLocation ? 'Located' : 'Locating',
           ),
           const SizedBox(height: 12),
-          _ContextRow(
-            label: 'Weather',
-            value: weatherStatus,
-          ),
+          _ContextRow(label: 'Weather', value: weatherStatus),
           const SizedBox(height: 12),
           _ContextRow(
             label: 'Safe zones',
             value: safeZones.isEmpty
                 ? 'No active zones'
                 : safeZones.length == 1
-                    ? '1 zone nearby'
-                    : '${safeZones.length} zones nearby',
+                ? '1 zone nearby'
+                : '${safeZones.length} zones nearby',
           ),
           const SizedBox(height: 12),
-          _ContextRow(
-            label: 'Local context',
-            value: localContext,
-          ),
+          _ContextRow(label: 'Local context', value: localContext),
           const SizedBox(height: 12),
-          _ContextRow(
-            label: 'Guardian AI',
-            value: guardianIntelligence,
-          ),
+          _ContextRow(label: 'Guardian AI', value: guardianIntelligence),
         ],
       ),
     );
@@ -87,10 +80,7 @@ class AroundThemPanel extends StatelessWidget {
 }
 
 class _ContextRow extends StatelessWidget {
-  const _ContextRow({
-    required this.label,
-    required this.value,
-  });
+  const _ContextRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -116,9 +106,7 @@ class _ContextRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: textTheme.bodySmall?.copyWith(
-              color: colors.textPrimary,
-            ),
+            style: textTheme.bodySmall?.copyWith(color: colors.textPrimary),
             textAlign: TextAlign.end,
           ),
         ),

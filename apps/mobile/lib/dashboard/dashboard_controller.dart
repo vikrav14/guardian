@@ -11,8 +11,8 @@ class DashboardController extends ChangeNotifier {
   DashboardController({
     DeviceService? deviceService,
     GeofenceService? geofenceService,
-  })  : _deviceService = deviceService ?? DeviceService(),
-        _geofenceService = geofenceService ?? GeofenceService();
+  }) : _deviceService = deviceService ?? DeviceService(),
+       _geofenceService = geofenceService ?? GeofenceService();
 
   final DeviceService _deviceService;
   final GeofenceService _geofenceService;
@@ -38,7 +38,8 @@ class DashboardController extends ChangeNotifier {
       device.connectivityPhase(now: now);
 
   bool isReconnecting(Device device, {DateTime? now}) =>
-      connectivityPhase(device, now: now) == DeviceConnectivityPhase.reconnecting;
+      connectivityPhase(device, now: now) ==
+      DeviceConnectivityPhase.reconnecting;
 
   bool isLive(Device device, {DateTime? now}) =>
       connectivityPhase(device, now: now) == DeviceConnectivityPhase.live;

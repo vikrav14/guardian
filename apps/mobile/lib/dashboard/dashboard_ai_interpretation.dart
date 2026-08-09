@@ -48,14 +48,10 @@ String buildGuardianAiInterpretation(Device? device) {
 /// Generates list of intelligence activities Guardian is performing.
 List<String> buildGuardianActivities(Device? device) {
   if (device == null) {
-    return [
-      'Waiting for device connection',
-    ];
+    return ['Waiting for device connection'];
   }
 
-  final activities = <String>[
-    'Pendant signal monitored',
-  ];
+  final activities = <String>['Pendant signal monitored'];
 
   if (device.hasFreshLocation || device.hasApproximateLocation) {
     activities.add('Location received and evaluated');

@@ -49,16 +49,12 @@ class TodaySummaryPanel extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             dailySummary,
-            style: textTheme.bodyMedium?.copyWith(
-              color: colors.textPrimary,
-            ),
+            style: textTheme.bodyMedium?.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 12),
           Text(
             activityStatus,
-            style: textTheme.bodySmall?.copyWith(
-              color: colors.textSecondary,
-            ),
+            style: textTheme.bodySmall?.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
           SizedBox(

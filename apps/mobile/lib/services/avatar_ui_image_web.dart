@@ -61,13 +61,15 @@ Future<ui.Image?> _htmlImageToUiImage(
   }
 
   loadListener = ((web.Event _) {
-    unawaited(_finishHtmlImageLoad(
-      completer: completer,
-      img: img,
-      url: url,
-      crossOrigin: crossOrigin,
-      cleanup: cleanup,
-    ));
+    unawaited(
+      _finishHtmlImageLoad(
+        completer: completer,
+        img: img,
+        url: url,
+        crossOrigin: crossOrigin,
+        cleanup: cleanup,
+      ),
+    );
   }).toJS;
 
   errorListener = ((web.Event _) {

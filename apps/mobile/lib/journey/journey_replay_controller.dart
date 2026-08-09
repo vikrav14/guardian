@@ -14,32 +14,33 @@ class JourneyReplayController extends ChangeNotifier {
     List<Geofence> geofences = const [],
     List<JourneyEvent>? timelineEvents,
     JourneyGpsContext? gpsContext,
-  })  : rawPoints = List<LocationHistoryPoint>.unmodifiable(rawPoints),
-        smoothedPoints = smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
-        routeSegments = buildRouteSegments(filterOutlierPoints(rawPoints)),
-        displayRouteSegments = buildRouteSegments(
-          smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
-        ),
-        events = timelineEvents ??
-            detectJourneyEvents(rawPoints, geofences: geofences),
-        stats = buildJourneyStats(rawPoints, journeys: journeys),
-        insights = buildJourneyInsights(
-          rawPoints,
-          geofences: geofences,
-          gpsContext: gpsContext,
-        ),
-        quality = computeJourneyQuality(rawPoints, gpsContext: gpsContext),
-        score = computeJourneyScore(
-          rawPoints,
-          geofences: geofences,
-          gpsContext: gpsContext,
-        ),
-        highlights = computeJourneyHighlights(rawPoints, zones: geofences),
-        health = buildJourneyHealthForPoints(
-          rawPoints,
-          geofences: geofences,
-          gpsContext: gpsContext,
-        );
+  }) : rawPoints = List<LocationHistoryPoint>.unmodifiable(rawPoints),
+       smoothedPoints = smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
+       routeSegments = buildRouteSegments(filterOutlierPoints(rawPoints)),
+       displayRouteSegments = buildRouteSegments(
+         smoothRouteForDisplay(filterOutlierPoints(rawPoints)),
+       ),
+       events =
+           timelineEvents ??
+           detectJourneyEvents(rawPoints, geofences: geofences),
+       stats = buildJourneyStats(rawPoints, journeys: journeys),
+       insights = buildJourneyInsights(
+         rawPoints,
+         geofences: geofences,
+         gpsContext: gpsContext,
+       ),
+       quality = computeJourneyQuality(rawPoints, gpsContext: gpsContext),
+       score = computeJourneyScore(
+         rawPoints,
+         geofences: geofences,
+         gpsContext: gpsContext,
+       ),
+       highlights = computeJourneyHighlights(rawPoints, zones: geofences),
+       health = buildJourneyHealthForPoints(
+         rawPoints,
+         geofences: geofences,
+         gpsContext: gpsContext,
+       );
 
   final List<LocationHistoryPoint> rawPoints;
   final List<LocationHistoryPoint> smoothedPoints;

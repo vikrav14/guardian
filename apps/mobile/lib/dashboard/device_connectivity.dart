@@ -74,7 +74,8 @@ DeviceConnectivityPhase deviceConnectivityPhase(
     return DeviceConnectivityPhase.offline;
   }
   if (device.online == true && !device.hasRecentContact) {
-    if (device.connectionState == 'live' && !deviceHasSessionHeartbeat(device)) {
+    if (device.connectionState == 'live' &&
+        !deviceHasSessionHeartbeat(device)) {
       return DeviceConnectivityPhase.reconnecting;
     }
     return DeviceConnectivityPhase.offline;
@@ -121,7 +122,13 @@ String deviceSignalLabel(Device device, {DateTime? now}) {
   };
 }
 
-enum DashboardSafetyMood { empty, allClear, linkingUp, allOffline, needsAttention }
+enum DashboardSafetyMood {
+  empty,
+  allClear,
+  linkingUp,
+  allOffline,
+  needsAttention,
+}
 
 DashboardSafetyMood dashboardSafetyMood(List<Device> devices, {DateTime? now}) {
   if (devices.isEmpty) return DashboardSafetyMood.empty;
@@ -159,16 +166,22 @@ String dashboardSafetyTitle(List<Device> devices, {DateTime? now}) {
 String dashboardSafetySubtitle(List<Device> devices, {DateTime? now}) {
   final clock = now ?? DateTime.now();
   final online = devices
-      .where((d) => d.connectivityPhase(now: clock) == DeviceConnectivityPhase.live)
+      .where(
+        (d) => d.connectivityPhase(now: clock) == DeviceConnectivityPhase.live,
+      )
       .length;
   final linking = devices
       .where(
         (d) =>
-            d.connectivityPhase(now: clock) == DeviceConnectivityPhase.reconnecting,
+            d.connectivityPhase(now: clock) ==
+            DeviceConnectivityPhase.reconnecting,
       )
       .length;
   final offline = devices
-      .where((d) => d.connectivityPhase(now: clock) == DeviceConnectivityPhase.offline)
+      .where(
+        (d) =>
+            d.connectivityPhase(now: clock) == DeviceConnectivityPhase.offline,
+      )
       .length;
 
   if (devices.isEmpty) return 'No linked devices';

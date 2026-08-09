@@ -23,6 +23,7 @@ import '../widgets/dashboard/guardian_now_hero.dart';
 import '../widgets/dashboard/around_them_panel.dart';
 import '../widgets/dashboard/today_summary_panel.dart';
 import '../widgets/dashboard/guardian_intelligence_panel.dart';
+import '../widgets/dashboard/quick_actions_panel.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -94,8 +95,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final selected = _selected;
     final reconnecting = selected?.isReconnecting ?? false;
     if (reconnecting &&
-        (!_wasSelectedReconnecting ||
-            _linkingStoryImei != selected?.imei)) {
+        (!_wasSelectedReconnecting || _linkingStoryImei != selected?.imei)) {
       _linkingStoryImei = selected?.imei;
       _linkingStoryFullyShown = false;
     }
@@ -179,7 +179,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         var maxLng = zones.first.lng;
         for (final zone in zones) {
           final latPad = zone.radiusMeters / 111000;
-          final lngPad = zone.radiusMeters / (111000 * math.cos(zone.lat * math.pi / 180));
+          final lngPad =
+              zone.radiusMeters / (111000 * math.cos(zone.lat * math.pi / 180));
           minLat = math.min(minLat, zone.lat - latPad);
           maxLat = math.max(maxLat, zone.lat + latPad);
           minLng = math.min(minLng, zone.lng - lngPad);
@@ -406,8 +407,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     if (kIsWeb) return const {};
     return {
       for (final device in _devices)
-        if (device.hasFreshLocation &&
-            _markerIcons.containsKey(device.imei))
+        if (device.hasFreshLocation && _markerIcons.containsKey(device.imei))
           Marker(
             markerId: MarkerId(device.imei),
             position: LatLng(device.location!.lat, device.location!.lng),
@@ -423,8 +423,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Set<Circle> _circles() {
     final zones = _mapGeofences;
-    final key =
-        '${_selectedImei ?? 'all'}|${_geofencesFingerprint(zones)}';
+    final key = '${_selectedImei ?? 'all'}|${_geofencesFingerprint(zones)}';
     if (key == _cachedCirclesKey) return _cachedCircles;
     _cachedCirclesKey = key;
     _cachedCircles = {
@@ -492,12 +491,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   void _openHistory(Device device) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            JourneyPage(
-              imei: device.imei,
-              deviceName: device.displayName,
-              avatarUrl: device.avatarUrl,
-            ),
+        builder: (_) => JourneyPage(
+          imei: device.imei,
+          deviceName: device.displayName,
+          avatarUrl: device.avatarUrl,
+        ),
       ),
     );
   }
@@ -523,14 +521,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
     return Column(
       children: [
-        GuardianNowHero(
-          device: selected,
-          aiInterpretation: aiInterpretation,
-          onCall: selected != null ? () => _callDevice(selected) : null,
-          onViewLocation: selected != null ? () => {} : null,
-          onAskGuardian: selected != null ? () => {} : null,
-          onSOS: selected != null ? () => _sendHelp(selected) : null,
-        ),
+        GuardianNowHero(device: selected, aiInterpretation: aiInterpretation),
         if (_devices.length > 1) ...[
           const SizedBox(height: 18),
           FamilyDeviceStrip(
@@ -555,9 +546,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           onViewJourney: selected != null ? () => _openHistory(selected) : null,
         ),
         const SizedBox(height: 18),
-        GuardianIntelligencePanel(
-          device: selected,
-          activities: activities,
+        GuardianIntelligencePanel(device: selected, activities: activities),
+        const SizedBox(height: 18),
+        QuickActionsPanel(
+          onCall: selected != null ? () => _callDevice(selected) : () {},
+          onViewLocation: selected != null ? () => {} : () {},
+          onAskGuardian: selected != null ? () => {} : () {},
         ),
         const SizedBox(height: 18),
       ],
@@ -575,7 +569,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       selected,
       linkingTick: _linkingTick,
     );
-    final showLinkingStory = selected != null &&
+    final showLinkingStory =
+        selected != null &&
         (selected.isReconnecting ||
             (_isLive(selected) &&
                 _linkingStoryImei == selected.imei &&
@@ -632,8 +627,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: GuardianColors.forest
-                                            .withValues(alpha: 0.11),
+                                        color: GuardianColors.forest.withValues(
+                                          alpha: 0.11,
+                                        ),
                                         blurRadius: 38,
                                         offset: const Offset(0, 15),
                                       ),
@@ -648,9 +644,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                           child: _StableGoogleMap(
                                             initialCameraPosition:
                                                 CameraPosition(
-                                              target: center,
-                                              zoom: _zoom,
-                                            ),
+                                                  target: center,
+                                                  zoom: _zoom,
+                                                ),
                                             markers: _markers(),
                                             circles: _circles(),
                                             mapType: _mapType,
@@ -668,13 +664,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                         _webMapAvatarOverlay(),
                                         if (_loading)
                                           const Center(
-                                            child:
-                                                CircularProgressIndicator(),
+                                            child: CircularProgressIndicator(),
                                           ),
                                         if (_error != null)
                                           Center(
-                                            child:
-                                                _MapMessage(message: _error!),
+                                            child: _MapMessage(
+                                              message: _error!,
+                                            ),
                                           ),
                                         if (!_loading &&
                                             _error == null &&
@@ -690,8 +686,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                           left: 18,
                                           child: _PrototypeMapLabel(
                                             device: selected,
-                                            status:
-                                                _mapStatusLabel(selected),
+                                            status: _mapStatusLabel(selected),
                                           ),
                                         ),
                                         Positioned(
@@ -700,17 +695,15 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                                           child: GuardianMapControlRail(
                                             trackedName:
                                                 selected?.displayName ??
-                                                    'tracked person',
-                                            onZoomIn: () => unawaited(
-                                              _changeMapZoom(1),
-                                            ),
-                                            onZoomOut: () => unawaited(
-                                              _changeMapZoom(-1),
-                                            ),
+                                                'tracked person',
+                                            onZoomIn: () =>
+                                                unawaited(_changeMapZoom(1)),
+                                            onZoomOut: () =>
+                                                unawaited(_changeMapZoom(-1)),
                                             onCenterTrackedPerson:
                                                 _centerTrackedPersonAction(
-                                              selected,
-                                            ),
+                                                  selected,
+                                                ),
                                             isSatelliteView:
                                                 _mapType != MapType.normal,
                                             onToggleSatelliteView:
@@ -809,17 +802,15 @@ class _AmbientGlow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [color, color.withValues(alpha: 0)],
-            ),
-          ),
-        ),
-      );
+    child: Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+      ),
+    ),
+  );
 }
 
 class _PrototypeCareCard extends StatelessWidget {
@@ -935,18 +926,18 @@ class _CarePersonSummary extends StatelessWidget {
     final colors = context.guardianColors;
     final name = device?.displayName ?? 'Someone you care for';
     final relationship = device?.relationshipLabel ?? 'No pendant linked';
-    final live =
-        device?.connectivityPhase() == DeviceConnectivityPhase.live;
+    final live = device?.connectivityPhase() == DeviceConnectivityPhase.live;
     final status = device == null
         ? 'Waiting'
         : device!.isReconnecting
-            ? 'Linking'
-            : live
-                ? 'Live'
-                : 'Offline';
+        ? 'Linking'
+        : live
+        ? 'Live'
+        : 'Offline';
     final statusColor = live ? GuardianColors.safe : GuardianColors.warning;
-    final statusBackground =
-        live ? GuardianColors.safeBg : GuardianColors.warningBg;
+    final statusBackground = live
+        ? GuardianColors.safeBg
+        : GuardianColors.warningBg;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -959,8 +950,9 @@ class _CarePersonSummary extends StatelessWidget {
         );
         final copy = Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              horizontal ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          crossAxisAlignment: horizontal
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.center,
           children: [
             Text(
               'YOU’RE CARING FOR',
@@ -990,15 +982,11 @@ class _CarePersonSummary extends StatelessWidget {
               relationship,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: colors.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 9),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
               decoration: BoxDecoration(
                 color: statusBackground,
                 borderRadius: BorderRadius.circular(999),
@@ -1056,13 +1044,14 @@ class _DodoStagePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final offline = device != null &&
+    final offline =
+        device != null &&
         device!.connectivityPhase() == DeviceConnectivityPhase.offline;
     final stageMode = linking
         ? DodoStageMode.linking
         : offline
-            ? DodoStageMode.offline
-            : DodoStageMode.active;
+        ? DodoStageMode.offline
+        : DodoStageMode.active;
 
     return Container(
       key: const ValueKey('guardian-dodo-stage'),
@@ -1123,8 +1112,8 @@ class _DodoStagePlaceholder extends StatelessWidget {
                   linking
                       ? 'I’m making secure contact.'
                       : offline
-                          ? 'I’m keeping every channel open.'
-                          : 'I’ve got every channel covered.',
+                      ? 'I’m keeping every channel open.'
+                      : 'I’ve got every channel covered.',
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontSize: 18,
@@ -1149,10 +1138,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
           );
 
           if (wideScene) {
-            return SizedBox(
-              height: dodoDesktopHeroHeight,
-              child: stage,
-            );
+            return SizedBox(height: dodoDesktopHeroHeight, child: stage);
           }
 
           if (split) {
@@ -1181,10 +1167,7 @@ class _DodoStagePlaceholder extends StatelessWidget {
 }
 
 class _DodoVisualStage extends StatelessWidget {
-  const _DodoVisualStage({
-    required this.mode,
-    this.linkingStep,
-  });
+  const _DodoVisualStage({required this.mode, this.linkingStep});
 
   final DodoStageMode mode;
   final int? linkingStep;
@@ -1194,8 +1177,10 @@ class _DodoVisualStage extends StatelessWidget {
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final linking = mode == DodoStageMode.linking;
-    final visibleLinkingStep = (linkingStep ?? 0)
-        .clamp(0, linkingDodoStageScenes.length - 1);
+    final visibleLinkingStep = (linkingStep ?? 0).clamp(
+      0,
+      linkingDodoStageScenes.length - 1,
+    );
     final scene = linking
         ? dodoStageSceneForLinkingStep(visibleLinkingStep)
         : dodoStageSceneForMode(mode);
@@ -1274,8 +1259,8 @@ class _DodoVisualStage extends StatelessWidget {
                   linking
                       ? 'STEP ${visibleLinkingStep + 1}  ·  ${scene.action.shortLabel}'
                       : mode == DodoStageMode.active
-                          ? 'LIVE'
-                          : 'LISTENING',
+                      ? 'LIVE'
+                      : 'LISTENING',
                   style: const TextStyle(
                     color: GuardianColors.forest,
                     fontSize: 8,
@@ -1319,10 +1304,7 @@ class _DodoVisualStage extends StatelessWidget {
 }
 
 class _PrototypeMapLabel extends StatelessWidget {
-  const _PrototypeMapLabel({
-    required this.device,
-    required this.status,
-  });
+  const _PrototypeMapLabel({required this.device, required this.status});
 
   final Device? device;
   final String status;
@@ -1330,8 +1312,7 @@ class _PrototypeMapLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final live =
-        device?.connectivityPhase() == DeviceConnectivityPhase.live;
+    final live = device?.connectivityPhase() == DeviceConnectivityPhase.live;
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -1364,9 +1345,7 @@ class _PrototypeMapLabel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  device == null
-                      ? status
-                      : '${device!.displayName} • $status',
+                  device == null ? status : '${device!.displayName} • $status',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1417,10 +1396,7 @@ class _PrototypeHomePanels extends StatelessWidget {
       onMessage: onMessage,
     );
     final activity = _CommunicationActivityCard(insight: insight);
-    final today = _PrototypeTodayCard(
-      device: device,
-      onHistory: onHistory,
-    );
+    final today = _PrototypeTodayCard(device: device, onHistory: onHistory);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1593,8 +1569,10 @@ class _PrototypeAction extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
@@ -1648,8 +1626,7 @@ class _CommunicationActivityCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   color: GuardianColors.safeBg,
                   borderRadius: BorderRadius.circular(999),
@@ -1733,8 +1710,9 @@ class _ActivityRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: BoxDecoration(
-        border:
-            divider ? Border(bottom: BorderSide(color: colors.border)) : null,
+        border: divider
+            ? Border(bottom: BorderSide(color: colors.border))
+            : null,
       ),
       child: Row(
         children: [
@@ -1782,10 +1760,7 @@ class _ActivityRow extends StatelessWidget {
 }
 
 class _PrototypeTodayCard extends StatelessWidget {
-  const _PrototypeTodayCard({
-    required this.device,
-    required this.onHistory,
-  });
+  const _PrototypeTodayCard({required this.device, required this.onHistory});
 
   final Device device;
   final VoidCallback onHistory;
@@ -1796,8 +1771,8 @@ class _PrototypeTodayCard extends StatelessWidget {
     final locationLabel = device.hasApproximateLocation
         ? 'Approximate location'
         : device.hasFreshLocation
-            ? 'Latest position received'
-            : 'Waiting for a position';
+        ? 'Latest position received'
+        : 'Waiting for a position';
     return _PrototypePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2122,15 +2097,16 @@ class _LiveStatusBar extends StatelessWidget {
     final connectivityColors = selected == null
         ? flagMetricColors(DashboardFlagMetric.connectivity, false)
         : connectivityMetricColors(selected);
-    final signalColors = flagMetricColors(DashboardFlagMetric.signal, connected);
+    final signalColors = flagMetricColors(
+      DashboardFlagMetric.signal,
+      connected,
+    );
     final metricWidgets = [
       _LiveMetric(
         metric: DashboardFlagMetric.connectivity,
         icon: Icons.sensors_rounded,
         title: 'Pendant',
-        label: selected == null
-            ? 'Offline'
-            : deviceConnectivityLabel(selected),
+        label: selected == null ? 'Offline' : deviceConnectivityLabel(selected),
         active: connected,
         colorsOverride: connectivityColors,
       ),
@@ -2195,9 +2171,7 @@ class _MetricLayout extends StatelessWidget {
         if (constraints.maxWidth >= 320) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              for (final child in children) Expanded(child: child),
-            ],
+            children: [for (final child in children) Expanded(child: child)],
           );
         }
         return GridView.count(
@@ -2253,19 +2227,13 @@ class _LiveMetric extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: colors.foreground.withValues(alpha: 0.08),
-          ),
+          border: Border.all(color: colors.foreground.withValues(alpha: 0.08)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (showPulse)
-              ReconnectingPulse(
-                size: 4,
-                iconSize: 14,
-                color: colors.foreground,
-              )
+              ReconnectingPulse(size: 4, iconSize: 14, color: colors.foreground)
             else
               Icon(icon, size: 15, color: colors.foreground),
             const SizedBox(height: 5),
@@ -2389,9 +2357,7 @@ class _StableGoogleMapState extends State<_StableGoogleMap> {
   Widget _buildMap(_StableGoogleMap config) {
     final circleKey = config.circles.map((c) => c.circleId.value).join('-');
     return GoogleMap(
-      key: ValueKey(
-        'dashboard-map-$circleKey-${config.markers.length}',
-      ),
+      key: ValueKey('dashboard-map-$circleKey-${config.markers.length}'),
       initialCameraPosition: config.initialCameraPosition,
       markers: config.markers,
       circles: config.circles,

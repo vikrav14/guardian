@@ -227,7 +227,8 @@ class AccountPage extends StatelessWidget {
                       _DeviceRow(
                         device: devices[i],
                         showDivider: i < devices.length - 1,
-                        onUnlink: () => _confirmUnlinkPendant(context, devices[i]),
+                        onUnlink: () =>
+                            _confirmUnlinkPendant(context, devices[i]),
                       ),
                     GuardianSettingsRow(
                       icon: Icons.link_rounded,
@@ -283,8 +284,7 @@ class AccountPage extends StatelessWidget {
                           ),
                         for (var i = 0; i < accepted.length; i++)
                           _PersonRow(
-                            name:
-                                accepted[i].acceptedByName ?? 'Family member',
+                            name: accepted[i].acceptedByName ?? 'Family member',
                             subtitle: 'Joined with code ${accepted[i].code}',
                             showDivider: true,
                           ),
@@ -366,7 +366,8 @@ class AccountPage extends StatelessWidget {
                   stream: UserProfileService().watchSubscription(),
                   builder: (context, subSnap) {
                     final sub =
-                        subSnap.data ?? const GuardianSubscription(tier: 'free');
+                        subSnap.data ??
+                        const GuardianSubscription(tier: 'free');
                     return GuardianSettingsRow(
                       icon: Icons.workspace_premium_rounded,
                       label: t.subscriptionLabel,
@@ -403,9 +404,10 @@ class AccountPage extends StatelessWidget {
                 GuardianSettingsRow(
                   icon: Icons.palette_rounded,
                   label: 'Theme',
-                  trailing: (GuardianApp.themeOf(context) ??
-                          GuardianThemeId.defaultTheme)
-                      .displayName,
+                  trailing:
+                      (GuardianApp.themeOf(context) ??
+                              GuardianThemeId.defaultTheme)
+                          .displayName,
                   onTap: () => showThemePickerDialog(context),
                 ),
                 GuardianSettingsRow(
@@ -658,9 +660,7 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: GuardianColors.danger,
-          ),
+          style: FilledButton.styleFrom(backgroundColor: GuardianColors.danger),
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Unlink'),
         ),
@@ -672,15 +672,15 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
   try {
     await DeviceService().unlinkPendant(device.imei);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${device.displayName} unlinked')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${device.displayName} unlinked')));
     }
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not unlink pendant: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not unlink pendant: $e')));
     }
   }
 }
@@ -883,10 +883,7 @@ Future<void> _showDeviceSettingsDialog(
                   const Divider(height: 24),
                   Text(
                     'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -954,10 +951,7 @@ Future<void> _showDeviceSettingsDialog(
                     'Voice monitoring: unverified against this exact device -- documented for '
                     'the closely related RF-V28 by a third party, not the V28C vendor manual. '
                     'Test carefully before relying on it.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   TextField(

@@ -68,7 +68,9 @@ class _AuthGateState extends State<AuthGate> {
                 body: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('Could not load profile.\n${profileSnap.error}'),
+                    child: Text(
+                      'Could not load profile.\n${profileSnap.error}',
+                    ),
                   ),
                 ),
               );

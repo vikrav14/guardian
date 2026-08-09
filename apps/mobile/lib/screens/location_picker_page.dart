@@ -32,15 +32,15 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
   Color get _accent => widget.zoneColor ?? GuardianColors.safe;
 
   Set<Circle> get _circles => {
-        Circle(
-          circleId: const CircleId('preview'),
-          center: _center,
-          radius: widget.radiusMeters,
-          fillColor: _accent.withValues(alpha: 0.18),
-          strokeColor: _accent,
-          strokeWidth: 2,
-        ),
-      };
+    Circle(
+      circleId: const CircleId('preview'),
+      center: _center,
+      radius: widget.radiusMeters,
+      fillColor: _accent.withValues(alpha: 0.18),
+      strokeColor: _accent,
+      strokeWidth: 2,
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
           const IgnorePointer(
             child: Padding(
               padding: EdgeInsets.only(bottom: 36),
-              child: Icon(Icons.location_pin, size: 44, color: Colors.redAccent),
+              child: Icon(
+                Icons.location_pin,
+                size: 44,
+                color: Colors.redAccent,
+              ),
             ),
           ),
           Positioned(
@@ -81,7 +85,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                 borderRadius: BorderRadius.circular(20),
                 color: Colors.white,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   child: Text(
                     radiusLabel,
                     style: TextStyle(
