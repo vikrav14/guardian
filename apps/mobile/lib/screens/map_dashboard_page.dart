@@ -10,6 +10,7 @@ import '../dashboard/device_connectivity.dart';
 import '../dashboard/dashboard_status_colors.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/dashboard_insight.dart';
+import '../dashboard/dashboard_ai_interpretation.dart';
 import '../dashboard/linking_story.dart';
 import '../dashboard/device_formatters.dart';
 import '../models/device.dart';
@@ -18,6 +19,10 @@ import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/dodo_stage.dart';
 import '../widgets/dashboard/family_device_strip.dart';
+import '../widgets/dashboard/guardian_now_hero.dart';
+import '../widgets/dashboard/around_them_panel.dart';
+import '../widgets/dashboard/today_summary_panel.dart';
+import '../widgets/dashboard/guardian_intelligence_panel.dart';
 import '../widgets/dashboard/reconnecting_pulse.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -508,6 +513,57 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     setState(() => _linkingStoryFullyShown = true);
   }
 
+  Widget _buildDashboardContent(Device? selected) {
+    final aiInterpretation = buildGuardianAiInterpretation(selected);
+    final todayText = buildTodaySummary(selected);
+    final activityStatus = buildTodayActivityStatus(selected);
+    final weatherStatus = buildWeatherStatus(selected);
+    final localContext = buildLocalContextStatus(selected);
+    final activities = buildGuardianActivities(selected);
+
+    return Column(
+      children: [
+        GuardianNowHero(
+          device: selected,
+          aiInterpretation: aiInterpretation,
+          onCall: selected != null ? () => _callDevice(selected) : null,
+          onViewLocation: selected != null ? () => {} : null,
+          onAskGuardian: selected != null ? () => {} : null,
+          onSOS: selected != null ? () => _sendHelp(selected) : null,
+        ),
+        if (_devices.length > 1) ...[
+          const SizedBox(height: 18),
+          FamilyDeviceStrip(
+            devices: _devices,
+            selectedImei: _selectedImei,
+            onSelect: (imei) => setState(() => _dashboard.select(imei)),
+          ),
+        ],
+        const SizedBox(height: 18),
+        AroundThemPanel(
+          device: selected,
+          geofences: _geofences,
+          weatherStatus: weatherStatus,
+          localContext: localContext,
+          guardianIntelligence: aiInterpretation,
+        ),
+        const SizedBox(height: 18),
+        TodaySummaryPanel(
+          device: selected,
+          dailySummary: todayText,
+          activityStatus: activityStatus,
+          onViewJourney: selected != null ? () => _openHistory(selected) : null,
+        ),
+        const SizedBox(height: 18),
+        GuardianIntelligencePanel(
+          device: selected,
+          activities: activities,
+        ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _selected;
@@ -561,21 +617,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                             onSequenceShown: _markLinkingStoryFullyShown,
                           )
                         else ...[
-                          _PrototypeCareCard(
-                            device: selected,
-                            insight: insight,
-                            linkingTick: _linkingTick,
-                          ),
-                          if (_devices.length > 1) ...[
-                            const SizedBox(height: 18),
-                            FamilyDeviceStrip(
-                              devices: _devices,
-                              selectedImei: _selectedImei,
-                              onSelect: (imei) =>
-                                  setState(() => _dashboard.select(imei)),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
+                          _buildDashboardContent(selected),
                           LayoutBuilder(
                             builder: (context, constraints) {
                               final compact = constraints.maxWidth < 640;
