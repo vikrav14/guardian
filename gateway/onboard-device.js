@@ -79,8 +79,8 @@ function validatePhone(phone) {
 
 function generateSmsCommands(protocolId, ngrokHost, ngrokPort, simPhone, carrier = 'myt') {
   const apnMap = {
-    myt: { apn: 'internet', user: '', pass: '', mcc: '46', mnc: '00' },
-    emtel: { apn: 'web', user: '', pass: '', mcc: '64', mnc: '01' },
+    myt: { apn: 'internet', mccmnc: '46000' },  // MCC 46 + MNC 00
+    emtel: { apn: 'web', mccmnc: '64001' },     // MCC 64 + MNC 01
   };
 
   const carrierConfig = apnMap[carrier.toLowerCase()] || apnMap.myt;
@@ -95,7 +95,7 @@ function generateSmsCommands(protocolId, ngrokHost, ngrokPort, simPhone, carrier
       description: 'Point device to ngrok server',
     },
     apn: {
-      command: `pw,123456,apn,${carrierConfig.apn},,,${carrierConfig.mcc}${carrierConfig.mnc}#`,
+      command: `pw,123456,apn,${carrierConfig.apn},,,${carrierConfig.mccmnc}#`,
       description: `Set APN for ${carrier.toUpperCase()} carrier`,
     },
     status: {
