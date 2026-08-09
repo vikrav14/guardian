@@ -16,6 +16,7 @@ import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
 import 'care_settings_page.dart';
+import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
@@ -45,7 +46,7 @@ class AccountPage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Link a pendant'),
+        title: const Text('Link a watch'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,7 +90,7 @@ class AccountPage extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Watch linked — it will appear when the gateway receives data',
+              'Watch linked Ã¢â‚¬â€ it will appear when the gateway receives data',
             ),
           ),
         );
@@ -139,7 +140,9 @@ class AccountPage extends StatelessWidget {
       await FamilyService().acceptInviteCode(ctrl.text);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined family — pendants linked')),
+          const SnackBar(
+            content: Text('Joined family Ã¢â‚¬â€ watches linked'),
+          ),
         );
       }
     } catch (e) {
@@ -192,14 +195,14 @@ class AccountPage extends StatelessWidget {
                   const SizedBox(height: GuardianSpacing.xs),
                   Text(name, style: textTheme.titleMedium),
                   Text(
-                    email.isEmpty ? 'Family admin' : 'Family admin · $email',
+                    email.isEmpty ? 'Family admin' : 'Family admin Ã‚Â· $email',
                     style: textTheme.bodyMedium,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: GuardianSpacing.lg),
-            const GuardianSectionTitle('Watchs'),
+            const GuardianSectionTitle('Watches'),
             const SizedBox(height: GuardianSpacing.sm),
             StreamBuilder<List<Device>>(
               stream: DeviceService().watchLinkedDevices(),
@@ -218,7 +221,7 @@ class AccountPage extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'No pendants linked yet. Add the 15-digit IMEI from '
+                          'No watches linked yet. Add the 15-digit IMEI from '
                           'the device label.',
                           style: textTheme.bodyMedium,
                         ),
@@ -232,7 +235,7 @@ class AccountPage extends StatelessWidget {
                       ),
                     GuardianSettingsRow(
                       icon: Icons.link_rounded,
-                      label: 'Link a pendant',
+                      label: 'Link a watch',
                       showDivider: devices.isNotEmpty,
                       onTap: () => _linkPendant(context),
                     ),
@@ -272,7 +275,7 @@ class AccountPage extends StatelessWidget {
                               ),
                             ),
                             child: Text(
-                              'Invite a spouse or relative so they can watch the same pendants.',
+                              'Invite a spouse or relative so they can watch the same watches.',
                               style: textTheme.bodyMedium,
                             ),
                           ),
@@ -291,7 +294,7 @@ class AccountPage extends StatelessWidget {
                         for (final invite in pending)
                           _PersonRow(
                             name: 'Invite ${invite.code}',
-                            subtitle: 'Waiting to be accepted · tap to copy',
+                            subtitle: 'Waiting to be accepted Ã‚Â· tap to copy',
                             showDivider: true,
                             onTap: () async {
                               await Clipboard.setData(
@@ -536,7 +539,7 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
             ),
             if (_busy && _stage == AvatarUpdateStage.selection)
               Text(
-                'Photo chooser open — choose an image or cancel.',
+                'Photo chooser open Ã¢â‚¬â€ choose an image or cancel.',
                 style: textTheme.labelSmall,
               )
             else if (_busy)
@@ -555,10 +558,10 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
                   const SizedBox(height: GuardianSpacing.xxs),
                   Text(
                     _stage == AvatarUpdateStage.profileSave
-                        ? 'Saving profile photo…'
+                        ? 'Saving profile photoÃ¢â‚¬Â¦'
                         : _uploadFraction == null
-                        ? 'Uploading photo…'
-                        : 'Uploading photo… ${(_uploadFraction! * 100).round()}%',
+                        ? 'Uploading photoÃ¢â‚¬Â¦'
+                        : 'Uploading photoÃ¢â‚¬Â¦ ${(_uploadFraction! * 100).round()}%',
                     style: textTheme.labelSmall,
                   ),
                 ],
@@ -628,16 +631,17 @@ class _DeviceRow extends StatelessWidget {
               if (value == 'unlink') onUnlink();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: 'unlink',
-                child: Text('Unlink pendant'),
-              ),
+              const PopupMenuItem(value: 'unlink', child: Text('Unlink watch')),
             ],
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Person and device settings',
-            onPressed: () => _showDeviceSettingsDialog(context, device),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => WatchSettingsPage(device: device),
+              ),
+            ),
           ),
         ],
       ),
@@ -649,10 +653,10 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Unlink pendant?'),
+      title: const Text('Unlink watch?'),
       content: Text(
         '${device.displayName} will disappear from your account. '
-        'The watch itself is not reset — you can link it again with the IMEI.',
+        'The watch itself is not reset Ã¢â‚¬â€ you can link it again with the IMEI.',
       ),
       actions: [
         TextButton(
@@ -680,7 +684,7 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not unlink pendant: $e')));
+      ).showSnackBar(SnackBar(content: Text('Could not unlink watch: $e')));
     }
   }
 }
@@ -718,6 +722,7 @@ Future<void> _showLanguagePicker(BuildContext context) async {
   }
 }
 
+// ignore: unused_element
 Future<void> _showDeviceSettingsDialog(
   BuildContext context,
   Device device,
@@ -843,7 +848,7 @@ Future<void> _showDeviceSettingsDialog(
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: "Watch's SIM number",
-                      hintText: '+230…',
+                      hintText: '+230Ã¢â‚¬Â¦',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -868,7 +873,7 @@ Future<void> _showDeviceSettingsDialog(
                     leading: const Icon(Icons.favorite_outline),
                     title: const Text('Care settings'),
                     subtitle: const Text(
-                      'Fall detection & medication reminders — V46/V48/V52 only',
+                      'Fall detection & medication reminders Ã¢â‚¬â€ V46/V48/V52 only',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
@@ -959,7 +964,7 @@ Future<void> _showDeviceSettingsDialog(
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Your number to receive the silent call',
-                      hintText: '+230…',
+                      hintText: '+230Ã¢â‚¬Â¦',
                     ),
                   ),
                   Align(
@@ -1007,10 +1012,10 @@ Future<void> _showDeviceSettingsDialog(
                         final confirmed = await showDialog<bool>(
                           context: ctx,
                           builder: (confirmCtx) => AlertDialog(
-                            title: const Text('Unlink pendant?'),
+                            title: const Text('Unlink watch?'),
                             content: Text(
                               '${device.displayName} will disappear from your account. '
-                              'The watch itself is not reset — you can link it again with the IMEI.',
+                              'The watch itself is not reset Ã¢â‚¬â€ you can link it again with the IMEI.',
                             ),
                             actions: [
                               TextButton(
@@ -1039,7 +1044,7 @@ Future<void> _showDeviceSettingsDialog(
                 style: TextButton.styleFrom(
                   foregroundColor: GuardianColors.danger,
                 ),
-                child: const Text('Unlink pendant'),
+                child: const Text('Unlink watch'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),

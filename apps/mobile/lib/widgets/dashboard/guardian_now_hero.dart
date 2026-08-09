@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
+import 'dodo_stage.dart';
 
-/// Guardian Now hero section — premium status summary matching image 2 design.
-///
-/// Shows: circular avatar + name + location, status chips (Connected, GPS, Battery, Signal),
-/// Dodo illustration, Guardian AI card, and 3 action buttons (Call, View location, Ask Guardian).
+/// Guardian Now hero — person first, then interpreted safety context.
+/// Uses real watch/avatar data and keeps the Dodo as Guardian's personality.
 class GuardianNowHero extends StatelessWidget {
   const GuardianNowHero({
     required this.device,
@@ -26,309 +25,431 @@ class GuardianNowHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final textTheme = Theme.of(context).textTheme;
 
     if (device == null) {
       return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 44),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
           color: colors.surface,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.3),
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: colors.border),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-        child: Center(
-          child: Column(
-            children: [
-              Text(
-                'No watch linked',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.watch_outlined,
+              size: 34,
+              color: GuardianColors.safe,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No watch linked',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Link a device to see its status',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Link a Guardian watch to start live family safety.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
+            ),
+          ],
         ),
       );
     }
 
     final d = device!;
-    final isLive = d.connectionState == 'live';
-    final displayName = d.displayName;
-    final hasLocation = d.hasFreshLocation || d.hasApproximateLocation;
-    final locationText = hasLocation ? 'Current location' : 'Locating...';
+    final live = d.isLiveConnected;
+    final battery = d.batteryPercent;
+    final locationLabel = _locationLabel(d);
+    final updateLabel = _updatedLabel(d);
+    final gpsLabel = d.hasApproximateLocation
+        ? 'Approx.'
+        : d.hasFreshLocation
+        ? 'GPS'
+        : d.location?.isValid == true
+        ? 'Last GPS fix'
+        : 'Locating';
 
-    final battery = d.batteryPercent ?? 0;
-    final lastUpdate = d.lastHeartbeatAt;
-    String updateText;
-    if (lastUpdate == null) {
-      updateText = 'Never connected';
-    } else {
-      final now = DateTime.now();
-      final diff = now.difference(lastUpdate);
-      if (diff.inMinutes < 1) {
-        updateText = 'Updated just now';
-      } else if (diff.inMinutes < 60) {
-        updateText = 'Updated ${diff.inMinutes}m ago';
-      } else if (diff.inHours < 24) {
-        updateText = 'Updated ${diff.inHours}h ago';
-      } else {
-        updateText = 'Updated ${diff.inDays}d ago';
-      }
-    }
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: GuardianColors.forest.withValues(alpha: 0.08),
+            blurRadius: 34,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 840;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Hero header: Avatar + Info + AI Summary
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: colors.surface,
-            boxShadow: [
-              BoxShadow(
-                color: GuardianColors.forest.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+          final identity = _IdentityBlock(
+            device: d,
+            locationLabel: locationLabel,
+            updateLabel: updateLabel,
+            live: live,
+          );
+
+          const dodo = SizedBox(
+            width: 146,
+            height: 146,
+            child: GuardianDodoStageImage(action: DodoStageAction.idle),
+          );
+
+          final ai = _AiCard(message: aiInterpretation);
+
+          final status = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _StatusChip(
+                icon: Icons.sensors_rounded,
+                label: live ? 'Connected' : 'Offline',
+                color: live ? GuardianColors.safe : GuardianColors.warning,
+              ),
+              _StatusChip(
+                icon: Icons.location_on_rounded,
+                label: gpsLabel,
+                color: GuardianColors.accent,
+              ),
+              _StatusChip(
+                icon: Icons.battery_5_bar_rounded,
+                label: battery == null ? 'Battery —' : '$battery%',
+                color: battery == null
+                    ? colors.textMuted
+                    : battery <= 20
+                    ? Colors.red
+                    : battery <= 40
+                    ? GuardianColors.warning
+                    : const Color(0xFFD19B16),
+              ),
+              _StatusChip(
+                icon: Icons.signal_cellular_alt_rounded,
+                label: live ? 'Signal good' : 'No signal',
+                color: live ? GuardianColors.safe : colors.textMuted,
               ),
             ],
-          ),
-          padding: const EdgeInsets.all(20),
+          );
+
+          final actions = Row(
+            children: [
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.call_rounded,
+                  label: 'Call watch',
+                  subtitle: 'Speak instantly',
+                  color: GuardianColors.safe,
+                  onTap: onCall,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.route_rounded,
+                  label: 'View journey',
+                  subtitle: 'See movement history',
+                  color: GuardianColors.accent,
+                  onTap: onViewLocation,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ActionButton(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Ask Guardian',
+                  subtitle: 'On WhatsApp',
+                  color: GuardianColors.whatsapp,
+                  onTap: onAskGuardian,
+                ),
+              ),
+            ],
+          );
+
+          if (!desktop) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: 16),
+                status,
+                const SizedBox(height: 18),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: ai),
+                    const SizedBox(width: 8),
+                    dodo,
+                  ],
+                ),
+                const SizedBox(height: 18),
+                actions,
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(flex: 12, child: identity),
+                  const SizedBox(width: 16),
+                  dodo,
+                  const SizedBox(width: 16),
+                  Expanded(flex: 9, child: ai),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Padding(padding: const EdgeInsets.only(left: 112), child: status),
+              const SizedBox(height: 18),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static String _locationLabel(Device device) {
+    final place = device.location?.placeLabel?.trim();
+    if (place != null && place.isNotEmpty) return place;
+    if (device.hasApproximateLocation) return 'Approximate location';
+    if (device.hasFreshLocation) return 'Location confirmed';
+    if (device.location?.isValid == true) return 'Last known location';
+    return 'Locating…';
+  }
+
+  static String _updatedLabel(Device device) {
+    final at =
+        device.location?.recordedAt ??
+        device.lastHeartbeatAt ??
+        device.updatedAt;
+    if (at == null) return 'Waiting for first update';
+    final diff = DateTime.now().difference(at);
+    if (diff.inMinutes < 1) return 'Updated just now';
+    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
+    return 'Updated ${diff.inDays}d ago';
+  }
+}
+
+class _IdentityBlock extends StatelessWidget {
+  const _IdentityBlock({
+    required this.device,
+    required this.locationLabel,
+    required this.updateLabel,
+    required this.live,
+  });
+
+  final Device device;
+  final String locationLabel;
+  final String updateLabel;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Row(
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: GuardianColors.safe.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: GuardianColors.safe.withValues(alpha: 0.5),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: device.avatarUrl?.trim().isNotEmpty == true
+                    ? Image.network(
+                        device.avatarUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _AvatarFallback(name: device.displayName),
+                      )
+                    : _AvatarFallback(name: device.displayName),
+              ),
+            ),
+            Positioned(
+              top: -4,
+              left: -6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: live
+                      ? GuardianColors.safeBg
+                      : GuardianColors.warningBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  live ? '● LIVE' : '● OFFLINE',
+                  style: TextStyle(
+                    color: live ? GuardianColors.safe : GuardianColors.warning,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
+                ),
+              ),
+            ),
+            if (live)
+              Positioned(
+                bottom: 1,
+                right: 0,
+                child: Container(
+                  width: 27,
+                  height: 27,
+                  decoration: BoxDecoration(
+                    color: GuardianColors.safe,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.surface, width: 3),
+                  ),
+                  child: const Icon(
+                    Icons.location_on_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(width: 20),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row: Avatar + Info + Dodo + AI Card
+              Text(
+                device.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 28,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const SizedBox(height: 10),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Avatar with live indicator
-                  Stack(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: GuardianColors.accent.withValues(alpha: 0.1),
-                          border: Border.all(
-                            color: GuardianColors.accent,
-                            width: 2,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: d.avatarUrl != null && d.avatarUrl!.isNotEmpty
-                              ? Image.network(
-                                  d.avatarUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      _AvatarFallback(
-                                    displayName: displayName,
-                                    textTheme: textTheme,
-                                  ),
-                                )
-                              : _AvatarFallback(
-                                  displayName: displayName,
-                                  textTheme: textTheme,
-                                ),
-                        ),
-                      ),
-                      if (isLive)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: GuardianColors.safe,
-                              border: Border.all(
-                                color: colors.surface,
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.check,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                    ],
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 16,
+                    color: GuardianColors.safe,
                   ),
-                  const SizedBox(width: 16),
-                  // Center: Name, Location, Updated
+                  const SizedBox(width: 6),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayName,
-                          style: textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: GuardianColors.accent,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                locationText,
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          updateText,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Right: Dodo illustration placeholder + AI summary
-                  SizedBox(
-                    width: 140,
-                    child: Column(
-                      children: [
-                        // Dodo icon
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: const Color(0xFF8058BE).withValues(alpha: 0.1),
-                          ),
-                          child: const Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 32,
-                            color: Color(0xFF8058BE),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // AI summary
-                        Text(
-                          'Guardian AI',
-                          style: textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF8058BE),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          aiInterpretation,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colors.textPrimary,
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                    child: Text(
+                      locationLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              // Status chips row: Connected, GPS, Battery, Signal
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _StatusChip(
-                      icon: Icons.wifi_rounded,
-                      label: 'Connected',
-                      color: isLive ? GuardianColors.safe : colors.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusChip(
-                      icon: Icons.location_on_rounded,
-                      label: 'GPS',
-                      color: d.positioningDescription != null
-                          ? GuardianColors.accent
-                          : colors.textMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusChip(
-                      icon: Icons.battery_full_rounded,
-                      label: '$battery%',
-                      color: battery > 40
-                          ? GuardianColors.safe
-                          : (battery > 20 ? GuardianColors.warning : Colors.red),
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusChip(
-                      icon: Icons.signal_cellular_alt_rounded,
-                      label: 'Good',
-                      color: isLive ? GuardianColors.safe : colors.textMuted,
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  Icon(
+                    Icons.schedule_rounded,
+                    size: 14,
+                    color: colors.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    updateLabel,
+                    style: TextStyle(color: colors.textSecondary, fontSize: 11),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        // Action buttons row
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.call_rounded,
-                label: 'Call watch',
-                subtitle: 'Speak instantly',
-                color: GuardianColors.safe,
-                onTap: onCall ?? () {},
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.location_on_rounded,
-                label: 'View location',
-                subtitle: 'Open live map',
-                color: GuardianColors.accent,
-                onTap: onViewLocation ?? () {},
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ActionButton(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Ask Guardian',
-                subtitle: 'On WhatsApp',
-                color: GuardianColors.whatsapp,
-                onTap: onAskGuardian ?? () {},
-              ),
-            ),
-          ],
-        ),
       ],
+    );
+  }
+}
+
+class _AiCard extends StatelessWidget {
+  const _AiCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 130),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F0FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF8058BE).withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: 16,
+                color: Color(0xFF8058BE),
+              ),
+              SizedBox(width: 7),
+              Text(
+                'Guardian AI',
+                style: TextStyle(
+                  color: Color(0xFF6D3FB0),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 13,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -347,23 +468,23 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.12)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
               color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -385,46 +506,62 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final String subtitle;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return Material(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(14),
+      color: enabled ? color.withValues(alpha: 0.08) : Colors.black12,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          constraints: const BoxConstraints(minHeight: 64),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: color.withValues(alpha: 0.2),
-              width: 1,
+              color: enabled
+                  ? color.withValues(alpha: 0.12)
+                  : Colors.transparent,
             ),
           ),
-          child: Column(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 24, color: color),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+              Icon(icon, size: 22, color: enabled ? color : Colors.grey),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: enabled ? color : Colors.grey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: enabled
+                            ? color.withValues(alpha: 0.72)
+                            : Colors.grey,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: color.withValues(alpha: 0.7),
-                ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -435,22 +572,19 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _AvatarFallback extends StatelessWidget {
-  const _AvatarFallback({
-    required this.displayName,
-    required this.textTheme,
-  });
+  const _AvatarFallback({required this.name});
 
-  final String displayName;
-  final TextTheme textTheme;
+  final String name;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Text(
-        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-        style: textTheme.displaySmall?.copyWith(
-          color: GuardianColors.accent,
-          fontWeight: FontWeight.w700,
+        name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
+        style: const TextStyle(
+          color: GuardianColors.safe,
+          fontSize: 30,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

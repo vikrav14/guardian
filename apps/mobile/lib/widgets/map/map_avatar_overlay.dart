@@ -74,7 +74,7 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
 
     final positions = <String, Offset>{};
     for (final device in widget.devices) {
-      if (!device.hasFreshLocation) continue;
+      if (device.location?.isValid != true) continue;
       final location = device.location!;
       try {
         final screen = await controller.getScreenCoordinate(
@@ -328,11 +328,11 @@ class _TrackedPersonPin extends StatelessWidget {
   /// "not live" at a glance.
   static const double fadedOpacity = 0.5;
 
-  static double avatarSize(bool selected) => selected ? 48 : 42;
+  static double avatarSize(bool selected) => selected ? 62 : 42;
   static double markerSize(bool selected) =>
-      selected ? 118 : avatarSize(selected) + 12;
+      selected ? 142 : avatarSize(selected) + 12;
   static double markerHeight(bool selected) =>
-      selected ? 89 : avatarSize(selected) + 15;
+      selected ? 108 : avatarSize(selected) + 15;
 
   @override
   Widget build(BuildContext context) {
@@ -357,7 +357,7 @@ class _TrackedPersonPin extends StatelessWidget {
               Positioned(
                 top: 0,
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 112),
+                  constraints: const BoxConstraints(maxWidth: 132),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,

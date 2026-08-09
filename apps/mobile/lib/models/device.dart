@@ -7,6 +7,7 @@ class DeviceLocation {
     this.altitude,
     this.recordedAt,
     this.satellites,
+    this.placeLabel,
   });
 
   final double lat;
@@ -14,6 +15,7 @@ class DeviceLocation {
   final double? altitude;
   final DateTime? recordedAt;
   final int? satellites;
+  final String? placeLabel;
 
   factory DeviceLocation.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
@@ -25,6 +27,7 @@ class DeviceLocation {
       altitude: (map['altitude'] as num?)?.toDouble(),
       recordedAt: _asDateTime(map['recordedAt']),
       satellites: (map['satellites'] as num?)?.toInt(),
+      placeLabel: (map['placeLabel'] as String?)?.trim(),
     );
   }
 
@@ -142,6 +145,10 @@ class Device {
     this.fallDetectionDialMonitor,
     this.fallDetectionSensitivity,
     this.locationReportingIntervalSeconds,
+    this.locationReportingMode = 'automatic',
+    this.careProfile,
+    this.carePriorities = const <String>[],
+    this.capabilities = const <String>[],
   });
 
   final String imei;
@@ -178,6 +185,14 @@ class Device {
   /// V46/V48/V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
+  final String locationReportingMode;
+
+  /// Person context used by Guardian Intelligence. Never hard-code by IMEI.
+  final String? careProfile;
+  final List<String> carePriorities;
+
+  /// Hardware features this watch can provide. Kept separate from care intent.
+  final List<String> capabilities;
 
   String? get _legacyPersonName {
     final value = name?.trim();
@@ -323,6 +338,17 @@ class Device {
               ?.toInt(),
       locationReportingIntervalSeconds:
           (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
+      careProfile: data['careProfile'] as String?,
+      carePriorities:
+          (data['carePriorities'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
+          const <String>[],
+      capabilities:
+          (data['capabilities'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
+          const <String>[],
     );
   }
 }

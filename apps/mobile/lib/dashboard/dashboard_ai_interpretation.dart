@@ -1,100 +1,93 @@
+import '../models/care_profile.dart';
 import '../models/device.dart';
 
-/// Generates human-readable Guardian AI interpretations based on device state.
 String buildGuardianAiInterpretation(Device? device) {
-  if (device == null) {
-    return 'No device to monitor yet.';
-  }
+  if (device == null) return 'No watch to monitor yet.';
 
+  final profile = GuardianCareProfileX.fromValue(device.careProfile);
   final isLive = device.connectionState == 'live';
   final isReconnecting = device.connectionState == 'connecting';
   final hasLocation = device.hasFreshLocation || device.hasApproximateLocation;
   final battery = device.batteryPercent;
 
-  // Risk states
   if (battery != null && battery < 15) {
-    return '⚠ Battery critically low. Recommend charging soon.';
+    return 'Battery critically low. Charging the watch soon is recommended.';
   }
 
-  // Offline with location
-  if (!isLive && !isReconnecting && hasLocation) {
-    return 'Device offline. Last known location available.';
+  if (!isLive && !isReconnecting && device.location?.isValid == true) {
+    return 'Watch offline. Guardian is keeping the last known location visible.';
   }
 
-  // Reconnecting
   if (isReconnecting) {
-    return 'Connecting to network. Usually takes 30-60 seconds.';
+    return 'Connecting to the watch and waiting for a fresh update.';
   }
 
-  // Live + locating
   if (isLive && !hasLocation) {
-    return 'Connected. Waiting for location fix from GPS.';
+    return 'Watch connected. Waiting for a fresh location fix.';
   }
 
-  // Approximate location
-  if (isLive && device.hasApproximateLocation && !device.hasFreshLocation) {
-    return 'Using WiFi/cell positioning for approximate location.';
+  if (device.hasApproximateLocation) {
+    return 'Watch connected. Using approximate WiFi/cell positioning until satellite GPS is available.';
   }
 
-  // Normal state
-  if (isLive && hasLocation) {
-    return 'Everything looks normal. No nearby risk detected.';
-  }
-
-  // Fallback
-  return 'Monitoring device. No issues detected.';
+  return switch (profile) {
+    GuardianCareProfile.child =>
+      'Everything looks calm. Guardian is checking location, journey and safety context.',
+    GuardianCareProfile.senior =>
+      'Everything looks calm. Guardian is checking safety, routine and care context.',
+    GuardianCareProfile.adult =>
+      'Everything looks normal. Guardian is quietly checking what matters.',
+  };
 }
 
-/// Generates list of intelligence activities Guardian is performing.
 List<String> buildGuardianActivities(Device? device) {
-  if (device == null) {
-    return ['Waiting for device connection'];
-  }
+  if (device == null) return ['Waiting for watch connection'];
 
+  final profile = GuardianCareProfileX.fromValue(device.careProfile);
   final activities = <String>['Watch signal monitored'];
 
-  if (device.hasFreshLocation || device.hasApproximateLocation) {
+  if (device.location?.isValid == true) {
     activities.add('Location received and evaluated');
   }
 
-  activities.add('Safe-zone check completed');
-  activities.add('Guardian AI context analyzed');
+  switch (profile) {
+    case GuardianCareProfile.child:
+      activities.add('Journey and safe-zone context checked');
+      activities.add('Guardian AI context analyzed');
+    case GuardianCareProfile.senior:
+      activities.add('Care and routine context checked');
+      activities.add('Guardian AI context analyzed');
+    case GuardianCareProfile.adult:
+      activities.add('Safe-zone check completed');
+      activities.add('Guardian AI context analyzed');
+  }
 
   return activities;
 }
 
-/// Generates today's activity summary based on device state.
 String buildTodaySummary(Device? device) {
-  if (device == null) {
-    return 'No device linked yet.';
-  }
-
+  if (device == null) return 'No watch linked yet.';
   return 'A calm day so far';
 }
 
-/// Generates today's activity status detail.
 String buildTodayActivityStatus(Device? device) {
-  if (device == null) {
-    return 'No activity data yet.';
-  }
-
-  return 'No unusual movement detected.';
+  if (device == null) return 'No activity data yet.';
+  final profile = GuardianCareProfileX.fromValue(device.careProfile);
+  return switch (profile) {
+    GuardianCareProfile.child =>
+      'No unusual journey or movement pattern detected.',
+    GuardianCareProfile.senior =>
+      'No unusual routine or movement pattern detected.',
+    GuardianCareProfile.adult => 'No unusual movement detected.',
+  };
 }
 
-/// Generates weather context status.
 String buildWeatherStatus(Device? device) {
-  if (device == null) {
-    return 'Weather unavailable';
-  }
-
+  if (device == null) return 'Weather unavailable';
   return 'Conditions normal. No weather risk right now.';
 }
 
-/// Generates local context status.
 String buildLocalContextStatus(Device? device) {
-  if (device == null) {
-    return 'Context unavailable';
-  }
-
+  if (device == null) return 'Context unavailable';
   return 'No relevant nearby disruption';
 }

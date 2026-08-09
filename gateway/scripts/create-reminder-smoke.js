@@ -1,6 +1,13 @@
 const { getDb } = require('./src/firestore');
 
 const db = getDb();
+
+if (!db) {
+  console.error(
+    'Firestore is not initialized. Run this smoke utility with the gateway environment configured.',
+  );
+  process.exit(1);
+}
 const imei = '861397053140768'; // Dexter
 const now = new Date();
 const scheduledTime = new Date(now.getTime() + 2 * 60000); // 2 minutes from now

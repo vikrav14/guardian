@@ -41,6 +41,7 @@ const { geolocateFromV } = require('./geolocate/google');
 const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
+const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 
 const {
   incrementEvent,
@@ -513,6 +514,15 @@ async function applyEvents(events, session) {
 
 
         await maybeFlushDwell(locEvent.imei);
+        if (locEvent.batteryPercent != null) {
+          const adaptiveDb = getDb();
+          if (adaptiveDb) {
+            await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
+              batteryPercent: locEvent.batteryPercent,
+              trigger: 'location',
+            });
+          }
+        }
 
       } else if (event.type === 'heartbeat') {
 
@@ -588,6 +598,15 @@ async function applyEvents(events, session) {
 
         }
 
+        if (event.batteryPercent != null) {
+          const db = getDb();
+          if (db) {
+            await applyAdaptiveReporting(db, event.imei, {
+              batteryPercent: event.batteryPercent,
+              trigger: 'heartbeat',
+            });
+          }
+        }
       } else if (event.type === 'alarm') {
 
         let alarmEvent = event;
@@ -603,6 +622,14 @@ async function applyEvents(events, session) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
+        if (alarmType === 'sos') {
+          const adaptiveDb = getDb();
+          if (adaptiveDb) {
+            await activateSosOverride(adaptiveDb, alarmEvent.imei, {
+              batteryPercent: alarmEvent.batteryPercent,
+            });
+          }
+        }
 
         const alarmRaw =
 

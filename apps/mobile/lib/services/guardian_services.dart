@@ -13,7 +13,7 @@ import '../journey/journey_utils.dart';
 import 'imei_utils.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
-/// is in the signed-in user's `linkedImeis` — so every list/stream here has
+/// is in the signed-in user's `linkedImeis` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so every list/stream here has
 /// to filter by that set rather than reading the collection unscoped.
 Stream<List<String>> _watchLinkedImeis(
   FirebaseFirestore db,
@@ -123,6 +123,18 @@ class DeviceService {
     });
   }
 
+  Future<void> updateCareProfile(
+    String imei, {
+    required String careProfile,
+    required List<String> carePriorities,
+  }) async {
+    await _db.collection('devices').doc(imei).update({
+      'careProfile': careProfile,
+      'carePriorities': carePriorities,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateAvatarUrl(String imei, String? avatarUrl) async {
     final trimmed = avatarUrl?.trim();
     await _db.collection('devices').doc(imei).update({
@@ -143,7 +155,7 @@ class DeviceService {
     });
   }
 
-  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, requires the device to currently hold
   /// a live connection to the gateway (see DeviceCommandService.setFallDetection
   /// and setFallSensitivity). Caches the requested state on the device doc
   /// since the device has no read-back command; the cache reflects what was
@@ -172,7 +184,7 @@ class DeviceService {
     await commands.setFallSensitivity(imei, sensitivityLevel);
   }
 
-  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, requires the device to currently hold
   /// a live connection to the gateway (see
   /// DeviceCommandService.setUploadInterval). Without this, the pendant's
   /// default reporting interval is long and irregular -- the map can show a
@@ -180,12 +192,20 @@ class DeviceService {
   /// online and checking in every ~5 minutes. Caches the requested interval
   /// on the device doc since there's no read-back command; the cache
   /// reflects what was last *asked for*, not confirmed device state.
+  Future<void> setAutomaticLocationReporting(String imei) async {
+    await _db.collection('devices').doc(imei).update({
+      'locationReportingMode': 'automatic',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateLocationReportingInterval(
     String imei, {
     required int seconds,
   }) async {
     await _db.collection('devices').doc(imei).update({
       'locationReportingIntervalSeconds': seconds,
+      'locationReportingMode': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -216,7 +236,7 @@ class DeviceService {
 
   /// Removes a watch IMEI from the signed-in guardian's linked set.
   ///
-  /// Does not delete `devices/{imei}` — only drops access for this account.
+  /// Does not delete `devices/{imei}` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â only drops access for this account.
   Future<void> unlinkPendant(String rawImei) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
@@ -233,7 +253,7 @@ class DeviceService {
   }
 
   /// Streams the given day's location history for a watch (requires the
-  /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
+  /// gateway's WRITE_LOCATION_HISTORY=true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
     String imei,
     DateTime day,
@@ -321,7 +341,7 @@ class DeviceService {
   }
 
   /// Returns calendar days (midnight local) that have at least one location fix
-  /// within [lookbackDays] ending today — used by Journey Time Machine memories.
+  /// within [lookbackDays] ending today ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â used by Journey Time Machine memories.
   Future<Set<DateTime>> fetchDaysWithHistory(
     String imei, {
     int lookbackDays = 60,
@@ -368,6 +388,22 @@ class DeviceService {
     }
 
     return days;
+  }
+
+  /// Streams one linked device so settings pages always use the latest
+  /// Firestore care profile instead of a stale Device object passed by
+  /// the previous screen.
+  Stream<Device?> watchDevice(String imei) {
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (!linked.contains(imei)) {
+        return Stream.value(null);
+      }
+
+      return _db.collection('devices').doc(imei).snapshots().map((snap) {
+        if (!snap.exists) return null;
+        return Device.fromDoc(snap);
+      });
+    });
   }
 
   /// Streams only the devices this signed-in guardian is linked to.
@@ -444,7 +480,7 @@ class GeofenceService {
 }
 
 /// V46/V48/V52 only. The device has no "list my reminders" query command,
-/// so this collection is the app's own record of what's been scheduled —
+/// so this collection is the app's own record of what's been scheduled ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
 /// saving or deleting also enqueues a matching `set_medication_reminder`
 /// deviceCommand so the watch itself stays in sync (see
 /// DeviceCommandService.setMedicationReminder and gateway/src/commands.js).
@@ -557,7 +593,7 @@ class EmergencyContact {
   }
 }
 
-/// Entitlement state only — there is no payment provider wired up yet, so
+/// Entitlement state only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â there is no payment provider wired up yet, so
 /// every account is 'free' until a real processor (Stripe, Play Billing,
 /// MCB Juice, ...) is connected server-side. See account_page.dart.
 class GuardianSubscription {
@@ -801,7 +837,18 @@ class FamilyService {
         .where('createdBy', isEqualTo: uid)
         .snapshots()
         .map((snap) {
-          final list = snap.docs.map(FamilyInvite.fromDoc).toList();
+          final now = DateTime.now();
+          final list = snap.docs
+              .where((doc) {
+                final data = doc.data();
+                final status = data['status'] as String? ?? 'pending';
+                final expiresAt = data['expiresAt'];
+                if (status != 'pending') return true;
+                if (expiresAt is! Timestamp) return true;
+                return expiresAt.toDate().isAfter(now);
+              })
+              .map(FamilyInvite.fromDoc)
+              .toList();
           list.sort((a, b) => a.code.compareTo(b.code));
           return list;
         });
@@ -930,7 +977,11 @@ class FamilyService {
 /// SMS (see gateway/src/commands.js). Center number, SOS numbers, and status
 /// check are from the vendor's own manual; voice monitoring is documented
 /// only for the closely related RF-V28 by a third-party source, not verified
-/// against this exact device — see the comment in commands.js.
+/// against this exact device ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see the comment in commands.js.
+String _normalisePhoneForSafety(String value) {
+  return value.replaceAll(RegExp(r'[^0-9]'), '');
+}
+
 class DeviceCommandService {
   DeviceCommandService({FirebaseFirestore? db, FirebaseAuth? auth})
     : _db = db ?? FirebaseFirestore.instance,
@@ -960,11 +1011,27 @@ class DeviceCommandService {
     return _enqueue(imei, 'set_center_number', {'phone': phone.trim()});
   }
 
-  Future<void> setSosNumber(String imei, int slot, String phone) {
-    return _enqueue(imei, 'set_sos_number', {
-      'slot': slot,
-      'phone': phone.trim(),
-    });
+  Future<void> setSosNumber(String imei, int slot, String phone) async {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) {
+      throw StateError('Choose a valid emergency contact');
+    }
+
+    final watch = await _db.collection('devices').doc(imei).get();
+    final watchSim = (watch.data()?['simNumber'] as String?)?.trim();
+    final sosDigits = _normalisePhoneForSafety(trimmed);
+    final simDigits = _normalisePhoneForSafety(watchSim ?? '');
+
+    if (watchSim != null &&
+        watchSim.isNotEmpty &&
+        sosDigits.isNotEmpty &&
+        sosDigits == simDigits) {
+      throw StateError(
+        "SOS contact cannot be the watch's own SIM number. Choose a family member or emergency contact.",
+      );
+    }
+
+    await _enqueue(imei, 'set_sos_number', {'slot': slot, 'phone': trimmed});
   }
 
   Future<void> checkStatus(String imei) {
@@ -972,18 +1039,18 @@ class DeviceCommandService {
   }
 
   /// Triggers the watch to silently call [listenerPhone] for one-way
-  /// listening. Unverified against the V28C specifically — see class doc.
+  /// listening. Unverified against the V28C specifically ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see class doc.
   Future<void> startVoiceMonitor(String imei, String listenerPhone) {
     return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
 
   /// Makes the watch sound an audible alert so it can be found. Unverified
-  /// against the V28C specifically — see class doc.
+  /// against the V28C specifically ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see class doc.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
   }
 
-  /// V46/V48/V52 only — TCP downlink, no SMS equivalent exists. Requires the
+  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, no SMS equivalent exists. Requires the
   /// device to currently hold a live connection to the gateway; fails
   /// clearly (not silently) if it doesn't. See gateway/src/commands.js.
   Future<void> setFallDetection(
