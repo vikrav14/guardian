@@ -2,7 +2,10 @@
 
 /**
  * Guardian Device Onboarding Script (Non-Interactive)
- * Usage: node onboard-device-auto.js <protocolId> <imei> <simPhone> <adminPhone> <carrier> [nickname] [ngrokHost] [ngrokPort]
+ * Usage: node onboard-device-auto.js <protocolId> <imei> <simPhone> <adminPhone> <carrier> [nickname] [ngrokHost] [ngrokPort] [guardianEmail]
+ *
+ * If guardianEmail is provided, the device will be automatically linked to that user's account.
+ * Otherwise, the device is registered in Firestore but not linked — user must link it manually in the app.
  */
 
 const admin = require('firebase-admin');
@@ -155,19 +158,53 @@ function updateEnvImeiMap(protocolId, imei) {
   return true;
 }
 
+async function findGuardianByEmail(db, email) {
+  try {
+    const snap = await db.collection('users')
+      .where('email', '==', email.toLowerCase())
+      .limit(1)
+      .get();
+
+    if (snap.empty) return null;
+
+    const doc = snap.docs[0];
+    return {
+      uid: doc.id,
+      displayName: doc.data().displayName,
+      email: doc.data().email,
+    };
+  } catch (err) {
+    log('error', `Failed to find guardian: ${err.message}`);
+    return null;
+  }
+}
+
+async function linkDeviceToGuardian(db, guardianUid, imei) {
+  try {
+    await db.collection('users').doc(guardianUid).set({
+      linkedImeis: admin.firestore.FieldValue.arrayUnion([imei]),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  } catch (err) {
+    log('error', `Failed to link device: ${err.message}`);
+    return false;
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 5) {
     console.log(`${colors.bright}Usage:${colors.reset}`);
-    console.log('node onboard-device-auto.js <protocolId> <imei> <simPhone> <adminPhone> <carrier> [nickname] [ngrokHost] [ngrokPort]\n');
+    console.log('node onboard-device-auto.js <protocolId> <imei> <simPhone> <adminPhone> <carrier> [nickname] [ngrokHost] [ngrokPort] [guardianEmail]\n');
     console.log(`${colors.bright}Example:${colors.reset}`);
-    console.log('node onboard-device-auto.js 9705254749 861397052547492 +23073332567 +23073332567 myt "V52 Device 1" 0.tcp.in.ngrok.io 25295\n');
+    console.log('node onboard-device-auto.js 9705254749 861397052547492 +23073332567 +23073332567 myt "V52 Device 1" 0.tcp.in.ngrok.io 25295 user@example.com\n');
     process.exit(1);
   }
 
   try {
-    const [protocolId, imei, simPhone, adminPhone, carrier, nickname = '', ngrokHost = '0.tcp.in.ngrok.io', ngrokPort = '25295'] = args;
+    const [protocolId, imei, simPhone, adminPhone, carrier, nickname = '', ngrokHost = '0.tcp.in.ngrok.io', ngrokPort = '25295', guardianEmail = ''] = args;
 
     log('step', 'Validating inputs...');
 
@@ -198,6 +235,27 @@ async function main() {
     if (!registered) throw new Error('Failed to register device in Firestore');
     log('success', `Device registered: ${imei}`);
 
+    // Link to guardian account if email provided
+    if (guardianEmail && guardianEmail.trim()) {
+      log('step', `Linking device to guardian: ${guardianEmail}`);
+      const guardian = await findGuardianByEmail(db, guardianEmail.trim());
+
+      if (guardian) {
+        const linked = await linkDeviceToGuardian(db, guardian.uid, imei);
+        if (linked) {
+          log('success', `Device linked to ${guardian.displayName} (${guardian.email})`);
+        } else {
+          log('warning', 'Device registered but linking failed');
+        }
+      } else {
+        log('warning', `Guardian account not found: ${guardianEmail}`);
+        log('warning', 'Device registered but NOT linked. User must link it manually in the app.');
+      }
+    } else {
+      log('info', 'No guardian email provided. Device registered but NOT linked.');
+      log('info', 'User must link it manually in the app: Link Device → Enter 15-digit IMEI');
+    }
+
     // Update IMEI mapping
     log('step', 'Updating IMEI mapping in .env...');
     const updated = updateEnvImeiMap(protocolId, imei);
@@ -216,12 +274,18 @@ async function main() {
     console.log(`Carrier:         ${carrier.toUpperCase()}`);
     console.log(`Nickname:        ${nickname || '(default)'}`);
     console.log(`ngrok:           ${ngrokHost}:${ngrokPort}`);
+    if (guardianEmail) {
+      console.log(`Guardian:        ${guardianEmail}`);
+    }
 
     console.log(`\n${colors.bright}Next Steps:${colors.reset}\n`);
     console.log('1. Send SMS commands above to the device SIM\n');
     console.log('2. Power cycle the device\n');
     console.log('3. Device should connect within 60 seconds\n');
     console.log('4. Check Firestore: connectionState should be "live"\n');
+    if (!guardianEmail) {
+      console.log('5. Guardian must link the device in the app: Link Device → Enter 15-digit IMEI\n');
+    }
 
     log('success', 'Onboarding complete!');
     process.exit(0);
