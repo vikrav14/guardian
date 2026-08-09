@@ -195,8 +195,9 @@ class _LoginPageState extends State<LoginPage> {
                               hintText: 'name@family.com',
                             ),
                             validator: (v) {
-                              if (v == null || !v.contains('@'))
+                              if (v == null || !v.contains('@')) {
                                 return 'Enter a valid email';
+                              }
                               return null;
                             },
                           ),
@@ -228,8 +229,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.length < 6)
+                              if (v == null || v.length < 6) {
                                 return 'At least 6 characters';
+                              }
                               return null;
                             },
                           ),
