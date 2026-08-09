@@ -237,9 +237,10 @@ function handlePacket(decoded, session) {
     events.push({ type: 'heartbeat', ...eventMeta, ...hb });
   } else if (command === 'TKQ') {
     // V52: lightweight heartbeat/keepalive (sent immediately after LK during connection handshake)
-    // Treat as a valid session keepalive event to allow "connecting" → "live" transition
+    // Treat as a valid session keepalive event to allow "connecting" → "live" transition.
+    // TKQ does not include battery data, so omit it (LK provides battery if available).
     acks.push(buildAckFrame(protocolId, 'TKQ'));
-    events.push({ type: 'heartbeat', ...eventMeta });
+    events.push({ type: 'heartbeat', ...eventMeta, batteryPercent: null });
   } else if (command === 'UD2') {
     // V46-V48-V52: blind-spot re-upload (data buffered while offline).
     // "Server no need reply" per the protocol doc — no ack pushed.
