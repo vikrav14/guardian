@@ -238,7 +238,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             icon: Icons.volunteer_activism_rounded,
             title: 'Care profile',
             subtitle:
-                'Child, older adult or adult · priorities, falls and medication',
+                'Child, older adult or adult - priorities, falls and medication',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(

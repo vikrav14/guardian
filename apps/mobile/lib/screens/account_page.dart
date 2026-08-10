@@ -90,7 +90,7 @@ class AccountPage extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Watch linked Ã¢â‚¬â€ it will appear when the gateway receives data',
+              'Watch linked - it will appear when the gateway receives data',
             ),
           ),
         );
@@ -140,9 +140,7 @@ class AccountPage extends StatelessWidget {
       await FamilyService().acceptInviteCode(ctrl.text);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Joined family Ã¢â‚¬â€ watches linked'),
-          ),
+          const SnackBar(content: Text('Joined family - watches linked')),
         );
       }
     } catch (e) {
@@ -195,7 +193,7 @@ class AccountPage extends StatelessWidget {
                   const SizedBox(height: GuardianSpacing.xs),
                   Text(name, style: textTheme.titleMedium),
                   Text(
-                    email.isEmpty ? 'Family admin' : 'Family admin Ã‚Â· $email',
+                    email.isEmpty ? 'Family admin' : 'Family admin - $email',
                     style: textTheme.bodyMedium,
                   ),
                 ],
@@ -294,7 +292,7 @@ class AccountPage extends StatelessWidget {
                         for (final invite in pending)
                           _PersonRow(
                             name: 'Invite ${invite.code}',
-                            subtitle: 'Waiting to be accepted Ã‚Â· tap to copy',
+                            subtitle: 'Waiting to be accepted - tap to copy',
                             showDivider: true,
                             onTap: () async {
                               await Clipboard.setData(
