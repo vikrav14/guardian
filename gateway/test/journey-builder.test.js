@@ -58,17 +58,14 @@ test('trackJourneyPoint closes journey after idle timeout', () => {
   assert.equal(state.currentJourney, null);
 });
 
-test('geofence exit closes active journey with event', () => {
+test('geofence exit starts an outing instead of closing one', () => {
   const state = emptyState();
-  const start = new Date('2026-07-22T09:00:00Z');
-
-  trackJourneyPoint(state, movingPoint(), start);
-  trackJourneyPoint(state, movingPoint(0.002, '2026-07-22T09:02:00Z'), new Date('2026-07-22T09:02:00Z'));
+  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
 
   const exitAt = new Date('2026-07-22T09:05:00Z');
   const result = trackJourneyPoint(
     state,
-    movingPoint(0.003, '2026-07-22T09:05:00Z'),
+    movingPoint(0.001, '2026-07-22T09:05:00Z'),
     exitAt,
     {
       geofenceTransition: true,
@@ -78,10 +75,36 @@ test('geofence exit closes active journey with event', () => {
     }
   );
 
-  assert.equal(result.flushes.length, 1);
-  assert.equal(result.flushes[0].closeReason, 'geofence_exit');
-  assert.equal(result.flushes[0].events[0].type, 'geofence_exit');
-  assert.equal(result.flushes[0].events[0].name, 'Home');
+  assert.equal(result.started, true);
+  assert.equal(result.flushes.length, 0);
+  assert.ok(state.currentJourney);
+  assert.equal(state.currentJourney.events.length, 1);
+  assert.equal(state.currentJourney.events[0].type, 'geofence_exit');
+  assert.equal(state.currentJourney.events[0].name, 'Home');
+});
+
+test('geofence exit never flushes an already-active outing', () => {
+  const state = emptyState();
+  const start = new Date('2026-07-22T09:00:00Z');
+
+  trackJourneyPoint(state, movingPoint(), start);
+
+  const result = trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-07-22T09:02:00Z'),
+    new Date('2026-07-22T09:02:00Z'),
+    {
+      geofenceTransition: true,
+      transitionType: 'geofence_exit',
+      geofenceName: 'Home',
+      geofenceId: 'home-id',
+    }
+  );
+
+  assert.equal(result.flushes.length, 0);
+  assert.ok(state.currentJourney);
+  assert.equal(state.currentJourney.events.length, 1);
+  assert.equal(state.currentJourney.events[0].type, 'geofence_exit');
 });
 
 test('forceCloseJourney flushes open journey on disconnect', () => {

@@ -163,14 +163,26 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     if (closed) flushes.push(closed);
   }
 
-  if (geofenceTransition && transitionType === 'geofence_exit' && state.currentJourney) {
-    const closed = closeJourney(state, now, 'geofence_exit', {
+  if (geofenceTransition && transitionType === 'geofence_exit') {
+    const exitEvent = {
       type: 'geofence_exit',
       geofenceId: geofenceId || null,
       name: geofenceName || null,
-      at: now,
-    });
-    if (closed) flushes.push(closed);
+      at: point.recordedAt || now,
+    };
+
+    // A safe-zone exit is a departure, not the end of an outing.
+    // Start immediately from the exit fix so a low-speed departure is not lost.
+    if (!state.currentJourney) {
+      const reference = state.lastPersistedLocation;
+      if (shouldAcceptJourneyPoint(point, reference)) {
+        startJourney(state, point, now);
+        state.currentJourney.events.push(exitEvent);
+        return { flushes, started: true };
+      }
+    } else {
+      state.currentJourney.events.push(exitEvent);
+    }
   }
 
   const reference = state.currentJourney
