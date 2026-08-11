@@ -1277,11 +1277,11 @@ class _SelectedMetricsRow extends StatelessWidget {
               label: 'Route points',
             ),
           ),
-          const Expanded(
+          Expanded(
             child: _SelectedMetric(
-              icon: Icons.speed_rounded,
-              value: '--',
-              label: 'Avg. speed',
+              icon: Icons.pause_circle_outline_rounded,
+              value: _structuredStopMetric(journey),
+              label: 'Stops',
             ),
           ),
         ],
@@ -1361,9 +1361,7 @@ class _SelectedTripGuardianRead extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'This trip recorded ${journey.distanceKm.toStringAsFixed(1)} km '
-                  'over ${_compactDuration(_durationOf(journey))}. '
-                  '${route.decodedPointCount} route points are available for this stored route.',
+                  _selectedTripGuardianReadText(journey, route),
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 9,
@@ -1556,6 +1554,44 @@ String _compactDuration(Duration duration) {
   final hours = minutes ~/ 60;
   final remainder = minutes % 60;
   return remainder == 0 ? '${hours}h' : '${hours}h ${remainder}m';
+}
+
+bool _hasStructuredJourney(JourneyRecord journey) {
+  return journey.stopCount > 0 ||
+      journey.stops.isNotEmpty ||
+      journey.legCount > 0 ||
+      journey.legs.isNotEmpty;
+}
+
+String _structuredStopMetric(JourneyRecord journey) {
+  if (!_hasStructuredJourney(journey)) return '--';
+  if (journey.stopCount <= 0) return '0';
+
+  return '${journey.stopCount} \u00B7 '
+      '${_compactDuration(journey.totalStopDuration)}';
+}
+
+String _selectedTripGuardianReadText(
+  JourneyRecord journey,
+  JourneyV2Route route,
+) {
+  final base =
+      'This trip recorded ${journey.distanceKm.toStringAsFixed(1)} km '
+      'over ${_compactDuration(_durationOf(journey))}. '
+      '${route.decodedPointCount} route points are available for this stored route.';
+
+  if (!_hasStructuredJourney(journey)) return base;
+
+  if (journey.stopCount <= 0) {
+    return '$base No meaningful stops were recorded.';
+  }
+
+  final stopSummary = journey.stopCount == 1
+      ? '1 stop was recorded during this outing'
+      : '${journey.stopCount} stops were recorded during this outing';
+
+  return '$base $stopSummary, totaling '
+      '${_compactDuration(journey.totalStopDuration)}.';
 }
 
 IconData _tripIcon(int index) {
