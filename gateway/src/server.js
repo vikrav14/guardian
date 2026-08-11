@@ -417,6 +417,8 @@ async function applyEvents(events, session) {
 
             hasActiveSafeZones: geofencePresence.hasActiveZones,
 
+            insideAnySafeZone: geofencePresence.insideAny,
+
           }
 
         );

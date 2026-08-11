@@ -504,7 +504,10 @@ test('active safe zone context blocks drift-only generic journey start', () => {
       recordedAt: now,
     },
     now,
-    { hasActiveSafeZones: true }
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: true,
+    }
   );
 
   assert.equal(result.started, false);
@@ -531,4 +534,23 @@ test('confirmed safe-zone exit still starts outing when active zones are configu
   assert.equal(result.flushes.length, 0);
   assert.ok(state.currentJourney);
   assert.equal(state.currentJourney.originGeofenceId, 'home-id');
+});
+test('active safe zone configured but currently outside still allows generic journey start', () => {
+  const state = emptyState();
+  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+
+  const now = new Date('2026-08-11T10:00:00Z');
+  const result = trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-08-11T10:00:00Z'),
+    now,
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: false,
+    }
+  );
+
+  assert.equal(result.started, true);
+  assert.equal(result.flushes.length, 0);
+  assert.ok(state.currentJourney);
 });

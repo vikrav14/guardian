@@ -228,6 +228,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     geofenceName,
     geofenceId,
     hasActiveSafeZones = false,
+    insideAnySafeZone = false,
   } = options;
   const flushes = [];
   const pointAt = recordedAtOrNow(point, now);
@@ -353,12 +354,14 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   }
 
   if (moving) {
-    // Saved safe zones make departure semantics authoritative. When at least
-    // one active zone is configured, GPS/WiFi/LBS drift must never manufacture
-    // an outing. Wait for a real geofence_exit transition instead.
+    // While the watch is currently inside a configured safe zone, departure
+    // semantics are authoritative: wait for geofence_exit rather than letting
+    // GPS/WiFi/LBS drift manufacture an outing.
     //
-    // Devices without active safe zones keep the generic movement fallback.
-    if (hasActiveSafeZones) {
+    // If active zones exist but the watch is already outside all of them
+    // (for example after a gateway restart away from Home), keep the generic
+    // movement fallback so tracking is not disabled for the whole day.
+    if (hasActiveSafeZones && insideAnySafeZone) {
       return { flushes, started: false };
     }
 
