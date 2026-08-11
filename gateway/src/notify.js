@@ -1,4 +1,5 @@
 const config = require('./config');
+const { buildSafetyMessage } = require('./safety-message');
 
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
@@ -76,10 +77,30 @@ async function sendWhatsApp(to, body) {
   });
 }
 
-function buildMessage(imei, alert) {
-  const type = (alert.type || 'alert').toUpperCase();
-  const msg = alert.message || 'Guardian alert';
-  return `Guardian ${type}: ${msg}\nDevice IMEI ${imei}`;
+function buildMessage(imei, alert, device = null) {
+  const normalizedType = String(alert?.type || '').trim().toLowerCase();
+  if (normalizedType === 'sos' || normalizedType === 'fall') {
+    return buildSafetyMessage({
+      type: normalizedType,
+      device: device || {},
+      alert: alert || {},
+    });
+  }
+
+  const type = String(alert?.type || 'alert').toUpperCase();
+  const msg = alert?.message || 'Guardian alert';
+  return `Guardian ${type}: ${msg}`;
+}
+
+async function loadDeviceForNotification(db, imei) {
+  if (!db) return null;
+  try {
+    const snap = await db.collection('devices').doc(imei).get();
+    return snap.exists ? { imei, ...(snap.data() || {}) } : null;
+  } catch (err) {
+    console.error(`[notify] device context lookup failed for ${imei}: ${err.message}`);
+    return null;
+  }
 }
 
 /**
@@ -88,7 +109,8 @@ function buildMessage(imei, alert) {
  */
 async function notifyEmergencyContacts(db, imei, alert) {
   const contacts = await findContactsForImei(db, imei);
-  const text = buildMessage(imei, alert);
+  const device = await loadDeviceForNotification(db, imei);
+  const text = buildMessage(imei, alert, device);
   const results = [];
 
   if (contacts.length === 0) {
@@ -146,6 +168,7 @@ module.exports = {
   notifyEmergencyContacts,
   findContactsForImei,
   buildMessage,
+  loadDeviceForNotification,
   normalizeE164,
   sendSms,
   sendWhatsApp,

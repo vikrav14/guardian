@@ -229,7 +229,7 @@ function shouldNotify(alert) {
 // SMS/WhatsApp to emergency contacts stays reserved for the urgent subset.
 function shouldSms(alert) {
   const t = String(alert.type || '').toLowerCase();
-  return t === 'sos' || t === 'fall' || t === 'geofence_exit';
+  return t === 'sos' || t === 'fall';
 }
 
 async function deliverAlertNotifications(imei, alert, alertId) {

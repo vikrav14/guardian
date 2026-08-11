@@ -1,4 +1,4 @@
-const test = require('node:test');
+﻿const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeE164, buildMessage } = require('../src/notify');
 
@@ -18,9 +18,15 @@ test('normalizeE164 strips spaces/dashes before normalizing', () => {
   assert.equal(normalizeE164('+230 57-123-456'), '+23057123456');
 });
 
-test('buildMessage includes the alert type, message, and imei', () => {
-  const msg = buildMessage('359633100123456', { type: 'sos', message: 'Help requested' });
-  assert.match(msg, /SOS/);
-  assert.match(msg, /Help requested/);
-  assert.match(msg, /359633100123456/);
+test('buildMessage renders SOS safely without exposing IMEI', () => {
+  const msg = buildMessage('359633100123456', {
+    type: 'sos',
+    message: 'Help requested',
+  });
+
+  assert.match(msg, /GUARDIAN SOS/);
+  assert.match(msg, /SOS alert received/);
+  assert.match(msg, /Location unavailable/);
+  assert.doesNotMatch(msg, /359633100123456/);
+  assert.doesNotMatch(msg, /IMEI/i);
 });
