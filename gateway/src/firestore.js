@@ -1,6 +1,7 @@
 const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
+const { buildJourneyDocumentId } = require('./journey-id');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
 const { sendDeviceCommand } = require('./commands');
@@ -192,17 +193,28 @@ async function appendSegment(imei, segment) {
 }
 
 async function appendJourney(imei, journey) {
+  const journeyId = buildJourneyDocumentId(imei, journey);
   const data = {
     ...journey,
+    journeyId,
     createdAt: nowTs(),
   };
 
   if (!enabled) {
-    console.log(`[firestore:dry-run] devices/${imei}/journeys`, JSON.stringify(data));
-    return null;
+    console.log(
+      `[firestore:dry-run] devices/${imei}/journeys/${journeyId}`,
+      JSON.stringify(data)
+    );
+    return journeyId;
   }
 
-  const ref = await db.collection('devices').doc(imei).collection('journeys').add(data);
+  const ref = db
+    .collection('devices')
+    .doc(imei)
+    .collection('journeys')
+    .doc(journeyId);
+
+  await ref.set(data, { merge: true });
   return ref.id;
 }
 
