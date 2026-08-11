@@ -1,6 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { haversineMeters, evaluateGeofenceTransitions } = require('../src/geofence');
+const {
+  haversineMeters,
+  evaluateGeofenceTransitions,
+  getGeofencePresence,
+  resetGeofenceStateForTests,
+} = require('../src/geofence');
 
 // Mimics real Firestore's where()-clause filtering (evaluateGeofenceTransitions
 // relies on the query itself to exclude inactive/other-device zones, it does
@@ -74,4 +79,78 @@ test('evaluateGeofenceTransitions ignores inactive zones and non-finite centers'
   ]);
   const events = await evaluateGeofenceTransitions(db, 'SKIP1', { lat: 0, lng: 0 });
   assert.deepEqual(events, []);
+});
+test('approximate boundary drift does not emit a false Home exit', async () => {
+  resetGeofenceStateForTests();
+
+  const db = fakeDb([
+    {
+      id: 'home-drift',
+      data: {
+        imei: 'DRIFT1',
+        active: true,
+        center: { lat: -20.2642, lng: 57.4791 },
+        radiusMeters: 100,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  await evaluateGeofenceTransitions(db, 'DRIFT1', {
+    lat: -20.2642,
+    lng: 57.4791,
+    accuracyMeters: 80,
+  });
+
+  // Roughly 120m from center: raw coordinates are outside a 100m circle, but
+  // an 80m approximate fix overlaps the boundary, so remain inside.
+  const jitterEvents = await evaluateGeofenceTransitions(db, 'DRIFT1', {
+    lat: -20.26312,
+    lng: 57.4791,
+    accuracyMeters: 80,
+  });
+
+  assert.deepEqual(jitterEvents, []);
+
+  const presence = getGeofencePresence('DRIFT1');
+  assert.equal(presence.hasActiveZones, true);
+  assert.equal(presence.insideAny, true);
+  assert.deepEqual(presence.insideZoneIds, ['home-drift']);
+});
+
+test('clearly outside fix still emits Home exit after boundary protection', async () => {
+  resetGeofenceStateForTests();
+
+  const db = fakeDb([
+    {
+      id: 'home-real-exit',
+      data: {
+        imei: 'EXIT2',
+        active: true,
+        center: { lat: -20.2642, lng: 57.4791 },
+        radiusMeters: 100,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  await evaluateGeofenceTransitions(db, 'EXIT2', {
+    lat: -20.2642,
+    lng: 57.4791,
+    accuracyMeters: 80,
+  });
+
+  // ~220m from center, beyond radius + capped uncertainty (100 + 50).
+  const events = await evaluateGeofenceTransitions(db, 'EXIT2', {
+    lat: -20.26222,
+    lng: 57.4791,
+    accuracyMeters: 80,
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'geofence_exit');
+
+  const presence = getGeofencePresence('EXIT2');
+  assert.equal(presence.hasActiveZones, true);
+  assert.equal(presence.insideAny, false);
 });

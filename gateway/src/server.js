@@ -34,7 +34,7 @@ const {
 
 } = require('./firestore');
 
-const { evaluateGeofenceTransitions } = require('./geofence');
+const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence');
 
 const { geolocateFromV } = require('./geolocate/google');
 
@@ -316,6 +316,12 @@ async function applyEvents(events, session) {
 
         let enterTransition = null;
 
+        let geofencePresence = {
+          hasActiveZones: false,
+          insideAny: false,
+          insideZoneIds: [],
+        };
+
         if (db && locEvent.location) {
 
           const transitions = await evaluateGeofenceTransitions(
@@ -329,6 +335,7 @@ async function applyEvents(events, session) {
           );
 
           geofenceTransition = transitions.length > 0;
+          geofencePresence = getGeofencePresence(locEvent.imei);
 
           for (const t of transitions) {
 
@@ -407,6 +414,8 @@ async function applyEvents(events, session) {
             geofenceName: journeyTransition?.payload?.geofenceName || null,
 
             geofenceId: journeyTransition?.payload?.geofenceId || null,
+
+            hasActiveSafeZones: geofencePresence.hasActiveZones,
 
           }
 

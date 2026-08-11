@@ -487,3 +487,48 @@ test('sequential closed journeys cannot overlap', () => {
     new Date(first.endAt).getTime() <= new Date(second.startAt).getTime()
   );
 });
+test('active safe zone context blocks drift-only generic journey start', () => {
+  const state = emptyState();
+  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+
+  const now = new Date('2026-08-11T08:00:00Z');
+  const result = trackJourneyPoint(
+    state,
+    {
+      // ~67m coordinate wobble: enough to satisfy the legacy 50m movement
+      // threshold even though the watch has not actually left Home.
+      lat: -20.2636,
+      lng: 57.4791,
+      speedKmh: 0,
+      accuracySource: 'wifi',
+      recordedAt: now,
+    },
+    now,
+    { hasActiveSafeZones: true }
+  );
+
+  assert.equal(result.started, false);
+  assert.equal(result.flushes.length, 0);
+  assert.equal(state.currentJourney, null);
+});
+
+test('confirmed safe-zone exit still starts outing when active zones are configured', () => {
+  const state = emptyState();
+  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+
+  const exitAt = new Date('2026-08-11T09:00:00Z');
+  const result = trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-08-11T09:00:00Z'),
+    exitAt,
+    {
+      ...transition('geofence_exit'),
+      hasActiveSafeZones: true,
+    }
+  );
+
+  assert.equal(result.started, true);
+  assert.equal(result.flushes.length, 0);
+  assert.ok(state.currentJourney);
+  assert.equal(state.currentJourney.originGeofenceId, 'home-id');
+});
