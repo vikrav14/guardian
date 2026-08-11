@@ -181,6 +181,100 @@ class DwellSegment {
   }
 }
 
+/// Factual stop derived by the gateway from stationary GPS points inside one outing.
+/// A null [placeName] is intentional: Guardian must not guess a business or purpose.
+class JourneyStop {
+  const JourneyStop({
+    required this.id,
+    required this.startAt,
+    required this.endAt,
+    required this.durationMinutes,
+    required this.centerLat,
+    required this.centerLng,
+    required this.pointStartIndex,
+    required this.pointEndIndex,
+    this.placeName,
+    this.source = 'gps_dwell',
+  });
+
+  final String id;
+  final DateTime startAt;
+  final DateTime endAt;
+  final double durationMinutes;
+  final double centerLat;
+  final double centerLng;
+  final int pointStartIndex;
+  final int pointEndIndex;
+  final String? placeName;
+  final String source;
+
+  Duration get duration =>
+      Duration(milliseconds: (durationMinutes * 60 * 1000).round());
+
+  factory JourneyStop.fromMap(Map<String, dynamic> data) {
+    return JourneyStop(
+      id: data['id'] as String? ?? '',
+      startAt:
+          _asDateTime(data['startAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      endAt:
+          _asDateTime(data['endAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      durationMinutes: (data['durationMinutes'] as num?)?.toDouble() ?? 0,
+      centerLat: (data['centerLat'] as num?)?.toDouble() ?? 0,
+      centerLng: (data['centerLng'] as num?)?.toDouble() ?? 0,
+      pointStartIndex: (data['pointStartIndex'] as num?)?.toInt() ?? 0,
+      pointEndIndex: (data['pointEndIndex'] as num?)?.toInt() ?? 0,
+      placeName: data['placeName'] as String?,
+      source: data['source'] as String? ?? 'gps_dwell',
+    );
+  }
+}
+
+/// Movement portion between the outing origin, factual stops, and final destination.
+class JourneyLeg {
+  const JourneyLeg({
+    required this.id,
+    required this.startAt,
+    required this.endAt,
+    required this.durationMinutes,
+    required this.distanceKm,
+    required this.pointStartIndex,
+    required this.pointEndIndex,
+    this.fromStopId,
+    this.toStopId,
+  });
+
+  final String id;
+  final DateTime startAt;
+  final DateTime endAt;
+  final double durationMinutes;
+  final double distanceKm;
+  final int pointStartIndex;
+  final int pointEndIndex;
+  final String? fromStopId;
+  final String? toStopId;
+
+  Duration get duration =>
+      Duration(milliseconds: (durationMinutes * 60 * 1000).round());
+
+  factory JourneyLeg.fromMap(Map<String, dynamic> data) {
+    return JourneyLeg(
+      id: data['id'] as String? ?? '',
+      startAt:
+          _asDateTime(data['startAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      endAt:
+          _asDateTime(data['endAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      durationMinutes: (data['durationMinutes'] as num?)?.toDouble() ?? 0,
+      distanceKm: (data['distanceKm'] as num?)?.toDouble() ?? 0,
+      pointStartIndex: (data['pointStartIndex'] as num?)?.toInt() ?? 0,
+      pointEndIndex: (data['pointEndIndex'] as num?)?.toInt() ?? 0,
+      fromStopId: data['fromStopId'] as String?,
+      toStopId: data['toStopId'] as String?,
+    );
+  }
+}
+
 /// Compressed journey route (`devices/{imei}/journeys`).
 class JourneyRecord {
   const JourneyRecord({
@@ -192,6 +286,10 @@ class JourneyRecord {
     required this.pointCount,
     this.compressed = true,
     this.events = const [],
+    this.stops = const [],
+    this.legs = const [],
+    this.stopCount = 0,
+    this.legCount = 0,
   });
 
   final String id;
@@ -202,10 +300,40 @@ class JourneyRecord {
   final int pointCount;
   final bool compressed;
   final List<Map<String, dynamic>> events;
+  final List<JourneyStop> stops;
+  final List<JourneyLeg> legs;
+  final int stopCount;
+  final int legCount;
+
+  Duration get totalStopDuration => stops.fold(
+    Duration.zero,
+    (total, stop) => total + stop.duration,
+  );
 
   factory JourneyRecord.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     final rawEvents = data['events'];
+    final rawStops = data['stops'];
+    final rawLegs = data['legs'];
+
+    final stops = rawStops is List
+        ? rawStops
+              .whereType<Map>()
+              .map(
+                (e) => JourneyStop.fromMap(Map<String, dynamic>.from(e)),
+              )
+              .toList()
+        : const <JourneyStop>[];
+
+    final legs = rawLegs is List
+        ? rawLegs
+              .whereType<Map>()
+              .map(
+                (e) => JourneyLeg.fromMap(Map<String, dynamic>.from(e)),
+              )
+              .toList()
+        : const <JourneyLeg>[];
+
     return JourneyRecord(
       id: doc.id,
       startAt:
@@ -223,6 +351,10 @@ class JourneyRecord {
                 .map((e) => Map<String, dynamic>.from(e))
                 .toList()
           : const [],
+      stops: stops,
+      legs: legs,
+      stopCount: (data['stopCount'] as num?)?.toInt() ?? stops.length,
+      legCount: (data['legCount'] as num?)?.toInt() ?? legs.length,
     );
   }
 }
