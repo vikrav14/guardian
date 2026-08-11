@@ -33,6 +33,13 @@ const config = {
   notifySms: String(process.env.NOTIFY_SMS || 'true').toLowerCase() === 'true',
   notifyWhatsApp: String(process.env.NOTIFY_WHATSAPP || 'true').toLowerCase() === 'true',
 
+  // Meta WhatsApp Cloud API.
+  // Keep the access token only in gateway/.env or deployment secrets â€” never commit it.
+  metaWhatsAppAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || '',
+  metaWhatsAppPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || '',
+  metaWhatsAppWabaId: process.env.META_WHATSAPP_WABA_ID || '',
+  metaGraphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
+
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
 
