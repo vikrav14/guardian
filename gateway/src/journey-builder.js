@@ -4,6 +4,7 @@ const config = require('./config');
 
 const STATIONARY_SPEED_KMH = 1;
 const MAX_JOURNEY_SEGMENT_METRES = 5000;
+const RETURN_CONFIRM_MS = 2 * 60 * 1000;
 
 function isPlausibleCoord(lat, lng) {
   if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return false;
@@ -61,6 +62,11 @@ function normalizePoint(point) {
   };
 }
 
+function recordedAtOrNow(point, now) {
+  const value = point.recordedAt ? new Date(point.recordedAt) : new Date(now);
+  return Number.isNaN(value.getTime()) ? new Date(now) : value;
+}
+
 function shouldAcceptJourneyPoint(point, reference) {
   if (!isPlausibleCoord(point.lat, point.lng)) return false;
   if (
@@ -82,16 +88,19 @@ function startJourney(state, point, now) {
     lastPointAt: now,
     points: [normalized],
     events: [],
+    originGeofenceId: null,
+    originGeofenceName: null,
+    returnCandidateAt: null,
   };
 }
 
 function addJourneyPoint(state, point, now) {
   const journey = state.currentJourney;
-  if (!journey) return;
+  if (!journey) return false;
 
   const normalized = normalizePoint(point);
   const last = journey.points[journey.points.length - 1];
-  if (!shouldAcceptJourneyPoint(normalized, last)) return;
+  if (!shouldAcceptJourneyPoint(normalized, last)) return false;
 
   journey.points.push(normalized);
   journey.lastPointAt = now;
@@ -99,10 +108,19 @@ function addJourneyPoint(state, point, now) {
   if (isMoving(normalized, last)) {
     journey.lastMovementAt = now;
   }
+
+  return true;
 }
 
 function shouldCloseForIdle(journey, now) {
   if (!journey) return false;
+
+  // Once an outing has a safe-zone origin, idle periods away from home are
+  // stops inside that outing, not trip boundaries. A destination-dwell policy
+  // can close one-way outings later; the generic idle fallback must not split
+  // Home -> stop -> Home into multiple journeys.
+  if (journey.originGeofenceId) return false;
+
   const idleMs = config.journeyIdleMinutes * 60 * 1000;
   return now.getTime() - new Date(journey.lastMovementAt).getTime() >= idleMs;
 }
@@ -130,6 +148,12 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     pointCount: journey.points.length,
     compressed: true,
     closeReason: reason,
+    ...(journey.originGeofenceId
+      ? {
+          originGeofenceId: journey.originGeofenceId,
+          originGeofenceName: journey.originGeofenceName || null,
+        }
+      : {}),
   };
 
   state.currentJourney = null;
@@ -150,16 +174,32 @@ function forceCloseJourney(state, now, reason = 'disconnect') {
   return closeJourney(state, now, reason);
 }
 
+function assignOriginFromExit(journey, geofenceId, geofenceName) {
+  if (!journey || journey.originGeofenceId || !geofenceId) return;
+  journey.originGeofenceId = geofenceId;
+  journey.originGeofenceName = geofenceName || null;
+}
+
+function isOriginTransition(journey, geofenceId) {
+  return Boolean(
+    journey &&
+      journey.originGeofenceId &&
+      geofenceId &&
+      journey.originGeofenceId === geofenceId
+  );
+}
+
 /**
  * Track a GPS fix and optionally return a closed journey to flush.
- * @returns {{ flush: object|null, started: boolean }}
+ * @returns {{ flushes: object[], started: boolean }}
  */
 function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   const { geofenceTransition, transitionType, geofenceName, geofenceId } = options;
   const flushes = [];
+  const pointAt = recordedAtOrNow(point, now);
 
-  if (state.currentJourney && !sameCalendarDay(state.currentJourney.startAt, now)) {
-    const closed = closeJourney(state, now, 'daily_boundary');
+  if (state.currentJourney && !sameCalendarDay(state.currentJourney.startAt, pointAt)) {
+    const closed = closeJourney(state, pointAt, 'daily_boundary');
     if (closed) flushes.push(closed);
   }
 
@@ -168,21 +208,76 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
       type: 'geofence_exit',
       geofenceId: geofenceId || null,
       name: geofenceName || null,
-      at: point.recordedAt || now,
+      at: pointAt,
     };
 
     // A safe-zone exit is a departure, not the end of an outing.
-    // Start immediately from the exit fix so a low-speed departure is not lost.
     if (!state.currentJourney) {
       const reference = state.lastPersistedLocation;
       if (shouldAcceptJourneyPoint(point, reference)) {
         startJourney(state, point, now);
+        assignOriginFromExit(state.currentJourney, geofenceId, geofenceName);
         state.currentJourney.events.push(exitEvent);
         return { flushes, started: true };
       }
     } else {
+      assignOriginFromExit(state.currentJourney, geofenceId, geofenceName);
+
+      // If the device only dipped back into the origin briefly and exits again
+      // before confirmation, cancel the pending return and keep the outing open.
+      if (isOriginTransition(state.currentJourney, geofenceId)) {
+        state.currentJourney.returnCandidateAt = null;
+      }
+
       state.currentJourney.events.push(exitEvent);
     }
+  }
+
+  if (
+    geofenceTransition &&
+    transitionType === 'geofence_enter' &&
+    state.currentJourney
+  ) {
+    const journey = state.currentJourney;
+    const enterEvent = {
+      type: 'geofence_enter',
+      geofenceId: geofenceId || null,
+      name: geofenceName || null,
+      at: pointAt,
+    };
+
+    journey.events.push(enterEvent);
+
+    if (isOriginTransition(journey, geofenceId)) {
+      // Keep the first inside-origin fix as the route endpoint, then wait for
+      // another location sample before closing. This prevents a single noisy
+      // boundary fix from ending the outing.
+      addJourneyPoint(state, point, now);
+      journey.returnCandidateAt = pointAt;
+      return { flushes, started: false };
+    }
+  }
+
+  if (state.currentJourney && state.currentJourney.returnCandidateAt) {
+    const journey = state.currentJourney;
+    const candidateAt = new Date(journey.returnCandidateAt);
+
+    if (pointAt.getTime() - candidateAt.getTime() >= RETURN_CONFIRM_MS) {
+      const closed = closeJourney(state, candidateAt, 'return_to_origin', {
+        type: 'outing_return',
+        geofenceId: journey.originGeofenceId,
+        name: journey.originGeofenceName || null,
+        at: candidateAt,
+        confirmedAt: pointAt,
+      });
+
+      if (closed) flushes.push(closed);
+      return { flushes, started: false };
+    }
+
+    // While confirmation is pending, do not append interior safe-zone jitter to
+    // the route. An origin exit transition above will cancel this candidate.
+    return { flushes, started: false };
   }
 
   const reference = state.currentJourney
@@ -195,7 +290,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     addJourneyPoint(state, point, now);
 
     if (shouldCloseForIdle(state.currentJourney, now)) {
-      const closed = closeJourney(state, now, 'idle');
+      const closed = closeJourney(state, pointAt, 'idle');
       if (closed) flushes.push(closed);
     }
 
