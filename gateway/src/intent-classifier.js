@@ -11,7 +11,7 @@
  */
 
 const KEYWORDS = {
-  CRITICAL: ['sos', 'help', 'emergency', 'urgent', 'danger', 'hospital', 'police'],
+  CRITICAL: ['sos', 'emergency', 'urgent', 'danger', 'hospital', 'police'],
   LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
   DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],

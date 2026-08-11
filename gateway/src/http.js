@@ -23,6 +23,7 @@ const {
 // Phase 1: New provider abstraction and support layers
 const { createLlmProvider } = require('./providers');
 const { classifyIntent, isCritical } = require('./intent-classifier');
+const { decideInboundRoute } = require('./whatsapp-policy');
 const {
   validateLocationResponse,
   validateDeviceStatusResponse,
@@ -183,6 +184,23 @@ async function handleChat({ from, text }) {
     metrics.trackIntent(intent.type, intent.confidence, intent.urgency);
     console.log(`[metrics] Tracked intent: type=${intent.type}, confidence=${intent.confidence}, urgency=${intent.urgency}`);
     await auditLog.recordIntent({ requestId, intent });
+
+    // Cost/scope gate: Guardian WhatsApp is a family-safety interface, not a
+    // general chatbot. Out-of-scope/general messages get one deterministic
+    // response and never reach Gemini/Claude.
+    const inboundRoute = decideInboundRoute(intent);
+    if (inboundRoute.route === 'scope_reply') {
+      const reply = inboundRoute.reply;
+      metrics.trackFallback('outside_guardian_scope', { intentType: intent.type });
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: 'outside_guardian_scope',
+      });
+      return { ctx, reply, scopeLimited: true };
+    }
 
     // [5] Handle critical intents immediately (SOS, emergency)
     if (isCritical(intent)) {

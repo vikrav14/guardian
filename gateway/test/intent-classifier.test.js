@@ -21,7 +21,7 @@ test('classifyIntent: location requests', () => {
 test('classifyIntent: critical/emergency', () => {
   const cases = [
     { text: 'SOS!', expectedType: 'CRITICAL', expectedUrgency: 9 },
-    { text: 'HELP', expectedType: 'CRITICAL', expectedUrgency: 9 },
+
     { text: 'emergency', expectedType: 'CRITICAL', expectedUrgency: 9 },
     { text: 'danger danger', expectedType: 'CRITICAL', expectedUrgency: 9 },
   ];
@@ -100,4 +100,15 @@ test('classifyIntent: Mauritian Creole support', () => {
   const result = classifyIntent('Mama koté?');
   // Currently: UNCLEAR (should be LOCATION_REQUEST after Creole support)
   // assert.equal(result.type, 'LOCATION_REQUEST');
+});
+test('classifyIntent: generic help is not a safety emergency', () => {
+  const result = classifyIntent('help me write something');
+  assert.equal(result.type, 'GENERAL_HELP');
+  assert.ok(!isCritical(result));
+});
+
+test('classifyIntent: explicit SOS remains safety-critical', () => {
+  const result = classifyIntent('SOS');
+  assert.equal(result.type, 'CRITICAL');
+  assert.ok(isCritical(result));
 });
