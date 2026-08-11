@@ -1,6 +1,7 @@
 const { encodePolyline } = require('./polyline');
 const { haversineMeters } = require('./geofence');
 const config = require('./config');
+const { deriveJourneyStructure } = require('./journey-structure');
 
 const STATIONARY_SPEED_KMH = 1;
 const MAX_JOURNEY_SEGMENT_METRES = 5000;
@@ -157,6 +158,10 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
   const events = [...journey.events];
   if (extraEvent) events.push(extraEvent);
 
+  // Stops and legs are derived from the completed factual GPS path.
+  // They enrich one outing; they never create additional journeys or infer purpose.
+  const structure = deriveJourneyStructure(journey.points);
+
   const doc = {
     startAt: journey.startAt,
     endAt: normalizedEndAt,
@@ -164,6 +169,10 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     polyline: encodePolyline(journey.points),
     events,
     pointCount: journey.points.length,
+    stops: structure.stops,
+    legs: structure.legs,
+    stopCount: structure.stopCount,
+    legCount: structure.legCount,
     compressed: true,
     closeReason: reason,
     ...(journey.originGeofenceId
