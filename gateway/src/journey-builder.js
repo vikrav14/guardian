@@ -100,6 +100,13 @@ function addJourneyPoint(state, point, now) {
 
   const normalized = normalizePoint(point);
   const last = journey.points[journey.points.length - 1];
+  const normalizedAt = recordedAtOrNow(normalized, now);
+  const lastAt = recordedAtOrNow(last, now);
+
+  // Duplicate and out-of-order fixes must never mutate an outing. Besides
+  // keeping the polyline clean, this prevents an old packet from moving a
+  // journey's clock backwards and later overlapping another journey.
+  if (normalizedAt.getTime() <= lastAt.getTime()) return false;
   if (!shouldAcceptJourneyPoint(normalized, last)) return false;
 
   journey.points.push(normalized);
@@ -136,12 +143,23 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     return null;
   }
 
+  const startAt = new Date(journey.startAt);
+  const normalizedEndAt = new Date(endAt);
+  if (
+    Number.isNaN(startAt.getTime()) ||
+    Number.isNaN(normalizedEndAt.getTime()) ||
+    normalizedEndAt.getTime() < startAt.getTime()
+  ) {
+    state.currentJourney = null;
+    return null;
+  }
+
   const events = [...journey.events];
   if (extraEvent) events.push(extraEvent);
 
   const doc = {
     startAt: journey.startAt,
-    endAt,
+    endAt: normalizedEndAt,
     distanceKm: Math.round(journeyDistanceKm(journey.points) * 1000) / 1000,
     polyline: encodePolyline(journey.points),
     events,
@@ -157,6 +175,7 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
   };
 
   state.currentJourney = null;
+  state.lastJourneyEndAt = normalizedEndAt;
   return doc;
 }
 
@@ -198,8 +217,29 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   const flushes = [];
   const pointAt = recordedAtOrNow(point, now);
 
+  if (state.currentJourney) {
+    const lastPoint =
+      state.currentJourney.points[state.currentJourney.points.length - 1];
+    const lastPointAt = recordedAtOrNow(lastPoint, now);
+
+    if (pointAt.getTime() <= lastPointAt.getTime()) {
+      return { flushes, started: false };
+    }
+  } else if (state.lastJourneyEndAt) {
+    const lastJourneyEndAt = new Date(state.lastJourneyEndAt);
+    if (
+      !Number.isNaN(lastJourneyEndAt.getTime()) &&
+      pointAt.getTime() <= lastJourneyEndAt.getTime()
+    ) {
+      return { flushes, started: false };
+    }
+  }
+
   if (state.currentJourney && !sameCalendarDay(state.currentJourney.startAt, pointAt)) {
-    const closed = closeJourney(state, pointAt, 'daily_boundary');
+    const lastPoint =
+      state.currentJourney.points[state.currentJourney.points.length - 1];
+    const boundaryEndAt = recordedAtOrNow(lastPoint, now);
+    const closed = closeJourney(state, boundaryEndAt, 'daily_boundary');
     if (closed) flushes.push(closed);
   }
 

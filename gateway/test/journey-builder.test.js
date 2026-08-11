@@ -357,3 +357,133 @@ test('journeyDistanceKm matches decoded polyline path', () => {
   const decoded = decodePolyline(doc.polyline);
   assert.equal(decoded.length, 3);
 });
+
+test('duplicate timestamp is ignored inside an active outing', () => {
+  const state = emptyState();
+  const start = new Date('2026-07-22T15:00:00Z');
+
+  trackJourneyPoint(state, movingPoint(0, '2026-07-22T15:00:00Z'), start);
+  trackJourneyPoint(
+    state,
+    movingPoint(0.001, '2026-07-22T15:01:00Z'),
+    new Date('2026-07-22T15:01:00Z')
+  );
+
+  const duplicate = trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-07-22T15:01:00Z'),
+    new Date('2026-07-22T15:01:05Z')
+  );
+
+  assert.equal(duplicate.flushes.length, 0);
+  assert.equal(duplicate.started, false);
+  assert.equal(state.currentJourney.points.length, 2);
+});
+
+test('out-of-order point is ignored inside an active outing', () => {
+  const state = emptyState();
+
+  trackJourneyPoint(
+    state,
+    movingPoint(0, '2026-07-22T16:00:00Z'),
+    new Date('2026-07-22T16:00:00Z')
+  );
+  trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-07-22T16:02:00Z'),
+    new Date('2026-07-22T16:02:00Z')
+  );
+
+  const stale = trackJourneyPoint(
+    state,
+    movingPoint(0.001, '2026-07-22T16:01:00Z'),
+    new Date('2026-07-22T16:03:00Z')
+  );
+
+  assert.equal(stale.flushes.length, 0);
+  assert.equal(stale.started, false);
+  assert.equal(state.currentJourney.points.length, 2);
+  assert.equal(
+    new Date(state.currentJourney.points[1].recordedAt).toISOString(),
+    '2026-07-22T16:02:00.000Z'
+  );
+});
+
+test('closed journey blocks stale packets from starting an overlapping journey', () => {
+  const state = emptyState();
+
+  trackJourneyPoint(
+    state,
+    movingPoint(0, '2026-07-22T17:00:00Z'),
+    new Date('2026-07-22T17:00:00Z')
+  );
+  trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-07-22T17:02:00Z'),
+    new Date('2026-07-22T17:02:00Z')
+  );
+
+  const first = closeJourney(
+    state,
+    new Date('2026-07-22T17:03:00Z'),
+    'manual'
+  );
+  assert.ok(first);
+
+  const stale = trackJourneyPoint(
+    state,
+    movingPoint(0.003, '2026-07-22T17:02:30Z'),
+    new Date('2026-07-22T17:04:00Z')
+  );
+
+  assert.equal(stale.started, false);
+  assert.equal(stale.flushes.length, 0);
+  assert.equal(state.currentJourney, null);
+});
+
+test('sequential closed journeys cannot overlap', () => {
+  const state = emptyState();
+
+  trackJourneyPoint(
+    state,
+    movingPoint(0, '2026-07-22T18:00:00Z'),
+    new Date('2026-07-22T18:00:00Z')
+  );
+  trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-07-22T18:02:00Z'),
+    new Date('2026-07-22T18:02:00Z')
+  );
+
+  const first = closeJourney(
+    state,
+    new Date('2026-07-22T18:03:00Z'),
+    'manual'
+  );
+  assert.ok(first);
+
+  const secondStartAt = new Date('2026-07-22T18:04:00Z');
+  const started = trackJourneyPoint(
+    state,
+    movingPoint(0.003, '2026-07-22T18:04:00Z'),
+    secondStartAt
+  );
+  assert.equal(started.started, true);
+
+  trackJourneyPoint(
+    state,
+    movingPoint(0.004, '2026-07-22T18:05:00Z'),
+    new Date('2026-07-22T18:05:00Z')
+  );
+
+  const second = closeJourney(
+    state,
+    new Date('2026-07-22T18:06:00Z'),
+    'manual'
+  );
+  assert.ok(second);
+
+  assert.ok(
+    new Date(first.endAt).getTime() <= new Date(second.startAt).getTime()
+  );
+});
