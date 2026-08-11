@@ -89,6 +89,8 @@ const {
 
   flushJourneyIfNeeded,
 
+  isJourneyActive,
+
   getWriteGateStats,
 
   resetWriteGateStats,
@@ -312,6 +314,8 @@ async function applyEvents(events, session) {
 
         let exitTransition = null;
 
+        let enterTransition = null;
+
         if (db && locEvent.location) {
 
           const transitions = await evaluateGeofenceTransitions(
@@ -335,6 +339,12 @@ async function applyEvents(events, session) {
             if (t.type === 'geofence_exit') {
 
               exitTransition = t;
+
+            }
+
+            if (t.type === 'geofence_enter') {
+
+              enterTransition = t;
 
             }
 
@@ -364,6 +374,10 @@ async function applyEvents(events, session) {
 
         const now = new Date();
 
+        const journeyTransition = isJourneyActive(locEvent.imei)
+          ? (enterTransition || exitTransition)
+          : (exitTransition || enterTransition);
+
         const journeyResult = trackPointForJourney(
 
           locEvent.imei,
@@ -386,13 +400,13 @@ async function applyEvents(events, session) {
 
           {
 
-            geofenceTransition: Boolean(exitTransition),
+            geofenceTransition: Boolean(journeyTransition),
 
-            transitionType: exitTransition ? 'geofence_exit' : null,
+            transitionType: journeyTransition?.type || null,
 
-            geofenceName: exitTransition?.payload?.geofenceName || null,
+            geofenceName: journeyTransition?.payload?.geofenceName || null,
 
-            geofenceId: exitTransition?.payload?.geofenceId || null,
+            geofenceId: journeyTransition?.payload?.geofenceId || null,
 
           }
 
