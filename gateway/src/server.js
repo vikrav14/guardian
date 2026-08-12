@@ -647,6 +647,7 @@ async function applyEvents(events, session) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
+        const alarmAt = new Date();
         if (alarmType === 'sos') {
           const adaptiveDb = getDb();
           if (adaptiveDb) {
@@ -682,53 +683,38 @@ async function applyEvents(events, session) {
 
 
 
-        const alarmPatch = alarmEvent.location
+        const alarmPatch = {
 
-          ? {
+          ...devicePatch,
 
-              ...devicePatch,
+          online: true,
 
-              online: true,
+          lastHeartbeatAt: alarmAt,
 
-              lastHeartbeatAt: new Date(),
+          ...(alarmEvent.location
+            ? {
+                location: alarmEvent.location,
+                speedKmh: alarmEvent.speedKmh,
+                course: alarmEvent.course,
+                accuracySource: alarmEvent.accuracySource,
+              }
+            : {}),
 
-              location: alarmEvent.location,
+          ...(alarmEvent.batteryPercent != null
+            ? { batteryPercent: alarmEvent.batteryPercent }
+            : {}),
 
-              speedKmh: alarmEvent.speedKmh,
+          lastAlarm: {
 
-              course: alarmEvent.course,
+            type: alarmType,
 
-              accuracySource: alarmEvent.accuracySource,
+            at: alarmAt,
 
-              lastAlarm: {
+            ...alarmRaw,
 
-                type: alarmType,
+          },
 
-                at: new Date(),
-
-                ...alarmRaw,
-
-              },
-
-            }
-
-          : {
-
-              ...devicePatch,
-
-              online: true,
-
-              lastAlarm: {
-
-                type: alarmType,
-
-                at: new Date(),
-
-                ...alarmRaw,
-
-              },
-
-            };
+        };
 
 
 
@@ -779,6 +765,8 @@ async function applyEvents(events, session) {
           severity: alarmEvent.severity || 'warning',
 
           message: `Device alarm: ${alarmType}`,
+
+          eventAt: alarmAt,
 
           payload: alarmPayload,
 

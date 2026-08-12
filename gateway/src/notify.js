@@ -1,5 +1,9 @@
 const config = require('./config');
 const { buildSafetyMessage } = require('./safety-message');
+const {
+  prepareSosWhatsApp,
+  sendPreparedSosWhatsApp,
+} = require('./sos-whatsapp');
 
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
@@ -112,6 +116,16 @@ async function notifyEmergencyContacts(db, imei, alert) {
   const device = await loadDeviceForNotification(db, imei);
   const text = buildMessage(imei, alert, device);
   const results = [];
+  const isSos = String(alert?.type || '').toLowerCase() === 'sos';
+
+  // Cost-smart: compose once per SOS event, then fan the same validated
+  // Meta template out to every emergency contact.
+  const sosPreparationPromise =
+    isSos && config.notifyWhatsApp && contacts.length > 0
+      ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
+          error: err.message,
+        }))
+      : null;
 
   if (contacts.length === 0) {
     console.log(`[notify] no emergency contacts for IMEI ${imei}`);
@@ -128,7 +142,26 @@ async function notifyEmergencyContacts(db, imei, alert) {
 
     const waTarget = c.whatsapp || c.phone;
     if (config.notifyWhatsApp) {
-      entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+      if (isSos && sosPreparationPromise) {
+        const prepared = await sosPreparationPromise;
+        if (prepared?.error) {
+          entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+          entry.channels.whatsapp.fallbackUsed = true;
+          entry.channels.whatsapp.metaPreparationError = prepared.error;
+        } else {
+          entry.channels.whatsapp = await sendPreparedSosWhatsApp(
+            waTarget,
+            prepared,
+            {
+              // Temporary safety net while the Meta templates are being approved.
+              // Once Meta is stable in production, Twilio WhatsApp can be removed.
+              fallbackSend: sendWhatsApp,
+            }
+          );
+        }
+      } else {
+        entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+      }
     } else {
       entry.channels.whatsapp = { ok: false, skipped: true, reason: 'NOTIFY_WHATSAPP=false' };
     }

@@ -34,7 +34,7 @@ function composeResult(overrides = {}) {
   };
 }
 
-test('fresh SOS uses guardian_sos_v1 and View location button payload', () => {
+test('fresh SOS uses guardian_sos_alert and View location button payload', () => {
   const device = deviceWithLocation(
     new Date('2026-08-12T23:58:00.000Z')
   );
@@ -47,7 +47,7 @@ test('fresh SOS uses guardian_sos_v1 and View location button payload', () => {
   });
 
   assert.equal(plan.locationState, 'fresh');
-  assert.equal(plan.templateName, 'guardian_sos_v1');
+  assert.equal(plan.templateName, 'guardian_sos_alert');
   assert.equal(plan.bodyParameters.length, 4);
   assert.match(plan.bodyParameters[2], /Lower Vale/);
   assert.match(plan.bodyParameters[2], /updated 2 mins ago/);
@@ -69,7 +69,7 @@ test('38-minute SOS uses last-known template and explicit age', () => {
   });
 
   assert.equal(plan.locationState, 'last_known');
-  assert.equal(plan.templateName, 'guardian_sos_last_known_v1');
+  assert.equal(plan.templateName, 'guardian_sos_last_location_v1');
   assert.match(plan.bodyParameters[2], /^Last known location:/);
   assert.match(plan.bodyParameters[2], /recorded 38 mins ago/);
   assert.equal(plan.buttonUrlParameter, '-20.1609,57.5012');
@@ -103,7 +103,7 @@ test('no usable coordinates uses no-location template with no button', () => {
   });
 
   assert.equal(plan.locationState, 'unavailable');
-  assert.equal(plan.templateName, 'guardian_sos_no_location_v1');
+  assert.equal(plan.templateName, 'guardian_sos_unavailable_v1');
   assert.equal(plan.bodyParameters[2], 'Current location unavailable');
   assert.equal(plan.buttonUrlParameter, null);
   assert.equal(plan.components.length, 1);

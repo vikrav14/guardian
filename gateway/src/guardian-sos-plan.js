@@ -12,9 +12,9 @@ const {
 } = require('./sos-location-policy');
 
 const SOS_TEMPLATE_NAMES = Object.freeze({
-  fresh: 'guardian_sos_v1',
-  last_known: 'guardian_sos_last_known_v1',
-  unavailable: 'guardian_sos_no_location_v1',
+  fresh: 'guardian_sos_alert',
+  last_known: 'guardian_sos_last_location_v1',
+  unavailable: 'guardian_sos_unavailable_v1',
 });
 
 function mapButtonSuffix(ctx) {
@@ -149,7 +149,7 @@ function buildSosTemplatePlan({
       buttonUrlParameter,
     });
   } else {
-    // guardian_sos_no_location_v1 has no location button.
+    // guardian_sos_unavailable_v1 has no location button.
     components = [bodyParametersToComponent(bodyParameters)];
   }
 
