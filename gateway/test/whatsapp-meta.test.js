@@ -6,6 +6,7 @@ const {
   normalizeMetaRecipient,
   buildMetaTextPayload,
   buildMetaTemplatePayload,
+  buildGuardianSafetyTemplateComponents,
   sendMetaPayload,
 } = require('../src/whatsapp-meta');
 
@@ -111,4 +112,29 @@ test('sendMetaPayload safely skips when access token is missing', async () => {
   } finally {
     config.metaWhatsAppAccessToken = previousToken;
   }
+});
+
+test('Guardian SOS components match Meta body + dynamic URL button contract', () => {
+  const components = buildGuardianSafetyTemplateComponents({
+    bodyParameters: [
+      'Alex triggered an SOS. Please check on Alex now.',
+      '14:32',
+      'Sample location, Mauritius Â· Satellite GPS Â· updated 2 mins ago',
+      'Watch online Â· battery 63%',
+    ],
+    buttonUrlParameter: '-20.1609,57.5012',
+  });
+  assert.equal(components[0].type, 'body');
+  assert.equal(components[0].parameters.length, 4);
+  assert.equal(components[1].type, 'button');
+  assert.equal(components[1].sub_type, 'url');
+  assert.equal(components[1].index, '0');
+  assert.equal(components[1].parameters[0].text, '-20.1609,57.5012');
+});
+
+test('Guardian SOS location template rejects missing button value', () => {
+  assert.throws(() => buildGuardianSafetyTemplateComponents({
+    bodyParameters: ['one','two','three','four'],
+    buttonUrlParameter: null,
+  }), /dynamic View location button parameter/);
 });

@@ -178,8 +178,14 @@ function buildSafetyTemplateParameters(ctx, narration) {
     ctx.eventTime || 'Time unavailable',
     buildLocationTemplateValue(ctx),
     buildWatchTemplateValue(ctx),
-    ctx.mapsUrl || 'Map unavailable',
   ];
+}
+
+function buildMapButtonParameter(ctx) {
+  const prefix = 'https://maps.google.com/?q=';
+  const url = String(ctx?.mapsUrl || '').trim();
+  if (!url || !url.startsWith(prefix)) return null;
+  return url.slice(prefix.length).trim() || null;
 }
 
 function withTimeout(promise, timeoutMs) {
@@ -210,6 +216,7 @@ async function composeSafetyNarration({
       validation: { valid: true, issues: [] },
       context: ctx,
       templateParameters: buildSafetyTemplateParameters(ctx, fallback),
+      buttonUrlParameter: buildMapButtonParameter(ctx),
       usage: null,
       provider: null,
     };
@@ -255,6 +262,7 @@ async function composeSafetyNarration({
       validation,
       context: ctx,
       templateParameters: buildSafetyTemplateParameters(ctx, narration),
+      buttonUrlParameter: buildMapButtonParameter(ctx),
       usage: result?.usage || null,
       provider: result?.provider || null,
     };
@@ -268,6 +276,7 @@ async function composeSafetyNarration({
       validation: { valid: true, issues: [] },
       context: ctx,
       templateParameters: buildSafetyTemplateParameters(ctx, fallback),
+      buttonUrlParameter: buildMapButtonParameter(ctx),
       usage: null,
       provider: null,
     };
@@ -284,5 +293,6 @@ module.exports = {
   buildLocationTemplateValue,
   buildWatchTemplateValue,
   buildSafetyTemplateParameters,
+  buildMapButtonParameter,
   composeSafetyNarration,
 };

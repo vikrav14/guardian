@@ -60,6 +60,31 @@ function buildMetaTemplatePayload(
   };
 }
 
+function buildGuardianSafetyTemplateComponents({
+  bodyParameters,
+  buttonUrlParameter,
+  buttonIndex = 0,
+} = {}) {
+  if (!Array.isArray(bodyParameters) || bodyParameters.length !== 4) {
+    throw new Error('Guardian safety template requires exactly 4 body parameters.');
+  }
+  const buttonValue = String(buttonUrlParameter || '').trim();
+  if (!buttonValue) {
+    throw new Error('Guardian location template requires a dynamic View location button parameter.');
+  }
+  return [
+    {
+      type: 'body',
+      parameters: bodyParameters.map((value) => ({ type: 'text', text: String(value ?? '') })),
+    },
+    {
+      type: 'button',
+      sub_type: 'url',
+      index: String(buttonIndex),
+      parameters: [{ type: 'text', text: buttonValue }],
+    },
+  ];
+}
 function metaMessagesUrl() {
   const phoneNumberId = String(config.metaWhatsAppPhoneNumberId || '').trim();
   const graphVersion = String(config.metaGraphVersion || 'v25.0').trim();
@@ -163,6 +188,7 @@ module.exports = {
   normalizeMetaRecipient,
   buildMetaTextPayload,
   buildMetaTemplatePayload,
+  buildGuardianSafetyTemplateComponents,
   metaMessagesUrl,
   sendMetaPayload,
   sendMetaText,

@@ -5,6 +5,7 @@ const {
   extractProviderText,
   validateNarration,
   buildSafetyTemplateParameters,
+  buildMapButtonParameter,
   composeSafetyNarration,
 } = require('../src/guardian-message-composer');
 
@@ -63,12 +64,12 @@ test('valid human-friendly SOS narration is accepted', async () => {
   assert.equal(result.source, 'llm');
   assert.equal(result.reason, null);
   assert.equal(result.validation.valid, true);
-  assert.equal(result.templateParameters.length, 5);
+  assert.equal(result.templateParameters.length, 4);
   assert.equal(result.templateParameters[0], result.narration);
   assert.equal(result.templateParameters[1], '13:57');
   assert.match(result.templateParameters[2], /Lower Vale/);
   assert.match(result.templateParameters[3], /63%/);
-  assert.match(result.templateParameters[4], /maps\.google/);
+  assert.equal(result.buttonUrlParameter, '-20.0085,57.5901');
 });
 
 test('invented battery causes deterministic fallback', async () => {
@@ -130,7 +131,7 @@ test('provider failure falls back without losing deterministic template facts', 
 
   assert.equal(result.source, 'fallback');
   assert.equal(result.reason, 'provider_error');
-  assert.equal(result.templateParameters.length, 5);
+  assert.equal(result.templateParameters.length, 4);
   assert.match(result.templateParameters[2], /Lower Vale/);
   assert.match(result.templateParameters[3], /Watch online/);
 });
@@ -156,7 +157,7 @@ test('slow provider is bounded by timeout and falls back', async () => {
   assert.equal(result.reason, 'timeout');
 });
 
-test('missing provider uses fallback and still produces exactly five template params', async () => {
+test('missing provider uses fallback with no map button when location is missing', async () => {
   const result = await composeSafetyNarration({
     type: 'fall',
     device: device({ batteryPercent: null, location: null, accuracySource: null }),
@@ -166,10 +167,10 @@ test('missing provider uses fallback and still produces exactly five template pa
   });
 
   assert.equal(result.source, 'fallback');
-  assert.equal(result.templateParameters.length, 5);
+  assert.equal(result.templateParameters.length, 4);
   assert.equal(result.templateParameters[2], 'Location unavailable');
   assert.match(result.templateParameters[3], /battery unavailable/);
-  assert.equal(result.templateParameters[4], 'Map unavailable');
+  assert.equal(result.buttonUrlParameter, null);
 });
 
 test('validator rejects coordinates and links in narration', () => {
@@ -191,7 +192,7 @@ test('validator rejects coordinates and links in narration', () => {
   assert.ok(validation.issues.includes('RAW_LOCATION_DATA_IN_NARRATION'));
 });
 
-test('template parameters always preserve a fixed five-field contract', () => {
+test('template parameters always preserve a fixed four-field body contract', () => {
   const ctx = {
     eventTime: null,
     hasLocation: false,
@@ -211,6 +212,13 @@ test('template parameters always preserve a fixed five-field contract', () => {
     'Time unavailable',
     'Location unavailable',
     'Watch offline · battery unavailable',
-    'Map unavailable',
   ]);
+});
+
+test('map button parameter is only the dynamic URL suffix Meta expects', () => {
+  assert.equal(
+    buildMapButtonParameter({ mapsUrl: 'https://maps.google.com/?q=-20.0085,57.5901' }),
+    '-20.0085,57.5901'
+  );
+  assert.equal(buildMapButtonParameter({ mapsUrl: null }), null);
 });
