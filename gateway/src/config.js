@@ -39,6 +39,8 @@ const config = {
   metaWhatsAppPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || '',
   metaWhatsAppWabaId: process.env.META_WHATSAPP_WABA_ID || '',
   metaGraphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

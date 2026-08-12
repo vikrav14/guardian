@@ -6,6 +6,13 @@ const { getDb } = require('./firestore');
 const { resolveCallerContext } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { sendWhatsApp, normalizeE164 } = require('./notify');
+const { sendMetaText } = require('./whatsapp-meta');
+const {
+  verifyMetaWebhookChallenge,
+  verifyMetaSignature,
+  extractMetaInboundMessages,
+  MetaMessageDeduper,
+} = require('./meta-webhook');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
@@ -44,13 +51,18 @@ console.log('[http] Metrics module loaded:', typeof metrics.trackIntent === 'fun
 
 let alerting = null;
 
-function readBody(req) {
+function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+async function readBody(req) {
+  const raw = await readRawBody(req);
+  return raw.toString('utf8');
 }
 
 function sendJson(res, status, obj) {
@@ -82,6 +94,11 @@ function parseBoolParam(value, defaultValue) {
 let llmProvider = null;
 let auditLog = null;
 let idempotencyStore = null;
+
+// Meta retries can deliver the same wamid more than once. Claim the stable
+// message ID before LLM/tool work so duplicate webhook deliveries never create
+// duplicate Guardian replies or duplicate Meta charges.
+const metaInboundDeduper = new MetaMessageDeduper();
 
 function initializeLlmStack() {
   try {
@@ -210,8 +227,8 @@ async function handleChat({ from, text }) {
 
       const reply =
         ctx.uid
-          ? `Emergency detected. Dispatching to ${ctx.displayName}'s emergency contacts now.`
-          : "This number isn't registered. Contact emergency services directly or ask your guardian to register you.";
+          ? 'I detected an emergency-related message. Guardian does not dispatch emergency services from WhatsApp chat. Use the SOS button on the watch or in the Guardian app to trigger the Guardian SOS flow, and contact emergency services directly if immediate help is needed.'
+          : "This number isn't registered. If immediate help is needed, contact emergency services directly. Ask your guardian to register this number before using Guardian WhatsApp.";
 
       idempotencyStore.store(requestId, reply);
       await auditLog.recordResponse({
@@ -692,6 +709,109 @@ function startHttpServer() {
         return;
       }
 
+      if (req.method === 'GET' && url.pathname === '/webhooks/meta/whatsapp') {
+        const verification = verifyMetaWebhookChallenge({
+          mode: url.searchParams.get('hub.mode'),
+          token: url.searchParams.get('hub.verify_token'),
+          challenge: url.searchParams.get('hub.challenge'),
+          expectedVerifyToken: config.metaWhatsAppVerifyToken,
+        });
+
+        res.writeHead(verification.status, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        });
+        res.end(verification.ok ? verification.challenge : verification.reason);
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/webhooks/meta/whatsapp') {
+        const raw = await readRawBody(req);
+        const signature = req.headers['x-hub-signature-256'];
+
+        if (!config.metaAppSecret) {
+          console.error('[meta-webhook] META_APP_SECRET missing; refusing webhook');
+          res.writeHead(503, { 'Content-Type': 'text/plain' });
+          res.end('META_APP_SECRET missing');
+          return;
+        }
+
+        if (!verifyMetaSignature(raw, signature, config.metaAppSecret)) {
+          console.warn('[meta-webhook] invalid X-Hub-Signature-256');
+          res.writeHead(401, { 'Content-Type': 'text/plain' });
+          res.end('invalid signature');
+          return;
+        }
+
+        let payload;
+        try {
+          payload = JSON.parse(raw.toString('utf8'));
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'text/plain' });
+          res.end('invalid json');
+          return;
+        }
+
+        const inboundMessages = extractMetaInboundMessages(
+          payload,
+          config.metaWhatsAppPhoneNumberId
+        );
+
+        let shouldRetry = false;
+
+        for (const message of inboundMessages) {
+          if (!metaInboundDeduper.claim(message.id)) {
+            console.log(`[meta-webhook] duplicate ignored id=${message.id}`);
+            continue;
+          }
+
+          // Media/unsupported payloads are acknowledged but intentionally do
+          // not generate a paid Guardian reply in V1.
+          if (!message.text) {
+            metaInboundDeduper.markDone(message.id);
+            console.log(
+              `[meta-webhook] unsupported inbound type=${message.type || 'unknown'} ignored`
+            );
+            continue;
+          }
+
+          incrementMetric('whatsappInbound');
+
+          try {
+            const { reply } = await handleChat({
+              from: normalizeE164(message.from),
+              text: message.text,
+            });
+
+            const wa = await sendMetaText(message.from, reply);
+
+            if (wa.ok) {
+              metaInboundDeduper.markDone(message.id);
+              console.log(
+                `[meta-webhook] replied id=${message.id} outbound=${wa.messageId || 'unknown'}`
+              );
+            } else {
+              metaInboundDeduper.release(message.id);
+              shouldRetry = true;
+              console.error('[meta-webhook] Meta reply send failed', wa);
+            }
+          } catch (err) {
+            metaInboundDeduper.release(message.id);
+            shouldRetry = true;
+            console.error(
+              `[meta-webhook] processing failed id=${message.id}`,
+              err.message
+            );
+          }
+        }
+
+        // If an outbound reply failed, return 500. Meta may retry the webhook;
+        // messages already sent are retained as done and will not send twice.
+        res.writeHead(shouldRetry ? 500 : 200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+        });
+        res.end(shouldRetry ? 'RETRY' : 'EVENT_RECEIVED');
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/webhooks/twilio/whatsapp') {
         const raw = await readBody(req);
         const params = new URLSearchParams(raw);
@@ -731,7 +851,8 @@ function startHttpServer() {
 
   server.listen(config.httpPort, config.host, () => {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
-    console.log('[guardian-http] POST /webhooks/twilio/whatsapp');
+    console.log('[guardian-http] GET/POST /webhooks/meta/whatsapp');
+    console.log('[guardian-http] POST /webhooks/twilio/whatsapp (temporary legacy)');
     console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
     console.log('[guardian-http] GET  /ops/fleet');
