@@ -50,7 +50,8 @@ const { extractTimePeriod } = require('./language-understanding');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
-const { TOOL_DEFINITIONS, runTool } = require('./assistant/tools');
+const { TOOL_DEFINITIONS, runTool, executeConfirmedAction } = require('./assistant/tools');
+const { handleActionReply } = require('./safe-actions');
 const fs = require('fs');
 const path = require('path');
 const metrics = require('./metrics');
@@ -219,6 +220,23 @@ async function handleChat({ from, text }) {
       status: authStatus,
       reason: authReason,
     });
+
+    const actionReply = await handleActionReply({
+      db,
+      ctx,
+      text,
+      execute: (action) => executeConfirmedAction(db, ctx, action),
+    });
+    if (actionReply?.handled) {
+      idempotencyStore.store(requestId, actionReply.reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: actionReply.reply.length,
+        fallbackReason: `safe_action_${actionReply.status || 'no_pending'}`,
+      });
+      return { ctx, reply: actionReply.reply, deterministic: true, actionStatus: actionReply.status };
+    }
 
     const deterministic = conversationController.deterministicReply(ctx.from, text);
     if (deterministic) {
@@ -538,6 +556,11 @@ async function handleChat({ from, text }) {
     if (batteryToolResult && !batteryToolResult.error) {
       reply = formatBatteryReply(batteryToolResult);
     }
+
+    const stagedCommand = lastToolResults.get('send_device_command');
+    const stagedReminder = lastToolResults.get('schedule_reminder');
+    if (stagedCommand?.status === 'awaiting_confirmation') reply = stagedCommand.reply;
+    if (stagedReminder?.status === 'awaiting_confirmation') reply = stagedReminder.reply;
 
     // [9] Validate response (catch hallucinations)
     // Apply intent-specific validation

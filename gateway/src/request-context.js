@@ -191,8 +191,9 @@ If tools fail, say you could not verify location.`;
     return `${base}
 You can send SMS commands to the device: ring (sound/vibrate alert), locate (GPS ping).
 Ask which device only if multiple are linked and the user didn't specify.
-If user specified a device name, send the command immediately without asking for confirmation again.
-Report when command was sent and estimated execution time (~30s).
+Always call the tool to stage the action, then repeat its exact confirmation request.
+Never claim the command was sent until a later explicit confirmation executes it.
+Voice monitoring is disabled by safety policy.
 If device is offline, warn that command may not be received immediately.
 If tool fails, say you could not send the command.`;
   }
@@ -200,10 +201,10 @@ If tool fails, say you could not send the command.`;
   if (intent.type === 'REMINDER_REQUEST') {
     return `${base}
 You can schedule pill/medication reminders for the wearer.
-If user gave all details (medicine, time, frequency), call schedule_reminder immediately.
+If user gave all details (medicine, time, frequency), call schedule_reminder to stage confirmation.
 Otherwise ask for: what medicine, what time, and which days.
 Always use 24-hour time format (e.g., "14:30" not "2:30 PM").
-Report when the reminder was set and when it will trigger.
+Never claim the reminder was set until the caller explicitly confirms it.
 If tool fails, say you could not schedule the reminder.`;
   }
 

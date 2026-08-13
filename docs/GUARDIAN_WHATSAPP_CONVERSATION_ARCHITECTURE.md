@@ -1,8 +1,8 @@
 # Guardian WhatsApp Conversation Architecture
 
-**Status:** Engineering contract — Phase 1 foundation  
-**Last updated:** 14 August 2026  
-**Applies to:** Guardian Family and Guardian Care WhatsApp features  
+**Status:** Engineering contract — Phases 1–3 implemented
+**Last updated:** 14 August 2026
+**Applies to:** Guardian Family and Guardian Care WhatsApp features
 **Does not apply to:** Guardian Essential (Rs 199/month renewal), which has no WhatsApp capability
 
 ## 1. Purpose
@@ -147,6 +147,18 @@ Reads and writes must be treated differently. Any action capable of changing dev
 7. Return only the recorded result: queued, acknowledged, failed, or timed out.
 
 The confirmation record must include action type, target IMEI, canonical parameters, initiating caller, creation time, expiry, and a nonce/idempotency key. A bare `yes` without a live matching confirmation cannot trigger an action.
+
+### Implemented confirmation contract
+
+- Pending actions are durable Firestore records in `pending_actions`; they are never held only in LLM or process memory.
+- The record is bound to the authenticated caller UID, canonical target IMEI, action type, canonical parameters, creation time, ten-minute expiry, and idempotency key.
+- A newer action from the same caller supersedes the older pending action. The user must confirm the latest exact summary.
+- Only an explicit `YES`, `CONFIRM`, `OUI`, or `WI` confirms. `CANCEL`, `NO`, `NON`, `STOP`, and `NEVER MIND` cancel. Courtesy words such as `ok`, `thanks`, and `sure` do not execute anything.
+- Confirmation atomically claims `awaiting_confirmation` as `executing`. Repeated confirmations cannot claim the same action twice.
+- Permission is checked twice: when staging and immediately before execution. Removing the device from `linkedImeis` invalidates the pending action.
+- Durable outcomes use `queued`, `acknowledged`, `failed`, `timed_out`, `cancelled`, `expired`, or `superseded`. A queued command is never described as completed or acknowledged.
+- Voice monitoring remains disabled. It cannot be staged or executed through WhatsApp.
+- SOS and emergency-service actions are outside this state machine and cannot be inferred from ordinary chat confirmation.
 
 Suggested policy:
 

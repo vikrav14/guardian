@@ -310,6 +310,11 @@ function validateDeviceCommandResponse(response, toolResult) {
   const issues = [];
   const text = String(response || '');
 
+  if (toolResult?.status === 'awaiting_confirmation') {
+    const valid = /confirm/i.test(text) && /\bYES\b/i.test(text) && /\bCANCEL\b/i.test(text);
+    return { valid, issues: valid ? [] : ['ACTION_CONFIRMATION_MISSING'] };
+  }
+
   // Check: command type confirmed (ring or locate)
   if (toolResult && toolResult.commandType) {
     if (!new RegExp(`\\b${toolResult.commandType}\\b`, 'i').test(text)) {
@@ -361,6 +366,11 @@ function validateDeviceCommandResponse(response, toolResult) {
 function validateReminderResponse(response, toolResult) {
   const issues = [];
   const text = String(response || '');
+
+  if (toolResult?.status === 'awaiting_confirmation') {
+    const valid = /confirm/i.test(text) && /\bYES\b/i.test(text) && /\bCANCEL\b/i.test(text);
+    return { valid, issues: valid ? [] : ['ACTION_CONFIRMATION_MISSING'] };
+  }
 
   // For reminder responses, tool result may not be available (it's from location tool, not reminder tool).
   // So we're more lenient and just check for schedule confirmation + reasonable structure.

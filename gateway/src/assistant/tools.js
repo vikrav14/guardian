@@ -1,7 +1,7 @@
 const { normalizeE164, sendWhatsApp } = require('../notify');
 const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
-const { getPendingAction, removePendingAction } = require('../pending-actions');
+const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
 
@@ -509,13 +509,39 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
 
 async function sendDeviceCommand(db, ctx, { command_type: commandType, device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  const cmd = String(commandType || '').toLowerCase().trim();
+  if (['listen', 'monitor'].includes(cmd)) {
+    return { error: 'Voice monitoring is disabled by Guardian safety policy.' };
+  }
+  if (!['ring', 'locate', 'vibrate', 'alarm'].includes(cmd)) {
+    return { error: `Unknown command: ${commandType}. Supported: ring, locate, vibrate, alarm.` };
+  }
+  if (!db || !ctx.uid) return { error: 'Authenticated device command service unavailable.' };
+  const pending = await storePendingAction(db, ctx.uid, {
+    targetImei: device.imei,
+    wearerName: deviceLabel(device),
+    actionType: cmd,
+    parameters: {},
+  });
+  return {
+    name: deviceLabel(device),
+    commandType: cmd,
+    status: ACTION_STATUS.AWAITING,
+    pendingActionId: pending.id,
+    reply: `Confirm: ${cmd} ${deviceLabel(device)}'s watch now? Reply YES to continue or CANCEL.`,
+  };
+}
+
+async function executeDeviceCommand(db, ctx, { command_type: commandType, imei } = {}) {
+  const device = findDevice(ctx.devices, imei);
   if (!device) {
     return { error: 'No matching watch.' };
   }
 
   const cmd = String(commandType || '').toLowerCase().trim();
-  if (!['ring', 'locate', 'vibrate', 'alarm', 'listen', 'monitor'].includes(cmd)) {
-    return { error: `Unknown command: ${commandType}. Supported: ring, locate, vibrate, alarm, listen, monitor.` };
+  if (!['ring', 'locate', 'vibrate', 'alarm'].includes(cmd)) {
+    return { error: `Command is not permitted: ${commandType}.` };
   }
 
   if (!db) {
@@ -529,8 +555,6 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
       locate: 'ring_to_find',
       vibrate: 'ring_to_find',
       alarm: 'ring_to_find',
-      listen: 'voice_monitor',
-      monitor: 'voice_monitor',
     };
     const actualType = typeMap[cmd] || cmd;
 
@@ -542,7 +566,7 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
     const now = new Date();
     await commandRef.set({
       type: cmd,
-      status: 'sent',
+      status: 'queued',
       createdAt: now,
       createdBy: ctx.uid || 'unknown',
       sentVia: result.channel,
@@ -568,7 +592,7 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
       imei: device.imei,
       commandType: cmd,
       commandId: commandRef.id,
-      status: 'sent',
+      status: ACTION_STATUS.QUEUED,
       sentAt: now.toISOString(),
       online: device.online === true,
       channel: result.channel,
@@ -587,6 +611,30 @@ async function sendDeviceCommand(db, ctx, { command_type: commandType, device_na
 
 async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: scheduledTime, frequency = 'daily', device_name: deviceName, imei } = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  const medicine = String(medicineName || '').trim();
+  const time = String(scheduledTime || '').trim();
+  if (!medicine) return { error: 'medicine_name is required.' };
+  if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(time)) return { error: `Invalid time format: ${time}. Use HH:MM.` };
+  if (!db || !ctx.uid) return { error: 'Authenticated reminder service unavailable.' };
+  const normalizedTime = time.padStart(5, '0');
+  const normalizedFrequency = String(frequency || 'daily').trim().toLowerCase();
+  const pending = await storePendingAction(db, ctx.uid, {
+    targetImei: device.imei,
+    wearerName: deviceLabel(device),
+    actionType: 'schedule_reminder',
+    parameters: { medicineName: medicine, time: normalizedTime, frequency: normalizedFrequency },
+  });
+  return {
+    name: deviceLabel(device),
+    status: ACTION_STATUS.AWAITING,
+    pendingActionId: pending.id,
+    reply: `Confirm: set ${medicine} at ${normalizedTime} (${normalizedFrequency}) for ${deviceLabel(device)}? Reply YES to continue or CANCEL.`,
+  };
+}
+
+async function executeReminder(db, ctx, { medicine_name: medicineName, time: scheduledTime, frequency = 'daily', imei } = {}) {
+  const device = findDevice(ctx.devices, imei);
   if (!device) {
     return { error: 'No matching watch.' };
   }
@@ -635,6 +683,20 @@ async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: sc
   };
 }
 
+async function executeConfirmedAction(db, ctx, action) {
+  if (!action || action.callerUid !== ctx.uid) return { error: 'Caller does not own this action.' };
+  if (!(ctx.linkedImeis || []).includes(action.targetImei)) return { error: 'Target is no longer authorised.' };
+  if (action.actionType === 'schedule_reminder') {
+    return executeReminder(db, ctx, {
+      imei: action.targetImei,
+      medicine_name: action.parameters.medicineName,
+      time: action.parameters.time,
+      frequency: action.parameters.frequency,
+    });
+  }
+  return executeDeviceCommand(db, ctx, { imei: action.targetImei, command_type: action.actionType });
+}
+
 async function checkPendingAction(db, ctx) {
   if (!db || !ctx.uid) {
     return { pendingAction: null };
@@ -648,8 +710,8 @@ async function checkPendingAction(db, ctx) {
   return {
     pendingAction: {
       id: pending.id,
-      type: pending.action.type,
-      device: pending.action.device,
+      type: pending.actionType,
+      device: pending.wearerName,
       createdAtSeconds: Math.floor(pending.createdAt.getTime() / 1000),
     },
   };
@@ -834,5 +896,6 @@ module.exports = {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  executeConfirmedAction,
   isAtGeofence,
 };
