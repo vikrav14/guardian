@@ -41,3 +41,6 @@ gateway/poll-*.log
 
 # Flutter CLI logs (apps/mobile/*.log already covered by *.log)
 apps/mobile/flutter_*.log
+
+# Gateway runtime audit logs
+gateway/logs/audit-*.jsonl
