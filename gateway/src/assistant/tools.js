@@ -244,13 +244,14 @@ async function getBattery(ctx, { device_name: deviceName, imei } = {}) {
 
 async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, imei } = {}) {
   const device = deviceName || imei ? findDevice(ctx.devices, imei || deviceName) : null;
-  let query = db.collection('alerts').orderBy('createdAt', 'desc').limit(Math.min(20, Number(limit) || 5));
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 5));
+  let query = db.collection('alerts').orderBy('createdAt', 'desc').limit(safeLimit);
   if (device) {
     query = db
       .collection('alerts')
       .where('imei', '==', device.imei)
       .orderBy('createdAt', 'desc')
-      .limit(Math.min(20, Number(limit) || 5));
+      .limit(safeLimit);
   }
   try {
     const snap = await query.get();
@@ -270,7 +271,7 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
     };
   } catch (err) {
     // Missing composite index — fall back to recent global filter in memory
-    const snap = await db.collection('alerts').orderBy('createdAt', 'desc').limit(30).get();
+    const snap = await db.collection('alerts').orderBy('createdAt', 'desc').limit(Math.max(100, safeLimit)).get();
     let alerts = snap.docs.map((doc) => {
       const d = doc.data() || {};
       return {
@@ -286,7 +287,7 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
     if (device) {
       alerts = alerts.filter((a) => a.imei === device.imei);
     }
-    return { alerts: alerts.slice(0, Number(limit) || 5), note: err.message };
+    return { alerts: alerts.slice(0, safeLimit), note: err.message };
   }
 }
 
@@ -337,6 +338,62 @@ async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, 
     name: deviceLabel(device),
     journeys,
     omittedLowQualityCount,
+  };
+}
+
+function timestampMs(value) {
+  if (!value) return null;
+  const date = value?.toDate?.() || (value instanceof Date ? value : new Date(value));
+  const time = date?.getTime?.();
+  return Number.isFinite(time) ? time : null;
+}
+
+async function getDailySummary(
+  db,
+  ctx,
+  { start_at: startAt, end_at: endAt, period_label: periodLabel = 'today', device_name: deviceName, imei } = {},
+) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  const startMs = timestampMs(startAt);
+  const endMs = timestampMs(endAt);
+  if (startMs == null || endMs == null || endMs <= startMs) {
+    return { error: 'A valid summary period is required.' };
+  }
+
+  const [journeyResult, alertResult] = await Promise.all([
+    getRecentJourneys(db, ctx, { imei: device.imei, limit: 10 }),
+    getRecentAlerts(db, ctx, { imei: device.imei, limit: 100 }),
+  ]);
+  const journeys = (journeyResult.journeys || []).filter((journey) => {
+    const time = timestampMs(journey.startAt);
+    return time != null && time >= startMs && time < endMs;
+  });
+  const alerts = (alertResult.alerts || []).filter((alert) => {
+    const time = timestampMs(alert.createdAt);
+    return time != null && time >= startMs && time < endMs;
+  });
+  const criticalAlerts = alerts.filter((alert) => ['sos', 'fall'].includes(String(alert.type || '').toLowerCase()));
+  const safeZoneEvents = alerts.filter((alert) => /geofence|safe_zone/i.test(String(alert.type || '')));
+  const freshness = batteryFreshness(device);
+
+  return {
+    name: deviceLabel(device),
+    periodLabel,
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(endMs).toISOString(),
+    journeyCount: journeys.length,
+    distanceKm: journeys.reduce((sum, journey) => sum + (Number(journey.distanceKm) || 0), 0),
+    omittedLowQualityCount: journeyResult.omittedLowQualityCount || 0,
+    alertCount: alerts.length,
+    criticalAlertCount: criticalAlerts.length,
+    safeZoneEventCount: safeZoneEvents.length,
+    alertCoverageComplete: (alertResult.alerts || []).length < 100,
+    recentAlertTypes: alerts.slice(0, 3).map((alert) => alert.type).filter(Boolean),
+    batteryPercent: device.batteryPercent ?? null,
+    batteryAgeSeconds: freshness.ageSeconds,
+    batteryStale: freshness.stale,
+    online: freshness.online,
   };
 }
 
@@ -655,6 +712,22 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'get_daily_summary',
+    description: 'Get a deterministic factual daily summary for one authorised watch.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        start_at: { type: 'string' },
+        end_at: { type: 'string' },
+        period_label: { type: 'string' },
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+      },
+      required: ['start_at', 'end_at'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_device_intelligence',
     description:
       'Get gateway rule-based insights for a watch (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
@@ -733,6 +806,8 @@ async function runTool(db, ctx, name, input) {
       return getRecentAlerts(db, ctx, input || {});
     case 'get_recent_journeys':
       return getRecentJourneys(db, ctx, input || {});
+    case 'get_daily_summary':
+      return getDailySummary(db, ctx, input || {});
     case 'get_device_intelligence':
       return getDeviceIntelligence(ctx, input || {});
     case 'is_at_geofence':
@@ -758,5 +833,6 @@ module.exports = {
   deviceLabel,
   getDeviceIntelligence,
   getRecentJourneys,
+  getDailySummary,
   isAtGeofence,
 };

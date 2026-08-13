@@ -10,16 +10,18 @@
  *   "Hello" → {type: 'UNCLEAR', urgency: 1, confidence: 0.0}
  */
 
+const { normalizeLanguage } = require('./language-understanding');
+
 const KEYWORDS = {
-  CRITICAL: ['sos', 'emergency', 'urgent', 'danger', 'hospital', 'police'],
-  LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
-  DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
-  RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
-  JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings'],
-  DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
+  CRITICAL: ['sos', 'emergency', 'urgent', 'danger', 'hospital', 'police', 'urgence', 'sekour'],
+  LOCATION: ['where', 'locate', 'localise', 'at', 'location', 'position', 'find', 'track', 'ou', 'kote', 'kot'],
+  DEVICE_STATUS: ['battery', 'batterie', 'batri', 'signal', 'online', 'check', 'status', 'connected', 'connectee', 'heartbeat'],
+  RECENT_ALERTS: ['alert', 'alerts', 'alerte', 'alertes', 'warning', 'warnings', 'fall', 'geofence', 'event', 'incident', 'incidents', 'trigger'],
+  JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings', 'trajet', 'voyage', 'sortie'],
+  DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'sonner', 'sone', 'trigger', 'activate', 'send command'],
   VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
-  REMINDER: ['reminder', 'reminders', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
-  SAFE_ZONE: ['home', 'school', 'work', 'zone'],
+  REMINDER: ['reminder', 'reminders', 'medicine', 'medsinn', 'pill', 'medication', 'medicament', 'rappel', 'rapel', 'remember', 'remind', 'remind me', 'schedule', 'programme'],
+  SAFE_ZONE: ['home', 'school', 'work', 'zone', 'maison', 'ecole', 'lakaz'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],
 };
 
@@ -35,7 +37,7 @@ const KEYWORDS = {
  * }}
  */
 function classifyIntent(text) {
-  const lower = String(text || '').toLowerCase().trim();
+  const lower = normalizeLanguage(text);
 
   if (!lower) {
     return {
@@ -57,9 +59,29 @@ function classifyIntent(text) {
     };
   }
 
+  // Whole-day factual summary. Check before alerts/journeys because these
+  // phrases intentionally aggregate several Guardian fact types.
+  const dailySummaryMatch =
+    /\b(daily (?:summary|recap)|today'?s summary|yesterday summary)\b/.test(lower) ||
+    /\bhow (?:was|active was)\b.+\b(day|today|yesterday)\b/.test(lower) ||
+    /\bwhat (?:happened|did)\b.+\b(today|yesterday|do)\b/.test(lower) ||
+    /\banything unusual (?:today|yesterday)\b/.test(lower) ||
+    /\b(resume|journee|aujourd'hui|inhabituel)\b.*\b(journee|aujourd'hui|hier|inhabituel)\b/.test(lower) ||
+    /\bcomment\b.+\bjournee\b/.test(lower) ||
+    /\bquoi de neuf\b.+\baujourd'hui\b/.test(lower) ||
+    /\b(kouma lazourne|ki finn arive|rezime pou|pa normal zordi|lazourne yer)\b/.test(lower);
+  if (dailySummaryMatch) {
+    return {
+      type: 'DAILY_SUMMARY',
+      urgency: 2,
+      confidence: 0.90,
+      matchedKeywords: ['daily_summary'],
+    };
+  }
+
   // Safe zone (before general location, since "at home" is more specific)
   const zoneMatch = findKeywordMatch(lower, KEYWORDS.SAFE_ZONE);
-  if (zoneMatch.found && /\bat\b/.test(lower)) {
+  if (zoneMatch.found && /\b(at|lakaz)\b|\best a\b/.test(lower)) {
     return {
       type: 'SAFE_ZONE_CHECK',
       urgency: 2,
@@ -115,7 +137,9 @@ function classifyIntent(text) {
   // Journey history (before location because phrases such as "where did Jesh go"
   // describe past movement rather than the latest position).
   const journeyMatch = findKeywordMatch(lower, KEYWORDS.JOURNEY);
-  const journeyPhraseMatch = /\b(where did|where has)\b.+\b(go|been)\b/.test(lower);
+  const journeyPhraseMatch =
+    /\b(where did|where has)\b.+\b(go|been)\b/.test(lower) ||
+    /\b(ou|kot|kote)\b.+\b(alle|ale|finn ale)\b/.test(lower);
   if (journeyMatch.found || journeyPhraseMatch) {
     return {
       type: 'JOURNEY_QUERY',

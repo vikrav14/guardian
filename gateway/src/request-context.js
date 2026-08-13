@@ -97,6 +97,10 @@ function selectAllowedTools(intent) {
     tools.push('get_recent_journeys');
   }
 
+  if (intent.type === 'DAILY_SUMMARY') {
+    tools.push('get_daily_summary');
+  }
+
   // Device command tools for ring/locate commands (Phase 3c)
   if (intent.type === 'DEVICE_COMMAND') {
     tools.push('send_device_command');

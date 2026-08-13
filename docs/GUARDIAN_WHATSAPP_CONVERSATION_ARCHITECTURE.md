@@ -99,6 +99,7 @@ Example:
 | `RECENT_ALERTS` | wearer | authorised recent alert records | B/C |
 | `SAFE_ZONE_CHECK` | wearer | current zone state or configured zones | B |
 | `JOURNEY_QUERY` | wearer | accepted journey records | B/C |
+| `DAILY_SUMMARY` | wearer plus today/yesterday | aggregate journeys, alerts, safe-zone events and qualified watch status | B |
 | `REMINDER_REQUEST` | wearer plus medicine/time/frequency | create or explain reminder | A/B |
 | `DEVICE_COMMAND` | wearer plus command | controlled write | A/B |
 | `VOICE_MONITOR` | wearer | high-risk command | A/B; explicit policy required |
@@ -239,6 +240,14 @@ No conversation feature ships on happy-path tests alone.
 5. **Adversarial tests:** prompt injection, wearer-name collision, attempts to access unlinked devices, confirmation replay, duplicate webhook, and unsafe emergency wording.
 6. **Conversation transcript tests:** real multi-turn examples such as `Location?` → `Jesh`, `Battery?`, `Thanks`, `Alerts?`, and `What reminders can I set?`.
 7. **Evaluation set:** anonymised production-like utterances in English, French, and Mauritian usage, versioned with expected intent, target, policy result, and factual claims.
+
+### Guardian language corpus
+
+`gateway/test/fixtures/guardian-utterances.json` is the versioned language contract. It contains representative English, French and Mauritian Creole phrases, WhatsApp shorthand, accents, relationships, ambiguity and out-of-scope examples. Every entry declares its expected deterministic intent and optional time period.
+
+The corpus is development-time intelligence: AI may help expand and review it, but production classification runs locally without a model call. New production transcript failures must be generalised into reusable language rules and added to the corpus with neighbouring positive and negative examples. Exact phrase lists alone are insufficient; rules must preserve conflict priority so courtesy language cannot swallow a location request and a daily summary cannot be mistaken for a single alert or journey query.
+
+Initial supported language concepts include location, status/battery, alerts, journeys, daily summaries, safe zones, reminders, commands, critical messages and out-of-scope requests. Corpus coverage and per-intent accuracy are release metrics.
 
 ### Release gates
 

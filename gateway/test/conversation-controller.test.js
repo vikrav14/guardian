@@ -60,6 +60,25 @@ test('single linked wearer is attached to a journey query', () => {
   assert.equal(result.wearer.imei, 'A');
 });
 
+test('single linked wearer is attached to a daily summary', () => {
+  const controller = new ConversationController();
+  const result = controller.resolveWearer('+2301', "how was Jesh's day?", 'DAILY_SUMMARY', [devices[0]]);
+  assert.equal(result.wearer.imei, 'A');
+});
+
+test('standalone wearer gets a focused deterministic question', () => {
+  const controller = new ConversationController();
+  const result = controller.standaloneWearerReply('+2301', 'Jesh', devices);
+  assert.equal(result.reason, 'wearer_without_intent');
+  assert.match(result.reply, /location, battery, alerts, journeys, or today’s summary/);
+  assert.equal(controller.getState('+2301').lastWearerImei, 'A');
+});
+
+test('standalone wearer detection does not swallow a complete request', () => {
+  const controller = new ConversationController();
+  assert.equal(controller.standaloneWearerReply('+2301', 'Where is Jesh?', devices), null);
+});
+
 test('single linked wearer is attached to an underspecified location request', () => {
   const controller = new ConversationController();
   const result = controller.resolveWearer('+2301', 'location?', 'LOCATION_REQUEST', [devices[0]]);

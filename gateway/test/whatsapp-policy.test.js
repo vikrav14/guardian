@@ -13,6 +13,7 @@ test('functional Guardian intents may use the assistant', () => {
     'DEVICE_STATUS',
     'RECENT_ALERTS',
     'JOURNEY_QUERY',
+    'DAILY_SUMMARY',
     'DEVICE_COMMAND',
     'VOICE_MONITOR',
     'REMINDER_REQUEST',

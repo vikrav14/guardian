@@ -47,6 +47,7 @@ function needsWearer(intentType) {
     'RECENT_ALERTS',
     'SAFE_ZONE_CHECK',
     'JOURNEY_QUERY',
+    'DAILY_SUMMARY',
   ].includes(intentType);
 }
 
@@ -58,6 +59,7 @@ function expandWithWearer(text, intentType, wearer) {
   if (intentType === 'RECENT_ALERTS') return `Recent alerts for ${name}?`;
   if (intentType === 'SAFE_ZONE_CHECK') return `${text} for ${name}`;
   if (intentType === 'JOURNEY_QUERY') return `Show ${name}'s recent journeys`;
+  if (intentType === 'DAILY_SUMMARY') return `${text} for ${name}`;
   return text;
 }
 
@@ -136,6 +138,18 @@ class ConversationController {
     return {
       text: expandWithWearer(text, state.pendingIntent, wearer),
       intentType: state.pendingIntent,
+      wearer,
+    };
+  }
+
+  standaloneWearerReply(from, text, devices) {
+    const wearer = findMentionedDevice(devices, text);
+    if (!wearer || normalized(text) !== normalized(deviceName(wearer))) return null;
+    this.setState(from, { lastWearerImei: wearer.imei });
+    const name = deviceName(wearer);
+    return {
+      reply: `What would you like to know about ${name}—location, battery, alerts, journeys, or today’s summary?`,
+      reason: 'wearer_without_intent',
       wearer,
     };
   }

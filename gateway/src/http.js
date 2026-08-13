@@ -45,6 +45,8 @@ const {
 } = require('./response-validator');
 const { formatBatteryReply } = require('./battery-freshness');
 const { formatJourneyReply } = require('./journey-reply');
+const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { extractTimePeriod } = require('./language-understanding');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
@@ -243,6 +245,25 @@ async function handleChat({ from, text }) {
       intent = classifyIntent(effectiveText);
     }
 
+    if (!pending) {
+      const standaloneWearer = conversationController.standaloneWearerReply(
+        ctx.from,
+        effectiveText,
+        ctx.devices,
+      );
+      if (standaloneWearer) {
+        metrics.trackFallback(standaloneWearer.reason, { route: 'deterministic' });
+        idempotencyStore.store(requestId, standaloneWearer.reply);
+        await auditLog.recordResponse({
+          requestId,
+          destination: 'whatsapp',
+          replyLength: standaloneWearer.reply.length,
+          fallbackReason: standaloneWearer.reason,
+        });
+        return { ctx, reply: standaloneWearer.reply, deterministic: true };
+      }
+    }
+
     const wearerResolution = conversationController.resolveWearer(
       ctx.from,
       effectiveText,
@@ -348,6 +369,31 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: journeyResult?.error ? 'journey_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'DAILY_SUMMARY') {
+      const period = extractTimePeriod(effectiveText);
+      let summaryResult;
+      try {
+        summaryResult = await runTool(db, ctx, 'get_daily_summary', {
+          imei: wearerResolution.wearer?.imei,
+          start_at: period.startAt.toISOString(),
+          end_at: period.endAt.toISOString(),
+          period_label: period.label,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'daily_summary', error: err });
+        summaryResult = { error: err.message };
+      }
+      const reply = formatDailySummaryReply(summaryResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: summaryResult?.error ? 'daily_summary_failed' : null,
       });
       return { ctx, reply, deterministic: true };
     }

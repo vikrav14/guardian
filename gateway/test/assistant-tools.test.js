@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { deviceLabel, getDeviceIntelligence, getRecentJourneys } = require('../src/assistant/tools');
+const { deviceLabel, getDeviceIntelligence, getRecentJourneys, getDailySummary } = require('../src/assistant/tools');
 
 test('deviceLabel prefers nickname, then relationship', () => {
   assert.equal(
@@ -101,4 +101,65 @@ test('getRecentJourneys omits stationary drift and backfills genuine journeys', 
   );
   assert.equal(result.omittedLowQualityCount, 1);
   assert.deepEqual(result.journeys.map((journey) => journey.id), ['real']);
+});
+
+test('getDailySummary aggregates only the requested authorised wearer and period', async () => {
+  const chain = (docs) => ({
+    where() { return this; },
+    orderBy() { return this; },
+    limit() { return this; },
+    async get() { return { docs }; },
+  });
+  const journeyDocs = [{
+    id: 'today-trip',
+    data: () => ({
+      startAt: new Date('2026-08-14T05:00:00Z'),
+      endAt: new Date('2026-08-14T05:30:00Z'),
+      distanceKm: 4.2,
+      pointCount: 20,
+    }),
+  }];
+  const alertDocs = [{
+    id: 'home-enter',
+    data: () => ({
+      imei: 'A',
+      type: 'geofence_enter',
+      createdAt: { toDate: () => new Date('2026-08-14T06:00:00Z') },
+    }),
+  }];
+  const db = {
+    collection(name) {
+      if (name === 'alerts') return chain(alertDocs);
+      assert.equal(name, 'devices');
+      return {
+        doc(imei) {
+          assert.equal(imei, 'A');
+          return { collection: () => chain(journeyDocs) };
+        },
+      };
+    },
+  };
+  const result = await getDailySummary(
+    db,
+    {
+      devices: [{
+        imei: 'A',
+        nickname: 'Jesh',
+        batteryPercent: 70,
+        lastHeartbeatAt: new Date(),
+      }],
+    },
+    {
+      imei: 'A',
+      start_at: '2026-08-13T20:00:00Z',
+      end_at: '2026-08-14T20:00:00Z',
+      period_label: 'today',
+    },
+  );
+  assert.equal(result.name, 'Jesh');
+  assert.equal(result.journeyCount, 1);
+  assert.equal(result.distanceKm, 4.2);
+  assert.equal(result.safeZoneEventCount, 1);
+  assert.equal(result.criticalAlertCount, 0);
+  assert.equal(result.batteryPercent, 70);
 });
