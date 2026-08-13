@@ -289,6 +289,42 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
   }
 }
 
+async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, imei } = {}) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) {
+    return { error: 'No matching watch.' };
+  }
+
+  const safeLimit = Math.min(10, Math.max(1, Number(limit) || 3));
+  const snap = await db
+    .collection('devices')
+    .doc(device.imei)
+    .collection('journeys')
+    .orderBy('endAt', 'desc')
+    .limit(safeLimit)
+    .get();
+
+  return {
+    name: deviceLabel(device),
+    journeys: snap.docs.map((doc) => {
+      const journey = doc.data() || {};
+      return {
+        id: doc.id,
+        startAt: journey.startAt?.toDate?.()?.toISOString?.() || journey.startAt || null,
+        endAt: journey.endAt?.toDate?.()?.toISOString?.() || journey.endAt || null,
+        distanceKm: Number.isFinite(Number(journey.distanceKm))
+          ? Number(journey.distanceKm)
+          : null,
+        closeReason: journey.closeReason || null,
+        originGeofenceName: journey.originGeofenceName || null,
+        stopCount: Number.isFinite(Number(journey.stopCount))
+          ? Number(journey.stopCount)
+          : Array.isArray(journey.stops) ? journey.stops.length : 0,
+      };
+    }),
+  };
+}
+
 function listDevices(ctx) {
   return {
     devices: ctx.devices.map((d) => ({
@@ -591,6 +627,19 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'get_recent_journeys',
+    description: 'Get recent confirmed journeys for one authorised watch.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+        limit: { type: 'number' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_device_intelligence',
     description:
       'Get gateway rule-based insights for a watch (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
@@ -667,6 +716,8 @@ async function runTool(db, ctx, name, input) {
       return getBattery(ctx, input || {});
     case 'get_recent_alerts':
       return getRecentAlerts(db, ctx, input || {});
+    case 'get_recent_journeys':
+      return getRecentJourneys(db, ctx, input || {});
     case 'get_device_intelligence':
       return getDeviceIntelligence(ctx, input || {});
     case 'is_at_geofence':
@@ -691,5 +742,6 @@ module.exports = {
   runTool,
   deviceLabel,
   getDeviceIntelligence,
+  getRecentJourneys,
   isAtGeofence,
 };

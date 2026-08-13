@@ -109,7 +109,11 @@ class ConversationController {
     if (/^what reminders? can i set$/i.test(normalized(text)) || exactMatch(text, ['reminder', 'reminders', 'reminder help'])) {
       return { reply: REPLIES.reminderHelp, reason: 'reminder_help' };
     }
-    if (exactMatch(text, ['journey', 'journeys', 'trip', 'trips', 'journey help'])) {
+    if (
+      exactMatch(text, ['journey help', 'journeys help', 'trip help']) ||
+      /^(?:what|which) (?:journey|trip) (?:information|questions) can i (?:ask|get)$/i.test(normalized(text)) ||
+      /^what can i ask about (?:journeys|trips)$/i.test(normalized(text))
+    ) {
       return { reply: REPLIES.journeyHelp, reason: 'journey_help' };
     }
     return null;

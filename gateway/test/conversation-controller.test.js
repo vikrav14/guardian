@@ -20,9 +20,22 @@ test('reminder help explains the required details without LLM', () => {
   assert.match(result.reply, /24-hour/i);
 });
 
-test('journey help no longer falls into generic scope reply', () => {
+test('journey query is not intercepted as help', () => {
   const controller = new ConversationController();
-  assert.equal(controller.deterministicReply('+2301', 'journey?').reason, 'journey_help');
+  assert.equal(controller.deterministicReply('+2301', 'journey?'), null);
+  assert.equal(controller.deterministicReply('+2301', 'recent journey'), null);
+});
+
+test('explicit journey help remains deterministic', () => {
+  const controller = new ConversationController();
+  assert.equal(controller.deterministicReply('+2301', 'journey help').reason, 'journey_help');
+});
+
+test('single linked wearer is attached to a journey query', () => {
+  const controller = new ConversationController();
+  const result = controller.resolveWearer('+2301', 'recent journey', 'JOURNEY_QUERY', [devices[0]]);
+  assert.equal(result.text, "Show Jesh's recent journeys");
+  assert.equal(result.wearer.imei, 'A');
 });
 
 test('single linked wearer is attached to an underspecified location request', () => {

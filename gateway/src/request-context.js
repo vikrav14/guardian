@@ -93,6 +93,10 @@ function selectAllowedTools(intent) {
     tools.push('get_recent_alerts');
   }
 
+  if (intent.type === 'JOURNEY_QUERY') {
+    tools.push('get_recent_journeys');
+  }
+
   // Device command tools for ring/locate commands (Phase 3c)
   if (intent.type === 'DEVICE_COMMAND') {
     tools.push('send_device_command');
@@ -161,6 +165,13 @@ If no alerts in past 24 hours, say "No recent alerts".
 Sort by most recent first.
 Mention only confirmed alerts, never speculate.
 If tools fail, say you could not reach alert history.`;
+  }
+
+  if (intent.type === 'JOURNEY_QUERY') {
+    return `${base}
+Use get_recent_journeys for the resolved wearer.
+Report only confirmed stored journeys and their recorded times and distance.
+Never infer a destination, purpose, route, arrival, or departure that is absent from the tool result.`;
   }
 
   if (intent.type === 'SAFE_ZONE_CHECK') {

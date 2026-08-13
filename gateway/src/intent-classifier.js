@@ -15,6 +15,7 @@ const KEYWORDS = {
   LOCATION: ['where', 'locate', 'at', 'location', 'position', 'find', 'track'],
   DEVICE_STATUS: ['battery', 'signal', 'online', 'check', 'status', 'connected', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
+  JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings'],
   DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
   VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
   REMINDER: ['reminder', 'reminders', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
@@ -108,6 +109,19 @@ function classifyIntent(text) {
       urgency: 5,
       confidence: 0.90,
       matchedKeywords: alertMatch.keywords,
+    };
+  }
+
+  // Journey history (before location because phrases such as "where did Jesh go"
+  // describe past movement rather than the latest position).
+  const journeyMatch = findKeywordMatch(lower, KEYWORDS.JOURNEY);
+  const journeyPhraseMatch = /\b(where did|where has)\b.+\b(go|been)\b/.test(lower);
+  if (journeyMatch.found || journeyPhraseMatch) {
+    return {
+      type: 'JOURNEY_QUERY',
+      urgency: 2,
+      confidence: journeyMatch.found ? 0.90 : 0.85,
+      matchedKeywords: journeyMatch.keywords,
     };
   }
 

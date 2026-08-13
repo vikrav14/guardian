@@ -51,6 +51,20 @@ test('classifyIntent: reminder/medication', () => {
   assert.equal(result.type, 'REMINDER_REQUEST');
 });
 
+test('classifyIntent: journey history queries', () => {
+  const cases = [
+    'journey?',
+    'recent journey',
+    'latest trip',
+    'show journeys today',
+    'previous outings',
+    'where did Jesh go?',
+  ];
+  for (const text of cases) {
+    assert.equal(classifyIntent(text).type, 'JOURNEY_QUERY', `Failed for: ${text}`);
+  }
+});
+
 test('classifyIntent: safe zone', () => {
   const result = classifyIntent('Is Dad at home?');
   assert.equal(result.type, 'SAFE_ZONE_CHECK');

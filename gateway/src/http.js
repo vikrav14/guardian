@@ -44,6 +44,7 @@ const {
   validateReminderResponse,
 } = require('./response-validator');
 const { formatBatteryReply } = require('./battery-freshness');
+const { formatJourneyReply } = require('./journey-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
@@ -324,6 +325,31 @@ async function handleChat({ from, text }) {
         fallbackReason,
       });
       return { ctx, reply, accessRestricted: true };
+    }
+
+    // Journey history is a typed factual read. Query it directly and render it
+    // deterministically so common journey questions incur no LLM call and can
+    // never invent a route, destination, or purpose.
+    if (intent.type === 'JOURNEY_QUERY') {
+      let journeyResult;
+      try {
+        journeyResult = await runTool(db, ctx, 'get_recent_journeys', {
+          imei: wearerResolution.wearer?.imei,
+          limit: 3,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'journey_query', error: err });
+        journeyResult = { error: err.message };
+      }
+      const reply = formatJourneyReply(journeyResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: journeyResult?.error ? 'journey_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
     }
 
     // [7] Build minimal context packet (not full device doc)

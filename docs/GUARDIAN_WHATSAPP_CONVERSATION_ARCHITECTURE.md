@@ -256,6 +256,7 @@ No conversation feature ships on happy-path tests alone.
 - deterministic replies for greetings, acknowledgements, help, reminder help, journey help, and cancellation;
 - pending wearer clarification and single-wearer/last-wearer resolution;
 - plural reminder recognition;
+- deterministic journey-history classification, authorised Firestore reads, and factual rendering for `journey?`, `recent journey`, trips, outings, and equivalent past-movement questions;
 - unit tests and existing gateway regression suite.
 
 ### Phase 2 — Typed fact renderers
