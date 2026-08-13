@@ -124,6 +124,18 @@ function validateBatteryResponse(response, toolResult) {
     }
   }
 
+  if (toolResult && toolResult.batteryPercent != null && !/last reported/i.test(text)) {
+    issues.push('BATTERY_READING_NOT_QUALIFIED');
+  }
+
+  if (toolResult?.stale && !/(stale|may have changed|offline)/i.test(text)) {
+    issues.push('STALE_BATTERY_NOT_STATED');
+  }
+
+  if (toolResult?.online === false && !/(offline|not connected|may have changed)/i.test(text)) {
+    issues.push('OFFLINE_NOT_STATED');
+  }
+
   return {
     valid: issues.length === 0,
     issues,

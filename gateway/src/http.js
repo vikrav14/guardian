@@ -36,12 +36,14 @@ const { classifyIntent, isCritical } = require('./intent-classifier');
 const { decideInboundRoute } = require('./whatsapp-policy');
 const {
   validateLocationResponse,
+  validateBatteryResponse,
   validateDeviceStatusResponse,
   validateAlertsResponse,
   validateSafeZoneResponse,
   validateDeviceCommandResponse,
   validateReminderResponse,
 } = require('./response-validator');
+const { formatBatteryReply } = require('./battery-freshness');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
@@ -300,7 +302,7 @@ async function handleChat({ from, text }) {
     let reply = null;
     let providerUsage = null;
     let toolsUsed = [];
-    let lastLocationToolResult = null; // Capture location result for validation (outer scope)
+    const lastToolResults = new Map();
 
     if (!llmProvider) {
       // Fallback: use existing Claude integration
@@ -365,10 +367,7 @@ async function handleChat({ from, text }) {
             toolsUsed.push(toolUse.name);
             try {
               const result = await runTool(db, ctx, toolUse.name, toolUse.input || {});
-              // Capture location result for validation
-              if (toolUse.name === 'get_last_location') {
-                lastLocationToolResult = result;
-              }
+              lastToolResults.set(toolUse.name, result);
               toolResults.push({
                 type: 'tool_result',
                 tool_use_id: toolUse.id,
@@ -415,26 +414,41 @@ async function handleChat({ from, text }) {
       }
     }
 
+    // Battery facts are safety-relevant and simple enough to render
+    // deterministically. The LLM selects the correct watch/tool, but it cannot
+    // omit or reinterpret the reading's age and connectivity state.
+    const batteryToolResult = lastToolResults.get('get_battery');
+    if (batteryToolResult && !batteryToolResult.error) {
+      reply = formatBatteryReply(batteryToolResult);
+    }
+
     // [9] Validate response (catch hallucinations)
     // Apply intent-specific validation
     if (reply) {
       let validation = { valid: true, issues: [] };
 
-      if (intent.type === 'LOCATION_REQUEST' && lastLocationToolResult) {
-        validation = validateLocationResponse(reply, lastLocationToolResult, { medicalClaimsAllowed: false });
-      } else if (intent.type === 'DEVICE_STATUS' && lastLocationToolResult) {
-        validation = validateDeviceStatusResponse(reply, lastLocationToolResult);
+      const locationToolResult = lastToolResults.get('get_last_location');
+      const alertsToolResult = lastToolResults.get('get_recent_alerts');
+      const safeZoneToolResult = lastToolResults.get('is_at_geofence');
+      const commandToolResult = lastToolResults.get('send_device_command');
+      const reminderToolResult = lastToolResults.get('schedule_reminder');
+
+      if (intent.type === 'LOCATION_REQUEST' && locationToolResult) {
+        validation = validateLocationResponse(reply, locationToolResult, { medicalClaimsAllowed: false });
+      } else if (intent.type === 'DEVICE_STATUS' && batteryToolResult) {
+        validation = validateBatteryResponse(reply, batteryToolResult);
+      } else if (intent.type === 'DEVICE_STATUS' && locationToolResult) {
+        validation = validateDeviceStatusResponse(reply, locationToolResult);
       } else if (intent.type === 'RECENT_ALERTS') {
-        // Validation for alerts (uses lastLocationToolResult but checks alert format)
-        validation = validateAlertsResponse(reply, lastLocationToolResult);
-      } else if (intent.type === 'SAFE_ZONE_CHECK' && lastLocationToolResult) {
-        validation = validateSafeZoneResponse(reply, lastLocationToolResult);
+        validation = validateAlertsResponse(reply, alertsToolResult);
+      } else if (intent.type === 'SAFE_ZONE_CHECK' && safeZoneToolResult) {
+        validation = validateSafeZoneResponse(reply, safeZoneToolResult);
       } else if (intent.type === 'DEVICE_COMMAND') {
-        validation = validateDeviceCommandResponse(reply, lastLocationToolResult);
+        validation = validateDeviceCommandResponse(reply, commandToolResult);
       } else if (intent.type === 'VOICE_MONITOR') {
-        validation = validateDeviceCommandResponse(reply, lastLocationToolResult);
+        validation = validateDeviceCommandResponse(reply, commandToolResult);
       } else if (intent.type === 'REMINDER_REQUEST') {
-        validation = validateReminderResponse(reply, lastLocationToolResult);
+        validation = validateReminderResponse(reply, reminderToolResult);
       }
 
       await auditLog.recordValidation({ requestId, valid: validation.valid, issues: validation.issues });

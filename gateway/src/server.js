@@ -482,7 +482,10 @@ async function applyEvents(events, session) {
 
               ...(locEvent.batteryPercent != null
 
-                ? { batteryPercent: locEvent.batteryPercent }
+                ? {
+                    batteryPercent: locEvent.batteryPercent,
+                    batteryUpdatedAt: new Date(),
+                  }
 
                 : {}),
 
@@ -587,7 +590,12 @@ async function applyEvents(events, session) {
 
               lastHeartbeatAt: new Date(),
 
-              batteryPercent: event.batteryPercent,
+              ...(event.batteryPercent != null
+                ? {
+                    batteryPercent: event.batteryPercent,
+                    batteryUpdatedAt: new Date(),
+                  }
+                : {}),
 
               ...(event.accuracySource ? { accuracySource: event.accuracySource } : {}),
 
@@ -701,7 +709,10 @@ async function applyEvents(events, session) {
             : {}),
 
           ...(alarmEvent.batteryPercent != null
-            ? { batteryPercent: alarmEvent.batteryPercent }
+            ? {
+                batteryPercent: alarmEvent.batteryPercent,
+                batteryUpdatedAt: alarmAt,
+              }
             : {}),
 
           lastAlarm: {
@@ -989,4 +1000,3 @@ server.listen(config.port, config.host, () => {
   logNgrokHint(config.port).catch(() => {});
 
 });
-

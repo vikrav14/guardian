@@ -2,6 +2,7 @@ const { normalizeE164, sendWhatsApp } = require('../notify');
 const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { getPendingAction, removePendingAction } = require('../pending-actions');
+const { batteryFreshness } = require('../battery-freshness');
 
 const CALLER_ROLES = Object.freeze({
   GUARDIAN: 'guardian',
@@ -228,13 +229,15 @@ async function getBattery(ctx, { device_name: deviceName, imei } = {}) {
   if (!device) {
     return { error: 'No matching watch.' };
   }
+  const freshness = batteryFreshness(device);
   return {
     name: deviceLabel(device),
     imei: device.imei,
     batteryPercent: device.batteryPercent ?? null,
-    online: device.online === true,
+    online: freshness.online,
     lastHeartbeatAt:
       device.lastHeartbeatAt?.toDate?.()?.toISOString?.() || device.lastHeartbeatAt || null,
+    ...freshness,
   };
 }
 
