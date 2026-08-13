@@ -3,7 +3,10 @@ const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
-const { resolveCallerContext } = require('./assistant/tools');
+const {
+  resolveCallerContext,
+  restrictedCallerReply,
+} = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { sendWhatsApp, normalizeE164 } = require('./notify');
 const { sendMetaText } = require('./whatsapp-meta');
@@ -186,14 +189,28 @@ async function handleChat({ from, text }) {
 
     // [3] Resolve caller context (authentication)
     const ctx = await resolveCallerContext(db, from);
-    console.log(`[assistant] ${requestId} from=${ctx.from} uid=${ctx.uid} devices=${ctx.linkedImeis.length}`);
+    console.log(
+      `[assistant] ${requestId} from=${ctx.from} uid=${ctx.uid} role=${ctx.callerRole} devices=${ctx.linkedImeis.length}`
+    );
+
+    const authStatus = ctx.uid
+      ? 'authenticated'
+      : ctx.callerRole === 'emergency_contact'
+        ? 'restricted'
+        : 'not_registered';
+
+    const authReason = ctx.uid
+      ? 'registered_user'
+      : ctx.callerRole === 'emergency_contact'
+        ? 'emergency_contact_notification_only'
+        : 'no_matching_user';
 
     await auditLog.recordAuth({
       requestId,
       uid: ctx.uid,
       linkedImeis: ctx.linkedImeis,
-      status: ctx.uid ? 'authenticated' : 'not_registered',
-      reason: ctx.uid ? 'user_found' : 'no_matching_user',
+      status: authStatus,
+      reason: authReason,
     });
 
     // [4] Classify intent (deterministic, no LLM)
@@ -225,10 +242,9 @@ async function handleChat({ from, text }) {
       metrics.increment('critical_events', 1);
       console.log(`[metrics] CRITICAL EVENT TRACKED - type=${intent.type}, total_critical=${metrics.getCounter('critical_events')}`);
 
-      const reply =
-        ctx.uid
-          ? 'I detected an emergency-related message. Guardian does not dispatch emergency services from WhatsApp chat. Use the SOS button on the watch or in the Guardian app to trigger the Guardian SOS flow, and contact emergency services directly if immediate help is needed.'
-          : "This number isn't registered. If immediate help is needed, contact emergency services directly. Ask your guardian to register this number before using Guardian WhatsApp.";
+      const reply = ctx.uid
+        ? 'I detected an emergency-related message. Guardian does not dispatch emergency services from WhatsApp chat. Use the SOS button on the watch or in the Guardian app to trigger the Guardian SOS flow, and contact emergency services directly if immediate help is needed.'
+        : restrictedCallerReply(ctx, { critical: true });
 
       idempotencyStore.store(requestId, reply);
       await auditLog.recordResponse({
@@ -241,20 +257,26 @@ async function handleChat({ from, text }) {
       return { ctx, reply };
     }
 
-    // [6] Check authentication for non-critical requests
+    // [6] Check authentication for non-critical requests.
+    // Emergency contacts are notification recipients only; being listed as an
+    // emergency contact must never inherit the owner's private linkedImeis.
     if (!ctx.uid) {
-      metrics.trackFallback('not_registered', { intentType: intent.type });
+      const fallbackReason =
+        ctx.callerRole === 'emergency_contact'
+          ? 'emergency_contact_restricted'
+          : 'not_registered';
 
-      const reply =
-        "This number isn't registered with any Guardian family yet. Ask your guardian to add you as a contact in the app first.";
+      metrics.trackFallback(fallbackReason, { intentType: intent.type });
+
+      const reply = restrictedCallerReply(ctx);
       idempotencyStore.store(requestId, reply);
       await auditLog.recordResponse({
         requestId,
         destination: 'whatsapp',
         replyLength: reply.length,
-        fallbackReason: 'not_registered',
+        fallbackReason,
       });
-      return { ctx, reply };
+      return { ctx, reply, accessRestricted: true };
     }
 
     // [7] Build minimal context packet (not full device doc)
@@ -262,7 +284,12 @@ async function handleChat({ from, text }) {
     const device = ctx.devices[0] || null;
     const contextPacket = buildContextPacket({
       requestId,
-      requester: { uid: ctx.uid, displayName: ctx.displayName, role: 'guardian', linkedImeis: ctx.linkedImeis },
+      requester: {
+        uid: ctx.uid,
+        displayName: ctx.displayName,
+        role: ctx.callerRole || 'guardian',
+        linkedImeis: ctx.linkedImeis,
+      },
       wearer,
       device,
       intent,

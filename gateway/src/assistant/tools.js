@@ -3,53 +3,160 @@ const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { getPendingAction, removePendingAction } = require('../pending-actions');
 
+const CALLER_ROLES = Object.freeze({
+  GUARDIAN: 'guardian',
+  ADMIN: 'admin',
+  EMERGENCY_CONTACT: 'emergency_contact',
+  UNKNOWN: 'unknown',
+});
+
+function permissionsForCallerRole(role) {
+  const registeredGuardian =
+    role === CALLER_ROLES.GUARDIAN || role === CALLER_ROLES.ADMIN;
+
+  return Object.freeze({
+    canUseWhatsAppAssistant: registeredGuardian,
+    canReadDeviceStatus: registeredGuardian,
+    canReadLocation: registeredGuardian,
+    canReadAlerts: registeredGuardian,
+    canReadSafeZones: registeredGuardian,
+    canControlDevice: registeredGuardian,
+    canScheduleReminders: registeredGuardian,
+    canReceiveSafetyAlerts: role === CALLER_ROLES.EMERGENCY_CONTACT,
+  });
+}
+
+function normalizePhoneList(values) {
+  return values
+    .filter(Boolean)
+    .map((value) => normalizeE164(String(value)))
+    .filter(Boolean);
+}
+
+function restrictedCallerReply(ctx, { critical = false } = {}) {
+  if (ctx?.callerRole === CALLER_ROLES.EMERGENCY_CONTACT) {
+    if (critical) {
+      return 'You are registered as an emergency contact. Guardian WhatsApp chat does not trigger an SOS or contact emergency services on your behalf. Use the Guardian watch/app SOS flow for Guardian alerts, and contact emergency services directly if immediate help is needed.';
+    }
+
+    return 'You are registered as an emergency contact, but emergency-contact status does not grant access to private location, watch status, history, safe zones or device controls. A Guardian account must explicitly share access with you in the app. You can still receive configured Guardian safety alerts such as SOS or fall notifications.';
+  }
+
+  if (critical) {
+    return "This number isn't registered. If immediate help is needed, contact emergency services directly. Ask your guardian to register this number before using Guardian WhatsApp.";
+  }
+
+  return "This number isn't registered with a Guardian account. Ask your guardian to add or share access with you in the app first.";
+}
+
 /**
- * Resolve which guardian + devices a WhatsApp sender may ask about.
+ * Resolve which registered Guardian account a WhatsApp sender is allowed to use.
+ *
+ * Security rule:
+ * - A direct users/{uid}.phone or .whatsapp match authenticates that user.
+ * - That user gets ONLY their own users/{uid}.linkedImeis.
+ * - Emergency-contact membership is notification-only and never inherits the
+ *   guardian owner's linkedImeis.
+ * - Direct registered-user matches always win over emergency-contact matches.
  */
 async function resolveCallerContext(db, fromRaw) {
   const from = normalizeE164(String(fromRaw || '').replace(/^whatsapp:/i, ''));
-  if (!db) {
-    return { from, uid: null, displayName: null, linkedImeis: [], devices: [] };
-  }
+
+  const unknownContext = {
+    from,
+    uid: null,
+    accountUid: null,
+    ownerUid: null,
+    displayName: null,
+    callerRole: CALLER_ROLES.UNKNOWN,
+    accessSource: 'none',
+    permissions: permissionsForCallerRole(CALLER_ROLES.UNKNOWN),
+    linkedImeis: [],
+    devices: [],
+  };
+
+  if (!db) return unknownContext;
 
   const usersSnap = await db.collection('users').get();
-  let matched = null;
+  const users = usersSnap.docs.map((doc) => ({
+    uid: doc.id,
+    ...(doc.data() || {}),
+  }));
 
-  for (const doc of usersSnap.docs) {
-    const data = doc.data() || {};
-    const phones = [
-      data.phone,
-      data.whatsapp,
-      ...(Array.isArray(data.emergencyContacts)
-        ? data.emergencyContacts.flatMap((c) => [c?.phone, c?.whatsapp])
-        : []),
-    ]
-      .filter(Boolean)
-      .map((p) => normalizeE164(String(p)));
-
-    if (phones.includes(from)) {
-      matched = { uid: doc.id, ...data };
+  // Direct registered-user matches win over emergency-contact matches.
+  let matchedUser = null;
+  for (const user of users) {
+    const directPhones = normalizePhoneList([user.phone, user.whatsapp]);
+    if (directPhones.includes(from)) {
+      matchedUser = user;
       break;
     }
   }
 
-  const linkedImeis = Array.isArray(matched?.linkedImeis) ? matched.linkedImeis : [];
+  if (matchedUser) {
+    const callerRole =
+      String(matchedUser.role || '').toLowerCase() === 'admin'
+        ? CALLER_ROLES.ADMIN
+        : CALLER_ROLES.GUARDIAN;
 
-  const devices = [];
-  for (const imei of linkedImeis) {
-    const snap = await db.collection('devices').doc(imei).get();
-    if (snap.exists) {
-      devices.push({ imei, ...snap.data() });
+    const linkedImeis = Array.isArray(matchedUser.linkedImeis)
+      ? [...new Set(matchedUser.linkedImeis.filter(Boolean).map(String))]
+      : [];
+
+    const devices = [];
+    for (const imei of linkedImeis) {
+      const snap = await db.collection('devices').doc(imei).get();
+      if (snap.exists) {
+        devices.push({ imei, ...snap.data() });
+      }
+    }
+
+    return {
+      from,
+      uid: matchedUser.uid,
+      accountUid: matchedUser.uid,
+      ownerUid: null,
+      displayName: matchedUser.displayName || matchedUser.email || null,
+      callerRole,
+      accessSource: 'registered_user',
+      permissions: permissionsForCallerRole(callerRole),
+      linkedImeis,
+      devices,
+    };
+  }
+
+  // Emergency contacts are recognised but get zero private query/control access.
+  for (const owner of users) {
+    const contacts = Array.isArray(owner.emergencyContacts)
+      ? owner.emergencyContacts
+      : [];
+
+    for (const contact of contacts) {
+      if (!contact) continue;
+
+      const contactPhones = normalizePhoneList([
+        contact.phone,
+        contact.whatsapp,
+      ]);
+
+      if (!contactPhones.includes(from)) continue;
+
+      return {
+        from,
+        uid: null,
+        accountUid: null,
+        ownerUid: owner.uid,
+        displayName: contact.name || 'Emergency contact',
+        callerRole: CALLER_ROLES.EMERGENCY_CONTACT,
+        accessSource: 'emergency_contact',
+        permissions: permissionsForCallerRole(CALLER_ROLES.EMERGENCY_CONTACT),
+        linkedImeis: [],
+        devices: [],
+      };
     }
   }
 
-  return {
-    from,
-    uid: matched?.uid || null,
-    displayName: matched?.displayName || matched?.email || null,
-    linkedImeis,
-    devices,
-  };
+  return unknownContext;
 }
 
 function deviceLabel(device) {
@@ -573,6 +680,9 @@ async function runTool(db, ctx, name, input) {
 }
 
 module.exports = {
+  CALLER_ROLES,
+  permissionsForCallerRole,
+  restrictedCallerReply,
   resolveCallerContext,
   TOOL_DEFINITIONS,
   runTool,
