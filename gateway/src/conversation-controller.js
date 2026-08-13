@@ -89,7 +89,11 @@ class ConversationController {
   }
 
   deterministicReply(from, text) {
-    if (exactMatch(text, ['thanks', 'thank you', 'thx', 'ty', 'merci', 'mersi'])) {
+    const courtesyText = normalized(text);
+    const courtesyReply =
+      /^(?:(?:ok|okay|alright|all right)[, ]+)?(?:thanks|thank you|thx|ty|merci|mersi)(?:[, ]+guardian)?$/.test(courtesyText) ||
+      /^(?:thanks|thank you|thx|ty|merci|mersi)[, ]+(?:ok|okay|guardian)$/.test(courtesyText);
+    if (courtesyReply) {
       return { reply: REPLIES.acknowledgement, reason: 'courtesy_acknowledgement' };
     }
     if (exactMatch(text, ['hi', 'hello', 'hey', 'bonjour', 'bonsoir', 'salut'])) {

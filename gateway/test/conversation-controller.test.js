@@ -12,6 +12,28 @@ test('courtesy reply is deterministic and concise', () => {
   assert.equal(controller.deterministicReply('+2301', 'thx').reply, "You're welcome.");
 });
 
+test('combined courtesy phrases remain deterministic', () => {
+  const controller = new ConversationController();
+  for (const text of [
+    'ok thx',
+    'okay thanks',
+    'alright, thank you',
+    'thanks Guardian',
+    'merci Guardian',
+    'thx ok',
+  ]) {
+    const result = controller.deterministicReply('+2301', text);
+    assert.equal(result?.reason, 'courtesy_acknowledgement', text);
+    assert.equal(result?.reply, "You're welcome.", text);
+  }
+});
+
+test('courtesy words do not swallow a functional request', () => {
+  const controller = new ConversationController();
+  assert.equal(controller.deterministicReply('+2301', 'thanks, where is Jesh?'), null);
+  assert.equal(controller.deterministicReply('+2301', 'ok battery?'), null);
+});
+
 test('reminder help explains the required details without LLM', () => {
   const controller = new ConversationController();
   const result = controller.deterministicReply('+2301', 'What reminders can I set?');

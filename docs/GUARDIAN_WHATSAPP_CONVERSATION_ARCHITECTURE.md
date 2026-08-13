@@ -254,6 +254,7 @@ No conversation feature ships on happy-path tests alone.
 ### Phase 1 — Conversation foundation
 
 - deterministic replies for greetings, acknowledgements, help, reminder help, journey help, and cancellation;
+- combined acknowledgements such as `ok thx` remain deterministic but never swallow a functional request containing courtesy language;
 - pending wearer clarification and single-wearer/last-wearer resolution;
 - plural reminder recognition;
 - deterministic journey-history classification, authorised Firestore reads, and factual rendering for `journey?`, `recent journey`, trips, outings, and equivalent past-movement questions;
