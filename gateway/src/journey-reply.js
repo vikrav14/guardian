@@ -55,6 +55,9 @@ function formatJourneyReply(result) {
       `${index + 1}. ${formatDateTime(journey.startAt)}${details ? ` — ${details}` : ''}${origin}`,
     );
   });
+  if (Number(result.omittedLowQualityCount) > 0) {
+    lines.push('_Low-quality movement records were omitted._');
+  }
   return lines.join('\n');
 }
 

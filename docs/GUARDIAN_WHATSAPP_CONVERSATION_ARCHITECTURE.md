@@ -257,6 +257,7 @@ No conversation feature ships on happy-path tests alone.
 - pending wearer clarification and single-wearer/last-wearer resolution;
 - plural reminder recognition;
 - deterministic journey-history classification, authorised Firestore reads, and factual rendering for `journey?`, `recent journey`, trips, outings, and equivalent past-movement questions;
+- suppress journey records diagnosed as likely stationary GPS drift while retaining the underlying data for audit and diagnostics;
 - unit tests and existing gateway regression suite.
 
 ### Phase 2 — Typed fact renderers

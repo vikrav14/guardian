@@ -28,3 +28,16 @@ test('journey reply is explicit when no confirmed journey exists', () => {
 test('journey reply fails without claiming journey data', () => {
   assert.doesNotMatch(formatJourneyReply({ error: 'offline' }), /\bkm\b/i);
 });
+
+test('journey reply discloses omitted low-quality movement records', () => {
+  const reply = formatJourneyReply({
+    name: 'Jesh',
+    omittedLowQualityCount: 1,
+    journeys: [{
+      startAt: '2026-08-13T15:00:00.000Z',
+      endAt: '2026-08-13T15:30:00.000Z',
+      distanceKm: 2.4,
+    }],
+  });
+  assert.match(reply, /Low-quality movement records were omitted/);
+});

@@ -3,6 +3,7 @@ const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { getPendingAction, removePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
+const { analyzeJourney } = require('../journey-diagnostics');
 
 const CALLER_ROLES = Object.freeze({
   GUARDIAN: 'guardian',
@@ -296,32 +297,46 @@ async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, 
   }
 
   const safeLimit = Math.min(10, Math.max(1, Number(limit) || 3));
+  // Read beyond the requested display count so a noisy recent record does not
+  // hide an older genuine journey.
+  const scanLimit = Math.min(30, Math.max(safeLimit, safeLimit * 5));
   const snap = await db
     .collection('devices')
     .doc(device.imei)
     .collection('journeys')
     .orderBy('endAt', 'desc')
-    .limit(safeLimit)
+    .limit(scanLimit)
     .get();
+
+  let omittedLowQualityCount = 0;
+  const journeys = [];
+  for (const doc of snap.docs) {
+    const journey = doc.data() || {};
+    const analysis = analyzeJourney({ id: doc.id, ...journey });
+    if (analysis.assessment === 'likely_stationary_drift') {
+      omittedLowQualityCount += 1;
+      continue;
+    }
+    journeys.push({
+      id: doc.id,
+      startAt: journey.startAt?.toDate?.()?.toISOString?.() || journey.startAt || null,
+      endAt: journey.endAt?.toDate?.()?.toISOString?.() || journey.endAt || null,
+      distanceKm: Number.isFinite(Number(journey.distanceKm))
+        ? Number(journey.distanceKm)
+        : null,
+      closeReason: journey.closeReason || null,
+      originGeofenceName: journey.originGeofenceName || null,
+      stopCount: Number.isFinite(Number(journey.stopCount))
+        ? Number(journey.stopCount)
+        : Array.isArray(journey.stops) ? journey.stops.length : 0,
+    });
+    if (journeys.length >= safeLimit) break;
+  }
 
   return {
     name: deviceLabel(device),
-    journeys: snap.docs.map((doc) => {
-      const journey = doc.data() || {};
-      return {
-        id: doc.id,
-        startAt: journey.startAt?.toDate?.()?.toISOString?.() || journey.startAt || null,
-        endAt: journey.endAt?.toDate?.()?.toISOString?.() || journey.endAt || null,
-        distanceKm: Number.isFinite(Number(journey.distanceKm))
-          ? Number(journey.distanceKm)
-          : null,
-        closeReason: journey.closeReason || null,
-        originGeofenceName: journey.originGeofenceName || null,
-        stopCount: Number.isFinite(Number(journey.stopCount))
-          ? Number(journey.stopCount)
-          : Array.isArray(journey.stops) ? journey.stops.length : 0,
-      };
-    }),
+    journeys,
+    omittedLowQualityCount,
   };
 }
 

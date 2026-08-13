@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { deviceLabel, getDeviceIntelligence } = require('../src/assistant/tools');
+const { deviceLabel, getDeviceIntelligence, getRecentJourneys } = require('../src/assistant/tools');
 
 test('deviceLabel prefers nickname, then relationship', () => {
   assert.equal(
@@ -51,4 +51,54 @@ test('getDeviceIntelligence returns topInsight facts only', async () => {
   assert.equal(result.topInsight.id, 'low_battery');
   assert.deepEqual(result.topInsight.facts, ['Battery at 18%']);
   assert.equal(result.insightCount, 1);
+});
+
+test('getRecentJourneys omits stationary drift and backfills genuine journeys', async () => {
+  const docs = [
+    {
+      id: 'drift',
+      data: () => ({
+        startAt: new Date('2026-08-11T03:03:00Z'),
+        endAt: new Date('2026-08-11T20:01:00Z'),
+        distanceKm: 0.5,
+        pointCount: 14,
+        events: [],
+        closeReason: 'idle',
+      }),
+    },
+    {
+      id: 'real',
+      data: () => ({
+        startAt: new Date('2026-08-10T16:50:00Z'),
+        endAt: new Date('2026-08-10T17:36:00Z'),
+        distanceKm: 21.9,
+        pointCount: 30,
+        events: [],
+        closeReason: 'idle',
+      }),
+    },
+  ];
+  const query = {
+    orderBy() { return this; },
+    limit() { return this; },
+    async get() { return { docs }; },
+  };
+  const db = {
+    collection(name) {
+      assert.equal(name, 'devices');
+      return {
+        doc(imei) {
+          assert.equal(imei, 'A');
+          return { collection: () => query };
+        },
+      };
+    },
+  };
+  const result = await getRecentJourneys(
+    db,
+    { devices: [{ imei: 'A', nickname: 'Jesh' }] },
+    { limit: 1, imei: 'A' },
+  );
+  assert.equal(result.omittedLowQualityCount, 1);
+  assert.deepEqual(result.journeys.map((journey) => journey.id), ['real']);
 });
