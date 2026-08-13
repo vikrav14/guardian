@@ -17,7 +17,7 @@ const KEYWORDS = {
   RECENT_ALERTS: ['alert', 'alerts', 'fall', 'geofence', 'event', 'incident', 'trigger'],
   DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'trigger', 'activate', 'send command'],
   VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
-  REMINDER: ['reminder', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
+  REMINDER: ['reminder', 'reminders', 'medicine', 'pill', 'medication', 'remember', 'remind', 'remind me', 'schedule'],
   SAFE_ZONE: ['home', 'school', 'work', 'zone'],
   GENERAL_HELP: ['help', 'please', 'can you', 'how', 'what', 'who'],
 };

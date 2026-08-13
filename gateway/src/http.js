@@ -51,6 +51,7 @@ const { TOOL_DEFINITIONS, runTool } = require('./assistant/tools');
 const fs = require('fs');
 const path = require('path');
 const metrics = require('./metrics');
+const { ConversationController } = require('./conversation-controller');
 
 console.log('[http] Metrics module loaded:', typeof metrics.trackIntent === 'function' ? '✓' : '✗');
 
@@ -104,6 +105,7 @@ let idempotencyStore = null;
 // message ID before LLM/tool work so duplicate webhook deliveries never create
 // duplicate Guardian replies or duplicate Meta charges.
 const metaInboundDeduper = new MetaMessageDeduper();
+const conversationController = new ConversationController();
 
 function initializeLlmStack() {
   try {
@@ -215,8 +217,51 @@ async function handleChat({ from, text }) {
       reason: authReason,
     });
 
+    const deterministic = conversationController.deterministicReply(ctx.from, text);
+    if (deterministic) {
+      metrics.trackFallback(deterministic.reason, { route: 'deterministic' });
+      idempotencyStore.store(requestId, deterministic.reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: deterministic.reply.length,
+        fallbackReason: deterministic.reason,
+      });
+      return { ctx, reply: deterministic.reply, deterministic: true };
+    }
+
+    let effectiveText = text;
+    let intent = classifyIntent(effectiveText);
+    const pending = conversationController.resolvePendingWearer(
+      ctx.from,
+      effectiveText,
+      ctx.devices,
+    );
+    if (pending) {
+      effectiveText = pending.text;
+      intent = classifyIntent(effectiveText);
+    }
+
+    const wearerResolution = conversationController.resolveWearer(
+      ctx.from,
+      effectiveText,
+      intent.type,
+      ctx.devices,
+    );
+    if (wearerResolution.reply) {
+      metrics.trackFallback(wearerResolution.reason, { route: 'deterministic' });
+      idempotencyStore.store(requestId, wearerResolution.reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: wearerResolution.reply.length,
+        fallbackReason: wearerResolution.reason,
+      });
+      return { ctx, reply: wearerResolution.reply, deterministic: true };
+    }
+    effectiveText = wearerResolution.text;
+
     // [4] Classify intent (deterministic, no LLM)
-    const intent = classifyIntent(text);
     metrics.trackIntent(intent.type, intent.confidence, intent.urgency);
     console.log(`[metrics] Tracked intent: type=${intent.type}, confidence=${intent.confidence}, urgency=${intent.urgency}`);
     await auditLog.recordIntent({ requestId, intent });
@@ -306,7 +351,7 @@ async function handleChat({ from, text }) {
 
     if (!llmProvider) {
       // Fallback: use existing Claude integration
-      const result = await answerWithAssistant(db, ctx, text);
+      const result = await answerWithAssistant(db, ctx, effectiveText);
       reply = result.reply;
       providerUsage = result.usage;
       toolsUsed = result.toolsUsed || [];
@@ -316,7 +361,7 @@ async function handleChat({ from, text }) {
       const allowedTools = contextPacket.allowedTools; // Already computed by buildContextPacket
       const filteredTools = TOOL_DEFINITIONS.filter((t) => allowedTools.includes(t.name));
 
-      const messages = [{ role: 'user', content: text }];
+      const messages = [{ role: 'user', content: effectiveText }];
 
       try {
         // Full agentic loop: call provider, execute tools, repeat until text response
