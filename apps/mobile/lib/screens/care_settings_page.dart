@@ -4,7 +4,6 @@ import '../models/care_profile.dart';
 import '../models/device.dart';
 import '../models/medication_reminder.dart';
 import '../services/guardian_services.dart';
-import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
@@ -15,9 +14,14 @@ import '../widgets/layout/guardian_page_frame.dart';
 /// hold a live connection to the gateway for either to actually reach it.
 /// See gateway/src/commands.js and firestore/SCHEMA.md.
 class CareSettingsPage extends StatefulWidget {
-  const CareSettingsPage({super.key, required this.device});
+  const CareSettingsPage({
+    super.key,
+    required this.device,
+    required this.subscription,
+  });
 
   final Device device;
+  final GuardianSubscription subscription;
 
   @override
   State<CareSettingsPage> createState() => _CareSettingsPageState();
@@ -163,11 +167,11 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final scope = GuardianEntitlementsScope.of(context);
-    final careDecision = scope.decision(
-      GuardianFeature.wellbeingActivitySummaries,
+    final subscription = widget.subscription;
+    final careDecision = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.wellbeingActivitySummaries,
+      subscription: subscription,
     );
-    final subscription = scope.subscription;
     return Scaffold(
       backgroundColor: colors.canvas,
       appBar: AppBar(
@@ -214,7 +218,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 if (careDecision.allowed)
                   CareProfileCard(
                     device: widget.device,
-                    subscription: subscription!,
+                    subscription: subscription,
                     onChanged: _onCareDraftChanged,
                   )
                 else

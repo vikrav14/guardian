@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../dashboard/device_connectivity.dart';
+import '../../dashboard/device_formatters.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import 'dodo_stage.dart';
@@ -71,7 +72,7 @@ class GuardianNowHero extends StatelessWidget {
     final live = d.isLiveConnected;
     final battery = d.batteryPercent;
     final locationLabel = _locationLabel(d);
-    final updateLabel = _updatedLabel(d);
+    final updateLabel = deviceWatchCheckInLabel(d);
     final gpsLabel = d.hasApproximateLocation
         ? 'Approx.'
         : d.hasFreshLocation
@@ -175,9 +176,9 @@ class GuardianNowHero extends StatelessWidget {
                   icon: askGuardianEnabled
                       ? Icons.chat_bubble_outline_rounded
                       : Icons.lock_outline_rounded,
-                  label: 'Ask Guardian',
+                  label: 'Guardian help',
                   subtitle: askGuardianEnabled
-                      ? 'On WhatsApp'
+                      ? 'Quick checks & WhatsApp'
                       : 'Family plan required',
                   color: GuardianColors.whatsapp,
                   onTap: onAskGuardian,
@@ -240,19 +241,6 @@ class GuardianNowHero extends StatelessWidget {
     if (device.hasFreshLocation) return 'Location confirmed';
     if (device.location?.isValid == true) return 'Last known location';
     return 'Locating…';
-  }
-
-  static String _updatedLabel(Device device) {
-    final at =
-        device.location?.recordedAt ??
-        device.lastHeartbeatAt ??
-        device.updatedAt;
-    if (at == null) return 'Waiting for first update';
-    final diff = DateTime.now().difference(at);
-    if (diff.inMinutes < 1) return 'Updated just now';
-    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
-    return 'Updated ${diff.inDays}d ago';
   }
 }
 

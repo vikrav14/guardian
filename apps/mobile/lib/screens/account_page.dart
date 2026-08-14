@@ -188,7 +188,7 @@ class AccountPage extends StatelessWidget {
     );
     final accountRole = subscription?.serviceActive == true
         ? subscription!.ownerUid == user?.uid
-              ? 'Family plan owner'
+              ? 'Family account owner'
               : 'Family caregiver'
         : 'Guardian account';
 
@@ -253,6 +253,7 @@ class AccountPage extends StatelessWidget {
                     for (var i = 0; i < devices.length; i++)
                       _DeviceRow(
                         device: devices[i],
+                        subscription: subscription,
                         showDivider: i < devices.length - 1,
                         onUnlink: () =>
                             _confirmUnlinkPendant(context, devices[i]),
@@ -637,11 +638,13 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
 class _DeviceRow extends StatelessWidget {
   const _DeviceRow({
     required this.device,
+    required this.subscription,
     required this.showDivider,
     required this.onUnlink,
   });
 
   final Device device;
+  final GuardianSubscription? subscription;
   final bool showDivider;
   final VoidCallback onUnlink;
 
@@ -691,11 +694,27 @@ class _DeviceRow extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Person and device settings',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => WatchSettingsPage(device: device),
-              ),
-            ),
+            onPressed: () {
+              final verifiedSubscription = subscription;
+              if (verifiedSubscription == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Guardian is still verifying this family account.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => WatchSettingsPage(
+                    device: device,
+                    subscription: verifiedSubscription,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -780,6 +799,7 @@ Future<void> _showLanguagePicker(BuildContext context) async {
 Future<void> _showDeviceSettingsDialog(
   BuildContext context,
   Device device,
+  GuardianSubscription subscription,
 ) async {
   final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
   final relationshipCtrl = TextEditingController(
@@ -934,7 +954,10 @@ Future<void> _showDeviceSettingsDialog(
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => CareSettingsPage(device: device),
+                          builder: (_) => CareSettingsPage(
+                            device: device,
+                            subscription: subscription,
+                          ),
                         ),
                       );
                     },

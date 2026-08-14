@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../services/device_avatar_service.dart';
 import '../services/guardian_services.dart';
-import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
@@ -12,9 +11,14 @@ import 'care_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
-  const WatchSettingsPage({super.key, required this.device});
+  const WatchSettingsPage({
+    super.key,
+    required this.device,
+    required this.subscription,
+  });
 
   final Device device;
+  final GuardianSubscription subscription;
 
   @override
   State<WatchSettingsPage> createState() => _WatchSettingsPageState();
@@ -232,9 +236,10 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
   }
 
   Widget _safetyCard(GuardianThemeColors colors) {
-    final careDecision = GuardianEntitlementsScope.of(
-      context,
-    ).decision(GuardianFeature.wellbeingActivitySummaries);
+    final careDecision = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.wellbeingActivitySummaries,
+      subscription: widget.subscription,
+    );
     return GuardianCard(
       child: Column(
         children: [
@@ -249,7 +254,10 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => CareSettingsPage(device: widget.device),
+                  builder: (_) => CareSettingsPage(
+                    device: widget.device,
+                    subscription: widget.subscription,
+                  ),
                 ),
               );
             },
@@ -364,7 +372,10 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => CareSettingsPage(device: widget.device),
+                  builder: (_) => CareSettingsPage(
+                    device: widget.device,
+                    subscription: widget.subscription,
+                  ),
                 ),
               );
             },

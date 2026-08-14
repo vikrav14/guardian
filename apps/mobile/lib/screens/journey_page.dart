@@ -4,7 +4,6 @@ import '../journey/journey_models.dart';
 import '../journey/journey_v2_data.dart';
 import '../journey/journey_v2_ui.dart';
 import '../services/guardian_services.dart';
-import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 
 class JourneyPage extends StatefulWidget {
@@ -12,11 +11,13 @@ class JourneyPage extends StatefulWidget {
     super.key,
     required this.imei,
     required this.deviceName,
+    required this.subscription,
     this.avatarUrl,
   });
 
   final String imei;
   final String deviceName;
+  final GuardianSubscription subscription;
   final String? avatarUrl;
 
   @override
@@ -33,8 +34,7 @@ class _JourneyPageState extends State<JourneyPage> {
   }
 
   Future<void> _chooseDay() async {
-    final subscription = GuardianEntitlementsScope.of(context).subscription;
-    if (subscription == null) return;
+    final subscription = widget.subscription;
     final firstDate = subscription.historyFirstSelectableDay();
     final initialDate = subscription.canAccessHistoryDay(_day)
         ? _day
@@ -56,11 +56,13 @@ class _JourneyPageState extends State<JourneyPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final scope = GuardianEntitlementsScope.of(context);
-    final decision = scope.decision(GuardianFeature.locationHistory);
-    final subscription = scope.subscription;
+    final subscription = widget.subscription;
+    final decision = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.locationHistory,
+      subscription: subscription,
+    );
 
-    if (!decision.allowed || subscription == null) {
+    if (!decision.allowed) {
       return Scaffold(
         backgroundColor: colors.canvas,
         body: _JourneyStateMessage(

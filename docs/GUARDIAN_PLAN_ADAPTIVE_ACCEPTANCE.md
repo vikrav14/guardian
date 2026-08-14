@@ -10,6 +10,9 @@
 - Flutter analyzer and full test suite pass.
 - Flutter Web release build passes.
 - Firestore emulator authorization suite passes on Java 21.
+- Pushed Journey, watch-settings and Care-settings routes receive the verified
+  subscription explicitly and do not depend on a Home-route-only inherited
+  scope.
 - `git diff --check` reports no errors.
 - No Firestore deployment or Git commit is performed by the package installer.
 
@@ -17,7 +20,7 @@
 
 - Account shows Guardian Essential and `0 of 1 caregiver used` for a new owner.
 - Dashboard shows factual **Watch status**, not Guardian AI branding.
-- **Ask Guardian** is visibly locked and explains that Family or Care is required.
+- **Guardian help** is visibly locked and explains that Family or Care is required.
 - Dashboard does not show wellbeing summaries or medication support as active.
 - Journey calendar cannot select a day earlier than the last seven calendar days.
 - A direct attempt to read a location, segment or journey record older than seven rolling days is denied by Firestore.
@@ -27,7 +30,18 @@
 ## Family acceptance
 
 - Account shows Guardian Family and a five-caregiver limit.
-- Dashboard shows Guardian AI and the WhatsApp action.
+- Dashboard shows Guardian AI and **Guardian help**.
+- Guardian help offers verified location, battery/status, alert and journey
+  actions inside the app before offering WhatsApp.
+- A live heartbeat with an older GPS fix is displayed as two clocks: the watch
+  check-in remains current while location keeps its honest GPS age.
+- Opening Guardian help does not launch WhatsApp or call an LLM.
+- **Continue on WhatsApp** is an explicit second action. Mobile opens the
+  configured business chat; desktop offers WhatsApp Web, copy number and cancel.
+- A build without `GUARDIAN_WHATSAPP_NUMBER` says that WhatsApp is not
+  configured and keeps the in-app quick checks available.
+- Desktop **Call watch** explains that it is a carrier voice call and offers
+  copy number/cancel instead of silently relying on a `tel:` handler.
 - Dashboard and settings do not present medication or Care wellbeing controls as active.
 - Retained journey dates older than seven days can be selected and read.
 - A Family client cannot create, toggle or delete medication reminders, including by direct Firestore SDK calls.
@@ -66,4 +80,6 @@ Deploy `firestore/rules.example` only after the emulator suite is green and the 
 - Firestore emulator results.
 - Join request and transaction outcome IDs with personal data redacted.
 - V52 command/delivery receipts for device-dependent tests.
+- Carrier usage evidence separating watch mobile data, watch voice and
+  caregiver-phone WhatsApp traffic.
 - Any mismatch as a blocking issue linked from draft PR #106.

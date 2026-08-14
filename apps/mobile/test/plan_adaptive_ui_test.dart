@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/device.dart';
+import 'package:guardian/screens/journey_page.dart';
+import 'package:guardian/services/guardian_entitlements.dart';
 import 'package:guardian/widgets/dashboard/around_them_panel.dart';
 import 'package:guardian/widgets/dashboard/guardian_now_hero.dart';
 
@@ -35,7 +37,7 @@ void main() {
     expect(find.text('Family plan required'), findsOneWidget);
   });
 
-  testWidgets('Family dashboard exposes Guardian AI and WhatsApp action', (
+  testWidgets('Family dashboard exposes Guardian AI and hybrid help', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -53,7 +55,8 @@ void main() {
     );
 
     expect(find.text('Guardian AI'), findsOneWidget);
-    expect(find.text('On WhatsApp'), findsOneWidget);
+    expect(find.text('Guardian help'), findsOneWidget);
+    expect(find.text('Quick checks & WhatsApp'), findsOneWidget);
     expect(find.text('Family plan required'), findsNothing);
   });
 
@@ -82,6 +85,23 @@ void main() {
     await pump(care: true);
     expect(find.text('Wellbeing'), findsOneWidget);
     expect(find.text('Medication'), findsOneWidget);
+  });
+
+  testWidgets('pushed journey route does not depend on a home-only scope', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: JourneyPage(
+          imei: '861397052547492',
+          deviceName: 'Jesh',
+          subscription: GuardianSubscription.inactive(),
+        ),
+      ),
+    );
+
+    expect(find.text('Guardian service inactive'), findsOneWidget);
+    expect(find.text('Go back'), findsOneWidget);
   });
 }
 

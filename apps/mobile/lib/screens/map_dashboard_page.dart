@@ -2,20 +2,25 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dashboard/dashboard_ai_interpretation.dart';
 import '../dashboard/device_connectivity.dart';
 import '../dashboard/dashboard_controller.dart';
+import '../dashboard/device_formatters.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
-import '../services/guardian_services.dart';
+import '../navigation/home_shell_scope.dart';
+import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
+import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/around_them_panel.dart';
 import '../widgets/dashboard/family_device_strip.dart';
 import '../widgets/dashboard/guardian_intelligence_panel.dart';
+import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_now_hero.dart';
 import '../widgets/dashboard/today_summary_panel.dart';
 import '../widgets/map/guardian_map_presentation.dart';
@@ -183,19 +188,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     return 'Locating';
   }
 
-  String _updatedLabel(Device device) {
-    final at =
-        device.location?.recordedAt ??
-        device.lastHeartbeatAt ??
-        device.updatedAt;
-    if (at == null) return 'Waiting for first update';
-    final diff = DateTime.now().difference(at);
-    if (diff.inMinutes < 1) return 'Updated just now';
-    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
-    return 'Updated ${diff.inDays}d ago';
-  }
-
   Future<void> _sendHelp(Device device) async {
     if (_sendingHelp) return;
     setState(() => _sendingHelp = true);
@@ -237,18 +229,265 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       );
       return;
     }
+    if (!isMobileGuardianPlatform) {
+      await _showCallHandoff(device, sim);
+      return;
+    }
     final uri = Uri(scheme: 'tel', path: sim);
-    if (!await launchUrl(uri) && mounted) {
-      _showUnavailable('Could not start a call to $sim');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+        mounted) {
+      _showUnavailable('Could not start a call to $sim.');
     }
   }
 
-  void _openHistory(Device device) {
+  Future<void> _showCallHandoff(Device device, String sim) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Call ${device.displayName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SelectableText(
+              sim,
+              style: Theme.of(dialogContext).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This is a normal voice call to the watch. It does not use the watch\'s 500MB mobile-data allowance; normal voice charges may apply.',
+            ),
+            if (!device.isLiveConnected) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'The watch has not checked in recently. Voice may still work if it has mobile network coverage.',
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              unawaited(Clipboard.setData(ClipboardData(text: sim)));
+              Navigator.pop(dialogContext);
+              _showUnavailable('Watch number copied. Call it from your phone.');
+            },
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('Copy number'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              unawaited(_tryDesktopCall(sim));
+            },
+            child: const Text('Try this device'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _tryDesktopCall(String sim) async {
+    final opened = await launchUrl(
+      Uri(scheme: 'tel', path: sim),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      _showUnavailable('No calling app handled the number. Copy it instead.');
+    }
+  }
+
+  void _showQuickFact(String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLocationFact(Device device) {
+    final location = device.location;
+    if (location?.isValid != true) {
+      _showQuickFact(
+        '${device.displayName}\'s location',
+        'Guardian does not have a recorded location for ${device.displayName} yet.',
+      );
+      return;
+    }
+    final place = location?.placeLabel?.trim();
+    final label = place == null || place.isEmpty
+        ? 'the position shown on the map'
+        : place;
+    final quality = device.hasApproximateLocation
+        ? 'approximate location'
+        : device.hasFreshLocation
+        ? 'latest location'
+        : 'last known location';
+    _showQuickFact(
+      '${device.displayName}\'s location',
+      '${device.displayName}\'s $quality is $label. ${deviceLocationFixLabel(device)}.',
+    );
+  }
+
+  void _showWatchStatusFact(Device device) {
+    final connection = device.isLiveConnected
+        ? 'online now'
+        : device.isReconnecting
+        ? 'reconnecting'
+        : 'offline';
+    final battery = device.batteryPercent;
+    final batteryText = battery == null
+        ? 'No battery reading is available.'
+        : device.isLiveConnected
+        ? 'Battery is $battery%.'
+        : 'The last battery reading was $battery%.';
+    _showQuickFact(
+      '${device.displayName}\'s watch',
+      'The watch is $connection. $batteryText ${deviceWatchCheckInLabel(device)}.',
+    );
+  }
+
+  void _showGuardianHelp(
+    Device device, {
+    required GuardianSubscription? subscription,
+    required GuardianEntitlementDecision historyDecision,
+  }) {
+    final home = HomeShellScope.maybeOf(context);
+    unawaited(
+      showGuardianHelpSheet(
+        context,
+        deviceName: device.displayName,
+        onLocation: () => _showLocationFact(device),
+        onWatchStatus: () => _showWatchStatusFact(device),
+        onAlerts: () {
+          if (home == null) {
+            _showUnavailable('Open Alerts from Guardian navigation.');
+            return;
+          }
+          home.goToTab(2);
+        },
+        onJourney: () => _openHistory(
+          device,
+          subscription: subscription,
+          decision: historyDecision,
+        ),
+        onWhatsApp: () => unawaited(_continueOnWhatsApp(device)),
+      ),
+    );
+  }
+
+  Future<void> _continueOnWhatsApp(Device device) async {
+    final number = configuredGuardianWhatsAppNumber();
+    if (number == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Guardian WhatsApp is not configured'),
+          content: const Text(
+            'Quick checks remain available here. Guardian support must configure the approved business number before WhatsApp can be opened from this build.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final message = 'Hi Guardian, I need help with ${device.displayName}.';
+    if (isMobileGuardianPlatform) {
+      final opened = await launchUrl(
+        guardianWhatsAppMobileUri(number: number, message: message),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        _showUnavailable(
+          'Could not open WhatsApp. The Guardian number is +$number.',
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Continue on WhatsApp'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'WhatsApp is optional. Open WhatsApp Web on this computer, or copy the Guardian number and use WhatsApp on your phone.',
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              '+$number',
+              style: Theme.of(dialogContext).textTheme.titleMedium,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              unawaited(Clipboard.setData(ClipboardData(text: '+$number')));
+              Navigator.pop(dialogContext);
+              _showUnavailable('Guardian WhatsApp number copied.');
+            },
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('Copy number'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              unawaited(
+                launchUrl(
+                  guardianWhatsAppWebUri(number: number, message: message),
+                  mode: LaunchMode.externalApplication,
+                ),
+              );
+            },
+            child: const Text('Open WhatsApp Web'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openHistory(
+    Device device, {
+    required GuardianSubscription? subscription,
+    required GuardianEntitlementDecision decision,
+  }) {
+    if (!decision.allowed || subscription == null) {
+      _showEntitlementDecision(decision);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => JourneyPage(
           imei: device.imei,
           deviceName: device.displayName,
+          subscription: subscription,
           avatarUrl: device.avatarUrl,
         ),
       ),
@@ -383,7 +622,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            _updatedLabel(selected),
+                            deviceLocationFixLabel(selected),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -428,6 +667,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final medicationDecision = entitlementScope.decision(
       GuardianFeature.medicationReminders,
     );
+    final historyDecision = entitlementScope.decision(
+      GuardianFeature.locationHistory,
+    );
     final aiInterpretation = buildGuardianAiInterpretation(selected);
     final todayText = buildTodaySummary(selected);
     final activityStatus = buildTodayActivityStatus(selected);
@@ -444,12 +686,19 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           onCall: selected == null ? null : () => _callDevice(selected),
           onViewLocation: selected == null
               ? null
-              : () => _openHistory(selected),
+              : () => _openHistory(
+                  selected,
+                  subscription: entitlementScope.subscription,
+                  decision: historyDecision,
+                ),
           onAskGuardian: selected == null
               ? null
               : whatsappDecision.allowed
-              ? () =>
-                    _showUnavailable('Ask Guardian is ready through WhatsApp.')
+              ? () => _showGuardianHelp(
+                  selected,
+                  subscription: entitlementScope.subscription,
+                  historyDecision: historyDecision,
+                )
               : () => _showEntitlementDecision(whatsappDecision),
         ),
         if (_devices.length > 1) ...[
@@ -483,7 +732,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                 activityStatus: activityStatus,
                 onViewJourney: selected == null
                     ? null
-                    : () => _openHistory(selected),
+                    : () => _openHistory(
+                        selected,
+                        subscription: entitlementScope.subscription,
+                        decision: historyDecision,
+                      ),
               );
               final intelligence = GuardianIntelligencePanel(
                 device: selected,

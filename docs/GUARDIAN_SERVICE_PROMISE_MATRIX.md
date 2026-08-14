@@ -36,7 +36,7 @@ The versioned backend catalogue is implemented in `gateway/src/entitlements.js`.
 | Live GPS | Gateway telemetry, freshness qualification and app map exist. | Partial | V52 field test for live, stale, approximate, offline and reconnecting states. |
 | SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence. |
 | 7-day location history | Locations, segments and compressed journeys exist. Flutter date controls and service calls reject older days, and Firestore rules reject records older than seven rolling days. | Partial | Run the emulator boundary suite and retention/downgrade acceptance test against the release candidate. |
-| Two-way calls | App can launch a call to the saved watch SIM number. | Partial | V52 incoming/outgoing call acceptance, failure copy and carrier/SIM prerequisites. |
+| Two-way calls | Mobile can launch a carrier voice call to the saved watch SIM. Desktop presents the number, voice/data distinction and an explicit handoff. | Partial | V52 incoming/outgoing call acceptance, per-minute carrier charging, failure copy and carrier/SIM prerequisites. |
 | Home and school safe zones | Geofence storage, transitions and alerts exist. | Partial | Real entry/exit, boundary jitter, offline recovery and duplicate-alert field tests. |
 | Battery alerts | Persist-on-change, freshness-aware status and low-battery alert routing exist. | Partial | V52 threshold and stale-reading test; one alert per policy window. |
 | 1 family caregiver | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce the active owner's one-caregiver limit. Clients cannot grant membership or service ownership. | Partial | Concurrent two-account live acceptance test and revocation lifecycle. |
@@ -49,7 +49,7 @@ Essential does **not** include WhatsApp questions and answers. Critical safety c
 |---|---|---|---|
 | Everything in Essential | Inherited by the versioned plan catalogue. | Partial | Every Essential gate above must pass. |
 | Guardian AI | Deterministic intent, language and factual reply engines exist; an LLM is bounded to eligible functional paths. | Partial | Remove or qualify unsupported inferences; evaluation corpus and cost/error budgets. |
-| WhatsApp questions and answers | Registered-caller authorization, deterministic controller, journey/location/battery/alert replies and safe actions exist. | Partial | Meta production token/template test, expiry handling, idempotency and full acceptance corpus. |
+| WhatsApp questions and answers | Registered-caller authorization, deterministic controller, journey/location/battery/alert replies and safe actions exist. The app first offers deterministic quick checks and makes WhatsApp an explicit continuation. | Partial | Approved business-number build configuration, Meta production token/template test, expiry handling, idempotency, cost limits and full acceptance corpus. |
 | Proactive smart notifications | Push/WhatsApp policy and deterministic escalation rules exist. | Partial | Scenario matrix, quiet-hour policy, rate limits and real delivery tests. |
 | Unlimited location history | Family/Care bypass the Essential query/rule window and the app exposes retained dates. | Partial | Publish a retention/fair-use definition and prove restore/export and downgrade behaviour. |
 | Voice assistant | No verified voice-assistant product exists. Voice monitoring/listen is intentionally prohibited. | Not implemented | Define a safe product separately and implement it, or remove/reword this promise. |
@@ -127,6 +127,6 @@ No release decision may be based only on a green unit-test count.
 
 - `HomeShell` resolves the effective family subscription once and exposes it through `GuardianEntitlementsScope` to all routed pages.
 - Essential receives factual watch status, core safety controls, a seven-day history selector and one caregiver slot. Guardian AI, WhatsApp service actions and Care observations are not presented as active.
-- Family adds Guardian AI, WhatsApp actions, smart-notification presentation, retained history and five caregiver slots. Care-only medication and wellbeing controls remain locked.
+- Family adds Guardian AI, deterministic Guardian-help actions, optional WhatsApp continuation, smart-notification presentation, retained history and five caregiver slots. Care-only medication and wellbeing controls remain locked.
 - Care adds medication, wellbeing and routine-care surfaces. Medication and care-profile writes require the verified Care subscription in Flutter services and Firestore rules.
 - Loading, permission/network error, inactive, excluded and allowed states use different deterministic copy. Restricted services fail closed while the plan is unverified.

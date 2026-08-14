@@ -35,3 +35,38 @@ String deviceUpdatedLabel(Device device, {DateTime? now}) {
   if (age.inHours < 1) return 'Updated ${age.inMinutes}m ago';
   return 'Updated ${age.inHours}h ago';
 }
+
+String deviceWatchCheckInLabel(Device device, {DateTime? now}) {
+  final timestamp = device.lastHeartbeatAt ?? device.updatedAt;
+  if (timestamp == null) return 'Watch check-in time unavailable';
+  return _freshnessLabel(
+    timestamp,
+    now: now,
+    justNow: 'Watch checked in just now',
+    prefix: 'Watch checked in',
+  );
+}
+
+String deviceLocationFixLabel(Device device, {DateTime? now}) {
+  final timestamp = device.location?.recordedAt;
+  if (timestamp == null) return 'GPS fix time unavailable';
+  return _freshnessLabel(
+    timestamp,
+    now: now,
+    justNow: 'GPS updated just now',
+    prefix: 'Last GPS fix',
+  );
+}
+
+String _freshnessLabel(
+  DateTime timestamp, {
+  required String justNow,
+  required String prefix,
+  DateTime? now,
+}) {
+  final age = (now ?? DateTime.now()).difference(timestamp);
+  if (age.isNegative || age.inMinutes < 1) return justNow;
+  if (age.inMinutes < 60) return '$prefix ${age.inMinutes}m ago';
+  if (age.inHours < 24) return '$prefix ${age.inHours}h ago';
+  return '$prefix ${age.inDays}d ago';
+}
