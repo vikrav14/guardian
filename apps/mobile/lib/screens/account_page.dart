@@ -8,6 +8,7 @@ import '../models/device.dart';
 import '../services/auth_service.dart';
 import '../services/device_avatar_service.dart';
 import '../services/guardian_avatar_service.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -21,6 +22,12 @@ import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Future<void> _createInvite(BuildContext context) async {
     try {
@@ -169,6 +176,21 @@ class AccountPage extends StatelessWidget {
     final family = FamilyService();
     final t = AppLocalizations.of(context)!;
     final colors = context.guardianColors;
+    final entitlementScope = GuardianEntitlementsScope.of(context);
+    final subscription = entitlementScope.subscription;
+    final subscriptionPresentation = GuardianSubscriptionPresentation.resolve(
+      subscription: subscription,
+      checking: entitlementScope.checking,
+      error: entitlementScope.error,
+    );
+    final whatsappAlertsDecision = entitlementScope.decision(
+      GuardianFeature.whatsappSafetyAlerts,
+    );
+    final accountRole = subscription?.serviceActive == true
+        ? subscription!.ownerUid == user?.uid
+              ? 'Family plan owner'
+              : 'Family caregiver'
+        : 'Guardian account';
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -197,7 +219,7 @@ class AccountPage extends StatelessWidget {
                   const SizedBox(height: GuardianSpacing.xs),
                   Text(name, style: textTheme.titleMedium),
                   Text(
-                    email.isEmpty ? 'Family admin' : 'Family admin - $email',
+                    email.isEmpty ? accountRole : '$accountRole - $email',
                     style: textTheme.bodyMedium,
                   ),
                 ],
@@ -256,73 +278,115 @@ class AccountPage extends StatelessWidget {
                   builder: (context, inviteSnap) {
                     final members = memberSnap.data ?? const <FamilyMember>[];
                     final invites = inviteSnap.data ?? const <FamilyInvite>[];
-                    final accepted = invites
-                        .where((i) => i.status == 'accepted')
-                        .toList();
                     final pending = invites
                         .where((i) => i.status == 'pending')
                         .toList();
+                    return StreamBuilder<List<FamilyJoinRequest>>(
+                      stream: family.watchMyJoinRequests(),
+                      builder: (context, requestSnap) {
+                        final requests =
+                            requestSnap.data ?? const <FamilyJoinRequest>[];
+                        final ownerUid = subscription?.ownerUid;
+                        final isOwner = user != null && ownerUid == user.uid;
+                        final active = subscription?.serviceActive == true;
+                        final limit = subscription?.caregiverLimit ?? 0;
+                        final full = active && members.length >= limit;
 
-                    return GuardianListGroup(
-                      children: [
-                        if (members.isEmpty &&
-                            accepted.isEmpty &&
-                            pending.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(GuardianSpacing.md),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: colors.border),
+                        String inviteMessage() {
+                          if (entitlementScope.error != null) {
+                            return 'Guardian could not verify the family plan. Try again when the connection is restored.';
+                          }
+                          if (entitlementScope.checking) {
+                            return 'Guardian is still checking the family plan.';
+                          }
+                          if (!active) {
+                            return 'An active Guardian service plan is required before inviting a caregiver.';
+                          }
+                          if (!isOwner) {
+                            return 'Only the family plan owner can invite caregivers.';
+                          }
+                          if (full) {
+                            return '${subscription!.planLabel} includes up to $limit caregiver${limit == 1 ? '' : 's'}.';
+                          }
+                          return '';
+                        }
+
+                        return GuardianListGroup(
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(GuardianSpacing.md),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: colors.border),
+                                ),
+                              ),
+                              child: Text(
+                                active
+                                    ? '${members.length} of $limit caregiver${limit == 1 ? '' : 's'} used on ${subscription!.planLabel}.'
+                                    : subscriptionPresentation.message,
+                                style: textTheme.bodyMedium,
                               ),
                             ),
-                            child: Text(
-                              'Invite a spouse or relative so they can watch the same watches.',
-                              style: textTheme.bodyMedium,
+                            for (final member in members)
+                              _PersonRow(
+                                name: member.displayName,
+                                subtitle: member.email ?? 'Family caregiver',
+                                showDivider: true,
+                              ),
+                            for (final invite in pending)
+                              _PersonRow(
+                                name: 'Invite ${invite.code}',
+                                subtitle:
+                                    'Waiting to be accepted - tap to copy',
+                                showDivider: true,
+                                onTap: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: invite.code),
+                                  );
+                                  if (context.mounted) {
+                                    _showMessage(
+                                      context,
+                                      'Copied ${invite.code}',
+                                    );
+                                  }
+                                },
+                              ),
+                            for (final request in requests)
+                              _PersonRow(
+                                name: 'Join request ${request.inviteCode}',
+                                subtitle: request.status == 'pending'
+                                    ? 'Guardian is verifying this request'
+                                    : request.status == 'accepted'
+                                    ? 'Accepted'
+                                    : request.reason ?? 'Not accepted',
+                                showDivider: true,
+                              ),
+                            GuardianSettingsRow(
+                              icon: full
+                                  ? Icons.group_off_outlined
+                                  : Icons.person_add_rounded,
+                              label: full
+                                  ? 'Caregiver limit reached'
+                                  : 'Invite a family member',
+                              onTap: () {
+                                final message = inviteMessage();
+                                if (message.isNotEmpty) {
+                                  _showMessage(context, message);
+                                  return;
+                                }
+                                _createInvite(context);
+                              },
                             ),
-                          ),
-                        for (var i = 0; i < members.length; i++)
-                          _PersonRow(
-                            name: members[i].displayName,
-                            subtitle: members[i].email ?? 'Family member',
-                            showDivider: true,
-                          ),
-                        for (var i = 0; i < accepted.length; i++)
-                          _PersonRow(
-                            name: accepted[i].acceptedByName ?? 'Family member',
-                            subtitle: 'Joined with code ${accepted[i].code}',
-                            showDivider: true,
-                          ),
-                        for (final invite in pending)
-                          _PersonRow(
-                            name: 'Invite ${invite.code}',
-                            subtitle: 'Waiting to be accepted - tap to copy',
-                            showDivider: true,
-                            onTap: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: invite.code),
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Copied ${invite.code}'),
-                                  ),
-                                );
-                              }
-                            },
-                          ),
-                        GuardianSettingsRow(
-                          icon: Icons.person_add_rounded,
-                          label: 'Invite a family member',
-                          onTap: () => _createInvite(context),
-                        ),
-                        GuardianSettingsRow(
-                          icon: Icons.group_add_rounded,
-                          label: 'Have a code? Join a family',
-                          showDivider: false,
-                          onTap: () => _acceptInvite(context),
-                        ),
-                      ],
+                            GuardianSettingsRow(
+                              icon: Icons.group_add_rounded,
+                              label: 'Have a code? Join a family',
+                              showDivider: false,
+                              onTap: () => _acceptInvite(context),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 );
@@ -335,16 +399,18 @@ class AccountPage extends StatelessWidget {
               children: [
                 GuardianSettingsRow(
                   icon: Icons.sms_rounded,
-                  label: 'WhatsApp / SMS alerts',
+                  label: whatsappAlertsDecision.allowed
+                      ? 'WhatsApp / SMS alerts'
+                      : 'App / SMS alerts',
                   onTap: () {
                     showDialog<void>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Alert delivery'),
-                        content: const Text(
-                          'SOS, fall, and safe-zone exit alerts notify your emergency contacts '
-                          'through the gateway. Add Twilio keys in gateway/.env to send real '
-                          'SMS/WhatsApp. Until then, deliveries are logged in notificationLogs.',
+                        content: Text(
+                          whatsappAlertsDecision.allowed
+                              ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
+                              : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require Guardian Family or Guardian Care.',
                         ),
                         actions: [
                           TextButton(
@@ -367,37 +433,23 @@ class AccountPage extends StatelessWidget {
                     );
                   },
                 ),
-                StreamBuilder<GuardianSubscription>(
-                  stream: UserProfileService().watchSubscription(),
-                  builder: (context, subSnap) {
-                    final presentation =
-                        GuardianSubscriptionPresentation.resolve(
-                          subscription: subSnap.data,
-                          checking:
-                              subSnap.connectionState ==
-                                  ConnectionState.waiting &&
-                              !subSnap.hasData,
-                          error: subSnap.error,
-                        );
-                    return GuardianSettingsRow(
-                      icon: Icons.workspace_premium_rounded,
-                      label: t.subscriptionLabel,
-                      trailing: presentation.trailingLabel,
-                      onTap: () {
-                        showDialog<void>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(t.subscriptionLabel),
-                            content: Text(presentation.message),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('OK'),
-                              ),
-                            ],
+                GuardianSettingsRow(
+                  icon: Icons.workspace_premium_rounded,
+                  label: t.subscriptionLabel,
+                  trailing: subscriptionPresentation.trailingLabel,
+                  onTap: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(t.subscriptionLabel),
+                        content: Text(subscriptionPresentation.message),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK'),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     );
                   },
                 ),

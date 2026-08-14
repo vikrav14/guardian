@@ -4,6 +4,7 @@ import '../journey/journey_models.dart';
 import '../journey/journey_v2_data.dart';
 import '../journey/journey_v2_ui.dart';
 import '../services/guardian_services.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 
 class JourneyPage extends StatefulWidget {
@@ -32,10 +33,16 @@ class _JourneyPageState extends State<JourneyPage> {
   }
 
   Future<void> _chooseDay() async {
+    final subscription = GuardianEntitlementsScope.of(context).subscription;
+    if (subscription == null) return;
+    final firstDate = subscription.historyFirstSelectableDay();
+    final initialDate = subscription.canAccessHistoryDay(_day)
+        ? _day
+        : _today();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _day,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      initialDate: initialDate,
+      firstDate: firstDate,
       lastDate: DateTime.now(),
     );
     if (picked == null || !mounted) return;
@@ -49,6 +56,25 @@ class _JourneyPageState extends State<JourneyPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final scope = GuardianEntitlementsScope.of(context);
+    final decision = scope.decision(GuardianFeature.locationHistory);
+    final subscription = scope.subscription;
+
+    if (!decision.allowed || subscription == null) {
+      return Scaffold(
+        backgroundColor: colors.canvas,
+        body: _JourneyStateMessage(
+          icon: Icons.lock_outline_rounded,
+          title: decision.title,
+          message: decision.message,
+          actionLabel: 'Go back',
+          onAction: () => Navigator.maybePop(context),
+        ),
+      );
+    }
+    final effectiveDay = subscription.canAccessHistoryDay(_day)
+        ? _day
+        : _today();
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -57,8 +83,12 @@ class _JourneyPageState extends State<JourneyPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1180),
             child: StreamBuilder<List<JourneyRecord>>(
-              key: ValueKey(_day),
-              stream: DeviceService().watchDayJourneys(widget.imei, _day),
+              key: ValueKey(effectiveDay),
+              stream: DeviceService().watchDayJourneys(
+                widget.imei,
+                effectiveDay,
+                subscription: subscription,
+              ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return _JourneyStateMessage(
@@ -99,7 +129,7 @@ class _JourneyPageState extends State<JourneyPage> {
                 return JourneyV2Dashboard(
                   deviceName: widget.deviceName,
                   avatarUrl: widget.avatarUrl,
-                  day: _day,
+                  day: effectiveDay,
                   journeys: journeys,
                   selected: selected,
                   onSelectJourney: (journey) {

@@ -24,8 +24,8 @@ class GuardianIntelligencePanel extends StatelessWidget {
     final activityIcons = <String, IconData>{
       'Watch signal monitored': Icons.sensors_rounded,
       'Safe-zone check completed': Icons.shield_rounded,
-      'Weather checked': Icons.cloud_rounded,
-      'Local context analyzed': Icons.radar_rounded,
+      'Location received': Icons.location_on_rounded,
+      'Rule-based insight available': Icons.fact_check_outlined,
     };
 
     final checks = Column(
@@ -93,7 +93,7 @@ class GuardianIntelligencePanel extends StatelessWidget {
           ),
           SizedBox(height: 5),
           Text(
-            'Quietly checking\nwhat matters.',
+            'Available for\nverified facts.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Color(0xFF6D3FB0),
@@ -147,7 +147,7 @@ class GuardianIntelligencePanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Quietly checking what matters',
+                      'Interpreting verified watch facts',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 10,
@@ -163,7 +163,7 @@ class GuardianIntelligencePanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Text(
-                  '● LIVE',
+                  'AVAILABLE',
                   style: TextStyle(
                     color: GuardianColors.safe,
                     fontSize: 8,

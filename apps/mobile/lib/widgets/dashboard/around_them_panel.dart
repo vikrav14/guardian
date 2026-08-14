@@ -9,17 +9,19 @@ class AroundThemPanel extends StatelessWidget {
   const AroundThemPanel({
     required this.device,
     required this.geofences,
-    required this.weatherStatus,
-    required this.localContext,
     required this.guardianIntelligence,
+    required this.guardianAiEnabled,
+    required this.careEnabled,
+    required this.medicationEnabled,
     super.key,
   });
 
   final Device? device;
   final List<Geofence> geofences;
-  final String weatherStatus;
-  final String localContext;
   final String guardianIntelligence;
+  final bool guardianAiEnabled;
+  final bool careEnabled;
+  final bool medicationEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +30,6 @@ class AroundThemPanel extends StatelessWidget {
 
     final colors = context.guardianColors;
     final profile = GuardianCareProfileX.fromValue(d.careProfile);
-    final priorities = d.carePriorities.isEmpty
-        ? GuardianCarePriority.defaultsFor(profile)
-        : d.carePriorities;
-
     final safeZones = geofences
         .where((zone) => zone.imei == d.imei && zone.active)
         .toList(growable: false);
@@ -53,96 +51,60 @@ class AroundThemPanel extends StatelessWidget {
         value: locationValue,
         detail: d.hasFreshLocation ? 'Current fix' : 'Last GPS fix',
       ),
+      _ContextCard(
+        icon: Icons.shield_rounded,
+        color: safeZones.isEmpty
+            ? const Color(0xFF7E8B86)
+            : GuardianColors.safe,
+        title: 'Safe zone',
+        value: safeZones.isEmpty ? 'No active zone' : 'Protection active',
+        detail: safeZones.isEmpty
+            ? 'Add home or school'
+            : '${safeZones.length} zone${safeZones.length == 1 ? '' : 's'} monitored',
+      ),
+      const _ContextCard(
+        icon: Icons.route_rounded,
+        color: GuardianColors.accent,
+        title: 'Journey',
+        value: 'Movement history',
+        detail: 'Open View journey for recorded trips',
+      ),
     ];
 
-    if (profile == GuardianCareProfile.child) {
-      cards.addAll([
+    if (guardianAiEnabled) {
+      cards.add(
         _ContextCard(
-          icon: Icons.route_rounded,
-          color: GuardianColors.accent,
-          title: 'Journey',
-          value: priorities.contains(GuardianCarePriority.journeys)
-              ? 'Route awareness on'
-              : 'Journey monitoring',
-          detail: 'Home, school and unusual stops',
-        ),
-        _ContextCard(
-          icon: Icons.shield_rounded,
-          color: safeZones.isEmpty
-              ? const Color(0xFF7E8B86)
-              : GuardianColors.safe,
-          title: 'Safe zone',
-          value: safeZones.isEmpty ? 'No active zone' : 'Protection active',
-          detail: safeZones.isEmpty
-              ? 'Add home or school'
-              : '${safeZones.length} zone${safeZones.length == 1 ? '' : 's'} monitored',
-        ),
-        _ContextCard(
-          icon: Icons.radar_rounded,
+          icon: Icons.auto_awesome_rounded,
           color: const Color(0xFF8058BE),
-          title: 'Around them',
-          value: localContext,
-          detail: weatherStatus,
+          title: 'Guardian AI',
+          value: guardianIntelligence,
+          detail: 'Included with this family plan',
         ),
-      ]);
-    } else if (profile == GuardianCareProfile.senior) {
-      cards.addAll([
-        _ContextCard(
+      );
+    }
+
+    if (careEnabled) {
+      cards.add(
+        const _ContextCard(
           icon: Icons.favorite_rounded,
-          color: const Color(0xFF8058BE),
+          color: Color(0xFF8058BE),
           title: 'Wellbeing',
-          value: priorities.contains(GuardianCarePriority.wellbeing)
-              ? 'Watching for changes'
-              : 'Wellbeing available',
-          detail: 'Readings stay in the detail view',
+          value: 'Care observations available',
+          detail: 'Trends and context, not diagnosis',
         ),
-        _ContextCard(
-          icon: Icons.shield_rounded,
-          color: safeZones.isEmpty
-              ? const Color(0xFF7E8B86)
-              : GuardianColors.safe,
-          title: 'Safe zone',
-          value: safeZones.isEmpty ? 'No active zone' : 'Protection active',
-          detail: priorities.contains(GuardianCarePriority.wandering)
-              ? 'Wandering context enabled'
-              : 'Location boundaries',
-        ),
-        _ContextCard(
+      );
+    }
+
+    if (medicationEnabled) {
+      cards.add(
+        const _ContextCard(
           icon: Icons.medication_rounded,
-          color: const Color(0xFFD19B16),
+          color: Color(0xFFD19B16),
           title: 'Medication',
-          value: priorities.contains(GuardianCarePriority.medication)
-              ? 'Care reminders enabled'
-              : 'Medication support',
-          detail: 'Managed in Care Services',
+          value: 'Reminder support available',
+          detail: 'Configure reminders in Care settings',
         ),
-      ]);
-    } else {
-      cards.addAll([
-        _ContextCard(
-          icon: Icons.favorite_rounded,
-          color: const Color(0xFF8058BE),
-          title: 'Wellbeing',
-          value: 'Quietly monitored',
-          detail: 'Trends, not diagnosis',
-        ),
-        _ContextCard(
-          icon: Icons.shield_rounded,
-          color: safeZones.isEmpty
-              ? const Color(0xFF7E8B86)
-              : GuardianColors.safe,
-          title: 'Safe zone',
-          value: safeZones.isEmpty ? 'No active zone' : 'Protection active',
-          detail: 'Location boundaries',
-        ),
-        _ContextCard(
-          icon: Icons.radar_rounded,
-          color: const Color(0xFF8058BE),
-          title: 'Local context',
-          value: localContext,
-          detail: weatherStatus,
-        ),
-      ]);
+      );
     }
 
     return Container(
@@ -160,7 +122,7 @@ class AroundThemPanel extends StatelessWidget {
               Text(
                 profile == GuardianCareProfile.child
                     ? 'AROUND THEM'
-                    : profile == GuardianCareProfile.senior
+                    : careEnabled && profile == GuardianCareProfile.senior
                     ? 'CARE AROUND THEM'
                     : 'AROUND THEM',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -190,7 +152,7 @@ class AroundThemPanel extends StatelessWidget {
           const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
-              if (constraints.maxWidth >= 820) {
+              if (constraints.maxWidth >= 820 && cards.length <= 4) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

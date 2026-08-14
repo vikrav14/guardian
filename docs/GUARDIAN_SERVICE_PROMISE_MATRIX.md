@@ -35,11 +35,11 @@ The versioned backend catalogue is implemented in `gateway/src/entitlements.js`.
 |---|---|---|---|
 | Live GPS | Gateway telemetry, freshness qualification and app map exist. | Partial | V52 field test for live, stale, approximate, offline and reconnecting states. |
 | SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence. |
-| 7-day location history | Locations, segments and compressed journeys exist. The plan catalogue defines 7 days. | Partial | Enforce the rolling window in Firestore queries/rules and app date controls; retention test. |
+| 7-day location history | Locations, segments and compressed journeys exist. Flutter date controls and service calls reject older days, and Firestore rules reject records older than seven rolling days. | Partial | Run the emulator boundary suite and retention/downgrade acceptance test against the release candidate. |
 | Two-way calls | App can launch a call to the saved watch SIM number. | Partial | V52 incoming/outgoing call acceptance, failure copy and carrier/SIM prerequisites. |
 | Home and school safe zones | Geofence storage, transitions and alerts exist. | Partial | Real entry/exit, boundary jitter, offline recovery and duplicate-alert field tests. |
 | Battery alerts | Persist-on-change, freshness-aware status and low-battery alert routing exist. | Partial | V52 threshold and stale-reading test; one alert per policy window. |
-| 1 family caregiver | Gateway-verified join requests enforce the active owner's one-caregiver limit in a transaction. Clients cannot grant membership or service ownership. | Partial | Firestore emulator suite, concurrent live acceptance test, revocation lifecycle and adaptive UI. |
+| 1 family caregiver | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce the active owner's one-caregiver limit. Clients cannot grant membership or service ownership. | Partial | Concurrent two-account live acceptance test and revocation lifecycle. |
 
 Essential does **not** include WhatsApp questions and answers. Critical safety continues through the Essential channels that are explicitly configured; the service must never silently substitute an excluded WhatsApp service.
 
@@ -51,16 +51,16 @@ Essential does **not** include WhatsApp questions and answers. Critical safety c
 | Guardian AI | Deterministic intent, language and factual reply engines exist; an LLM is bounded to eligible functional paths. | Partial | Remove or qualify unsupported inferences; evaluation corpus and cost/error budgets. |
 | WhatsApp questions and answers | Registered-caller authorization, deterministic controller, journey/location/battery/alert replies and safe actions exist. | Partial | Meta production token/template test, expiry handling, idempotency and full acceptance corpus. |
 | Proactive smart notifications | Push/WhatsApp policy and deterministic escalation rules exist. | Partial | Scenario matrix, quiet-hour policy, rate limits and real delivery tests. |
-| Unlimited location history | Data model does not impose the Essential limit. | Partial | Publish a retention/fair-use definition, prove restore/export behaviour and enforce plan changes. |
+| Unlimited location history | Family/Care bypass the Essential query/rule window and the app exposes retained dates. | Partial | Publish a retention/fair-use definition and prove restore/export and downgrade behaviour. |
 | Voice assistant | No verified voice-assistant product exists. Voice monitoring/listen is intentionally prohibited. | Not implemented | Define a safe product separately and implement it, or remove/reword this promise. |
-| Up to 5 family caregivers | Gateway-verified join requests enforce the active owner's five-caregiver limit in a transaction. | Partial | Firestore emulator suite, concurrent live acceptance test, revocation and owner/member lifecycle. |
+| Up to 5 family caregivers | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce five caregivers for the verified owner. | Partial | Concurrent live acceptance, revocation and owner/member lifecycle. |
 
 ### Guardian Care
 
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
 | Everything in Family | Inherited by the versioned plan catalogue. | Partial | Every Family and Essential gate above must pass. |
-| Medication reminders and acknowledgements | App and WhatsApp can create reminder-related records/commands, but stores are inconsistent and acknowledgement is not end to end. | Partial | One canonical reminder store, delivery state, wearer/guardian acknowledgement, retry and V52 device test. |
+| Medication reminders and acknowledgements | App/WhatsApp creation is Care-gated in UI, service, rules and gateway. Reminder stores remain inconsistent and acknowledgement is not end to end. | Partial | One canonical reminder store, delivery state, wearer/guardian acknowledgement, retry and V52 device test. |
 | Wellbeing and activity summaries | Deterministic daily summary and rule-based device intelligence exist. | Partial | Evidence-labelled facts, missing-data behaviour, Care-only app/WhatsApp gates and acceptance corpus. |
 | Weekly Guardian AI care summaries | No complete scheduled weekly product and delivery audit exists. | Not implemented | Define data window, generation, consent, channel, retries, provenance and opt-out. |
 | Shareable family wellbeing reports | Journey sharing exists, but it is not the advertised wellbeing report. | Not implemented | Define report content/privacy, generate, authorize, expire links/files and test sharing. |
@@ -122,3 +122,11 @@ PR #106 must remain draft until all applicable gates pass:
 9. Privacy, retention, support/SLA and customer-facing wording review.
 
 No release decision may be based only on a green unit-test count.
+
+## Adaptive Flutter contract
+
+- `HomeShell` resolves the effective family subscription once and exposes it through `GuardianEntitlementsScope` to all routed pages.
+- Essential receives factual watch status, core safety controls, a seven-day history selector and one caregiver slot. Guardian AI, WhatsApp service actions and Care observations are not presented as active.
+- Family adds Guardian AI, WhatsApp actions, smart-notification presentation, retained history and five caregiver slots. Care-only medication and wellbeing controls remain locked.
+- Care adds medication, wellbeing and routine-care surfaces. Medication and care-profile writes require the verified Care subscription in Flutter services and Firestore rules.
+- Loading, permission/network error, inactive, excluded and allowed states use different deterministic copy. Restricted services fail closed while the plan is unverified.

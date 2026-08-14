@@ -1,5 +1,6 @@
 import '../models/care_profile.dart';
 import '../models/device.dart';
+import 'device_connectivity.dart';
 
 String buildGuardianAiInterpretation(Device? device) {
   if (device == null) return 'No watch to monitor yet.';
@@ -32,34 +33,24 @@ String buildGuardianAiInterpretation(Device? device) {
 
   return switch (profile) {
     GuardianCareProfile.child =>
-      'Everything looks calm. Guardian is checking location, journey and safety context.',
+      'Watch connected with a recent location. Guardian can explain recorded journey and safe-zone facts.',
     GuardianCareProfile.senior =>
-      'Everything looks calm. Guardian is checking safety, routine and care context.',
+      'Watch connected with a recent location. Guardian can explain available safety and care facts.',
     GuardianCareProfile.adult =>
-      'Everything looks normal. Guardian is quietly checking what matters.',
+      'Watch connected with a recent location. Guardian can explain available watch facts.',
   };
 }
 
 List<String> buildGuardianActivities(Device? device) {
   if (device == null) return ['Waiting for watch connection'];
 
-  final profile = GuardianCareProfileX.fromValue(device.careProfile);
   final activities = <String>['Watch signal monitored'];
 
   if (device.location?.isValid == true) {
-    activities.add('Location received and evaluated');
+    activities.add('Location received');
   }
-
-  switch (profile) {
-    case GuardianCareProfile.child:
-      activities.add('Journey and safe-zone context checked');
-      activities.add('Guardian AI context analyzed');
-    case GuardianCareProfile.senior:
-      activities.add('Care and routine context checked');
-      activities.add('Guardian AI context analyzed');
-    case GuardianCareProfile.adult:
-      activities.add('Safe-zone check completed');
-      activities.add('Guardian AI context analyzed');
+  if (device.intelligence?.topInsight != null) {
+    activities.add('Rule-based insight available');
   }
 
   return activities;
@@ -67,27 +58,14 @@ List<String> buildGuardianActivities(Device? device) {
 
 String buildTodaySummary(Device? device) {
   if (device == null) return 'No watch linked yet.';
-  return 'A calm day so far';
+  if (device.isTrulyOffline) return 'Watch offline';
+  if (device.hasFreshLocation || device.hasApproximateLocation) {
+    return 'Watch connected with a recent location update';
+  }
+  return 'Waiting for today\'s location activity';
 }
 
 String buildTodayActivityStatus(Device? device) {
   if (device == null) return 'No activity data yet.';
-  final profile = GuardianCareProfileX.fromValue(device.careProfile);
-  return switch (profile) {
-    GuardianCareProfile.child =>
-      'No unusual journey or movement pattern detected.',
-    GuardianCareProfile.senior =>
-      'No unusual routine or movement pattern detected.',
-    GuardianCareProfile.adult => 'No unusual movement detected.',
-  };
-}
-
-String buildWeatherStatus(Device? device) {
-  if (device == null) return 'Weather unavailable';
-  return 'Conditions normal. No weather risk right now.';
-}
-
-String buildLocalContextStatus(Device? device) {
-  if (device == null) return 'Context unavailable';
-  return 'No relevant nearby disruption';
+  return 'Open journeys to review recorded movement. Guardian does not infer a routine when data is missing.';
 }

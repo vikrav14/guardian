@@ -53,10 +53,7 @@ void main() {
   });
 
   test('Care inherits all services', () {
-    final result = GuardianSubscription.fromMap(
-      subscription('care'),
-      now: now,
-    );
+    final result = GuardianSubscription.fromMap(subscription('care'), now: now);
 
     expect(result.has(GuardianFeature.liveGps), true);
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
@@ -70,14 +67,22 @@ void main() {
 
     expect(
       GuardianSubscription.fromMap(
-        subscription('family', status: 'trialing', extra: {'trialEndsAt': future}),
+        subscription(
+          'family',
+          status: 'trialing',
+          extra: {'trialEndsAt': future},
+        ),
         now: now,
       ).serviceActive,
       true,
     );
     expect(
       GuardianSubscription.fromMap(
-        subscription('family', status: 'trialing', extra: {'trialEndsAt': past}),
+        subscription(
+          'family',
+          status: 'trialing',
+          extra: {'trialEndsAt': past},
+        ),
         now: now,
       ).serviceActive,
       false,
@@ -95,42 +100,93 @@ void main() {
     );
 
     expect(
-      essential.canAccessHistoryDay(now.subtract(const Duration(days: 3)), now: now),
+      essential.canAccessHistoryDay(
+        now.subtract(const Duration(days: 3)),
+        now: now,
+      ),
       true,
     );
     expect(
-      essential.canAccessHistoryDay(now.subtract(const Duration(days: 9)), now: now),
+      essential.canAccessHistoryDay(
+        now.subtract(const Duration(days: 9)),
+        now: now,
+      ),
       false,
     );
-    expect(
-      family.canAccessHistoryDay(DateTime.utc(2020), now: now),
-      true,
-    );
+    expect(family.canAccessHistoryDay(DateTime.utc(2020), now: now), true);
+    expect(essential.historyFirstSelectableDay(now: now), DateTime(2026, 8, 8));
+    expect(family.historyFirstSelectableDay(now: now), DateTime(2000, 1, 1));
   });
 
-  test('subscription presentation distinguishes loading, inactive and errors', () {
-    final checking = GuardianSubscriptionPresentation.resolve(checking: true);
-    final inactive = GuardianSubscriptionPresentation.resolve(
-      subscription: const GuardianSubscription.inactive(),
-    );
-    final unavailable = GuardianSubscriptionPresentation.resolve(
-      error: StateError('permission-denied'),
-    );
-
-    expect(checking.state, GuardianSubscriptionViewState.checking);
-    expect(checking.trailingLabel, 'Checking…');
-    expect(inactive.state, GuardianSubscriptionViewState.inactive);
-    expect(inactive.trailingLabel, 'Guardian service inactive');
-    expect(unavailable.state, GuardianSubscriptionViewState.unavailable);
-    expect(unavailable.trailingLabel, 'Could not verify');
-    expect(unavailable.message, contains('Restricted services remain unavailable'));
-  });
-
-  test('active subscription presentation names the verified plan', () {
-    final care = GuardianSubscription.fromMap(
-      subscription('care'),
+  test('feature decisions provide deterministic plan-aware locked copy', () {
+    final essential = GuardianSubscription.fromMap(
+      subscription('essential'),
       now: now,
     );
+    final family = GuardianSubscription.fromMap(
+      subscription('family'),
+      now: now,
+    );
+
+    final whatsapp = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.whatsappQuestionsAnswers,
+      subscription: essential,
+    );
+    final medication = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.medicationReminders,
+      subscription: family,
+    );
+
+    expect(whatsapp.allowed, false);
+    expect(whatsapp.state, GuardianEntitlementDecisionState.upgradeRequired);
+    expect(whatsapp.message, contains('Guardian Family or Guardian Care'));
+    expect(medication.allowed, false);
+    expect(medication.minimumPlan, GuardianPlan.care);
+    expect(medication.message, contains('Guardian Care'));
+  });
+
+  test('feature decisions fail closed while checking or unavailable', () {
+    final checking = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.guardianAi,
+      checking: true,
+    );
+    final unavailable = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.guardianAi,
+      error: StateError('offline'),
+    );
+
+    expect(checking.allowed, false);
+    expect(checking.state, GuardianEntitlementDecisionState.checking);
+    expect(unavailable.allowed, false);
+    expect(unavailable.state, GuardianEntitlementDecisionState.unavailable);
+  });
+
+  test(
+    'subscription presentation distinguishes loading, inactive and errors',
+    () {
+      final checking = GuardianSubscriptionPresentation.resolve(checking: true);
+      final inactive = GuardianSubscriptionPresentation.resolve(
+        subscription: const GuardianSubscription.inactive(),
+      );
+      final unavailable = GuardianSubscriptionPresentation.resolve(
+        error: StateError('permission-denied'),
+      );
+
+      expect(checking.state, GuardianSubscriptionViewState.checking);
+      expect(checking.trailingLabel, 'Checking…');
+      expect(inactive.state, GuardianSubscriptionViewState.inactive);
+      expect(inactive.trailingLabel, 'Guardian service inactive');
+      expect(unavailable.state, GuardianSubscriptionViewState.unavailable);
+      expect(unavailable.trailingLabel, 'Could not verify');
+      expect(
+        unavailable.message,
+        contains('Restricted services remain unavailable'),
+      );
+    },
+  );
+
+  test('active subscription presentation names the verified plan', () {
+    final care = GuardianSubscription.fromMap(subscription('care'), now: now);
     final presentation = GuardianSubscriptionPresentation.resolve(
       subscription: care,
     );

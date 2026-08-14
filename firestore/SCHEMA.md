@@ -82,6 +82,10 @@ owner's current linked watches, the invitation, and the request. Invitation
 payloads are never used as device authorization. The active plan's caregiver
 limit is re-evaluated inside that transaction.
 
+Only an active, verified service owner below the plan caregiver limit may
+create an invite. Family members can submit a join code but cannot mint new
+family authority or invitations on the owner's behalf.
+
 ## `devices/{imei}`
 
 Live device state. Document ID = device IMEI (digits only).
@@ -131,7 +135,7 @@ Optional history (gateway throttles writes — see write gate below).
 | accuracySource | string \| null |
 | recordedAt | timestamp |
 
-History is appended only when the gateway write gate passes (same rules as device doc location updates, or when history interval elapses on a heartbeat-cap persist).
+History is appended only when the gateway write gate passes (same rules as device doc location updates, or when history interval elapses on a heartbeat-cap persist). Client reads are plan-aware: Essential may read only records from the most recent seven rolling days; Family and Care may read retained history subject to the published retention/fair-use policy. Flutter also constrains calendar selection, but Firestore rules are authoritative.
 
 ## `devices/{imei}/segments/{segmentId}`
 

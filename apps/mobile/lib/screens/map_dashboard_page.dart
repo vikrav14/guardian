@@ -11,6 +11,7 @@ import '../dashboard/dashboard_controller.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../services/guardian_services.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/around_them_panel.dart';
 import '../widgets/dashboard/family_device_strip.dart';
@@ -260,6 +261,22 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _showEntitlementDecision(GuardianEntitlementDecision decision) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(decision.title),
+        content: Text(decision.message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMapCard(Device selected) {
     final colors = context.guardianColors;
     final center = _mapCenter;
@@ -400,11 +417,20 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   Widget _buildDashboardContent(Device? selected) {
+    final entitlementScope = GuardianEntitlementsScope.of(context);
+    final aiDecision = entitlementScope.decision(GuardianFeature.guardianAi);
+    final whatsappDecision = entitlementScope.decision(
+      GuardianFeature.whatsappQuestionsAnswers,
+    );
+    final careSummaryDecision = entitlementScope.decision(
+      GuardianFeature.wellbeingActivitySummaries,
+    );
+    final medicationDecision = entitlementScope.decision(
+      GuardianFeature.medicationReminders,
+    );
     final aiInterpretation = buildGuardianAiInterpretation(selected);
     final todayText = buildTodaySummary(selected);
     final activityStatus = buildTodayActivityStatus(selected);
-    final weatherStatus = buildWeatherStatus(selected);
-    final localContext = buildLocalContextStatus(selected);
     final activities = buildGuardianActivities(selected);
 
     return Column(
@@ -413,14 +439,18 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         GuardianNowHero(
           device: selected,
           aiInterpretation: aiInterpretation,
+          guardianAiEnabled: aiDecision.allowed,
+          askGuardianEnabled: whatsappDecision.allowed,
           onCall: selected == null ? null : () => _callDevice(selected),
           onViewLocation: selected == null
               ? null
               : () => _openHistory(selected),
           onAskGuardian: selected == null
               ? null
-              : () =>
-                    _showUnavailable('Ask Guardian is ready through WhatsApp.'),
+              : whatsappDecision.allowed
+              ? () =>
+                    _showUnavailable('Ask Guardian is ready through WhatsApp.')
+              : () => _showEntitlementDecision(whatsappDecision),
         ),
         if (_devices.length > 1) ...[
           const SizedBox(height: 18),
@@ -438,42 +468,51 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         AroundThemPanel(
           device: selected,
           geofences: _geofences,
-          weatherStatus: weatherStatus,
-          localContext: localContext,
           guardianIntelligence: aiInterpretation,
+          guardianAiEnabled: aiDecision.allowed,
+          careEnabled: careSummaryDecision.allowed,
+          medicationEnabled: medicationDecision.allowed,
         ),
-        const SizedBox(height: 18),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final today = TodaySummaryPanel(
-              device: selected,
-              dailySummary: todayText,
-              activityStatus: activityStatus,
-              onViewJourney: selected == null
-                  ? null
-                  : () => _openHistory(selected),
-            );
-            final intelligence = GuardianIntelligencePanel(
-              device: selected,
-              activities: activities,
-            );
-
-            if (constraints.maxWidth < 820) {
-              return Column(
-                children: [today, const SizedBox(height: 18), intelligence],
+        if (aiDecision.allowed || careSummaryDecision.allowed) ...[
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final today = TodaySummaryPanel(
+                device: selected,
+                dailySummary: todayText,
+                activityStatus: activityStatus,
+                onViewJourney: selected == null
+                    ? null
+                    : () => _openHistory(selected),
               );
-            }
+              final intelligence = GuardianIntelligencePanel(
+                device: selected,
+                activities: activities,
+              );
 
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 9, child: today),
-                const SizedBox(width: 18),
-                Expanded(flex: 13, child: intelligence),
-              ],
-            );
-          },
-        ),
+              if (aiDecision.allowed && !careSummaryDecision.allowed) {
+                return intelligence;
+              }
+              if (!aiDecision.allowed && careSummaryDecision.allowed) {
+                return today;
+              }
+              if (constraints.maxWidth < 820) {
+                return Column(
+                  children: [today, const SizedBox(height: 18), intelligence],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 9, child: today),
+                  const SizedBox(width: 18),
+                  Expanded(flex: 13, child: intelligence),
+                ],
+              );
+            },
+          ),
+        ],
         const SizedBox(height: 24),
       ],
     );

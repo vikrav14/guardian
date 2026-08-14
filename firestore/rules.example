@@ -28,6 +28,56 @@ service cloud.firestore {
         );
     }
 
+    function serviceSubscription() {
+      return get(
+        /databases/$(database)/documents/serviceSubscriptions/$(effectiveServiceOwnerUid())
+      ).data;
+    }
+
+    function trustedActiveSubscription() {
+      let ownerUid = effectiveServiceOwnerUid();
+      let sub = serviceSubscription();
+      return verifiedServiceMember(ownerUid)
+        && sub.get('version', 0) == 1
+        && sub.get('managedBy', '') in ['guardian_admin', 'billing', 'migration']
+        && sub.get('plan', '') in ['essential', 'family', 'care']
+        && (
+          (sub.get('status', '') == 'active'
+            && (!('currentPeriodEnd' in sub)
+              || sub.currentPeriodEnd == null
+              || sub.currentPeriodEnd > request.time))
+          || (sub.get('status', '') == 'trialing'
+            && sub.get('trialEndsAt', request.time) > request.time)
+          || (sub.get('status', '') in ['grace_period', 'past_due']
+            && sub.get('graceEndsAt', request.time) > request.time)
+          || (sub.get('status', '') == 'cancelled'
+            && sub.get('currentPeriodEnd', request.time) > request.time)
+        );
+    }
+
+    function activePlanAtLeast(requiredPlan) {
+      let plan = serviceSubscription().get('plan', '');
+      return trustedActiveSubscription()
+        && (
+          requiredPlan == 'essential'
+          || (requiredPlan == 'family' && plan in ['family', 'care'])
+          || (requiredPlan == 'care' && plan == 'care')
+        );
+    }
+
+    function caregiverLimit() {
+      return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
+    }
+
+    function historyAllowed(recordedAt) {
+      return activePlanAtLeast('essential')
+        && recordedAt is timestamp
+        && (
+          activePlanAtLeast('family')
+          || recordedAt >= request.time - duration.value(7, 'd')
+        );
+    }
+
     function validUserAvatar() {
       return !('avatarUrl' in request.resource.data)
         || request.resource.data.avatarUrl == null
@@ -97,21 +147,29 @@ service cloud.firestore {
               'careProfile',
               'carePriorities',
               'updatedAt'
-            ]);
+            ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['careProfile', 'carePriorities'])
+          || activePlanAtLeast('care')
+        );
       allow create, delete: if false;
 
       match /locations/{locationId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.recordedAt);
         allow write: if false;
       }
 
       match /segments/{segmentId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.from);
         allow write: if false;
       }
 
       match /journeys/{journeyId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.startAt);
         allow write: if false;
       }
     }
@@ -126,11 +184,14 @@ service cloud.firestore {
     }
 
     match /medicationReminders/{reminderId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care');
       allow create: if signedIn()
         && linkedTo(request.resource.data.imei)
+        && activePlanAtLeast('care')
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care')
         && resource.data.createdBy == request.auth.uid;
     }
 
@@ -154,6 +215,9 @@ service cloud.firestore {
     match /invites/{inviteId} {
       allow read: if signedIn() && resource.data.createdBy == request.auth.uid;
       allow create: if signedIn()
+        && effectiveServiceOwnerUid() == request.auth.uid
+        && activePlanAtLeast('essential')
+        && userDoc().get('memberUids', []).size() < caregiverLimit()
         && request.resource.data.keys().hasOnly([
           'code',
           'createdBy',
@@ -206,7 +270,11 @@ service cloud.firestore {
       allow read: if linkedTo(resource.data.imei);
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && (
+          request.resource.data.get('type', '') != 'set_medication_reminder'
+          || activePlanAtLeast('care')
+        );
       allow update, delete: if false; // gateway Admin SDK only
     }
   }

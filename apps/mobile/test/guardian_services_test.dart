@@ -45,57 +45,66 @@ void main() {
       },
     );
 
-    test('normalizes 10-digit protocol ids in linkedImeis to 15-digit docs', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(
-        mockUser: MockUser(uid: 'u1'),
-        signedIn: true,
-      );
-      await db.collection('users').doc('u1').set({
-        'linkedImeis': ['9705314117'],
-      });
-      await db.collection('devices').doc('861397053141170').set({
-        'online': true,
-        'batteryPercent': 72,
-      });
+    test(
+      'normalizes 10-digit protocol ids in linkedImeis to 15-digit docs',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({
+          'linkedImeis': ['9705314117'],
+        });
+        await db.collection('devices').doc('861397053141170').set({
+          'online': true,
+          'batteryPercent': 72,
+        });
 
-      final devices = await DeviceService(
-        db: db,
-        auth: auth,
-      ).watchLinkedDevices().first;
+        final devices = await DeviceService(
+          db: db,
+          auth: auth,
+        ).watchLinkedDevices().first;
 
-      expect(devices, hasLength(1));
-      expect(devices.single.imei, '861397053141170');
-      expect(devices.single.batteryPercent, 72);
-    });
+        expect(devices, hasLength(1));
+        expect(devices.single.imei, '861397053141170');
+        expect(devices.single.batteryPercent, 72);
+      },
+    );
 
-    test('linkPendant adds a normalized 15-digit IMEI to linkedImeis', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(
-        mockUser: MockUser(uid: 'u1'),
-        signedIn: true,
-      );
-      await db.collection('users').doc('u1').set({'linkedImeis': []});
+    test(
+      'linkPendant adds a normalized 15-digit IMEI to linkedImeis',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({'linkedImeis': []});
 
-      await DeviceService(db: db, auth: auth).linkPendant('861397053141170');
+        await DeviceService(db: db, auth: auth).linkPendant('861397053141170');
 
-      final doc = await db.collection('users').doc('u1').get();
-      expect(doc.data()!['linkedImeis'], ['861397053141170']);
-    });
+        final doc = await db.collection('users').doc('u1').get();
+        expect(doc.data()!['linkedImeis'], ['861397053141170']);
+      },
+    );
 
-    test('linkPendant normalizes 10-digit protocol ids before linking', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(
-        mockUser: MockUser(uid: 'u1'),
-        signedIn: true,
-      );
-      await db.collection('users').doc('u1').set({'linkedImeis': []});
+    test(
+      'linkPendant normalizes 10-digit protocol ids before linking',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({'linkedImeis': []});
 
-      await DeviceService(db: db, auth: auth).linkPendant('9705314117');
+        await DeviceService(db: db, auth: auth).linkPendant('9705314117');
 
-      final doc = await db.collection('users').doc('u1').get();
-      expect(doc.data()!['linkedImeis'], ['861397053141170']);
-    });
+        final doc = await db.collection('users').doc('u1').get();
+        expect(doc.data()!['linkedImeis'], ['861397053141170']);
+      },
+    );
 
     test('linkPendant rejects invalid IMEI input', () async {
       final db = FakeFirebaseFirestore();
@@ -110,29 +119,36 @@ void main() {
       );
     });
 
-    test('unlinkPendant removes a linked IMEI without deleting the device doc',
-        () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(
-        mockUser: MockUser(uid: 'u1'),
-        signedIn: true,
-      );
-      await db.collection('users').doc('u1').set({
-        'linkedImeis': ['861397053141170', '861397053139877'],
-      });
-      await db.collection('devices').doc('861397053139877').set({
-        'online': true,
-        'batteryPercent': 80,
-      });
+    test(
+      'unlinkPendant removes a linked IMEI without deleting the device doc',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        await db.collection('users').doc('u1').set({
+          'linkedImeis': ['861397053141170', '861397053139877'],
+        });
+        await db.collection('devices').doc('861397053139877').set({
+          'online': true,
+          'batteryPercent': 80,
+        });
 
-      await DeviceService(db: db, auth: auth).unlinkPendant('861397053139877');
+        await DeviceService(
+          db: db,
+          auth: auth,
+        ).unlinkPendant('861397053139877');
 
-      final userDoc = await db.collection('users').doc('u1').get();
-      expect(userDoc.data()!['linkedImeis'], ['861397053141170']);
-      final deviceDoc =
-          await db.collection('devices').doc('861397053139877').get();
-      expect(deviceDoc.exists, isTrue);
-    });
+        final userDoc = await db.collection('users').doc('u1').get();
+        expect(userDoc.data()!['linkedImeis'], ['861397053141170']);
+        final deviceDoc = await db
+            .collection('devices')
+            .doc('861397053139877')
+            .get();
+        expect(deviceDoc.exists, isTrue);
+      },
+    );
 
     test('renameDevice sets name and clears it when blank', () async {
       final db = FakeFirebaseFirestore();
@@ -196,9 +212,50 @@ void main() {
       data = (await db.collection('devices').doc('AAA').get()).data()!;
       expect(data.containsKey('avatarUrl'), false);
     });
+
+    test('Care profile writes require a verified Care subscription', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('devices').doc('AAA').set({'online': true});
+      final service = DeviceService(db: db, auth: auth);
+      GuardianSubscription plan(String name) => GuardianSubscription.fromMap({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': name,
+        'status': 'active',
+      });
+
+      expect(
+        () => service.updateCareProfile(
+          'AAA',
+          subscription: plan('family'),
+          careProfile: 'senior',
+          carePriorities: const ['wellbeing'],
+        ),
+        throwsA(isA<StateError>()),
+      );
+      await service.updateCareProfile(
+        'AAA',
+        subscription: plan('care'),
+        careProfile: 'senior',
+        carePriorities: const ['wellbeing'],
+      );
+      final data = (await db.collection('devices').doc('AAA').get()).data()!;
+      expect(data['careProfile'], 'senior');
+    });
   });
 
   group('DeviceService.watchDayHistory', () {
+    GuardianSubscription plan(String name) => GuardianSubscription.fromMap({
+      'version': 1,
+      'managedBy': 'guardian_admin',
+      'plan': name,
+      'status': 'active',
+    });
+
     test('only returns points recorded within the given day', () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(
@@ -225,10 +282,18 @@ void main() {
         'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 18, 1, 0)),
       });
 
-      final points = await DeviceService(
-        db: db,
-        auth: auth,
-      ).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+      final points = await DeviceService(db: db, auth: auth)
+          .watchDayHistory(
+            'AAA',
+            DateTime(2026, 7, 17),
+            subscription: GuardianSubscription.fromMap({
+              'version': 1,
+              'managedBy': 'guardian_admin',
+              'plan': 'family',
+              'status': 'active',
+            }),
+          )
+          .first;
 
       expect(points.length, 1);
       expect(points.single.lat, 2);
@@ -255,13 +320,111 @@ void main() {
         'recordedAt': Timestamp.fromDate(DateTime(2026, 7, 17, 8, 0)),
       });
 
-      final points = await DeviceService(
-        db: db,
-        auth: auth,
-      ).watchDayHistory('AAA', DateTime(2026, 7, 17)).first;
+      final points = await DeviceService(db: db, auth: auth)
+          .watchDayHistory(
+            'AAA',
+            DateTime(2026, 7, 17),
+            subscription: GuardianSubscription.fromMap({
+              'version': 1,
+              'managedBy': 'guardian_admin',
+              'plan': 'family',
+              'status': 'active',
+            }),
+          )
+          .first;
 
       expect(points.map((p) => p.lat).toList(), [1, 2]);
     });
+
+    test('fails closed before querying history outside the plan window', () {
+      final service = DeviceService(
+        db: FakeFirebaseFirestore(),
+        auth: MockFirebaseAuth(mockUser: MockUser(uid: 'u1'), signedIn: true),
+      );
+      final oldDay = DateTime.now().subtract(const Duration(days: 30));
+
+      expect(
+        () => service.watchDayHistory(
+          'AAA',
+          oldDay,
+          subscription: plan('essential'),
+        ),
+        throwsA(isA<StateError>()),
+      );
+      expect(
+        () => service.watchDayHistory(
+          'AAA',
+          oldDay,
+          subscription: plan('family'),
+        ),
+        returnsNormally,
+      );
+    });
+  });
+
+  group('MedicationReminderService entitlement', () {
+    GuardianSubscription plan(String name) => GuardianSubscription.fromMap({
+      'version': 1,
+      'managedBy': 'guardian_admin',
+      'plan': name,
+      'status': 'active',
+    });
+
+    test(
+      'Family is rejected before a reminder or command is written',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        final service = MedicationReminderService(db: db, auth: auth);
+
+        expect(
+          () => service.create(
+            subscription: plan('family'),
+            imei: 'AAA',
+            time: '08:00',
+            frequency: 2,
+            text: 'Tablets',
+          ),
+          throwsA(isA<StateError>()),
+        );
+        expect(
+          (await db.collection('medicationReminders').get()).docs,
+          isEmpty,
+        );
+        expect((await db.collection('deviceCommands').get()).docs, isEmpty);
+      },
+    );
+
+    test(
+      'Care can create a reminder and corresponding watch command',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+
+        await MedicationReminderService(db: db, auth: auth).create(
+          subscription: plan('care'),
+          imei: 'AAA',
+          time: '08:00',
+          frequency: 2,
+          text: 'Tablets',
+        );
+
+        expect(
+          (await db.collection('medicationReminders').get()).docs,
+          hasLength(1),
+        );
+        expect(
+          (await db.collection('deviceCommands').get()).docs,
+          hasLength(1),
+        );
+      },
+    );
   });
 
   group('UserProfileService avatar', () {
@@ -468,9 +631,7 @@ void main() {
         mockUser: MockUser(uid: 'u1'),
         signedIn: true,
       );
-      await db.collection('users').doc('u1').set({
-        'serviceOwnerUid': 'u1',
-      });
+      await db.collection('users').doc('u1').set({'serviceOwnerUid': 'u1'});
       await db.collection('serviceSubscriptions').doc('u1').set({
         'version': 1,
         'managedBy': 'guardian_admin',
@@ -553,7 +714,10 @@ void main() {
         expect(requests.docs.single.data()['requestedBy'], 'acceptor-uid');
         expect(requests.docs.single.data()['status'], 'pending');
 
-        final acceptorDoc = await db.collection('users').doc('acceptor-uid').get();
+        final acceptorDoc = await db
+            .collection('users')
+            .doc('acceptor-uid')
+            .get();
         expect(acceptorDoc.data()!['linkedImeis'], isEmpty);
       },
     );
@@ -582,6 +746,16 @@ void main() {
         ),
         signedIn: true,
       );
+      await db.collection('users').doc('owner').set({
+        'serviceOwnerUid': 'owner',
+        'memberUids': <String>[],
+      });
+      await db.collection('serviceSubscriptions').doc('owner').set({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': 'essential',
+        'status': 'active',
+      });
       final code = await FamilyService(db: db, auth: auth).createInviteCode();
       final invite = await db.collection('invites').doc(code).get();
 
@@ -590,6 +764,51 @@ void main() {
       expect(invite.data()!['code'], code);
       expect(invite.data()!['createdBy'], 'owner');
       expect(invite.data()!.containsKey('linkedImeis'), false);
+    });
+
+    test('createInviteCode rejects a non-owner family member', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'member'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('member').set({
+        'serviceOwnerUid': 'owner',
+      });
+      await db.collection('serviceSubscriptions').doc('owner').set({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': 'family',
+        'status': 'active',
+      });
+
+      expect(
+        () => FamilyService(db: db, auth: auth).createInviteCode(),
+        throwsA(isA<StateError>()),
+      );
+    });
+
+    test('createInviteCode enforces the caregiver limit', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'owner'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('owner').set({
+        'serviceOwnerUid': 'owner',
+        'memberUids': ['member'],
+      });
+      await db.collection('serviceSubscriptions').doc('owner').set({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': 'essential',
+        'status': 'active',
+      });
+
+      expect(
+        () => FamilyService(db: db, auth: auth).createInviteCode(),
+        throwsA(isA<StateError>()),
+      );
     });
   });
 }

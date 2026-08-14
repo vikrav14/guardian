@@ -7,9 +7,15 @@ import '../../theme/app_theme.dart';
 import '../cards/guardian_card.dart';
 
 class CareProfileCard extends StatelessWidget {
-  const CareProfileCard({super.key, required this.device, this.onChanged});
+  const CareProfileCard({
+    super.key,
+    required this.device,
+    required this.subscription,
+    this.onChanged,
+  });
 
   final Device device;
+  final GuardianSubscription subscription;
   final void Function(GuardianCareProfile profile, Set<String> priorities)?
   onChanged;
 
@@ -20,16 +26,25 @@ class CareProfileCard extends StatelessWidget {
       initialData: device,
       builder: (context, snapshot) {
         final latest = snapshot.data ?? device;
-        return _CareProfileEditor(device: latest, onChanged: onChanged);
+        return _CareProfileEditor(
+          device: latest,
+          subscription: subscription,
+          onChanged: onChanged,
+        );
       },
     );
   }
 }
 
 class _CareProfileEditor extends StatefulWidget {
-  const _CareProfileEditor({required this.device, this.onChanged});
+  const _CareProfileEditor({
+    required this.device,
+    required this.subscription,
+    this.onChanged,
+  });
 
   final Device device;
+  final GuardianSubscription subscription;
   final void Function(GuardianCareProfile profile, Set<String> priorities)?
   onChanged;
 
@@ -90,6 +105,7 @@ class _CareProfileEditorState extends State<_CareProfileEditor> {
     try {
       await DeviceService().updateCareProfile(
         widget.device.imei,
+        subscription: widget.subscription,
         careProfile: _profile.firestoreValue,
         carePriorities: _priorities.toList(growable: false),
       );

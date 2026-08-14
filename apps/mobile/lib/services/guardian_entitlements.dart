@@ -4,6 +4,14 @@ enum GuardianPlan { essential, family, care }
 
 enum GuardianSubscriptionViewState { checking, active, inactive, unavailable }
 
+enum GuardianEntitlementDecisionState {
+  allowed,
+  checking,
+  unavailable,
+  inactive,
+  upgradeRequired,
+}
+
 enum GuardianFeature {
   liveGps,
   sosAlerts,
@@ -35,6 +43,44 @@ extension GuardianPlanPresentation on GuardianPlan {
     GuardianPlan.family => 'Guardian Family',
     GuardianPlan.care => 'Guardian Care',
   };
+}
+
+extension GuardianFeaturePresentation on GuardianFeature {
+  String get label => switch (this) {
+    GuardianFeature.liveGps => 'Live GPS',
+    GuardianFeature.sosAlerts => 'SOS alerts',
+    GuardianFeature.locationHistory => 'Location history',
+    GuardianFeature.twoWayCalls => 'Two-way calls',
+    GuardianFeature.safeZones => 'Safe zones',
+    GuardianFeature.batteryAlerts => 'Battery alerts',
+    GuardianFeature.familyCaregivers => 'Family caregivers',
+    GuardianFeature.guardianAi => 'Guardian AI',
+    GuardianFeature.whatsappQuestionsAnswers =>
+      'WhatsApp questions and answers',
+    GuardianFeature.whatsappSafetyAlerts => 'WhatsApp safety alerts',
+    GuardianFeature.proactiveSmartNotifications =>
+      'Proactive smart notifications',
+    GuardianFeature.voiceAssistant => 'Voice assistant',
+    GuardianFeature.whatsappWatchCommands => 'WhatsApp watch commands',
+    GuardianFeature.medicationReminders => 'Medication reminders',
+    GuardianFeature.reminderAcknowledgements => 'Reminder acknowledgements',
+    GuardianFeature.wellbeingActivitySummaries =>
+      'Wellbeing and activity summaries',
+    GuardianFeature.weeklyCareSummaries => 'Weekly care summaries',
+    GuardianFeature.shareableWellbeingReports => 'Shareable wellbeing reports',
+    GuardianFeature.proactiveRoutineAlerts => 'Proactive routine alerts',
+    GuardianFeature.prioritySupport => 'Priority family support',
+  };
+
+  GuardianPlan get minimumPlan {
+    if (_essentialFeatures.contains(this)) {
+      return GuardianPlan.essential;
+    }
+    if (_familyFeatures.contains(this)) {
+      return GuardianPlan.family;
+    }
+    return GuardianPlan.care;
+  }
 }
 
 const _essentialFeatures = <GuardianFeature>{
@@ -102,24 +148,53 @@ class GuardianSubscription {
   final Set<GuardianFeature> features;
 
   String get planLabel => plan?.label ?? 'Guardian service inactive';
-  int get caregiverLimit => plan == GuardianPlan.essential ? 1 : serviceActive ? 5 : 0;
-  int? get locationHistoryDays => plan == GuardianPlan.essential ? 7 : serviceActive ? null : 0;
+  int get caregiverLimit => plan == GuardianPlan.essential
+      ? 1
+      : serviceActive
+      ? 5
+      : 0;
+  int? get locationHistoryDays => plan == GuardianPlan.essential
+      ? 7
+      : serviceActive
+      ? null
+      : 0;
 
-  bool has(GuardianFeature feature) => serviceActive && features.contains(feature);
+  bool has(GuardianFeature feature) =>
+      serviceActive && features.contains(feature);
 
   bool canAccessHistoryDay(DateTime day, {DateTime? now}) {
-    if (!has(GuardianFeature.locationHistory)) return false;
+    if (!has(GuardianFeature.locationHistory)) {
+      return false;
+    }
     final days = locationHistoryDays;
-    if (days == null) return true;
+    if (days == null) {
+      return true;
+    }
     final clock = now ?? DateTime.now();
-    final endOfDay = DateTime(day.year, day.month, day.day).add(const Duration(days: 1));
-    return endOfDay.isAfter(clock.subtract(Duration(days: days)));
+    final today = DateTime(clock.year, clock.month, clock.day);
+    final requestedDay = DateTime(day.year, day.month, day.day);
+    final firstDay = today.subtract(Duration(days: days - 1));
+    return !requestedDay.isBefore(firstDay) && !requestedDay.isAfter(today);
   }
 
   DateTime historyBoundary({DateTime? now}) {
     final clock = now ?? DateTime.now();
     final days = locationHistoryDays;
-    return days == null ? DateTime.fromMillisecondsSinceEpoch(0) : clock.subtract(Duration(days: days));
+    return days == null
+        ? DateTime.fromMillisecondsSinceEpoch(0)
+        : clock.subtract(Duration(days: days));
+  }
+
+  DateTime historyFirstSelectableDay({DateTime? now}) {
+    final clock = now ?? DateTime.now();
+    final today = DateTime(clock.year, clock.month, clock.day);
+    if (!serviceActive || !has(GuardianFeature.locationHistory)) {
+      return today;
+    }
+    if (locationHistoryDays == null) {
+      return DateTime(2000, 1, 1);
+    }
+    return today.subtract(Duration(days: locationHistoryDays! - 1));
   }
 
   factory GuardianSubscription.fromMap(
@@ -133,7 +208,8 @@ class GuardianSubscription {
 
     final version = map['version'];
     final managedBy = (map['managedBy'] as String?)?.trim().toLowerCase();
-    if (version != 1 || !const {'guardian_admin', 'billing', 'migration'}.contains(managedBy)) {
+    if (version != 1 ||
+        !const {'guardian_admin', 'billing', 'migration'}.contains(managedBy)) {
       return GuardianSubscription.inactive(
         reason: 'untrusted_legacy_subscription',
         ownerUid: ownerUid,
@@ -147,7 +223,10 @@ class GuardianSubscription {
       _ => null,
     };
     if (plan == null) {
-      return GuardianSubscription.inactive(reason: 'unknown_plan', ownerUid: ownerUid);
+      return GuardianSubscription.inactive(
+        reason: 'unknown_plan',
+        ownerUid: ownerUid,
+      );
     }
 
     final status = (map['status'] as String?)?.trim().toLowerCase() ?? '';
@@ -163,11 +242,17 @@ class GuardianSubscription {
       'cancelled' => currentPeriodEnd?.isAfter(clock) == true,
       _ => false,
     };
-    if (status == 'trialing') accessUntil = trialEndsAt;
-    if (status == 'grace_period' || status == 'past_due') accessUntil = graceEndsAt;
+    if (status == 'trialing') {
+      accessUntil = trialEndsAt;
+    }
+    if (status == 'grace_period' || status == 'past_due') {
+      accessUntil = graceEndsAt;
+    }
     if (!active) {
       return GuardianSubscription.inactive(
-        reason: status.isEmpty ? 'inactive_subscription_status' : 'subscription_access_ended',
+        reason: status.isEmpty
+            ? 'inactive_subscription_status'
+            : 'subscription_access_ended',
         ownerUid: ownerUid,
       );
     }
@@ -185,6 +270,90 @@ class GuardianSubscription {
       ownerUid: ownerUid,
       accessUntil: accessUntil,
       features: features,
+    );
+  }
+}
+
+class GuardianEntitlementDecision {
+  const GuardianEntitlementDecision._({
+    required this.state,
+    required this.feature,
+    required this.allowed,
+    required this.title,
+    required this.message,
+    required this.minimumPlan,
+  });
+
+  final GuardianEntitlementDecisionState state;
+  final GuardianFeature feature;
+  final bool allowed;
+  final String title;
+  final String message;
+  final GuardianPlan minimumPlan;
+
+  factory GuardianEntitlementDecision.resolve({
+    required GuardianFeature feature,
+    GuardianSubscription? subscription,
+    bool checking = false,
+    Object? error,
+  }) {
+    final minimumPlan = feature.minimumPlan;
+    if (error != null) {
+      return GuardianEntitlementDecision._(
+        state: GuardianEntitlementDecisionState.unavailable,
+        feature: feature,
+        allowed: false,
+        title: 'Could not verify your plan',
+        message:
+            'Guardian could not verify this family\'s service plan. ${feature.label} remains unavailable until verification succeeds.',
+        minimumPlan: minimumPlan,
+      );
+    }
+    if (subscription == null && checking) {
+      return GuardianEntitlementDecision._(
+        state: GuardianEntitlementDecisionState.checking,
+        feature: feature,
+        allowed: false,
+        title: 'Checking your plan',
+        message: 'Guardian is verifying access to ${feature.label}.',
+        minimumPlan: minimumPlan,
+      );
+    }
+
+    final sub = subscription ?? const GuardianSubscription.inactive();
+    if (!sub.serviceActive) {
+      return GuardianEntitlementDecision._(
+        state: GuardianEntitlementDecisionState.inactive,
+        feature: feature,
+        allowed: false,
+        title: 'Guardian service inactive',
+        message:
+            '${feature.label} is unavailable because Guardian service is not active for this family.',
+        minimumPlan: minimumPlan,
+      );
+    }
+    if (sub.has(feature)) {
+      return GuardianEntitlementDecision._(
+        state: GuardianEntitlementDecisionState.allowed,
+        feature: feature,
+        allowed: true,
+        title: feature.label,
+        message: '${feature.label} is included with ${sub.planLabel}.',
+        minimumPlan: minimumPlan,
+      );
+    }
+
+    final requiredLabel = minimumPlan == GuardianPlan.family
+        ? 'Guardian Family or Guardian Care'
+        : minimumPlan.label;
+    return GuardianEntitlementDecision._(
+      state: GuardianEntitlementDecisionState.upgradeRequired,
+      feature: feature,
+      allowed: false,
+      title: '${feature.label} is not included',
+      message:
+          '${feature.label} requires $requiredLabel. This family is currently on ${sub.planLabel}.',
+      minimumPlan: minimumPlan,
     );
   }
 }
@@ -248,8 +417,14 @@ class GuardianSubscriptionPresentation {
 }
 
 DateTime? _asDate(Object? value) {
-  if (value is Timestamp) return value.toDate();
-  if (value is DateTime) return value;
-  if (value is String) return DateTime.tryParse(value);
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is DateTime) {
+    return value;
+  }
+  if (value is String) {
+    return DateTime.tryParse(value);
+  }
   return null;
 }

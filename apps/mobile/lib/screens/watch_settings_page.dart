@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../services/device_avatar_service.dart';
 import '../services/guardian_services.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
@@ -231,14 +232,20 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
   }
 
   Widget _safetyCard(GuardianThemeColors colors) {
+    final careDecision = GuardianEntitlementsScope.of(
+      context,
+    ).decision(GuardianFeature.wellbeingActivitySummaries);
     return GuardianCard(
       child: Column(
         children: [
           _SettingsTile(
-            icon: Icons.volunteer_activism_rounded,
-            title: 'Care profile',
-            subtitle:
-                'Child, older adult or adult - priorities, falls and medication',
+            icon: careDecision.allowed
+                ? Icons.volunteer_activism_rounded
+                : Icons.lock_outline_rounded,
+            title: careDecision.allowed ? 'Care profile' : 'Care services',
+            subtitle: careDecision.allowed
+                ? 'Person profile, wellbeing priorities and medication reminders'
+                : 'Guardian Care is required for wellbeing and medication services',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -353,8 +360,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
           _SettingsTile(
             icon: Icons.location_on_outlined,
             title: 'Location update frequency',
-            subtitle:
-                'Managed together with fall detection and medication in Care settings',
+            subtitle: 'Manage core location reporting for this watch',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(

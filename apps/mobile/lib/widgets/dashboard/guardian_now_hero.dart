@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../dashboard/device_connectivity.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import 'dodo_stage.dart';
@@ -10,6 +11,8 @@ class GuardianNowHero extends StatelessWidget {
   const GuardianNowHero({
     required this.device,
     required this.aiInterpretation,
+    required this.guardianAiEnabled,
+    required this.askGuardianEnabled,
     this.onCall,
     this.onViewLocation,
     this.onAskGuardian,
@@ -18,6 +21,8 @@ class GuardianNowHero extends StatelessWidget {
 
   final Device? device;
   final String aiInterpretation;
+  final bool guardianAiEnabled;
+  final bool askGuardianEnabled;
   final VoidCallback? onCall;
   final VoidCallback? onViewLocation;
   final VoidCallback? onAskGuardian;
@@ -106,7 +111,9 @@ class GuardianNowHero extends StatelessWidget {
             child: GuardianDodoStageImage(action: DodoStageAction.idle),
           );
 
-          final ai = _AiCard(message: aiInterpretation);
+          final interpretation = guardianAiEnabled
+              ? _AiCard(message: aiInterpretation)
+              : _WatchStatusCard(device: d);
 
           final status = Wrap(
             spacing: 8,
@@ -165,11 +172,16 @@ class GuardianNowHero extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _ActionButton(
-                  icon: Icons.chat_bubble_outline_rounded,
+                  icon: askGuardianEnabled
+                      ? Icons.chat_bubble_outline_rounded
+                      : Icons.lock_outline_rounded,
                   label: 'Ask Guardian',
-                  subtitle: 'On WhatsApp',
+                  subtitle: askGuardianEnabled
+                      ? 'On WhatsApp'
+                      : 'Family plan required',
                   color: GuardianColors.whatsapp,
                   onTap: onAskGuardian,
+                  locked: !askGuardianEnabled,
                 ),
               ),
             ],
@@ -186,7 +198,7 @@ class GuardianNowHero extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(child: ai),
+                    Expanded(child: interpretation),
                     const SizedBox(width: 8),
                     dodo,
                   ],
@@ -207,7 +219,7 @@ class GuardianNowHero extends StatelessWidget {
                   const SizedBox(width: 16),
                   dodo,
                   const SizedBox(width: 16),
-                  Expanded(flex: 9, child: ai),
+                  Expanded(flex: 9, child: interpretation),
                 ],
               ),
               const SizedBox(height: 14),
@@ -454,6 +466,75 @@ class _AiCard extends StatelessWidget {
   }
 }
 
+class _WatchStatusCard extends StatelessWidget {
+  const _WatchStatusCard({required this.device});
+
+  final Device device;
+
+  String get _message {
+    final battery = device.batteryPercent;
+    if (battery != null && battery < 15) {
+      return 'Battery is critically low. Charge the watch soon.';
+    }
+    if (device.isTrulyOffline) {
+      return 'Watch offline. The map is showing the last known location.';
+    }
+    if (device.isReconnecting) {
+      return 'Watch reconnecting. Waiting for a fresh update.';
+    }
+    if (!device.hasFreshLocation && !device.hasApproximateLocation) {
+      return 'Watch connected. Waiting for a fresh location fix.';
+    }
+    return 'Watch connected. Location and battery status are available.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 130),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: GuardianColors.safe.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: GuardianColors.safe.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.watch_outlined, size: 16, color: GuardianColors.safe),
+              SizedBox(width: 7),
+              Text(
+                'Watch status',
+                style: TextStyle(
+                  color: GuardianColors.safe,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _message,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 13,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatusChip extends StatelessWidget {
   const _StatusChip({
     required this.icon,
@@ -500,6 +581,7 @@ class _ActionButton extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.locked = false,
   });
 
   final IconData icon;
@@ -507,12 +589,14 @@ class _ActionButton extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback? onTap;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    final actionColor = locked ? context.guardianColors.textMuted : color;
     return Material(
-      color: enabled ? color.withValues(alpha: 0.08) : Colors.black12,
+      color: enabled ? actionColor.withValues(alpha: 0.08) : Colors.black12,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -524,14 +608,14 @@ class _ActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: enabled
-                  ? color.withValues(alpha: 0.12)
+                  ? actionColor.withValues(alpha: 0.12)
                   : Colors.transparent,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 22, color: enabled ? color : Colors.grey),
+              Icon(icon, size: 22, color: enabled ? actionColor : Colors.grey),
               const SizedBox(width: 10),
               Flexible(
                 child: Column(
@@ -543,7 +627,7 @@ class _ActionButton extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: enabled ? color : Colors.grey,
+                        color: enabled ? actionColor : Colors.grey,
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
                       ),
@@ -555,7 +639,7 @@ class _ActionButton extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: enabled
-                            ? color.withValues(alpha: 0.72)
+                            ? actionColor.withValues(alpha: 0.72)
                             : Colors.grey,
                         fontSize: 9,
                       ),

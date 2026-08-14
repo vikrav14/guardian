@@ -128,9 +128,13 @@ class DeviceService {
 
   Future<void> updateCareProfile(
     String imei, {
+    required GuardianSubscription subscription,
     required String careProfile,
     required List<String> carePriorities,
   }) async {
+    if (!subscription.has(GuardianFeature.wellbeingActivitySummaries)) {
+      throw StateError('Care profiles require Guardian Care.');
+    }
     await _db.collection('devices').doc(imei).update({
       'careProfile': careProfile,
       'carePriorities': carePriorities,
@@ -259,8 +263,10 @@ class DeviceService {
   /// gateway's WRITE_LOCATION_HISTORY=true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
     String imei,
-    DateTime day,
-  ) {
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _db
@@ -275,7 +281,12 @@ class DeviceService {
   }
 
   /// Streams compressed journeys for a calendar day.
-  Stream<List<JourneyRecord>> watchDayJourneys(String imei, DateTime day) {
+  Stream<List<JourneyRecord>> watchDayJourneys(
+    String imei,
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final localStart = DateTime(day.year, day.month, day.day);
     final localEnd = localStart.add(const Duration(days: 1));
     return _db
@@ -293,7 +304,12 @@ class DeviceService {
   }
 
   /// Streams gateway dwell segments for a calendar day.
-  Stream<List<DwellSegment>> watchDaySegments(String imei, DateTime day) {
+  Stream<List<DwellSegment>> watchDaySegments(
+    String imei,
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _db
@@ -311,12 +327,13 @@ class DeviceService {
   Stream<JourneyDayData> watchDayJourneyData(
     String imei,
     DateTime day, {
+    required GuardianSubscription subscription,
     List<Geofence> geofences = const [],
   }) {
     return _combineLatest3(
-      watchDayHistory(imei, day),
-      watchDayJourneys(imei, day),
-      watchDaySegments(imei, day),
+      watchDayHistory(imei, day, subscription: subscription),
+      watchDayJourneys(imei, day, subscription: subscription),
+      watchDaySegments(imei, day, subscription: subscription),
       (locations, journeys, segments) => buildJourneyDayData(
         locationPoints: locations,
         journeys: journeys,
@@ -330,31 +347,46 @@ class DeviceService {
   Future<JourneyDayData> fetchDayJourneyData(
     String imei,
     DateTime day, {
+    required GuardianSubscription subscription,
     List<Geofence> geofences = const [],
   }) {
-    return watchDayJourneyData(imei, day, geofences: geofences).first;
+    return watchDayJourneyData(
+      imei,
+      day,
+      subscription: subscription,
+      geofences: geofences,
+    ).first;
   }
 
   /// One-shot fetch for compare mode and share exports.
   Future<List<LocationHistoryPoint>> fetchDayHistory(
     String imei,
-    DateTime day,
-  ) {
-    return watchDayHistory(imei, day).first;
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    return watchDayHistory(imei, day, subscription: subscription).first;
   }
 
   /// Returns calendar days (midnight local) that have at least one location fix
   /// within [lookbackDays] ending today ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â used by Journey Time Machine memories.
   Future<Set<DateTime>> fetchDaysWithHistory(
     String imei, {
+    required GuardianSubscription subscription,
     int lookbackDays = 60,
   }) async {
+    if (!subscription.has(GuardianFeature.locationHistory)) {
+      throw StateError('Location history is unavailable for this family plan.');
+    }
     final today = DateTime.now();
+    final permittedLookback = subscription.locationHistoryDays;
+    final effectiveLookback = permittedLookback == null
+        ? lookbackDays
+        : lookbackDays.clamp(1, permittedLookback).toInt();
     final start = DateTime(
       today.year,
       today.month,
       today.day,
-    ).subtract(Duration(days: lookbackDays));
+    ).subtract(Duration(days: effectiveLookback - 1));
     final end = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
     final snap = await _db
@@ -391,6 +423,17 @@ class DeviceService {
     }
 
     return days;
+  }
+
+  void _requireHistoryAccess(GuardianSubscription subscription, DateTime day) {
+    if (!subscription.canAccessHistoryDay(day)) {
+      final limit = subscription.locationHistoryDays;
+      throw StateError(
+        limit == null
+            ? 'Location history is unavailable for this family plan.'
+            : 'This plan includes only the most recent $limit days of location history.',
+      );
+    }
   }
 
   /// Streams one linked device so settings pages always use the latest
@@ -495,7 +538,11 @@ class MedicationReminderService {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  Stream<List<MedicationReminder>> watchForDevice(String imei) {
+  Stream<List<MedicationReminder>> watchForDevice(
+    String imei, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireCare(subscription);
     return _db
         .collection('medicationReminders')
         .where('imei', isEqualTo: imei)
@@ -508,12 +555,14 @@ class MedicationReminderService {
   }
 
   Future<void> create({
+    required GuardianSubscription subscription,
     required String imei,
     required String time,
     required int frequency,
     required String text,
     String? week,
   }) async {
+    _requireCare(subscription);
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
 
@@ -538,7 +587,12 @@ class MedicationReminderService {
     );
   }
 
-  Future<void> setEnabled(MedicationReminder reminder, bool enabled) async {
+  Future<void> setEnabled(
+    MedicationReminder reminder,
+    bool enabled, {
+    required GuardianSubscription subscription,
+  }) async {
+    _requireCare(subscription);
     await _db.collection('medicationReminders').doc(reminder.id).update({
       'enabled': enabled,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -554,7 +608,12 @@ class MedicationReminderService {
     );
   }
 
-  Future<void> delete(String id, {String? imei}) async {
+  Future<void> delete(
+    String id, {
+    required GuardianSubscription subscription,
+    String? imei,
+  }) async {
+    _requireCare(subscription);
     // Delete from app's record
     await _db.collection('medicationReminders').doc(id).delete();
 
@@ -566,6 +625,12 @@ class MedicationReminderService {
           .collection('reminders')
           .doc(id)
           .delete();
+    }
+  }
+
+  void _requireCare(GuardianSubscription subscription) {
+    if (!subscription.has(GuardianFeature.medicationReminders)) {
+      throw StateError('Medication reminders require Guardian Care.');
     }
   }
 }
@@ -634,7 +699,9 @@ class UserProfileService {
   Stream<GuardianSubscription> watchSubscription() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
-      return Stream.value(const GuardianSubscription.inactive(reason: 'not_signed_in'));
+      return Stream.value(
+        const GuardianSubscription.inactive(reason: 'not_signed_in'),
+      );
     }
 
     late StreamController<GuardianSubscription> controller;
@@ -643,29 +710,27 @@ class UserProfileService {
 
     controller = StreamController<GuardianSubscription>(
       onListen: () {
-        ownerSub = _db.collection('users').doc(uid).snapshots().listen(
-          (snap) async {
-            await planSub?.cancel();
-            final rawOwner = (snap.data()?['serviceOwnerUid'] as String?)?.trim();
-            final ownerUid = rawOwner == null || rawOwner.isEmpty ? uid : rawOwner;
-            planSub = _db
-                .collection('serviceSubscriptions')
-                .doc(ownerUid)
-                .snapshots()
-                .listen(
-                  (planSnap) {
-                    controller.add(
-                      GuardianSubscription.fromMap(
-                        planSnap.data(),
-                        ownerUid: ownerUid,
-                      ),
-                    );
-                  },
-                  onError: controller.addError,
+        ownerSub = _db.collection('users').doc(uid).snapshots().listen((
+          snap,
+        ) async {
+          await planSub?.cancel();
+          final rawOwner = (snap.data()?['serviceOwnerUid'] as String?)?.trim();
+          final ownerUid = rawOwner == null || rawOwner.isEmpty
+              ? uid
+              : rawOwner;
+          planSub = _db
+              .collection('serviceSubscriptions')
+              .doc(ownerUid)
+              .snapshots()
+              .listen((planSnap) {
+                controller.add(
+                  GuardianSubscription.fromMap(
+                    planSnap.data(),
+                    ownerUid: ownerUid,
+                  ),
                 );
-          },
-          onError: controller.addError,
-        );
+              }, onError: controller.addError);
+        }, onError: controller.addError);
       },
       onCancel: () async {
         await ownerSub?.cancel();
@@ -807,6 +872,32 @@ class FamilyInvite {
   }
 }
 
+class FamilyJoinRequest {
+  const FamilyJoinRequest({
+    required this.id,
+    required this.inviteCode,
+    required this.status,
+    this.reason,
+  });
+
+  final String id;
+  final String inviteCode;
+  final String status;
+  final String? reason;
+
+  factory FamilyJoinRequest.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    return FamilyJoinRequest(
+      id: doc.id,
+      inviteCode: (data['inviteCode'] as String?) ?? '',
+      status: (data['status'] as String?) ?? 'pending',
+      reason: data['reason'] as String?,
+    );
+  }
+}
+
 class FamilyService {
   FamilyService({FirebaseFirestore? db, FirebaseAuth? auth})
     : _db = db ?? FirebaseFirestore.instance,
@@ -867,9 +958,47 @@ class FamilyService {
         });
   }
 
+  Stream<List<FamilyJoinRequest>> watchMyJoinRequests() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('familyJoinRequests')
+        .where('requestedBy', isEqualTo: uid)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map(FamilyJoinRequest.fromDoc).toList(growable: false),
+        );
+  }
+
   Future<String> createInviteCode() async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
+
+    final subscription = await UserProfileService(
+      db: _db,
+      auth: _auth,
+    ).getSubscription();
+    if (!subscription.serviceActive) {
+      throw StateError('Guardian service is not active for this family.');
+    }
+    if (subscription.ownerUid != user.uid) {
+      throw StateError('Only the family plan owner can invite caregivers.');
+    }
+
+    final ownerDoc = await _db.collection('users').doc(user.uid).get();
+    final memberUids =
+        (ownerDoc.data()?['memberUids'] as List?)
+            ?.whereType<String>()
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet() ??
+        const <String>{};
+    if (memberUids.length >= subscription.caregiverLimit) {
+      throw StateError(
+        '${subscription.planLabel} includes up to ${subscription.caregiverLimit} caregiver${subscription.caregiverLimit == 1 ? '' : 's'}.',
+      );
+    }
 
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _generateCode();

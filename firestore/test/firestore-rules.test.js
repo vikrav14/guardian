@@ -35,6 +35,7 @@ beforeEach(async () => {
   await testEnv.clearFirestore();
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
+    const now = Date.now();
     await setDoc(doc(db, 'users', 'owner'), {
       serviceOwnerUid: 'owner',
       memberUids: ['member'],
@@ -59,6 +60,32 @@ beforeEach(async () => {
       managedBy: 'guardian_admin',
       plan: 'care',
       status: 'active',
+    });
+    await setDoc(doc(db, 'devices', '861397052547492'), {
+      online: true,
+      careProfile: 'senior',
+      carePriorities: [],
+    });
+    await setDoc(
+      doc(db, 'devices', '861397052547492', 'locations', 'recent'),
+      {
+        lat: -20,
+        lng: 57,
+        recordedAt: new Date(now - 2 * 24 * 60 * 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(db, 'devices', '861397052547492', 'locations', 'old'),
+      {
+        lat: -20,
+        lng: 57,
+        recordedAt: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      },
+    );
+    await setDoc(doc(db, 'medicationReminders', 'med-1'), {
+      imei: '861397052547492',
+      text: 'Tablets',
+      createdBy: 'owner',
     });
   });
 });
@@ -184,6 +211,122 @@ test('only the creator can read an invite and clients cannot accept it directly'
   await assertSucceeds(getDoc(inviteRef));
   await assertFails(getDoc(doc(authedDb('member'), 'invites', 'ABC234')));
   await assertFails(updateDoc(inviteRef, { status: 'accepted' }));
+});
+
+test('Essential can read recent history but not history older than seven days', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'essential',
+    });
+  });
+  const db = authedDb('owner');
+  await assertSucceeds(
+    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'recent')),
+  );
+  await assertFails(
+    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'old')),
+  );
+});
+
+test('Family and Care can read retained history without the Essential window', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  await assertSucceeds(
+    getDoc(
+      doc(
+        authedDb('member'),
+        'devices',
+        '861397052547492',
+        'locations',
+        'old',
+      ),
+    ),
+  );
+});
+
+test('medication data and commands require Guardian Care', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  const familyDb = authedDb('owner');
+  await assertFails(getDoc(doc(familyDb, 'medicationReminders', 'med-1')));
+  await assertFails(
+    setDoc(doc(familyDb, 'medicationReminders', 'med-family'), {
+      imei: '861397052547492',
+      text: 'Tablets',
+      createdBy: 'owner',
+    }),
+  );
+  await assertFails(
+    setDoc(doc(familyDb, 'deviceCommands', 'med-command-family'), {
+      imei: '861397052547492',
+      type: 'set_medication_reminder',
+      params: {},
+      status: 'pending',
+      createdBy: 'owner',
+    }),
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'care',
+    });
+  });
+  const careDb = authedDb('member');
+  await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
+});
+
+test('Care profile writes require Guardian Care', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  const deviceRef = doc(authedDb('owner'), 'devices', '861397052547492');
+  await assertFails(updateDoc(deviceRef, { careProfile: 'adult' }));
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'care',
+    });
+  });
+  await assertSucceeds(updateDoc(deviceRef, { careProfile: 'adult' }));
+});
+
+test('only the plan owner below caregiver capacity can create invites', async () => {
+  const memberDb = authedDb('member');
+  await assertFails(
+    setDoc(doc(memberDb, 'invites', 'MEM234'), {
+      code: 'MEM234',
+      createdBy: 'member',
+      createdByName: 'Member',
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }),
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'essential',
+    });
+  });
+  const ownerDb = authedDb('owner');
+  await assertFails(
+    setDoc(doc(ownerDb, 'invites', 'FULL24'), {
+      code: 'FULL24',
+      createdBy: 'owner',
+      createdByName: 'Owner',
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }),
+  );
 });
 
 test('a joiner can enqueue only their own minimal pending request', async () => {

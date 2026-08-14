@@ -4,6 +4,7 @@ import '../models/care_profile.dart';
 import '../models/device.dart';
 import '../models/medication_reminder.dart';
 import '../services/guardian_services.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
@@ -132,10 +133,13 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     }
   }
 
-  Future<void> _showAddReminderDialog() async {
+  Future<void> _showAddReminderDialog(GuardianSubscription subscription) async {
     await showDialog<void>(
       context: context,
-      builder: (ctx) => _AddReminderDialog(imei: widget.device.imei),
+      builder: (ctx) => _AddReminderDialog(
+        imei: widget.device.imei,
+        subscription: subscription,
+      ),
     );
   }
 
@@ -159,6 +163,11 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final scope = GuardianEntitlementsScope.of(context);
+    final careDecision = scope.decision(
+      GuardianFeature.wellbeingActivitySummaries,
+    );
+    final subscription = scope.subscription;
     return Scaffold(
       backgroundColor: colors.canvas,
       appBar: AppBar(
@@ -202,12 +211,20 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
-                CareProfileCard(
-                  device: widget.device,
-                  onChanged: _onCareDraftChanged,
-                ),
+                if (careDecision.allowed)
+                  CareProfileCard(
+                    device: widget.device,
+                    subscription: subscription!,
+                    onChanged: _onCareDraftChanged,
+                  )
+                else
+                  _PlanNotice(decision: careDecision),
                 const SizedBox(height: GuardianSpacing.lg),
-                _buildAdaptiveCareSections(colors),
+                _buildAdaptiveCareSections(
+                  colors,
+                  careEnabled: careDecision.allowed,
+                  subscription: subscription,
+                ),
               ],
             ),
           ),
@@ -216,39 +233,41 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     );
   }
 
-  Widget _buildAdaptiveCareSections(GuardianThemeColors colors) {
+  Widget _buildAdaptiveCareSections(
+    GuardianThemeColors colors, {
+    required bool careEnabled,
+    required GuardianSubscription? subscription,
+  }) {
     final priorities = _adaptivePriorities;
 
-    final widgets = <Widget>[_buildLocationUpdatesCard(colors)];
+    final widgets = <Widget>[
+      _buildLocationUpdatesCard(colors),
+      const SizedBox(height: GuardianSpacing.lg),
+      _buildFallDetectionCard(colors),
+      const SizedBox(height: GuardianSpacing.lg),
+      _buildPriorityInfoCard(
+        colors,
+        icon: Icons.location_on_outlined,
+        title: 'Safe zones',
+        subtitle:
+            'Important places Guardian can watch for arrivals and departures.',
+      ),
+      const SizedBox(height: GuardianSpacing.lg),
+      _buildPriorityInfoCard(
+        colors,
+        icon: Icons.route_outlined,
+        title: 'Journeys',
+        subtitle:
+            'Follow recorded movement between places. History length adapts to the family plan.',
+      ),
+    ];
 
     void addSection(Widget section) {
       widgets.add(const SizedBox(height: GuardianSpacing.lg));
       widgets.add(section);
     }
 
-    if (priorities.contains(GuardianCarePriority.safeZones)) {
-      addSection(
-        _buildPriorityInfoCard(
-          colors,
-          icon: Icons.location_on_outlined,
-          title: 'Safe zones',
-          subtitle:
-              'Important places Guardian can watch for arrivals and departures.',
-        ),
-      );
-    }
-
-    if (priorities.contains(GuardianCarePriority.journeys)) {
-      addSection(
-        _buildPriorityInfoCard(
-          colors,
-          icon: Icons.route_outlined,
-          title: 'Journeys',
-          subtitle:
-              'Follow movement between places and make trips easier to understand.',
-        ),
-      );
-    }
+    if (!careEnabled || subscription == null) return Column(children: widgets);
 
     if (priorities.contains(GuardianCarePriority.unusualStops)) {
       addSection(
@@ -266,12 +285,8 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       addSection(_buildWellbeingInfoCard(colors));
     }
 
-    if (priorities.contains(GuardianCarePriority.falls)) {
-      addSection(_buildFallDetectionCard(colors));
-    }
-
     if (priorities.contains(GuardianCarePriority.medication)) {
-      addSection(_buildMedicationCard(colors));
+      addSection(_buildMedicationCard(colors, subscription));
     }
 
     if (priorities.contains(GuardianCarePriority.inactivity)) {
@@ -609,7 +624,10 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     );
   }
 
-  Widget _buildMedicationCard(GuardianThemeColors colors) {
+  Widget _buildMedicationCard(
+    GuardianThemeColors colors,
+    GuardianSubscription subscription,
+  ) {
     return GuardianCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,7 +661,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 tooltip: 'Add reminder',
-                onPressed: _showAddReminderDialog,
+                onPressed: () => _showAddReminderDialog(subscription),
               ),
             ],
           ),
@@ -651,6 +669,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           StreamBuilder<List<MedicationReminder>>(
             stream: MedicationReminderService().watchForDevice(
               widget.device.imei,
+              subscription: subscription,
             ),
             builder: (context, snapshot) {
               final reminders = snapshot.data ?? const <MedicationReminder>[];
@@ -674,10 +693,15 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   for (final reminder in reminders)
                     _ReminderTile(
                       reminder: reminder,
-                      onToggle: (enabled) => MedicationReminderService()
-                          .setEnabled(reminder, enabled),
+                      onToggle: (enabled) =>
+                          MedicationReminderService().setEnabled(
+                            reminder,
+                            enabled,
+                            subscription: subscription,
+                          ),
                       onDelete: () => MedicationReminderService().delete(
                         reminder.id,
+                        subscription: subscription,
                         imei: reminder.imei,
                       ),
                     ),
@@ -806,10 +830,63 @@ class _CareSectionHeader extends StatelessWidget {
   }
 }
 
+class _PlanNotice extends StatelessWidget {
+  const _PlanNotice({required this.decision});
+
+  final GuardianEntitlementDecision decision;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return GuardianCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lock_outline_rounded, color: GuardianColors.warning),
+          const SizedBox(width: GuardianSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  decision.title,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  decision.message,
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  'Core location, safe-zone, journey and fall-safety settings remain available below.',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AddReminderDialog extends StatefulWidget {
-  const _AddReminderDialog({required this.imei});
+  const _AddReminderDialog({required this.imei, required this.subscription});
 
   final String imei;
+  final GuardianSubscription subscription;
 
   @override
   State<_AddReminderDialog> createState() => _AddReminderDialogState();
@@ -852,6 +929,7 @@ class _AddReminderDialogState extends State<_AddReminderDialog> {
     setState(() => _saving = true);
     try {
       await MedicationReminderService().create(
+        subscription: widget.subscription,
         imei: widget.imei,
         time: _timeLabel,
         frequency: _frequency,
