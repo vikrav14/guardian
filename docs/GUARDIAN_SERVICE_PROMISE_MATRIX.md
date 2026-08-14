@@ -34,9 +34,9 @@ The versioned backend catalogue is implemented in `gateway/src/entitlements.js`.
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
 | Live GPS | Gateway distinguishes `gps=A` satellite fixes from `gps=V` WiFi/LBS estimates, retains both independently, separates watch and location clocks, and labels approximate uncertainty. | Partial | Complete the outdoor-to-indoor V52 sequence in `GUARDIAN_LOCATION_PROVENANCE.md`, then separately measure satellite error before advertising a numerical precision. |
-| SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence. |
+| SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. The read-only acceptance collector correlates real alerts and delivery outcomes. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence using `GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. |
 | 7-day location history | Locations, segments and compressed journeys exist. Flutter date controls and service calls reject older days, and Firestore rules reject records older than seven rolling days. | Partial | Run the emulator boundary suite and retention/downgrade acceptance test against the release candidate. |
-| Two-way calls | Mobile can launch a carrier voice call to the saved watch SIM. Desktop presents the number, voice/data distinction and an explicit handoff. | Partial | V52 incoming/outgoing call acceptance, per-minute carrier charging, failure copy and carrier/SIM prerequisites. |
+| Two-way calls | Mobile can launch a carrier voice call to the saved watch SIM. Desktop presents the number, voice/data distinction and an explicit handoff. The acceptance gate requires manual proof because carrier calls bypass Guardian servers. | Partial | V52 incoming/outgoing call acceptance, per-minute carrier charging, failure copy and carrier/SIM prerequisites. |
 | Home and school safe zones | Geofence storage, transitions and alerts exist. | Partial | Real entry/exit, boundary jitter, offline recovery and duplicate-alert field tests. |
 | Battery alerts | Persist-on-change, freshness-aware status and low-battery alert routing exist. | Partial | V52 threshold and stale-reading test; one alert per policy window. |
 | 1 family caregiver | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce the active owner's one-caregiver limit. Clients cannot grant membership or service ownership. | Partial | Concurrent two-account live acceptance test and revocation lifecycle. |
@@ -60,7 +60,7 @@ Essential does **not** include WhatsApp questions and answers. Critical safety c
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
 | Everything in Family | Inherited by the versioned plan catalogue. | Partial | Every Family and Essential gate above must pass. |
-| Medication reminders and acknowledgements | App/WhatsApp creation is Care-gated in UI, service, rules and gateway. Reminder stores remain inconsistent and acknowledgement is not end to end. | Partial | One canonical reminder store, delivery state, wearer/guardian acknowledgement, retry and V52 device test. |
+| Medication reminders and acknowledgements | App and confirmed WhatsApp actions use the canonical `medicationReminders` store, enqueue the same V52 TCP command, and record guardian delivery separately. TCP dispatch is not mislabelled as acknowledgement. | Partial | Complete the real V52 presentation test. Define and implement genuine wearer/guardian acknowledgement or remove “acknowledgements” from the promise. |
 | Wellbeing and activity summaries | Deterministic daily summary and rule-based device intelligence exist. | Partial | Evidence-labelled facts, missing-data behaviour, Care-only app/WhatsApp gates and acceptance corpus. |
 | Weekly Guardian AI care summaries | No complete scheduled weekly product and delivery audit exists. | Not implemented | Define data window, generation, consent, channel, retries, provenance and opt-out. |
 | Shareable family wellbeing reports | Journey sharing exists, but it is not the advertised wellbeing report. | Not implemented | Define report content/privacy, generate, authorize, expire links/files and test sharing. |
@@ -115,7 +115,7 @@ PR #106 must remain draft until all applicable gates pass:
 2. Flutter analyzer, full test suite and Web release build.
 3. Firestore emulator rule tests for plan, history, linking and caregiver boundaries.
 4. Advertised promise matrix has no unexplained red or partial launch item.
-5. Real V52 acceptance for SOS, calls, reminders, location, battery and geofences.
+5. Real V52 acceptance for SOS, calls, reminders, location, battery and geofences using `GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md` and the read-only backend collector.
 6. Meta production acceptance for replies, templates, token expiry and idempotency.
 7. Android build and device smoke test before mobile release. Android SDK absence may be deferred during Web development, but it is not waived for release.
 8. Billing/admin subscription lifecycle and downgrade test.

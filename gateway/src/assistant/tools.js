@@ -6,6 +6,10 @@ const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
 const { selectLocationForDisplay } = require('../location-provenance');
 const {
+  canonicalMedicationReminder,
+  deviceCommandParams,
+} = require('../medication-reminders');
+const {
   FEATURE, hasEntitlement, loadEntitlementsForUser, planBoundaryReply,
 } = require('../entitlements');
 
@@ -685,32 +689,55 @@ async function executeReminder(db, ctx, { medicine_name: medicineName, time: sch
     return { error: 'Reminder service unavailable.' };
   }
 
-  // Validate time format (HH:MM)
-  if (!/^\d{1,2}:\d{2}$/.test(time)) {
-    return { error: `Invalid time format: ${time}. Use HH:MM.` };
+  const now = new Date();
+  let reminder;
+  try {
+    reminder = canonicalMedicationReminder({
+      imei: device.imei,
+      time,
+      frequency,
+      text: medicine,
+      createdBy: ctx.uid,
+      now,
+    });
+  } catch (error) {
+    return { error: error.message };
   }
 
-  // Store reminder in Firestore
-  const reminderRef = db.collection('devices').doc(device.imei).collection('reminders').doc();
-  const now = new Date();
-  await reminderRef.set({
-    medicineName: medicine,
-    scheduledTime: time,
-    frequency: frequency || 'daily',
-    status: 'active',
+  const reminderRef = db.collection('medicationReminders').doc();
+  const commandRef = db.collection('deviceCommands').doc();
+  const command = {
+    imei: device.imei,
+    type: 'set_medication_reminder',
+    params: deviceCommandParams(reminder),
+    status: 'pending',
+    result: null,
+    error: null,
+    createdBy: ctx.uid,
     createdAt: now,
-    createdBy: ctx.uid || 'unknown',
-    lastSentAt: null,
-  });
+    completedAt: null,
+    reminderId: reminderRef.id,
+  };
+  if (typeof db.batch === 'function') {
+    const batch = db.batch();
+    batch.set(reminderRef, reminder);
+    batch.set(commandRef, command);
+    await batch.commit();
+  } else {
+    await reminderRef.set(reminder);
+    await commandRef.set(command);
+  }
 
   return {
     name: deviceLabel(device),
     imei: device.imei,
     reminderId: reminderRef.id,
-    medicineName: medicine,
-    scheduledTime: time,
-    frequency: frequency || 'daily',
+    medicineName: reminder.text,
+    scheduledTime: reminder.time,
+    frequency: reminder.frequency,
     status: 'scheduled',
+    commandId: commandRef.id,
+    acknowledgementStatus: reminder.acknowledgementStatus,
     createdAt: now.toISOString(),
   };
 }

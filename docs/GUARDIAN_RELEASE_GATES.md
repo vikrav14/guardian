@@ -70,3 +70,18 @@ After this workflow has completed successfully at least once, configure the
 Keep PR #106 in draft until the advertised-promise audit and real V52 device
 acceptance gates are also complete. Passing CI proves repository consistency;
 it does not by itself prove every Guardian product promise.
+
+## Real V52 evidence gate
+
+Run the controlled procedure in `GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. The
+read-only backend collector is:
+
+```text
+cd gateway
+node scripts/inspect-device-acceptance.js --imei <IMEI> --since <UTC-or-duration>
+```
+
+The report distinguishes backend-observable evidence from manual carrier/watch
+evidence. It deliberately leaves `releaseReady` false: a green collector cannot
+waive the remaining gates, and TCP dispatch is never treated as a wearer
+acknowledgement.

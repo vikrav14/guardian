@@ -1,173 +1,95 @@
+'use strict';
+
 /**
- * Reminder scheduler for pill/medication reminders.
- *
- * Checks Firestore for active reminders and sends WhatsApp messages
- * when the scheduled time arrives.
- *
- * Schedule: Runs every minute to check all active reminders.
+ * Care reminder scheduler. The canonical record is
+ * medicationReminders/{reminderId}; Flutter, WhatsApp and this worker all use
+ * that same schema. Delivery is recorded separately from acknowledgement,
+ * which the current V52 protocol does not prove.
  */
 
 const { sendWhatsApp, normalizeE164 } = require('./notify');
 const { FEATURE, hasEntitlement, loadEntitlementsForUser } = require('./entitlements');
+const { reminderDue } = require('./medication-reminders');
 
-/**
- * Get current time in HH:MM format (24-hour).
- */
-function getCurrentTimeHHMM() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+async function runReminderCheck(db, options = {}) {
+  const now = options.now || new Date();
+  const send = options.sendWhatsApp || sendWhatsApp;
+  const entitlementLoader = options.loadEntitlementsForUser || loadEntitlementsForUser;
+  const remindersSnap = await db
+    .collection('medicationReminders')
+    .where('enabled', '==', true)
+    .get();
+  const userCache = new Map();
+
+  for (const reminderDoc of remindersSnap.docs) {
+    const reminder = reminderDoc.data() || {};
+    if (!reminderDue(reminder, now)) continue;
+    const uid = String(reminder.createdBy || '');
+    if (!uid) continue;
+
+    let userEntry = userCache.get(uid);
+    if (!userEntry) {
+      const userSnap = await db.collection('users').doc(uid).get();
+      if (!userSnap.exists) continue;
+      const user = { uid, ...(userSnap.data() || {}) };
+      const entitlements = await entitlementLoader(db, user);
+      userEntry = { user, entitlements };
+      userCache.set(uid, userEntry);
+    }
+    if (!hasEntitlement(userEntry.entitlements, FEATURE.MEDICATION_REMINDERS)) continue;
+    if (!(userEntry.user.linkedImeis || []).map(String).includes(String(reminder.imei))) continue;
+
+    const guardianPhone = userEntry.user.whatsapp || userEntry.user.phone;
+    if (!guardianPhone) {
+      await reminderDoc.ref.update({
+        deliveryStatus: 'failed',
+        lastDeliveryError: 'No guardian WhatsApp or phone number is configured.',
+        updatedAt: now,
+      });
+      continue;
+    }
+
+    const deviceSnap = await db.collection('devices').doc(String(reminder.imei)).get();
+    const device = deviceSnap.exists ? (deviceSnap.data() || {}) : {};
+    const deviceName = device.nickname || device.relatedName || 'Your loved one';
+    const message = `💊 **Reminder for ${deviceName}**: ${reminder.text} at ${reminder.time}`;
+    const target = normalizeE164(guardianPhone);
+    const result = await send(target, message);
+    const delivered = result?.ok === true;
+    await reminderDoc.ref.update({
+      deliveryStatus: delivered ? 'sent' : 'failed',
+      lastDelivery: {
+        channel: 'whatsapp',
+        ok: delivered,
+        provider: result?.provider || null,
+        at: now,
+      },
+      lastDeliveryError: delivered ? null : (result?.error || result?.reason || 'Delivery failed.'),
+      ...(delivered ? { lastSentAt: now } : {}),
+      ...(delivered && Number(reminder.frequency) === 1 ? { enabled: false } : {}),
+      updatedAt: now,
+    });
+  }
 }
 
-/**
- * Check if a reminder should fire today.
- *
- * @param {Object} reminder - Reminder doc
- * @returns {boolean}
- */
-function shouldFireToday(reminder) {
-  if (reminder.status !== 'active') {
-    return false;
-  }
-
-  const frequency = String(reminder.frequency || 'daily').toLowerCase();
-  if (frequency === 'daily') {
-    return true;
-  }
-
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 = Sun, 6 = Sat
-
-  if (frequency === 'weekdays') {
-    return dayOfWeek >= 1 && dayOfWeek <= 5; // Mon-Fri
-  }
-
-  if (frequency === 'weekends') {
-    return dayOfWeek === 0 || dayOfWeek === 6; // Sun, Sat
-  }
-
-  // Specific day (e.g., "monday", "tuesday")
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  if (dayNames.includes(frequency)) {
-    return dayNames.indexOf(frequency) === dayOfWeek;
-  }
-
-  return false;
-}
-
-/**
- * Check if reminder should fire right now (within 1-minute window).
- *
- * @param {string} scheduledTime - Time in HH:MM format
- * @returns {boolean}
- */
-function timeMatchesNow(scheduledTime) {
-  const current = getCurrentTimeHHMM();
-  return current === scheduledTime;
-}
-
-/**
- * Check if reminder was already sent today.
- *
- * @param {Object} reminder - Reminder doc
- * @returns {boolean}
- */
-function alreadySentToday(reminder) {
-  if (!reminder.lastSentAt) {
-    return false;
-  }
-
-  const lastSent = reminder.lastSentAt.toDate ? reminder.lastSentAt.toDate() : reminder.lastSentAt;
-  const today = new Date();
-
-  return (
-    lastSent.getFullYear() === today.getFullYear() &&
-    lastSent.getMonth() === today.getMonth() &&
-    lastSent.getDate() === today.getDate()
-  );
-}
-
-/**
- * Start the reminder scheduler.
- *
- * Runs every minute and checks all active reminders.
- */
 function startReminderScheduler(db, config = {}) {
   if (!db) {
     console.warn('[reminder-scheduler] Firestore unavailable, skipping scheduler');
     return { stop: () => {} };
   }
-
-  const interval = config.checkIntervalMs || 60000; // Default: 1 minute
-
+  const interval = config.checkIntervalMs || 60000;
   let active = true;
-
-  async function checkReminders() {
+  async function check() {
     if (!active) return;
-
     try {
-      const usersSnap = await db.collection('users').get();
-
-      for (const userDoc of usersSnap.docs) {
-        const user = userDoc.data() || {};
-        const userWithId = { uid: userDoc.id, ...user };
-        const entitlements = await loadEntitlementsForUser(db, userWithId);
-        if (!hasEntitlement(entitlements, FEATURE.MEDICATION_REMINDERS)) continue;
-        const linkedImeis = Array.isArray(user.linkedImeis) ? user.linkedImeis : [];
-
-        for (const imei of linkedImeis) {
-          const remindersSnap = await db
-            .collection('devices')
-            .doc(imei)
-            .collection('reminders')
-            .where('status', '==', 'active')
-            .get();
-
-          for (const reminderDoc of remindersSnap.docs) {
-            const reminder = reminderDoc.data() || {};
-            if (reminder.createdBy && String(reminder.createdBy) !== String(userDoc.id)) {
-              continue;
-            }
-
-            // Check all firing conditions
-            if (!shouldFireToday(reminder)) continue;
-            if (!timeMatchesNow(reminder.scheduledTime)) continue;
-            if (alreadySentToday(reminder)) continue;
-
-            // Fire the reminder
-            const deviceSnap = await db.collection('devices').doc(imei).get();
-            const device = deviceSnap.data() || {};
-
-            const deviceName = device.nickname || device.relatedName || 'Your loved one';
-            const message = `💊 **Reminder for ${deviceName}**: Take ${reminder.medicineName} at ${reminder.scheduledTime}`;
-
-            // Send to guardian
-            const guardianPhone = user.whatsapp || user.phone;
-            if (guardianPhone) {
-              const normalizedPhone = normalizeE164(guardianPhone);
-              await sendWhatsApp(normalizedPhone, message);
-              console.log(`[reminder-scheduler] Sent reminder to ${normalizedPhone}: ${reminder.medicineName}`);
-            }
-
-            // Update reminder's lastSentAt timestamp
-            await reminderDoc.ref.update({
-              lastSentAt: new Date(),
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[reminder-scheduler] Error checking reminders:', err.message);
+      await runReminderCheck(db);
+    } catch (error) {
+      console.error('[reminder-scheduler] Error checking reminders:', error.message);
     }
   }
-
-  // Run once immediately, then every interval
-  checkReminders().catch((err) => console.error('[reminder-scheduler] Initial check failed:', err));
-  const timerId = setInterval(checkReminders, interval);
-
+  check();
+  const timerId = setInterval(check, interval);
   console.log(`[reminder-scheduler] Started with ${interval}ms check interval`);
-
   return {
     stop: () => {
       active = false;
@@ -178,5 +100,6 @@ function startReminderScheduler(db, config = {}) {
 }
 
 module.exports = {
+  runReminderCheck,
   startReminderScheduler,
 };

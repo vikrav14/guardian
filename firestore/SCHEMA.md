@@ -246,6 +246,11 @@ App-side record of what's been scheduled, since the device has no "list my remin
 | createdBy | string | uid |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
+| lastSentAt | timestamp \| null | Last successful guardian reminder delivery. |
+| deliveryStatus | string | `pending` \| `sent` \| `failed`; channel delivery, not wearer acknowledgement. |
+| lastDelivery | map \| null | Last channel/provider outcome without message contents. |
+| lastDeliveryError | string \| null | Bounded operational error. |
+| acknowledgementStatus | string | Currently `not_supported`; must not be presented as acknowledged. |
 
 ## `notificationLogs/{logId}`
 

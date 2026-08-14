@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
+    "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "test": "node --test"
   },
   "engines": {
