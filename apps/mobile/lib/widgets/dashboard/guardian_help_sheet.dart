@@ -74,8 +74,8 @@ class GuardianHelpSheet extends StatelessWidget {
               _HelpAction(
                 key: const Key('guardian-help-location'),
                 icon: Icons.location_on_outlined,
-                title: 'Current location',
-                subtitle: 'See the latest recorded place and freshness',
+                title: 'Location check',
+                subtitle: 'See source, precision and when it was recorded',
                 onTap: () => _run(context, onLocation),
               ),
               _HelpAction(

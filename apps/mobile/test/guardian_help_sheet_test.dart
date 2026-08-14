@@ -34,6 +34,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Guardian help for Jesh'), findsOneWidget);
+    expect(find.text('Location check'), findsOneWidget);
+    expect(
+      find.text('See source, precision and when it was recorded'),
+      findsOneWidget,
+    );
     expect(find.text('Battery and watch status'), findsOneWidget);
     expect(find.text('Recent alerts'), findsOneWidget);
     expect(find.text('Recent journey'), findsOneWidget);

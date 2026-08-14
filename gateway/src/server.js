@@ -37,6 +37,7 @@ const {
 const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence');
 
 const { geolocateFromV } = require('./geolocate/google');
+const { buildLocationProvenancePatch } = require('./location-provenance');
 
 const { startHttpServer } = require('./http');
 
@@ -249,6 +250,8 @@ async function resolveGeolocation(event) {
       lat: geo.lat,
       lng: geo.lng,
       accuracyMeters: geo.accuracyMeters,
+      source: event.accuracySource,
+      gpsValid: false,
       recordedAt,
     },
   };
@@ -294,7 +297,25 @@ async function applyEvents(events, session) {
         if (!resolved?.location || typeof resolved.location.lat !== 'number') {
           continue;
         }
-        const locEvent = correctFleetHemisphere(resolved);
+        const correctedEvent = correctFleetHemisphere(resolved);
+        const provenancePatch = buildLocationProvenancePatch(
+          correctedEvent.location,
+          correctedEvent.accuracySource,
+          correctedEvent.gpsValid
+        );
+        const locEvent = {
+          ...correctedEvent,
+          location: provenancePatch.location,
+          accuracySource: provenancePatch.accuracySource,
+        };
+        const accLabel = locEvent.location.accuracyMeters == null
+          ? 'not supplied'
+          : `${Math.round(locEvent.location.accuracyMeters)}m`;
+        console.log(
+          `[location] ${locEvent.imei} source=${locEvent.accuracySource} ` +
+            `gps=${locEvent.gpsValid ? 'A' : 'V'} ` +
+            `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel}`
+        );
 
         updateLiveState(locEvent.imei, {
 
@@ -470,13 +491,11 @@ async function applyEvents(events, session) {
 
               ...(locationIsSuspect ? {} : {
 
-                location: locEvent.location,
+                ...provenancePatch,
 
                 speedKmh: locEvent.speedKmh,
 
                 course: locEvent.course,
-
-                accuracySource: locEvent.accuracySource,
 
               }),
 
@@ -508,6 +527,12 @@ async function applyEvents(events, session) {
               speedKmh: locEvent.speedKmh,
 
               accuracySource: locEvent.accuracySource,
+
+              source: locEvent.location.source,
+
+              gpsValid: locEvent.location.gpsValid,
+
+              accuracyMeters: locEvent.location.accuracyMeters,
 
               recordedAt: locEvent.location.recordedAt,
 
@@ -654,6 +679,21 @@ async function applyEvents(events, session) {
           alarmEvent = correctFleetHemisphere(alarmEvent);
         }
 
+        const alarmProvenance = alarmEvent.location
+          ? buildLocationProvenancePatch(
+              alarmEvent.location,
+              alarmEvent.accuracySource,
+              alarmEvent.gpsValid
+            )
+          : {};
+        if (alarmProvenance.location) {
+          alarmEvent = {
+            ...alarmEvent,
+            location: alarmProvenance.location,
+            accuracySource: alarmProvenance.accuracySource,
+          };
+        }
+
         const alarmType = alarmEvent.alarmType || 'other';
         const alarmAt = new Date();
         if (alarmType === 'sos') {
@@ -701,10 +741,9 @@ async function applyEvents(events, session) {
 
           ...(alarmEvent.location
             ? {
-                location: alarmEvent.location,
+                ...alarmProvenance,
                 speedKmh: alarmEvent.speedKmh,
                 course: alarmEvent.course,
-                accuracySource: alarmEvent.accuracySource,
               }
             : {}),
 
@@ -742,6 +781,12 @@ async function applyEvents(events, session) {
             speedKmh: alarmEvent.speedKmh,
 
             accuracySource: alarmEvent.accuracySource,
+
+            source: alarmEvent.location.source,
+
+            gpsValid: alarmEvent.location.gpsValid,
+
+            accuracyMeters: alarmEvent.location.accuracyMeters,
 
             recordedAt: alarmEvent.location.recordedAt,
 

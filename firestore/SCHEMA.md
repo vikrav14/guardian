@@ -103,8 +103,11 @@ Live device state. Document ID = device IMEI (digits only).
 | batteryPercent | number \| null | 0–100 when known |
 | speedKmh | number \| null | |
 | course | number \| null | Degrees |
-| location | map | See below |
-| accuracySource | string \| null | `gps` \| `wifi` \| `lbs` |
+| location | map | Latest persisted observation of any source. See below. Never interpret this field without its source and timestamp. |
+| accuracySource | string \| null | Legacy top-level mirror of the latest observation source: `gps` \| `wifi` \| `lbs`. |
+| lastLocationObservation | map | Self-contained copy of the latest persisted observation, including source, validity, radius and time. |
+| lastSatelliteLocation | map \| null | Most recent valid `gps=A` satellite fix. Retained when the watch later reports an indoor `gps=V` fallback. |
+| lastApproximateLocation | map \| null | Most recent WiFi/cell-derived observation and its estimated radius. Never overwrites `lastSatelliteLocation`. |
 | lastAlarm | map \| null | `{ type, at, raw }` |
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
@@ -122,6 +125,16 @@ Live device state. Document ID = device IMEI (digits only).
 | altitude | number \| null |
 | recordedAt | timestamp |
 | satellites | number \| null |
+| source | string \| null | `gps`, `wifi`, or `lbs`. |
+| gpsValid | boolean | True only for a protocol `gps=A` satellite fix. |
+| accuracyMeters | number \| null | Estimated radius for WiFi/LBS geolocation. Deliberately null for V52 `gps=A`, because the packet proves satellite validity but does not provide a dependable radius. |
+
+`location`, `lastLocationObservation`, `lastSatelliteLocation`, and
+`lastApproximateLocation` are complete maps rather than partial merge fragments.
+This prevents a WiFi/LBS radius from leaking into a later GPS observation.
+During rollout, the gateway performs one compatibility read per device process
+before its first new location write so a legacy current GPS location is copied
+to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
 ## `devices/{imei}/locations/{locationId}`
 
@@ -133,6 +146,9 @@ Optional history (gateway throttles writes — see write gate below).
 | lng | number |
 | speedKmh | number \| null |
 | accuracySource | string \| null |
+| source | string \| null |
+| gpsValid | boolean |
+| accuracyMeters | number \| null |
 | recordedAt | timestamp |
 
 History is appended only when the gateway write gate passes (same rules as device doc location updates, or when history interval elapses on a heartbeat-cap persist). Client reads are plan-aware: Essential may read only records from the most recent seven rolling days; Family and Care may read retained history subject to the published retention/fair-use policy. Flutter also constrains calendar selection, but Firestore rules are authoritative.

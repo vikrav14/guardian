@@ -33,7 +33,7 @@ The versioned backend catalogue is implemented in `gateway/src/entitlements.js`.
 
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
-| Live GPS | Gateway telemetry, freshness qualification and app map exist. | Partial | V52 field test for live, stale, approximate, offline and reconnecting states. |
+| Live GPS | Gateway distinguishes `gps=A` satellite fixes from `gps=V` WiFi/LBS estimates, retains both independently, separates watch and location clocks, and labels approximate uncertainty. | Partial | Complete the outdoor-to-indoor V52 sequence in `GUARDIAN_LOCATION_PROVENANCE.md`, then separately measure satellite error before advertising a numerical precision. |
 | SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence. |
 | 7-day location history | Locations, segments and compressed journeys exist. Flutter date controls and service calls reject older days, and Firestore rules reject records older than seven rolling days. | Partial | Run the emulator boundary suite and retention/downgrade acceptance test against the release candidate. |
 | Two-way calls | Mobile can launch a carrier voice call to the saved watch SIM. Desktop presents the number, voice/data distinction and an explicit handoff. | Partial | V52 incoming/outgoing call acceptance, per-minute carrier charging, failure copy and carrier/SIM prerequisites. |

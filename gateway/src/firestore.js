@@ -14,6 +14,10 @@ const {
 } = require('./intelligence');
 const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
 const { reverseGeocodeToPlaceName } = require('./geolocate/google');
+const {
+  buildLocationProvenancePatch,
+  backfillLegacyLocationProvenance,
+} = require('./location-provenance');
 const { listConnectedImeis, findSocketsForDevice, listSilentConnectedImeis } = require('./sessions');
 const { hasPendingOffline } = require('./device-offline');
 const {
@@ -26,6 +30,7 @@ let db = null;
 let enabled = false;
 let alertWatchUnsub = null;
 let commandWatchUnsub = null;
+const locationProvenanceSeeded = new Set();
 
 function initFirestore({ startWatchers = true } = {}) {
   if (enabled) {
@@ -156,6 +161,19 @@ async function upsertDevice(imei, patch = {}) {
         data.location = { ...data.location, placeLabel };
       }
     }
+
+    // Make every persisted fix self-contained and retain the most recent
+    // satellite and approximate observations independently. This prevents an
+    // indoor V packet from erasing the last A fix, and prevents a prior
+    // WiFi/LBS accuracy radius from leaking into a later GPS record.
+    Object.assign(
+      data,
+      buildLocationProvenancePatch(
+        data.location,
+        data.accuracySource || data.location.source,
+        data.location.gpsValid
+      )
+    );
   }
 
   if (!enabled) {
@@ -172,7 +190,20 @@ async function upsertDevice(imei, patch = {}) {
   }
 
   const ref = db.collection('devices').doc(canonicalImei);
+  if (data.location && !locationProvenanceSeeded.has(canonicalImei)) {
+    // One compatibility read per device and gateway process protects the
+    // rollout boundary. A legacy GPS location must be copied to
+    // lastSatelliteLocation before a newer indoor fallback replaces
+    // devices/{imei}.location.
+    const existingSnap = await ref.get();
+    const seeded = backfillLegacyLocationProvenance(
+      existingSnap.exists ? existingSnap.data() : null,
+      data
+    );
+    Object.assign(data, seeded);
+  }
   await ref.set(data, { merge: true });
+  if (data.location) locationProvenanceSeeded.add(canonicalImei);
   incrementMetric('firestoreWrites');
 }
 

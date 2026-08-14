@@ -1,7 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { deviceLabel, getDeviceIntelligence, getRecentJourneys, getDailySummary } = require('../src/assistant/tools');
+const {
+  deviceLabel,
+  getLastLocation,
+  getDeviceIntelligence,
+  getRecentJourneys,
+  getDailySummary,
+} = require('../src/assistant/tools');
 
 test('deviceLabel prefers nickname, then relationship', () => {
   assert.equal(
@@ -51,6 +57,43 @@ test('getDeviceIntelligence returns topInsight facts only', async () => {
   assert.equal(result.topInsight.id, 'low_battery');
   assert.deepEqual(result.topInsight.facts, ['Battery at 18%']);
   assert.equal(result.insightCount, 1);
+});
+
+test('getLastLocation discloses a retained satellite fix and newer indoor observation', async () => {
+  const satelliteAt = new Date('2026-08-14T19:42:33.000Z');
+  const approximateAt = new Date('2026-08-14T19:47:33.000Z');
+  const result = await getLastLocation(
+    {
+      devices: [{
+        imei: 'A',
+        nickname: 'Jesh',
+        lastHeartbeatAt: new Date(),
+        accuracySource: 'wifi',
+        lastLocationObservation: {
+          lat: -20.028,
+          lng: 57.596,
+          source: 'wifi',
+          accuracyMeters: 308.701,
+          recordedAt: approximateAt,
+        },
+        lastSatelliteLocation: {
+          lat: -20.029278,
+          lng: 57.5960427,
+          source: 'gps',
+          gpsValid: true,
+          accuracyMeters: null,
+          recordedAt: satelliteAt,
+        },
+      }],
+    },
+    { imei: 'A' }
+  );
+
+  assert.equal(result.accuracySource, 'gps');
+  assert.equal(result.accuracyMeters, null);
+  assert.equal(result.retainedSatellite, true);
+  assert.equal(result.latestObservationSource, 'wifi');
+  assert.match(result.locationDisclosure, /last satellite fix/);
 });
 
 test('getRecentJourneys omits stationary drift and backfills genuine journeys', async () => {

@@ -60,7 +60,7 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
         .map(
           (device) =>
               '${device.imei}|${device.avatarUrl ?? ''}|'
-              '${device.location?.lat}|${device.location?.lng}',
+              '${device.displayLocation?.lat}|${device.displayLocation?.lng}',
         )
         .join('||');
   }
@@ -74,8 +74,8 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
 
     final positions = <String, Offset>{};
     for (final device in widget.devices) {
-      if (device.location?.isValid != true) continue;
-      final location = device.location!;
+      if (device.displayLocation?.isValid != true) continue;
+      final location = device.displayLocation!;
       try {
         final screen = await controller.getScreenCoordinate(
           LatLng(location.lat, location.lng),

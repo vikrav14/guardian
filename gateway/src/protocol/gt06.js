@@ -111,6 +111,9 @@ function parseLocationData(fields) {
         altitude: null,
         recordedAt,
         satellites: null,
+        source: positioningMode,
+        gpsValid: false,
+        accuracyMeters: null,
       },
       speedKmh,
       course,
@@ -120,7 +123,18 @@ function parseLocationData(fields) {
 
   return {
     gpsValid: true,
-    location: { lat, lng, altitude: null, recordedAt, satellites: null },
+    location: {
+      lat,
+      lng,
+      altitude: null,
+      recordedAt,
+      satellites: null,
+      source: 'gps',
+      gpsValid: true,
+      // The V52 A packet proves satellite validity but does not include a
+      // dependable accuracy radius. Never retain a previous WiFi/LBS radius.
+      accuracyMeters: null,
+    },
     speedKmh,
     course,
     accuracySource: 'gps',

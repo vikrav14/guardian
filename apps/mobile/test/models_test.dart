@@ -19,7 +19,26 @@ void main() {
         'speedKmh': 12,
         'course': 90,
         'accuracySource': 'gps',
-        'location': {'lat': -20.2642, 'lng': 57.4791, 'satellites': 8},
+        'location': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'satellites': 8,
+          'source': 'gps',
+          'gpsValid': true,
+          'accuracyMeters': null,
+        },
+        'lastLocationObservation': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'source': 'gps',
+          'gpsValid': true,
+        },
+        'lastSatelliteLocation': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'source': 'gps',
+          'gpsValid': true,
+        },
         'simNumber': '+23057123456',
         'avatarUrl': 'https://example.com/avatar.jpg',
       });
@@ -34,6 +53,10 @@ void main() {
       expect(device.batteryPercent, 72);
       expect(device.location?.isValid, true);
       expect(device.location?.lat, -20.2642);
+      expect(device.location?.source, 'gps');
+      expect(device.location?.gpsValid, true);
+      expect(device.lastSatelliteLocation?.isValid, true);
+      expect(device.displayLocationSource, 'gps');
       expect(device.simNumber, '+23057123456');
       expect(device.avatarUrl, 'https://example.com/avatar.jpg');
     });

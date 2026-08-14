@@ -34,14 +34,24 @@ class AroundThemPanel extends StatelessWidget {
         .where((zone) => zone.imei == d.imei && zone.active)
         .toList(growable: false);
 
-    final place = d.location?.placeLabel?.trim();
+    final place = d.displayLocation?.placeLabel?.trim();
     final locationValue = place != null && place.isNotEmpty
         ? place
+        : d.isDisplayingRetainedSatelliteLocation
+        ? 'Last satellite location'
         : d.hasFreshLocation
         ? 'Location confirmed'
-        : d.location?.isValid == true
+        : d.displayLocation?.isValid == true
         ? 'Last known location'
         : 'Locating';
+
+    final locationDetail = d.isDisplayingRetainedSatelliteLocation
+        ? 'Precise GPS unavailable indoors'
+        : d.hasApproximateLocation
+        ? 'Approximate network fix'
+        : d.hasFreshLocation
+        ? 'Satellite GPS fix'
+        : 'Last known fix';
 
     final cards = <Widget>[
       _ContextCard(
@@ -49,7 +59,7 @@ class AroundThemPanel extends StatelessWidget {
         color: GuardianColors.accent,
         title: 'Location',
         value: locationValue,
-        detail: d.hasFreshLocation ? 'Current fix' : 'Last GPS fix',
+        detail: locationDetail,
       ),
       _ContextCard(
         icon: Icons.shield_rounded,

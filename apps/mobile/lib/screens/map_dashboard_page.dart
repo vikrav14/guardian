@@ -91,6 +91,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   Set<Circle> _circles() {
+    final selected = _selected;
+    final displayed = selected?.displayLocation;
+    final uncertaintyRadius =
+        selected?.hasApproximateLocation == true &&
+            selected?.isDisplayingRetainedSatelliteLocation != true
+        ? displayed?.accuracyMeters
+        : null;
     return {
       for (final zone in _selectedGeofences)
         Circle(
@@ -102,6 +109,18 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           strokeWidth: 2,
           zIndex: 1,
         ),
+      if (displayed?.isValid == true &&
+          uncertaintyRadius != null &&
+          uncertaintyRadius > 0)
+        Circle(
+          circleId: const CircleId('display-location-uncertainty'),
+          center: LatLng(displayed!.lat, displayed.lng),
+          radius: uncertaintyRadius,
+          fillColor: GuardianColors.warning.withValues(alpha: 0.12),
+          strokeColor: GuardianColors.warning.withValues(alpha: 0.62),
+          strokeWidth: 2,
+          zIndex: 2,
+        ),
     };
   }
 
@@ -109,10 +128,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     if (kIsWeb) return const {};
     return {
       for (final device in _devices)
-        if (device.location?.isValid == true)
+        if (device.displayLocation?.isValid == true)
           Marker(
             markerId: MarkerId(device.imei),
-            position: LatLng(device.location!.lat, device.location!.lng),
+            position: LatLng(
+              device.displayLocation!.lat,
+              device.displayLocation!.lng,
+            ),
             zIndexInt: device.imei == _selectedImei ? 2 : 1,
             alpha: device.isTrulyOffline ? 0.55 : 1,
             onTap: () => _dashboard.select(device.imei),
@@ -121,7 +143,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   LatLng get _mapCenter {
-    final location = _selected?.location;
+    final location = _selected?.displayLocation;
     if (location?.isValid == true) {
       return LatLng(location!.lat, location.lng);
     }
@@ -141,7 +163,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   void _followSelected() {
-    final location = _selected?.location;
+    final location = _selected?.displayLocation;
     if (_mapController == null || location?.isValid != true) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -157,7 +179,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   VoidCallback? _centerSelectedAction() {
-    final location = _selected?.location;
+    final location = _selected?.displayLocation;
     if (location?.isValid != true) return null;
     return () =>
         unawaited(_animateTo(LatLng(location!.lat, location.lng), zoom: 16));
@@ -182,9 +204,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   String _mapStatus(Device device) {
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
+    if (device.isDisplayingRetainedSatelliteLocation) {
+      return 'Last satellite fix';
+    }
     if (device.hasApproximateLocation) return 'Approximate';
-    if (device.hasFreshLocation) return 'Live';
-    if (device.location?.isValid == true) return 'Last known';
+    if (device.hasFreshLocation && device.displayLocationSource == 'gps') {
+      return 'Satellite GPS';
+    }
+    if (device.displayLocation?.isValid == true) return 'Last known';
     return 'Locating';
   }
 
@@ -318,7 +345,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   void _showLocationFact(Device device) {
-    final location = device.location;
+    final location = device.displayLocation;
     if (location?.isValid != true) {
       _showQuickFact(
         '${device.displayName}\'s location',
@@ -330,10 +357,22 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final label = place == null || place.isEmpty
         ? 'the position shown on the map'
         : place;
+    if (device.isDisplayingRetainedSatelliteLocation) {
+      final approximate = device.latestLocationObservation;
+      final radius = approximate?.accuracyMeters;
+      final radiusCopy = radius == null
+          ? 'A newer indoor network estimate is available, but it is approximate.'
+          : 'A newer indoor network estimate is available with an estimated radius of ${radius.round()}m.';
+      _showQuickFact(
+        '${device.displayName}\'s location',
+        'Showing $label from the last satellite fix. ${deviceLocationFixLabel(device)}. $radiusCopy',
+      );
+      return;
+    }
     final quality = device.hasApproximateLocation
-        ? 'approximate location'
+        ? 'approximate network location'
         : device.hasFreshLocation
-        ? 'latest location'
+        ? 'latest satellite location'
         : 'last known location';
     _showQuickFact(
       '${device.displayName}\'s location',

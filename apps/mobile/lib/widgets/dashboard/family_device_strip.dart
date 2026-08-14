@@ -96,7 +96,7 @@ class _FamilyDeviceChip extends StatelessWidget {
     };
 
     final whereLine = deviceLocationStatusLabel(device);
-    final detail = device.location?.isValid == true
+    final detail = device.displayLocation?.isValid == true
         ? '$whereLine · ${deviceUpdatedLabel(device, now: now)}'
         : whereLine;
 

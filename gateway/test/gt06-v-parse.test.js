@@ -73,6 +73,22 @@ test('parseLocationData rejects V without WiFi or cell data', () => {
   assert.equal(loc.error, 'gps_not_fixed');
 });
 
+test('parseLocationData marks A as a self-contained satellite observation', () => {
+  const fields = [
+    '140826', '194233', 'A', '-20.029278', 'S', '57.5960427', 'E', '0.0', '0',
+  ];
+  // The protocol coordinates are unsigned and direction supplies the sign.
+  fields[3] = '20.029278';
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.gpsValid, true);
+  assert.equal(loc.accuracySource, 'gps');
+  assert.equal(loc.location.source, 'gps');
+  assert.equal(loc.location.gpsValid, true);
+  assert.equal(loc.location.accuracyMeters, null);
+  assert.equal(loc.location.lat, -20.029278);
+});
+
 test('handlePacket emits location for V UD_LTE with WiFi scan', () => {
   const payload = [
     '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0.0', '0',

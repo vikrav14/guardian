@@ -73,11 +73,13 @@ class GuardianNowHero extends StatelessWidget {
     final battery = d.batteryPercent;
     final locationLabel = _locationLabel(d);
     final updateLabel = deviceWatchCheckInLabel(d);
-    final gpsLabel = d.hasApproximateLocation
+    final gpsLabel = d.isDisplayingRetainedSatelliteLocation
+        ? 'Last GPS fix'
+        : d.hasApproximateLocation
         ? 'Approx.'
         : d.hasFreshLocation
         ? 'GPS'
-        : d.location?.isValid == true
+        : d.displayLocation?.isValid == true
         ? 'Last GPS fix'
         : 'Locating';
 
@@ -235,11 +237,14 @@ class GuardianNowHero extends StatelessWidget {
   }
 
   static String _locationLabel(Device device) {
-    final place = device.location?.placeLabel?.trim();
+    final place = device.displayLocation?.placeLabel?.trim();
     if (place != null && place.isNotEmpty) return place;
+    if (device.isDisplayingRetainedSatelliteLocation) {
+      return 'Last satellite location';
+    }
     if (device.hasApproximateLocation) return 'Approximate location';
     if (device.hasFreshLocation) return 'Location confirmed';
-    if (device.location?.isValid == true) return 'Last known location';
+    if (device.displayLocation?.isValid == true) return 'Last known location';
     return 'Locating…';
   }
 }
@@ -469,6 +474,9 @@ class _WatchStatusCard extends StatelessWidget {
     }
     if (device.isReconnecting) {
       return 'Watch reconnecting. Waiting for a fresh update.';
+    }
+    if (device.isDisplayingRetainedSatelliteLocation) {
+      return 'Watch online. Precise GPS is unavailable indoors, so the map keeps the last satellite fix visible.';
     }
     if (!device.hasFreshLocation && !device.hasApproximateLocation) {
       return 'Watch connected. Waiting for a fresh location fix.';

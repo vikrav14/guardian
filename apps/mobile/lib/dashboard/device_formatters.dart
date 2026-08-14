@@ -11,23 +11,35 @@ String deviceMovementLabel(Device device) {
 }
 
 String deviceLocationStatusLabel(Device device) {
-  return switch (device.connectivityPhase()) {
-    DeviceConnectivityPhase.reconnecting => 'Last known location',
-    DeviceConnectivityPhase.offline =>
-      device.location?.isValid == true
-          ? 'Last known location'
-          : 'Location unavailable',
-    DeviceConnectivityPhase.live when device.hasApproximateLocation =>
-      'Approximate location',
-    DeviceConnectivityPhase.live when device.hasFreshLocation =>
-      'Satellite GPS',
-    DeviceConnectivityPhase.live => 'Waiting for location',
-  };
+  // Location provenance is independent of watch connectivity. Keep the source
+  // label truthful even when the watch is reconnecting or offline; connection
+  // state is already shown separately by the watch status controls.
+  if (device.isDisplayingRetainedSatelliteLocation) {
+    return 'Last satellite fix';
+  }
+
+  final source = device.displayLocationSource;
+  if (source == 'wifi' || source == 'lbs') {
+    return 'Approximate location';
+  }
+  if (source == 'gps') {
+    return device.connectivityPhase() == DeviceConnectivityPhase.live &&
+            device.hasFreshLocation
+        ? 'Satellite GPS'
+        : 'Last satellite fix';
+  }
+  if (device.displayLocation?.isValid == true) return 'Last known location';
+
+  return device.connectivityPhase() == DeviceConnectivityPhase.offline
+      ? 'Location unavailable'
+      : 'Waiting for location';
 }
 
 String deviceUpdatedLabel(Device device, {DateTime? now}) {
   final timestamp =
-      device.location?.recordedAt ?? device.updatedAt ?? device.lastHeartbeatAt;
+      device.displayLocation?.recordedAt ??
+      device.updatedAt ??
+      device.lastHeartbeatAt;
   if (timestamp == null) return 'Update time unavailable';
   final age = (now ?? DateTime.now()).difference(timestamp);
   if (age.inSeconds < 10) return 'Updated now';
@@ -48,13 +60,38 @@ String deviceWatchCheckInLabel(Device device, {DateTime? now}) {
 }
 
 String deviceLocationFixLabel(Device device, {DateTime? now}) {
-  final timestamp = device.location?.recordedAt;
-  if (timestamp == null) return 'GPS fix time unavailable';
+  final timestamp = device.displayLocation?.recordedAt;
+  if (timestamp == null) return 'Location time unavailable';
+  if (device.isDisplayingRetainedSatelliteLocation) {
+    return _freshnessLabel(
+      timestamp,
+      now: now,
+      justNow: 'Last satellite fix was just now',
+      prefix: 'Last satellite fix',
+    );
+  }
+  if (device.displayLocationSource == 'wifi' ||
+      device.displayLocationSource == 'lbs') {
+    return _freshnessLabel(
+      timestamp,
+      now: now,
+      justNow: 'Approximate network location updated just now',
+      prefix: 'Approximate network location updated',
+    );
+  }
+  if (device.displayLocationSource != 'gps') {
+    return _freshnessLabel(
+      timestamp,
+      now: now,
+      justNow: 'Location recorded just now',
+      prefix: 'Location recorded',
+    );
+  }
   return _freshnessLabel(
     timestamp,
     now: now,
-    justNow: 'GPS updated just now',
-    prefix: 'Last GPS fix',
+    justNow: 'Satellite GPS updated just now',
+    prefix: 'Satellite GPS updated',
   );
 }
 

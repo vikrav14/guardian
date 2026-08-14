@@ -15,7 +15,7 @@ String buildGuardianAiInterpretation(Device? device) {
     return 'Battery critically low. Charging the watch soon is recommended.';
   }
 
-  if (!isLive && !isReconnecting && device.location?.isValid == true) {
+  if (!isLive && !isReconnecting && device.displayLocation?.isValid == true) {
     return 'Watch offline. Guardian is keeping the last known location visible.';
   }
 
@@ -25,6 +25,10 @@ String buildGuardianAiInterpretation(Device? device) {
 
   if (isLive && !hasLocation) {
     return 'Watch connected. Waiting for a fresh location fix.';
+  }
+
+  if (device.isDisplayingRetainedSatelliteLocation) {
+    return 'Watch connected. Precise GPS is unavailable indoors, so Guardian is keeping the last satellite fix visible and retaining the newer approximate network observation separately.';
   }
 
   if (device.hasApproximateLocation) {
@@ -46,7 +50,7 @@ List<String> buildGuardianActivities(Device? device) {
 
   final activities = <String>['Watch signal monitored'];
 
-  if (device.location?.isValid == true) {
+  if (device.displayLocation?.isValid == true) {
     activities.add('Location received');
   }
   if (device.intelligence?.topInsight != null) {

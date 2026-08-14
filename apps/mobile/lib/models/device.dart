@@ -8,6 +8,9 @@ class DeviceLocation {
     this.recordedAt,
     this.satellites,
     this.placeLabel,
+    this.source,
+    this.gpsValid,
+    this.accuracyMeters,
   });
 
   final double lat;
@@ -16,6 +19,9 @@ class DeviceLocation {
   final DateTime? recordedAt;
   final int? satellites;
   final String? placeLabel;
+  final String? source;
+  final bool? gpsValid;
+  final double? accuracyMeters;
 
   factory DeviceLocation.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
@@ -28,6 +34,9 @@ class DeviceLocation {
       recordedAt: _asDateTime(map['recordedAt']),
       satellites: (map['satellites'] as num?)?.toInt(),
       placeLabel: (map['placeLabel'] as String?)?.trim(),
+      source: (map['source'] as String?)?.trim().toLowerCase(),
+      gpsValid: map['gpsValid'] as bool?,
+      accuracyMeters: (map['accuracyMeters'] as num?)?.toDouble(),
     );
   }
 
@@ -39,6 +48,11 @@ const double deviceMovingSpeedThresholdKmh = 5;
 
 /// Location older than this gap behind the last heartbeat is treated as stale.
 const Duration deviceLocationFreshnessSlack = Duration(minutes: 8);
+
+/// A recent broad indoor estimate must not immediately displace the last
+/// satellite pin. Both observations remain available; after this window the
+/// newer approximate position becomes the map position and is labelled as such.
+const Duration deviceSatelliteDisplayRetention = Duration(minutes: 30);
 
 /// Last Firestore contact older than this is not treated as live, even if `online: true`.
 /// Must exceed the gateway write-gate heartbeat interval and normal quiet gaps
@@ -133,6 +147,9 @@ class Device {
     this.course,
     this.accuracySource,
     this.location,
+    this.lastLocationObservation,
+    this.lastSatelliteLocation,
+    this.lastApproximateLocation,
     this.lastHeartbeatAt,
     this.disconnectedAt,
     this.connectionState,
@@ -163,6 +180,9 @@ class Device {
   final num? course;
   final String? accuracySource;
   final DeviceLocation? location;
+  final DeviceLocation? lastLocationObservation;
+  final DeviceLocation? lastSatelliteLocation;
+  final DeviceLocation? lastApproximateLocation;
   final DateTime? lastHeartbeatAt;
   final DateTime? disconnectedAt;
 
@@ -236,6 +256,38 @@ class Device {
 
   bool get isLiveConnected => online && hasRecentContact;
 
+  DeviceLocation? get latestLocationObservation {
+    final observation = lastLocationObservation;
+    if (observation?.isValid == true) return observation;
+    return location?.isValid == true ? location : null;
+  }
+
+  String? get latestLocationSource {
+    final source = latestLocationObservation?.source ?? accuracySource;
+    return source?.trim().toLowerCase();
+  }
+
+  bool get isDisplayingRetainedSatelliteLocation {
+    final latest = latestLocationObservation;
+    final satellite = lastSatelliteLocation;
+    if (latest?.isValid != true || satellite?.isValid != true) return false;
+    final source = latestLocationSource;
+    if (source != 'wifi' && source != 'lbs') return false;
+    final latestAt = latest?.recordedAt;
+    final satelliteAt = satellite?.recordedAt;
+    if (latestAt == null || satelliteAt == null) return false;
+    final gap = latestAt.difference(satelliteAt);
+    return !gap.isNegative && gap <= deviceSatelliteDisplayRetention;
+  }
+
+  DeviceLocation? get displayLocation {
+    if (isDisplayingRetainedSatelliteLocation) return lastSatelliteLocation;
+    return latestLocationObservation ?? lastSatelliteLocation;
+  }
+
+  String? get displayLocationSource =>
+      isDisplayingRetainedSatelliteLocation ? 'gps' : latestLocationSource;
+
   /// True when [location] has coordinates and was recorded near the last contact.
   ///
   /// Prevents simulator or old GPS writes from showing a map pin after the real
@@ -245,7 +297,7 @@ class Device {
   /// fix should keep showing (faded) rather than disappear once it crosses
   /// the slack window.
   bool get hasFreshLocation {
-    final loc = location;
+    final loc = latestLocationObservation;
     if (loc == null || !loc.isValid) return false;
     final recorded = loc.recordedAt;
     if (recorded == null) return false;
@@ -261,13 +313,13 @@ class Device {
   /// True when the latest fix came from WiFi/cell geolocation (gps=V), not satellite GPS.
   bool get hasApproximateLocation {
     if (!hasFreshLocation) return false;
-    final source = accuracySource?.toLowerCase();
+    final source = latestLocationSource;
     return source == 'wifi' || source == 'lbs';
   }
 
   /// Human-readable fix type for Guardian AI and map labels.
   DevicePositioningDescription? get positioningDescription {
-    final source = accuracySource?.toLowerCase();
+    final source = displayLocationSource;
     return switch (source) {
       'gps' => const DevicePositioningDescription(
         label: 'satellite GPS',
@@ -315,6 +367,21 @@ class Device {
       location: DeviceLocation.fromMap(
         data['location'] is Map
             ? Map<String, dynamic>.from(data['location'] as Map)
+            : null,
+      ),
+      lastLocationObservation: DeviceLocation.fromMap(
+        data['lastLocationObservation'] is Map
+            ? Map<String, dynamic>.from(data['lastLocationObservation'] as Map)
+            : null,
+      ),
+      lastSatelliteLocation: DeviceLocation.fromMap(
+        data['lastSatelliteLocation'] is Map
+            ? Map<String, dynamic>.from(data['lastSatelliteLocation'] as Map)
+            : null,
+      ),
+      lastApproximateLocation: DeviceLocation.fromMap(
+        data['lastApproximateLocation'] is Map
+            ? Map<String, dynamic>.from(data['lastApproximateLocation'] as Map)
             : null,
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),

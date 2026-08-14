@@ -4,6 +4,7 @@ const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
+const { selectLocationForDisplay } = require('../location-provenance');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser, planBoundaryReply,
 } = require('../entitlements');
@@ -205,7 +206,9 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
   if (!device) {
     return { error: 'No matching watch. Ask list_devices first.' };
   }
-  const loc = device.location || {};
+  const selected = selectLocationForDisplay(device);
+  const loc = selected.location || {};
+  const latest = selected.latestObservation || {};
   // Filter GPS noise & stale low speeds: walking speed (~5 km/h) threshold.
   // Speeds under 5 km/h are too slow to be real movement (likely GPS noise or stale data).
   // Real movement is typically faster (car ~30+ km/h, bike ~15+ km/h, jogging ~10+ km/h).
@@ -225,7 +228,20 @@ async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
     lat: loc.lat ?? null,
     lng: loc.lng ?? null,
     placeLabel: loc.placeLabel || null,
-    accuracySource: loc.accuracySource || null,
+    accuracySource: selected.source || null,
+    accuracyMeters: loc.accuracyMeters ?? null,
+    recordedAt:
+      loc.recordedAt?.toDate?.()?.toISOString?.() || loc.recordedAt || null,
+    retainedSatellite: selected.retainedSatellite,
+    latestObservationSource:
+      latest.source || device.accuracySource || null,
+    latestObservationAt:
+      latest.recordedAt?.toDate?.()?.toISOString?.() || latest.recordedAt || null,
+    locationDisclosure: selected.retainedSatellite
+      ? 'Showing the last satellite fix because the newer indoor location is approximate.'
+      : selected.source === 'wifi' || selected.source === 'lbs'
+        ? 'This is an approximate network location, not satellite GPS.'
+        : 'This is the latest recorded satellite GPS fix.',
     speedKmh: speedKmh,
     updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
     mapsUrl:
@@ -930,6 +946,7 @@ module.exports = {
   TOOL_DEFINITIONS,
   runTool,
   deviceLabel,
+  getLastLocation,
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,

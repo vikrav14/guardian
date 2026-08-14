@@ -15,6 +15,8 @@
   scope.
 - `git diff --check` reports no errors.
 - No Firestore deployment or Git commit is performed by the package installer.
+- Location provenance unit tests prove that GPS and approximate observations
+  are independent and that legacy GPS state survives the rollout boundary.
 
 ## Essential acceptance
 
@@ -83,3 +85,11 @@ Deploy `firestore/rules.example` only after the emulator suite is green and the 
 - Carrier usage evidence separating watch mobile data, watch voice and
   caregiver-phone WhatsApp traffic.
 - Any mismatch as a blocking issue linked from draft PR #106.
+
+## Location source and retention acceptance
+
+Complete the outdoor-to-indoor real-device sequence in
+`docs/GUARDIAN_LOCATION_PROVENANCE.md` for at least one V52 watch. The release
+evidence must show `gps=A` outside, `gps=V` with WiFi/LBS indoors, independent
+Firestore records, honest source-aware UI copy, and no numerical satellite
+precision claim without a separate measured accuracy study.
