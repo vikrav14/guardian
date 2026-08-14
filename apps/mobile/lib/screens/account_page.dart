@@ -140,7 +140,11 @@ class AccountPage extends StatelessWidget {
       await FamilyService().acceptInviteCode(ctrl.text);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined family - watches linked')),
+          const SnackBar(
+            content: Text(
+              'Join request sent. Guardian will verify the invitation and family plan.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -366,25 +370,25 @@ class AccountPage extends StatelessWidget {
                 StreamBuilder<GuardianSubscription>(
                   stream: UserProfileService().watchSubscription(),
                   builder: (context, subSnap) {
-                    final sub =
-                        subSnap.data ??
-                        const GuardianSubscription(tier: 'free');
+                    final presentation =
+                        GuardianSubscriptionPresentation.resolve(
+                          subscription: subSnap.data,
+                          checking:
+                              subSnap.connectionState ==
+                                  ConnectionState.waiting &&
+                              !subSnap.hasData,
+                          error: subSnap.error,
+                        );
                     return GuardianSettingsRow(
                       icon: Icons.workspace_premium_rounded,
                       label: t.subscriptionLabel,
-                      trailing: sub.isPremium ? t.premiumPlan : t.freePlan,
+                      trailing: presentation.trailingLabel,
                       onTap: () {
                         showDialog<void>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: Text(t.subscriptionLabel),
-                            content: Text(
-                              sub.isPremium
-                                  ? 'You are on the Premium plan.'
-                                  : "You're on the Free plan. Paid plans aren't available yet -- "
-                                        'this needs a payment provider (e.g. Stripe or MCB Juice) '
-                                        'connected on the backend before real billing can go live.',
-                            ),
+                            content: Text(presentation.message),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(ctx),

@@ -4,6 +4,9 @@ const {
   prepareSosWhatsApp,
   sendPreparedSosWhatsApp,
 } = require('./sos-whatsapp');
+const {
+  FEATURE, hasEntitlement, loadEntitlementsForUser,
+} = require('./entitlements');
 
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
@@ -13,6 +16,8 @@ async function findContactsForImei(db, imei) {
   const contacts = [];
   for (const doc of snap.docs) {
     const data = doc.data() || {};
+    const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
+    if (!hasEntitlement(entitlements, FEATURE.SOS_ALERTS)) continue;
     const list = Array.isArray(data.emergencyContacts) ? data.emergencyContacts : [];
     for (const c of list) {
       if (!c || !c.phone) continue;
@@ -21,6 +26,7 @@ async function findContactsForImei(db, imei) {
         phone: String(c.phone).trim(),
         whatsapp: c.whatsapp ? String(c.whatsapp).trim() : null,
         guardianUid: doc.id,
+        entitlements,
       });
     }
   }
@@ -121,7 +127,8 @@ async function notifyEmergencyContacts(db, imei, alert) {
   // Cost-smart: compose once per SOS event, then fan the same validated
   // Meta template out to every emergency contact.
   const sosPreparationPromise =
-    isSos && config.notifyWhatsApp && contacts.length > 0
+    isSos && config.notifyWhatsApp &&
+      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
       ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
           error: err.message,
         }))
@@ -141,7 +148,10 @@ async function notifyEmergencyContacts(db, imei, alert) {
     }
 
     const waTarget = c.whatsapp || c.phone;
-    if (config.notifyWhatsApp) {
+    if (
+      config.notifyWhatsApp &&
+      hasEntitlement(c.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS)
+    ) {
       if (isSos && sosPreparationPromise) {
         const prepared = await sosPreparationPromise;
         if (prepared?.error) {
@@ -163,7 +173,11 @@ async function notifyEmergencyContacts(db, imei, alert) {
         entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
       }
     } else {
-      entry.channels.whatsapp = { ok: false, skipped: true, reason: 'NOTIFY_WHATSAPP=false' };
+      entry.channels.whatsapp = {
+        ok: false,
+        skipped: true,
+        reason: config.notifyWhatsApp ? 'PLAN_EXCLUDES_WHATSAPP' : 'NOTIFY_WHATSAPP=false',
+      };
     }
 
     // Always log intent so you can see fan-out without Twilio.

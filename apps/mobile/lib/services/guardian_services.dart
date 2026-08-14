@@ -10,7 +10,10 @@ import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
+import 'guardian_entitlements.dart';
 import 'imei_utils.dart';
+
+export 'guardian_entitlements.dart';
 
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
 /// is in the signed-in user's `linkedImeis` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so every list/stream here has
@@ -593,29 +596,6 @@ class EmergencyContact {
   }
 }
 
-/// Entitlement state only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â there is no payment provider wired up yet, so
-/// every account is 'free' until a real processor (Stripe, Play Billing,
-/// MCB Juice, ...) is connected server-side. See account_page.dart.
-class GuardianSubscription {
-  const GuardianSubscription({required this.tier, this.status, this.renewsAt});
-
-  final String tier;
-  final String? status;
-  final DateTime? renewsAt;
-
-  bool get isPremium => tier == 'premium' && status != 'canceled';
-
-  factory GuardianSubscription.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const GuardianSubscription(tier: 'free');
-    final renews = map['renewsAt'];
-    return GuardianSubscription(
-      tier: (map['tier'] as String?) ?? 'free',
-      status: map['status'] as String?,
-      renewsAt: renews is Timestamp ? renews.toDate() : null,
-    );
-  }
-}
-
 class UserProfileService {
   UserProfileService({FirebaseFirestore? db, FirebaseAuth? auth})
     : _db = db ?? FirebaseFirestore.instance,
@@ -654,15 +634,48 @@ class UserProfileService {
   Stream<GuardianSubscription> watchSubscription() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
-      return Stream.value(const GuardianSubscription(tier: 'free'));
+      return Stream.value(const GuardianSubscription.inactive(reason: 'not_signed_in'));
     }
-    return _db.collection('users').doc(uid).snapshots().map((snap) {
-      final raw = snap.data()?['subscription'];
-      return GuardianSubscription.fromMap(
-        raw is Map ? Map<String, dynamic>.from(raw) : null,
-      );
-    });
+
+    late StreamController<GuardianSubscription> controller;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? ownerSub;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? planSub;
+
+    controller = StreamController<GuardianSubscription>(
+      onListen: () {
+        ownerSub = _db.collection('users').doc(uid).snapshots().listen(
+          (snap) async {
+            await planSub?.cancel();
+            final rawOwner = (snap.data()?['serviceOwnerUid'] as String?)?.trim();
+            final ownerUid = rawOwner == null || rawOwner.isEmpty ? uid : rawOwner;
+            planSub = _db
+                .collection('serviceSubscriptions')
+                .doc(ownerUid)
+                .snapshots()
+                .listen(
+                  (planSnap) {
+                    controller.add(
+                      GuardianSubscription.fromMap(
+                        planSnap.data(),
+                        ownerUid: ownerUid,
+                      ),
+                    );
+                  },
+                  onError: controller.addError,
+                );
+          },
+          onError: controller.addError,
+        );
+      },
+      onCancel: () async {
+        await ownerSub?.cancel();
+        await planSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
+
+  Future<GuardianSubscription> getSubscription() => watchSubscription().first;
 
   Stream<List<EmergencyContact>> watchContacts() {
     final uid = _auth.currentUser?.uid;
@@ -858,29 +871,31 @@ class FamilyService {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
 
-    final profile = await _db.collection('users').doc(user.uid).get();
-    final linked =
-        (profile.data()?['linkedImeis'] as List?)
-            ?.whereType<String>()
-            .toList() ??
-        <String>[];
-    final code = _generateCode();
-
-    await _db.collection('invites').add({
-      'code': code,
-      'createdBy': user.uid,
-      'createdByName': user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (user.email ?? 'Guardian'),
-      'createdByEmail': user.email,
-      'linkedImeis': linked,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(
-        DateTime.now().add(const Duration(days: 7)),
-      ),
-    });
-    return code;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final code = _generateCode();
+      try {
+        // The code is also the document id. Firestore rules deny updates, so
+        // the extremely unlikely collision fails instead of replacing another
+        // family's invitation.
+        await _db.collection('invites').doc(code).set({
+          'code': code,
+          'createdBy': user.uid,
+          'createdByName': user.displayName?.trim().isNotEmpty == true
+              ? user.displayName!.trim()
+              : (user.email ?? 'Guardian'),
+          'createdByEmail': user.email,
+          'status': 'pending',
+          'createdAt': FieldValue.serverTimestamp(),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 7)),
+          ),
+        });
+        return code;
+      } catch (_) {
+        if (attempt == 4) rethrow;
+      }
+    }
+    throw StateError('Could not create a unique invite code');
   }
 
   Future<void> acceptInviteCode(String rawCode) async {
@@ -888,88 +903,20 @@ class FamilyService {
     if (user == null) throw StateError('Not signed in');
 
     final code = rawCode.trim().toUpperCase();
-    if (code.length < 4) throw StateError('Enter a valid invite code');
-
-    final snap = await _db
-        .collection('invites')
-        .where('code', isEqualTo: code)
-        .limit(1)
-        .get();
-    if (snap.docs.isEmpty) throw StateError('Invite code not found');
-
-    final inviteDoc = snap.docs.first;
-    final invite = inviteDoc.data();
-    if (invite['status'] != 'pending') {
-      throw StateError('This invite is no longer active');
-    }
-    if (invite['createdBy'] == user.uid) {
-      throw StateError('You cannot accept your own invite');
+    if (!RegExp(r'^[A-Z0-9]{6}$').hasMatch(code)) {
+      throw StateError('Enter a valid 6-character invite code');
     }
 
-    final expiresAt = invite['expiresAt'];
-    if (expiresAt is Timestamp && expiresAt.toDate().isBefore(DateTime.now())) {
-      throw StateError('This invite has expired');
-    }
-
-    final linked =
-        (invite['linkedImeis'] as List?)?.whereType<String>().toList() ??
-        <String>[];
-    final inviter = FamilyMember(
-      uid: invite['createdBy'] as String,
-      displayName: (invite['createdByName'] as String?) ?? 'Guardian',
-      email: invite['createdByEmail'] as String?,
-    );
-    final acceptor = FamilyMember(
-      uid: user.uid,
-      displayName: user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (user.email ?? 'Guardian'),
-      email: user.email,
-    );
-
-    final myRef = _db.collection('users').doc(user.uid);
-    final inviterRef = _db.collection('users').doc(inviter.uid);
-    final mySnap = await myRef.get();
-    final inviterSnap = await inviterRef.get();
-    final existingMembers =
-        (mySnap.data()?['familyMembers'] as List?)
-            ?.whereType<Map>()
-            .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
-            .toList() ??
-        <FamilyMember>[];
-    if (!existingMembers.any((m) => m.uid == inviter.uid)) {
-      existingMembers.add(inviter);
-    }
-
-    final inviterMembers =
-        (inviterSnap.data()?['familyMembers'] as List?)
-            ?.whereType<Map>()
-            .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
-            .toList() ??
-        <FamilyMember>[];
-    if (!inviterMembers.any((m) => m.uid == acceptor.uid)) {
-      inviterMembers.add(acceptor);
-    }
-
-    final batch = _db.batch();
-    batch.update(inviteDoc.reference, {
-      'status': 'accepted',
-      'acceptedBy': user.uid,
-      'acceptedByName': acceptor.displayName,
-      'acceptedByEmail': user.email,
-      'acceptedAt': FieldValue.serverTimestamp(),
+    // The client never reads the invitation or grants itself watches, family
+    // membership or a service owner. The gateway validates the invitation,
+    // active plan and caregiver capacity before applying those backend-owned
+    // fields in a transaction.
+    await _db.collection('familyJoinRequests').add({
+      'inviteCode': code,
+      'requestedBy': user.uid,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
     });
-    batch.set(myRef, {
-      'linkedImeis': FieldValue.arrayUnion(linked),
-      'familyMembers': existingMembers.map((m) => m.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    batch.set(inviterRef, {
-      'familyMembers': inviterMembers.map((m) => m.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await batch.commit();
   }
 }
 

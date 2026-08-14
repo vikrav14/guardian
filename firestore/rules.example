@@ -13,6 +13,21 @@ service cloud.firestore {
       return signedIn() && imei in userDoc().linkedImeis;
     }
 
+    function effectiveServiceOwnerUid() {
+      return userDoc().get('serviceOwnerUid', request.auth.uid);
+    }
+
+    function verifiedServiceMember(ownerUid) {
+      return signedIn()
+        && effectiveServiceOwnerUid() == ownerUid
+        && (
+          request.auth.uid == ownerUid
+          || request.auth.uid in get(
+            /databases/$(database)/documents/users/$(ownerUid)
+          ).data.get('memberUids', [])
+        );
+    }
+
     function validUserAvatar() {
       return !('avatarUrl' in request.resource.data)
         || request.resource.data.avatarUrl == null
@@ -20,27 +35,44 @@ service cloud.firestore {
             && request.resource.data.avatarUrl.size() <= 2048);
     }
 
-    // Acceptor appends themselves to the inviter's familyMembers when joining.
-    function selfJoiningFamilyCircle(inviterUid) {
-      let oldMembers = resource.data.get('familyMembers', []);
-      let newMembers = request.resource.data.get('familyMembers', []);
-      return signedIn()
-        && request.auth.uid != inviterUid
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['familyMembers', 'updatedAt'])
-        && newMembers.size() == oldMembers.size() + 1
-        && newMembers[newMembers.size() - 1].uid == request.auth.uid
-        && newMembers[newMembers.size() - 1].displayName is string;
+    function doesNotMutateServiceAuthority() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny([
+          'subscription',
+          'serviceOwnerUid',
+          'memberUids',
+          'familyMembers'
+        ]);
+    }
+
+    function validNewUserAuthorityFields() {
+      return !request.resource.data.keys()
+          .hasAny(['subscription', 'serviceOwnerUid', 'memberUids'])
+        && (
+          !('familyMembers' in request.resource.data)
+          || (request.resource.data.familyMembers is list
+              && request.resource.data.familyMembers.size() == 0)
+        );
     }
 
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && (
-        (request.auth.uid == uid && validUserAvatar())
-        || selfJoiningFamilyCircle(uid)
-      );
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && validNewUserAuthorityFields();
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && validUserAvatar()
+        && doesNotMutateServiceAuthority();
       allow delete: if false;
+    }
+
+    // Backend-owned source of truth for Essential / Family / Care. The app
+    // may display only its verified effective family plan. Admin SDK billing,
+    // migration and support tools bypass these client rules for writes.
+    match /serviceSubscriptions/{ownerUid} {
+      allow read: if verifiedServiceMember(ownerUid);
+      allow create, update, delete: if false;
     }
 
     match /devices/{imei} {
@@ -120,17 +152,49 @@ service cloud.firestore {
     }
 
     match /invites/{inviteId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && resource.data.createdBy == request.auth.uid;
       allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'code',
+          'createdBy',
+          'createdByName',
+          'createdByEmail',
+          'status',
+          'createdAt',
+          'expiresAt'
+        ])
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == 'pending';
-      allow update: if signedIn() && (
-        resource.data.createdBy == request.auth.uid
-        || (resource.data.status == 'pending'
-            && request.resource.data.status == 'accepted'
-            && request.resource.data.acceptedBy == request.auth.uid)
-      );
+        && request.resource.data.status == 'pending'
+        && request.resource.data.code == inviteId
+        && request.resource.data.code is string
+        && request.resource.data.code.size() == 6
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+      allow update: if false;
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Joining a family is a backend-verified workflow. The requester may only
+    // enqueue the code. The gateway validates expiry, active plan and caregiver
+    // capacity before it writes serviceOwnerUid, memberUids or linked watches.
+    match /familyJoinRequests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'inviteCode',
+          'requestedBy',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() == 6
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow read: if signedIn()
+        && resource.data.requestedBy == request.auth.uid;
+      allow update, delete: if false;
     }
 
     match /notificationLogs/{logId} {
@@ -147,4 +211,3 @@ service cloud.firestore {
     }
   }
 }
-

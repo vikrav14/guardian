@@ -8,6 +8,13 @@ const {
   restrictedCallerReply,
 } = require('../src/assistant/tools');
 
+const activeFamily = {
+  version: 1,
+  managedBy: 'guardian_admin',
+  plan: 'family',
+  status: 'active',
+};
+
 function fakeDb({ users = [], devices = {} } = {}) {
   return {
     collection(name) {
@@ -19,6 +26,31 @@ function fakeDb({ users = [], devices = {} } = {}) {
                 id: entry.id,
                 data: () => ({ ...entry.data }),
               })),
+            };
+          },
+          doc(uid) {
+            const entry = users.find((candidate) => candidate.id === uid);
+            return {
+              async get() {
+                return {
+                  exists: Boolean(entry),
+                  data: () => (entry ? { ...entry.data } : undefined),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (name === 'serviceSubscriptions') {
+        return {
+          doc(uid) {
+            const entry = users.find((candidate) => candidate.id === uid);
+            return {
+              async get() {
+                const value = entry?.data?.subscription;
+                return { exists: Boolean(value), data: () => value };
+              },
             };
           },
         };
@@ -47,7 +79,7 @@ function fakeDb({ users = [], devices = {} } = {}) {
 
 test('registered Guardian uses only own linkedImeis', async () => {
   const db = fakeDb({
-    users: [{ id: 'g1', data: { displayName: 'Rav', phone: '+23058590100', role: 'guardian', linkedImeis: ['A'] } }],
+    users: [{ id: 'g1', data: { displayName: 'Rav', phone: '+23058590100', role: 'guardian', linkedImeis: ['A'], subscription: activeFamily } }],
     devices: { A: { nickname: 'Jesh' } },
   });
 
@@ -63,7 +95,7 @@ test('direct registered user wins over emergency-contact match', async () => {
   const db = fakeDb({
     users: [
       { id: 'owner', data: { phone: '+23057111111', linkedImeis: ['OWNER'], emergencyContacts: [{ name: 'Rav', phone: '+23058590100' }] } },
-      { id: 'rav', data: { whatsapp: '+23058590100', linkedImeis: ['RAV'] } },
+      { id: 'rav', data: { whatsapp: '+23058590100', linkedImeis: ['RAV'], subscription: activeFamily } },
     ],
     devices: { OWNER: { nickname: 'Owner wearer' }, RAV: { nickname: 'Rav wearer' } },
   });
@@ -76,7 +108,7 @@ test('direct registered user wins over emergency-contact match', async () => {
 
 test('shared family Guardian is authorised only via own linkedImeis', async () => {
   const db = fakeDb({
-    users: [{ id: 'family', data: { phone: '+23057222222', role: 'guardian', linkedImeis: ['SHARED'] } }],
+    users: [{ id: 'family', data: { phone: '+23057222222', role: 'guardian', linkedImeis: ['SHARED'], subscription: activeFamily } }],
     devices: { SHARED: { nickname: 'Mum' }, PRIVATE: { nickname: 'Private' } },
   });
 
@@ -126,7 +158,7 @@ test('unknown number gets zero access', async () => {
 
 test('admin direct number retains linked-device permissions', async () => {
   const db = fakeDb({
-    users: [{ id: 'admin', data: { phone: '+23057444444', role: 'admin', linkedImeis: ['A'] } }],
+    users: [{ id: 'admin', data: { phone: '+23057444444', role: 'admin', linkedImeis: ['A'], subscription: activeFamily } }],
     devices: { A: { nickname: 'Test' } },
   });
   const ctx = await resolveCallerContext(db, '+23057444444');
@@ -139,6 +171,18 @@ test('unknown role fails closed', () => {
   assert.equal(p.canUseWhatsAppAssistant, false);
   assert.equal(p.canReadLocation, false);
   assert.equal(p.canControlDevice, false);
+});
+
+test('registered user without a trusted subscription gets no WhatsApp service', async () => {
+  const db = fakeDb({
+    users: [{ id: 'g1', data: { phone: '+23057111111', linkedImeis: ['A'] } }],
+    devices: { A: { nickname: 'Test' } },
+  });
+  const ctx = await resolveCallerContext(db, '+23057111111');
+  assert.equal(ctx.uid, 'g1');
+  assert.equal(ctx.entitlements.serviceActive, false);
+  assert.equal(ctx.permissions.canUseWhatsAppAssistant, false);
+  assert.equal(ctx.permissions.canReadLocation, false);
 });
 
 test('emergency-contact privacy reply is deterministic', () => {

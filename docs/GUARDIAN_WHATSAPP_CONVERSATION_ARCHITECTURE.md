@@ -5,6 +5,8 @@
 **Applies to:** Guardian Family and Guardian Care WhatsApp features
 **Does not apply to:** Guardian Essential (Rs 199/month renewal), which has no WhatsApp capability
 
+Plan names, inherited services, subscription states and launch evidence are governed by [`GUARDIAN_SERVICE_PROMISE_MATRIX.md`](GUARDIAN_SERVICE_PROMISE_MATRIX.md). WhatsApp policy must never grant a capability that the effective family plan excludes.
+
 ## 1. Purpose
 
 Guardian WhatsApp is a safety interface, not a general-purpose chatbot. It must give authorised family members clear, factual answers about linked wearers while protecting private data and never implying that an emergency action occurred when it did not.

@@ -443,7 +443,7 @@ void main() {
 
   group('UserProfileService', () {
     test(
-      'watchSubscription defaults to free when no subscription field exists',
+      'watchSubscription fails closed when no trusted subscription exists',
       () async {
         final db = FakeFirebaseFirestore();
         final auth = MockFirebaseAuth(
@@ -457,19 +457,25 @@ void main() {
           auth: auth,
         ).watchSubscription().first;
 
-        expect(sub.tier, 'free');
-        expect(sub.isPremium, false);
+        expect(sub.serviceActive, false);
+        expect(sub.plan, isNull);
       },
     );
 
-    test('watchSubscription reports premium only when not canceled', () async {
+    test('watchSubscription reads the backend-owned family plan', () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(
         mockUser: MockUser(uid: 'u1'),
         signedIn: true,
       );
       await db.collection('users').doc('u1').set({
-        'subscription': {'tier': 'premium', 'status': 'canceled'},
+        'serviceOwnerUid': 'u1',
+      });
+      await db.collection('serviceSubscriptions').doc('u1').set({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': 'family',
+        'status': 'active',
       });
 
       final sub = await UserProfileService(
@@ -477,12 +483,35 @@ void main() {
         auth: auth,
       ).watchSubscription().first;
 
-      expect(sub.tier, 'premium');
-      expect(
-        sub.isPremium,
-        false,
-        reason: 'a canceled premium subscription should not read as active',
+      expect(sub.serviceActive, true);
+      expect(sub.plan, GuardianPlan.family);
+      expect(sub.has(GuardianFeature.whatsappQuestionsAnswers), true);
+      expect(sub.has(GuardianFeature.medicationReminders), false);
+    });
+
+    test('watchSubscription follows a family service owner', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'member'),
+        signedIn: true,
       );
+      await db.collection('users').doc('member').set({
+        'serviceOwnerUid': 'owner',
+      });
+      await db.collection('serviceSubscriptions').doc('owner').set({
+        'version': 1,
+        'managedBy': 'guardian_admin',
+        'plan': 'care',
+        'status': 'active',
+      });
+
+      final sub = await UserProfileService(
+        db: db,
+        auth: auth,
+      ).watchSubscription().first;
+
+      expect(sub.plan, GuardianPlan.care);
+      expect(sub.ownerUid, 'owner');
     });
 
     test('saveContacts round-trips emergency contacts', () async {
@@ -505,16 +534,9 @@ void main() {
 
   group('FamilyService invite flow', () {
     test(
-      'acceptInviteCode links the inviter\'s devices to the accepting user',
+      'acceptInviteCode creates a pending server-verified join request',
       () async {
         final db = FakeFirebaseFirestore();
-        await db.collection('invites').add({
-          'code': 'AB12CD',
-          'createdBy': 'inviter-uid',
-          'createdByName': 'Dad',
-          'status': 'pending',
-          'linkedImeis': ['AAA', 'BBB'],
-        });
         final auth = MockFirebaseAuth(
           mockUser: MockUser(uid: 'acceptor-uid'),
           signedIn: true,
@@ -525,76 +547,49 @@ void main() {
 
         await FamilyService(db: db, auth: auth).acceptInviteCode('ab12cd');
 
-        final acceptorDoc = await db
-            .collection('users')
-            .doc('acceptor-uid')
-            .get();
-        expect(acceptorDoc.data()!['linkedImeis'], containsAll(['AAA', 'BBB']));
-        final invites = await db
-            .collection('invites')
-            .where('code', isEqualTo: 'AB12CD')
-            .get();
-        expect(invites.docs.single.data()['status'], 'accepted');
+        final requests = await db.collection('familyJoinRequests').get();
+        expect(requests.docs, hasLength(1));
+        expect(requests.docs.single.data()['inviteCode'], 'AB12CD');
+        expect(requests.docs.single.data()['requestedBy'], 'acceptor-uid');
+        expect(requests.docs.single.data()['status'], 'pending');
+
+        final acceptorDoc = await db.collection('users').doc('acceptor-uid').get();
+        expect(acceptorDoc.data()!['linkedImeis'], isEmpty);
       },
     );
 
-    test(
-      'acceptInviteCode adds acceptor to inviter familyMembers',
-      () async {
-        final db = FakeFirebaseFirestore();
-        await db.collection('invites').add({
-          'code': 'JOIN01',
-          'createdBy': 'inviter-uid',
-          'createdByName': 'Dad',
-          'createdByEmail': 'dad@example.com',
-          'status': 'pending',
-          'linkedImeis': ['AAA'],
-        });
-        final auth = MockFirebaseAuth(
-          mockUser: MockUser(
-            uid: 'acceptor-uid',
-            email: 'kid@example.com',
-            displayName: 'Kid',
-          ),
-          signedIn: true,
-        );
-        await db.collection('users').doc('acceptor-uid').set({
-          'linkedImeis': [],
-          'familyMembers': [],
-        });
-        await db.collection('users').doc('inviter-uid').set({
-          'linkedImeis': ['AAA'],
-          'familyMembers': [],
-        });
-
-        await FamilyService(db: db, auth: auth).acceptInviteCode('join01');
-
-        final inviterDoc = await db.collection('users').doc('inviter-uid').get();
-        final members = (inviterDoc.data()!['familyMembers'] as List)
-            .cast<Map<String, dynamic>>();
-        expect(members, hasLength(1));
-        expect(members.single['uid'], 'acceptor-uid');
-        expect(members.single['displayName'], 'Kid');
-      },
-    );
-
-    test('acceptInviteCode rejects accepting your own invite', () async {
+    test('acceptInviteCode rejects malformed codes before any write', () async {
       final db = FakeFirebaseFirestore();
-      await db.collection('invites').add({
-        'code': 'SELF01',
-        'createdBy': 'u1',
-        'status': 'pending',
-        'linkedImeis': <String>[],
-      });
       final auth = MockFirebaseAuth(
         mockUser: MockUser(uid: 'u1'),
         signedIn: true,
       );
 
       expect(
-        () => FamilyService(db: db, auth: auth).acceptInviteCode('SELF01'),
+        () => FamilyService(db: db, auth: auth).acceptInviteCode('bad'),
         throwsA(isA<StateError>()),
       );
+      expect((await db.collection('familyJoinRequests').get()).docs, isEmpty);
+    });
+
+    test('createInviteCode stores a non-overwritable code document', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(
+          uid: 'owner',
+          email: 'owner@example.com',
+          displayName: 'Owner',
+        ),
+        signedIn: true,
+      );
+      final code = await FamilyService(db: db, auth: auth).createInviteCode();
+      final invite = await db.collection('invites').doc(code).get();
+
+      expect(code, hasLength(6));
+      expect(invite.exists, true);
+      expect(invite.data()!['code'], code);
+      expect(invite.data()!['createdBy'], 'owner');
+      expect(invite.data()!.containsKey('linkedImeis'), false);
     });
   });
 }

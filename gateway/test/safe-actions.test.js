@@ -3,6 +3,14 @@ const assert = require('node:assert/strict');
 const { actionReplyKind, actionDescription, handleActionReply } = require('../src/safe-actions');
 const { storePendingAction, ACTION_STATUS } = require('../src/pending-actions');
 const { runTool } = require('../src/assistant/tools');
+const { evaluateSubscription } = require('../src/entitlements');
+
+const familyEntitlements = evaluateSubscription({
+  version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active',
+});
+const careEntitlements = evaluateSubscription({
+  version: 1, managedBy: 'guardian_admin', plan: 'care', status: 'active',
+});
 
 function memoryDb() {
   const records = new Map();
@@ -105,6 +113,7 @@ test('command and reminder tools stage confirmation instead of executing writes'
   const { db, records } = memoryDb();
   const ctx = {
     uid: 'u1', linkedImeis: ['A'], devices: [{ imei: 'A', nickname: 'Jesh' }],
+    entitlements: careEntitlements,
   };
   const command = await runTool(db, ctx, 'send_device_command', {
     command_type: 'ring', imei: 'A',
@@ -125,10 +134,28 @@ test('voice monitoring is disabled before any action is staged', async () => {
   const { db, records } = memoryDb();
   const result = await runTool(
     db,
-    { uid: 'u1', linkedImeis: ['A'], devices: [{ imei: 'A', nickname: 'Jesh' }] },
+    { uid: 'u1', linkedImeis: ['A'], devices: [{ imei: 'A', nickname: 'Jesh' }], entitlements: familyEntitlements },
     'send_device_command',
     { command_type: 'listen', imei: 'A' },
   );
   assert.match(result.error, /disabled by Guardian safety policy/);
+  assert.equal(records.size, 0);
+});
+
+test('Family cannot stage a Care medication reminder', async () => {
+  const { db, records } = memoryDb();
+  const result = await runTool(
+    db,
+    {
+      uid: 'u1',
+      linkedImeis: ['A'],
+      devices: [{ imei: 'A', nickname: 'Jesh' }],
+      entitlements: familyEntitlements,
+    },
+    'schedule_reminder',
+    { medicine_name: 'Metformin', time: '20:00', imei: 'A' },
+  );
+  assert.equal(result.code, 'plan_required');
+  assert.match(result.error, /Guardian Care/);
   assert.equal(records.size, 0);
 });

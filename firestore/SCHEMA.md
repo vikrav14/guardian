@@ -15,15 +15,37 @@ Firebase Auth UID as document ID.
 | role | string | `guardian` \| `admin` |
 | linkedImeis | string[] | Devices this user may view/control |
 | fcmTokens | string[] | FCM registration tokens for this user's app installs (push alerts) |
-| subscription | map \| null | `{ tier: 'free'\|'premium', status, renewsAt }` — entitlement display only; no payment provider is wired up, so this is client-writable today. Move ownership to a backend (Cloud Function / webhook from whatever payment provider is chosen) once real billing exists, the same way `devices` telemetry is gateway-owned. |
+| subscription | map \| null | **Deprecated and untrusted.** Legacy `{ tier: 'free'\|'premium', ... }` display data. It must never grant service access. |
+| serviceOwnerUid | string | UID whose authoritative Guardian plan this account inherits. Defaults to the same UID for the purchaser. A family relationship must also be verified on the owner's record. |
+| memberUids | string[] | Backend-managed normalized family membership used to verify plan inheritance. Keep a display copy in `familyMembers`, but never authorize from that legacy field. |
 | emergencyContacts | array | `{ name, phone, whatsapp? }` |
-| familyMembers | array | `{ uid, displayName, email? }` guardians who shared access |
+| familyMembers | array | Backend-managed display list `{ uid, displayName, email? }`; never use it for authorization. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
-## `invites/{inviteId}`
+## `serviceSubscriptions/{serviceOwnerUid}`
 
-Family invite codes.
+Backend-owned source of truth for plan access. Client SDKs may read an applicable record but may never create, update or delete it.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Must be `1`; other/missing versions fail closed. |
+| managedBy | string | `guardian_admin` \| `billing` \| `migration`; legacy/client values fail closed. |
+| plan | string | `essential` \| `family` \| `care`. Plans inherit upward. |
+| status | string | `active` \| `trialing` \| `grace_period` \| `past_due` \| `cancelled`. |
+| currentPeriodEnd | timestamp \| null | Optional active boundary; required future boundary for cancelled access. |
+| trialEndsAt | timestamp \| null | Required future boundary for trialing access. |
+| graceEndsAt | timestamp \| null | Required future boundary for grace/past-due access. |
+| updatedAt | timestamp | Backend write time. |
+
+Canonical capabilities and limits are documented in `docs/GUARDIAN_SERVICE_PROMISE_MATRIX.md` and implemented by `gateway/src/entitlements.js`.
+
+## `invites/{code}`
+
+Backend-consumed family invitations. The six-character code is also the
+document id so a collision cannot overwrite an existing invitation. Only the
+creator may read or delete an invitation; joining clients submit the code to a
+separate request and never read or mutate the invitation directly.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -31,13 +53,34 @@ Family invite codes.
 | createdBy | string | uid |
 | createdByName | string | |
 | createdByEmail | string \| null | |
-| linkedImeis | string[] | Snapshot of inviter devices at create time |
 | status | string | `pending` \| `accepted` \| `revoked` |
 | acceptedBy | string \| null | |
 | acceptedByName | string \| null | |
 | acceptedAt | timestamp \| null | |
 | createdAt | timestamp | |
 | expiresAt | timestamp | |
+
+## `familyJoinRequests/{requestId}`
+
+Client-created request for the gateway to verify and complete a family join.
+The client may create and read its own request but may never mark it accepted.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| inviteCode | string | Six-character code supplied by the joining guardian. |
+| requestedBy | string | Must equal the authenticated UID that created the request. |
+| status | string | Client creates `pending`; gateway writes `accepted` or `rejected`. |
+| ownerUid | string \| null | Gateway-verified service owner after processing. |
+| inviteId | string \| null | Matched invitation id after processing. |
+| reason | string \| null | Deterministic rejection reason. |
+| createdAt | timestamp | Client server timestamp. |
+| processedAt | timestamp \| null | Gateway completion timestamp. |
+
+On acceptance, one Admin SDK transaction updates the owner's `memberUids`,
+both `familyMembers` display lists, the joiner's `serviceOwnerUid` and the
+owner's current linked watches, the invitation, and the request. Invitation
+payloads are never used as device authorization. The active plan's caregiver
+limit is re-evaluated inside that transaction.
 
 ## `devices/{imei}`
 

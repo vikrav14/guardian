@@ -20,16 +20,26 @@ const {
   connectionStaleMinutes,
   shouldReconcileStaleOnline,
 } = require('./device-presence');
+const { startPendingFamilyJoinWatcher } = require('./family-membership');
 
 let db = null;
 let enabled = false;
 let alertWatchUnsub = null;
 let commandWatchUnsub = null;
 
-function initFirestore() {
+function initFirestore({ startWatchers = true } = {}) {
+  if (enabled) {
+    if (startWatchers) {
+      startPendingAlertWatcher();
+      startPendingCommandWatcher();
+      startPendingFamilyJoinWatcher(db);
+    }
+    return db;
+  }
+
   if (config.firestoreDisabled) {
     console.log('[firestore] disabled (FIRESTORE_DISABLED=true) — logging writes only');
-    return;
+    return null;
   }
 
   if (!config.firebaseProjectId) {
@@ -65,8 +75,12 @@ function initFirestore() {
   db = admin.firestore();
   enabled = true;
   console.log(`[firestore] connected to project ${config.firebaseProjectId}`);
-  startPendingAlertWatcher();
-  startPendingCommandWatcher();
+  if (startWatchers) {
+    startPendingAlertWatcher();
+    startPendingCommandWatcher();
+    startPendingFamilyJoinWatcher(db);
+  }
+  return db;
 }
 
 function getDb() {

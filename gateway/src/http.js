@@ -56,6 +56,9 @@ const fs = require('fs');
 const path = require('path');
 const metrics = require('./metrics');
 const { ConversationController } = require('./conversation-controller');
+const {
+  hasEntitlement, featureForWhatsAppIntent, planBoundaryReply,
+} = require('./entitlements');
 
 console.log('[http] Metrics module loaded:', typeof metrics.trackIntent === 'function' ? '✓' : '✗');
 
@@ -219,7 +222,28 @@ async function handleChat({ from, text }) {
       linkedImeis: ctx.linkedImeis,
       status: authStatus,
       reason: authReason,
+      plan: ctx.entitlements?.plan,
+      subscriptionStatus: ctx.entitlements?.status,
     });
+
+    // Authorize the commercial service before courtesy/help routing or any
+    // LLM/tool work. Critical messages retain the deterministic emergency
+    // boundary even when service is inactive.
+    const initialIntent = classifyIntent(text);
+    if (!isCritical(initialIntent) && ctx.uid) {
+      const requiredFeature = featureForWhatsAppIntent(initialIntent.type);
+      if (requiredFeature && !hasEntitlement(ctx.entitlements, requiredFeature)) {
+        const reply = planBoundaryReply(ctx.entitlements, requiredFeature);
+        idempotencyStore.store(requestId, reply);
+        await auditLog.recordResponse({
+          requestId,
+          destination: 'whatsapp',
+          replyLength: reply.length,
+          fallbackReason: 'plan_entitlement_denied',
+        });
+        return { ctx, reply, deterministic: true, planRestricted: true };
+      }
+    }
 
     const actionReply = await handleActionReply({
       db,

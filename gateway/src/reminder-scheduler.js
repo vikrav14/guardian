@@ -8,6 +8,7 @@
  */
 
 const { sendWhatsApp, normalizeE164 } = require('./notify');
+const { FEATURE, hasEntitlement, loadEntitlementsForUser } = require('./entitlements');
 
 /**
  * Get current time in HH:MM format (24-hour).
@@ -110,6 +111,9 @@ function startReminderScheduler(db, config = {}) {
 
       for (const userDoc of usersSnap.docs) {
         const user = userDoc.data() || {};
+        const userWithId = { uid: userDoc.id, ...user };
+        const entitlements = await loadEntitlementsForUser(db, userWithId);
+        if (!hasEntitlement(entitlements, FEATURE.MEDICATION_REMINDERS)) continue;
         const linkedImeis = Array.isArray(user.linkedImeis) ? user.linkedImeis : [];
 
         for (const imei of linkedImeis) {
@@ -122,6 +126,9 @@ function startReminderScheduler(db, config = {}) {
 
           for (const reminderDoc of remindersSnap.docs) {
             const reminder = reminderDoc.data() || {};
+            if (reminder.createdBy && String(reminder.createdBy) !== String(userDoc.id)) {
+              continue;
+            }
 
             // Check all firing conditions
             if (!shouldFireToday(reminder)) continue;

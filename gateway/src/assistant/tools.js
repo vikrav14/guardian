@@ -4,6 +4,9 @@ const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
+const {
+  FEATURE, hasEntitlement, loadEntitlementsForUser, planBoundaryReply,
+} = require('../entitlements');
 
 const CALLER_ROLES = Object.freeze({
   GUARDIAN: 'guardian',
@@ -12,18 +15,21 @@ const CALLER_ROLES = Object.freeze({
   UNKNOWN: 'unknown',
 });
 
-function permissionsForCallerRole(role) {
+function permissionsForCallerRole(role, entitlements = null) {
   const registeredGuardian =
     role === CALLER_ROLES.GUARDIAN || role === CALLER_ROLES.ADMIN;
+  const whatsapp = registeredGuardian && hasEntitlement(entitlements, FEATURE.WHATSAPP_QA);
 
   return Object.freeze({
-    canUseWhatsAppAssistant: registeredGuardian,
-    canReadDeviceStatus: registeredGuardian,
-    canReadLocation: registeredGuardian,
-    canReadAlerts: registeredGuardian,
-    canReadSafeZones: registeredGuardian,
-    canControlDevice: registeredGuardian,
-    canScheduleReminders: registeredGuardian,
+    canUseWhatsAppAssistant: whatsapp,
+    canReadDeviceStatus: whatsapp,
+    canReadLocation: whatsapp,
+    canReadAlerts: whatsapp,
+    canReadSafeZones: whatsapp,
+    canControlDevice:
+      registeredGuardian && hasEntitlement(entitlements, FEATURE.WHATSAPP_WATCH_COMMANDS),
+    canScheduleReminders:
+      registeredGuardian && hasEntitlement(entitlements, FEATURE.MEDICATION_REMINDERS),
     canReceiveSafetyAlerts: role === CALLER_ROLES.EMERGENCY_CONTACT,
   });
 }
@@ -73,6 +79,7 @@ async function resolveCallerContext(db, fromRaw) {
     callerRole: CALLER_ROLES.UNKNOWN,
     accessSource: 'none',
     permissions: permissionsForCallerRole(CALLER_ROLES.UNKNOWN),
+    entitlements: null,
     linkedImeis: [],
     devices: [],
   };
@@ -104,6 +111,7 @@ async function resolveCallerContext(db, fromRaw) {
     const linkedImeis = Array.isArray(matchedUser.linkedImeis)
       ? [...new Set(matchedUser.linkedImeis.filter(Boolean).map(String))]
       : [];
+    const entitlements = await loadEntitlementsForUser(db, matchedUser);
 
     const devices = [];
     for (const imei of linkedImeis) {
@@ -121,7 +129,8 @@ async function resolveCallerContext(db, fromRaw) {
       displayName: matchedUser.displayName || matchedUser.email || null,
       callerRole,
       accessSource: 'registered_user',
-      permissions: permissionsForCallerRole(callerRole),
+      permissions: permissionsForCallerRole(callerRole, entitlements),
+      entitlements,
       linkedImeis,
       devices,
     };
@@ -152,6 +161,7 @@ async function resolveCallerContext(db, fromRaw) {
         callerRole: CALLER_ROLES.EMERGENCY_CONTACT,
         accessSource: 'emergency_contact',
         permissions: permissionsForCallerRole(CALLER_ROLES.EMERGENCY_CONTACT),
+        entitlements: null,
         linkedImeis: [],
         devices: [],
       };
@@ -508,6 +518,9 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
 }
 
 async function sendDeviceCommand(db, ctx, { command_type: commandType, device_name: deviceName, imei } = {}) {
+  if (!hasEntitlement(ctx?.entitlements, FEATURE.WHATSAPP_WATCH_COMMANDS)) {
+    return { error: planBoundaryReply(ctx?.entitlements, FEATURE.WHATSAPP_WATCH_COMMANDS), code: 'plan_required' };
+  }
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) return { error: 'No matching watch.' };
   const cmd = String(commandType || '').toLowerCase().trim();
@@ -610,6 +623,9 @@ async function executeDeviceCommand(db, ctx, { command_type: commandType, imei }
 }
 
 async function scheduleReminder(db, ctx, { medicine_name: medicineName, time: scheduledTime, frequency = 'daily', device_name: deviceName, imei } = {}) {
+  if (!hasEntitlement(ctx?.entitlements, FEATURE.MEDICATION_REMINDERS)) {
+    return { error: planBoundaryReply(ctx?.entitlements, FEATURE.MEDICATION_REMINDERS), code: 'plan_required' };
+  }
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) return { error: 'No matching watch.' };
   const medicine = String(medicineName || '').trim();
@@ -687,12 +703,18 @@ async function executeConfirmedAction(db, ctx, action) {
   if (!action || action.callerUid !== ctx.uid) return { error: 'Caller does not own this action.' };
   if (!(ctx.linkedImeis || []).includes(action.targetImei)) return { error: 'Target is no longer authorised.' };
   if (action.actionType === 'schedule_reminder') {
+    if (!hasEntitlement(ctx?.entitlements, FEATURE.MEDICATION_REMINDERS)) {
+      return { error: planBoundaryReply(ctx?.entitlements, FEATURE.MEDICATION_REMINDERS) };
+    }
     return executeReminder(db, ctx, {
       imei: action.targetImei,
       medicine_name: action.parameters.medicineName,
       time: action.parameters.time,
       frequency: action.parameters.frequency,
     });
+  }
+  if (!hasEntitlement(ctx?.entitlements, FEATURE.WHATSAPP_WATCH_COMMANDS)) {
+    return { error: planBoundaryReply(ctx?.entitlements, FEATURE.WHATSAPP_WATCH_COMMANDS) };
   }
   return executeDeviceCommand(db, ctx, { imei: action.targetImei, command_type: action.actionType });
 }
@@ -857,6 +879,21 @@ const TOOL_DEFINITIONS = [
 ];
 
 async function runTool(db, ctx, name, input) {
+  const requiredFeature = {
+    list_devices: FEATURE.WHATSAPP_QA,
+    get_last_location: FEATURE.WHATSAPP_QA,
+    get_battery: FEATURE.WHATSAPP_QA,
+    get_recent_alerts: FEATURE.WHATSAPP_QA,
+    get_recent_journeys: FEATURE.WHATSAPP_QA,
+    get_device_intelligence: FEATURE.GUARDIAN_AI,
+    is_at_geofence: FEATURE.WHATSAPP_QA,
+    send_device_command: FEATURE.WHATSAPP_WATCH_COMMANDS,
+    schedule_reminder: FEATURE.MEDICATION_REMINDERS,
+    get_daily_summary: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
+  }[name];
+  if (requiredFeature && !hasEntitlement(ctx?.entitlements, requiredFeature)) {
+    return { error: planBoundaryReply(ctx?.entitlements, requiredFeature), code: 'plan_required' };
+  }
   switch (name) {
     case 'list_devices':
       return listDevices(ctx);
@@ -897,5 +934,6 @@ module.exports = {
   getRecentJourneys,
   getDailySummary,
   executeConfirmedAction,
+  planBoundaryReply,
   isAtGeofence,
 };
