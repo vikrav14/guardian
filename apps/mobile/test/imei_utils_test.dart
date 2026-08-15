@@ -2,20 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/services/imei_utils.dart';
 
 void main() {
-  test('fullImeiFromProtocolId maps ReachFar V28C ids with default suffix', () {
-    expect(fullImeiFromProtocolId('9705314117'), '861397053141170');
+  test('fullImeiFromProtocolId maps ReachFar V52 ids with default suffix', () {
+    expect(fullImeiFromProtocolId('9705254740'), '861397052547400');
   });
 
   test('normalizeLinkedImeis dedupes protocol id and full IMEI', () {
-    expect(
-      normalizeLinkedImeis(['9705314117', '861397053141170']),
-      ['861397053141170'],
-    );
+    expect(normalizeLinkedImeis(['9705254740', '861397052547400']), [
+      '861397052547400',
+    ]);
   });
 
   test('normalizeLinkedImeis keeps non-numeric test ids', () {
-    expect(normalizeLinkedImeis(['AAA', '9705314117']), [
-      '861397053141170',
+    expect(normalizeLinkedImeis(['AAA', '9705254740']), [
+      '861397052547400',
       'AAA',
     ]);
   });

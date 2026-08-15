@@ -104,7 +104,7 @@ async function evaluateGeofenceTransitions(db, imei, location) {
     // A zone with a wifiSsid configured is "inside" if either GPS says so, OR the
     // watch currently reports being associated with that SSID â€” whichever fires
     // first, since indoor GPS is often unreliable right where a WiFi fence matters.
-    // NOTE: the GT06/V28C protocol decoder in ./protocol/gt06.js does not currently
+    // NOTE: the V52 protocol decoder in ./protocol/gt06.js does not currently
     // extract a WiFi SSID from any device packet (the vendor docs in docs/reference/
     // don't document that packet's byte layout), so `location.wifiSsid` is always
     // undefined today â€” this check is ready for whenever that decoding is added.

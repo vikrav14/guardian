@@ -3,7 +3,7 @@
 /**
  * Guardian Device Onboarding Script
  *
- * Seamlessly onboard a new V28C or V52 device by:
+ * Seamlessly onboard a Guardian ReachFar V52 by:
  * 1. Collecting device info
  * 2. Generating SMS commands
  * 3. Registering in Firestore
@@ -26,14 +26,21 @@ const colors = {
   cyan: '\x1b[36m',
 };
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+let rl = null;
+
+function getReadline() {
+  if (!rl) {
+    rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+  }
+  return rl;
+}
 
 function prompt(question) {
   return new Promise((resolve) => {
-    rl.question(question, resolve);
+    getReadline().question(question, resolve);
   });
 }
 
@@ -77,26 +84,15 @@ function validatePhone(phone) {
   return /^\+?[0-9]{7,15}$/.test(phone);
 }
 
-function generateSmsCommands(protocolId, ngrokHost, ngrokPort, simPhone, carrier = 'myt') {
-  const apnMap = {
-    myt: { apn: 'internet', mccmnc: '46000' },  // MCC 46 + MNC 00
-    emtel: { apn: 'web', mccmnc: '64001' },     // MCC 64 + MNC 01
-  };
-
-  const carrierConfig = apnMap[carrier.toLowerCase()] || apnMap.myt;
-
+function generateSmsCommands(ngrokHost, ngrokPort, adminPhone) {
   return {
     centerNumber: {
-      command: `pw,123456,center,${simPhone}#`,
+      command: `pw,123456,center,${adminPhone}#`,
       description: 'Set admin phone number (center number)',
     },
     serverIp: {
-      command: `pw,123456,ip,${ngrokHost},${ngrokPort}#`,
+      command: `ip,${ngrokHost},${ngrokPort}#`,
       description: 'Point device to ngrok server',
-    },
-    apn: {
-      command: `pw,123456,apn,${carrierConfig.apn},,,${carrierConfig.mccmnc}#`,
-      description: `Set APN for ${carrier.toUpperCase()} carrier`,
     },
     status: {
       command: `ts#`,
@@ -105,7 +101,7 @@ function generateSmsCommands(protocolId, ngrokHost, ngrokPort, simPhone, carrier
   };
 }
 
-async function registerDeviceInFirestore(db, imei, nickname, simPhone, protocolId, carrier) {
+async function registerDeviceInFirestore(db, imei, nickname, simPhone, protocolId) {
   const deviceData = {
     imei,
     nickname: nickname || `V52 Device (${imei.slice(-4)})`,
@@ -181,12 +177,8 @@ async function main() {
     // Collect device information
     log('step', 'Collecting device information...\n');
 
-    const deviceType = await prompt(
-      `Device type (${colors.cyan}V28C${colors.reset} or ${colors.cyan}V52${colors.reset}): `
-    );
-    if (!['V28C', 'V52', 'v28c', 'v52'].includes(deviceType)) {
-      throw new Error('Invalid device type. Use V28C or V52.');
-    }
+    const deviceType = 'V52';
+    log('info', 'Production device model: V52');
 
     const protocolId = await prompt('Protocol ID (10 digits, e.g., 9705254749): ');
     if (!validateProtocolId(protocolId)) {
@@ -208,11 +200,6 @@ async function main() {
       throw new Error('Invalid phone number.');
     }
 
-    const carrier = await prompt('SIM carrier (${colors.cyan}myt${colors.reset} or ${colors.cyan}emtel${colors.reset}): ');
-    if (!['myt', 'emtel', 'MYT', 'EMTEL'].includes(carrier)) {
-      throw new Error('Invalid carrier. Use myt or emtel.');
-    }
-
     const nickname = await prompt('Device nickname (optional, press Enter to skip): ');
 
     const ngrokHost = await prompt(
@@ -227,13 +214,7 @@ async function main() {
 
     // Generate SMS commands
     log('step', '\nGenerating SMS commands...\n');
-    const commands = generateSmsCommands(
-      protocolId,
-      finalNgrokHost,
-      ngrokPort,
-      adminPhone,
-      carrier
-    );
+    const commands = generateSmsCommands(finalNgrokHost, ngrokPort, adminPhone);
 
     console.log(`${colors.bright}Send these SMS commands IN ORDER:${colors.reset}\n`);
     Object.entries(commands).forEach(([key, { command, description }], index) => {
@@ -244,7 +225,7 @@ async function main() {
     const proceed = await prompt(`${colors.cyan}Ready to register in Firestore? (yes/no):${colors.reset} `);
     if (proceed.toLowerCase() !== 'yes') {
       log('info', 'Cancelled. Send the SMS commands manually.');
-      rl.close();
+      rl?.close();
       return;
     }
 
@@ -256,8 +237,7 @@ async function main() {
       imei,
       nickname,
       simPhone,
-      protocolId,
-      carrier
+      protocolId
     );
 
     if (!registered) {
@@ -280,7 +260,6 @@ async function main() {
     console.log(`Protocol ID:     ${protocolId}`);
     console.log(`IMEI:            ${imei}`);
     console.log(`SIM:             ${simPhone}`);
-    console.log(`Carrier:         ${carrier.toUpperCase()}`);
     console.log(`Nickname:        ${nickname || '(default)'}`);
     console.log(`ngrok:           ${finalNgrokHost}:${ngrokPort}`);
 
@@ -289,16 +268,26 @@ async function main() {
     console.log('2. Power cycle the device\n');
     console.log('3. Device should connect and appear in Firestore within 60 seconds\n');
     console.log('4. Monitor in Firestore: connectionState should change to "live"\n');
+    console.log('Do not overwrite APN or IMEI unless the V52 vendor/carrier gives the exact value.\n');
 
     log('success', 'Onboarding complete!');
 
-    rl.close();
+    rl?.close();
     process.exit(0);
   } catch (err) {
     log('error', err.message);
-    rl.close();
+    rl?.close();
     process.exit(1);
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  generateSmsCommands,
+  validateImei,
+  validatePhone,
+  validateProtocolId,
+};

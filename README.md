@@ -10,8 +10,10 @@ Premium personal GPS safety platform for families in Mauritius — elderly care,
 - [firestore/SCHEMA.md](firestore/SCHEMA.md) — Firestore collections and fields
 - [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) — create Firebase project + wire the gateway
 - [docs/FLUTTER_SETUP.md](docs/FLUTTER_SETUP.md) — Flutter map dashboard + Firebase Web config
-- [docs/V28C_DEVICE_SETUP.md](docs/V28C_DEVICE_SETUP.md) — configure a real V28C pendant (SMS + ngrok + gateway)
-- [docs/reference/](docs/reference/) — V28C datasheet + SMS server-switch commands (PDFs)
+- [docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md](docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md) — V52 real-device release evidence
+- [docs/GUARDIAN_V52_COMMAND_EVIDENCE.md](docs/GUARDIAN_V52_COMMAND_EVIDENCE.md) — exact V52 commands, transports and proof levels
+- [docs/GUARDIAN_LOCATION_PROVENANCE.md](docs/GUARDIAN_LOCATION_PROVENANCE.md) — V52 GPS/Wi-Fi/LBS source policy
+- [docs/reference/](docs/reference/) — raw vendor references; V52 evidence takes precedence over older-family material
 
 ## Repository layout
 
@@ -39,7 +41,7 @@ cd gateway
 npm run simulate
 ```
 
-Listens on TCP port **9000** for GT06 packets from GPS pendants (or the simulator).
+Listens on TCP port **9000** for ReachFar V52 ASCII packets (or the simulator).
 
 See [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) to connect a real Firebase project.
 

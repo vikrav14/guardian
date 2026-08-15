@@ -194,7 +194,7 @@ class Device {
   final String? avatarUrl;
   final DeviceIntelligence? intelligence;
 
-  /// Last preference the app asked the watch for -- V46/V48/V52 only.
+  /// Last V52 preference the app asked the watch for.
   /// The device has no "read back my fall-detection config" command, so
   /// this is a cache of the last request, not confirmed device state.
   final bool? fallDetectionEnabled;
@@ -202,7 +202,7 @@ class Device {
   final int? fallDetectionSensitivity;
 
   /// Last upload interval the app asked the watch for, in seconds --
-  /// V46/V48/V52 only. Same "request cache, not confirmed state" caveat as
+  /// V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
   final String locationReportingMode;

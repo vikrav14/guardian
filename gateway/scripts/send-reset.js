@@ -2,18 +2,18 @@
  * Trigger RESET (device restart) via the gateway HTTP API.
  * Requires gateway running with an active device TCP session.
  *
- * Vendor: V28C Communication Protocol.pdf section II.16 — server sends
+ * V52 data command — server sends
  * [SG*YYYYYYYYYY*0005*RESET] (10-digit protocol id, not 15-digit IMEI).
  *
  * Usage:
  *   node scripts/send-reset.js
- *   node scripts/send-reset.js 861397053141170
- *   node scripts/send-reset.js --imei 9705314117 --host 127.0.0.1 --port 9001
+ *   node scripts/send-reset.js 861397052547400
+ *   node scripts/send-reset.js --imei 9705254740 --host 127.0.0.1 --port 9001
  */
 const http = require('http');
 
 const args = process.argv.slice(2);
-let imei = '861397053141170';
+let imei = '861397052547400';
 let host = '127.0.0.1';
 let port = 9001;
 

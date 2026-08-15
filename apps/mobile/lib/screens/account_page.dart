@@ -947,7 +947,7 @@ Future<void> _showDeviceSettingsDialog(
                     leading: const Icon(Icons.favorite_outline),
                     title: const Text('Care settings'),
                     subtitle: const Text(
-                      'Fall detection & medication reminders Ã¢â‚¬â€ V46/V48/V52 only',
+                      'Fall detection & medication reminders — V52',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
@@ -1030,9 +1030,8 @@ Future<void> _showDeviceSettingsDialog(
                   ),
                   const Divider(height: 24),
                   Text(
-                    'Voice monitoring: unverified against this exact device -- documented for '
-                    'the closely related RF-V28 by a third party, not the V28C vendor manual. '
-                    'Test carefully before relying on it.',
+                    'Voice monitoring uses the V52 live watch connection. Use it only with '
+                    'the wearer\'s knowledge and consent; availability can vary by firmware.',
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),

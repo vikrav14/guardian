@@ -244,5 +244,5 @@ Before deploying observe-only mode to production:
 ## See Also
 
 - `/gateway/src/context/` — All context modules
-- `CLAUDE.md` — Protocol reference for V28C/V52 devices
+- `CLAUDE.md` — V52-only production protocol contract
 - `/firestore/SCHEMA.md` — Device/location data structure

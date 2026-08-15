@@ -111,7 +111,7 @@ test('handlePacket emits location_parse_error for bare V without extras', () => 
   assert.equal(events[0].reason, 'gps_not_fixed');
 });
 
-test('parseLteExtras finds Mauritius cell block after V28C status prefix', () => {
+test('parseLteExtras finds Mauritius cell block in the V52 LTE tail', () => {
   const extras = [
     '0.0', '0', '100', '80', '0', '0', '00000000', '1', '0',
     '617', '1', '53', '203778', '169', '1', '',
@@ -130,7 +130,7 @@ test('parseLteExtras finds Mauritius cell block after V28C status prefix', () =>
   assert.equal(wifiAccessPoints[0].macAddress, 'a4:08:ea:56:e7:bd');
 });
 
-test('parseLteExtras drops null WiFi MAC 00:00:00:00:00:00 from V28C scan', () => {
+test('parseLteExtras drops null WiFi MAC 00:00:00:00:00:00 from V52 scan', () => {
   const extras = [
     '0.0', '0', '87', '54', '0', '0', '00000000', '1', '0',
     '617', '1', '53', '203798', '164', '3', '',

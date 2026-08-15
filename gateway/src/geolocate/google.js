@@ -38,7 +38,7 @@ function isUsableMac(field) {
   return mac !== '00:00:00:00:00:00' && mac !== 'ff:ff:ff:ff:ff:ff';
 }
 
-/** Scan pre-WiFi fields for MCC/MNC/LAC/cellId (V28C buries them after status bytes). */
+/** Scan the V52 LTE tail for MCC/MNC/LAC/cellId after tracker-state fields. */
 function findCellBlockStart(fields) {
   for (let i = 0; i + 3 < fields.length; i++) {
     const mcc = parseInt(fields[i], 10);

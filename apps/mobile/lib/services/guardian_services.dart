@@ -162,7 +162,7 @@ class DeviceService {
     });
   }
 
-  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, requires the device to currently hold
+  /// V52 TCP downlink; requires the device to currently hold
   /// a live connection to the gateway (see DeviceCommandService.setFallDetection
   /// and setFallSensitivity). Caches the requested state on the device doc
   /// since the device has no read-back command; the cache reflects what was
@@ -191,7 +191,7 @@ class DeviceService {
     await commands.setFallSensitivity(imei, sensitivityLevel);
   }
 
-  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, requires the device to currently hold
+  /// V52 TCP downlink; requires the device to currently hold
   /// a live connection to the gateway (see
   /// DeviceCommandService.setUploadInterval). Without this, the pendant's
   /// default reporting interval is long and irregular -- the map can show a
@@ -525,7 +525,7 @@ class GeofenceService {
   }
 }
 
-/// V46/V48/V52 only. The device has no "list my reminders" query command,
+/// V52 only. The device has no "list my reminders" query command,
 /// so this collection is the app's own record of what's been scheduled ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
 /// saving or deleting also enqueues a matching `set_medication_reminder`
 /// deviceCommand so the watch itself stays in sync (see
@@ -1049,11 +1049,9 @@ class FamilyService {
   }
 }
 
-/// Writes app-originated commands for the gateway to deliver to a watch by
-/// SMS (see gateway/src/commands.js). Center number, SOS numbers, and status
-/// check are from the vendor's own manual; voice monitoring is documented
-/// only for the closely related RF-V28 by a third-party source, not verified
-/// against this exact device ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see the comment in commands.js.
+/// Writes app-originated V52 commands for the gateway to deliver using the
+/// command's verified transport. Provisioning uses SMS; runtime watch actions
+/// use the active TCP connection. See gateway/src/commands.js.
 String _normalisePhoneForSafety(String value) {
   return value.replaceAll(RegExp(r'[^0-9]'), '');
 }
@@ -1114,19 +1112,19 @@ class DeviceCommandService {
     return _enqueue(imei, 'check_status', const {});
   }
 
-  /// Triggers the watch to silently call [listenerPhone] for one-way
-  /// listening. Unverified against the V28C specifically ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see class doc.
+  /// Sends the V52 MONITOR data command over its live TCP connection.
+  /// Product use still requires explicit wearer consent and real-device
+  /// acceptance; WhatsApp deliberately cannot invoke this action.
   Future<void> startVoiceMonitor(String imei, String listenerPhone) {
     return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
 
-  /// Makes the watch sound an audible alert so it can be found. Unverified
-  /// against the V28C specifically ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see class doc.
+  /// Sends the V52 FIND command over its live TCP connection.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
   }
 
-  /// V46/V48/V52 only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â TCP downlink, no SMS equivalent exists. Requires the
+  /// V52 TCP downlink; no SMS fallback exists. Requires the
   /// device to currently hold a live connection to the gateway; fails
   /// clearly (not silently) if it doesn't. See gateway/src/commands.js.
   Future<void> setFallDetection(
@@ -1140,12 +1138,12 @@ class DeviceCommandService {
     });
   }
 
-  /// V46/V48/V52 only. [level] is 0-6.
+  /// V52 only. [level] is 0-6.
   Future<void> setFallSensitivity(String imei, int level) {
     return _enqueue(imei, 'set_fall_sensitivity', {'level': level});
   }
 
-  /// V46/V48/V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
+  /// V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
   /// (daily), or 3 (weekly, requires [week] as a 7-digit Sun->Sat mask).
   Future<void> setMedicationReminder(
     String imei, {
@@ -1164,7 +1162,7 @@ class DeviceCommandService {
     });
   }
 
-  /// V46/V48/V52 only. Sets the pendant's standing location-reporting
+  /// V52 only. Sets the watch's standing location-reporting
   /// interval so it keeps sending fresh fixes on its own, instead of
   /// falling back to its long, irregular default between fixes. [seconds]
   /// is a UX guardrail (10-3600), not a vendor-documented limit.

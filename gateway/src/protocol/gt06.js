@@ -27,7 +27,7 @@ const SERVER_ONLY_COMMANDS = new Set([
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
-  // V46-V48-V52 additions
+  // Additional commands documented for the V52 data protocol/captures.
   'hrtstart', 'SEDENTARY', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',

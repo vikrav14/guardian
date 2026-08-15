@@ -1,9 +1,10 @@
 # Guardian
 
-A GPS safety app for families in Mauritius. A wearable pendant (V28C, Shenzhen
-Reachfar — GT06-family protocol) is worn by a child, an elderly relative, or
-anyone who needs tracking and an SOS button. A Flutter app lets a "guardian"
-see the pendant's location, get alerts, and manage everything from one place.
+A GPS safety app for families in Mauritius. Guardian supports one production
+hardware model: the Shenzhen ReachFar **V52 watch**. It is worn by a child, an
+elderly relative, or anyone who needs tracking and an SOS button. A Flutter
+app lets a guardian see honest location provenance, receive alerts and manage
+the family service.
 
 ## Architecture
 
@@ -18,8 +19,9 @@ see the pendant's location, get alerts, and manage everything from one place.
   and runs a Claude-powered WhatsApp assistant (`src/assistant/`).
 - `firestore/` — `SCHEMA.md` (source of truth for the data model) and
   `rules.example` (the real security rules — deploy via `firebase.json`).
-- `docs/reference/` — vendor PDFs (V28C datasheet, SMS command reference).
-  These are the *only* commands we have vendor confirmation for.
+- `docs/reference/` — raw vendor PDFs gathered during evaluation. Older-model
+  files are historical evidence only and must never override V52 captures,
+  acceptance results or V52-only tests.
 
 ## Where things are tracked
 
@@ -38,21 +40,19 @@ see the pendant's location, get alerts, and manage everything from one place.
 
 ## Hard rule: never fabricate hardware commands
 
-The pendant's SMS command set is only partially documented. `docs/reference/
-Switch-Server-SMS-Commands.pdf` (the actual vendor doc for this exact device)
-covers: server switch, SOS numbers, center number, status check, APN, IMEI
-change. That's it.
+The V52 command set is only partially proven. `gateway/src/commands.js` must
+contain V52 syntax only. Keep two evidence levels separate:
 
-`voice_monitor` (`monitor,<phone>#`) and `ring_to_find` (`find#`) in
-`gateway/src/commands.js` are borrowed from a third-party community source
-(github.com/matthiasmo/RF-V28) documenting a *related but different* hardware
-model (RF-V28, not this V28C) — flagged unverified in code comments and in
-the app UI. Treat them as unconfirmed until tested against real hardware.
+- **Live-proven V52 SMS provisioning:** center number, SOS1 and `ts#`.
+- **Documented V52 SMS provisioning:** SOS2/SOS3 use the same slot syntax but
+  still need explicit real-device acceptance.
+- **Documented V52 TCP data commands:** `MONITOR`, `FIND`, `FALLDOWN`, `LSSET`,
+  `TAKEPILLS` and `UPLOAD`. These require a live V52 session and must not gain
+  a guessed SMS fallback. A documented command is not a product promise until
+  its real-device acceptance passes.
 
-Remote photo capture, pill reminders, and pedometer/step-count have **no**
-known command syntax or protocol packet format anywhere we could find. Do not
-guess at these — verify with the vendor first. See GitHub issues #28, #29,
-#12.
+Never import older-model alarm bits, shortened packet layouts or community
+SMS commands into production. Never change APN or IMEI from an example value.
 
 ## Known gaps (see GitHub issues for the full, current list)
 
@@ -80,14 +80,9 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
   they're being listened to — a real privacy/consent question, not just a
   testing caveat. Worth a deliberate decision before this is used on a real
   person.
-- **Ring/locate command (`find#`) — device firmware limitation**: Vendor docs
-  claim device rings for 1 minute then auto-stops, but real V28C hardware does
-  NOT auto-stop. Device rings continuously with looping tune until physically
-  interrupted (SOS button or repeated button presses to let tune complete).
-  No remote protocol command stops the ring. Server sends `CR` after 60s as
-  workaround but device ignores it. Not recommended for production until vendor
-  provides firmware fix or confirmed stop mechanism. Tested on real hardware
-  (Dexter, Jeshna).
+- `MONITOR` and `FIND` have V52 protocol syntax and correct TCP framing, but
+  remain hardware-acceptance items. Do not claim call completion, audible-ring
+  duration or remote stop behaviour without a real V52 result.
 
 ## Dev setup
 
@@ -117,74 +112,44 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
   side (real Firestore-shaped fakes, no platform channels needed) and
   `node:test` on the gateway side — no other test frameworks.
 
-## Protocol Reference: V28C → V52 Migration
+## V52 Protocol Contract
 
-All pendants use the ReachFar GT06-family ASCII protocol (same packet format,
-shared command structure). However, **status bit assignments differ between
-versions** — this is critical for alarm classification.
+Frames use `[CS*protocolId*LEN*command,data...]`. The tracker state is the
+eight-character hexadecimal value at fixed argument index 15 in the full V52
+LTE layout. It is not the last LTE-tail value.
 
-### Device Status Bits (Alarms)
-
-The device reports alarms as a 32-bit hex value (last field in AL_LTE packets).
-Bit positions **are not interchangeable** across device versions:
-
-**V28C bits (from Communication Example doc):**
-| Bit | Meaning |
-|-----|---------|
-| 0 | Low battery status |
-| 15 | Vibrate alert |
+| V52 bit | Meaning |
+|---------|---------|
 | 16 | SOS alarm |
-| 17 | Low battery alarm |
-| 20 | Bracelet removal alert |
-| 21 | Fall alert |
+| 17 | Low-battery alarm |
+| 18 | Safe-zone exit |
+| 19 | Safe-zone entry |
+| 20 | Bracelet removal |
+| 22 | Fall alarm |
 
-**V52 bits (from Communication Protocol doc, section 5):**
-| Bit | Meaning |
-|-----|---------|
-| 0 | Low battery status |
-| 3 | Wear GPS watch status |
-| 16 | SOS alarm |
-| 17 | Low battery alarm |
-| 18 | Out-of-fence alarm |
-| 19 | Enter-fence alarm |
-| 20 | Remove bracelet alarm |
-| 22 | **Fall alert** |
-
-**Bit 22 (V52) vs Bit 21 (V28C)**: The vendor's V52 Communication Example doc
-lists bit 22 as both "Fall alarm" and "Heart rate abnormal alarm" — this is a
-direct contradiction in the manufacturer's own docs. We align with V52 protocol
-section 5 (**bit 22 = fall**) for forward compatibility with V52 devices. This
-is implemented in `gateway/src/protocol/gt06.js:327`.
+`gateway/src/protocol/gt06.js` deliberately rejects bit 21 as fall and rejects
+shortened legacy alarm layouts. Do not weaken these guards to accommodate a
+mixed-generation example document.
 
 ### Commands: TCP vs SMS Routing
 
-- **TCP-only commands** (`ring_to_find`, fall detection, medication reminders):
-  require a live device connection. No SMS fallback — fail clearly if device
-  offline.
-- **SMS commands** (center number, SOS slots, status check): work when the device
-  has a SIM and data coverage, even without an active TCP session.
+- **TCP-only V52 commands:** `MONITOR`, `FIND`, fall settings, medication
+  reminders and reporting interval. A live connection is mandatory.
+- **Live-proven SMS provisioning:** center number, SOS slots and `ts#` status.
 
 See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
 
-### Known Unverified Commands
+### Remaining V52 Acceptance Items
 
-`voice_monitor` (`monitor,<phone>#`) and `ring_to_find` (`find#`):
-- Borrowed from third-party RF-V28 docs (github.com/matthiasmo/RF-V28).
-- **Not** in ReachFar's official V28C SMS command sheet.
-- Flagged as unverified in code comments and app UI.
-- Tested and confirmed working on real V28C hardware (Dexter, Jeshna).
+1. Trigger a real fall and confirm bit 22 plus frozen event-location delivery.
+2. Verify `MONITOR,<phone>` callback behaviour and consent UX on the real V52.
+3. Verify `FIND` sound, duration and stop behaviour on the real V52.
+4. Test a canonical medication reminder end-to-end on the watch.
+5. Tune safe-zone hysteresis using outdoor/indoor V52 walks; approximate
+   Wi-Fi/LBS observations must not create false boundary transitions.
 
-### Open Items Before Full V52 Migration
+Record results in `docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. A vendor claim
+or unit test alone never marks a hardware promise Proven.
 
-1. **Fall alarm bit conflict**: confirm V52 bit 22 (vs 21) against real hardware.
-2. **MONITOR command**: verify whether it requires a phone number argument on
-   your firmware version.
-3. **Photo capture**: resolve which command set (`rcapture`/`img` vs `PIC`+FTP)
-   your V52 units implement.
-4. **Geofence enter/exit bits**: V52 defines separate bits (18/19). Confirm your
-   devices use this encoding.
-5. **SOS contact expansion**: V52 supports 3 slots (SOS1, SOS2, SOS3) vs V28C's
-   single slot — app/backend must handle this schema change.
-
-For full technical details, see `/desktop/guardian-v28-v52-protocol-reference.md`
-(built from manufacturer PDFs, SMS command guides, and V52 datasheet).
+See `docs/GUARDIAN_V52_COMMAND_EVIDENCE.md` for the command-by-command evidence
+ledger and exact transports.

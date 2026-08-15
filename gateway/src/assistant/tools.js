@@ -607,19 +607,6 @@ async function executeDeviceCommand(db, ctx, { command_type: commandType, imei }
       deviceResponse: null,
     });
 
-    // Auto-stop ring after 60 seconds (device firmware doesn't auto-stop as documented)
-    if (actualType === 'ring_to_find') {
-      const { sendDownlinkCommand } = require('../downlink');
-      setTimeout(() => {
-        try {
-          sendDownlinkCommand(device.imei, 'CR');
-          console.log(`[ring-auto-stop] sent CR to ${device.imei} to interrupt ring after 60s`);
-        } catch (err) {
-          console.error(`[ring-auto-stop] failed for ${device.imei}:`, err.message);
-        }
-      }, 60_000);
-    }
-
     return {
       name: deviceLabel(device),
       imei: device.imei,
@@ -630,7 +617,7 @@ async function executeDeviceCommand(db, ctx, { command_type: commandType, imei }
       online: device.online === true,
       channel: result.channel,
       estimatedWaitSeconds: 30,
-      note: actualType === 'ring_to_find' ? 'Device will auto-stop after 60 seconds' : undefined,
+      note: actualType === 'ring_to_find' ? 'V52 find command sent over the live watch connection' : undefined,
     };
   } catch (err) {
     return {

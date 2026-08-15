@@ -6,7 +6,7 @@
  *
  * Usage (gateway must already be running):
  *   npm run simulate
- *   npm run simulate -- --host 127.0.0.1 --port 9000 --imei 861397053139877
+ *   npm run simulate -- --host 127.0.0.1 --port 9000 --imei 861397052547400
  */
 const net = require('net');
 
@@ -14,7 +14,7 @@ function parseArgs(argv) {
   const args = {
     host: '127.0.0.1',
     port: 9000,
-    imei: '861397053139877',
+    imei: '861397052547400',
     lat: -20.2642,
     lng: 57.4791,
     intervalMs: 5000,
@@ -102,7 +102,7 @@ async function main() {
 
   if (isRealHardwareImei(args.imei)) {
     console.error(
-      `[simulate] REFUSED: IMEI ${args.imei} is a real pendant — use demo IMEI 861397053139877 instead`
+      `[simulate] REFUSED: IMEI ${args.imei} is the real V52 watch — use demo IMEI 861397052547400 instead`
     );
     process.exit(1);
   }

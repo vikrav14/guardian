@@ -12,25 +12,25 @@ Guardian is a premium personal safety and tracking SaaS platform tailored for fa
 
 ## 2. Hardware Device Specifications
 
-The platform integrates with a wearable 4G GPS smart pendant (**V28C** family — see [docs/reference/V28C-DataSheet.pdf](docs/reference/V28C-DataSheet.pdf)).
+The production hardware is the ReachFar **V52** 4G GPS smart pendant. Guardian does not support or preserve behavior from older pendant models. The command evidence and remaining real-device acceptance work are tracked in [docs/GUARDIAN_V52_COMMAND_EVIDENCE.md](docs/GUARDIAN_V52_COMMAND_EVIDENCE.md) and [docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md](docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md).
 
-Server IP / APN / interval configuration is done via SMS — see [docs/reference/Switch-Server-SMS-Commands.pdf](docs/reference/Switch-Server-SMS-Commands.pdf).
+Historical vendor files under `docs/reference/raw/` are source material only. They may contain mixed-generation examples and are not authority for production V52 behavior.
 
 - **Connectivity:** 4G LTE + 3G WCDMA + 2G GSM (Nano SIM).
 - **Sensors:** GPS, BDS, WiFi Positioning (indoor), LBS (cellular tower fallback), 3-axis Accelerometer (fall detection), 0.3MP Camera.
 - **Battery:** 750mAh.
-- **On-Device UI:** Physical SOS button, emergency speed-dial, microphone, loudspeaker (voice monitoring, talking clock / pill reminders).
-- **Protocol:** Standard GT06 (or similar Gps103/JT808) — binary/hex packets over raw TCP/UDP.
+- **On-Device UI:** Physical SOS button, emergency speed-dial, microphone, loudspeaker, and voice/reminder functions where proven on the real V52.
+- **Protocol:** ReachFar ASCII frames over raw TCP, shaped as `[factory*protocol-id*hex-length*command-data]`. Guardian accepts V52 packet layouts only.
 
 ## 3. High-Level Technical Architecture
 
 ```
 [4G GPS Pendant]
         │
-        ▼  Raw TCP on port 9000 (GT06)
+        ▼  Raw TCP on port 9000 (ReachFar V52 ASCII frames)
 [Google Cloud Compute Engine — Node.js Gateway]
         │
-        ▼  Binary → JSON
+        ▼  V52 frames → verified facts
 [Firebase Auth + Firestore]
         │
         ├──► [Flutter Guardian App]
@@ -39,10 +39,10 @@ Server IP / APN / interval configuration is done via SMS — see [docs/reference
 
 ### Stack Components
 
-1. **Gateway Server:** Lightweight Node.js TCP socket listener on a GCP VM. Decodes buffers, extracts IMEI, coordinates, speed, status, alerts; writes to Firestore.
+1. **Gateway Server:** Lightweight Node.js TCP socket listener on a GCP VM. Decodes V52 frames, extracts identity, coordinates, status and alerts, and writes verified facts to Firestore.
 2. **Database & Auth:** Firebase Firestore (live tracking + config) and Firebase Auth.
 3. **Frontend App:** Flutter map-centric Guardian dashboard (next milestone).
-4. **Communications Engine:** Twilio or WhatsApp Business Cloud API for template notifications (later).
+4. **Communications Engine:** Meta WhatsApp Cloud API is the only WhatsApp transport. Optional carrier SMS remains separate from WhatsApp.
 
 ## 4. App Feature Set & Requirements
 
@@ -58,11 +58,11 @@ Server IP / APN / interval configuration is done via SMS — see [docs/reference
 
 ### C. Remote Hardware Control Panel
 
-Commands via GPRS/SMS:
+Commands use only the transport and exact V52 syntax recorded in the command-evidence matrix:
 
-- Capture photo (0.3MP upload).
-- Silent monitor (pendant calls guardian).
-- Pill reminders (TTS to pendant speaker).
+- Voice monitor/callback, only with wearer knowledge and consent.
+- Ring-to-find over the live V52 TCP session.
+- Pill reminders after real-device V52 acceptance.
 
 ### D. WhatsApp Notification Hub
 
@@ -95,6 +95,6 @@ LLM (e.g. Gemini) + Firestore: natural-language check-ins via WhatsApp Business 
 
 ## 7. Build Priority
 
-1. **Done:** `CONTEXT.md`, Node.js GT06 gateway, Firestore schema, device simulator, Firebase project `guardian-fbadd`.
+1. **Done:** `CONTEXT.md`, Node.js V52 gateway, Firestore schema, device simulator, Firebase project `guardian-fbadd`.
 2. **In progress:** Flutter map dashboard in `apps/mobile` (live Firestore markers).
 3. **Later:** WhatsApp hub, remote commands, AI engines, Auth-gated rules.

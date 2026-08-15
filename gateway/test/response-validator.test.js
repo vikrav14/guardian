@@ -62,7 +62,7 @@ test('validateLocationResponse: detects mismatched source label', () => {
 });
 
 test('validateLocationResponse: detects exposed IMEI', () => {
-  const response = 'Device 861397053141170 is offline.'; // V28C IMEI format
+  const response = 'Device 861397052547492 is offline.'; // V52 IMEI format
   const toolResult = { lat: null, lng: null };
 
   const result = validateLocationResponse(response, toolResult);

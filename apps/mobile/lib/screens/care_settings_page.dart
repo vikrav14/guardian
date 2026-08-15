@@ -9,7 +9,7 @@ import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 
-/// V46/V48/V52 only. Fall detection and medication reminders are TCP
+/// V52 only. Fall detection and medication reminders are TCP
 /// downlink commands with no SMS fallback -- the device must currently
 /// hold a live connection to the gateway for either to actually reach it.
 /// See gateway/src/commands.js and firestore/SCHEMA.md.
