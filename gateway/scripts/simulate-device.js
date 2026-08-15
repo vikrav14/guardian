@@ -1,8 +1,8 @@
 /**
- * Fake ReachFar V28C pendant — sends ASCII protocol packets (login, GPS, heartbeat, optional SOS)
+ * Fake ReachFar V52 watch - sends ASCII protocol packets (login, GPS, heartbeat, optional SOS)
  * to the local Guardian gateway. No hardware required.
  *
- * Uses the actual ReachFar V28C ASCII protocol: [CS*IMEI*LEN*command,data...]
+ * Uses the ReachFar V52 ASCII protocol: [CS*IMEI*LEN*command,data...]
  *
  * Usage (gateway must already be running):
  *   npm run simulate
@@ -76,20 +76,25 @@ function buildAlarm(imei, { lat, lng }) {
   const lngAbs = Math.abs(lng).toFixed(6);
   const latDir = lat >= 0 ? 'N' : 'S';
   const lngDir = lng >= 0 ? 'E' : 'W';
-  const payload = `${dateStr},${timeStr},A,${latAbs},${latDir},${lngAbs},${lngDir},0,0,00010000`;
+  // Full V52 Annex I order: tracker state is field 15, followed by LTE tail.
+  const payload = [
+    dateStr, timeStr, 'A', latAbs, latDir, lngAbs, lngDir,
+    '0', '0', '0.0', '0', '100', '80', '0', '0', '00010000',
+    '0', '0', '0.0',
+  ].join(',');
   return buildAsciiFrame('3G', imei, 'AL_LTE', payload);
 }
 
 const REAL_HARDWARE_IMEIS = new Set([
-  '861397053141170',
-  '9705314117',
+  '861397052547492',
+  '9705254749',
 ]);
 
 function isRealHardwareImei(imei) {
   const id = String(imei || '').replace(/\D/g, '');
   if (REAL_HARDWARE_IMEIS.has(id)) return true;
-  // Catch the real pendant by its distinctive protocol-id suffix.
-  return id.length === 15 && id.includes('5314117');
+  // Catch the real V52 watch by its distinctive protocol-id suffix.
+  return id.length === 15 && id.includes('5254749');
 }
 
 async function main() {

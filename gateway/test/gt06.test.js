@@ -8,6 +8,26 @@ function asciiFrame(factory, protocolId, command, payload = '') {
   return Buffer.from(`[${factory}*${protocolId}*${lenHex}*${content}]`, 'ascii');
 }
 
+function v52AlarmPayload(trackerState, gpsFlag = 'A') {
+  // Full V52 Annex I order. Tracker state is index 15 and the LTE tail
+  // deliberately continues through a final voltage value.
+  return [
+    '050218', '060013', gpsFlag, '43.720963', 'N', '123.2604950', 'E',
+    '0.00', '244.2', '0.0', '19', '40', '56', '0', '0', trackerState,
+    '2', '255', '460', '0', '18264', '22511', '125',
+    '18264', '22512', '115', '0', '3.4',
+  ].join(',');
+}
+
+function v52WifiAlarmPayload(trackerState) {
+  return [
+    '230726', '080947', 'V', '22.683546', 'N', '113.9907380', 'E',
+    '0.00', '0.0', '0.0', '0', '100', '80', '0', '0', trackerState,
+    '1', '0', '617', '1', '53', '203778', '169',
+    '1', '', 'A4:08:EA:56:E7:BD', '-87', '0.0',
+  ].join(',');
+}
+
 test('extractFrames pulls a complete ASCII frame and leaves the rest untouched', () => {
   const frame = asciiFrame('3G', '9705314117', 'LK', '0,0,80');
   const extra = Buffer.from('tail', 'ascii');
@@ -127,8 +147,8 @@ test('buildAckFrame uses the protocol id the device expects in replies', () => {
   assert.equal(ack.toString('ascii'), '[SG*9705314117*0002*LK]');
 });
 
-test('handlePacket parses AL_LTE SOS alarm with alarmCode from state field', () => {
-  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00010000';
+test('handlePacket reads V52 SOS from fixed tracker-state field, not final LTE value', () => {
+  const payload = v52AlarmPayload('00010000');
   const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
   const decoded = decodeFrame(frame);
   const session = {};
@@ -139,7 +159,20 @@ test('handlePacket parses AL_LTE SOS alarm with alarmCode from state field', () 
   assert.equal(events[0].type, 'alarm');
   assert.equal(events[0].alarmType, 'sos');
   assert.equal(events[0].alarmCode, '00010000');
+  assert.equal(events[0].alarmStateIndex, 15);
+  assert.equal(events[0].alarmArgCount, 28);
+  assert.notEqual(events[0].alarmCode, decoded.args.at(-1));
+  assert.equal(decoded.args.at(-1), '3.4');
   assert.equal(acks[0].toString('ascii'), '[SG*9705314117*0002*AL]');
+});
+
+test('handlePacket does not accept a shortened legacy alarm layout', () => {
+  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00010000';
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
+  const { events } = handlePacket(decodeFrame(frame), {});
+
+  assert.equal(events[0].alarmType, 'other');
+  assert.equal(events[0].alarmCode, undefined);
 });
 
 test('handlePacket parses UD2 blind-spot re-upload with no ack (server no need reply)', () => {
@@ -186,25 +219,45 @@ test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
   assert.equal(acks.length, 1);
 });
 
-test('handlePacket parses AL_LTE fall alarm from bit 22 (V52 protocol spec)', () => {
-  const payload = '241122,062109,A,22.653729,N,114.014600,E,0,0,00400000';
-  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
-  const decoded = decodeFrame(frame);
-  const session = {};
-
-  const { events } = handlePacket(decoded, session);
+test('handlePacket parses V52 fall alarm from bit 22', () => {
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', v52AlarmPayload('00400000'));
+  const { events } = handlePacket(decodeFrame(frame), {});
 
   assert.equal(events[0].type, 'alarm');
   assert.equal(events[0].alarmType, 'fall');
   assert.equal(events[0].severity, 'critical');
 });
 
-test('handlePacket parses AL_LTE with gps=V as alarm with geolocation when WiFi present', () => {
-  const payload = [
-    '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0', '0',
-    '617', '1', '12345', '67890123', '1', '', 'aa:bb:cc:dd:ee:ff', '-70', '00010000',
-  ].join(',');
-  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', payload);
+test('handlePacket rejects bit 21 as a V52 fall alarm', () => {
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', v52AlarmPayload('00200000'));
+  const { events } = handlePacket(decodeFrame(frame), {});
+
+  assert.equal(events[0].alarmCode, '00200000');
+  assert.equal(events[0].alarmType, 'other');
+});
+
+test('handlePacket uses V52 bits 18 and 19 for safe-zone transitions', () => {
+  const exitFrame = asciiFrame('3G', '9705314117', 'AL_LTE', v52AlarmPayload('00040000'));
+  const enterFrame = asciiFrame('3G', '9705314117', 'AL_LTE', v52AlarmPayload('00080000'));
+
+  assert.equal(handlePacket(decodeFrame(exitFrame), {}).events[0].alarmType, 'geofence_exit');
+  assert.equal(handlePacket(decodeFrame(enterFrame), {}).events[0].alarmType, 'geofence_enter');
+});
+
+test('handlePacket uses V52 bit 20 for bracelet removal, not safe-zone exit', () => {
+  const frame = asciiFrame('3G', '9705314117', 'AL_LTE', v52AlarmPayload('00100008'));
+  const { events } = handlePacket(decodeFrame(frame), {});
+
+  assert.equal(events[0].alarmType, 'bracelet_removed');
+});
+
+test('handlePacket parses full V52 gps=V alarm and keeps WiFi geolocation tail', () => {
+  const frame = asciiFrame(
+    '3G',
+    '9705314117',
+    'AL_LTE',
+    v52WifiAlarmPayload('00010000')
+  );
   const decoded = decodeFrame(frame);
   const session = {};
 
@@ -212,6 +265,7 @@ test('handlePacket parses AL_LTE with gps=V as alarm with geolocation when WiFi 
 
   assert.equal(events[0].type, 'alarm');
   assert.equal(events[0].alarmType, 'sos');
+  assert.equal(events[0].alarmCode, '00010000');
   assert.equal(events[0].needsGeolocation, true);
   assert.equal(events[0].accuracySource, 'wifi');
 });
