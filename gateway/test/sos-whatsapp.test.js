@@ -127,7 +127,7 @@ test('prepared SOS can fan out to multiple contacts with only one LLM call', asy
   assert.equal(sends[0].options.components.length, 2);
 });
 
-test('Meta failure falls back to existing Twilio WhatsApp without duplicate success send', async () => {
+test('Meta failure remains failed and never invokes another WhatsApp provider', async () => {
   const prepared = await prepareSosWhatsApp({
     device: device(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', eventAt: now },
@@ -135,7 +135,6 @@ test('Meta failure falls back to existing Twilio WhatsApp without duplicate succ
     provider: null,
   });
 
-  let fallbackText = null;
   const result = await sendPreparedSosWhatsApp(
     '+23057111111',
     prepared,
@@ -146,19 +145,13 @@ test('Meta failure falls back to existing Twilio WhatsApp without duplicate succ
         status: 400,
         error: 'template not approved',
       }),
-      fallbackSend: async (_to, text) => {
-        fallbackText = text;
-        return { ok: true };
-      },
     }
   );
 
-  assert.equal(result.ok, true);
-  assert.equal(result.transport, 'twilio-fallback');
-  assert.equal(result.fallbackUsed, true);
-  assert.match(fallbackText, /GUARDIAN SOS ALERT/);
-  assert.match(fallbackText, /Lower Vale/);
-  assert.match(fallbackText, /View location:/);
+  assert.equal(result.ok, false);
+  assert.equal(result.transport, 'meta');
+  assert.equal(result.fallbackUsed, false);
+  assert.equal(result.error, 'template not approved');
 });
 
 test('last-known fallback text never presents old location as current', async () => {

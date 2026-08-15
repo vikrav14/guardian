@@ -76,8 +76,11 @@ test('sendMetaPayload returns Meta wamid without exposing token', async () => {
     );
 
     assert.equal(result.ok, true);
+    assert.equal(result.accepted, true);
     assert.equal(result.provider, 'meta');
     assert.equal(result.messageId, 'wamid.TEST123');
+    assert.equal(result.deliveryStatus, 'accepted');
+    assert(result.acceptedAt instanceof Date);
     assert.match(captured.url, /graph\.facebook\.com\/v25\.0\/1172425059296685\/messages$/);
     assert.equal(
       captured.options.headers.Authorization,

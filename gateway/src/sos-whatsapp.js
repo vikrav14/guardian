@@ -1,8 +1,3 @@
-const config = require('./config');
-const {
-  GeminiProvider,
-  AnthropicProvider,
-} = require('./providers');
 const {
   composeSafetyNarration,
 } = require('./guardian-message-composer');
@@ -15,33 +10,14 @@ const {
 
 const SOS_TEMPLATE_LANGUAGE = 'en';
 
-let cachedNarrationProvider;
-
 function getSafetyNarrationProvider() {
-  if (cachedNarrationProvider !== undefined) {
-    return cachedNarrationProvider;
-  }
-
-  try {
-    if (config.geminiApiKey) {
-      cachedNarrationProvider = new GeminiProvider(config);
-      return cachedNarrationProvider;
-    }
-
-    if (config.anthropicApiKey) {
-      cachedNarrationProvider = new AnthropicProvider(config);
-      return cachedNarrationProvider;
-    }
-  } catch (err) {
-    console.warn('[sos-whatsapp] narration provider init failed:', err.message);
-  }
-
-  cachedNarrationProvider = null;
-  return cachedNarrationProvider;
+  // Critical alerts stay deterministic. Conversational AI is useful for
+  // questions, but it must never be a dependency for an SOS notification.
+  return null;
 }
 
 function resetSafetyNarrationProviderForTests() {
-  cachedNarrationProvider = undefined;
+  // Retained as a compatibility no-op for existing tests/callers.
 }
 
 async function prepareSosWhatsApp({
@@ -112,7 +88,6 @@ async function sendPreparedSosWhatsApp(
   prepared,
   {
     sendTemplate = sendMetaTemplate,
-    fallbackSend = null,
   } = {}
 ) {
   if (!prepared?.plan) {
@@ -139,29 +114,13 @@ async function sendPreparedSosWhatsApp(
     };
   }
 
-  if (typeof fallbackSend !== 'function') {
-    return {
-      ...(metaResult || { ok: false }),
-      transport: 'meta',
-      templateName: prepared.plan.templateName,
-      locationState: prepared.plan.locationState,
-      narrationSource: prepared.plan.narrationSource,
-      fallbackUsed: false,
-    };
-  }
-
-  const fallbackText = renderSosFallbackText(prepared);
-  const fallbackResult = await fallbackSend(to, fallbackText);
-
   return {
-    ok: fallbackResult?.ok === true,
-    transport: fallbackResult?.ok ? 'twilio-fallback' : 'failed',
+    ...(metaResult || { ok: false }),
+    transport: 'meta',
     templateName: prepared.plan.templateName,
     locationState: prepared.plan.locationState,
     narrationSource: prepared.plan.narrationSource,
-    fallbackUsed: true,
-    meta: metaResult,
-    fallback: fallbackResult,
+    fallbackUsed: false,
   };
 }
 

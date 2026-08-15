@@ -7,6 +7,7 @@ const {
   verifyMetaSignature,
   extractMessageText,
   extractMetaInboundMessages,
+  extractMetaDeliveryStatuses,
   MetaMessageDeduper,
 } = require('../src/meta-webhook');
 
@@ -128,6 +129,38 @@ test('ignores delivery-status webhook payloads', () => {
     extractMetaInboundMessages(payload, '1172425059296685'),
     []
   );
+
+  const statuses = extractMetaDeliveryStatuses(
+    payload,
+    '1172425059296685'
+  );
+  assert.equal(statuses.length, 1);
+  assert.equal(statuses[0].messageId, 'wamid.OUTBOUND');
+  assert.equal(statuses[0].status, 'delivered');
+});
+
+test('extracts sanitized Meta failure details and provider timestamp', () => {
+  const payload = {
+    object: 'whatsapp_business_account',
+    entry: [{ changes: [{ field: 'messages', value: {
+      metadata: { phone_number_id: '1172425059296685' },
+      statuses: [{
+        id: 'wamid.FAIL', status: 'failed', recipient_id: '23058590100',
+        timestamp: '1786570000',
+        errors: [{
+          code: 131026, title: 'Message undeliverable',
+          message: 'Message undeliverable',
+          error_data: { details: 'Recipient unavailable' },
+        }],
+      }],
+    } }] }],
+  };
+  const [status] = extractMetaDeliveryStatuses(payload, '1172425059296685');
+  assert.equal(status.status, 'failed');
+  assert.equal(status.recipientId, '23058590100');
+  assert.equal(status.errors[0].code, 131026);
+  assert.equal(status.errors[0].details, 'Recipient unavailable');
+  assert(status.occurredAt instanceof Date);
 });
 
 test('ignores messages for a different configured phone number id', () => {

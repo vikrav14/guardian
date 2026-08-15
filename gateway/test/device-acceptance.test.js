@@ -50,7 +50,20 @@ test('real alert and notification statuses prove machine-observable safety paths
       {
         alertType: 'sos', createdAt: new Date('2026-08-15T09:15:01.000Z'),
         contactCount: 1,
-        results: [{ channels: { sms: { ok: true }, whatsapp: { skipped: true, reason: 'PLAN_EXCLUDES_WHATSAPP' } } }],
+        results: [{ channels: { whatsapp: {
+          ok: true, accepted: true, provider: 'meta', transport: 'meta',
+          messageId: 'wamid.sos', deliveryStatus: 'delivered',
+          deliveredAt: new Date('2026-08-15T09:15:05.000Z'),
+        } } }],
+      },
+      {
+        alertType: 'fall', createdAt: new Date('2026-08-15T09:20:01.000Z'),
+        contactCount: 1,
+        results: [{ channels: { whatsapp: {
+          ok: true, accepted: true, provider: 'meta', transport: 'meta',
+          messageId: 'wamid.fall', deliveryStatus: 'read',
+          readAt: new Date('2026-08-15T09:20:10.000Z'),
+        } } }],
       },
     ],
     reminders: [{
@@ -74,7 +87,24 @@ test('real alert and notification statuses prove machine-observable safety paths
   assert.equal(report.capabilities.medicationReminder.status, ACCEPTANCE_STATUS.PASSED);
   assert.equal(report.machineEvidenceComplete, true);
   assert.equal(report.releaseReady, false);
-  assert.equal(report.capabilities.sos.notificationEvidence.channels[1].reason, 'PLAN_EXCLUDES_WHATSAPP');
+  assert.equal(report.capabilities.sos.notificationEvidence.channels[0].deliveryStatus, 'delivered');
+});
+
+test('Meta API acceptance alone is partial until a delivery receipt arrives', () => {
+  const report = buildDeviceAcceptanceReport({
+    alerts: [alert('s1', 'sos', '15', 'accepted')],
+    notificationLogs: [{
+      alertType: 'sos', createdAt: new Date('2026-08-15T09:15:01.000Z'),
+      contactCount: 1,
+      results: [{ channels: { whatsapp: {
+        ok: true, accepted: true, provider: 'meta', transport: 'meta',
+        messageId: 'wamid.accepted', deliveryStatus: 'accepted',
+      } } }],
+    }],
+  }, { since, now });
+
+  assert.equal(report.capabilities.sos.status, ACCEPTANCE_STATUS.PARTIAL);
+  assert.match(report.capabilities.sos.note, /handset delivery is not yet proven/);
 });
 
 test('a sent reminder command is only transport proof until acknowledgement exists', () => {

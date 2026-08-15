@@ -23,7 +23,7 @@ async function main() {
     return;
   }
 
-  console.log('[meta-whatsapp] sent successfully');
+  console.log('[meta-whatsapp] API accepted the message; awaiting delivery webhook');
   console.log(`messageId=${result.messageId || 'unknown'}`);
   console.log(`waId=${result.waId || 'unknown'}`);
 }

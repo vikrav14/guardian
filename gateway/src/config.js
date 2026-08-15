@@ -18,18 +18,17 @@ const config = {
   dwellMinMinutes: Number(process.env.DWELL_MIN_MINUTES || 10),
   journeyIdleMinutes: Number(process.env.JOURNEY_IDLE_MINUTES || 15),
 
-  // ReachFar V28C: 10-digit protocol id → 15-digit IMEI = prefix + id[3..9] + suffix digit.
+  // V52: 10-digit protocol id → configured 15-digit hardware IMEI.
   // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
   imeiPrefix: process.env.IMEI_PREFIX || '8613970',
   imeiDefaultSuffix: process.env.IMEI_DEFAULT_SUFFIX || '0',
   // Optional overrides when suffix digit differs: "9705313987:861397053139877"
   imeiMap: process.env.IMEI_MAP || '',
 
-  // Twilio (optional — without these, notifications are logged only)
+  // Optional carrier SMS. WhatsApp is Meta Cloud API only.
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
   twilioFromSms: process.env.TWILIO_FROM_SMS || '',
-  twilioWhatsAppFrom: process.env.TWILIO_WHATSAPP_FROM || '',
   notifySms: String(process.env.NOTIFY_SMS || 'true').toLowerCase() === 'true',
   notifyWhatsApp: String(process.env.NOTIFY_WHATSAPP || 'true').toLowerCase() === 'true',
 
@@ -41,6 +40,8 @@ const config = {
   metaGraphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
+  metaWhatsAppFallTemplate: process.env.META_WHATSAPP_FALL_TEMPLATE || '',
+  metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

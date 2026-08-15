@@ -7,13 +7,15 @@
  * which the current V52 protocol does not prove.
  */
 
-const { sendWhatsApp, normalizeE164 } = require('./notify');
+const config = require('./config');
+const { normalizeE164 } = require('./notify');
+const { sendMetaTemplate } = require('./whatsapp-meta');
 const { FEATURE, hasEntitlement, loadEntitlementsForUser } = require('./entitlements');
 const { reminderDue } = require('./medication-reminders');
 
 async function runReminderCheck(db, options = {}) {
   const now = options.now || new Date();
-  const send = options.sendWhatsApp || sendWhatsApp;
+  const send = options.sendMetaTemplate || sendMetaTemplate;
   const entitlementLoader = options.loadEntitlementsForUser || loadEntitlementsForUser;
   const remindersSnap = await db
     .collection('medicationReminders')
@@ -52,21 +54,40 @@ async function runReminderCheck(db, options = {}) {
     const deviceSnap = await db.collection('devices').doc(String(reminder.imei)).get();
     const device = deviceSnap.exists ? (deviceSnap.data() || {}) : {};
     const deviceName = device.nickname || device.relatedName || 'Your loved one';
-    const message = `💊 **Reminder for ${deviceName}**: ${reminder.text} at ${reminder.time}`;
     const target = normalizeE164(guardianPhone);
-    const result = await send(target, message);
-    const delivered = result?.ok === true;
+    const templateName = String(
+      options.metaTemplateName || config.metaWhatsAppReminderTemplate || ''
+    ).trim();
+    const result = templateName
+      ? await send(target, templateName, {
+          languageCode: 'en',
+          components: [{
+            type: 'body',
+            parameters: [deviceName, reminder.text, reminder.time]
+              .map((text) => ({ type: 'text', text: String(text) })),
+          }],
+        })
+      : {
+          ok: false,
+          skipped: true,
+          provider: 'meta',
+          reason: 'META_WHATSAPP_REMINDER_TEMPLATE missing',
+        };
+    const accepted = result?.accepted === true || result?.ok === true;
     await reminderDoc.ref.update({
-      deliveryStatus: delivered ? 'sent' : 'failed',
+      deliveryStatus: accepted ? 'accepted' : 'failed',
       lastDelivery: {
         channel: 'whatsapp',
-        ok: delivered,
+        ok: result?.ok === true,
+        accepted,
         provider: result?.provider || null,
+        messageId: result?.messageId || null,
+        deliveryStatus: result?.deliveryStatus || (accepted ? 'accepted' : 'failed'),
         at: now,
       },
-      lastDeliveryError: delivered ? null : (result?.error || result?.reason || 'Delivery failed.'),
-      ...(delivered ? { lastSentAt: now } : {}),
-      ...(delivered && Number(reminder.frequency) === 1 ? { enabled: false } : {}),
+      lastDeliveryError: accepted ? null : (result?.error || result?.reason || 'Delivery failed.'),
+      ...(accepted ? { lastSentAt: now } : {}),
+      ...(accepted && Number(reminder.frequency) === 1 ? { enabled: false } : {}),
       updatedAt: now,
     });
   }

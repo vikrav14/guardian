@@ -167,10 +167,13 @@ async function sendMetaPayload(payload, { fetchImpl = global.fetch } = {}) {
 
   return {
     ok: true,
+    accepted: true,
     provider: 'meta',
     status: response.status,
     messageId: data?.messages?.[0]?.id || null,
     waId: data?.contacts?.[0]?.wa_id || null,
+    deliveryStatus: 'accepted',
+    acceptedAt: new Date(),
   };
 }
 

@@ -8,14 +8,16 @@ const {
   restrictedCallerReply,
 } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
-const { sendWhatsApp, normalizeE164 } = require('./notify');
+const { normalizeE164 } = require('./notify');
 const { sendMetaText } = require('./whatsapp-meta');
 const {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
   extractMetaInboundMessages,
+  extractMetaDeliveryStatuses,
   MetaMessageDeduper,
 } = require('./meta-webhook');
+const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
@@ -168,16 +170,6 @@ function parseGrowthParams(url) {
   };
 }
 
-function sendTwiml(res, message) {
-  const escaped = String(message || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escaped}</Message></Response>`;
-  res.writeHead(200, { 'Content-Type': 'text/xml' });
-  res.end(xml);
-}
-
 /**
  * Phase 1: Integrated handleChat with provider abstraction, intent classification,
  * response validation, and full audit trail.
@@ -191,7 +183,7 @@ async function handleChat({ from, text }) {
     // [1] Log request start
     await auditLog.recordStart({ requestId, fromPhone: from });
 
-    // [2] Check idempotency (Twilio may retry)
+    // [2] Check idempotency (Meta may retry webhook delivery)
     if (idempotencyStore.isSeen(requestId)) {
       const cached = idempotencyStore.getCachedReply(requestId);
       console.log(`[assistant] ${requestId} DUPLICATE (cached reply)`);
@@ -960,8 +952,29 @@ function startHttpServer() {
           payload,
           config.metaWhatsAppPhoneNumberId
         );
+        const deliveryStatuses = extractMetaDeliveryStatuses(
+          payload,
+          config.metaWhatsAppPhoneNumberId
+        );
 
         let shouldRetry = false;
+
+        for (const statusEvent of deliveryStatuses) {
+          try {
+            const outcome = await recordMetaDeliveryStatus(getDb(), statusEvent);
+            console.log(
+              `[meta-webhook] delivery id=${statusEvent.messageId} ` +
+                `status=${statusEvent.status} logs=${outcome.matchedLogs} ` +
+                `reminders=${outcome.matchedReminders}`
+            );
+          } catch (err) {
+            shouldRetry = true;
+            console.error(
+              `[meta-webhook] delivery persistence failed id=${statusEvent.messageId}`,
+              err.message
+            );
+          }
+        }
 
         for (const message of inboundMessages) {
           if (!metaInboundDeduper.claim(message.id)) {
@@ -1017,34 +1030,6 @@ function startHttpServer() {
         res.end(shouldRetry ? 'RETRY' : 'EVENT_RECEIVED');
         return;
       }
-      if (req.method === 'POST' && url.pathname === '/webhooks/twilio/whatsapp') {
-        const raw = await readBody(req);
-        const params = new URLSearchParams(raw);
-        const from = params.get('From') || '';
-        const text = (params.get('Body') || '').trim();
-
-        if (!text) {
-          sendTwiml(res, 'Send a question like “Where’s mum?” or “Battery?”');
-          return;
-        }
-
-        incrementMetric('whatsappInbound');
-        const { reply } = await handleChat({ from, text });
-        const wa = await sendWhatsApp(from.replace(/^whatsapp:/i, ''), reply);
-        if (wa.ok || wa.skipped) {
-          if (wa.skipped) {
-            sendTwiml(res, reply);
-          } else {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end();
-          }
-        } else {
-          console.error('[assistant] whatsapp send failed', wa);
-          sendTwiml(res, reply);
-        }
-        return;
-      }
-
       sendJson(res, 404, { error: 'not found' });
     } catch (err) {
       console.error('[http]', err);
@@ -1057,7 +1042,6 @@ function startHttpServer() {
   server.listen(config.httpPort, config.host, () => {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
     console.log('[guardian-http] GET/POST /webhooks/meta/whatsapp');
-    console.log('[guardian-http] POST /webhooks/twilio/whatsapp (temporary legacy)');
     console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
     console.log('[guardian-http] GET  /ops/fleet');

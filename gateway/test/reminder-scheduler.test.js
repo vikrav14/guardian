@@ -38,17 +38,26 @@ test('scheduler reads the canonical reminder store and records actual delivery o
   const sends = [];
   await runReminderCheck(db, {
     now: new Date('2026-08-17T08:05:00'),
-    sendWhatsApp: async (to, message) => {
-      sends.push({ to, message });
-      return { ok: true, provider: 'meta' };
+    metaTemplateName: 'guardian_medication_reminder_v1',
+    sendMetaTemplate: async (to, templateName, options) => {
+      sends.push({ to, templateName, options });
+      return {
+        ok: true,
+        accepted: true,
+        provider: 'meta',
+        messageId: 'wamid.reminder',
+        deliveryStatus: 'accepted',
+      };
     },
     loadEntitlementsForUser: async () => evaluateSubscription({
       version: 1, managedBy: 'guardian_admin', plan: 'care', status: 'active',
     }),
   });
   assert.equal(sends.length, 1);
-  assert.match(sends[0].message, /Metformin/);
-  assert.equal(updates[0].deliveryStatus, 'sent');
+  assert.equal(sends[0].templateName, 'guardian_medication_reminder_v1');
+  assert.equal(sends[0].options.components[0].parameters[1].text, 'Metformin');
+  assert.equal(updates[0].deliveryStatus, 'accepted');
   assert.equal(updates[0].lastDelivery.provider, 'meta');
+  assert.equal(updates[0].lastDelivery.messageId, 'wamid.reminder');
   assert(updates[0].lastSentAt instanceof Date);
 });

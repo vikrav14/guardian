@@ -4,6 +4,8 @@ const {
   prepareSosWhatsApp,
   sendPreparedSosWhatsApp,
 } = require('./sos-whatsapp');
+const { sendMetaTemplate } = require('./whatsapp-meta');
+const { summarizeMetaDelivery } = require('./meta-delivery');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser,
 } = require('./entitlements');
@@ -75,18 +77,6 @@ async function sendSms(to, body) {
   });
 }
 
-async function sendWhatsApp(to, body) {
-  if (!config.twilioWhatsAppFrom) {
-    return { ok: false, skipped: true, reason: 'TWILIO_WHATSAPP_FROM missing' };
-  }
-  const dest = normalizeE164(to);
-  return twilioRequest('/Messages.json', {
-    To: dest.startsWith('whatsapp:') ? dest : `whatsapp:${dest}`,
-    From: config.twilioWhatsAppFrom,
-    Body: body,
-  });
-}
-
 function buildMessage(imei, alert, device = null) {
   const normalizedType = String(alert?.type || '').trim().toLowerCase();
   if (normalizedType === 'sos' || normalizedType === 'fall') {
@@ -115,9 +105,10 @@ async function loadDeviceForNotification(db, imei) {
 
 /**
  * Notify all emergency contacts linked to this IMEI.
- * Uses Twilio when configured; always writes a notificationLogs row.
+ * Carrier SMS is optional; WhatsApp uses Meta Cloud API only. Every attempt is
+ * written to notificationLogs so Meta delivery webhooks can update it later.
  */
-async function notifyEmergencyContacts(db, imei, alert) {
+async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {}) {
   const contacts = await findContactsForImei(db, imei);
   const device = await loadDeviceForNotification(db, imei);
   const text = buildMessage(imei, alert, device);
@@ -155,22 +146,36 @@ async function notifyEmergencyContacts(db, imei, alert) {
       if (isSos && sosPreparationPromise) {
         const prepared = await sosPreparationPromise;
         if (prepared?.error) {
-          entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
-          entry.channels.whatsapp.fallbackUsed = true;
-          entry.channels.whatsapp.metaPreparationError = prepared.error;
+          entry.channels.whatsapp = {
+            ok: false,
+            provider: 'meta',
+            deliveryStatus: 'failed',
+            reason: 'SOS_TEMPLATE_PREPARATION_FAILED',
+            error: prepared.error,
+            fallbackUsed: false,
+          };
         } else {
           entry.channels.whatsapp = await sendPreparedSosWhatsApp(
             waTarget,
-            prepared,
-            {
-              // Temporary safety net while the Meta templates are being approved.
-              // Once Meta is stable in production, Twilio WhatsApp can be removed.
-              fallbackSend: sendWhatsApp,
-            }
+            prepared
           );
         }
       } else {
-        entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+        const templateName = String(config.metaWhatsAppFallTemplate || '').trim();
+        entry.channels.whatsapp = templateName
+          ? await sendMetaTemplate(waTarget, templateName, {
+              languageCode: 'en',
+              components: [{
+                type: 'body',
+                parameters: [{ type: 'text', text }],
+              }],
+            })
+          : {
+              ok: false,
+              skipped: true,
+              provider: 'meta',
+              reason: 'META_WHATSAPP_FALL_TEMPLATE missing',
+            };
       }
     } else {
       entry.channels.whatsapp = {
@@ -188,18 +193,28 @@ async function notifyEmergencyContacts(db, imei, alert) {
     results.push(entry);
   }
 
+  const metaMessageIds = results
+    .map((entry) => entry.channels?.whatsapp?.messageId)
+    .filter(Boolean);
+  const deliverySummary = summarizeMetaDelivery(results);
+  let notificationLogId = null;
   if (db) {
-    await db.collection('notificationLogs').add({
+    const ref = await db.collection('notificationLogs').add({
       imei,
+      alertId,
       alertType: alert.type || null,
       message: text,
       contactCount: contacts.length,
       results,
+      metaMessageIds,
+      deliveryStatus: deliverySummary.status,
+      deliverySummary,
       createdAt: adminTimestamp(),
     });
+    notificationLogId = ref?.id || null;
   }
 
-  return results;
+  return { results, notificationLogId, deliverySummary };
 }
 
 function adminTimestamp() {
@@ -218,5 +233,4 @@ module.exports = {
   loadDeviceForNotification,
   normalizeE164,
   sendSms,
-  sendWhatsApp,
 };

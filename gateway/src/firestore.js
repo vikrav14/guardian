@@ -306,13 +306,30 @@ async function deliverAlertNotifications(imei, alert, alertId) {
   }
 
   try {
-    const tasks = [notifyGuardianDevices(db, imei, alert)];
-    if (shouldSms(alert)) tasks.push(notifyEmergencyContacts(db, imei, alert));
-    await Promise.all(tasks);
+    const pushPromise = notifyGuardianDevices(db, imei, alert);
+    const contactsPromise = shouldSms(alert)
+      ? notifyEmergencyContacts(db, imei, alert, { alertId })
+      : Promise.resolve(null);
+    const [pushResult, contactResult] = await Promise.all([
+      pushPromise,
+      contactsPromise,
+    ]);
+    const metaStatus = contactResult?.deliverySummary?.status || 'not_requested';
+    const pushSent = Number(pushResult?.sent || 0);
+    const notifyStatus = metaStatus === 'accepted'
+      ? 'accepted'
+      : metaStatus === 'failed'
+        ? (pushSent > 0 ? 'partial' : 'failed')
+        : 'sent';
     if (enabled && alertId) {
       await db.collection('alerts').doc(alertId).set(
         {
-          notifyStatus: 'sent',
+          notifyStatus,
+          notifyDispatch: {
+            pushSent,
+            metaStatus,
+            notificationLogId: contactResult?.notificationLogId || null,
+          },
           notifiedAt: nowTs(),
         },
         { merge: true }

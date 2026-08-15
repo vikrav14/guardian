@@ -89,8 +89,18 @@ function channelEvidence(logs, type, since) {
       channels.push({
         channel,
         ok: outcome?.ok === true,
+        accepted: outcome?.accepted === true,
         skipped: outcome?.skipped === true,
         reason: outcome?.reason || null,
+        provider: outcome?.provider || null,
+        transport: outcome?.transport || null,
+        messageId: outcome?.messageId || null,
+        deliveryStatus: outcome?.deliveryStatus || null,
+        acceptedAt: asIso(outcome?.acceptedAt),
+        deliveredAt: asIso(outcome?.deliveredAt),
+        readAt: asIso(outcome?.readAt),
+        failedAt: asIso(outcome?.failedAt),
+        errors: outcome?.deliveryErrors || [],
       });
     }
   }
@@ -107,17 +117,40 @@ function alertCapability(type, alerts, notificationLogs, since) {
   );
   const alert = newest(matching);
   const delivery = channelEvidence(notificationLogs, type, since);
-  const delivered = alert?.notifyStatus === 'sent';
+  const requiresMetaDelivery = type === 'sos' || type === 'fall';
+  const metaChannels = (delivery?.channels || []).filter((channel) =>
+    channel.channel === 'whatsapp' && channel.provider === 'meta' && !channel.skipped
+  );
+  const metaDelivered = metaChannels.length > 0 && metaChannels.every((channel) =>
+    channel.deliveryStatus === 'delivered' || channel.deliveryStatus === 'read'
+  );
+  const dispatchCompleted = alert?.notifyStatus === 'sent' ||
+    alert?.notifyStatus === 'delivered';
+  const passed = requiresMetaDelivery ? metaDelivered : dispatchCompleted;
+
+  let status = ACCEPTANCE_STATUS.PENDING;
+  if (alert) status = passed ? ACCEPTANCE_STATUS.PASSED : ACCEPTANCE_STATUS.PARTIAL;
+
+  let note;
+  if (!alert) {
+    note = `No ${type} event was recorded in this acceptance window.`;
+  } else if (passed && requiresMetaDelivery) {
+    note = 'The gateway persisted the device event and Meta confirmed WhatsApp delivery to every recorded recipient.';
+  } else if (requiresMetaDelivery && metaChannels.length === 0) {
+    note = 'The event exists, but no Meta WhatsApp delivery receipt is linked to it.';
+  } else if (requiresMetaDelivery) {
+    note = 'The event exists and Meta accepted the message, but handset delivery is not yet proven for every recipient.';
+  } else {
+    note = passed
+      ? 'The event exists and configured notification dispatch completed.'
+      : `The event exists, but notification status is ${alert.notifyStatus || 'unknown'}.`;
+  }
 
   return {
-    status: alert && delivered ? ACCEPTANCE_STATUS.PASSED : ACCEPTANCE_STATUS.PENDING,
+    status,
     alert: summarizeAlert(alert),
     notificationEvidence: delivery,
-    note: alert
-      ? (delivered
-          ? 'The gateway persisted the device event and completed its configured notification fan-out.'
-          : `The event exists, but notification status is ${alert.notifyStatus || 'unknown'}.`)
-      : `No ${type} event was recorded in this acceptance window.`,
+    note,
   };
 }
 

@@ -121,6 +121,70 @@ function extractMetaInboundMessages(payload, expectedPhoneNumberId = '') {
   return results;
 }
 
+const META_DELIVERY_STATUSES = new Set([
+  'sent',
+  'delivered',
+  'read',
+  'failed',
+  'deleted',
+]);
+
+function normalizeMetaError(error = {}) {
+  return {
+    code: error.code ?? null,
+    title: error.title || null,
+    message: error.message || null,
+    details: error.error_data?.details || null,
+  };
+}
+
+function extractMetaDeliveryStatuses(payload, expectedPhoneNumberId = '') {
+  if (!payload || payload.object !== 'whatsapp_business_account') {
+    return [];
+  }
+
+  const expected = String(expectedPhoneNumberId || '').trim();
+  const results = [];
+
+  for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      if (change?.field !== 'messages') continue;
+
+      const value = change.value || {};
+      const phoneNumberId = String(value.metadata?.phone_number_id || '').trim();
+      if (expected && phoneNumberId !== expected) continue;
+
+      for (const item of Array.isArray(value.statuses) ? value.statuses : []) {
+        const messageId = String(item?.id || '').trim();
+        const status = String(item?.status || '').trim().toLowerCase();
+        if (!messageId || !META_DELIVERY_STATUSES.has(status)) continue;
+
+        const timestamp = String(item.timestamp || '').trim();
+        const unixSeconds = Number(timestamp);
+        const occurredAt = timestamp && Number.isFinite(unixSeconds) && unixSeconds > 0
+          ? new Date(unixSeconds * 1000)
+          : new Date();
+
+        results.push({
+          messageId,
+          status,
+          recipientId: String(item.recipient_id || '').trim() || null,
+          phoneNumberId,
+          occurredAt,
+          errors: (Array.isArray(item.errors) ? item.errors : [])
+            .map(normalizeMetaError),
+          conversationId: item.conversation?.id || null,
+          conversationCategory:
+            item.conversation?.origin?.type || item.pricing?.category || null,
+          billable: item.pricing?.billable ?? null,
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
 class MetaMessageDeduper {
   constructor(ttlMinutes = DEFAULT_DEDUPE_TTL_MINUTES) {
     this.ttlMs = Math.max(1, Number(ttlMinutes) || 1) * 60 * 1000;
@@ -184,5 +248,6 @@ module.exports = {
   verifyMetaSignature,
   extractMessageText,
   extractMetaInboundMessages,
+  extractMetaDeliveryStatuses,
   MetaMessageDeduper,
 };

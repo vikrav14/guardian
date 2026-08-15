@@ -1,4 +1,4 @@
-const { normalizeE164, sendWhatsApp } = require('../notify');
+const { normalizeE164 } = require('../notify');
 const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');

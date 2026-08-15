@@ -211,18 +211,21 @@ Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after l
 | payload | map | Raw / extra fields |
 | resolved | boolean | Default false |
 | resolvedAt | timestamp \| null | |
-| notifyStatus | string \| null | `pending` \| `sending` \| `sent` \| `failed` \| `skipped` |
+| notifyStatus | string \| null | `pending` \| `sending` \| `accepted` \| `partial` \| `sent` \| `delivered` \| `failed` \| `skipped`; `accepted` means provider acceptance, not handset delivery |
+| notifyDispatch | map \| null | Bounded push count, Meta status and notification-log ID |
+| notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
 
 ## `deviceCommands/{commandId}`
 
-App-originated downlink commands the gateway delivers to the pendant, either by SMS (V28C) or over the live TCP session (V46/V48/V52 -- no SMS equivalent exists for these; see `gateway/src/commands.js`).
+App-originated V52 commands delivered through the model-supported carrier SMS
+configuration path or the live TCP session; see `gateway/src/commands.js`.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` (SMS; last two unverified against V28C specifically) \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval` (TCP downlink, V46/V48/V52 only -- requires a live session) |
+| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state |
 | params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
@@ -233,7 +236,10 @@ App-originated downlink commands the gateway delivers to the pendant, either by 
 
 ## `medicationReminders/{reminderId}`
 
-App-side record of what's been scheduled, since the device has no "list my reminders" query command -- this is what the app displays/edits; saving or deleting also enqueues a matching `deviceCommands` entry (`set_medication_reminder`) so the pendant itself stays in sync. V46/V48/V52 only.
+App-side record of what's been scheduled, since the V52 has no "list my
+reminders" query command. This is what the app displays/edits; saving or
+deleting also enqueues a matching `deviceCommands` entry
+(`set_medication_reminder`) so the watch stays in sync.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -246,15 +252,15 @@ App-side record of what's been scheduled, since the device has no "list my remin
 | createdBy | string | uid |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
-| lastSentAt | timestamp \| null | Last successful guardian reminder delivery. |
-| deliveryStatus | string | `pending` \| `sent` \| `failed`; channel delivery, not wearer acknowledgement. |
-| lastDelivery | map \| null | Last channel/provider outcome without message contents. |
+| lastSentAt | timestamp \| null | Last accepted guardian reminder send, used to prevent duplicate scheduling. |
+| deliveryStatus | string | `pending` \| `accepted` \| `sent` \| `delivered` \| `read` \| `failed`; separate from wearer acknowledgement. |
+| lastDelivery | map \| null | Meta provider outcome, `wamid`, status timestamps and bounded errors without message contents. |
 | lastDeliveryError | string \| null | Bounded operational error. |
 | acknowledgementStatus | string | Currently `not_supported`; must not be presented as acknowledged. |
 
 ## `notificationLogs/{logId}`
 
-Gateway fan-out audit trail (SMS/WhatsApp attempts).
+Gateway fan-out audit trail (optional carrier SMS and Meta WhatsApp attempts).
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -263,7 +269,27 @@ Gateway fan-out audit trail (SMS/WhatsApp attempts).
 | message | string | |
 | contactCount | number | |
 | results | array | Per-contact channel results |
+| alertId | string \| null | Alert whose fan-out produced this log |
+| metaMessageIds | string[] | Meta `wamid` values used to join signed delivery webhooks |
+| deliveryStatus | string | Aggregate `not_requested` \| `accepted` \| `partial` \| `delivered` \| `failed` |
+| deliverySummary | map | Aggregate Meta accepted/delivered/failed counts |
+| deliveryUpdatedAt | timestamp \| null | Latest Meta status timestamp |
 | createdAt | timestamp | |
+
+## `metaDeliveryEvents/{eventId}`
+
+Immutable, redacted Meta webhook receipts keyed by a hash of message ID,
+status, and provider timestamp. These retain delivery evidence even for a
+controlled smoke message that was not created by an alert or reminder.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| messageId | string | Meta `wamid`; no access token or message body |
+| status | string | `sent` \| `delivered` \| `read` \| `failed` \| `deleted` |
+| recipientId | string \| null | Meta recipient identifier |
+| phoneNumberId | string \| null | Configured Meta sender asset |
+| occurredAt | timestamp | Provider event time |
+| errors | array | Bounded sanitized provider errors |
 
 ## Gateway write map
 

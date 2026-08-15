@@ -13,7 +13,9 @@ Guardian must not collapse different forms of evidence into one green label:
 | Fresh backend heartbeat | The watch has a live data session with the gateway. | GPS freshness, voice service or alert delivery. |
 | `gps=A` retained satellite observation | The V52 reported a valid satellite fix. | A numerical metre-level accuracy when the packet supplies no accuracy radius. |
 | `deviceCommands.status=sent`, channel `tcp` | Guardian handed the command to the live watch socket. | The wearer saw, heard or acknowledged it. |
-| `alerts.notifyStatus=sent` | Gateway notification work completed. | That a recipient read it; inspect channel outcomes as well. |
+| Meta API `wamid` / `deliveryStatus=accepted` | Meta accepted Guardian's request. | Handset delivery or reading. |
+| Meta webhook `deliveryStatus=delivered` | Meta confirmed delivery to the recipient device. | That the recipient read or acted on it. |
+| Meta webhook `deliveryStatus=read` | Meta reported the message read. | That the recipient acted on it. |
 | Successful carrier call | Audio worked for that real call in both directions. | Anything in Guardian's backend; normal carrier calls bypass it. |
 
 The read-only collector is:
@@ -59,11 +61,11 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 1. Trigger SOS on the physical watch exactly once.
 2. Confirm one backend `sos` alert appears with critical severity.
-3. Confirm `notifyStatus=sent` and inspect notification-log channel outcomes.
-4. Confirm every configured Essential channel receives the expected message once.
+3. Confirm the alert is persisted and its notification log contains a Meta `wamid`.
+4. Require a signed Meta webhook receipt with `deliveryStatus=delivered` or `read` for every configured WhatsApp recipient.
 5. Confirm no duplicate arrives during the suppression window.
 
-Pass: one real device event, completed configured fan-out and no duplicate. A plan-excluded WhatsApp channel may be skipped for Essential only when an advertised Essential channel is configured and delivered.
+Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
 ## Test 3 — calls
 
