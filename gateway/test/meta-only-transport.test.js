@@ -12,6 +12,7 @@ function source(name) {
 test('WhatsApp transport is Meta-only with no Twilio route or fallback', () => {
   assert.doesNotMatch(source('notify.js'), /twilioWhatsAppFrom|sendWhatsApp/);
   assert.doesNotMatch(source('sos-whatsapp.js'), /fallbackSend|twilio-fallback/);
+  assert.doesNotMatch(source('fall-whatsapp.js'), /fallbackSend|twilio-fallback/);
   assert.doesNotMatch(source('http.js'), /webhooks\/twilio\/whatsapp|sendTwiml/);
   assert.doesNotMatch(source('config.js'), /TWILIO_WHATSAPP_FROM|twilioWhatsAppFrom/);
 });

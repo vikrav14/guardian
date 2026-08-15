@@ -40,7 +40,6 @@ const config = {
   metaGraphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
-  metaWhatsAppFallTemplate: process.env.META_WHATSAPP_FALL_TEMPLATE || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
 
   // HTTP (WhatsApp webhook + /dev/chat)

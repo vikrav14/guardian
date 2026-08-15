@@ -208,7 +208,7 @@ Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after l
 | type | string | `sos` \| `fall` \| `geofence_exit` \| `geofence_enter` \| `low_battery` \| `offline` \| `other` |
 | severity | string | `info` \| `warning` \| `critical` |
 | message | string | Human-readable |
-| payload | map | Raw / extra fields |
+| payload | map | Raw / extra fields. V52 fall alerts include immutable `locationSnapshot`; see below. |
 | resolved | boolean | Default false |
 | resolvedAt | timestamp \| null | |
 | notifyStatus | string \| null | `pending` \| `sending` \| `accepted` \| `partial` \| `sent` \| `delivered` \| `failed` \| `skipped`; `accepted` means provider acceptance, not handset delivery |
@@ -216,6 +216,23 @@ Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after l
 | notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+
+### Fall `payload.locationSnapshot`
+
+The gateway freezes this map when it persists a V52 `fall` alert. Notification
+retries and later device movement must read this snapshot, never the mutable
+`devices/{imei}.location` value. Legacy fall alerts without a versioned
+snapshot are treated as location unavailable.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Currently `1` |
+| capturedAt | timestamp | Gateway event time used to classify freshness |
+| state | string | `fresh` \| `last_known` \| `unavailable` |
+| reason | string \| null | Bounded location-policy reason |
+| ageSeconds | number \| null | Age at the event, not at notification retry time |
+| retainedSatellite | boolean | True when the existing indoor-retention policy selected the recent satellite fix |
+| location | map \| null | Frozen `{ lat, lng, altitude, recordedAt, placeLabel, source, gpsValid, accuracyMeters }`; satellite accuracy remains null when V52 did not supply it |
 
 ## `deviceCommands/{commandId}`
 

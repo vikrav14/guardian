@@ -103,10 +103,21 @@ Only perform a manufacturer-approved safe test. Never ask a person to fall.
 1. On Guardian Care, enable fall detection and choose the intended sensitivity.
 2. Confirm the related command is `sent` over TCP while the watch is connected.
 3. Use the vendor-approved method with the watch secured to an object, not a wearer.
-4. Confirm one real `fall` alert and configured delivery outcomes.
-5. Confirm ordinary handling does not create repeated false alarms during observation.
+4. Confirm one real `fall` alert with a versioned event-time
+   `payload.locationSnapshot` and configured delivery outcomes.
+5. Move the watch after the event and confirm the alert/template still uses the
+   frozen event-time coordinates, place and freshness classification.
+6. Confirm Meta selects `guardian_fall_alert_v1`,
+   `guardian_fall_last_location_v1`, or `guardian_fall_unavailable_v1` from
+   that snapshot. Only the first two may contain a dynamic map button.
+7. Require a signed Meta `delivered` or `read` receipt for every configured
+   WhatsApp recipient.
+8. Confirm ordinary handling does not create repeated false alarms during observation.
 
-Pass: configuration dispatch plus a real device fall event and delivery. Command `sent` alone is insufficient because this flow has no read-back acknowledgement.
+Pass: configuration dispatch, one real V52 fall event, immutable event-time
+location evidence, honest template selection, and Meta-confirmed delivery.
+Command `sent` alone is insufficient because this flow has no read-back
+acknowledgement.
 
 ## Test 7 — medication reminder
 

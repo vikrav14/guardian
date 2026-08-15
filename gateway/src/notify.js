@@ -4,7 +4,11 @@ const {
   prepareSosWhatsApp,
   sendPreparedSosWhatsApp,
 } = require('./sos-whatsapp');
-const { sendMetaTemplate } = require('./whatsapp-meta');
+const {
+  prepareFallWhatsApp,
+  sendPreparedFallWhatsApp,
+} = require('./fall-whatsapp');
+const { deviceAtFall } = require('./fall-location-snapshot');
 const { summarizeMetaDelivery } = require('./meta-delivery');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser,
@@ -80,9 +84,12 @@ async function sendSms(to, body) {
 function buildMessage(imei, alert, device = null) {
   const normalizedType = String(alert?.type || '').trim().toLowerCase();
   if (normalizedType === 'sos' || normalizedType === 'fall') {
+    const safetyDevice = normalizedType === 'fall'
+      ? deviceAtFall(device || {}, alert || {})
+      : (device || {});
     return buildSafetyMessage({
       type: normalizedType,
-      device: device || {},
+      device: safetyDevice,
       alert: alert || {},
     });
   }
@@ -114,6 +121,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   const text = buildMessage(imei, alert, device);
   const results = [];
   const isSos = String(alert?.type || '').toLowerCase() === 'sos';
+  const isFall = String(alert?.type || '').toLowerCase() === 'fall';
 
   // Cost-smart: compose once per SOS event, then fan the same validated
   // Meta template out to every emergency contact.
@@ -121,6 +129,13 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
     isSos && config.notifyWhatsApp &&
       contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
       ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
+          error: err.message,
+        }))
+      : null;
+  const fallPreparationPromise =
+    isFall && config.notifyWhatsApp &&
+      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
+      ? prepareFallWhatsApp({ device: device || {}, alert }).catch((err) => ({
           error: err.message,
         }))
       : null;
@@ -160,22 +175,30 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
             prepared
           );
         }
-      } else {
-        const templateName = String(config.metaWhatsAppFallTemplate || '').trim();
-        entry.channels.whatsapp = templateName
-          ? await sendMetaTemplate(waTarget, templateName, {
-              languageCode: 'en',
-              components: [{
-                type: 'body',
-                parameters: [{ type: 'text', text }],
-              }],
-            })
-          : {
+      } else if (isFall && fallPreparationPromise) {
+        const prepared = await fallPreparationPromise;
+        if (prepared?.error) {
+          entry.channels.whatsapp = {
               ok: false,
-              skipped: true,
               provider: 'meta',
-              reason: 'META_WHATSAPP_FALL_TEMPLATE missing',
-            };
+              deliveryStatus: 'failed',
+              reason: 'FALL_TEMPLATE_PREPARATION_FAILED',
+              error: prepared.error,
+              fallbackUsed: false,
+          };
+        } else {
+          entry.channels.whatsapp = await sendPreparedFallWhatsApp(
+            waTarget,
+            prepared
+          );
+        }
+      } else {
+        entry.channels.whatsapp = {
+          ok: false,
+          skipped: true,
+          provider: 'meta',
+          reason: 'UNSUPPORTED_SAFETY_TEMPLATE',
+        };
       }
     } else {
       entry.channels.whatsapp = {

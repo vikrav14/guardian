@@ -38,6 +38,7 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
+const { withFallLocationSnapshot } = require('./fall-location-snapshot');
 
 const { startHttpServer } = require('./http');
 
@@ -709,7 +710,7 @@ async function applyEvents(events, session) {
 
           alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};
 
-        const alarmPayload =
+        let alarmPayload =
 
           alarmEvent.alarmCode != null ? { alarmCode: alarmEvent.alarmCode } : {};
 
@@ -769,6 +770,26 @@ async function applyEvents(events, session) {
 
 
         await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session);
+
+        if (alarmType === 'fall') {
+          let deviceAtFall = null;
+          try {
+            deviceAtFall = await getDeviceDocument(alarmEvent.imei);
+          } catch (err) {
+            console.error(
+              `[fall] device snapshot lookup failed for ${alarmEvent.imei}: ${err.message}`
+            );
+          }
+          alarmPayload = withFallLocationSnapshot(
+            alarmType,
+            alarmPayload,
+            deviceAtFall || {
+              ...getLiveDeviceState(alarmEvent.imei),
+              ...alarmPatch,
+            },
+            { now: alarmAt }
+          );
+        }
 
         if (alarmEvent.location) {
 

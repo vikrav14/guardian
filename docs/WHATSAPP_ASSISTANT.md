@@ -24,14 +24,33 @@ LLM.
 Business-initiated messages require approved Meta templates:
 
 ```dotenv
-META_WHATSAPP_FALL_TEMPLATE=
 META_WHATSAPP_REMINDER_TEMPLATE=
 ```
 
-The fall template receives one body value containing the verified alert text.
+Fall alerts use three fixed English (`en`) templates selected from the location
+snapshot captured when the V52 fall event is persisted:
+
+| Location at event time | Template | Button |
+|---|---|---|
+| Trustworthy and at most 10 minutes old | `guardian_fall_alert_v1` | `View location` |
+| Trustworthy but older or missing a dependable timestamp | `guardian_fall_last_location_v1` | `View last known location` |
+| No trustworthy event-time location | `guardian_fall_unavailable_v1` | None |
+
+All three templates receive exactly four body values: deterministic safety
+narration, event time, location details/status, and watch status. The two
+location templates also receive the dynamic latitude/longitude suffix for
+`https://maps.google.com/?q={{1}}`. The unavailable template has no URL button.
+Location age is event-relative (for example, `2 mins before fall`) so a delayed
+provider retry cannot make the frozen evidence read like a current fix.
+
+Guardian never builds a fall map link from the current device document. The
+alert's immutable `payload.locationSnapshot` is the only fall-location source,
+so movement after the event cannot silently change the destination. Legacy
+fall alerts without a snapshot fail closed to the unavailable template.
+
 The reminder template receives wearer name, reminder text, and scheduled time.
-If either template is missing or rejected, Guardian records a visible failure;
-it never switches to another WhatsApp provider.
+If any required template is missing or rejected, Guardian records a visible
+failure; it never switches to another WhatsApp provider.
 
 ## Webhook
 
