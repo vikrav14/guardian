@@ -118,4 +118,69 @@ void main() {
       'Approximate network location updated just now',
     );
   });
+
+  test('cellular signal uses the measured V52 percentage while fresh', () {
+    final now = DateTime.utc(2026, 8, 16, 10);
+    final device = Device(
+      imei: '861397052547492',
+      online: true,
+      lastHeartbeatAt: now.subtract(const Duration(seconds: 30)),
+      cellularSignalPercent: 80,
+      cellularSignalUpdatedAt: now.subtract(const Duration(minutes: 2)),
+    );
+
+    expect(deviceCellularSignalLabel(device, now: now), 'Signal 80%');
+  });
+
+  test('cellular signal never substitutes connectivity for a measurement', () {
+    final now = DateTime.utc(2026, 8, 16, 10);
+    final missing = Device(
+      imei: '1',
+      online: true,
+      lastHeartbeatAt: now,
+    );
+    final stale = Device(
+      imei: '2',
+      online: true,
+      lastHeartbeatAt: now,
+      cellularSignalPercent: 80,
+      cellularSignalUpdatedAt: now.subtract(const Duration(minutes: 13)),
+    );
+
+    expect(deviceCellularSignalLabel(missing, now: now), 'Signal —');
+    expect(deviceCellularSignalLabel(stale, now: now), 'Signal —');
+  });
+
+  test('cellular signal says no signal only when contact is not live', () {
+    final now = DateTime.utc(2026, 8, 16, 10);
+    final device = Device(
+      imei: '1',
+      online: true,
+      lastHeartbeatAt: now.subtract(const Duration(minutes: 13)),
+      cellularSignalPercent: 80,
+      cellularSignalUpdatedAt: now.subtract(const Duration(minutes: 13)),
+    );
+
+    expect(deviceCellularSignalLabel(device, now: now), 'No signal');
+  });
+
+  test('GPS chip adds satellite context without claiming metre accuracy', () {
+    final now = DateTime.utc(2026, 8, 16, 10);
+    final device = Device(
+      imei: '1',
+      online: true,
+      accuracySource: 'gps',
+      lastHeartbeatAt: now,
+      location: DeviceLocation(
+        lat: -20.02,
+        lng: 57.59,
+        source: 'gps',
+        gpsValid: true,
+        satellites: 9,
+        recordedAt: now,
+      ),
+    );
+
+    expect(deviceGpsChipLabel(device), 'GPS · 9 sat');
+  });
 }

@@ -46,6 +46,25 @@ The V52 alarm state is the eight-character hexadecimal field at argument index
 safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. Bit 21 and
 shortened older-model layouts are rejected by tests.
 
+## V52 telemetry field use
+
+The fixed V52 positioning layout is decoded without moving the tracker-state
+field at index 15 or changing how the variable LTE/WiFi tail is scanned.
+
+| V52 field | Guardian use | Product wording guardrail |
+|---|---|---|
+| Altitude/elevation (index 9) | Stored on the self-contained location observation and location history. | Context only; not a safety or floor-level claim. |
+| Satellite count (index 10) | Stored with the GPS observation and shown as GPS context. | Satellite count does not prove a metre-level accuracy radius. |
+| Cellular signal 0–100 (index 11) | Stored with an independent receipt timestamp and shown as the exact fresh percentage. | Never infer “Signal good” merely because the TCP session is connected. |
+| Battery 0–100 (index 12) | Stored with an independent receipt timestamp and used by existing battery safety logic. | Missing or stale data remains unknown. |
+| Steps (index 13) | Stored as `stepsRaw` for later acceptance and aggregation work. | Do not call it “today's steps” until reset, reboot and midnight behaviour are proven. |
+| Roll count (index 14) | Stored as `rollCountRaw` for diagnostics. | Do not display or interpret it until vendor/real-device semantics are proven. |
+| Tracker state (index 15) | V52 alarm bitmap only. | Must never be shifted or replaced by a tail value. |
+
+The `LK,steps,rolls,battery` heartbeat updates the same raw counters and
+battery field. Telemetry piggybacks on existing throttled device writes; it
+does not add one Firestore history document per packet.
+
 Vendor documentation, automated tests and real-device acceptance are three
 different forms of evidence. A capability becomes a Guardian product promise
 only after all required real-device and notification checks pass.

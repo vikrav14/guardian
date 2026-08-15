@@ -1,6 +1,9 @@
 import '../models/device.dart';
 import 'device_connectivity.dart';
 
+/// Mirrors the maximum age used for a truthful live connection indicator.
+const Duration deviceTelemetryFreshness = deviceLiveContactThreshold;
+
 String deviceMovementLabel(Device device) {
   return switch (device.connectivityPhase()) {
     DeviceConnectivityPhase.live when device.isMoving => 'Moving',
@@ -33,6 +36,46 @@ String deviceLocationStatusLabel(Device device) {
   return device.connectivityPhase() == DeviceConnectivityPhase.offline
       ? 'Location unavailable'
       : 'Waiting for location';
+}
+
+String deviceGpsChipLabel(Device device) {
+  final base = device.isDisplayingRetainedSatelliteLocation
+      ? 'Last GPS fix'
+      : device.hasApproximateLocation
+      ? 'Approx.'
+      : device.hasFreshLocation
+      ? 'GPS'
+      : device.displayLocation?.isValid == true
+      ? 'Last GPS fix'
+      : 'Locating';
+  final satellites = device.displayLocationSource == 'gps'
+      ? device.displayLocation?.satellites
+      : null;
+  if (satellites == null) return base;
+  return base == 'Last GPS fix'
+      ? 'Last GPS · $satellites sat'
+      : '$base · $satellites sat';
+}
+
+String deviceCellularSignalLabel(Device device, {DateTime? now}) {
+  final current = now ?? DateTime.now();
+  final contactAt = device.lastHeartbeatAt ?? device.updatedAt;
+  if (!device.online || contactAt == null) return 'No signal';
+  final contactAge = current.difference(contactAt);
+  if (contactAge > deviceLiveContactThreshold ||
+      contactAge < const Duration(minutes: -1)) {
+    return 'No signal';
+  }
+
+  final signal = device.cellularSignalPercent;
+  final signalAt = device.cellularSignalUpdatedAt;
+  if (signal == null || signalAt == null) return 'Signal —';
+  final signalAge = current.difference(signalAt);
+  if (signalAge > deviceTelemetryFreshness ||
+      signalAge < const Duration(minutes: -1)) {
+    return 'Signal —';
+  }
+  return 'Signal $signal%';
 }
 
 String deviceUpdatedLabel(Device device, {DateTime? now}) {

@@ -39,6 +39,10 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
 const { withFallLocationSnapshot } = require('./fall-location-snapshot');
+const {
+  extractV52TelemetryValues,
+  buildV52TelemetryPatch,
+} = require('./v52-telemetry');
 
 const { startHttpServer } = require('./http');
 
@@ -279,6 +283,9 @@ async function applyEvents(events, session) {
     try {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
+      const eventReceivedAt = new Date();
+      const telemetryValues = extractV52TelemetryValues(event);
+      const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
       if (event.imei) {
         await maybeAnnounceConnecting(
@@ -325,6 +332,8 @@ async function applyEvents(events, session) {
           speedKmh: locEvent.speedKmh,
 
           accuracySource: locEvent.accuracySource,
+
+          ...telemetryValues,
 
         });
 
@@ -488,7 +497,9 @@ async function applyEvents(events, session) {
 
               online: true,
 
-              lastHeartbeatAt: new Date(),
+              lastHeartbeatAt: eventReceivedAt,
+
+              ...telemetryPatch,
 
               ...(locationIsSuspect ? {} : {
 
@@ -499,15 +510,6 @@ async function applyEvents(events, session) {
                 course: locEvent.course,
 
               }),
-
-              ...(locEvent.batteryPercent != null
-
-                ? {
-                    batteryPercent: locEvent.batteryPercent,
-                    batteryUpdatedAt: new Date(),
-                  }
-
-                : {}),
 
             },
 
@@ -526,6 +528,10 @@ async function applyEvents(events, session) {
               lng: locEvent.location.lng,
 
               speedKmh: locEvent.speedKmh,
+
+              altitude: locEvent.location.altitude,
+
+              satellites: locEvent.location.satellites,
 
               accuracySource: locEvent.accuracySource,
 
@@ -555,6 +561,8 @@ async function applyEvents(events, session) {
 
             batteryPercent: locEvent.batteryPercent,
 
+            ...telemetryValues,
+
           });
 
         } else {
@@ -582,7 +590,7 @@ async function applyEvents(events, session) {
 
         updateLiveState(event.imei, {
 
-          batteryPercent: event.batteryPercent,
+          ...telemetryValues,
 
           accuracySource: event.accuracySource,
 
@@ -614,14 +622,9 @@ async function applyEvents(events, session) {
 
               online: true,
 
-              lastHeartbeatAt: new Date(),
+              lastHeartbeatAt: eventReceivedAt,
 
-              ...(event.batteryPercent != null
-                ? {
-                    batteryPercent: event.batteryPercent,
-                    batteryUpdatedAt: new Date(),
-                  }
-                : {}),
+              ...telemetryPatch,
 
               ...(event.accuracySource ? { accuracySource: event.accuracySource } : {}),
 
@@ -643,7 +646,7 @@ async function applyEvents(events, session) {
 
             lastHeartbeatAt: new Date(),
 
-            batteryPercent: event.batteryPercent,
+            ...telemetryValues,
 
             ...(event.accuracySource ? { accuracySource: event.accuracySource } : {}),
 
@@ -726,6 +729,8 @@ async function applyEvents(events, session) {
 
             accuracySource: alarmEvent.accuracySource,
 
+            ...telemetryValues,
+
           });
 
         }
@@ -740,18 +745,13 @@ async function applyEvents(events, session) {
 
           lastHeartbeatAt: alarmAt,
 
+          ...telemetryPatch,
+
           ...(alarmEvent.location
             ? {
                 ...alarmProvenance,
                 speedKmh: alarmEvent.speedKmh,
                 course: alarmEvent.course,
-              }
-            : {}),
-
-          ...(alarmEvent.batteryPercent != null
-            ? {
-                batteryPercent: alarmEvent.batteryPercent,
-                batteryUpdatedAt: alarmAt,
               }
             : {}),
 
@@ -801,6 +801,10 @@ async function applyEvents(events, session) {
 
             speedKmh: alarmEvent.speedKmh,
 
+            altitude: alarmEvent.location.altitude,
+
+            satellites: alarmEvent.location.satellites,
+
             accuracySource: alarmEvent.accuracySource,
 
             source: alarmEvent.location.source,
@@ -830,6 +834,8 @@ async function applyEvents(events, session) {
           accuracySource: alarmEvent.accuracySource,
 
           batteryPercent: alarmEvent.batteryPercent,
+
+          ...telemetryValues,
 
         });
 

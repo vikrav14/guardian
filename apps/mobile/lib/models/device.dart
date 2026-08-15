@@ -143,6 +143,13 @@ class Device {
     this.nickname,
     this.relationship,
     this.batteryPercent,
+    this.batteryUpdatedAt,
+    this.cellularSignalPercent,
+    this.cellularSignalUpdatedAt,
+    this.stepsRaw,
+    this.rollCountRaw,
+    this.activityUpdatedAt,
+    this.telemetryUpdatedAt,
     this.speedKmh,
     this.course,
     this.accuracySource,
@@ -176,6 +183,18 @@ class Device {
   final String? relationship;
   final bool online;
   final int? batteryPercent;
+  final DateTime? batteryUpdatedAt;
+
+  /// Latest V52 cellular signal value (0-100), not inferred from connectivity.
+  final int? cellularSignalPercent;
+  final DateTime? cellularSignalUpdatedAt;
+
+  /// Raw V52 counters. Their reset/day semantics are not yet accepted, so the
+  /// app must not present them as daily activity totals.
+  final int? stepsRaw;
+  final int? rollCountRaw;
+  final DateTime? activityUpdatedAt;
+  final DateTime? telemetryUpdatedAt;
   final num? speedKmh;
   final num? course;
   final String? accuracySource;
@@ -361,6 +380,15 @@ class Device {
       relationship: data['relationship'] as String?,
       online: data['online'] == true,
       batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
+      batteryUpdatedAt: _asDateTime(data['batteryUpdatedAt']),
+      cellularSignalPercent: (data['cellularSignalPercent'] as num?)?.toInt(),
+      cellularSignalUpdatedAt: _asDateTime(
+        data['cellularSignalUpdatedAt'],
+      ),
+      stepsRaw: (data['stepsRaw'] as num?)?.toInt(),
+      rollCountRaw: (data['rollCountRaw'] as num?)?.toInt(),
+      activityUpdatedAt: _asDateTime(data['activityUpdatedAt']),
+      telemetryUpdatedAt: _asDateTime(data['telemetryUpdatedAt']),
       speedKmh: data['speedKmh'] as num?,
       course: data['course'] as num?,
       accuracySource: data['accuracySource'] as String?,

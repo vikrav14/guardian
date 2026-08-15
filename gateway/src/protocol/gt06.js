@@ -17,6 +17,33 @@ const {
 } = require('../imei');
 const { parseLteExtras, isPlaceholderCoords } = require('../geolocate/google');
 
+function parseFiniteNumber(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseIntegerInRange(value, min, max) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : null;
+}
+
+function parseV52Telemetry(fields) {
+  // V52 Annex I fixed positioning fields. Do not infer these values from the
+  // variable LTE/WiFi tail that starts after the tracker-state field.
+  return {
+    altitude: parseFiniteNumber(fields[9]),
+    satellites: parseIntegerInRange(fields[10], 0, 99),
+    cellularSignalPercent: parseIntegerInRange(fields[11], 0, 100),
+    batteryPercent: parseIntegerInRange(fields[12], 0, 100),
+    stepsRaw: parseIntegerInRange(fields[13], 0, Number.MAX_SAFE_INTEGER),
+    rollCountRaw: parseIntegerInRange(fields[14], 0, Number.MAX_SAFE_INTEGER),
+  };
+}
+
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
 // Includes commands confirmed in the V52 vendor protocol and companion
@@ -56,6 +83,7 @@ function parseLocationData(fields) {
   let lng = null;
   let course = 0;
   let speedKmh = null;
+  const telemetry = parseV52Telemetry(fields);
 
   if (fields.length > 5) {
     lat = parseFloat(fields[3]);
@@ -105,9 +133,9 @@ function parseLocationData(fields) {
       location: {
         lat: isPlaceholderCoords(lat, lng) ? null : lat,
         lng: isPlaceholderCoords(lat, lng) ? null : lng,
-        altitude: null,
+        altitude: telemetry.altitude,
         recordedAt,
-        satellites: null,
+        satellites: telemetry.satellites,
         source: positioningMode,
         gpsValid: false,
         accuracyMeters: null,
@@ -115,6 +143,10 @@ function parseLocationData(fields) {
       speedKmh,
       course,
       accuracySource: positioningMode === 'wifi' ? 'wifi' : 'lbs',
+      cellularSignalPercent: telemetry.cellularSignalPercent,
+      batteryPercent: telemetry.batteryPercent,
+      stepsRaw: telemetry.stepsRaw,
+      rollCountRaw: telemetry.rollCountRaw,
     };
   }
 
@@ -123,9 +155,9 @@ function parseLocationData(fields) {
     location: {
       lat,
       lng,
-      altitude: null,
+      altitude: telemetry.altitude,
       recordedAt,
-      satellites: null,
+      satellites: telemetry.satellites,
       source: 'gps',
       gpsValid: true,
       // The V52 A packet proves satellite validity but does not include a
@@ -135,6 +167,10 @@ function parseLocationData(fields) {
     speedKmh,
     course,
     accuracySource: 'gps',
+    cellularSignalPercent: telemetry.cellularSignalPercent,
+    batteryPercent: telemetry.batteryPercent,
+    stepsRaw: telemetry.stepsRaw,
+    rollCountRaw: telemetry.rollCountRaw,
   };
 }
 
@@ -173,12 +209,11 @@ function classifyV52Alarm(alarmCode) {
 
 function parseLkData(fields) {
   // LK,steps,rolls,battery
-  let battery = null;
-  if (fields.length > 3) {
-    const b = parseInt(fields[3], 10);
-    if (!Number.isNaN(b)) battery = b;
-  }
-  return { batteryPercent: battery };
+  return {
+    stepsRaw: parseIntegerInRange(fields[1], 0, Number.MAX_SAFE_INTEGER),
+    rollCountRaw: parseIntegerInRange(fields[2], 0, Number.MAX_SAFE_INTEGER),
+    batteryPercent: parseIntegerInRange(fields[3], 0, 100),
+  };
 }
 
 function buildAckFrame(imei, command) {
@@ -410,6 +445,8 @@ module.exports = {
   handlePacket,
   buildAckFrame,
   parseLocationData,
+  parseLkData,
+  parseV52Telemetry,
   extractV52TrackerState,
   classifyV52Alarm,
   V52_TRACKER_STATE_INDEX,

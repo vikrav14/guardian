@@ -73,15 +73,9 @@ class GuardianNowHero extends StatelessWidget {
     final battery = d.batteryPercent;
     final locationLabel = _locationLabel(d);
     final updateLabel = deviceWatchCheckInLabel(d);
-    final gpsLabel = d.isDisplayingRetainedSatelliteLocation
-        ? 'Last GPS fix'
-        : d.hasApproximateLocation
-        ? 'Approx.'
-        : d.hasFreshLocation
-        ? 'GPS'
-        : d.displayLocation?.isValid == true
-        ? 'Last GPS fix'
-        : 'Locating';
+    final gpsLabel = deviceGpsChipLabel(d);
+    final signalLabel = deviceCellularSignalLabel(d);
+    final signal = d.cellularSignalPercent;
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -145,8 +139,12 @@ class GuardianNowHero extends StatelessWidget {
               ),
               _StatusChip(
                 icon: Icons.signal_cellular_alt_rounded,
-                label: live ? 'Signal good' : 'No signal',
-                color: live ? GuardianColors.safe : colors.textMuted,
+                label: signalLabel,
+                color: signalLabel == 'No signal' || signalLabel == 'Signal —'
+                    ? colors.textMuted
+                    : signal != null && signal <= 20
+                    ? GuardianColors.warning
+                    : GuardianColors.safe,
               ),
             ],
           );

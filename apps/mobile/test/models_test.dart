@@ -16,6 +16,19 @@ void main() {
         'relationship': 'Mum',
         'online': true,
         'batteryPercent': 72,
+        'batteryUpdatedAt': Timestamp.fromDate(DateTime.utc(2026, 8, 16, 9)),
+        'cellularSignalPercent': 80,
+        'cellularSignalUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
+        'stepsRaw': 1234,
+        'rollCountRaw': 50,
+        'activityUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
+        'telemetryUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
         'speedKmh': 12,
         'course': 90,
         'accuracySource': 'gps',
@@ -51,6 +64,16 @@ void main() {
       expect(device.relationshipLabel, 'Mum');
       expect(device.online, true);
       expect(device.batteryPercent, 72);
+      expect(device.batteryUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
+      expect(device.cellularSignalPercent, 80);
+      expect(
+        device.cellularSignalUpdatedAt?.toUtc(),
+        DateTime.utc(2026, 8, 16, 9),
+      );
+      expect(device.stepsRaw, 1234);
+      expect(device.rollCountRaw, 50);
+      expect(device.activityUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
+      expect(device.telemetryUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
       expect(device.location?.isValid, true);
       expect(device.location?.lat, -20.2642);
       expect(device.location?.source, 'gps');

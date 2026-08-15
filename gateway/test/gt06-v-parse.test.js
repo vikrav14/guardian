@@ -89,6 +89,38 @@ test('parseLocationData marks A as a self-contained satellite observation', () =
   assert.equal(loc.location.lat, -20.029278);
 });
 
+test('parseLocationData decodes the fixed V52 telemetry fields without shifting state', () => {
+  const fields = [
+    '160826', '101530', 'A', '20.029278', 'S', '57.5960427', 'E',
+    '3.5', '152', '41.7', '9', '80', '87', '1234', '50', '00010000',
+    '1', '0', '617', '1', '53', '203778', '169', '0', '3.9',
+  ];
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.location.altitude, 41.7);
+  assert.equal(loc.location.satellites, 9);
+  assert.equal(loc.cellularSignalPercent, 80);
+  assert.equal(loc.batteryPercent, 87);
+  assert.equal(loc.stepsRaw, 1234);
+  assert.equal(loc.rollCountRaw, 50);
+  assert.equal(fields[15], '00010000');
+});
+
+test('parseLocationData ignores malformed V52 telemetry instead of inventing values', () => {
+  const fields = [
+    '160826', '101530', 'A', '20.029278', 'S', '57.5960427', 'E',
+    '0', '0', '', '-1', '101', 'not-a-battery', '1.5', '-2', '00000000',
+  ];
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.location.altitude, null);
+  assert.equal(loc.location.satellites, null);
+  assert.equal(loc.cellularSignalPercent, null);
+  assert.equal(loc.batteryPercent, null);
+  assert.equal(loc.stepsRaw, null);
+  assert.equal(loc.rollCountRaw, null);
+});
+
 test('handlePacket emits location for V UD_LTE with WiFi scan', () => {
   const payload = [
     '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0.0', '0',
@@ -160,4 +192,10 @@ test('parseLocationData handles live Bouboush V UD_LTE payload', () => {
   assert.equal(loc.wifiAccessPoints.length, 1);
   assert.equal(loc.cellTowers.length, 1);
   assert.equal(loc.cellTowers[0].mobileCountryCode, 617);
+  assert.equal(loc.location.altitude, 0);
+  assert.equal(loc.location.satellites, 0);
+  assert.equal(loc.cellularSignalPercent, 100);
+  assert.equal(loc.batteryPercent, 80);
+  assert.equal(loc.stepsRaw, 0);
+  assert.equal(loc.rollCountRaw, 0);
 });

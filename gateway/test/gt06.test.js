@@ -64,6 +64,16 @@ test('handlePacket normalizes a 10-digit id to the 15-digit Firestore imei', () 
   assert.equal(acks[0].toString('ascii'), '[SG*9705314117*0002*LK]');
 });
 
+test('handlePacket retains all LK raw counters and battery, including zero', () => {
+  const frame = asciiFrame('3G', '9705314117', 'LK', '1234,50,0');
+  const { events } = handlePacket(decodeFrame(frame), {});
+
+  assert.equal(events[0].type, 'heartbeat');
+  assert.equal(events[0].stepsRaw, 1234);
+  assert.equal(events[0].rollCountRaw, 50);
+  assert.equal(events[0].batteryPercent, 0);
+});
+
 test('handlePacket parses a valid UD_LTE location', () => {
   const payload = '241122,062109,A,22.653729,N,114.014600,E,0.0,0,0,0,0,00000000,0,0,0000,0';
   const frame = asciiFrame('3G', '9705314117', 'UD_LTE', payload);

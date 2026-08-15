@@ -101,6 +101,13 @@ Live device state. Document ID = device IMEI (digits only).
 | online | boolean | True while TCP session active / recent heartbeat |
 | lastHeartbeatAt | timestamp | |
 | batteryPercent | number \| null | 0–100 when known |
+| batteryUpdatedAt | timestamp \| null | Gateway receipt time of the packet that supplied `batteryPercent`. |
+| cellularSignalPercent | number \| null | V52 GSM/cellular signal field, 0–100. This is measured telemetry and is never inferred from `online`. |
+| cellularSignalUpdatedAt | timestamp \| null | Gateway receipt time of the packet that supplied `cellularSignalPercent`. |
+| stepsRaw | number \| null | Latest raw V52 step counter. Reset/day semantics are not yet accepted; do not present as a daily total. |
+| rollCountRaw | number \| null | Latest raw V52 roll counter, retained for diagnostics only until its semantics are accepted. |
+| activityUpdatedAt | timestamp \| null | Gateway receipt time of the packet that supplied either raw activity counter. |
+| telemetryUpdatedAt | timestamp \| null | Gateway receipt time of the latest packet containing any validated V52 telemetry. |
 | speedKmh | number \| null | |
 | course | number \| null | Degrees |
 | location | map | Latest persisted observation of any source. See below. Never interpret this field without its source and timestamp. |
@@ -111,8 +118,8 @@ Live device state. Document ID = device IMEI (digits only).
 | lastAlarm | map \| null | `{ type, at, raw }` |
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
-| fallDetection | map \| null | App-cached request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. V46/V48/V52 only. |
-| locationReportingIntervalSeconds | number \| null | App-cached request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. V46/V48/V52 only. |
+| fallDetection | map \| null | App-cached V52 request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. |
+| locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
@@ -144,6 +151,8 @@ Optional history (gateway throttles writes — see write gate below).
 |-------|------|
 | lat | number |
 | lng | number |
+| altitude | number \| null |
+| satellites | number \| null |
 | speedKmh | number \| null |
 | accuracySource | string \| null |
 | source | string \| null |
@@ -315,7 +324,8 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | Trigger | Firestore action |
 |---------|------------------|
 | Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
-| Battery integer change | Upsert `batteryPercent` |
+| Battery integer change | Upsert `batteryPercent` and its independent receipt timestamp. |
+| Persisted V52 heartbeat/location/alarm | Store validated latest cellular signal and raw activity counters without creating extra history writes. |
 | SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
 | Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
 | First GPS fix after TCP connect | Always upsert location |
