@@ -3,9 +3,9 @@ const DEFAULT_TTL_MS = 30 * 60 * 1000;
 const REPLIES = Object.freeze({
   acknowledgement: "You're welcome.",
   greeting:
-    "Hi, I'm Guardian. Ask me where someone is, their watch battery, recent alerts, safe zones, journeys, or reminders.",
+    "Hi, I'm Guardian. Ask me where someone is, their watch battery, weather nearby, recent alerts, safe zones, journeys, or reminders.",
   help:
-    'I can check location, battery and watch status, recent alerts, safe zones and journeys. I can also help set medication reminders and send permitted watch commands.',
+    'I can check location, battery and watch status, weather near a wearer, recent alerts, safe zones and journeys. I can also help set medication reminders and send permitted watch commands.',
   cancelled: 'Okay, cancelled.',
   nothingToCancel: "There's nothing waiting for confirmation.",
   reminderHelp:
@@ -48,6 +48,7 @@ function needsWearer(intentType) {
     'SAFE_ZONE_CHECK',
     'JOURNEY_QUERY',
     'DAILY_SUMMARY',
+    'WEATHER_QUERY',
   ].includes(intentType);
 }
 
@@ -58,8 +59,9 @@ function expandWithWearer(text, intentType, wearer) {
   if (intentType === 'DEVICE_STATUS') return `${text} for ${name}`;
   if (intentType === 'RECENT_ALERTS') return `Recent alerts for ${name}?`;
   if (intentType === 'SAFE_ZONE_CHECK') return `${text} for ${name}`;
-  if (intentType === 'JOURNEY_QUERY') return `Show ${name}'s recent journeys`;
+  if (intentType === 'JOURNEY_QUERY') return `${text} for ${name}`;
   if (intentType === 'DAILY_SUMMARY') return `${text} for ${name}`;
+  if (intentType === 'WEATHER_QUERY') return `${text} for ${name}`;
   return text;
 }
 
@@ -132,11 +134,12 @@ class ConversationController {
     if (!wearer) return null;
     this.setState(from, {
       pendingIntent: null,
+      pendingText: null,
       lastIntent: state.pendingIntent,
       lastWearerImei: wearer.imei,
     });
     return {
-      text: expandWithWearer(text, state.pendingIntent, wearer),
+      text: expandWithWearer(state.pendingText || text, state.pendingIntent, wearer),
       intentType: state.pendingIntent,
       wearer,
     };
@@ -158,7 +161,7 @@ class ConversationController {
     if (!needsWearer(intentType)) return { text, wearer: null };
     const mentioned = findMentionedDevice(devices, text);
     if (mentioned) {
-      this.setState(from, { lastIntent: intentType, lastWearerImei: mentioned.imei, pendingIntent: null });
+      this.setState(from, { lastIntent: intentType, lastWearerImei: mentioned.imei, pendingIntent: null, pendingText: null });
       return { text, wearer: mentioned };
     }
 
@@ -166,12 +169,12 @@ class ConversationController {
     const remembered = (devices || []).find((device) => device.imei === state?.lastWearerImei);
     const wearer = remembered || ((devices || []).length === 1 ? devices[0] : null);
     if (wearer) {
-      this.setState(from, { lastIntent: intentType, lastWearerImei: wearer.imei, pendingIntent: null });
+      this.setState(from, { lastIntent: intentType, lastWearerImei: wearer.imei, pendingIntent: null, pendingText: null });
       return { text: expandWithWearer(text, intentType, wearer), wearer };
     }
 
     if ((devices || []).length > 1) {
-      this.setState(from, { pendingIntent: intentType });
+      this.setState(from, { pendingIntent: intentType, pendingText: text });
       const names = devices.map(deviceName).filter(Boolean);
       return {
         text,

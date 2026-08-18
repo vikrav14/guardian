@@ -56,8 +56,20 @@ test('explicit journey help remains deterministic', () => {
 test('single linked wearer is attached to a journey query', () => {
   const controller = new ConversationController();
   const result = controller.resolveWearer('+2301', 'recent journey', 'JOURNEY_QUERY', [devices[0]]);
-  assert.equal(result.text, "Show Jesh's recent journeys");
+  assert.equal(result.text, 'recent journey for Jesh');
   assert.equal(result.wearer.imei, 'A');
+});
+
+test('wearer resolution preserves an explicit journey period', () => {
+  const controller = new ConversationController();
+  const result = controller.resolveWearer('+2301', 'show journeys today', 'JOURNEY_QUERY', [devices[0]]);
+  assert.equal(result.text, 'show journeys today for Jesh');
+});
+
+test('weather query resolves the wearer without losing the question', () => {
+  const controller = new ConversationController();
+  const result = controller.resolveWearer('+2301', "how's the weather?", 'WEATHER_QUERY', [devices[0]]);
+  assert.equal(result.text, "how's the weather? for Jesh");
 });
 
 test('single linked wearer is attached to a daily summary', () => {

@@ -41,3 +41,23 @@ test('journey reply discloses omitted low-quality movement records', () => {
   });
   assert.match(reply, /Low-quality movement records were omitted/);
 });
+
+test('period-filtered journey reply labels today explicitly', () => {
+  const reply = formatJourneyReply({
+    name: 'Jesh',
+    periodLabel: 'today',
+    journeys: [{
+      startAt: '2026-08-18T08:00:00Z',
+      endAt: '2026-08-18T08:20:00Z',
+      distanceKm: 3.1,
+    }],
+  });
+  assert.match(reply, /Journeys for Jesh — today/);
+});
+
+test('period-filtered empty journey reply does not imply all-time history is empty', () => {
+  assert.equal(
+    formatJourneyReply({ name: 'Jesh', periodLabel: 'today', journeys: [] }),
+    'No confirmed journeys were recorded for Jesh today.',
+  );
+});

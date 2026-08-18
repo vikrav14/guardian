@@ -65,6 +65,17 @@ test('classifyIntent: journey history queries', () => {
   }
 });
 
+test('classifyIntent: weather near a wearer', () => {
+  for (const text of [
+    "How's the weather near Jesh?",
+    'Will it rain near Mum?',
+    'Temperature around Dad',
+    'Meteo kot Jesh',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'WEATHER_QUERY', `Failed for: ${text}`);
+  }
+});
+
 test('classifyIntent: safe zone', () => {
   const result = classifyIntent('Is Dad at home?');
   assert.equal(result.type, 'SAFE_ZONE_CHECK');

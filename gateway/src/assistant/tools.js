@@ -321,7 +321,18 @@ async function getRecentAlerts(db, ctx, { limit = 5, device_name: deviceName, im
   }
 }
 
-async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, imei } = {}) {
+async function getRecentJourneys(
+  db,
+  ctx,
+  {
+    limit = 3,
+    device_name: deviceName,
+    imei,
+    start_at: startAt,
+    end_at: endAt,
+    period_label: periodLabel,
+  } = {}
+) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
     return { error: 'No matching watch.' };
@@ -341,8 +352,13 @@ async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, 
 
   let omittedLowQualityCount = 0;
   const journeys = [];
+  const startMs = timestampMs(startAt);
+  const endMs = timestampMs(endAt);
   for (const doc of snap.docs) {
     const journey = doc.data() || {};
+    const journeyTime = timestampMs(journey.endAt) ?? timestampMs(journey.startAt);
+    if (startMs != null && (journeyTime == null || journeyTime < startMs)) continue;
+    if (endMs != null && (journeyTime == null || journeyTime >= endMs)) continue;
     const analysis = analyzeJourney({ id: doc.id, ...journey });
     if (analysis.assessment === 'likely_stationary_drift') {
       omittedLowQualityCount += 1;
@@ -368,6 +384,7 @@ async function getRecentJourneys(db, ctx, { limit = 3, device_name: deviceName, 
     name: deviceLabel(device),
     journeys,
     omittedLowQualityCount,
+    periodLabel: periodLabel || null,
   };
 }
 
@@ -808,6 +825,9 @@ const TOOL_DEFINITIONS = [
         device_name: { type: 'string' },
         imei: { type: 'string' },
         limit: { type: 'number' },
+        start_at: { type: 'string' },
+        end_at: { type: 'string' },
+        period_label: { type: 'string' },
       },
       additionalProperties: false,
     },

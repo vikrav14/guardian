@@ -37,11 +37,16 @@ function formatJourneyReply(result) {
 
   const name = result.name || 'Your loved one';
   const journeys = Array.isArray(result.journeys) ? result.journeys : [];
+  const period = result.periodLabel ? String(result.periodLabel) : null;
   if (journeys.length === 0) {
-    return `No confirmed journeys are available for ${name} yet.`;
+    return period
+      ? `No confirmed journeys were recorded for ${name} ${period}.`
+      : `No confirmed journeys are available for ${name} yet.`;
   }
 
-  const lines = [`*Recent journeys for ${name}:*`];
+  const lines = [period
+    ? `*Journeys for ${name} — ${period}:*`
+    : `*Recent journeys for ${name}:*`];
   journeys.forEach((journey, index) => {
     const duration = formatDuration(journey.startAt, journey.endAt);
     const distance = journey.distanceKm == null

@@ -18,6 +18,7 @@ test('functional Guardian intents may use the assistant', () => {
     'VOICE_MONITOR',
     'REMINDER_REQUEST',
     'SAFE_ZONE_CHECK',
+    'WEATHER_QUERY',
   ]) {
     const decision = decideInboundRoute({ type });
     assert.equal(decision.route, 'guardian', type);

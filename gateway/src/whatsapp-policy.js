@@ -8,10 +8,11 @@ const GUARDIAN_FUNCTIONAL_INTENTS = new Set([
   'VOICE_MONITOR',
   'REMINDER_REQUEST',
   'SAFE_ZONE_CHECK',
+  'WEATHER_QUERY',
 ]);
 
 const SCOPE_REPLY =
-  "I'm Guardian, your family-safety assistant. I can help with a wearer's location, watch status and battery, safe zones, alerts, journeys, reminders, and watch safety commands.";
+  "I'm Guardian, your family-safety assistant. I can help with a wearer's location, watch status and battery, weather nearby, safe zones, alerts, journeys, reminders, and watch safety commands.";
 
 function decideInboundRoute(intent = {}) {
   const type = String(intent.type || 'UNCLEAR');

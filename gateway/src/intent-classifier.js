@@ -18,6 +18,7 @@ const KEYWORDS = {
   DEVICE_STATUS: ['battery', 'batterie', 'batri', 'signal', 'online', 'check', 'status', 'connected', 'connectee', 'heartbeat'],
   RECENT_ALERTS: ['alert', 'alerts', 'alerte', 'alertes', 'warning', 'warnings', 'fall', 'geofence', 'event', 'incident', 'incidents', 'trigger'],
   JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings', 'trajet', 'voyage', 'sortie'],
+  WEATHER: ['weather', 'forecast', 'rain', 'raining', 'temperature', 'meteo'],
   DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'sonner', 'sone', 'trigger', 'activate', 'send command'],
   VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
   REMINDER: ['reminder', 'reminders', 'medicine', 'medsinn', 'pill', 'medication', 'medicament', 'rappel', 'rapel', 'remember', 'remind', 'remind me', 'schedule', 'programme'],
@@ -146,6 +147,16 @@ function classifyIntent(text) {
       urgency: 2,
       confidence: journeyMatch.found ? 0.90 : 0.85,
       matchedKeywords: journeyMatch.keywords,
+    };
+  }
+
+  const weatherMatch = findKeywordMatch(lower, KEYWORDS.WEATHER);
+  if (weatherMatch.found) {
+    return {
+      type: 'WEATHER_QUERY',
+      urgency: 2,
+      confidence: 0.90,
+      matchedKeywords: weatherMatch.keywords,
     };
   }
 

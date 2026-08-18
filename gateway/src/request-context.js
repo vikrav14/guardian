@@ -97,6 +97,9 @@ function selectAllowedTools(intent) {
     tools.push('get_recent_journeys');
   }
 
+  // WEATHER_QUERY is answered deterministically by the shared weather
+  // provider, so no LLM-facing tool is exposed for it.
+
   if (intent.type === 'DAILY_SUMMARY') {
     tools.push('get_daily_summary');
   }
@@ -176,6 +179,12 @@ If tools fail, say you could not reach alert history.`;
 Use get_recent_journeys for the resolved wearer.
 Report only confirmed stored journeys and their recorded times and distance.
 Never infer a destination, purpose, route, arrival, or departure that is absent from the tool result.`;
+  }
+
+  if (intent.type === 'WEATHER_QUERY') {
+    return `${base}
+Report only current weather returned by Guardian's configured weather provider for the wearer's trustworthy recorded location.
+Disclose when the location is approximate, stale, unavailable, or when weather data cannot be retrieved.`;
   }
 
   if (intent.type === 'SAFE_ZONE_CHECK') {

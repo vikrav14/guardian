@@ -41,4 +41,12 @@ function extractTimePeriod(text, now = new Date()) {
   };
 }
 
-module.exports = { normalizeLanguage, extractTimePeriod };
+function extractRequestedTimePeriod(text, now = new Date()) {
+  const value = normalizeLanguage(text);
+  if (!/\b(today|zordi|aujourd'hui|yesterday|hier|yer)\b/.test(value)) {
+    return null;
+  }
+  return extractTimePeriod(value, now);
+}
+
+module.exports = { normalizeLanguage, extractTimePeriod, extractRequestedTimePeriod };

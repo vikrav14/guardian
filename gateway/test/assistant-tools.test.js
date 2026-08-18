@@ -146,6 +146,51 @@ test('getRecentJourneys omits stationary drift and backfills genuine journeys', 
   assert.deepEqual(result.journeys.map((journey) => journey.id), ['real']);
 });
 
+test('getRecentJourneys filters an explicitly requested Mauritius day', async () => {
+  const docs = [
+    {
+      id: 'today',
+      data: () => ({
+        startAt: new Date('2026-08-18T05:00:00Z'),
+        endAt: new Date('2026-08-18T05:30:00Z'),
+        distanceKm: 4.2,
+        pointCount: 20,
+      }),
+    },
+    {
+      id: 'yesterday',
+      data: () => ({
+        startAt: new Date('2026-08-17T13:00:00Z'),
+        endAt: new Date('2026-08-17T13:30:00Z'),
+        distanceKm: 6.3,
+        pointCount: 20,
+      }),
+    },
+  ];
+  const query = {
+    orderBy() { return this; },
+    limit() { return this; },
+    async get() { return { docs }; },
+  };
+  const db = {
+    collection() {
+      return { doc: () => ({ collection: () => query }) };
+    },
+  };
+  const result = await getRecentJourneys(
+    db,
+    { devices: [{ imei: 'A', nickname: 'Jesh' }] },
+    {
+      imei: 'A',
+      start_at: '2026-08-17T20:00:00.000Z',
+      end_at: '2026-08-18T20:00:00.000Z',
+      period_label: 'today',
+    },
+  );
+  assert.equal(result.periodLabel, 'today');
+  assert.deepEqual(result.journeys.map((journey) => journey.id), ['today']);
+});
+
 test('getDailySummary aggregates only the requested authorised wearer and period', async () => {
   const chain = (docs) => ({
     where() { return this; },

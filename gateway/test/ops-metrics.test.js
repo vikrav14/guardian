@@ -17,12 +17,23 @@ const {
   estimateCostSensitivity,
 } = require('../src/ops-metrics');
 const { resetForTests: resetAiTelemetry } = require('../src/ai-telemetry');
+const config = require('../src/config');
+
+const originalAdminApiKey = config.adminApiKey;
 
 test.beforeEach(() => {
   resetForTests();
   resetAiTelemetry();
   delete process.env.NODE_ENV;
   delete process.env.ADMIN_API_KEY;
+  // config is loaded once and may already contain the real .env key. Auth
+  // tests must control their own configuration instead of depending on the
+  // developer machine that runs them.
+  config.adminApiKey = '';
+});
+
+test.after(() => {
+  config.adminApiKey = originalAdminApiKey;
 });
 
 test('increment and getSnapshot track counters', () => {

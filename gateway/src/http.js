@@ -48,7 +48,8 @@ const {
 const { formatBatteryReply } = require('./battery-freshness');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
-const { extractTimePeriod } = require('./language-understanding');
+const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
+const { answerWeatherQuery } = require('./weather-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
 const { AuditLog } = require('./audit');
 const { IdempotencyStore } = require('./idempotency');
@@ -392,11 +393,15 @@ async function handleChat({ from, text }) {
     // deterministically so common journey questions incur no LLM call and can
     // never invent a route, destination, or purpose.
     if (intent.type === 'JOURNEY_QUERY') {
+      const period = extractRequestedTimePeriod(effectiveText);
       let journeyResult;
       try {
         journeyResult = await runTool(db, ctx, 'get_recent_journeys', {
           imei: wearerResolution.wearer?.imei,
           limit: 3,
+          start_at: period?.startAt?.toISOString(),
+          end_at: period?.endAt?.toISOString(),
+          period_label: period?.label,
         });
       } catch (err) {
         await auditLog.recordError({ requestId, phase: 'journey_query', error: err });
@@ -409,6 +414,21 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: journeyResult?.error ? 'journey_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'WEATHER_QUERY') {
+      const reply = await answerWeatherQuery({
+        device: wearerResolution.wearer,
+        contextService: getContextRuntime()?.service,
+      });
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: null,
       });
       return { ctx, reply, deterministic: true };
     }
