@@ -1,5 +1,3 @@
-const admin = require('firebase-admin');
-
 /** In-memory inside/outside state: `${imei}:${geofenceId}` â†’ boolean */
 const insideState = new Map();
 /** Current active-zone presence per device. */
@@ -20,38 +18,75 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-function boundaryUncertaintyMeters(location, radius) {
-  const rawAccuracy = Number(location?.accuracyMeters);
-  const reportedAccuracy =
-    Number.isFinite(rawAccuracy) && rawAccuracy > 0 ? rawAccuracy : 0;
+function locationSource(location) {
+  return String(location?.source || location?.accuracySource || '')
+    .trim()
+    .toLowerCase();
+}
 
-  // Never let an imprecise WiFi/LBS accuracy radius make entry impossible.
-  // Cap uncertainty to half the configured zone radius while retaining a small
-  // hysteresis even for satellite fixes that do not report accuracy.
-  const cap = Math.max(MIN_BOUNDARY_HYSTERESIS_METERS, radius * 0.5);
-  return Math.min(
-    Math.max(MIN_BOUNDARY_HYSTERESIS_METERS, reportedAccuracy),
-    cap
-  );
+function boundaryUncertaintyMeters(location) {
+  const rawAccuracy = Number(location?.accuracyMeters);
+  if (Number.isFinite(rawAccuracy) && rawAccuracy > 0) return rawAccuracy;
+
+  const source = locationSource(location);
+  if (
+    location?.gpsValid === true ||
+    (source === 'gps' && location?.gpsValid !== false)
+  ) {
+    // V52 satellite packets expose validity/satellite count but no horizontal
+    // accuracy radius. Keep a conservative boundary margin instead of claiming
+    // metre-level precision that the packet does not provide.
+    return MIN_BOUNDARY_HYSTERESIS_METERS;
+  }
+
+  // An approximate WiFi/LBS observation without a supplied radius cannot prove
+  // either side of a safe-zone boundary.
+  if (source === 'wifi' || source === 'lbs' || location?.gpsValid === false) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  // Legacy/test observations without provenance retain the established margin.
+  return MIN_BOUNDARY_HYSTERESIS_METERS;
+}
+
+function classifyBoundaryObservation({ distance, radius, wifiMatch, location }) {
+  if (wifiMatch) {
+    return { classification: 'inside', uncertaintyMeters: 0 };
+  }
+
+  const uncertaintyMeters = boundaryUncertaintyMeters(location);
+  if (!Number.isFinite(uncertaintyMeters)) {
+    return { classification: 'uncertain', uncertaintyMeters: null };
+  }
+
+  // The complete uncertainty circle must fit inside the zone before Guardian
+  // calls the watch inside. It must sit wholly outside before Guardian calls it
+  // outside. Any overlap is explicitly uncertain and cannot change state.
+  if (distance + uncertaintyMeters <= radius) {
+    return { classification: 'inside', uncertaintyMeters };
+  }
+  if (distance - uncertaintyMeters > radius) {
+    return { classification: 'outside', uncertaintyMeters };
+  }
+  return { classification: 'uncertain', uncertaintyMeters };
 }
 
 function resolveInsideState({ distance, radius, previous, wifiMatch, location }) {
-  if (wifiMatch) return true;
+  const observation = classifyBoundaryObservation({
+    distance,
+    radius,
+    wifiMatch,
+    location,
+  });
 
-  // First sample seeds the state. No transition is emitted for this sample.
-  if (previous === undefined) {
-    return distance <= radius;
+  if (observation.classification === 'uncertain') {
+    return { inside: previous, observation };
   }
 
-  const uncertainty = boundaryUncertaintyMeters(location, radius);
-
-  if (previous) {
-    // Once inside, remain inside until the fix is clearly beyond the zone.
-    return distance <= radius + uncertainty;
-  }
-
-  // Once outside, require the fix to be clearly inside before entering.
-  return distance < Math.max(0, radius - uncertainty);
+  return {
+    inside: observation.classification === 'inside',
+    observation,
+  };
 }
 
 function getGeofencePresence(imei) {
@@ -61,6 +96,8 @@ function getGeofencePresence(imei) {
       hasActiveZones: false,
       insideAny: false,
       insideZoneIds: [],
+      hasUncertainZones: false,
+      uncertainZoneIds: [],
     };
   }
 
@@ -68,6 +105,8 @@ function getGeofencePresence(imei) {
     hasActiveZones: presence.hasActiveZones,
     insideAny: presence.insideAny,
     insideZoneIds: [...presence.insideZoneIds],
+    hasUncertainZones: presence.uncertainZoneIds.length > 0,
+    uncertainZoneIds: [...presence.uncertainZoneIds],
   };
 }
 
@@ -90,6 +129,7 @@ async function evaluateGeofenceTransitions(db, imei, location) {
   const now = Date.now();
   const activeKeys = new Set();
   const insideZoneIds = [];
+  const uncertainZoneIds = [];
   let activeZoneCount = 0;
 
   for (const doc of snap.docs) {
@@ -118,19 +158,26 @@ async function evaluateGeofenceTransitions(db, imei, location) {
     activeZoneCount += 1;
 
     const prev = insideState.get(key);
-    const inside = resolveInsideState({
+    const resolvedState = resolveInsideState({
       distance,
       radius,
       previous: prev,
       wifiMatch,
       location,
     });
+    const { inside, observation } = resolvedState;
 
-    insideState.set(key, inside);
-    if (inside) insideZoneIds.push(doc.id);
+    if (inside !== undefined) insideState.set(key, inside);
+    if (inside === true) insideZoneIds.push(doc.id);
+    if (observation.classification === 'uncertain') {
+      uncertainZoneIds.push(doc.id);
+    }
 
     // First sample: seed state only, don't alert.
     if (prev === undefined) continue;
+    // Uncertainty preserves the last confirmed state but never creates a
+    // transition, alert, or journey boundary.
+    if (observation.classification === 'uncertain') continue;
     if (prev === inside) continue;
 
     const cooldownKey = `${key}:${inside ? 'enter' : 'exit'}`;
@@ -139,21 +186,41 @@ async function evaluateGeofenceTransitions(db, imei, location) {
     lastAlertAt.set(cooldownKey, now);
 
     const name = data.name || 'Safe zone';
-    const uncertainty = boundaryUncertaintyMeters(location, radius);
+    const observationEvidence = {
+      classification: observation.classification,
+      recordedAt: location.recordedAt || null,
+      source: locationSource(location) || null,
+      gpsValid: location.gpsValid === true,
+      accuracyMeters:
+        Number.isFinite(Number(location.accuracyMeters)) &&
+        Number(location.accuracyMeters) > 0
+          ? Number(location.accuracyMeters)
+          : null,
+      satellites:
+        Number.isFinite(Number(location.satellites))
+          ? Number(location.satellites)
+          : null,
+      distanceMeters: Math.round(distance),
+      radiusMeters: radius,
+      boundaryUncertaintyMeters: observation.uncertaintyMeters,
+      viaWifi: wifiMatch,
+    };
 
     if (inside) {
       events.push({
         type: 'geofence_enter',
         severity: 'info',
         message: `Entered safe zone: ${name}`,
+        eventAt: location.recordedAt || new Date(now),
         payload: {
           geofenceId: doc.id,
           geofenceName: name,
           distanceMeters: Math.round(distance),
           radiusMeters: radius,
-          boundaryUncertaintyMeters: Math.round(uncertainty),
+          boundaryUncertaintyMeters: observation.uncertaintyMeters,
           viaWifi: wifiMatch,
           source: 'gateway',
+          observationEvidence,
         },
       });
     } else {
@@ -161,14 +228,16 @@ async function evaluateGeofenceTransitions(db, imei, location) {
         type: 'geofence_exit',
         severity: 'warning',
         message: `Left safe zone: ${name}`,
+        eventAt: location.recordedAt || new Date(now),
         payload: {
           geofenceId: doc.id,
           geofenceName: name,
           distanceMeters: Math.round(distance),
           radiusMeters: radius,
-          boundaryUncertaintyMeters: Math.round(uncertainty),
+          boundaryUncertaintyMeters: observation.uncertaintyMeters,
           viaWifi: wifiMatch,
           source: 'gateway',
+          observationEvidence,
         },
       });
     }
@@ -186,6 +255,7 @@ async function evaluateGeofenceTransitions(db, imei, location) {
     hasActiveZones: activeZoneCount > 0,
     insideAny: insideZoneIds.length > 0,
     insideZoneIds,
+    uncertainZoneIds,
   });
 
   return events;
@@ -202,4 +272,6 @@ module.exports = {
   getGeofencePresence,
   resetGeofenceStateForTests,
   haversineMeters,
+  boundaryUncertaintyMeters,
+  classifyBoundaryObservation,
 };

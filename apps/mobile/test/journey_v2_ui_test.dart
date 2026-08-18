@@ -19,6 +19,20 @@ void main() {
       polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
       distanceKm: km,
       pointCount: pointCount,
+      closeReason: 'return_to_origin',
+      originGeofenceName: 'Home',
+      departureAt: start.add(const Duration(minutes: 1)),
+      returnAt: start.add(const Duration(minutes: 45)),
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: [
+        for (var index = 0; index < pointCount; index++)
+          JourneyPointEvidence(
+            offsetMs: pointCount <= 1 ? 0 : (45 * 60 * 1000 * index) ~/ (pointCount - 1),
+            source: 'gps',
+            gpsValid: true,
+          ),
+      ],
     );
   }
 
@@ -59,6 +73,9 @@ void main() {
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
     expect(find.text('SELECTED TRIP'), findsOneWidget);
     expect(find.text('GUARDIAN READ'), findsNWidgets(2));
+    expect(find.text('Location updates'), findsOneWidget);
+    expect(find.text('GPS updates'), findsOneWidget);
+    expect(find.textContaining('route points'), findsNothing);
   });
 
   testWidgets('trip row remains selectable', (tester) async {
@@ -95,5 +112,121 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tapped?.id, 'trip-2');
+  });
+
+  testWidgets('legacy ghost journey is not presented as a confirmed trip', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1050));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final start = DateTime(2026, 8, 17, 12, 10);
+    final ghost = JourneyRecord(
+      id: 'wifi-ghost',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 3, seconds: 58)),
+      polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      distanceKm: 2.1,
+      pointCount: 11,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyV2Dashboard(
+            deviceName: 'Jesh',
+            day: DateTime(2026, 8, 17),
+            journeys: [ghost],
+            selected: ghost,
+            onSelectJourney: (_) {},
+            onBack: () {},
+            onChooseDay: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No confirmed journey recorded.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('journey-map-wifi-ghost')), findsNothing);
+    expect(find.textContaining('2.1 km'), findsNothing);
+  });
+
+  testWidgets('confirmed outing reports time away and the concrete route gap', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1050));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final start = DateTime(2026, 8, 17, 12, 10);
+    final journey = JourneyRecord(
+      id: 'confirmed-gap',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 33)),
+      polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      distanceKm: 1.2,
+      pointCount: 3,
+      closeReason: 'return_to_origin',
+      originGeofenceName: 'Home',
+      departureAt: start.add(const Duration(minutes: 1)),
+      returnAt: start.add(const Duration(minutes: 33)),
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 6 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 33 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+      routeGaps: const [
+        JourneyRouteGap(
+          fromPointIndex: 1,
+          toPointIndex: 2,
+          fromOffsetMs: 6 * 60 * 1000,
+          toOffsetMs: 33 * 60 * 1000,
+          durationSeconds: 27 * 60,
+        ),
+      ],
+      routeCoverage: const JourneyRouteCoverage(
+        pointCount: 3,
+        gpsPointCount: 3,
+        gapCount: 1,
+        largestGapSeconds: 27 * 60,
+        interrupted: true,
+        structureReliable: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyV2Dashboard(
+            deviceName: 'Jesh',
+            day: DateTime(2026, 8, 17),
+            journeys: [journey],
+            selected: journey,
+            onSelectJourney: (_) {},
+            onBack: () {},
+            onChooseDay: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Time away'), findsOneWidget);
+    expect(find.text('Returned Home'), findsWidgets);
+    expect(
+      find.textContaining('Tracking stopped at 12:16 and resumed at 12:43'),
+      findsWidgets,
+    );
+    expect(find.textContaining('Distance excludes the unobserved interval.'), findsOneWidget);
   });
 }

@@ -1,248 +1,109 @@
-# Context Intelligence Phase 1 Implementation
+# Guardian Context Intelligence
 
-Guardian's context intelligence transforms the app from location-only tracking to context-aware family safety. Phase 1 adds weather awareness and deterministic relevance evaluation.
+This directory is Guardian's single context-intelligence implementation. It
+extends the original weather/context work; do not create a second RSS, weather,
+or LLM decision service beside it.
 
-## What's Built
+## Current flow
 
-**Three core modules** enable context intelligence:
+1. `contextRuntime.js` creates one process-wide `ContextService`.
+2. `contextScheduler.js` reads up to the configured number of devices once per
+   hour. A five-minute configuration is clamped to 60 minutes.
+3. `deviceContextAdapter.js` uses Connectivity P0's provenance-aware
+   `location.lat/lng` shape and `selectLocationForDisplay`. The obsolete
+   `lastLocation.coordinates` shape is not revived.
+4. `WeatherProvider` fetches OpenWeatherMap current conditions. Locations are
+   rounded to two decimals and cached for at least one hour, so nearby users
+   share one external fetch.
+5. `ContextEvaluator` applies deterministic source, severity, age, location
+   freshness, and connectivity rules. Normal conditions never call the LLM.
+6. For a deterministic candidate, `ContextAI` makes one provider-agnostic LLM
+   call that returns a strict JSON relevance decision and explanation.
+7. Invalid, refused, or failed LLM output falls back to the deterministic
+   result. Source facts are retained separately as `deterministicEvaluation`.
+8. The result is observe-only. It may recommend `suppress`, `app`, or
+   `whatsapp_template`, but this module does not call Meta or send a message.
 
-### 1. WeatherProvider (`weatherProvider.js`)
-- Fetches real-time weather from OpenWeatherMap API
-- 30-minute intelligent caching (location-based)
-- Identifies severe weather: thunderstorms, extreme temps (>35°C or <5°C), rain/snow
-- Returns normalized schema: temperature, condition, alerts, severity level
+## Configuration
 
-**Key methods:**
-- `getWeather(lat, lng, placeName)` — Async weather fetch with cache
-- `_isSevereWeather(condition, temp)` — Deterministic severity classification
-- `_extractAlerts(condition, temp)` — Human-readable alert extraction
+Add these values to the gateway deployment secrets/environment:
 
-### 2. ContextEvaluator (`contextEvaluator.js`)
-- Deterministic relevance rules (no AI yet)
-- Evaluates if weather applies to a specific person
-- Age-based adjustments (child, teenager, adult, elderly)
-- Location freshness confidence (≤15 min fresh, >30 min stale, between uncertain)
+```dotenv
+OPEN_WEATHER_MAP_KEY=...
 
-**Key methods:**
-- `evaluateWeatherRelevance(weather, person, device, location)` — Full evaluation
-- Severity levels: none, info, useful_information, check_in, urgent
+# Explicit opt-in. Disabled means no background Firestore or weather reads.
+CONTEXT_INTELLIGENCE_ENABLED=true
 
-**Smart reasoning:**
-- Severe weather always relevant for kids
-- Heat alerts only for vulnerable (child/elderly)
-- Stale location adds "uncertainty" flags
-- Offline device decreases confidence
+# Defaults shown below.
+CONTEXT_POLL_MINUTES=60
+CONTEXT_WEATHER_CACHE_MINUTES=60
+CONTEXT_MAX_DEVICES_PER_SWEEP=1000
+CONTEXT_CONCURRENCY=5
+CONTEXT_RUN_ON_STARTUP=true
+CONTEXT_LLM_JUDGMENT_ENABLED=true
 
-### 3. ContextSchemas (`contextSchemas.js`)
-- JSON Schema validation for data quality
-- Schemas: `weatherSchema`, `contextEvaluationSchema`, `deviceContextSchema`
-- `validateSchema(obj, schema)` returns `{valid, errors[]}`
-
-### 4. ContextService (`contextService.js`)
-- Orchestrates weather + evaluator + validation
-- **Observe-only mode**: logs proposed alerts without notifying users
-- Full error handling with graceful fallback
-
-**Key methods:**
-- `getDeviceContext(device, person, location)` — Full pipeline
-- `getObservationLog(limit)` — View logged observations
-- `getStats()` — Service health metrics
-
-## Setup
-
-### 1. Configure OpenWeatherMap API
-
-```bash
-# Add to gateway/.env
-OPEN_WEATHER_MAP_KEY=your_api_key_here
+# Leave false during initial shadow validation. When true, one idempotent
+# contextObservations document is written per device/candidate/hour.
+CONTEXT_PERSIST_OBSERVATIONS=false
 ```
 
-Get free tier at https://openweathermap.org/api — 1,000 calls/day.
+`ANTHROPIC_MODEL` now defaults to `claude-sonnet-5`. The same provider factory
+used by WhatsApp is reused here; no second AI client or key is created.
 
-### 2. Run Unit Tests
+## Cost controls
 
-```bash
-cd gateway
-npm test -- src/context/context.test.js
-```
+- One fleet sweep per hour, not every five minutes.
+- One Firestore device read per device per sweep.
+- Weather cache shared by all devices in the same ~1 km coordinate cell.
+- Zero LLM calls for normal weather.
+- At most one LLM call per deterministic candidate.
+- One call produces both relevance and explanation; there is no second
+  narration call.
+- Context token usage is included in the existing assistant/AI cost counters
+  and also exposed separately as `contextLlmTokensIn/Out`.
 
-Expected output: 11 tests pass, covering:
-- Weather API failure handling
-- Severe weather detection
-- Age-based relevance
-- Cache expiration
-- Schema validation
+## Output contract
 
-### 3. Integration Endpoint
-
-HTTP GET `/devices/{imei}/context` returns:
+`GET /devices/{imei}/context` and the scheduler use the same shared service.
+The important fields are:
 
 ```json
 {
-  "device": {
-    "online": true,
-    "lastSeenAt": "2026-08-03T14:32:00Z",
-    "batteryPercent": 80
-  },
-  "location": {
-    "lat": -20.16,
-    "lng": 57.50,
-    "placeName": "Grand Baie",
-    "freshnessMinutes": 2,
-    "accuracyClass": "good"
-  },
-  "weather": {
-    "temperature": 28,
-    "condition": "Thunderstorm",
-    "alerts": [
-      {
-        "type": "severe_weather",
-        "message": "Thunderstorm warning",
-        "urgency": "high"
-      }
-    ],
-    "severity": "severe"
-  },
-  "contextEvaluation": {
+  "deterministicEvaluation": {
     "relevant": true,
     "severity": "check_in",
-    "message": "Thunderstorm may affect Dexter's area (Grand Baie). Dexter appears to be there and the pendant is online.",
-    "reasons": ["Severe weather applies to area", "Child may need shelter/supervision"],
-    "uncertainty": []
+    "reasons": ["Severe weather applies to area"]
   },
-  "fetchedAt": "2026-08-03T14:32:00Z"
-}
-```
-
-## Observe-Only Mode
-
-During Phase 1, context intelligence logs proposed alerts **without sending notifications**. This allows Guardian to:
-
-1. **Collect real data** on weather patterns in Mauritius
-2. **Measure false-positive rate** before impacting users
-3. **Refine rules** based on actual device behavior
-4. **Understand the cost** of weather monitoring
-
-Access logs at `/devices/{imei}/context` (logs last 50 observations by default):
-
-```javascript
-contextService.getObservationLog(50)
-// Returns: [{timestamp, person, severity, message, deviceState, ...}, ...]
-```
-
-## Phase 1 Deliverables
-
-- ✅ **Monday**: Weather API integration (weatherProvider.js)
-- ✅ **Tuesday**: Deterministic relevance rules (contextEvaluator.js)
-- ✅ **Wednesday**: Schema validation (contextSchemas.js)
-- 🔨 **Thursday**: Claude explanation layer (contextAI.js)
-- 🔨 **Friday**: Dashboard context card + tests
-
-## Phase 2+ Roadmap
-
-**Phase 2: Claude Explanations**
-- Call Claude with structured weather facts
-- Natural language context explanations
-- Hallucination guards (validate against schema)
-
-**Phase 3: News/Events Integration**
-- RSS feed monitoring for local events
-- Relevance evaluation (concert near device? school event?)
-- Combined weather + news recommendations
-
-**Phase 4: Proactive Notifications**
-- Guardian receives: "Severe thunderstorm at Dexter's school. Device online, battery 80%."
-- Suggests actions: "Check in with Dexter" or "Enable voice monitor to listen"
-
-**Phase 5: Geofence + Context**
-- Smart geofences that know weather
-- "Alert me if they leave safe zone DURING heavy rain"
-
-**Phase 6: Family Insights**
-- Historical patterns: "Dexter is usually indoors on rainy days"
-- Anomaly detection: "Unusual location + bad weather = check in"
-
-## Error Handling
-
-All modules are defensive:
-
-1. **WeatherProvider**: Returns empty weather on API failure (never crashes)
-2. **ContextEvaluator**: Handles missing person/device/location gracefully
-3. **ContextService**: Catches all errors, returns minimal safe context
-4. **Schema validation**: Logs warnings, doesn't block responses
-
-Example fallback when API unreachable:
-```json
-{
-  "weather": {
-    "condition": "unknown",
-    "alerts": [],
-    "severity": "unknown",
-    "confidence": 0.0
+  "contextDecision": {
+    "mode": "llm_shadow",
+    "relevant": true,
+    "confidence": 0.91,
+    "recommendedSurface": "whatsapp_template",
+    "reason": "Timely severe weather near the wearer.",
+    "observeOnly": true
   },
-  "contextEvaluation": {
-    "relevant": false,
-    "severity": "none",
-    "message": "Could not evaluate context at this time"
+  "delivery": {
+    "mode": "observe_only",
+    "sent": false
   }
 }
 ```
 
-## Testing Locally
+## Tests
 
-### Mock Weather Response
-
-Test with hardcoded weather (without API key):
-
-```javascript
-const evaluator = new ContextEvaluator();
-const weather = {
-  temperature: 28,
-  condition: 'Thunderstorm',
-  alerts: [{type: 'severe_weather', message: 'Thunderstorm', urgency: 'high'}],
-  severity: 'severe'
-};
-const person = {displayName: 'Dexter', age: 8};
-const device = {online: true, batteryPercent: 80};
-const location = {lat: -20.16, lng: 57.50, placeName: 'School', freshnessMinutes: 5};
-
-const result = evaluator.evaluateWeatherRelevance(weather, person, device, location);
-console.log(result.relevant); // true
-console.log(result.severity); // 'check_in'
+```bash
+node --test src/context/context.test.js test/context-consolidation.test.js
+npm test
 ```
 
-### Production Readiness
+Coverage includes the original evaluator plus P0 location adaptation, hourly
+minimum scheduling, cache reuse, structured LLM validation, deterministic
+fallback, token accounting, and the no-delivery boundary.
 
-Before deploying observe-only mode to production:
+## Next adapters
 
-1. ✅ All tests pass
-2. ✅ Weather API key configured
-3. ✅ Observation log size capped (1000 entries)
-4. ✅ Cache TTL optimized (30 min)
-5. ✅ Error handling tested (API down, invalid location, etc.)
-
-## Architecture Notes
-
-**Why deterministic rules before AI?**
-- Fast: No LLM latency
-- Predictable: Reproducible decisions
-- Auditable: Clear reasoning in logs
-- Cheaper: No per-request LLM cost for common cases
-
-**Why observe-only for Phase 1?**
-- Collect real Mauritius weather data
-- Measure false-positive rate
-- Learn how devices move during weather events
-- Build confidence before notifying guardians
-
-**Cache strategy:**
-- 30-minute TTL per location (lat/lng to 2 decimal places)
-- Cold start: first query for a location pays API cost
-- Subsequent queries within window are free
-- ~50-100 active locations during business hours
-
-## See Also
-
-- `/gateway/src/context/` — All context modules
-- `CLAUDE.md` — V52-only production protocol contract
-- `/firestore/SCHEMA.md` — Device/location data structure
+RSS and Mauritius Meteorological Services warnings should enter this pipeline
+as normalized source adapters. They still need source trust, event IDs,
+deduplication, expiry, and cross-source corroboration. Do not fetch them inside
+the LLM prompt and do not enable proactive WhatsApp until shadow precision and
+template policy have been reviewed.

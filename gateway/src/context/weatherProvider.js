@@ -7,13 +7,14 @@
 const https = require('https');
 const Logger = require('../logger');
 
-const logger = new Logger('weather-provider');
+const logger = new Logger({ module: 'weather-provider' });
 
 class WeatherProvider {
   constructor(apiKey, cacheDurationMinutes = 30) {
     this.apiKey = apiKey;
     this.cacheDurationMinutes = cacheDurationMinutes;
     this.cache = new Map();
+    this.inflight = new Map();
   }
 
   /**
@@ -24,27 +25,43 @@ class WeatherProvider {
    * @returns {Promise<object>} Normalized weather object
    */
   async getWeather(lat, lng, placeName = '') {
-    if (!lat || !lng || !this.apiKey) {
+    const numericLat = Number(lat);
+    const numericLng = Number(lng);
+    if (!Number.isFinite(numericLat) || !Number.isFinite(numericLng) || !this.apiKey) {
       logger.warn('Missing weather params', { lat, lng, hasKey: !!this.apiKey });
       return this._emptyWeather();
     }
 
-    const cacheKey = `${lat.toFixed(2)}_${lng.toFixed(2)}`;
+    const cacheKey = `${numericLat.toFixed(2)}_${numericLng.toFixed(2)}`;
     const cached = this._getFromCache(cacheKey);
     if (cached) {
       logger.debug('Weather cache hit', { cacheKey });
-      return cached;
+      return this._forPlace(cached, placeName);
     }
 
-    try {
-      const raw = await this._fetchFromOpenWeatherMap(lat, lng);
-      const normalized = this._normalizeWeather(raw, placeName);
-      this._setInCache(cacheKey, normalized);
-      return normalized;
-    } catch (err) {
-      logger.error('Weather fetch failed', { error: err.message, lat, lng });
-      return this._emptyWeather();
+    if (this.inflight.has(cacheKey)) {
+      return this.inflight.get(cacheKey).then((weather) => this._forPlace(weather, placeName));
     }
+
+    const pending = (async () => {
+      try {
+        const raw = await this._fetchFromOpenWeatherMap(numericLat, numericLng);
+        const normalized = this._normalizeWeather(raw, placeName);
+        this._setInCache(cacheKey, normalized);
+        return normalized;
+      } catch (err) {
+        logger.error('Weather fetch failed', {
+          error: err.message,
+          lat: numericLat,
+          lng: numericLng,
+        });
+        return this._emptyWeather();
+      } finally {
+        this.inflight.delete(cacheKey);
+      }
+    })();
+    this.inflight.set(cacheKey, pending);
+    return pending.then((weather) => this._forPlace(weather, placeName));
   }
 
   /**
@@ -85,8 +102,15 @@ class WeatherProvider {
     const main = raw.main || {};
     const wind = raw.wind || {};
 
-    // Determine if weather is severe (should trigger alerts)
-    const isSevere = this._isSevereWeather(weather.main, main.temp);
+    const alerts = this._extractAlerts(weather, main.temp, raw.rain);
+    // Only explicit high-impact conditions become relevance candidates. A
+    // generic "Rain" main condition is not itself a heavy-rain warning.
+    const isSevere = alerts.some((alert) => [
+      'severe_weather',
+      'heavy_rain',
+      'extreme_heat',
+      'extreme_cold',
+    ].includes(alert.type));
 
     return {
       location: placeName || raw.name || 'Unknown location',
@@ -105,7 +129,7 @@ class WeatherProvider {
       fetchedAt: Date.now(),
 
       // Guardian-specific alerts
-      alerts: this._extractAlerts(weather.main, main.temp),
+      alerts,
       severity: isSevere ? 'severe' : 'normal',
 
       // Raw metadata
@@ -115,48 +139,31 @@ class WeatherProvider {
   }
 
   /**
-   * Check if weather is severe enough to alert
-   * @private
-   */
-  _isSevereWeather(condition, temp) {
-    const severeConditions = [
-      'Thunderstorm',
-      'Tornado',
-      'Hurricane',
-      'Cyclone',
-      'Squall',
-    ];
-
-    const extremeHeat = temp > 35;
-    const extremeCold = temp < 5;
-
-    return (
-      severeConditions.includes(condition) ||
-      extremeHeat ||
-      extremeCold
-    );
-  }
-
-  /**
    * Extract human-readable weather alerts
    * @private
    */
-  _extractAlerts(condition, temp) {
+  _extractAlerts(weather, temp, rain = {}) {
     const alerts = [];
+    const condition = weather?.main;
+    const conditionId = Number(weather?.id);
 
     // Weather condition alerts
     if (condition === 'Thunderstorm') {
       alerts.push({
         type: 'severe_weather',
-        message: 'Thunderstorm warning',
+        message: 'Thunderstorm conditions reported',
         urgency: 'high',
       });
     }
 
-    if (condition === 'Rain') {
+    const hourlyRainMm = Number(rain?.['1h']);
+    const heavyRain =
+      (Number.isFinite(conditionId) && conditionId >= 502 && conditionId <= 504) ||
+      (Number.isFinite(hourlyRainMm) && hourlyRainMm >= 7.6);
+    if (condition === 'Rain' && heavyRain) {
       alerts.push({
         type: 'heavy_rain',
-        message: 'Heavy rain expected',
+        message: 'Heavy rain conditions reported',
         urgency: 'medium',
       });
     }
@@ -229,6 +236,10 @@ class WeatherProvider {
     this.cache.set(key, value);
   }
 
+  _forPlace(weather, placeName) {
+    return placeName ? { ...weather, location: placeName } : weather;
+  }
+
   /**
    * Clear all cache
    */
@@ -243,6 +254,7 @@ class WeatherProvider {
   getCacheStats() {
     return {
       entries: this.cache.size,
+      inflight: this.inflight.size,
       maxDurationMinutes: this.cacheDurationMinutes,
     };
   }

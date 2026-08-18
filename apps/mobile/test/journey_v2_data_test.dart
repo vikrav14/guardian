@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
+import 'package:guardian/models/location_history_point.dart';
 
 void main() {
   JourneyRecord record({
@@ -11,6 +12,17 @@ void main() {
     required double km,
     required int pointCount,
   }) {
+    final evidence = <JourneyPointEvidence>[
+      for (var index = 0; index < pointCount; index++)
+        JourneyPointEvidence(
+          offsetMs: pointCount <= 1
+              ? 0
+              : (end.difference(start).inMilliseconds * index) ~/
+                    (pointCount - 1),
+          source: 'gps',
+          gpsValid: true,
+        ),
+    ];
     return JourneyRecord(
       id: id,
       startAt: start,
@@ -18,6 +30,8 @@ void main() {
       polyline: polyline,
       distanceKm: km,
       pointCount: pointCount,
+      evidenceVersion: 3,
+      pointEvidence: evidence,
     );
   }
 
@@ -56,6 +70,76 @@ void main() {
         journeyV2SelectRecord(journeys, selectedId: 'first-real')?.id,
         'first-real',
       );
+    });
+
+    test('excludes legacy records that cannot prove their boundary events', () {
+      final start = DateTime(2026, 8, 17, 12, 10);
+      final ghost = JourneyRecord(
+        id: 'legacy-wifi-ghost',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 3, seconds: 58)),
+        polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+        distanceKm: 2.1,
+        pointCount: 11,
+      );
+
+      expect(journeyV2MeaningfulRecords([ghost]), isEmpty);
+      expect(journeyV2SelectRecord([ghost]), isNull);
+    });
+
+    test('keeps a confirmed outing even when a tracking gap leaves zero connected distance', () {
+      final start = DateTime(2026, 8, 17, 12, 10);
+      final outing = JourneyRecord(
+        id: 'confirmed-sparse-outing',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 30)),
+        polyline: r'f{`zBcmz~I}|XvfI',
+        distanceKm: 0,
+        pointCount: 2,
+        closeReason: 'return_to_origin',
+        originGeofenceName: 'Home',
+        departureAt: start.add(const Duration(minutes: 1)),
+        returnAt: start.add(const Duration(minutes: 30)),
+        evidenceVersion: 3,
+        routeStartAnchored: true,
+        pointEvidence: const [
+          JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+          JourneyPointEvidence(
+            offsetMs: 30 * 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+          ),
+        ],
+      );
+
+      expect(journeyV2MeaningfulRecords([outing]), hasLength(1));
+      expect(journeyV2SelectRecord([outing])?.id, outing.id);
+    });
+
+    test('excludes a confirmed outing whose stored route starts outside Home', () {
+      final start = DateTime(2026, 8, 17, 15, 30);
+      final outsideStart = JourneyRecord(
+        id: 'outside-start',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 3)),
+        polyline: r'f{`zBcmz~I}|XvfI',
+        distanceKm: 1.2,
+        pointCount: 2,
+        closeReason: 'return_to_origin',
+        originGeofenceName: 'Home',
+        evidenceVersion: 3,
+        routeStartAnchored: false,
+        pointEvidence: const [
+          JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+          JourneyPointEvidence(
+            offsetMs: 3 * 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+          ),
+        ],
+      );
+
+      expect(journeyV2MeaningfulRecords([outsideStart]), isEmpty);
     });
   });
 
@@ -123,6 +207,57 @@ void main() {
       expect(route.rawPoints.last.recordedAt, end);
     });
 
+    test('uses stored point timing and provenance instead of inventing equal intervals', () {
+      final start = DateTime(2026, 8, 17, 12, 10);
+      final journey = JourneyRecord(
+        id: 'truth-v2',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 30)),
+        polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+        distanceKm: 2.1,
+        pointCount: 3,
+        evidenceVersion: 2,
+        pointEvidence: const [
+          JourneyPointEvidence(
+            offsetMs: 0,
+            source: 'gps',
+            gpsValid: true,
+            satellites: 10,
+          ),
+          JourneyPointEvidence(
+            offsetMs: 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+            satellites: 8,
+          ),
+          JourneyPointEvidence(
+            offsetMs: 28 * 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+            satellites: 6,
+          ),
+        ],
+      );
+
+      final route = journeyV2DecodeRecord(journey);
+
+      expect(route.rawPoints[0].recordedAt, start);
+      expect(
+        route.rawPoints[1].recordedAt,
+        start.add(const Duration(minutes: 1)),
+      );
+      expect(
+        route.rawPoints[2].recordedAt,
+        start.add(const Duration(minutes: 28)),
+      );
+      expect(route.rawPoints[0].accuracySource, 'gps');
+      expect(route.rawPoints[0].gpsValid, isTrue);
+      expect(route.rawPoints[0].satellites, 10);
+      expect(route.continuousSegments, hasLength(2));
+      expect(route.continuousSegments.first, hasLength(2));
+      expect(route.continuousSegments.last, hasLength(1));
+    });
+
     test('empty polyline remains safely empty', () {
       final start = DateTime(2026, 8, 10, 12);
       final journey = record(
@@ -140,6 +275,28 @@ void main() {
       expect(route.usablePoints, isEmpty);
       expect(route.hasReplayableRoute, isFalse);
       expect(route.matchesStoredPointCount, isTrue);
+    });
+
+    test('missing point time creates a conservative route break', () {
+      final start = DateTime(2026, 8, 17, 12);
+      final journey = JourneyRecord(
+        id: 'missing-time',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 5)),
+        polyline: '',
+        distanceKm: 0,
+        pointCount: 2,
+      );
+      final route = JourneyV2Route(
+        record: journey,
+        rawPoints: const [],
+        usablePoints: const [
+          LocationHistoryPoint(lat: -20.02, lng: 57.59),
+          LocationHistoryPoint(lat: -20.03, lng: 57.60),
+        ],
+      );
+
+      expect(route.continuousSegments, hasLength(2));
     });
   });
 }

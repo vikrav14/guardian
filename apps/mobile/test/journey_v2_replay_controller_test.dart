@@ -21,7 +21,10 @@ void main() {
   }
 
   testWidgets('play advances and pauses the replay', (tester) async {
-    final replay = JourneyV2ReplayController(points: points());
+    final replay = JourneyV2ReplayController(
+      points: points(),
+      replayDuration: const Duration(milliseconds: 900),
+    );
     addTearDown(replay.dispose);
 
     expect(replay.currentIndex, 0);
@@ -30,7 +33,7 @@ void main() {
     replay.play();
     expect(replay.isPlaying, isTrue);
 
-    await tester.pump(const Duration(milliseconds: 540));
+    await tester.pump(const Duration(milliseconds: 420));
     expect(replay.currentIndex, 1);
 
     replay.pause();
@@ -39,6 +42,28 @@ void main() {
 
     expect(replay.isPlaying, isFalse);
     expect(replay.currentIndex, pausedAt);
+  });
+
+  test('default 1x replay is paced from the recorded journey duration', () {
+    final start = DateTime(2026, 8, 17, 15, 30, 27);
+    final replay = JourneyV2ReplayController(
+      points: [
+        LocationHistoryPoint(lat: -20.02, lng: 57.59, recordedAt: start),
+        LocationHistoryPoint(
+          lat: -20.03,
+          lng: 57.60,
+          recordedAt: start.add(const Duration(seconds: 160)),
+        ),
+      ],
+    );
+    addTearDown(replay.dispose);
+
+    expect(replay.speedLabel, '1x');
+    expect(replay.replayDuration.inMilliseconds, 26667);
+
+    replay.cycleSpeed();
+    expect(replay.speedLabel, '2x');
+    expect(replay.replayDuration.inMilliseconds, 13334);
   });
 
   test('seek and speed controls update deterministically', () {
@@ -56,5 +81,33 @@ void main() {
     expect(replay.speedLabel, '4x');
     replay.cycleSpeed();
     expect(replay.speedLabel, '1x');
+  });
+
+  test('progress follows recorded time rather than equal point spacing', () {
+    final replay = JourneyV2ReplayController(points: points());
+    addTearDown(replay.dispose);
+
+    replay.seekProgress(0.45);
+    expect(replay.currentIndex, 1);
+    expect(replay.progress, closeTo(20 / 45, 0.0001));
+
+    replay.seekProgress(0.9);
+    expect(replay.currentIndex, 2);
+    expect(replay.progress, 1);
+  });
+
+  test('missing recorded times fall back to deterministic point progress', () {
+    final replay = JourneyV2ReplayController(
+      points: const [
+        LocationHistoryPoint(lat: -20.1, lng: 57.5),
+        LocationHistoryPoint(lat: -20.2, lng: 57.6),
+        LocationHistoryPoint(lat: -20.3, lng: 57.7),
+      ],
+    );
+    addTearDown(replay.dispose);
+
+    replay.seekProgress(0.5);
+    expect(replay.currentIndex, 1);
+    expect(replay.progress, 0.5);
   });
 }

@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const {
   policyForBattery,
   effectivePolicy,
+  appliedIntervalSeconds,
   shouldSend,
 } = require('../src/adaptive-reporting');
 
@@ -52,6 +53,71 @@ test('SOS cooldown uses 5 minute reporting', () => {
       sosCooldownUntilMs: now + 1000,
     }),
     { seconds: 300, reason: 'sos_cooldown' },
+  );
+});
+
+test('active outing holds one-minute reporting across normal battery bands', () => {
+  const now = 1_000_000;
+  assert.deepEqual(
+    effectivePolicy({
+      batteryPercent: 53,
+      outingActive: true,
+      nowMs: now,
+    }),
+    { seconds: 60, reason: 'outing_active' },
+  );
+  assert.deepEqual(
+    effectivePolicy({
+      batteryPercent: 20,
+      outingActive: true,
+      nowMs: now,
+    }),
+    { seconds: 60, reason: 'outing_active' },
+  );
+});
+
+test('critical battery reduces outing reporting explicitly instead of silently', () => {
+  assert.deepEqual(
+    effectivePolicy({
+      batteryPercent: 14,
+      outingActive: true,
+    }),
+    { seconds: 300, reason: 'outing_critical_battery' },
+  );
+});
+
+test('active outing outranks SOS cooldown after the emergency window', () => {
+  const now = 1_000_000;
+  assert.deepEqual(
+    effectivePolicy({
+      batteryPercent: 53,
+      outingActive: true,
+      nowMs: now,
+      sosActiveUntilMs: now - 1,
+      sosCooldownUntilMs: now + 60_000,
+    }),
+    { seconds: 60, reason: 'outing_active' },
+  );
+});
+
+test('applied interval never mistakes an unsent desired interval for watch state', () => {
+  assert.equal(
+    appliedIntervalSeconds(
+      { locationReportingIntervalSeconds: 300 },
+      { desiredIntervalSeconds: 60, appliedIntervalSeconds: 300 },
+    ),
+    300,
+  );
+  assert.equal(
+    appliedIntervalSeconds(
+      {},
+      { desiredIntervalSeconds: 60, appliedIntervalSeconds: 300 },
+    ),
+    300,
+  );
+  assert.equal(
+    appliedIntervalSeconds({}, { desiredIntervalSeconds: 60 }),
+    null,
   );
 });
 

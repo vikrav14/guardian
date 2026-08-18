@@ -69,9 +69,9 @@ const deviceContextSchema = {
       properties: {
         online: { type: 'boolean' },
         lastSeenAt: { type: 'string' },
-        batteryPercent: { type: 'number' },
+        batteryPercent: { type: ['number', 'null'] },
       },
-      required: ['online', 'batteryPercent'],
+      required: ['online'],
     },
     location: {
       type: 'object',
@@ -85,7 +85,41 @@ const deviceContextSchema = {
       required: ['lat', 'lng', 'placeName'],
     },
     weather: weatherSchema,
+    deterministicEvaluation: contextEvaluationSchema,
     contextEvaluation: contextEvaluationSchema,
+    contextDecision: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string' },
+        relevant: { type: 'boolean' },
+        confidence: { type: 'number' },
+        recommendedSurface: {
+          type: 'string',
+          enum: ['suppress', 'app', 'whatsapp_template'],
+        },
+        recommendedAction: {
+          type: 'string',
+          enum: ['none', 'check_in', 'enable_voice_monitor', 'monitor_battery'],
+        },
+        reason: { type: 'string' },
+        observeOnly: { type: 'boolean' },
+      },
+      required: [
+        'mode',
+        'relevant',
+        'recommendedSurface',
+        'recommendedAction',
+        'observeOnly',
+      ],
+    },
+    delivery: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string' },
+        sent: { type: 'boolean' },
+      },
+      required: ['mode', 'sent'],
+    },
     fetchedAt: { type: 'string' },
   },
   required: ['device', 'location', 'weather', 'contextEvaluation', 'fetchedAt'],

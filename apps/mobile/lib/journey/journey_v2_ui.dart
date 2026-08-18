@@ -32,9 +32,19 @@ class JourneyV2Dashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final meaningful = journeyV2MeaningfulRecords(journeys);
-    final selectedRoute = selected == null
+    JourneyRecord? authoritativeSelected;
+    if (selected != null) {
+      for (final journey in meaningful) {
+        if (journey.id == selected!.id) {
+          authoritativeSelected = journey;
+          break;
+        }
+      }
+    }
+    authoritativeSelected ??= meaningful.isEmpty ? null : meaningful.last;
+    final selectedRoute = authoritativeSelected == null
         ? null
-        : journeyV2DecodeRecord(selected!);
+        : journeyV2DecodeRecord(authoritativeSelected);
     final totals = _DayTotals.fromJourneys(meaningful);
 
     return LayoutBuilder(
@@ -70,7 +80,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                       ),
                       child: _TripList(
                         journeys: meaningful,
-                        selectedId: selected?.id,
+                        selectedId: authoritativeSelected?.id,
                         onSelectJourney: onSelectJourney,
                       ),
                     ),
@@ -78,7 +88,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                     SizedBox(
                       height: 760,
                       child: _SelectedTripPanel(
-                        selected: selected,
+                        selected: authoritativeSelected,
                         route: selectedRoute,
                       ),
                     ),
@@ -115,7 +125,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                         deviceName: deviceName,
                         totals: totals,
                         journeys: meaningful,
-                        selectedId: selected?.id,
+                        selectedId: authoritativeSelected?.id,
                         onSelectJourney: onSelectJourney,
                       ),
                     ),
@@ -123,7 +133,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                     Expanded(
                       flex: 13,
                       child: _SelectedTripPanel(
-                        selected: selected,
+                        selected: authoritativeSelected,
                         route: selectedRoute,
                       ),
                     ),
@@ -390,19 +400,21 @@ class _DayOverviewCard extends StatelessWidget {
               Expanded(
                 child: _OverviewMetric(
                   value: '${totals.distanceKm.toStringAsFixed(1)} km',
-                  label: 'Total distance',
+                  label: 'Recorded distance',
                 ),
               ),
               Expanded(
                 child: _OverviewMetric(
                   value: _compactDuration(totals.duration),
-                  label: 'Total duration',
+                  label: totals.allConfirmedReturns
+                      ? 'Total time away'
+                      : 'Recorded time',
                 ),
               ),
               Expanded(
                 child: _OverviewMetric(
                   value: '${totals.pointCount}',
-                  label: 'Route points',
+                  label: 'Location updates',
                 ),
               ),
               Expanded(
@@ -414,7 +426,11 @@ class _DayOverviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          _DayRouteStrip(startAt: totals.startAt, endAt: totals.endAt),
+          _DayRouteStrip(
+            startAt: totals.startAt,
+            endAt: totals.endAt,
+            confirmedReturn: totals.allConfirmedReturns,
+          ),
         ],
       ),
     );
@@ -491,10 +507,15 @@ class _OverviewMetric extends StatelessWidget {
 }
 
 class _DayRouteStrip extends StatelessWidget {
-  const _DayRouteStrip({required this.startAt, required this.endAt});
+  const _DayRouteStrip({
+    required this.startAt,
+    required this.endAt,
+    required this.confirmedReturn,
+  });
 
   final DateTime? startAt;
   final DateTime? endAt;
+  final bool confirmedReturn;
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +524,7 @@ class _DayRouteStrip extends StatelessWidget {
         _TimelineEndpoint(
           letter: 'A',
           label: startAt == null ? '--:--' : DateFormat.Hm().format(startAt!),
-          caption: 'Start',
+          caption: 'Left',
           color: GuardianColors.safe,
         ),
         const SizedBox(width: 9),
@@ -543,7 +564,7 @@ class _DayRouteStrip extends StatelessWidget {
         _TimelineEndpoint(
           letter: 'B',
           label: endAt == null ? '--:--' : DateFormat.Hm().format(endAt!),
-          caption: 'Arrival',
+          caption: confirmedReturn ? 'Returned' : 'Last recorded',
           color: const Color(0xFFE84C4C),
         ),
       ],
@@ -641,9 +662,7 @@ class _DayGuardianRead extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '$deviceName recorded ${totals.distanceKm.toStringAsFixed(1)} km '
-                  'across ${totals.tripCount} trips. '
-                  '${totals.pointCount} route points are available for review.',
+                  _dayGuardianReadText(deviceName, totals),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.78),
                     fontSize: 9,
@@ -731,20 +750,31 @@ class _TripList extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: ListView.separated(
-              itemCount: journeys.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 7),
-              itemBuilder: (context, index) {
-                final journey = journeys[index];
-                return _TripRow(
-                  key: ValueKey('journey-trip-${journey.id}'),
-                  index: index,
-                  journey: journey,
-                  selected: journey.id == selectedId,
-                  onTap: () => onSelectJourney(journey),
-                );
-              },
-            ),
+            child: journeys.isEmpty
+                ? Center(
+                    child: Text(
+                      'No confirmed journey recorded.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: journeys.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 7),
+                    itemBuilder: (context, index) {
+                      final journey = journeys[index];
+                      return _TripRow(
+                        key: ValueKey('journey-trip-${journey.id}'),
+                        index: index,
+                        journey: journey,
+                        selected: journey.id == selectedId,
+                        onTap: () => onSelectJourney(journey),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -831,8 +861,8 @@ class _TripRow extends StatelessWidget {
               Expanded(
                 flex: 4,
                 child: Text(
-                  '${DateFormat.Hm().format(journey.startAt)} - '
-                  '${DateFormat.Hm().format(journey.endAt)}',
+                  '${DateFormat.Hm().format(journey.confirmedDepartureAt)} - '
+                  '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontSize: 9,
@@ -865,7 +895,7 @@ class _TripRow extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  '${journey.pointCount} pts',
+                  '${journey.pointCount} updates',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 9,
@@ -948,7 +978,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
           border: Border.all(color: colors.border),
         ),
         child: Text(
-          'Select a journey to inspect it.',
+          'No confirmed journey recorded for this day.',
           style: TextStyle(color: colors.textSecondary),
         ),
       );
@@ -981,8 +1011,8 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                         ),
                         const Spacer(),
                         Text(
-                          '${DateFormat.Hm().format(journey.startAt)} - '
-                          '${DateFormat.Hm().format(journey.endAt)}',
+                          '${DateFormat.Hm().format(journey.confirmedDepartureAt)} - '
+                          '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
                           style: TextStyle(
                             color: colors.textSecondary,
                             fontSize: 10,
@@ -1013,20 +1043,43 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           key: ValueKey('journey-map-${journey.id}'),
                           route: selectedRoute,
                           currentIndex: replay.currentIndex,
+                          showReplayPosition:
+                              replay.isPlaying ||
+                              (replay.currentIndex > 0 &&
+                                  replay.currentIndex <
+                                      replay.pointCount - 1),
                         ),
                       ),
                       Positioned(
                         left: 16,
                         top: 16,
                         child: _MiniBadge(
-                          label: '${replay.pointCount} route points',
+                          label: _locationUpdateText(
+                            journey,
+                            replay.pointCount,
+                          ),
                         ),
                       ),
+                      if (journey.hasInterruptedCoverage)
+                        Positioned(
+                          right: 16,
+                          top: 16,
+                          child: _MiniBadge(
+                            label:
+                                'Tracking gap · ${_compactDuration(journey.routeCoverage.largestGap)}',
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 12),
+              if (journey.hasInterruptedCoverage) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                  child: _RouteCoverageNotice(journey: journey),
+                ),
+              ],
               _SelectedMetricsRow(journey: journey, route: selectedRoute),
               const SizedBox(height: 12),
               Padding(
@@ -1060,7 +1113,7 @@ class _SelectedTripAB extends StatelessWidget {
     final summary = Text(
       '${journey.distanceKm.toStringAsFixed(1)} km  |  '
       '${_compactDuration(_durationOf(journey))}  |  '
-      '${journey.pointCount} pts',
+      '${_locationUpdateText(journey, journey.pointCount)}',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       textAlign: TextAlign.center,
@@ -1080,8 +1133,10 @@ class _SelectedTripAB extends StatelessWidget {
                 children: [
                   _CompactEndpoint(
                     letter: 'A',
-                    time: DateFormat.Hm().format(journey.startAt),
-                    caption: 'Start',
+                    time: DateFormat.Hm().format(
+                      journey.confirmedDepartureAt,
+                    ),
+                    caption: _departureCaption(journey),
                     color: GuardianColors.safe,
                   ),
                   Expanded(
@@ -1098,8 +1153,8 @@ class _SelectedTripAB extends StatelessWidget {
                   ),
                   _CompactEndpoint(
                     letter: 'B',
-                    time: DateFormat.Hm().format(journey.endAt),
-                    caption: 'Arrival',
+                    time: DateFormat.Hm().format(journey.confirmedReturnAt),
+                    caption: _arrivalCaption(journey),
                     color: const Color(0xFFE84C4C),
                   ),
                 ],
@@ -1125,8 +1180,8 @@ class _SelectedTripAB extends StatelessWidget {
           children: [
             _CompactEndpoint(
               letter: 'A',
-              time: DateFormat.Hm().format(journey.startAt),
-              caption: 'Start',
+              time: DateFormat.Hm().format(journey.confirmedDepartureAt),
+              caption: _departureCaption(journey),
               color: GuardianColors.safe,
             ),
             const SizedBox(width: 14),
@@ -1148,8 +1203,8 @@ class _SelectedTripAB extends StatelessWidget {
             const SizedBox(width: 14),
             _CompactEndpoint(
               letter: 'B',
-              time: DateFormat.Hm().format(journey.endAt),
-              caption: 'Arrival',
+              time: DateFormat.Hm().format(journey.confirmedReturnAt),
+              caption: _arrivalCaption(journey),
               color: const Color(0xFFE84C4C),
             ),
           ],
@@ -1238,6 +1293,47 @@ class _MiniBadge extends StatelessWidget {
   }
 }
 
+class _RouteCoverageNotice extends StatelessWidget {
+  const _RouteCoverageNotice({required this.journey});
+
+  final JourneyRecord journey;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF5E8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF1B35D)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.signal_wifi_connected_no_internet_4_rounded,
+            color: Color(0xFFB66A00),
+            size: 18,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              _routeGapText(journey),
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 9,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SelectedMetricsRow extends StatelessWidget {
   const _SelectedMetricsRow({required this.journey, required this.route});
 
@@ -1260,21 +1356,23 @@ class _SelectedMetricsRow extends StatelessWidget {
             child: _SelectedMetric(
               icon: Icons.straighten_rounded,
               value: '${journey.distanceKm.toStringAsFixed(1)} km',
-              label: 'Distance',
+              label: 'Recorded distance',
             ),
           ),
           Expanded(
             child: _SelectedMetric(
               icon: Icons.schedule_rounded,
               value: _compactDuration(_durationOf(journey)),
-              label: 'Duration',
+              label: journey.hasConfirmedReturn ? 'Time away' : 'Recorded time',
             ),
           ),
           Expanded(
             child: _SelectedMetric(
               icon: Icons.route_rounded,
               value: '${route.decodedPointCount}',
-              label: 'Route points',
+              label: _allLocationUpdatesAreGps(journey)
+                  ? 'GPS updates'
+                  : 'Location updates',
             ),
           ),
           Expanded(
@@ -1453,7 +1551,7 @@ class _ReplayShell extends StatelessWidget {
           SizedBox(
             width: 42,
             child: Text(
-              DateFormat.Hm().format(journey.endAt),
+              DateFormat.Hm().format(journey.confirmedReturnAt),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: colors.textPrimary,
@@ -1499,6 +1597,9 @@ class _DayTotals {
     required this.tripCount,
     required this.startAt,
     required this.endAt,
+    required this.allConfirmedReturns,
+    required this.gapCount,
+    required this.largestGap,
   });
 
   final double distanceKm;
@@ -1507,6 +1608,9 @@ class _DayTotals {
   final int tripCount;
   final DateTime? startAt;
   final DateTime? endAt;
+  final bool allConfirmedReturns;
+  final int gapCount;
+  final Duration largestGap;
 
   factory _DayTotals.fromJourneys(List<JourneyRecord> journeys) {
     if (journeys.isEmpty) {
@@ -1517,11 +1621,17 @@ class _DayTotals {
         tripCount: 0,
         startAt: null,
         endAt: null,
+        allConfirmedReturns: false,
+        gapCount: 0,
+        largestGap: Duration.zero,
       );
     }
 
     final sorted = [...journeys]
-      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+      ..sort(
+        (a, b) =>
+            a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt),
+      );
 
     return _DayTotals(
       distanceKm: journeys.fold<double>(
@@ -1537,30 +1647,103 @@ class _DayTotals {
         (sum, journey) => sum + journey.pointCount,
       ),
       tripCount: journeys.length,
-      startAt: sorted.first.startAt,
-      endAt: sorted.last.endAt,
+      startAt: sorted.first.confirmedDepartureAt,
+      endAt: sorted.last.confirmedReturnAt,
+      allConfirmedReturns: journeys.every((journey) => journey.hasConfirmedReturn),
+      gapCount: journeys.fold<int>(
+        0,
+        (sum, journey) => sum + journey.routeCoverage.gapCount,
+      ),
+      largestGap: journeys.fold<Duration>(
+        Duration.zero,
+        (largest, journey) =>
+            journey.routeCoverage.largestGap > largest
+            ? journey.routeCoverage.largestGap
+            : largest,
+      ),
     );
   }
 }
 
 Duration _durationOf(JourneyRecord journey) {
-  final duration = journey.endAt.difference(journey.startAt);
+  final duration = journey.confirmedReturnAt.difference(
+    journey.confirmedDepartureAt,
+  );
   return duration.isNegative ? Duration.zero : duration;
 }
 
 String _compactDuration(Duration duration) {
-  final minutes = duration.inMinutes;
+  if (duration <= Duration.zero) return '0m';
+  final minutes = (duration.inSeconds + 59) ~/ 60;
   if (minutes < 60) return '${minutes}m';
   final hours = minutes ~/ 60;
   final remainder = minutes % 60;
   return remainder == 0 ? '${hours}h' : '${hours}h ${remainder}m';
 }
 
+String _departureCaption(JourneyRecord journey) {
+  final origin = journey.originGeofenceName?.trim();
+  return origin == null || origin.isEmpty ? 'Departure' : 'Left $origin';
+}
+
+String _arrivalCaption(JourneyRecord journey) {
+  if (!journey.hasConfirmedReturn) return 'Last recorded';
+  return 'Returned ${journey.originGeofenceName!.trim()}';
+}
+
+JourneyRouteGap? _largestRouteGap(JourneyRecord journey) {
+  JourneyRouteGap? largest;
+  for (final gap in journey.routeGaps) {
+    if (largest == null || gap.durationSeconds > largest.durationSeconds) {
+      largest = gap;
+    }
+  }
+  return largest;
+}
+
+String _routeGapText(JourneyRecord journey) {
+  final gap = _largestRouteGap(journey);
+  if (gap == null) {
+    return 'Tracking resumed after a '
+        '${_compactDuration(journey.routeCoverage.largestGap)} gap.';
+  }
+
+  final stoppedAt = journey.startAt.add(
+    Duration(milliseconds: gap.fromOffsetMs),
+  );
+  final resumedAt = journey.startAt.add(
+    Duration(milliseconds: gap.toOffsetMs),
+  );
+  return 'Tracking stopped at ${DateFormat.Hm().format(stoppedAt)} and resumed '
+      'at ${DateFormat.Hm().format(resumedAt)} '
+      '(${_compactDuration(gap.duration)} gap).';
+}
+
+String _dayGuardianReadText(String deviceName, _DayTotals totals) {
+  if (totals.tripCount == 0) {
+    return 'No confirmed journey was recorded for this day.';
+  }
+
+  final base = totals.allConfirmedReturns
+      ? '$deviceName was away for ${_compactDuration(totals.duration)} across '
+            '${totals.tripCount} confirmed ${totals.tripCount == 1 ? 'outing' : 'outings'}. '
+      : '$deviceName has ${totals.tripCount} evidence-backed '
+            '${totals.tripCount == 1 ? 'journey' : 'journeys'}. ';
+  final route = 'Guardian recorded ${totals.distanceKm.toStringAsFixed(1)} km '
+      'from ${totals.pointCount} location updates.';
+  if (totals.gapCount == 0) return '$base$route';
+  return '$base$route Tracking resumed after '
+      '${totals.gapCount == 1 ? 'a' : totals.gapCount} '
+      '${_compactDuration(totals.largestGap)} '
+      '${totals.gapCount == 1 ? 'gap' : 'largest gap'}.';
+}
+
 bool _hasStructuredJourney(JourneyRecord journey) {
-  return journey.stopCount > 0 ||
+  return journey.routeCoverage.structureReliable &&
+      (journey.stopCount > 0 ||
       journey.stops.isNotEmpty ||
       journey.legCount > 0 ||
-      journey.legs.isNotEmpty;
+      journey.legs.isNotEmpty);
 }
 
 String _structuredStopMetric(JourneyRecord journey) {
@@ -1575,23 +1758,47 @@ String _selectedTripGuardianReadText(
   JourneyRecord journey,
   JourneyV2Route route,
 ) {
-  final base =
-      'This trip recorded ${journey.distanceKm.toStringAsFixed(1)} km '
-      'over ${_compactDuration(_durationOf(journey))}. '
-      '${route.decodedPointCount} route points are available for this stored route.';
+  final origin = journey.originGeofenceName?.trim();
+  final base = journey.hasConfirmedReturn
+      ? '${origin ?? 'Safe-zone'} departure and return were confirmed. '
+            'Time away: ${_compactDuration(_durationOf(journey))}. '
+            'Guardian recorded ${journey.distanceKm.toStringAsFixed(1)} km '
+            'from ${_locationUpdateText(journey, route.decodedPointCount)}.'
+      : 'Guardian recorded ${journey.distanceKm.toStringAsFixed(1)} km '
+            'from ${_locationUpdateText(journey, route.decodedPointCount)} over '
+            '${_compactDuration(_durationOf(journey))}.';
 
-  if (!_hasStructuredJourney(journey)) return base;
+  final coverage = journey.hasInterruptedCoverage
+      ? ' ${_routeGapText(journey)} Distance excludes the unobserved interval.'
+      : '';
+
+  if (!_hasStructuredJourney(journey)) return '$base$coverage';
 
   if (journey.stopCount <= 0) {
-    return '$base No meaningful stops were recorded.';
+    return journey.hasInterruptedCoverage
+        ? '$base$coverage'
+        : '$base No meaningful stops were recorded.';
   }
 
   final stopSummary = journey.stopCount == 1
       ? '1 stop was recorded during this outing'
       : '${journey.stopCount} stops were recorded during this outing';
 
-  return '$base $stopSummary, totaling '
+  return '$base$coverage $stopSummary, totaling '
       '${_compactDuration(journey.totalStopDuration)}.';
+}
+
+bool _allLocationUpdatesAreGps(JourneyRecord journey) {
+  return journey.pointEvidence.length == journey.pointCount &&
+      journey.pointEvidence.every(
+        (point) => point.gpsValid && point.source?.toLowerCase() == 'gps',
+      );
+}
+
+String _locationUpdateText(JourneyRecord journey, int count) {
+  return _allLocationUpdatesAreGps(journey)
+      ? '$count GPS updates'
+      : '$count location updates';
 }
 
 IconData _tripIcon(int index) {

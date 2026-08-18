@@ -48,6 +48,7 @@ const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
+const { sendContinuousReporting } = require('./downlink');
 
 const {
   incrementEvent,
@@ -66,6 +67,8 @@ const {
   touchSessionActivity,
 
   noteSessionPacket,
+
+  noteDeviceLocation,
 
 } = require('./sessions');
 
@@ -325,6 +328,8 @@ async function applyEvents(events, session) {
             `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel}`
         );
 
+        noteDeviceLocation(locEvent.imei, eventReceivedAt.getTime());
+
         updateLiveState(locEvent.imei, {
 
           location: locEvent.location,
@@ -430,6 +435,14 @@ async function applyEvents(events, session) {
 
             accuracySource: locEvent.accuracySource,
 
+            source: locEvent.location.source || locEvent.accuracySource,
+
+            gpsValid: locEvent.location.gpsValid === true,
+
+            accuracyMeters: locEvent.location.accuracyMeters,
+
+            satellites: locEvent.location.satellites,
+
             recordedAt: locEvent.location.recordedAt,
 
           },
@@ -446,9 +459,16 @@ async function applyEvents(events, session) {
 
             geofenceId: journeyTransition?.payload?.geofenceId || null,
 
+            transitionEvidence:
+              journeyTransition?.payload?.observationEvidence || null,
+
             hasActiveSafeZones: geofencePresence.hasActiveZones,
 
             insideAnySafeZone: geofencePresence.insideAny,
+
+            insideSafeZoneIds: geofencePresence.insideZoneIds,
+
+            hasUncertainSafeZones: geofencePresence.hasUncertainZones,
 
           }
 
@@ -576,14 +596,27 @@ async function applyEvents(events, session) {
 
 
         await maybeFlushDwell(locEvent.imei);
-        if (locEvent.batteryPercent != null) {
-          const adaptiveDb = getDb();
-          if (adaptiveDb) {
+        const adaptiveDb = getDb();
+        const outingActive = isJourneyActive(locEvent.imei);
+        const journeyReturned =
+          journeyResult.flushes.length > 0 && !outingActive;
+        const adaptiveBattery =
+          locEvent.batteryPercent ??
+          getLiveDeviceState(locEvent.imei).batteryPercent;
+        if (
+          adaptiveDb &&
+          (adaptiveBattery != null || outingActive || journeyReturned)
+        ) {
             await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
-              batteryPercent: locEvent.batteryPercent,
-              trigger: 'location',
+              batteryPercent: adaptiveBattery,
+              outingActive,
+              trigger: journeyReturned
+                ? 'journey_return'
+                : outingActive
+                  ? 'journey_active'
+                  : 'location',
+              force: journeyReturned,
             });
-          }
         }
 
       } else if (event.type === 'heartbeat') {
@@ -665,7 +698,10 @@ async function applyEvents(events, session) {
           if (db) {
             await applyAdaptiveReporting(db, event.imei, {
               batteryPercent: event.batteryPercent,
-              trigger: 'heartbeat',
+              outingActive: isJourneyActive(event.imei),
+              trigger: isJourneyActive(event.imei)
+                ? 'journey_heartbeat'
+                : 'heartbeat',
             });
           }
         }
@@ -705,6 +741,7 @@ async function applyEvents(events, session) {
           if (adaptiveDb) {
             await activateSosOverride(adaptiveDb, alarmEvent.imei, {
               batteryPercent: alarmEvent.batteryPercent,
+              outingActive: isJourneyActive(alarmEvent.imei),
             });
           }
         }
@@ -945,7 +982,19 @@ const server = net.createServer((socket) => {
 
   console.log(`[tcp] connected ${remote}`);
 
-  registerSession(socket);
+  registerSession(socket, {
+    onRecoveryProbe: ({ imei, protocolId, reason }) => {
+      const target = imei || protocolId;
+      if (!target) return { ok: false, error: 'identity_pending' };
+      const result = sendContinuousReporting(target);
+      if (result.ok) {
+        console.warn(
+          `[recovery] ${target} CR requested after ${reason}`
+        );
+      }
+      return result;
+    },
+  });
 
 
 
@@ -1062,6 +1111,12 @@ server.listen(config.port, config.host, () => {
   console.log(`[guardian-gateway] listening on ${config.host}:${config.port}`);
 
   console.log(`[guardian-gateway] firestore ${config.firestoreDisabled ? 'OFF (dry-run)' : 'ON'}`);
+
+  console.log(
+    `[connection-policy] fallbackIdle=${config.tcpIdleMinutes}m ` +
+      `recoveryGrace=${config.tcpRecoveryGraceSeconds}s ` +
+      `outingLocationStale=${config.outingLocationStaleSeconds}s`
+  );
 
   console.log(
 

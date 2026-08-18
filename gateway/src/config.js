@@ -50,7 +50,7 @@ const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
 
   // Layer 1 intelligence (rule-based device insights)
   intelligenceOfflineMinutes: Number(process.env.INTELLIGENCE_OFFLINE_MINUTES || 10),
@@ -66,20 +66,26 @@ const config = {
    */
   tcpIdleMinutes: Number(process.env.TCP_IDLE_MINUTES || 12),
 
+  /** Grace after a packet-silence CR probe before the socket is declared dead. */
+  tcpRecoveryGraceSeconds: Number(process.env.TCP_RECOVERY_GRACE_SECONDS || 90),
+
+  /** Kernel TCP keepalive protects otherwise healthy low-traffic watch sockets. */
+  tcpKeepAliveInitialDelayMs: Number(
+    process.env.TCP_KEEPALIVE_INITIAL_DELAY_MS || 60_000
+  ),
+
+  /** Request a fresh location when an active outing has no location observation. */
+  outingLocationStaleSeconds: Number(
+    process.env.OUTING_LOCATION_STALE_SECONDS || 150
+  ),
+  outingLocationProbeIntervalSeconds: Number(
+    process.env.OUTING_LOCATION_PROBE_INTERVAL_SECONDS || 180
+  ),
+
   /** Must exceed writeGateHeartbeatMinutes — heartbeats can be write-gated that long. */
   connectionStaleMinutes: Math.max(
     Number(process.env.CONNECTION_STALE_MINUTES || 10),
     Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) + 2
-  ),
-
-  /**
-   * Close zombie TCP with no packets. Keep in lockstep with tcpIdleMinutes so we
-   * never kill a live quiet session early and flash Offline for the family.
-   */
-  tcpSilentSeconds: Math.max(
-    Number(process.env.TCP_SILENT_SECONDS || 0) ||
-      Number(process.env.TCP_IDLE_MINUTES || 12) * 60,
-    Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) * 60
   ),
 
   /** Wait before writing offline after TCP close — absorbs ngrok/carrier reconnect blips. */
@@ -98,6 +104,26 @@ const config = {
 
   // OpenWeatherMap API — weather context for device locations
   openWeatherMapKey: process.env.OPEN_WEATHER_MAP_KEY || '',
+
+  // Context intelligence — hourly, observe-only by default. This never sends WhatsApp.
+  contextIntelligenceEnabled:
+    String(process.env.CONTEXT_INTELLIGENCE_ENABLED || 'false').toLowerCase() === 'true',
+  contextLlmJudgmentEnabled:
+    String(process.env.CONTEXT_LLM_JUDGMENT_ENABLED || 'true').toLowerCase() === 'true',
+  contextPollMinutes: Math.max(Number(process.env.CONTEXT_POLL_MINUTES || 60), 60),
+  contextWeatherCacheMinutes: Math.max(
+    Number(process.env.CONTEXT_WEATHER_CACHE_MINUTES || 60),
+    60
+  ),
+  contextMaxDevicesPerSweep: Math.max(
+    1,
+    Number(process.env.CONTEXT_MAX_DEVICES_PER_SWEEP || 1000)
+  ),
+  contextConcurrency: Math.max(1, Number(process.env.CONTEXT_CONCURRENCY || 5)),
+  contextRunOnStartup:
+    String(process.env.CONTEXT_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextPersistObservations:
+    String(process.env.CONTEXT_PERSIST_OBSERVATIONS || 'false').toLowerCase() === 'true',
 };
 
 module.exports = config;

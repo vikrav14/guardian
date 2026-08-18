@@ -6,6 +6,8 @@ const { deriveJourneyStructure } = require('./journey-structure');
 const STATIONARY_SPEED_KMH = 1;
 const MAX_JOURNEY_SEGMENT_METRES = 5000;
 const RETURN_CONFIRM_MS = 2 * 60 * 1000;
+const ROUTE_GAP_THRESHOLD_MS = 5 * 60 * 1000;
+const DEPARTURE_ANCHOR_MAX_AGE_MS = ROUTE_GAP_THRESHOLD_MS;
 
 function isPlausibleCoord(lat, lng) {
   if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return false;
@@ -42,12 +44,17 @@ function isMoving(point, reference) {
   return false;
 }
 
-function journeyDistanceKm(points) {
+function journeyDistanceKm(points, { excludeTrackingGaps = false } = {}) {
   if (!Array.isArray(points) || points.length < 2) return 0;
   let meters = 0;
   for (let i = 1; i < points.length; i += 1) {
     const a = points[i - 1];
     const b = points[i];
+    if (excludeTrackingGaps) {
+      const aAt = recordedAtOrNow(a, new Date(0));
+      const bAt = recordedAtOrNow(b, aAt);
+      if (bAt.getTime() - aAt.getTime() > ROUTE_GAP_THRESHOLD_MS) continue;
+    }
     meters += haversineMeters(a.lat, a.lng, b.lat, b.lng);
   }
   return meters / 1000;
@@ -59,7 +66,111 @@ function normalizePoint(point) {
     lng: point.lng,
     speedKmh: point.speedKmh ?? null,
     accuracySource: point.accuracySource ?? null,
+    source: point.source ?? point.accuracySource ?? null,
+    gpsValid: point.gpsValid === true,
+    accuracyMeters:
+      Number.isFinite(Number(point.accuracyMeters)) &&
+      Number(point.accuracyMeters) > 0
+        ? Number(point.accuracyMeters)
+        : null,
+    satellites:
+      Number.isFinite(Number(point.satellites))
+        ? Number(point.satellites)
+        : null,
     recordedAt: point.recordedAt || new Date(),
+  };
+}
+
+function buildRouteEvidence(points, journeyStartAt) {
+  const startAt = new Date(journeyStartAt);
+  const safeStartMs = Number.isNaN(startAt.getTime())
+    ? recordedAtOrNow(points[0], new Date()).getTime()
+    : startAt.getTime();
+  const pointEvidence = [];
+  const routeGaps = [];
+  const routeSegments = [];
+  let segmentStartIndex = 0;
+  let gpsPointCount = 0;
+  let approximatePointCount = 0;
+  let unknownSourcePointCount = 0;
+
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const pointAt = recordedAtOrNow(point, new Date(safeStartMs));
+    const source = String(point.source || point.accuracySource || '')
+      .trim()
+      .toLowerCase();
+    const gpsValid =
+      point.gpsValid === true ||
+      (source === 'gps' && point.gpsValid !== false);
+
+    if (gpsValid) gpsPointCount += 1;
+    else if (source === 'wifi' || source === 'lbs') approximatePointCount += 1;
+    else unknownSourcePointCount += 1;
+
+    pointEvidence.push({
+      offsetMs: Math.max(0, pointAt.getTime() - safeStartMs),
+      source: source || null,
+      gpsValid,
+      accuracyMeters: point.accuracyMeters ?? null,
+      satellites: point.satellites ?? null,
+      speedKmh: point.speedKmh ?? null,
+    });
+
+    if (index === 0) continue;
+    const previousAt = recordedAtOrNow(points[index - 1], pointAt);
+    const gapMs = pointAt.getTime() - previousAt.getTime();
+    if (gapMs > ROUTE_GAP_THRESHOLD_MS) {
+      routeGaps.push({
+        fromPointIndex: index - 1,
+        toPointIndex: index,
+        fromOffsetMs: Math.max(0, previousAt.getTime() - safeStartMs),
+        toOffsetMs: Math.max(0, pointAt.getTime() - safeStartMs),
+        durationSeconds: Math.round(gapMs / 1000),
+      });
+      const segmentPoints = points.slice(segmentStartIndex, index);
+      routeSegments.push({
+        startPointIndex: segmentStartIndex,
+        endPointIndex: index - 1,
+        pointCount: segmentPoints.length,
+        distanceKm:
+          Math.round(journeyDistanceKm(segmentPoints) * 1000) / 1000,
+        polyline: encodePolyline(segmentPoints),
+      });
+      segmentStartIndex = index;
+    }
+  }
+
+  const finalSegmentPoints = points.slice(segmentStartIndex);
+  routeSegments.push({
+    startPointIndex: segmentStartIndex,
+    endPointIndex: points.length - 1,
+    pointCount: finalSegmentPoints.length,
+    distanceKm:
+      Math.round(journeyDistanceKm(finalSegmentPoints) * 1000) / 1000,
+    polyline: encodePolyline(finalSegmentPoints),
+  });
+
+  const largestGapSeconds = routeGaps.reduce(
+    (largest, gap) => Math.max(largest, gap.durationSeconds),
+    0
+  );
+
+  return {
+    evidenceVersion: 3,
+    pointEvidence,
+    routeGaps,
+    routeSegments,
+    routeCoverage: {
+      pointCount: points.length,
+      gpsPointCount,
+      approximatePointCount,
+      unknownSourcePointCount,
+      gapCount: routeGaps.length,
+      largestGapSeconds,
+      interrupted: routeGaps.length > 0,
+      structureReliable: routeGaps.length === 0,
+    },
   };
 }
 
@@ -81,16 +192,103 @@ function shouldAcceptJourneyPoint(point, reference) {
   return true;
 }
 
-function startJourney(state, point, now) {
+function gpsPointIsTrusted(point) {
+  const source = String(point?.source || point?.accuracySource || '')
+    .trim()
+    .toLowerCase();
+  return point?.gpsValid === true || (source === 'gps' && point?.gpsValid !== false);
+}
+
+function rememberConfirmedSafeZonePoint(
+  state,
+  point,
+  now,
+  insideSafeZoneIds = []
+) {
+  if (!gpsPointIsTrusted(point)) return false;
+
+  const zoneIds = [...new Set((insideSafeZoneIds || []).filter(Boolean))];
+  if (zoneIds.length === 0) return false;
+
   const normalized = normalizePoint(point);
+  const pointAt = recordedAtOrNow(normalized, now);
+  if (state.lastJourneyEndAt) {
+    const lastJourneyEndAt = new Date(state.lastJourneyEndAt);
+    if (
+      !Number.isNaN(lastJourneyEndAt.getTime()) &&
+      pointAt.getTime() <= lastJourneyEndAt.getTime()
+    ) {
+      return false;
+    }
+  }
+
+  const previous = state.lastConfirmedSafeZonePoint;
+  if (previous) {
+    const previousAt = recordedAtOrNow(previous, new Date(0));
+    if (pointAt.getTime() <= previousAt.getTime()) return false;
+  }
+
+  state.lastConfirmedSafeZonePoint = {
+    ...normalized,
+    geofenceIds: zoneIds,
+  };
+  return true;
+}
+
+function departureAnchorForExit(state, geofenceId, outsidePoint, now) {
+  const anchor = state.lastConfirmedSafeZonePoint;
+  if (!anchor || !geofenceId) return null;
+  if (!Array.isArray(anchor.geofenceIds) || !anchor.geofenceIds.includes(geofenceId)) {
+    return null;
+  }
+
+  const anchorAt = recordedAtOrNow(anchor, new Date(0));
+  const outsideAt = recordedAtOrNow(outsidePoint, now);
+  const ageMs = outsideAt.getTime() - anchorAt.getTime();
+  if (ageMs < 0 || ageMs > DEPARTURE_ANCHOR_MAX_AGE_MS) return null;
+  if (!shouldAcceptJourneyPoint(outsidePoint, anchor)) return null;
+  return anchor;
+}
+
+function startJourney(state, point, now, { routeAnchor = null } = {}) {
+  const normalized = normalizePoint(point);
+  const points = [];
+  let routeStartEvidence = null;
+
+  if (routeAnchor) {
+    const normalizedAnchor = normalizePoint(routeAnchor);
+    const anchorAt = recordedAtOrNow(normalizedAnchor, now);
+    const pointAt = recordedAtOrNow(normalized, now);
+    if (
+      anchorAt.getTime() < pointAt.getTime() &&
+      shouldAcceptJourneyPoint(normalized, normalizedAnchor)
+    ) {
+      points.push(normalizedAnchor);
+      routeStartEvidence = {
+        recordedAt: anchorAt,
+        source: normalizedAnchor.source,
+        gpsValid: normalizedAnchor.gpsValid,
+        accuracyMeters: normalizedAnchor.accuracyMeters,
+        satellites: normalizedAnchor.satellites,
+        geofenceIds: [...(routeAnchor.geofenceIds || [])],
+      };
+    }
+  }
+
+  points.push(normalized);
   state.currentJourney = {
-    startAt: normalized.recordedAt,
+    startAt: points[0].recordedAt,
+    departureAt: normalized.recordedAt,
     lastMovementAt: now,
     lastPointAt: now,
-    points: [normalized],
+    points,
     events: [],
     originGeofenceId: null,
     originGeofenceName: null,
+    departureEvidence: null,
+    routeStartAnchored: routeStartEvidence != null,
+    routeStartEvidence,
+    returnEvidence: null,
     returnCandidateAt: null,
   };
 }
@@ -160,12 +358,18 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
 
   // Stops and legs are derived from the completed factual GPS path.
   // They enrich one outing; they never create additional journeys or infer purpose.
+  const routeEvidence = buildRouteEvidence(journey.points, startAt);
   const structure = deriveJourneyStructure(journey.points);
 
   const doc = {
     startAt: journey.startAt,
     endAt: normalizedEndAt,
-    distanceKm: Math.round(journeyDistanceKm(journey.points) * 1000) / 1000,
+    // Count only connected observed segments. The distance between the last
+    // point before an upload gap and the first point after it is unknown.
+    distanceKm:
+      Math.round(
+        journeyDistanceKm(journey.points, { excludeTrackingGaps: true }) * 1000
+      ) / 1000,
     polyline: encodePolyline(journey.points),
     events,
     pointCount: journey.points.length,
@@ -175,10 +379,17 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     legCount: structure.legCount,
     compressed: true,
     closeReason: reason,
+    ...routeEvidence,
     ...(journey.originGeofenceId
       ? {
           originGeofenceId: journey.originGeofenceId,
           originGeofenceName: journey.originGeofenceName || null,
+          departureAt: journey.departureAt || journey.startAt,
+          returnAt: reason === 'return_to_origin' ? normalizedEndAt : null,
+          departureEvidence: journey.departureEvidence || null,
+          routeStartAnchored: journey.routeStartAnchored === true,
+          routeStartEvidence: journey.routeStartEvidence || null,
+          returnEvidence: journey.returnEvidence || null,
         }
       : {}),
   };
@@ -202,10 +413,18 @@ function forceCloseJourney(state, now, reason = 'disconnect') {
   return closeJourney(state, now, reason);
 }
 
-function assignOriginFromExit(journey, geofenceId, geofenceName) {
+function assignOriginFromExit(
+  journey,
+  geofenceId,
+  geofenceName,
+  transitionEvidence = null,
+  departureAt = null
+) {
   if (!journey || journey.originGeofenceId || !geofenceId) return;
   journey.originGeofenceId = geofenceId;
   journey.originGeofenceName = geofenceName || null;
+  journey.departureAt = departureAt || journey.departureAt;
+  journey.departureEvidence = transitionEvidence || null;
 }
 
 function isOriginTransition(journey, geofenceId) {
@@ -227,11 +446,28 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     transitionType,
     geofenceName,
     geofenceId,
+    transitionEvidence = null,
     hasActiveSafeZones = false,
     insideAnySafeZone = false,
+    insideSafeZoneIds = [],
+    hasUncertainSafeZones = false,
   } = options;
   const flushes = [];
   const pointAt = recordedAtOrNow(point, now);
+
+  if (
+    !state.currentJourney &&
+    hasActiveSafeZones &&
+    insideAnySafeZone &&
+    !hasUncertainSafeZones
+  ) {
+    rememberConfirmedSafeZonePoint(
+      state,
+      point,
+      now,
+      insideSafeZoneIds
+    );
+  }
 
   if (state.currentJourney) {
     const lastPoint =
@@ -265,19 +501,38 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
       geofenceId: geofenceId || null,
       name: geofenceName || null,
       at: pointAt,
+      evidence: transitionEvidence || null,
     };
 
     // A safe-zone exit is a departure, not the end of an outing.
     if (!state.currentJourney) {
       const reference = state.lastPersistedLocation;
       if (shouldAcceptJourneyPoint(point, reference)) {
-        startJourney(state, point, now);
-        assignOriginFromExit(state.currentJourney, geofenceId, geofenceName);
+        const routeAnchor = departureAnchorForExit(
+          state,
+          geofenceId,
+          point,
+          now
+        );
+        startJourney(state, point, now, { routeAnchor });
+        assignOriginFromExit(
+          state.currentJourney,
+          geofenceId,
+          geofenceName,
+          transitionEvidence,
+          pointAt
+        );
         state.currentJourney.events.push(exitEvent);
         return { flushes, started: true };
       }
     } else {
-      assignOriginFromExit(state.currentJourney, geofenceId, geofenceName);
+      assignOriginFromExit(
+        state.currentJourney,
+        geofenceId,
+        geofenceName,
+        transitionEvidence,
+        pointAt
+      );
 
       // If the device only dipped back into the origin briefly and exits again
       // before confirmation, cancel the pending return and keep the outing open.
@@ -300,6 +555,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
       geofenceId: geofenceId || null,
       name: geofenceName || null,
       at: pointAt,
+      evidence: transitionEvidence || null,
     };
 
     journey.events.push(enterEvent);
@@ -310,6 +566,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
       // boundary fix from ending the outing.
       addJourneyPoint(state, point, now);
       journey.returnCandidateAt = pointAt;
+      journey.returnEvidence = transitionEvidence || null;
       return { flushes, started: false };
     }
   }
@@ -325,8 +582,15 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
         name: journey.originGeofenceName || null,
         at: candidateAt,
         confirmedAt: pointAt,
+        evidence: journey.returnEvidence || null,
       });
 
+      rememberConfirmedSafeZonePoint(
+        state,
+        point,
+        now,
+        insideSafeZoneIds
+      );
       if (closed) flushes.push(closed);
       return { flushes, started: false };
     }
@@ -361,7 +625,10 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     // If active zones exist but the watch is already outside all of them
     // (for example after a gateway restart away from Home), keep the generic
     // movement fallback so tracking is not disabled for the whole day.
-    if (hasActiveSafeZones && insideAnySafeZone) {
+    if (
+      hasActiveSafeZones &&
+      (insideAnySafeZone || hasUncertainSafeZones)
+    ) {
       return { flushes, started: false };
     }
 
@@ -389,4 +656,7 @@ module.exports = {
   isPlausibleCoord,
   shouldAcceptJourneyPoint,
   sameCalendarDay,
+  buildRouteEvidence,
+  ROUTE_GAP_THRESHOLD_MS,
+  DEPARTURE_ANCHOR_MAX_AGE_MS,
 };

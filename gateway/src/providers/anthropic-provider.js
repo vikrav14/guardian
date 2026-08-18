@@ -4,7 +4,7 @@ const LlmProvider = require('./llm-provider');
  * Anthropic Claude provider (fallback).
  *
  * Uses Claude models as a secondary provider or fallback.
- * Models: claude-sonnet-4, claude-opus, etc.
+ * Models: claude-sonnet-5, claude-opus-5, etc.
  */
 
 class AnthropicProvider extends LlmProvider {
@@ -31,7 +31,7 @@ class AnthropicProvider extends LlmProvider {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: this.config.anthropicModel || 'claude-sonnet-4-20250514',
+          model: this.config.anthropicModel || 'claude-sonnet-5',
           max_tokens: 512,
           system: systemPrompt,
           tools: tools || [],

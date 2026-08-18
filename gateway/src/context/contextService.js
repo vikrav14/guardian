@@ -1,188 +1,299 @@
 /**
- * Context Intelligence Service
- * Orchestrates weather, location, and device data to provide family safety context
- * Operates in observe-only mode: logs proposed alerts without notifying users
+ * Shared Context Intelligence Service.
+ *
+ * External facts are fetched once per geographic cache cell, deterministic
+ * rules produce candidates, and one optional LLM call makes the final shadow
+ * relevance decision. No delivery channel is invoked from this module.
  */
 
 const WeatherProvider = require('./weatherProvider');
 const ContextEvaluator = require('./contextEvaluator');
 const ContextAI = require('./contextAI');
+const { validCoordinatePair } = require('./deviceContextAdapter');
 const { validateSchema, deviceContextSchema } = require('./contextSchemas');
+const {
+  increment: incrementMetric,
+  recordAssistantUsage,
+} = require('../ops-metrics/collector');
 const Logger = require('../logger');
 
-const logger = new Logger('context-service');
+const logger = new Logger({ module: 'context-service' });
 
 class ContextService {
-  constructor(openWeatherMapApiKey, llmProvider = null, config = {}) {
-    this.weatherProvider = new WeatherProvider(openWeatherMapApiKey, 30);
-    this.evaluator = new ContextEvaluator();
-    this.ai = new ContextAI(llmProvider, config);
-    this.observeLog = []; // Log proposed alerts in observe-only mode
+  constructor(openWeatherMapApiKey, llmProvider = null, config = {}, dependencies = {}) {
+    this.config = config || {};
+    this.weatherProvider = dependencies.weatherProvider || new WeatherProvider(
+      openWeatherMapApiKey,
+      this.config.contextWeatherCacheMinutes || 60
+    );
+    this.evaluator = dependencies.evaluator || new ContextEvaluator();
+    this.ai = dependencies.ai || new ContextAI(llmProvider, this.config);
+    this.observeLog = [];
   }
 
-  /**
-   * Get full context for a device
-   * @param {object} device - Device state {online, lastSeenAt, batteryPercent}
-   * @param {object} person - Person {displayName, age, careContext}
-   * @param {object} location - Location {lat, lng, placeName, freshnessMinutes, accuracyClass}
-   * @returns {Promise<object>} Full context with weather and evaluation
-   */
-  async getDeviceContext(device, person, location) {
+  async getDeviceContext(device, person, location, options = {}) {
     const startTime = Date.now();
+    const safeDevice = this._safeDevice(device);
+    const safeLocation = this._safeLocation(location);
 
     try {
-      // Get weather for this location
+      if (!validCoordinatePair(safeLocation.lat, safeLocation.lng)) {
+        throw new Error('No trustworthy location available for context evaluation');
+      }
+      incrementMetric('contextDevicesEvaluated');
       const weather = await this.weatherProvider.getWeather(
-        location?.lat,
-        location?.lng,
-        location?.placeName
+        safeLocation.lat,
+        safeLocation.lng,
+        safeLocation.placeName
       );
+      if (weather?.error) incrementMetric('contextWeatherErrors');
 
-      // Evaluate if weather is relevant to this person
-      const evaluation = this.evaluator.evaluateWeatherRelevance(
+      const deterministicEvaluation = this.evaluator.evaluateWeatherRelevance(
         weather,
         person,
-        device,
-        location
+        safeDevice,
+        safeLocation
       );
 
-      // Generate Claude explanation if context is relevant
-      let explanation = null;
-      if (evaluation.relevant) {
-        explanation = await this.ai.explainContext(weather, person, device, location, evaluation);
+      let contextEvaluation = { ...deterministicEvaluation };
+      let explanation = deterministicEvaluation.relevant
+        ? deterministicEvaluation.message
+        : null;
+      let contextDecision = this._deterministicDecision(
+        deterministicEvaluation,
+        weather
+      );
+
+      if (deterministicEvaluation.relevant) {
+        incrementMetric('contextRelevantCandidates');
+        const aiResult = await this.ai.assessContext(
+          weather,
+          person,
+          safeDevice,
+          safeLocation,
+          deterministicEvaluation
+        );
+        this._recordLlmUsage(aiResult);
+
+        if (aiResult.valid) {
+          incrementMetric('contextLlmDecisions');
+          contextDecision = {
+            mode: 'llm_shadow',
+            ...aiResult.decision,
+            provider: aiResult.provider,
+            durationMs: aiResult.durationMs,
+            observeOnly: true,
+          };
+          contextEvaluation = {
+            ...deterministicEvaluation,
+            relevant: aiResult.decision.relevant,
+            severity: aiResult.decision.relevant
+              ? deterministicEvaluation.severity
+              : 'none',
+            message: aiResult.decision.relevant
+              ? aiResult.decision.explanation
+              : 'No context surfaced after relevance review.',
+          };
+          explanation = aiResult.decision.explanation;
+        } else if (
+          this.config.contextLlmJudgmentEnabled !== false &&
+          aiResult.reason !== 'not_a_candidate'
+        ) {
+          incrementMetric('contextLlmFallbacks');
+          contextDecision.fallbackReason = aiResult.reason;
+        }
       }
 
-      // Construct full context response
       const context = {
-        device: {
-          online: device?.online,
-          lastSeenAt: device?.lastSeenAt,
-          batteryPercent: device?.batteryPercent,
-        },
-        location: {
-          lat: location?.lat,
-          lng: location?.lng,
-          placeName: location?.placeName,
-          freshnessMinutes: location?.freshnessMinutes,
-          accuracyClass: location?.accuracyClass,
-        },
+        device: safeDevice,
+        location: safeLocation,
         weather,
-        contextEvaluation: evaluation,
-        explanation, // Claude-generated explanation (null if not relevant)
+        deterministicEvaluation,
+        contextEvaluation,
+        contextDecision,
+        explanation,
+        delivery: {
+          mode: 'observe_only',
+          sent: false,
+        },
         fetchedAt: new Date().toISOString(),
       };
 
-      // Validate response format
       const validation = validateSchema(context, deviceContextSchema);
       if (!validation.valid) {
-        logger.warn('Context response validation failed', {
-          person: person?.displayName,
-          errors: validation.errors,
-        });
-        // Proceed anyway - validation is defensive, not blocking
+        logger.warn('Context response validation failed', { errors: validation.errors });
       }
 
-      // Log in observe-only mode if relevant
-      if (evaluation.relevant) {
-        this._logObservation(person, device, location, evaluation);
+      // Log every deterministic candidate, including candidates the model
+      // suppresses. This is required to measure false positives before launch.
+      if (deterministicEvaluation.relevant) {
+        this._logObservation(
+          options.imei,
+          person,
+          safeDevice,
+          safeLocation,
+          deterministicEvaluation,
+          contextDecision
+        );
       }
 
       logger.info('Context retrieved', {
-        person: person?.displayName,
-        relevant: evaluation.relevant,
-        severity: evaluation.severity,
+        source: options.source || 'on_demand',
+        relevant: contextEvaluation.relevant,
+        deterministicCandidate: deterministicEvaluation.relevant,
+        severity: contextEvaluation.severity,
+        decisionMode: contextDecision.mode,
         durationMs: Date.now() - startTime,
       });
-
       return context;
     } catch (err) {
-      logger.error('Context retrieval failed', {
-        error: err.message,
-        person: person?.displayName,
-      });
-
-      // Return minimal safe context on error
-      return {
-        device: {
-          online: device?.online,
-          lastSeenAt: device?.lastSeenAt,
-          batteryPercent: device?.batteryPercent,
-        },
-        location: {
-          lat: location?.lat,
-          lng: location?.lng,
-          placeName: location?.placeName,
-        },
-        weather: { condition: 'unknown', alerts: [], severity: 'unknown' },
-        contextEvaluation: {
-          relevant: false,
-          severity: 'none',
-          message: 'Could not evaluate context at this time',
-        },
-        fetchedAt: new Date().toISOString(),
-        error: err.message,
-      };
+      logger.error('Context retrieval failed', { error: err.message });
+      return this._errorContext(safeDevice, safeLocation, err);
     }
   }
 
-  /**
-   * Log observation in observe-only mode
-   * Records proposed alerts for monitoring without notifying users
-   * @private
-   */
-  _logObservation(person, device, location, evaluation) {
+  _recordLlmUsage(result = {}) {
+    if (!result.attempted) return;
+    incrementMetric('contextLlmCalls');
+    const input = Number(result.usage?.input_tokens || result.usage?.inputTokens || 0);
+    const output = Number(result.usage?.output_tokens || result.usage?.outputTokens || 0);
+    recordAssistantUsage({ input_tokens: input, output_tokens: output });
+    incrementMetric('contextLlmTokensIn', input);
+    incrementMetric('contextLlmTokensOut', output);
+  }
+
+  _deterministicDecision(evaluation, weather) {
+    return {
+      mode: 'deterministic_fallback',
+      relevant: evaluation.relevant,
+      confidence: Number.isFinite(Number(weather?.confidence))
+        ? Number(weather.confidence)
+        : 0,
+      recommendedSurface: evaluation.relevant ? 'app' : 'suppress',
+      recommendedAction: evaluation.relevant ? 'check_in' : 'none',
+      reason: evaluation.relevant
+        ? 'Deterministic context candidate; LLM judgment unavailable or not required.'
+        : 'No deterministic context candidate.',
+      explanation: evaluation.relevant ? evaluation.message : null,
+      observeOnly: true,
+    };
+  }
+
+  _safeDevice(device = {}) {
+    const rawLastSeen = device?.lastSeenAt;
+    const lastSeenAt = rawLastSeen instanceof Date
+      ? rawLastSeen.toISOString()
+      : (rawLastSeen ? String(rawLastSeen) : null);
+    return {
+      online: device?.online === true,
+      lastSeenAt,
+      batteryPercent: device?.batteryPercent != null && Number.isFinite(Number(device.batteryPercent))
+        ? Number(device.batteryPercent)
+        : null,
+      lastSeenMinutesAgo: device?.lastSeenMinutesAgo != null && Number.isFinite(Number(device.lastSeenMinutesAgo))
+        ? Math.max(0, Number(device.lastSeenMinutesAgo))
+        : null,
+    };
+  }
+
+  _safeLocation(location = {}) {
+    return {
+      lat: location?.lat == null ? Number.NaN : Number(location.lat),
+      lng: location?.lng == null ? Number.NaN : Number(location.lng),
+      placeName: String(location?.placeName || 'Unknown location'),
+      freshnessMinutes: location?.freshnessMinutes != null && Number.isFinite(Number(location.freshnessMinutes))
+        ? Math.max(0, Number(location.freshnessMinutes))
+        : null,
+      accuracyClass: ['precise', 'good', 'approximate', 'unknown'].includes(
+        location?.accuracyClass
+      )
+        ? location.accuracyClass
+        : 'unknown',
+    };
+  }
+
+  _logObservation(imei, person, device, location, deterministicEvaluation, decision) {
     const observation = {
       timestamp: new Date().toISOString(),
+      imei: imei || null,
       person: person?.displayName,
       location: location?.placeName,
-      severity: evaluation.severity,
-      message: evaluation.message,
-      reasons: evaluation.reasons,
-      uncertainty: evaluation.uncertainty,
+      deterministicSeverity: deterministicEvaluation.severity,
+      deterministicReasons: deterministicEvaluation.reasons,
+      uncertainty: deterministicEvaluation.uncertainty,
+      decision: {
+        mode: decision.mode,
+        relevant: decision.relevant,
+        confidence: decision.confidence,
+        recommendedSurface: decision.recommendedSurface,
+        recommendedAction: decision.recommendedAction,
+        reason: decision.reason,
+      },
       deviceState: {
         online: device?.online,
         battery: device?.batteryPercent,
       },
       locationFreshness: location?.freshnessMinutes,
+      observeOnly: true,
     };
-
     this.observeLog.push(observation);
-
-    // Keep only last 1000 observations
-    if (this.observeLog.length > 1000) {
-      this.observeLog.shift();
-    }
-
-    logger.info('Context observation logged', {
-      person: person?.displayName,
-      severity: evaluation.severity,
-    });
+    if (this.observeLog.length > 1000) this.observeLog.shift();
+    incrementMetric('contextObservations');
   }
 
-  /**
-   * Get observe-only log (for debugging/metrics)
-   */
+  _errorContext(device, location, err) {
+    const evaluation = {
+      relevant: false,
+      severity: 'none',
+      reasons: [],
+      uncertainty: ['Context evaluation failed'],
+      message: 'Could not evaluate context at this time',
+    };
+    return {
+      device,
+      location,
+      weather: {
+        condition: 'unknown',
+        alerts: [],
+        severity: 'unknown',
+        fetchedAt: Date.now(),
+        source: 'openweathermap',
+        confidence: 0,
+      },
+      deterministicEvaluation: evaluation,
+      contextEvaluation: evaluation,
+      contextDecision: {
+        mode: 'error_fallback',
+        relevant: false,
+        confidence: 0,
+        recommendedSurface: 'suppress',
+        recommendedAction: 'none',
+        reason: 'Context evaluation failed.',
+        explanation: null,
+        observeOnly: true,
+      },
+      explanation: null,
+      delivery: { mode: 'observe_only', sent: false },
+      fetchedAt: new Date().toISOString(),
+      error: err.message,
+    };
+  }
+
   getObservationLog(limit = 50) {
     return this.observeLog.slice(-limit);
   }
 
-  /**
-   * Get service stats
-   */
   getStats() {
     return {
       weatherCacheSize: this.weatherProvider.getCacheStats().entries,
+      weatherCacheMinutes: this.weatherProvider.getCacheStats().maxDurationMinutes,
       observationLogSize: this.observeLog.length,
       lastObservation: this.observeLog[this.observeLog.length - 1] || null,
     };
   }
 
-  /**
-   * Clear logs (useful for testing/admin)
-   */
   clearObservationLog() {
     this.observeLog = [];
-    logger.info('Observation log cleared');
   }
 }
 

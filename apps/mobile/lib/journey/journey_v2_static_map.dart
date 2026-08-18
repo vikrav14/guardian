@@ -10,10 +10,12 @@ class JourneyV2StaticMap extends StatefulWidget {
     super.key,
     required this.route,
     this.currentIndex = 0,
+    this.showReplayPosition = false,
   });
 
   final JourneyV2Route route;
   final int currentIndex;
+  final bool showReplayPosition;
 
   @override
   State<JourneyV2StaticMap> createState() => _JourneyV2StaticMapState();
@@ -124,8 +126,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
     }
 
     final latLngs = [for (final point in points) LatLng(point.lat, point.lng)];
-    final start = latLngs.first;
-    final end = latLngs.last;
+    final continuousSegments = journeyV2StaticMapSegments(widget.route);
     final replayIndex = widget.currentIndex < 0
         ? 0
         : widget.currentIndex >= latLngs.length
@@ -133,59 +134,93 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         : widget.currentIndex;
     final replayPoint = latLngs[replayIndex];
 
-    final markers = <Marker>{
-      Marker(
-        markerId: const MarkerId('journey-start'),
-        position: start,
-        infoWindow: const InfoWindow(title: 'Start'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ),
-      Marker(
-        markerId: const MarkerId('journey-arrival'),
-        position: end,
-        infoWindow: const InfoWindow(title: 'Arrival'),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-      ),
-    };
+    final markers = journeyV2EndpointMarkers(widget.route, points);
+    final circles = journeyV2EndpointCircles(widget.route, points);
 
-    if (replayIndex > 0 && replayIndex < latLngs.length - 1) {
+    if (widget.showReplayPosition && replayIndex < latLngs.length - 1) {
+      circles.add(
+        Circle(
+          circleId: const CircleId('journey-replay-position'),
+          center: replayPoint,
+          radius: 14,
+          fillColor: const Color(0xFF168AAD),
+          strokeColor: Colors.white,
+          strokeWidth: 3,
+          zIndex: 30,
+        ),
+      );
+    }
+
+    for (var gapIndex = 0;
+        gapIndex < widget.route.record.routeGaps.length;
+        gapIndex++) {
+      final gap = widget.route.record.routeGaps[gapIndex];
+      final resumeIndex = gap.toPointIndex;
+      if (resumeIndex == null ||
+          resumeIndex < 0 ||
+          resumeIndex >= latLngs.length) {
+        continue;
+      }
       markers.add(
         Marker(
-          markerId: const MarkerId('journey-replay-person'),
-          position: replayPoint,
-          zIndexInt: 30,
-          infoWindow: const InfoWindow(title: 'Replay position'),
+          markerId: MarkerId('journey-gap-resume-$gapIndex'),
+          position: latLngs[resumeIndex],
+          zIndexInt: 20,
+          infoWindow: InfoWindow(
+            title: 'Tracking resumed',
+            snippet: '${_compactMapDuration(gap.duration)} gap',
+          ),
           icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
+            BitmapDescriptor.hueOrange,
           ),
         ),
       );
     }
 
-    final polylines = <Polyline>{
-      Polyline(
-        polylineId: const PolylineId('journey-route-full'),
-        points: latLngs,
-        color: GuardianColors.safe.withValues(alpha: 0.28),
-        width: 7,
-        startCap: Cap.roundCap,
-        endCap: Cap.roundCap,
-        jointType: JointType.round,
-      ),
-    };
-
-    if (replayIndex >= 1) {
+    final polylines = <Polyline>{};
+    final replayInProgress =
+        widget.showReplayPosition && replayIndex < latLngs.length - 1;
+    for (var index = 0; index < continuousSegments.length; index++) {
+      final segment = continuousSegments[index];
+      if (segment.length < 2) continue;
       polylines.add(
         Polyline(
-          polylineId: const PolylineId('journey-route-replayed'),
-          points: latLngs.sublist(0, replayIndex + 1),
-          color: GuardianColors.safe,
+          polylineId: PolylineId('journey-route-full-$index'),
+          points: [
+            for (final point in segment) LatLng(point.lat, point.lng),
+          ],
+          color: replayInProgress
+              ? GuardianColors.safe.withValues(alpha: 0.24)
+              : GuardianColors.safe,
           width: 7,
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
           jointType: JointType.round,
         ),
       );
+    }
+
+    if (replayInProgress && replayIndex >= 1) {
+      final replaySegments = journeyV2SplitPointsOnTrackingGaps(
+        points.sublist(0, replayIndex + 1),
+      );
+      for (var index = 0; index < replaySegments.length; index++) {
+        final segment = replaySegments[index];
+        if (segment.length < 2) continue;
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-route-replayed-$index'),
+            points: [
+              for (final point in segment) LatLng(point.lat, point.lng),
+            ],
+            color: GuardianColors.safe,
+            width: 7,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+          ),
+        );
+      }
     }
 
     return ClipRRect(
@@ -200,6 +235,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
           WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
         },
         markers: markers,
+        circles: circles,
         polylines: polylines,
         mapType: MapType.normal,
         compassEnabled: false,
@@ -212,6 +248,62 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
       ),
     );
   }
+}
+
+/// A confirmed return-to-origin outing is one round trip. The first stored
+/// route point is already an outside fix, so presenting it as a second
+/// destination makes the map look like a one-way trip. Round trips therefore
+/// use one calm safe-zone circle; non-return journeys retain endpoint pins.
+Set<Marker> journeyV2EndpointMarkers(
+  JourneyV2Route route,
+  List<LocationHistoryPoint> points,
+) {
+  if (points.isEmpty) return <Marker>{};
+
+  if (route.record.hasConfirmedReturn) return <Marker>{};
+
+  final start = LatLng(points.first.lat, points.first.lng);
+  final end = LatLng(points.last.lat, points.last.lng);
+  final origin = route.record.originGeofenceName?.trim();
+
+  return <Marker>{
+    Marker(
+      markerId: const MarkerId('journey-start'),
+      position: start,
+      infoWindow: InfoWindow(
+        title: origin == null || origin.isEmpty ? 'Departure' : 'Left $origin',
+      ),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+    ),
+    Marker(
+      markerId: const MarkerId('journey-arrival'),
+      position: end,
+      infoWindow: const InfoWindow(title: 'Last recorded location'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+    ),
+  };
+}
+
+Set<Circle> journeyV2EndpointCircles(
+  JourneyV2Route route,
+  List<LocationHistoryPoint> points,
+) {
+  if (!route.record.hasConfirmedReturn || points.isEmpty) return <Circle>{};
+
+  final originPoint = route.record.routeStartAnchored
+      ? points.first
+      : points.last;
+  return <Circle>{
+    Circle(
+      circleId: const CircleId('journey-origin'),
+      center: LatLng(originPoint.lat, originPoint.lng),
+      radius: 18,
+      fillColor: GuardianColors.safe,
+      strokeColor: Colors.white,
+      strokeWidth: 4,
+      zIndex: 20,
+    ),
+  };
 }
 
 bool _basicValid(double lat, double lng) {
@@ -291,13 +383,20 @@ List<LocationHistoryPoint> _webSafeRecordPoints(JourneyV2Route route) {
   final startMs = route.record.startAt.millisecondsSinceEpoch;
   final endMs = route.record.endAt.millisecondsSinceEpoch;
   final spanMs = endMs - startMs;
+  final hasAlignedEvidence =
+      route.record.evidenceVersion >= 2 &&
+      route.record.pointEvidence.length == coords.length;
 
   final points = <LocationHistoryPoint>[
     for (var i = 0; i < coords.length; i++)
       LocationHistoryPoint(
         lat: coords[i].lat,
         lng: coords[i].lng,
-        recordedAt: coords.length == 1
+        recordedAt: hasAlignedEvidence
+            ? DateTime.fromMillisecondsSinceEpoch(
+                startMs + route.record.pointEvidence[i].offsetMs,
+              )
+            : coords.length == 1
             ? route.record.startAt
             : DateTime.fromMillisecondsSinceEpoch(
                 startMs + ((spanMs * i) / (coords.length - 1)).round(),
@@ -308,6 +407,46 @@ List<LocationHistoryPoint> _webSafeRecordPoints(JourneyV2Route route) {
   return points
       .where((point) => _basicValid(point.lat, point.lng))
       .toList(growable: false);
+}
+
+List<List<LocationHistoryPoint>> journeyV2SplitPointsOnTrackingGaps(
+  List<LocationHistoryPoint> points,
+) {
+  if (points.isEmpty) return const [];
+
+  final segments = <List<LocationHistoryPoint>>[];
+  var current = <LocationHistoryPoint>[points.first];
+  for (var index = 1; index < points.length; index++) {
+    final previousAt = points[index - 1].recordedAt;
+    final pointAt = points[index].recordedAt;
+    final trackingInterrupted =
+        previousAt == null ||
+        pointAt == null ||
+        pointAt.difference(previousAt) > const Duration(minutes: 5);
+    if (trackingInterrupted) {
+      segments.add(List.unmodifiable(current));
+      current = <LocationHistoryPoint>[points[index]];
+    } else {
+      current.add(points[index]);
+    }
+  }
+  segments.add(List.unmodifiable(current));
+  return List.unmodifiable(segments);
+}
+
+List<List<LocationHistoryPoint>> journeyV2StaticMapSegments(
+  JourneyV2Route route,
+) {
+  return journeyV2SplitPointsOnTrackingGaps(journeyV2StaticMapPoints(route));
+}
+
+String _compactMapDuration(Duration duration) {
+  if (duration <= Duration.zero) return '0m';
+  final minutes = (duration.inSeconds + 59) ~/ 60;
+  if (minutes < 60) return '${minutes}m';
+  final hours = minutes ~/ 60;
+  final remainder = minutes % 60;
+  return remainder == 0 ? '${hours}h' : '${hours}h ${remainder}m';
 }
 
 /// Static-map point policy:

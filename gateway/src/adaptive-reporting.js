@@ -1,6 +1,7 @@
 'use strict';
 
 const { sendDeviceCommand } = require('./commands');
+const { setDeviceReportingContext } = require('./sessions');
 
 const BATTERY_POLICY = Object.freeze([
   { min: 60, seconds: 60, reason: 'battery_high' },
@@ -12,6 +13,8 @@ const BATTERY_POLICY = Object.freeze([
 const SOS_ACTIVE_MS = 30 * 60 * 1000;
 const SOS_COOLDOWN_MS = 15 * 60 * 1000;
 const NORMAL_COMMAND_COOLDOWN_MS = 10 * 60 * 1000;
+const OUTING_REPORTING_SECONDS = 60;
+const CRITICAL_BATTERY_PERCENT = 15;
 
 const stateByImei = new Map();
 
@@ -28,6 +31,7 @@ function policyForBattery(batteryPercent) {
 
 function effectivePolicy({
   batteryPercent,
+  outingActive = false,
   nowMs = Date.now(),
   sosActiveUntilMs = 0,
   sosCooldownUntilMs = 0,
@@ -41,11 +45,33 @@ function effectivePolicy({
     return { seconds: 60, reason: 'sos_emergency_override' };
   }
 
+  // Safety while away from a confirmed origin outranks the normal battery
+  // bands. The real V52 test showed that dropping to 300 seconds during an
+  // outing can leave a long indoor interval with no recovery opportunity.
+  if (outingActive) {
+    if (Number.isFinite(battery) && battery < CRITICAL_BATTERY_PERCENT) {
+      return { seconds: 300, reason: 'outing_critical_battery' };
+    }
+    return { seconds: OUTING_REPORTING_SECONDS, reason: 'outing_active' };
+  }
+
   if (nowMs < sosCooldownUntilMs) {
     return { seconds: 300, reason: 'sos_cooldown' };
   }
 
   return policyForBattery(batteryPercent);
+}
+
+function appliedIntervalSeconds(data = {}, adaptive = {}) {
+  const candidates = [
+    data.locationReportingIntervalSeconds,
+    adaptive.appliedIntervalSeconds,
+  ];
+  for (const value of candidates) {
+    const seconds = Number(value);
+    if (Number.isInteger(seconds) && seconds > 0) return seconds;
+  }
+  return null;
 }
 
 function markSos(imei, nowMs = Date.now()) {
@@ -79,6 +105,7 @@ function shouldSend({
 
 async function applyAdaptiveReporting(db, imei, {
   batteryPercent,
+  outingActive = false,
   trigger = 'telemetry',
   nowMs = Date.now(),
   force = false,
@@ -112,18 +139,22 @@ async function applyAdaptiveReporting(db, imei, {
 
   const policy = effectivePolicy({
     batteryPercent,
+    outingActive,
     nowMs,
     sosActiveUntilMs,
     sosCooldownUntilMs,
   });
 
-  const lastRequestedSeconds =
-    adaptive.desiredIntervalSeconds ??
-    data.locationReportingIntervalSeconds ??
-    null;
+  // `desiredIntervalSeconds` is intent, not proof that the command reached the
+  // watch. Using it as the applied value made a cooldown-blocked change appear
+  // complete and prevented later retries.
+  const lastRequestedSeconds = appliedIntervalSeconds(data, adaptive);
 
   const lastCommandAtMs = adaptive.lastCommandAt?.toMillis?.() || 0;
-  const urgent = force || policy.reason.startsWith('sos_');
+  const urgent =
+    force ||
+    policy.reason.startsWith('sos_') ||
+    policy.reason.startsWith('outing_');
 
   const send = shouldSend({
     desiredSeconds: policy.seconds,
@@ -134,11 +165,19 @@ async function applyAdaptiveReporting(db, imei, {
   });
 
   if (!send) {
+    setDeviceReportingContext(imei, {
+      expectedReportingIntervalSeconds: lastRequestedSeconds,
+      outingActive,
+    });
+
     await deviceRef.set({
       locationReportingMode: 'automatic',
       adaptiveReporting: {
         ...adaptive,
         desiredIntervalSeconds: policy.seconds,
+        ...(lastRequestedSeconds != null
+          ? { appliedIntervalSeconds: lastRequestedSeconds }
+          : {}),
         reason: policy.reason,
         batteryPercent: Number.isFinite(Number(batteryPercent))
           ? Number(batteryPercent)
@@ -157,11 +196,17 @@ async function applyAdaptiveReporting(db, imei, {
     seconds: policy.seconds,
   });
 
+  setDeviceReportingContext(imei, {
+    expectedReportingIntervalSeconds: policy.seconds,
+    outingActive,
+  });
+
   await deviceRef.set({
     locationReportingMode: 'automatic',
     locationReportingIntervalSeconds: policy.seconds,
     adaptiveReporting: {
       desiredIntervalSeconds: policy.seconds,
+      appliedIntervalSeconds: policy.seconds,
       reason: policy.reason,
       batteryPercent: Number.isFinite(Number(batteryPercent))
         ? Number(batteryPercent)
@@ -192,6 +237,7 @@ async function applyAdaptiveReporting(db, imei, {
 
 async function activateSosOverride(db, imei, {
   batteryPercent,
+  outingActive = false,
   nowMs = Date.now(),
 } = {}) {
   const { sosActiveUntilMs, sosCooldownUntilMs } = markSos(imei, nowMs);
@@ -209,6 +255,7 @@ async function activateSosOverride(db, imei, {
 
   return applyAdaptiveReporting(db, imei, {
     batteryPercent,
+    outingActive,
     trigger: 'sos',
     nowMs,
     force: true,
@@ -220,8 +267,11 @@ module.exports = {
   SOS_ACTIVE_MS,
   SOS_COOLDOWN_MS,
   NORMAL_COMMAND_COOLDOWN_MS,
+  OUTING_REPORTING_SECONDS,
+  CRITICAL_BATTERY_PERCENT,
   policyForBattery,
   effectivePolicy,
+  appliedIntervalSeconds,
   shouldSend,
   markSos,
   applyAdaptiveReporting,

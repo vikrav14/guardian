@@ -92,6 +92,174 @@ test('geofence exit starts an outing and records its origin', () => {
   assert.equal(state.currentJourney.events[0].type, 'geofence_exit');
 });
 
+test('confirmed safe-zone exit prepends the latest trusted inside GPS point', () => {
+  const state = emptyState();
+  const insideAt = new Date('2026-08-17T09:00:00Z');
+
+  const inside = trackJourneyPoint(
+    state,
+    {
+      lat: -20.029232,
+      lng: 57.595928,
+      speedKmh: 0,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 7,
+      recordedAt: insideAt,
+    },
+    insideAt,
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: true,
+      insideSafeZoneIds: ['home-id'],
+    }
+  );
+
+  assert.equal(inside.started, false);
+  assert.equal(state.currentJourney, null);
+  assert.ok(state.lastConfirmedSafeZonePoint);
+
+  const exitAt = new Date('2026-08-17T09:01:00Z');
+  const exited = trackJourneyPoint(
+    state,
+    {
+      lat: -20.027307,
+      lng: 57.6018805,
+      speedKmh: 18.28,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 8,
+      recordedAt: exitAt,
+    },
+    exitAt,
+    {
+      ...transition('geofence_exit'),
+      transitionEvidence: { classification: 'outside', source: 'gps' },
+      hasActiveSafeZones: true,
+      insideAnySafeZone: false,
+      insideSafeZoneIds: [],
+    }
+  );
+
+  assert.equal(exited.started, true);
+  assert.equal(state.currentJourney.points.length, 2);
+  assert.equal(state.currentJourney.routeStartAnchored, true);
+  assert.equal(
+    new Date(state.currentJourney.startAt).toISOString(),
+    insideAt.toISOString()
+  );
+  assert.equal(
+    new Date(state.currentJourney.departureAt).toISOString(),
+    exitAt.toISOString()
+  );
+
+  const enterAt = new Date('2026-08-17T09:03:00Z');
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.029232,
+      lng: 57.595928,
+      speedKmh: 4,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 6,
+      recordedAt: enterAt,
+    },
+    enterAt,
+    {
+      ...transition('geofence_enter'),
+      transitionEvidence: { classification: 'inside', source: 'gps' },
+      hasActiveSafeZones: true,
+      insideAnySafeZone: true,
+      insideSafeZoneIds: ['home-id'],
+    }
+  );
+
+  const confirmedAt = new Date('2026-08-17T09:05:05Z');
+  const confirmed = trackJourneyPoint(
+    state,
+    {
+      lat: -20.02923,
+      lng: 57.59593,
+      speedKmh: 0,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 6,
+      recordedAt: confirmedAt,
+    },
+    confirmedAt,
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: true,
+      insideSafeZoneIds: ['home-id'],
+    }
+  );
+
+  assert.equal(confirmed.flushes.length, 1);
+  const doc = confirmed.flushes[0];
+  assert.equal(doc.evidenceVersion, 3);
+  assert.equal(doc.routeStartAnchored, true);
+  assert.equal(doc.pointCount, 3);
+  assert.equal(new Date(doc.startAt).toISOString(), insideAt.toISOString());
+  assert.equal(new Date(doc.departureAt).toISOString(), exitAt.toISOString());
+  assert.equal(new Date(doc.returnAt).toISOString(), enterAt.toISOString());
+  assert.equal(doc.routeCoverage.gapCount, 0);
+  assert.equal(doc.routeStartEvidence.gpsValid, true);
+
+  const decoded = decodePolyline(doc.polyline);
+  assert.equal(decoded[0].lat, -20.02923);
+  assert.equal(decoded[0].lng, 57.59593);
+});
+
+test('stale inside GPS point cannot masquerade as the departure route start', () => {
+  const state = emptyState();
+  const insideAt = new Date('2026-08-17T10:00:00Z');
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.029232,
+      lng: 57.595928,
+      speedKmh: 0,
+      source: 'gps',
+      gpsValid: true,
+      recordedAt: insideAt,
+    },
+    insideAt,
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: true,
+      insideSafeZoneIds: ['home-id'],
+    }
+  );
+
+  const exitAt = new Date('2026-08-17T10:06:00Z');
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.027307,
+      lng: 57.6018805,
+      speedKmh: 18,
+      source: 'gps',
+      gpsValid: true,
+      recordedAt: exitAt,
+    },
+    exitAt,
+    {
+      ...transition('geofence_exit'),
+      hasActiveSafeZones: true,
+    }
+  );
+
+  assert.ok(state.currentJourney);
+  assert.equal(state.currentJourney.routeStartAnchored, false);
+  assert.equal(state.currentJourney.points.length, 1);
+  assert.equal(new Date(state.currentJourney.startAt).toISOString(), exitAt.toISOString());
+});
+
 test('geofence exit never flushes an already-active outing', () => {
   const state = emptyState();
   const start = new Date('2026-07-22T09:00:00Z');
@@ -553,4 +721,149 @@ test('active safe zone configured but currently outside still allows generic jou
   assert.equal(result.started, true);
   assert.equal(result.flushes.length, 0);
   assert.ok(state.currentJourney);
+});
+
+test('uncertain safe-zone presence blocks a drift-only generic journey start', () => {
+  const state = emptyState();
+  state.lastPersistedLocation = { lat: -20.029234, lng: 57.5957028 };
+  const now = new Date('2026-08-17T08:10:00Z');
+
+  const result = trackJourneyPoint(
+    state,
+    {
+      lat: -20.0242989,
+      lng: 57.5912873,
+      speedKmh: 0,
+      source: 'wifi',
+      accuracySource: 'wifi',
+      gpsValid: false,
+      accuracyMeters: 581.672,
+      recordedAt: now,
+    },
+    now,
+    {
+      hasActiveSafeZones: true,
+      insideAnySafeZone: false,
+      hasUncertainSafeZones: true,
+    }
+  );
+
+  assert.equal(result.started, false);
+  assert.equal(result.flushes.length, 0);
+  assert.equal(state.currentJourney, null);
+});
+
+test('completed journey stores real point timing, provenance, and route gaps', () => {
+  const state = emptyState();
+  const start = new Date('2026-08-17T08:00:00Z');
+  const departureEvidence = {
+    classification: 'outside',
+    source: 'gps',
+    gpsValid: true,
+    satellites: 10,
+  };
+
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.029234,
+      lng: 57.5957028,
+      speedKmh: 8,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 10,
+      recordedAt: start,
+    },
+    start,
+    {
+      ...transition('geofence_exit'),
+      transitionEvidence: departureEvidence,
+    }
+  );
+
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.027307,
+      lng: 57.6018805,
+      speedKmh: 18.28,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 8,
+      recordedAt: new Date('2026-08-17T08:01:00Z'),
+    },
+    new Date('2026-08-17T08:01:00Z')
+  );
+
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.029232,
+      lng: 57.595928,
+      speedKmh: 16.04,
+      source: 'gps',
+      accuracySource: 'gps',
+      gpsValid: true,
+      satellites: 6,
+      recordedAt: new Date('2026-08-17T08:28:00Z'),
+    },
+    new Date('2026-08-17T08:28:00Z')
+  );
+
+  const doc = closeJourney(
+    state,
+    new Date('2026-08-17T08:30:00Z'),
+    'manual'
+  );
+
+  assert.equal(doc.evidenceVersion, 3);
+  assert.equal(doc.pointEvidence.length, 3);
+  assert.deepEqual(
+    doc.pointEvidence.map((point) => point.offsetMs),
+    [0, 60_000, 1_680_000]
+  );
+  assert.equal(doc.pointEvidence[0].source, 'gps');
+  assert.equal(doc.pointEvidence[0].satellites, 10);
+  assert.equal(doc.routeCoverage.gpsPointCount, 3);
+  assert.equal(doc.routeCoverage.approximatePointCount, 0);
+  assert.equal(doc.routeCoverage.gapCount, 1);
+  assert.equal(doc.routeCoverage.interrupted, true);
+  assert.equal(doc.routeGaps[0].durationSeconds, 27 * 60);
+  assert.equal(doc.routeGaps[0].fromPointIndex, 1);
+  assert.equal(doc.routeGaps[0].toPointIndex, 2);
+  assert.equal(doc.routeSegments.length, 2);
+  assert.deepEqual(
+    doc.routeSegments.map((segment) => segment.pointCount),
+    [2, 1]
+  );
+  assert.equal(doc.distanceKm, doc.routeSegments[0].distanceKm);
+  assert.equal(doc.routeCoverage.structureReliable, false);
+  assert.deepEqual(doc.departureEvidence, departureEvidence);
+});
+
+test('journey events retain the geofence observation evidence used for transitions', () => {
+  const state = emptyState();
+  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  const at = new Date('2026-08-17T09:00:00Z');
+  const evidence = {
+    classification: 'outside',
+    source: 'gps',
+    gpsValid: true,
+    satellites: 7,
+  };
+
+  trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-08-17T09:00:00Z'),
+    at,
+    {
+      ...transition('geofence_exit'),
+      transitionEvidence: evidence,
+    }
+  );
+
+  assert.deepEqual(state.currentJourney.events[0].evidence, evidence);
+  assert.deepEqual(state.currentJourney.departureEvidence, evidence);
 });

@@ -154,3 +154,145 @@ test('clearly outside fix still emits Home exit after boundary protection', asyn
   assert.equal(presence.hasActiveZones, true);
   assert.equal(presence.insideAny, false);
 });
+
+test('real V52 supermarket WiFi uncertainty cannot manufacture a Home exit', async () => {
+  resetGeofenceStateForTests();
+
+  const home = { lat: -20.029234, lng: 57.5957028 };
+  const db = fakeDb([
+    {
+      id: 'home-real-device',
+      data: {
+        imei: 'REALV52',
+        active: true,
+        center: home,
+        radiusMeters: 150,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  await evaluateGeofenceTransitions(db, 'REALV52', {
+    ...home,
+    source: 'gps',
+    gpsValid: true,
+    satellites: 10,
+  });
+
+  const events = await evaluateGeofenceTransitions(db, 'REALV52', {
+    lat: -20.0242989,
+    lng: 57.5912873,
+    source: 'wifi',
+    gpsValid: false,
+    accuracyMeters: 581.672,
+    satellites: 0,
+    recordedAt: new Date('2026-08-17T08:10:00.000Z'),
+  });
+
+  assert.deepEqual(events, []);
+  const presence = getGeofencePresence('REALV52');
+  assert.equal(presence.insideAny, true);
+  assert.equal(presence.hasUncertainZones, true);
+  assert.deepEqual(presence.uncertainZoneIds, ['home-real-device']);
+});
+
+test('approximate fix without an accuracy radius remains unknown and cannot seed departure', async () => {
+  resetGeofenceStateForTests();
+
+  const db = fakeDb([
+    {
+      id: 'home-no-radius',
+      data: {
+        imei: 'NOACCURACY',
+        active: true,
+        center: { lat: -20.2642, lng: 57.4791 },
+        radiusMeters: 150,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  const events = await evaluateGeofenceTransitions(db, 'NOACCURACY', {
+    lat: -20.25,
+    lng: 57.49,
+    source: 'lbs',
+    gpsValid: false,
+  });
+
+  assert.deepEqual(events, []);
+  const presence = getGeofencePresence('NOACCURACY');
+  assert.equal(presence.hasActiveZones, true);
+  assert.equal(presence.insideAny, false);
+  assert.equal(presence.hasUncertainZones, true);
+});
+
+test('explicitly invalid GPS without accuracy remains uncertain', async () => {
+  resetGeofenceStateForTests();
+  const db = fakeDb([
+    {
+      id: 'home-invalid-gps',
+      data: {
+        imei: 'INVALIDGPS',
+        active: true,
+        center: { lat: -20.0292, lng: 57.5959 },
+        radiusMeters: 150,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  await evaluateGeofenceTransitions(db, 'INVALIDGPS', {
+    lat: -20.0292,
+    lng: 57.5959,
+    source: 'gps',
+    gpsValid: false,
+  });
+
+  const presence = getGeofencePresence('INVALIDGPS');
+  assert.equal(presence.insideAny, false);
+  assert.equal(presence.hasUncertainZones, true);
+});
+
+test('transition payload retains the location evidence used for the decision', async () => {
+  resetGeofenceStateForTests();
+
+  const db = fakeDb([
+    {
+      id: 'evidence-zone',
+      data: {
+        imei: 'EVIDENCE1',
+        active: true,
+        center: { lat: -20.2642, lng: 57.4791 },
+        radiusMeters: 100,
+        name: 'Home',
+      },
+    },
+  ]);
+
+  await evaluateGeofenceTransitions(db, 'EVIDENCE1', {
+    lat: -20.2642,
+    lng: 57.4791,
+    source: 'gps',
+    gpsValid: true,
+    satellites: 8,
+  });
+
+  const events = await evaluateGeofenceTransitions(db, 'EVIDENCE1', {
+    lat: -20.261,
+    lng: 57.4791,
+    source: 'gps',
+    gpsValid: true,
+    satellites: 7,
+    recordedAt: new Date('2026-08-17T08:20:00.000Z'),
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, 'geofence_exit');
+  assert.equal(events[0].payload.observationEvidence.source, 'gps');
+  assert.equal(events[0].payload.observationEvidence.gpsValid, true);
+  assert.equal(events[0].payload.observationEvidence.satellites, 7);
+  assert.equal(
+    events[0].payload.observationEvidence.recordedAt.toISOString(),
+    '2026-08-17T08:20:00.000Z'
+  );
+});

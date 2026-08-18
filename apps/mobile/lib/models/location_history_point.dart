@@ -6,6 +6,10 @@ class LocationHistoryPoint {
     required this.lng,
     this.speedKmh,
     this.accuracySource,
+    this.source,
+    this.gpsValid,
+    this.accuracyMeters,
+    this.satellites,
     this.recordedAt,
   });
 
@@ -13,6 +17,10 @@ class LocationHistoryPoint {
   final double lng;
   final num? speedKmh;
   final String? accuracySource;
+  final String? source;
+  final bool? gpsValid;
+  final double? accuracyMeters;
+  final int? satellites;
   final DateTime? recordedAt;
 
   factory LocationHistoryPoint.fromDoc(
@@ -24,6 +32,10 @@ class LocationHistoryPoint {
       lng: (data['lng'] as num?)?.toDouble() ?? 0,
       speedKmh: data['speedKmh'] as num?,
       accuracySource: data['accuracySource'] as String?,
+      source: data['source'] as String?,
+      gpsValid: data['gpsValid'] as bool?,
+      accuracyMeters: (data['accuracyMeters'] as num?)?.toDouble(),
+      satellites: (data['satellites'] as num?)?.toInt(),
       recordedAt: _asDateTime(data['recordedAt']),
     );
   }

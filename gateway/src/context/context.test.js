@@ -293,10 +293,10 @@ test('ContextAI: builds fact sheet correctly', () => {
   );
 
   assert(facts.includes('Dexter'));
-  assert(facts.includes('age 8'));
+  assert(facts.includes('"age": 8'));
   assert(facts.includes('Grand Baie'));
   assert(facts.includes('Thunderstorm'));
-  assert(facts.includes('battery 80%'));
+  assert(facts.includes('"batteryPercent": 80'));
 });
 
 console.log('✅ All context intelligence tests passed');

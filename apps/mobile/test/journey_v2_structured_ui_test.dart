@@ -57,6 +57,21 @@ void main() {
       ],
       stopCount: 1,
       legCount: 2,
+      closeReason: 'return_to_origin',
+      originGeofenceName: 'Home',
+      departureAt: start.add(const Duration(minutes: 1)),
+      returnAt: start.add(const Duration(minutes: 30)),
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 5 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 10 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 15 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 20 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 25 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(offsetMs: 30 * 60 * 1000, source: 'gps', gpsValid: true),
+      ],
     );
 
     await tester.pumpWidget(

@@ -61,6 +61,11 @@ const { ConversationController } = require('./conversation-controller');
 const {
   hasEntitlement, featureForWhatsAppIntent, planBoundaryReply,
 } = require('./entitlements');
+const {
+  initializeContextRuntime,
+  getContextRuntime,
+} = require('./context/contextRuntime');
+const { adaptDeviceContext } = require('./context/deviceContextAdapter');
 
 console.log('[http] Metrics module loaded:', typeof metrics.trackIntent === 'function' ? '✓' : '✗');
 
@@ -127,6 +132,7 @@ function initializeLlmStack() {
 
   auditLog = new AuditLog(config);
   idempotencyStore = new IdempotencyStore(5); // 5-minute TTL
+  initializeContextRuntime({ config, llmProvider, db: getDb() });
   console.log('[guardian-http] Audit logging and idempotency initialized');
 }
 
@@ -666,6 +672,26 @@ async function requireAdmin(req, res) {
   return true;
 }
 
+/**
+ * Device context includes a loved one's location and must never inherit the
+ * ops API's convenient "dev-open" behavior. Local/ngrok testing therefore
+ * requires either X-Admin-Key or an authorized Firebase bearer token.
+ */
+async function requireStrictAdmin(req, res) {
+  const auth = await checkAdminAuth(req);
+  if (!auth.ok) {
+    sendJson(res, auth.status, { error: auth.error });
+    return false;
+  }
+  if (auth.method === 'dev-open') {
+    sendJson(res, 503, {
+      error: 'Device context endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
+    });
+    return false;
+  }
+  return true;
+}
+
 async function handleOpsHttpRequest(req, res, url) {
   if (req.method !== 'GET' || !url.pathname.startsWith('/ops/')) {
     return false;
@@ -810,8 +836,8 @@ function startHttpServer() {
       }
 
       // Device Context (weather + relevance)
-      if (req.method === 'GET' && url.pathname.match(/^\/devices\/[^/]+\/context/)) {
-        const match = url.pathname.match(/^\/devices\/([^/]+)\/context/);
+      if (req.method === 'GET' && url.pathname.match(/^\/devices\/[^/]+\/context$/)) {
+        const match = url.pathname.match(/^\/devices\/([^/]+)\/context$/);
         const imei = match ? match[1] : null;
 
         if (!imei) {
@@ -819,7 +845,15 @@ function startHttpServer() {
           return;
         }
 
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
         const db = getDb();
+        if (!db) {
+          sendJson(res, 503, { error: 'Context data store unavailable' });
+          return;
+        }
         const deviceDoc = await db.collection('devices').doc(imei).get();
 
         if (!deviceDoc.exists) {
@@ -828,31 +862,22 @@ function startHttpServer() {
         }
 
         const deviceData = deviceDoc.data();
-        const device = {
-          online: deviceData.online || false,
-          lastSeenAt: deviceData.lastSeenAt?.toDate?.() || new Date().toISOString(),
-          batteryPercent: deviceData.batteryPercent || 0,
-          lastSeenMinutesAgo: Math.round((Date.now() - (deviceData.lastSeenAt?.toDate?.() || new Date()).getTime()) / 60000),
-        };
-
-        const location = {
-          lat: deviceData.lastLocation?.coordinates?.[1],
-          lng: deviceData.lastLocation?.coordinates?.[0],
-          placeName: deviceData.lastLocation?.placeName || 'Unknown location',
-          freshnessMinutes: device.lastSeenMinutesAgo,
-          accuracyClass: deviceData.lastLocation?.accuracyClass || 'unknown',
-        };
-
-        const person = {
-          displayName: deviceData.displayName || 'Device user',
-          age: deviceData.age || 25,
-          careContext: deviceData.careContext || 'general',
-        };
-
-        // Get context service (lazy init)
-        const ContextService = require('./context/contextService');
-        const contextService = new ContextService(config.openWeatherMapKey, llmProvider, config);
-        const context = await contextService.getDeviceContext(device, person, location);
+        const adapted = adaptDeviceContext(deviceData);
+        if (!adapted) {
+          sendJson(res, 422, { error: 'No trustworthy device location available' });
+          return;
+        }
+        const contextService = getContextRuntime()?.service;
+        if (!contextService) {
+          sendJson(res, 503, { error: 'Context intelligence unavailable' });
+          return;
+        }
+        const context = await contextService.getDeviceContext(
+          adapted.device,
+          adapted.person,
+          adapted.location,
+          { imei, source: 'device_context_api' }
+        );
 
         sendJson(res, 200, context);
         return;
@@ -1058,4 +1083,5 @@ module.exports = {
   startHttpServer,
   handleChat,
   normalizeE164,
+  requireStrictAdmin,
 };

@@ -18,7 +18,7 @@ const {
   buildLocationProvenancePatch,
   backfillLegacyLocationProvenance,
 } = require('./location-provenance');
-const { listConnectedImeis, findSocketsForDevice, listSilentConnectedImeis } = require('./sessions');
+const { listConnectedImeis } = require('./sessions');
 const { hasPendingOffline } = require('./device-offline');
 const {
   connectionStaleMinutes,
@@ -563,28 +563,16 @@ async function reconcileStaleOnlineFlags() {
   if (!db || !enabled) return 0;
 
   const activeImeis = listConnectedImeis();
-  const silentImeis = listSilentConnectedImeis(config.tcpSilentSeconds * 1000);
   const staleMinutes = connectionStaleMinutes(config);
   const snap = await db.collection('devices').where('online', '==', true).get();
   let cleared = 0;
-
-  for (const silentImei of silentImeis) {
-    for (const { socket } of findSocketsForDevice(silentImei)) {
-      console.log(`[intelligence] closing silent TCP for ${silentImei} (no packets)`);
-      try {
-        socket.destroy();
-      } catch (_) {
-        /* ignore */
-      }
-    }
-  }
 
   for (const doc of snap.docs) {
     if (hasPendingOffline(doc.id)) continue;
 
     const device = doc.data();
-    // Any open TCP counts as connected. Silent sockets are closed above; do not
-    // also force offline here while the socket is still registered.
+    // Session recovery owns probing and socket closure. The Firestore monitor
+    // must never race it by destroying a socket without first requesting CR.
     if (activeImeis.has(doc.id)) continue;
 
     if (

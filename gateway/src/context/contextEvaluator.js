@@ -6,7 +6,7 @@
 
 const Logger = require('../logger');
 
-const logger = new Logger('context-evaluator');
+const logger = new Logger({ module: 'context-evaluator' });
 
 class ContextEvaluator {
   /**
@@ -107,7 +107,7 @@ class ContextEvaluator {
       case 'severe_weather':
         result.relevant = true;
         result.severity = locationFresh ? 'check_in' : 'info';
-        result.reasons.push('Severe weather applies to area');
+        result.reasons.push('Severe weather conditions reported in area');
         if (ageGroup === 'child') {
           result.reasons.push('Child may need shelter/supervision');
         }
@@ -116,7 +116,7 @@ class ContextEvaluator {
       case 'heavy_rain':
         result.relevant = true;
         result.severity = locationFresh ? 'check_in' : 'info';
-        result.reasons.push('Heavy rain expected');
+        result.reasons.push('Heavy rain conditions reported in area');
         if (accuracyClass === 'approximate') {
           result.reasons.push('Location is approximate - verify before alerting');
         }
