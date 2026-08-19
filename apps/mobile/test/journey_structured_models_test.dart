@@ -2,6 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 
 void main() {
+  test('JourneyPointEvidence parses a reverse-geocoded place name', () {
+    final evidence = JourneyPointEvidence.fromMap({
+      'offsetMs': 60000,
+      'source': 'gps',
+      'gpsValid': true,
+      'placeName': 'Petite Julie',
+    });
+
+    expect(evidence.placeName, 'Petite Julie');
+  });
+
   test('JourneyStop parses factual stop data without inventing a place', () {
     final stop = JourneyStop.fromMap(<String, dynamic>{
       'id': 'stop_1',

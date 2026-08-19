@@ -1623,7 +1623,9 @@ class _ReplayLocationCard extends StatelessWidget {
                   Text(
                     skippingGap
                         ? 'Skipping to the next recorded location'
-                        : '${point.lat.toStringAsFixed(5)}, ${point.lng.toStringAsFixed(5)}',
+                        : label == 'Recorded location'
+                        ? 'Location name unavailable'
+                        : 'Recorded GPS location',
                     style: TextStyle(
                       color: colors.textSecondary,
                       fontSize: 8,
@@ -2167,6 +2169,11 @@ String _pointPlaceLabel(JourneyRecord journey, int pointIndex) {
       origin != null &&
       origin.isNotEmpty) {
     return origin;
+  }
+
+  if (pointIndex >= 0 && pointIndex < journey.pointEvidence.length) {
+    final place = journey.pointEvidence[pointIndex].placeName?.trim();
+    if (place != null && place.isNotEmpty) return place;
   }
 
   for (final stop in journey.stops) {

@@ -284,6 +284,7 @@ class JourneyPointEvidence {
     this.accuracyMeters,
     this.satellites,
     this.speedKmh,
+    this.placeName,
   });
 
   final int offsetMs;
@@ -292,6 +293,7 @@ class JourneyPointEvidence {
   final double? accuracyMeters;
   final int? satellites;
   final double? speedKmh;
+  final String? placeName;
 
   factory JourneyPointEvidence.fromMap(Map<String, dynamic> data) {
     return JourneyPointEvidence(
@@ -301,6 +303,7 @@ class JourneyPointEvidence {
       accuracyMeters: (data['accuracyMeters'] as num?)?.toDouble(),
       satellites: (data['satellites'] as num?)?.toInt(),
       speedKmh: (data['speedKmh'] as num?)?.toDouble(),
+      placeName: data['placeName'] as String?,
     );
   }
 }
