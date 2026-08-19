@@ -136,6 +136,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
     final circles = journeyV2EndpointCircles(widget.route, points);
+    circles.addAll(journeyV2GapCircles(widget.route, points));
     final polylines = <Polyline>{};
 
     if (widget.showReplayPosition && replayIndex < latLngs.length - 1) {
@@ -152,11 +153,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
       );
     }
 
-    for (
-      var gapIndex = 0;
-      gapIndex < widget.route.record.routeGaps.length;
-      gapIndex++
-    ) {
+    for (var gapIndex = 0;
+        gapIndex < widget.route.record.routeGaps.length;
+        gapIndex++) {
       final gap = widget.route.record.routeGaps[gapIndex];
       final stoppedIndex = gap.fromPointIndex;
       final resumeIndex = gap.toPointIndex;
@@ -179,25 +178,6 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
           ),
         );
       }
-      if (resumeIndex == null ||
-          resumeIndex < 0 ||
-          resumeIndex >= latLngs.length) {
-        continue;
-      }
-      markers.add(
-        Marker(
-          markerId: MarkerId('journey-gap-resume-$gapIndex'),
-          position: latLngs[resumeIndex],
-          zIndexInt: 20,
-          infoWindow: InfoWindow(
-            title: 'Location reporting resumed',
-            snippet: 'After a ${_compactMapDuration(gap.duration)} gap',
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
-          ),
-        ),
-      );
     }
 
     final replayInProgress =
@@ -205,17 +185,33 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
     for (var index = 0; index < continuousSegments.length; index++) {
       final segment = continuousSegments[index];
       if (segment.length < 2) continue;
+      final segmentPoints = [
+        for (final point in segment) LatLng(point.lat, point.lng),
+      ];
       polylines.add(
         Polyline(
-          polylineId: PolylineId('journey-route-full-$index'),
-          points: [for (final point in segment) LatLng(point.lat, point.lng)],
-          color: replayInProgress
-              ? GuardianColors.safe.withValues(alpha: 0.24)
-              : GuardianColors.safe,
+          polylineId: PolylineId('journey-route-halo-$index'),
+          points: segmentPoints,
+          color: Colors.white.withValues(alpha: 0.86),
           width: 7,
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
           jointType: JointType.round,
+          zIndex: 2,
+        ),
+      );
+      polylines.add(
+        Polyline(
+          polylineId: PolylineId('journey-route-full-$index'),
+          points: segmentPoints,
+          color: replayInProgress
+              ? GuardianColors.safe.withValues(alpha: 0.20)
+              : GuardianColors.safe.withValues(alpha: 0.86),
+          width: 4,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+          jointType: JointType.round,
+          zIndex: 3,
         ),
       );
     }
@@ -230,12 +226,15 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         polylines.add(
           Polyline(
             polylineId: PolylineId('journey-route-replayed-$index'),
-            points: [for (final point in segment) LatLng(point.lat, point.lng)],
+            points: [
+              for (final point in segment) LatLng(point.lat, point.lng),
+            ],
             color: GuardianColors.safe,
-            width: 7,
+            width: 4,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,
+            zIndex: 4,
           ),
         );
       }
@@ -268,34 +267,16 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
   }
 }
 
-/// A confirmed return-to-origin outing is one round trip. Its anchored first
-/// point represents the known origin area, so the map shows one Home marker
-/// for both departure and return instead of inventing separate destinations.
+/// Default Google marker hues are not consistently honoured on web. Confirmed
+/// round trips therefore use colored circles below instead of a pin that can
+/// incorrectly render red. Non-return journeys retain endpoint pins.
 Set<Marker> journeyV2EndpointMarkers(
   JourneyV2Route route,
   List<LocationHistoryPoint> points,
 ) {
   if (points.isEmpty) return <Marker>{};
 
-  if (route.record.hasConfirmedReturn) {
-    final originPoint = route.record.routeStartAnchored
-        ? points.first
-        : points.last;
-    final origin = route.record.originGeofenceName?.trim();
-    final label = origin == null || origin.isEmpty ? 'Safe zone' : origin;
-    return <Marker>{
-      Marker(
-        markerId: const MarkerId('journey-origin-marker'),
-        position: LatLng(originPoint.lat, originPoint.lng),
-        zIndexInt: 25,
-        infoWindow: InfoWindow(
-          title: label,
-          snippet: 'Departure and return confirmed',
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ),
-    };
-  }
+  if (route.record.hasConfirmedReturn) return <Marker>{};
 
   final start = LatLng(points.first.lat, points.first.lng);
   final end = LatLng(points.last.lat, points.last.lng);
@@ -328,10 +309,11 @@ Set<Circle> journeyV2EndpointCircles(
   final originPoint = route.record.routeStartAnchored
       ? points.first
       : points.last;
+  final center = LatLng(originPoint.lat, originPoint.lng);
   return <Circle>{
     Circle(
-      circleId: const CircleId('journey-origin'),
-      center: LatLng(originPoint.lat, originPoint.lng),
+      circleId: const CircleId('journey-origin-halo'),
+      center: center,
       // This is a visibility halo, not the configured geofence boundary.
       radius: 55,
       fillColor: GuardianColors.safe.withValues(alpha: 0.12),
@@ -339,7 +321,59 @@ Set<Circle> journeyV2EndpointCircles(
       strokeWidth: 2,
       zIndex: 10,
     ),
+    Circle(
+      circleId: const CircleId('journey-origin-core'),
+      center: center,
+      radius: 13,
+      fillColor: GuardianColors.safe,
+      strokeColor: Colors.white,
+      strokeWidth: 3,
+      zIndex: 25,
+    ),
   };
+}
+
+Set<Circle> journeyV2GapCircles(
+  JourneyV2Route route,
+  List<LocationHistoryPoint> points,
+) {
+  final circles = <Circle>{};
+  for (var index = 0; index < route.record.routeGaps.length; index++) {
+    final gap = route.record.routeGaps[index];
+    final stoppedIndex = gap.fromPointIndex;
+    final resumedIndex = gap.toPointIndex;
+    if (stoppedIndex != null &&
+        stoppedIndex >= 0 &&
+        stoppedIndex < points.length) {
+      circles.add(
+        Circle(
+          circleId: CircleId('journey-gap-stopped-$index'),
+          center: LatLng(points[stoppedIndex].lat, points[stoppedIndex].lng),
+          radius: 10,
+          fillColor: const Color(0xFF7C8792),
+          strokeColor: Colors.white,
+          strokeWidth: 3,
+          zIndex: 22,
+        ),
+      );
+    }
+    if (resumedIndex != null &&
+        resumedIndex >= 0 &&
+        resumedIndex < points.length) {
+      circles.add(
+        Circle(
+          circleId: CircleId('journey-gap-resumed-$index'),
+          center: LatLng(points[resumedIndex].lat, points[resumedIndex].lng),
+          radius: 12,
+          fillColor: const Color(0xFF168AAD),
+          strokeColor: Colors.white,
+          strokeWidth: 3,
+          zIndex: 23,
+        ),
+      );
+    }
+  }
+  return circles;
 }
 
 bool _basicValid(double lat, double lng) {
@@ -474,15 +508,6 @@ List<List<LocationHistoryPoint>> journeyV2StaticMapSegments(
   JourneyV2Route route,
 ) {
   return journeyV2SplitPointsOnTrackingGaps(journeyV2StaticMapPoints(route));
-}
-
-String _compactMapDuration(Duration duration) {
-  if (duration <= Duration.zero) return '0m';
-  final minutes = (duration.inSeconds + 59) ~/ 60;
-  if (minutes < 60) return '${minutes}m';
-  final hours = minutes ~/ 60;
-  final remainder = minutes % 60;
-  return remainder == 0 ? '${hours}h' : '${hours}h ${remainder}m';
 }
 
 /// Static-map point policy:

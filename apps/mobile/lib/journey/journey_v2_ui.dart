@@ -1048,7 +1048,8 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           showReplayPosition:
                               replay.isPlaying ||
                               (replay.currentIndex > 0 &&
-                                  replay.currentIndex < replay.pointCount - 1),
+                                  replay.currentIndex <
+                                      replay.pointCount - 1),
                         ),
                       ),
                       Positioned(
@@ -1080,6 +1081,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                                   builder: (_) => _JourneyFullScreenMap(
                                     journey: journey,
                                     route: selectedRoute,
+                                    replay: replay,
                                   ),
                                 ),
                               ),
@@ -1105,6 +1107,10 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                   child: _RouteCoverageNotice(journey: journey),
                 ),
               ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: _JourneyStoryCard(journey: journey),
+              ),
               _SelectedMetricsRow(journey: journey, route: selectedRoute),
               const SizedBox(height: 12),
               Padding(
@@ -1158,7 +1164,9 @@ class _SelectedTripAB extends StatelessWidget {
                 children: [
                   _CompactEndpoint(
                     letter: 'A',
-                    time: DateFormat.Hm().format(journey.confirmedDepartureAt),
+                    time: DateFormat.Hm().format(
+                      journey.confirmedDepartureAt,
+                    ),
                     caption: _departureCaption(journey),
                     color: GuardianColors.safe,
                   ),
@@ -1360,94 +1368,117 @@ class _MapExpandButton extends StatelessWidget {
 }
 
 class _JourneyFullScreenMap extends StatelessWidget {
-  const _JourneyFullScreenMap({required this.journey, required this.route});
+  const _JourneyFullScreenMap({
+    required this.journey,
+    required this.route,
+    required this.replay,
+  });
 
   final JourneyRecord journey;
   final JourneyV2Route route;
+  final JourneyV2ReplayController replay;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Scaffold(
-      backgroundColor: colors.canvas,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: JourneyV2StaticMap(
-                key: ValueKey('journey-fullscreen-map-${journey.id}'),
-                route: route,
-              ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              top: 16,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Material(
-                    color: Colors.white.withValues(alpha: 0.96),
-                    shape: const CircleBorder(),
-                    elevation: 2,
-                    child: IconButton(
-                      key: const ValueKey('journey-close-fullscreen-map'),
-                      tooltip: 'Close full-screen map',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                      color: GuardianColors.forest,
-                    ),
+    return ListenableBuilder(
+      listenable: replay,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: colors.canvas,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: JourneyV2StaticMap(
+                    key: ValueKey('journey-fullscreen-map-${journey.id}'),
+                    route: route,
+                    currentIndex: replay.currentIndex,
+                    showReplayPosition:
+                        replay.isPlaying ||
+                        (replay.currentIndex > 0 &&
+                            replay.currentIndex < replay.pointCount - 1),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 11,
-                      ),
-                      decoration: BoxDecoration(
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Material(
                         color: Colors.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 14,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '${_departureCaption(journey)} · '
-                        '${DateFormat.Hm().format(journey.confirmedDepartureAt)}  →  '
-                        '${_arrivalCaption(journey)} · '
-                        '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        child: IconButton(
+                          key: const ValueKey('journey-close-fullscreen-map'),
+                          tooltip: 'Close full-screen map',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
                           color: GuardianColors.forest,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.96),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            '${_departureCaption(journey)} · '
+                            '${DateFormat.Hm().format(journey.confirmedDepartureAt)}  →  '
+                            '${_arrivalCaption(journey)} · '
+                            '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: GuardianColors.forest,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Positioned(
+                  left: 16,
+                  bottom: journey.hasInterruptedCoverage ? 160 : 94,
+                  child: _MapEvidenceLegend(
+                    hasGap: journey.hasInterruptedCoverage,
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: journey.hasInterruptedCoverage ? 84 : 18,
+                  child: _ReplayShell(journey: journey, replay: replay),
+                ),
+                if (journey.hasInterruptedCoverage)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 18,
+                    child: _RouteCoverageNotice(journey: journey),
+                  ),
+              ],
             ),
-            Positioned(
-              left: 16,
-              bottom: journey.hasInterruptedCoverage ? 90 : 20,
-              child: _MapEvidenceLegend(hasGap: journey.hasInterruptedCoverage),
-            ),
-            if (journey.hasInterruptedCoverage)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 20,
-                child: _RouteCoverageNotice(journey: journey),
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1582,6 +1613,72 @@ class _RouteCoverageNotice extends StatelessWidget {
                 height: 1.35,
                 fontWeight: FontWeight.w800,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyStoryCard extends StatelessWidget {
+  const _JourneyStoryCard({required this.journey});
+
+  final JourneyRecord journey;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: GuardianColors.safe.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: GuardianColors.safe.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: GuardianColors.safe.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(
+              Icons.auto_stories_rounded,
+              size: 16,
+              color: GuardianColors.safe,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'JOURNEY STORY',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _journeyStoryText(journey),
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 9,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1885,9 +1982,11 @@ class _DayTotals {
       );
     }
 
-    final sorted = [
-      ...journeys,
-    ]..sort((a, b) => a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt));
+    final sorted = [...journeys]
+      ..sort(
+        (a, b) =>
+            a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt),
+      );
 
     return _DayTotals(
       distanceKm: journeys.fold<double>(
@@ -1905,16 +2004,15 @@ class _DayTotals {
       tripCount: journeys.length,
       startAt: sorted.first.confirmedDepartureAt,
       endAt: sorted.last.confirmedReturnAt,
-      allConfirmedReturns: journeys.every(
-        (journey) => journey.hasConfirmedReturn,
-      ),
+      allConfirmedReturns: journeys.every((journey) => journey.hasConfirmedReturn),
       gapCount: journeys.fold<int>(
         0,
         (sum, journey) => sum + journey.routeCoverage.gapCount,
       ),
       largestGap: journeys.fold<Duration>(
         Duration.zero,
-        (largest, journey) => journey.routeCoverage.largestGap > largest
+        (largest, journey) =>
+            journey.routeCoverage.largestGap > largest
             ? journey.routeCoverage.largestGap
             : largest,
       ),
@@ -1968,10 +2066,61 @@ String _routeGapText(JourneyRecord journey) {
   final stoppedAt = journey.startAt.add(
     Duration(milliseconds: gap.fromOffsetMs),
   );
-  final resumedAt = journey.startAt.add(Duration(milliseconds: gap.toOffsetMs));
+  final resumedAt = journey.startAt.add(
+    Duration(milliseconds: gap.toOffsetMs),
+  );
   return 'Tracking stopped at ${DateFormat.Hm().format(stoppedAt)} and resumed '
       'at ${DateFormat.Hm().format(resumedAt)} '
       '(${_compactDuration(gap.duration)} gap).';
+}
+
+String _journeyStoryText(JourneyRecord journey) {
+  final originName = journey.originGeofenceName?.trim();
+  final origin = originName == null || originName.isEmpty
+      ? 'Safe zone'
+      : originName;
+  final parts = <String>[
+    '$origin ${DateFormat.Hm().format(journey.confirmedDepartureAt)} departure',
+  ];
+
+  final orderedStops = [...journey.stops]
+    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  if (orderedStops.isEmpty) {
+    parts.add('Recorded movement · ${journey.distanceKm.toStringAsFixed(1)} km');
+  } else {
+    for (final stop in orderedStops.take(2)) {
+      final place = stop.placeName?.trim();
+      final label = place == null || place.isEmpty ? 'Recorded stop' : place;
+      parts.add(
+        '$label · ${DateFormat.Hm().format(stop.startAt)}'
+        '${stop.duration > Duration.zero ? ' · ${_compactDuration(stop.duration)}' : ''}',
+      );
+    }
+    if (orderedStops.length > 2) {
+      parts.add('${orderedStops.length - 2} more recorded stops');
+    }
+  }
+
+  final gap = _largestRouteGap(journey);
+  if (gap != null) {
+    final stoppedAt = journey.startAt.add(
+      Duration(milliseconds: gap.fromOffsetMs),
+    );
+    final resumedAt = journey.startAt.add(
+      Duration(milliseconds: gap.toOffsetMs),
+    );
+    parts.add(
+      'Tracking unavailable ${DateFormat.Hm().format(stoppedAt)}–'
+      '${DateFormat.Hm().format(resumedAt)}',
+    );
+  }
+
+  parts.add(
+    journey.hasConfirmedReturn
+        ? '$origin ${DateFormat.Hm().format(journey.confirmedReturnAt)} return confirmed'
+        : 'Last location ${DateFormat.Hm().format(journey.confirmedReturnAt)}',
+  );
+  return parts.join('  →  ');
 }
 
 String _dayGuardianReadText(String deviceName, _DayTotals totals) {
@@ -1984,8 +2133,7 @@ String _dayGuardianReadText(String deviceName, _DayTotals totals) {
             '${totals.tripCount} confirmed ${totals.tripCount == 1 ? 'outing' : 'outings'}. '
       : '$deviceName has ${totals.tripCount} evidence-backed '
             '${totals.tripCount == 1 ? 'journey' : 'journeys'}. ';
-  final route =
-      'Guardian recorded ${totals.distanceKm.toStringAsFixed(1)} km '
+  final route = 'Guardian recorded ${totals.distanceKm.toStringAsFixed(1)} km '
       'from ${totals.pointCount} location points.';
   if (totals.gapCount == 0) return '$base$route';
   return '$base$route Tracking resumed after '
@@ -1997,9 +2145,9 @@ String _dayGuardianReadText(String deviceName, _DayTotals totals) {
 bool _hasStructuredJourney(JourneyRecord journey) {
   return journey.routeCoverage.structureReliable &&
       (journey.stopCount > 0 ||
-          journey.stops.isNotEmpty ||
-          journey.legCount > 0 ||
-          journey.legs.isNotEmpty);
+      journey.stops.isNotEmpty ||
+      journey.legCount > 0 ||
+      journey.legs.isNotEmpty);
 }
 
 String _structuredStopMetric(JourneyRecord journey) {
