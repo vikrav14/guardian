@@ -221,11 +221,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
       }
     }
 
-    for (
-      var gapIndex = 0;
-      gapIndex < widget.route.record.routeGaps.length;
-      gapIndex++
-    ) {
+    for (var gapIndex = 0;
+        gapIndex < widget.route.record.routeGaps.length;
+        gapIndex++) {
       final gap = widget.route.record.routeGaps[gapIndex];
       final stoppedIndex = gap.fromPointIndex;
       final resumeIndex = gap.toPointIndex;
