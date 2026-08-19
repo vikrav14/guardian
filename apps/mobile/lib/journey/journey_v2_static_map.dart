@@ -153,9 +153,11 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
       );
     }
 
-    for (var gapIndex = 0;
-        gapIndex < widget.route.record.routeGaps.length;
-        gapIndex++) {
+    for (
+      var gapIndex = 0;
+      gapIndex < widget.route.record.routeGaps.length;
+      gapIndex++
+    ) {
       final gap = widget.route.record.routeGaps[gapIndex];
       final stoppedIndex = gap.fromPointIndex;
       final resumeIndex = gap.toPointIndex;
@@ -226,9 +228,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         polylines.add(
           Polyline(
             polylineId: PolylineId('journey-route-replayed-$index'),
-            points: [
-              for (final point in segment) LatLng(point.lat, point.lng),
-            ],
+            points: [for (final point in segment) LatLng(point.lat, point.lng)],
             color: GuardianColors.safe,
             width: 4,
             startCap: Cap.roundCap,
