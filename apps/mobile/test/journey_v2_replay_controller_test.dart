@@ -122,4 +122,35 @@ void main() {
     expect(replay.currentIndex, 1);
     expect(replay.progress, 0.5);
   });
+
+  testWidgets('a long tracking gap is announced and automatically compressed', (
+    tester,
+  ) async {
+    final start = DateTime(2026, 8, 19, 18, 31);
+    final replay = JourneyV2ReplayController(
+      points: [
+        LocationHistoryPoint(lat: -20.1, lng: 57.5, recordedAt: start),
+        LocationHistoryPoint(
+          lat: -20.2,
+          lng: 57.6,
+          recordedAt: start.add(const Duration(minutes: 42)),
+        ),
+        LocationHistoryPoint(
+          lat: -20.21,
+          lng: 57.61,
+          recordedAt: start.add(const Duration(minutes: 43)),
+        ),
+      ],
+      replayDuration: const Duration(seconds: 30),
+    );
+    addTearDown(replay.dispose);
+
+    expect(replay.pendingTrackingGap, const Duration(minutes: 42));
+    replay.play();
+    expect(replay.isSkippingTrackingGap, isTrue);
+
+    await tester.pump(const Duration(milliseconds: 1250));
+    expect(replay.currentIndex, 1);
+    expect(replay.isSkippingTrackingGap, isFalse);
+  });
 }

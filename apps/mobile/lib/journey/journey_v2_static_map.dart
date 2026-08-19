@@ -161,7 +161,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
     }
 
     final latLngs = [for (final point in points) LatLng(point.lat, point.lng)];
-    final continuousSegments = journeyV2StaticMapSegments(widget.route);
+    final evidenceSegments = journeyV2EvidenceSegments(widget.route);
     final replayIndex = widget.currentIndex < 0
         ? 0
         : widget.currentIndex >= latLngs.length
@@ -237,11 +237,22 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
           resumeIndex < latLngs.length) {
         polylines.add(
           Polyline(
+            polylineId: PolylineId('journey-route-unobserved-halo-$gapIndex'),
+            points: [latLngs[stoppedIndex], latLngs[resumeIndex]],
+            color: Colors.white.withValues(alpha: 0.82),
+            width: 7,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            zIndex: 1,
+          ),
+        );
+        polylines.add(
+          Polyline(
             polylineId: PolylineId('journey-route-unobserved-$gapIndex'),
             points: [latLngs[stoppedIndex], latLngs[resumeIndex]],
-            color: const Color(0xFF7C8792).withValues(alpha: 0.78),
-            width: 4,
-            patterns: [PatternItem.dash(12), PatternItem.gap(8)],
+            color: const Color(0xFFD98200).withValues(alpha: 0.92),
+            width: 3,
+            patterns: [PatternItem.dash(10), PatternItem.gap(7)],
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             zIndex: 1,
@@ -252,8 +263,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
 
     final replayInProgress =
         widget.showReplayPosition && replayIndex < latLngs.length - 1;
-    for (var index = 0; index < continuousSegments.length; index++) {
-      final segment = continuousSegments[index];
+    for (var index = 0; index < evidenceSegments.length; index++) {
+      final evidenceSegment = evidenceSegments[index];
+      final segment = evidenceSegment.points;
       if (segment.length < 2) continue;
       final segmentPoints = [
         for (final point in segment) LatLng(point.lat, point.lng),
@@ -262,8 +274,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         Polyline(
           polylineId: PolylineId('journey-route-halo-$index'),
           points: segmentPoints,
-          color: Colors.white.withValues(alpha: 0.86),
-          width: 7,
+          color: evidenceSegment.approximate
+              ? const Color(0xFFFFB020).withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.86),
+          width: evidenceSegment.approximate ? 11 : 7,
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
           jointType: JointType.round,
@@ -274,10 +288,15 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         Polyline(
           polylineId: PolylineId('journey-route-full-$index'),
           points: segmentPoints,
-          color: replayInProgress
+          color: evidenceSegment.approximate
+              ? const Color(0xFFD98200).withValues(alpha: 0.72)
+              : replayInProgress
               ? _routeColor.withValues(alpha: 0.22)
               : _routeColor.withValues(alpha: 0.92),
-          width: 4,
+          width: evidenceSegment.approximate ? 3 : 4,
+          patterns: evidenceSegment.approximate
+              ? [PatternItem.dash(8), PatternItem.gap(4)]
+              : const <PatternItem>[],
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
           jointType: JointType.round,
@@ -477,7 +496,7 @@ Set<Circle> journeyV2GapCircles(
           circleId: CircleId('journey-gap-stopped-$index'),
           center: LatLng(points[stoppedIndex].lat, points[stoppedIndex].lng),
           radius: 10,
-          fillColor: const Color(0xFF7C8792),
+          fillColor: const Color(0xFFD98200),
           strokeColor: Colors.white,
           strokeWidth: 3,
           zIndex: 22,
@@ -492,7 +511,7 @@ Set<Circle> journeyV2GapCircles(
           circleId: CircleId('journey-gap-resumed-$index'),
           center: LatLng(points[resumedIndex].lat, points[resumedIndex].lng),
           radius: 12,
-          fillColor: const Color(0xFF168AAD),
+          fillColor: const Color(0xFFFFB020),
           strokeColor: Colors.white,
           strokeWidth: 3,
           zIndex: 23,
@@ -635,6 +654,53 @@ List<List<LocationHistoryPoint>> journeyV2StaticMapSegments(
   JourneyV2Route route,
 ) {
   return journeyV2SplitPointsOnTrackingGaps(journeyV2StaticMapPoints(route));
+}
+
+typedef JourneyV2EvidenceSegment = ({
+  bool approximate,
+  List<LocationHistoryPoint> points,
+});
+
+List<JourneyV2EvidenceSegment> journeyV2EvidenceSegments(
+  JourneyV2Route route,
+) {
+  final output = <JourneyV2EvidenceSegment>[];
+  for (final continuous in journeyV2StaticMapSegments(route)) {
+    if (continuous.length < 2) continue;
+    var approximate = _journeyV2ApproximateEdge(continuous[0], continuous[1]);
+    var current = <LocationHistoryPoint>[continuous[0], continuous[1]];
+
+    for (var index = 2; index < continuous.length; index++) {
+      final nextApproximate = _journeyV2ApproximateEdge(
+        continuous[index - 1],
+        continuous[index],
+      );
+      if (nextApproximate == approximate) {
+        current.add(continuous[index]);
+        continue;
+      }
+      output.add((approximate: approximate, points: List.unmodifiable(current)));
+      approximate = nextApproximate;
+      current = <LocationHistoryPoint>[
+        continuous[index - 1],
+        continuous[index],
+      ];
+    }
+    output.add((approximate: approximate, points: List.unmodifiable(current)));
+  }
+  return List.unmodifiable(output);
+}
+
+bool _journeyV2ApproximateEdge(
+  LocationHistoryPoint from,
+  LocationHistoryPoint to,
+) {
+  bool approximate(LocationHistoryPoint point) {
+    final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
+    return source == 'wifi' || source == 'lbs';
+  }
+
+  return approximate(from) || approximate(to);
 }
 
 /// Static-map point policy:

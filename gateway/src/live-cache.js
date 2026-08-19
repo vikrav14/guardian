@@ -4,6 +4,7 @@ const { trackDwellPoint, flushDwellSegment } = require('./dwell');
 const {
   trackJourneyPoint,
   hasActiveJourney,
+  noteJourneyObservation,
 } = require('./journey-builder');
 
 /**
@@ -276,6 +277,10 @@ function isJourneyActive(imei) {
   return hasActiveJourney(getState(imei));
 }
 
+function noteObservationForJourney(imei, outcome) {
+  return noteJourneyObservation(getState(imei), outcome);
+}
+
 function resetWriteGateStats() {
   skippedCount = 0;
   persistedCount = 0;
@@ -304,6 +309,7 @@ module.exports = {
   trackPointForJourney,
   flushJourneyIfNeeded,
   isJourneyActive,
+  noteObservationForJourney,
   getWriteGateStats,
   resetWriteGateStats,
   resetCacheForTests,

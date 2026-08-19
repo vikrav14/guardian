@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import '../models/location_history_point.dart';
 
 class JourneyV2ReplayController extends ChangeNotifier {
+  static const trackingGapThreshold = Duration(minutes: 5);
+  static const trackingGapReplayPause = Duration(milliseconds: 1200);
+
   JourneyV2ReplayController({
     required List<LocationHistoryPoint> points,
     Duration? replayDuration,
@@ -63,6 +66,18 @@ class JourneyV2ReplayController extends ChangeNotifier {
   }
 
   DateTime? get currentTime => currentPoint?.recordedAt;
+
+  Duration? get pendingTrackingGap {
+    if (_currentIndex < 0 || _currentIndex >= _points.length - 1) return null;
+    final currentAt = _points[_currentIndex].recordedAt;
+    final nextAt = _points[_currentIndex + 1].recordedAt;
+    if (currentAt == null || nextAt == null) return null;
+    final gap = nextAt.difference(currentAt);
+    return gap > trackingGapThreshold ? gap : null;
+  }
+
+  bool get isSkippingTrackingGap =>
+      _isPlaying && pendingTrackingGap != null;
 
   String get speedLabel {
     if (_speed == _speed.roundToDouble()) return '${_speed.toInt()}x';
@@ -195,8 +210,13 @@ class JourneyV2ReplayController extends ChangeNotifier {
       }
     }
 
-    final requested =
+    var requested =
         (_baseReplayDuration.inMilliseconds * timelineShare / _speed).round();
+    if (pendingTrackingGap != null) {
+      final gapPause =
+          (trackingGapReplayPause.inMilliseconds / _speed).round();
+      if (requested > gapPause) requested = gapPause;
+    }
     return requested.clamp(250, 60000).toInt();
   }
 

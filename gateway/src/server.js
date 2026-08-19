@@ -100,6 +100,8 @@ const {
 
   isJourneyActive,
 
+  noteObservationForJourney,
+
   getWriteGateStats,
 
   resetWriteGateStats,
@@ -229,6 +231,8 @@ function shouldAppendLocationHistory(gate) {
 async function resolveGeolocation(event) {
   if (!event.needsGeolocation) return event;
 
+  noteObservationForJourney(event.imei, 'approximatePacketsReceived');
+
   const wifiCount = event.wifiAccessPoints?.length || 0;
   const cellCount = event.cellTowers?.length || 0;
   const geo = await geolocateFromV({
@@ -237,11 +241,14 @@ async function resolveGeolocation(event) {
   });
 
   if (!geo) {
+    noteObservationForJourney(event.imei, 'approximateResolutionFailed');
     console.log(
       `[geolocate] ${event.imei} wifi=${wifiCount} cells=${cellCount} → failed`
     );
     return null;
   }
+
+  noteObservationForJourney(event.imei, 'approximateResolved');
 
   const accLabel = geo.accuracyMeters != null ? `${Math.round(geo.accuracyMeters)}m` : '?';
   console.log(

@@ -9,6 +9,27 @@ const RETURN_CONFIRM_MS = 2 * 60 * 1000;
 const ROUTE_GAP_THRESHOLD_MS = 5 * 60 * 1000;
 const DEPARTURE_ANCHOR_MAX_AGE_MS = ROUTE_GAP_THRESHOLD_MS;
 
+function emptyObservationAudit() {
+  return {
+    approximatePacketsReceived: 0,
+    approximateResolved: 0,
+    approximateResolutionFailed: 0,
+    approximateAccepted: 0,
+    approximateRejected: 0,
+  };
+}
+
+function noteJourneyObservation(state, outcome) {
+  const journey = state?.currentJourney;
+  if (!journey) return false;
+  journey.observationAudit ||= emptyObservationAudit();
+  if (!Object.prototype.hasOwnProperty.call(journey.observationAudit, outcome)) {
+    return false;
+  }
+  journey.observationAudit[outcome] += 1;
+  return true;
+}
+
 function isPlausibleCoord(lat, lng) {
   if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return false;
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
@@ -290,6 +311,7 @@ function startJourney(state, point, now, { routeAnchor = null } = {}) {
     routeStartEvidence,
     returnEvidence: null,
     returnCandidateAt: null,
+    observationAudit: emptyObservationAudit(),
   };
 }
 
@@ -301,14 +323,25 @@ function addJourneyPoint(state, point, now) {
   const last = journey.points[journey.points.length - 1];
   const normalizedAt = recordedAtOrNow(normalized, now);
   const lastAt = recordedAtOrNow(last, now);
+  const source = String(normalized.source || normalized.accuracySource || '')
+    .trim()
+    .toLowerCase();
+  const approximate = source === 'wifi' || source === 'lbs';
 
   // Duplicate and out-of-order fixes must never mutate an outing. Besides
   // keeping the polyline clean, this prevents an old packet from moving a
   // journey's clock backwards and later overlapping another journey.
-  if (normalizedAt.getTime() <= lastAt.getTime()) return false;
-  if (!shouldAcceptJourneyPoint(normalized, last)) return false;
+  if (normalizedAt.getTime() <= lastAt.getTime()) {
+    if (approximate) noteJourneyObservation(state, 'approximateRejected');
+    return false;
+  }
+  if (!shouldAcceptJourneyPoint(normalized, last)) {
+    if (approximate) noteJourneyObservation(state, 'approximateRejected');
+    return false;
+  }
 
   journey.points.push(normalized);
+  if (approximate) noteJourneyObservation(state, 'approximateAccepted');
   journey.lastPointAt = now;
 
   if (isMoving(normalized, last)) {
@@ -379,6 +412,10 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     legCount: structure.legCount,
     compressed: true,
     closeReason: reason,
+    observationAudit: {
+      ...emptyObservationAudit(),
+      ...(journey.observationAudit || {}),
+    },
     ...routeEvidence,
     ...(journey.originGeofenceId
       ? {
@@ -657,6 +694,7 @@ module.exports = {
   shouldAcceptJourneyPoint,
   sameCalendarDay,
   buildRouteEvidence,
+  noteJourneyObservation,
   ROUTE_GAP_THRESHOLD_MS,
   DEPARTURE_ANCHOR_MAX_AGE_MS,
 };

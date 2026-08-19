@@ -78,6 +78,18 @@ function summarizeJourney(id, journey) {
     gpsPointCount: Number(journey.routeCoverage?.gpsPointCount) || 0,
     approximatePointCount:
       Number(journey.routeCoverage?.approximatePointCount) || 0,
+    observationAudit: {
+      approximatePacketsReceived:
+        Number(journey.observationAudit?.approximatePacketsReceived) || 0,
+      approximateResolved:
+        Number(journey.observationAudit?.approximateResolved) || 0,
+      approximateResolutionFailed:
+        Number(journey.observationAudit?.approximateResolutionFailed) || 0,
+      approximateAccepted:
+        Number(journey.observationAudit?.approximateAccepted) || 0,
+      approximateRejected:
+        Number(journey.observationAudit?.approximateRejected) || 0,
+    },
     routeSegmentCount: routeSegments.length,
     trackingGapCount: routeGaps.length,
     largestTrackingGapSeconds: routeGaps.reduce(

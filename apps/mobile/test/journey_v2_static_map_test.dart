@@ -117,6 +117,53 @@ void main() {
     expect(segments, hasLength(2));
   });
 
+  test('GPS and approximate observations become distinct evidence segments', () {
+    final start = DateTime(2026, 8, 19, 18);
+    final points = [
+      LocationHistoryPoint(
+        lat: -20.01,
+        lng: 57.58,
+        source: 'gps',
+        gpsValid: true,
+        recordedAt: start,
+      ),
+      LocationHistoryPoint(
+        lat: -20.02,
+        lng: 57.59,
+        source: 'gps',
+        gpsValid: true,
+        recordedAt: start.add(const Duration(minutes: 1)),
+      ),
+      LocationHistoryPoint(
+        lat: -20.03,
+        lng: 57.60,
+        source: 'wifi',
+        gpsValid: false,
+        recordedAt: start.add(const Duration(minutes: 2)),
+      ),
+      LocationHistoryPoint(
+        lat: -20.04,
+        lng: 57.61,
+        source: 'lbs',
+        gpsValid: false,
+        recordedAt: start.add(const Duration(minutes: 3)),
+      ),
+    ];
+    final route = JourneyV2Route(
+      record: record('', pointCount: 4),
+      rawPoints: points,
+      usablePoints: points,
+    );
+
+    final segments = journeyV2EvidenceSegments(route);
+
+    expect(segments, hasLength(2));
+    expect(segments.first.approximate, isFalse);
+    expect(segments.first.points, hasLength(2));
+    expect(segments.last.approximate, isTrue);
+    expect(segments.last.points, hasLength(3));
+  });
+
   test('confirmed return-to-origin uses web-safe Home circles, not a pin', () {
     final start = DateTime(2026, 8, 17, 15, 30);
     final journey = JourneyRecord(

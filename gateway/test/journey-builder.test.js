@@ -867,3 +867,51 @@ test('journey events retain the geofence observation evidence used for transitio
   assert.deepEqual(state.currentJourney.events[0].evidence, evidence);
   assert.deepEqual(state.currentJourney.departureEvidence, evidence);
 });
+
+test('completed journey explains approximate positioning outcomes', () => {
+  const state = emptyState();
+  const start = new Date('2026-08-19T14:00:00Z');
+  trackJourneyPoint(state, movingPoint(0, start.toISOString()), start);
+
+  const { noteJourneyObservation } = require('../src/journey-builder');
+  noteJourneyObservation(state, 'approximatePacketsReceived');
+  noteJourneyObservation(state, 'approximateResolved');
+
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.263,
+      lng: 57.48,
+      source: 'wifi',
+      accuracySource: 'wifi',
+      gpsValid: false,
+      recordedAt: new Date('2026-08-19T14:01:00Z'),
+    },
+    new Date('2026-08-19T14:01:00Z')
+  );
+
+  noteJourneyObservation(state, 'approximatePacketsReceived');
+  noteJourneyObservation(state, 'approximateResolved');
+  trackJourneyPoint(
+    state,
+    {
+      lat: -20.1,
+      lng: 57.9,
+      source: 'lbs',
+      accuracySource: 'lbs',
+      gpsValid: false,
+      recordedAt: new Date('2026-08-19T14:01:30Z'),
+    },
+    new Date('2026-08-19T14:01:30Z')
+  );
+
+  const doc = closeJourney(state, new Date('2026-08-19T14:02:00Z'), 'manual');
+  assert.deepEqual(doc.observationAudit, {
+    approximatePacketsReceived: 2,
+    approximateResolved: 2,
+    approximateResolutionFailed: 0,
+    approximateAccepted: 1,
+    approximateRejected: 1,
+  });
+  assert.equal(doc.routeCoverage.approximatePointCount, 1);
+});
