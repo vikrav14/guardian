@@ -1047,9 +1047,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           currentIndex: replay.currentIndex,
                           showReplayPosition:
                               replay.isPlaying ||
-                              (replay.currentIndex > 0 &&
-                                  replay.currentIndex <
-                                      replay.pointCount - 1),
+                              replay.currentIndex > 0,
                           onPointSelected: replay.seekIndex,
                         ),
                       ),
@@ -1400,8 +1398,7 @@ class _JourneyFullScreenMap extends StatelessWidget {
                     currentIndex: replay.currentIndex,
                     showReplayPosition:
                         replay.isPlaying ||
-                        (replay.currentIndex > 0 &&
-                            replay.currentIndex < replay.pointCount - 1),
+                        replay.currentIndex > 0,
                     showMapTypeControl: true,
                     onPointSelected: replay.seekIndex,
                   ),

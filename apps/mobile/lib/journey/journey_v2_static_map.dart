@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -27,10 +25,13 @@ class JourneyV2StaticMap extends StatefulWidget {
   State<JourneyV2StaticMap> createState() => _JourneyV2StaticMapState();
 }
 
-class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
+class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
+    with TickerProviderStateMixin {
   GoogleMapController? _controller;
-  Timer? _pulseTimer;
-  bool _pulseExpanded = false;
+  late final AnimationController _pulseController;
+  late final AnimationController _movementController;
+  LatLng? _movementFrom;
+  LatLng? _movementTo;
   MapType _mapType = MapType.normal;
 
   static const _routeColor = Color(0xFF4C5BD4);
@@ -42,14 +43,25 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..addListener(_rebuildAnimation);
+    _movementController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 680),
+    )..addListener(_rebuildAnimation);
     if (widget.showReplayPosition) _startPulse();
   }
 
+  void _rebuildAnimation() {
+    if (mounted) setState(() {});
+  }
+
   void _startPulse() {
-    _pulseTimer?.cancel();
-    _pulseTimer = Timer.periodic(const Duration(milliseconds: 650), (_) {
-      if (mounted) setState(() => _pulseExpanded = !_pulseExpanded);
-    });
+    if (!_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -59,20 +71,66 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         oldWidget.route.record.polyline != widget.route.record.polyline) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
     }
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _animateReplayMovement(oldWidget.currentIndex, widget.currentIndex);
+    }
     if (oldWidget.showReplayPosition != widget.showReplayPosition) {
       if (widget.showReplayPosition) {
         _startPulse();
       } else {
-        _pulseTimer?.cancel();
-        _pulseTimer = null;
-        _pulseExpanded = false;
+        _pulseController.stop();
+        _pulseController.value = 0;
       }
     }
   }
 
+  void _animateReplayMovement(int fromIndex, int toIndex) {
+    final points = _points;
+    if (points.isEmpty ||
+        fromIndex < 0 ||
+        fromIndex >= points.length ||
+        toIndex < 0 ||
+        toIndex >= points.length) {
+      return;
+    }
+
+    final crossesTrackingGap = widget.route.record.routeGaps.any(
+      (gap) =>
+          gap.fromPointIndex == fromIndex && gap.toPointIndex == toIndex,
+    );
+    if (crossesTrackingGap) {
+      _movementController.stop();
+      _movementFrom = null;
+      _movementTo = null;
+      return;
+    }
+
+    _movementFrom = _displayReplayPoint(
+      fallback: LatLng(points[fromIndex].lat, points[fromIndex].lng),
+    );
+    _movementTo = LatLng(points[toIndex].lat, points[toIndex].lng);
+    _movementController.forward(from: 0);
+  }
+
+  LatLng _displayReplayPoint({required LatLng fallback}) {
+    final from = _movementFrom;
+    final to = _movementTo;
+    if (from == null || to == null || !_movementController.isAnimating) {
+      return fallback;
+    }
+    final progress = Curves.easeInOutCubic.transform(
+      _movementController.value,
+    );
+    return LatLng(
+      from.latitude + ((to.latitude - from.latitude) * progress),
+      from.longitude + ((to.longitude - from.longitude) * progress),
+    );
+  }
+
   @override
   void dispose() {
-    _pulseTimer?.cancel();
+    _pulseController.dispose();
+    _movementController.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -167,26 +225,27 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         : widget.currentIndex >= latLngs.length
         ? latLngs.length - 1
         : widget.currentIndex;
-    final replayPoint = latLngs[replayIndex];
+    final replayPoint = _displayReplayPoint(fallback: latLngs[replayIndex]);
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
     final circles = journeyV2EndpointCircles(widget.route, points);
     circles.addAll(journeyV2GapCircles(widget.route, points));
     final polylines = <Polyline>{};
 
-    if (widget.showReplayPosition && replayIndex < latLngs.length - 1) {
+    if (widget.showReplayPosition) {
+      final pulse = Curves.easeInOut.transform(_pulseController.value);
       circles.add(
         Circle(
           circleId: const CircleId('journey-replay-pulse'),
           center: replayPoint,
-          radius: _pulseExpanded ? 42 : 24,
+          radius: 24 + (22 * pulse),
           fillColor: _replayColor.withValues(
-            alpha: _pulseExpanded ? 0.16 : 0.08,
+            alpha: 0.14 - (0.07 * pulse),
           ),
           strokeColor: _replayColor.withValues(
-            alpha: _pulseExpanded ? 0.42 : 0.72,
+            alpha: 0.78 - (0.34 * pulse),
           ),
-          strokeWidth: 3,
+          strokeWidth: 2,
           zIndex: 30,
         ),
       );
