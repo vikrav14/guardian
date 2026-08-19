@@ -4,6 +4,14 @@ import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
 import 'package:guardian/journey/journey_v2_ui.dart';
 
+Future<void> pumpJourneyUi(WidgetTester tester) async {
+  // The replay halo intentionally breathes forever, so pumpAndSettle would
+  // correctly never settle. Advance enough time for layout/navigation while
+  // leaving the continuous animation running.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   JourneyRecord record({
     required String id,
@@ -66,7 +74,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     expect(find.textContaining('Jesh'), findsWidgets);
     expect(find.text("TODAY'S JOURNEY OVERVIEW"), findsOneWidget);
@@ -83,7 +91,7 @@ void main() {
     expect(find.byKey(const ValueKey('journey-expand-map')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     expect(
       find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
@@ -126,13 +134,13 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     final trip2 = find.byKey(const ValueKey('journey-trip-trip-2'));
     expect(trip2, findsOneWidget);
 
     await tester.tap(trip2);
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     expect(tapped?.id, 'trip-2');
   });
@@ -168,7 +176,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     expect(find.text('No confirmed journey recorded.'), findsOneWidget);
     expect(find.byKey(const ValueKey('journey-map-wifi-ghost')), findsNothing);
@@ -242,7 +250,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpJourneyUi(tester);
 
     expect(find.text('Time away'), findsOneWidget);
     expect(find.text('Returned Home'), findsWidgets);
