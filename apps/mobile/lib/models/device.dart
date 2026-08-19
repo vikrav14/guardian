@@ -404,9 +404,7 @@ class Device {
       batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
       batteryUpdatedAt: _asDateTime(data['batteryUpdatedAt']),
       cellularSignalPercent: (data['cellularSignalPercent'] as num?)?.toInt(),
-      cellularSignalUpdatedAt: _asDateTime(
-        data['cellularSignalUpdatedAt'],
-      ),
+      cellularSignalUpdatedAt: _asDateTime(data['cellularSignalUpdatedAt']),
       stepsRaw: (data['stepsRaw'] as num?)?.toInt(),
       rollCountRaw: (data['rollCountRaw'] as num?)?.toInt(),
       activityUpdatedAt: _asDateTime(data['activityUpdatedAt']),

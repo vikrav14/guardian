@@ -93,8 +93,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Set<Circle> _circles() {
     final selected = _selected;
     final approximate = selected?.latestLocationObservation;
-    final uncertaintyRadius =
-        selected?.hasApproximateLocation == true
+    final uncertaintyRadius = selected?.hasApproximateLocation == true
         ? approximate?.accuracyMeters
         : null;
     return {

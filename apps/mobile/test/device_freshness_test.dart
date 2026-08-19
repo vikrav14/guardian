@@ -187,11 +187,7 @@ void main() {
 
   test('cellular signal never substitutes connectivity for a measurement', () {
     final now = DateTime.utc(2026, 8, 16, 10);
-    final missing = Device(
-      imei: '1',
-      online: true,
-      lastHeartbeatAt: now,
-    );
+    final missing = Device(imei: '1', online: true, lastHeartbeatAt: now);
     final stale = Device(
       imei: '2',
       online: true,
