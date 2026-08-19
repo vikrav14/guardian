@@ -137,6 +137,18 @@ class JourneyV2ReplayController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void seekIndex(int index) {
+    if (_points.isEmpty) return;
+    final clamped = index < 0
+        ? 0
+        : index >= _points.length
+        ? _points.length - 1
+        : index;
+    _currentIndex = clamped;
+    if (_isPlaying) _scheduleNextAdvance();
+    notifyListeners();
+  }
+
   void cycleSpeed() {
     _speed = switch (_speed) {
       1.0 => 2.0,

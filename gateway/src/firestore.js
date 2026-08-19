@@ -14,6 +14,7 @@ const {
 } = require('./intelligence');
 const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
 const { reverseGeocodeToPlaceName } = require('./geolocate/google');
+const { enrichJourneyStopPlaceNames } = require('./journey-place-labels');
 const {
   buildLocationProvenancePatch,
   backfillLegacyLocationProvenance,
@@ -260,6 +261,17 @@ async function appendJourney(imei, journey) {
     .doc(journeyId);
 
   await ref.set(data, { merge: true });
+
+  // Persist the completed outing first so reverse geocoding can never delay it
+  // appearing in the app. Place labels are optional enrichment and arrive in
+  // a small follow-up merge when the provider is available.
+  const stops = await enrichJourneyStopPlaceNames(
+    journey.stops,
+    reverseGeocodeToPlaceName
+  );
+  if (stops.some((stop, index) => stop.placeName !== journey.stops[index]?.placeName)) {
+    await ref.set({ stops }, { merge: true });
+  }
   return ref.id;
 }
 

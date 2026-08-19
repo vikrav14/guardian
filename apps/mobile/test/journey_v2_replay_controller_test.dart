@@ -96,6 +96,18 @@ void main() {
     expect(replay.progress, 1);
   });
 
+  test('a tapped map point seeks replay to the matching evidence', () {
+    final replay = JourneyV2ReplayController(points: points());
+    addTearDown(replay.dispose);
+
+    replay.seekIndex(1);
+    expect(replay.currentIndex, 1);
+    expect(replay.currentTime, DateTime(2026, 8, 10, 17, 10));
+
+    replay.seekIndex(99);
+    expect(replay.currentIndex, 2);
+  });
+
   test('missing recorded times fall back to deterministic point progress', () {
     final replay = JourneyV2ReplayController(
       points: const [

@@ -1048,7 +1048,9 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           showReplayPosition:
                               replay.isPlaying ||
                               (replay.currentIndex > 0 &&
-                                  replay.currentIndex < replay.pointCount - 1),
+                                  replay.currentIndex <
+                                      replay.pointCount - 1),
+                          onPointSelected: replay.seekIndex,
                         ),
                       ),
                       Positioned(
@@ -1089,7 +1091,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                               const SizedBox(height: 8),
                               _MiniBadge(
                                 label:
-                                    'Tracking gap · ${_compactDuration(journey.routeCoverage.largestGap)}',
+                                    'Tracking gap Â· ${_compactDuration(journey.routeCoverage.largestGap)}',
                               ),
                             ],
                           ],
@@ -1378,6 +1380,7 @@ class _JourneyFullScreenMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return ListenableBuilder(
       listenable: replay,
       builder: (context, _) {
@@ -1395,6 +1398,8 @@ class _JourneyFullScreenMap extends StatelessWidget {
                         replay.isPlaying ||
                         (replay.currentIndex > 0 &&
                             replay.currentIndex < replay.pointCount - 1),
+                    showMapTypeControl: true,
+                    onPointSelected: replay.seekIndex,
                   ),
                 ),
                 Positioned(
@@ -1434,9 +1439,9 @@ class _JourneyFullScreenMap extends StatelessWidget {
                             ],
                           ),
                           child: Text(
-                            '${_departureCaption(journey)} · '
-                            '${DateFormat.Hm().format(journey.confirmedDepartureAt)}  →  '
-                            '${_arrivalCaption(journey)} · '
+                            '${_departureCaption(journey)} Â· '
+                            '${DateFormat.Hm().format(journey.confirmedDepartureAt)}  â†’  '
+                            '${_arrivalCaption(journey)} Â· '
                             '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -1449,6 +1454,15 @@ class _JourneyFullScreenMap extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                ),
+                Positioned(
+                  left: compact ? 16 : 72,
+                  right: compact ? 16 : null,
+                  top: compact ? 132 : 84,
+                  child: _ReplayLocationCard(
+                    journey: journey,
+                    replay: replay,
                   ),
                 ),
                 Positioned(
@@ -1503,7 +1517,7 @@ class _MapEvidenceLegend extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _MapLegendItem(
-            color: GuardianColors.safe,
+            color: Color(0xFF4C5BD4),
             label: 'Recorded route',
           ),
           if (hasGap) ...[
@@ -1521,6 +1535,78 @@ class _MapEvidenceLegend extends StatelessWidget {
             isDot: true,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReplayLocationCard extends StatelessWidget {
+  const _ReplayLocationCard({required this.journey, required this.replay});
+
+  final JourneyRecord journey;
+  final JourneyV2ReplayController replay;
+
+  @override
+  Widget build(BuildContext context) {
+    final point = replay.currentPoint;
+    if (point == null) return const SizedBox.shrink();
+    final colors = context.guardianColors;
+    final label = _pointPlaceLabel(journey, replay.currentIndex);
+    final time = point.recordedAt ?? journey.confirmedDepartureAt;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 310),
+      child: Container(
+        key: const ValueKey('journey-replay-location-card'),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(13),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.09),
+              blurRadius: 14,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.location_on_outlined,
+              size: 18,
+              color: Color(0xFF4C5BD4),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${DateFormat.Hm().format(time)} Â· $label',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${point.lat.toStringAsFixed(5)}, ${point.lng.toStringAsFixed(5)}',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2040,6 +2126,30 @@ String _arrivalCaption(JourneyRecord journey) {
   return 'Returned ${journey.originGeofenceName!.trim()}';
 }
 
+String _pointPlaceLabel(JourneyRecord journey, int pointIndex) {
+  final origin = journey.originGeofenceName?.trim();
+  if (pointIndex <= 0 && origin != null && origin.isNotEmpty) {
+    return origin;
+  }
+  if (journey.hasConfirmedReturn &&
+      pointIndex >= journey.pointCount - 1 &&
+      origin != null &&
+      origin.isNotEmpty) {
+    return origin;
+  }
+
+  for (final stop in journey.stops) {
+    if (pointIndex < stop.pointStartIndex || pointIndex > stop.pointEndIndex) {
+      continue;
+    }
+    final place = stop.placeName?.trim();
+    if (place != null && place.isNotEmpty) return place;
+    return 'Recorded stop';
+  }
+
+  return 'Recorded location';
+}
+
 JourneyRouteGap? _largestRouteGap(JourneyRecord journey) {
   JourneyRouteGap? largest;
   for (final gap in journey.routeGaps) {
@@ -2079,15 +2189,15 @@ String _journeyStoryText(JourneyRecord journey) {
     ..sort((a, b) => a.startAt.compareTo(b.startAt));
   if (orderedStops.isEmpty) {
     parts.add(
-      'Recorded movement · ${journey.distanceKm.toStringAsFixed(1)} km',
+      'Recorded movement Â· ${journey.distanceKm.toStringAsFixed(1)} km',
     );
   } else {
     for (final stop in orderedStops.take(2)) {
       final place = stop.placeName?.trim();
       final label = place == null || place.isEmpty ? 'Recorded stop' : place;
       parts.add(
-        '$label · ${DateFormat.Hm().format(stop.startAt)}'
-        '${stop.duration > Duration.zero ? ' · ${_compactDuration(stop.duration)}' : ''}',
+        '$label Â· ${DateFormat.Hm().format(stop.startAt)}'
+        '${stop.duration > Duration.zero ? ' Â· ${_compactDuration(stop.duration)}' : ''}',
       );
     }
     if (orderedStops.length > 2) {
@@ -2104,7 +2214,7 @@ String _journeyStoryText(JourneyRecord journey) {
       Duration(milliseconds: gap.toOffsetMs),
     );
     parts.add(
-      'Tracking unavailable ${DateFormat.Hm().format(stoppedAt)}–'
+      'Tracking unavailable ${DateFormat.Hm().format(stoppedAt)}â€“'
       '${DateFormat.Hm().format(resumedAt)}',
     );
   }
@@ -2114,7 +2224,7 @@ String _journeyStoryText(JourneyRecord journey) {
         ? '$origin ${DateFormat.Hm().format(journey.confirmedReturnAt)} return confirmed'
         : 'Last location ${DateFormat.Hm().format(journey.confirmedReturnAt)}',
   );
-  return parts.join('  →  ');
+  return parts.join('  â†’  ');
 }
 
 String _dayGuardianReadText(String deviceName, _DayTotals totals) {

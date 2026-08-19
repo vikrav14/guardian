@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -11,11 +13,15 @@ class JourneyV2StaticMap extends StatefulWidget {
     required this.route,
     this.currentIndex = 0,
     this.showReplayPosition = false,
+    this.showMapTypeControl = false,
+    this.onPointSelected,
   });
 
   final JourneyV2Route route;
   final int currentIndex;
   final bool showReplayPosition;
+  final bool showMapTypeControl;
+  final ValueChanged<int>? onPointSelected;
 
   @override
   State<JourneyV2StaticMap> createState() => _JourneyV2StaticMapState();
@@ -23,9 +29,28 @@ class JourneyV2StaticMap extends StatefulWidget {
 
 class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
   GoogleMapController? _controller;
+  Timer? _pulseTimer;
+  bool _pulseExpanded = false;
+  MapType _mapType = MapType.normal;
+
+  static const _routeColor = Color(0xFF4C5BD4);
+  static const _replayColor = Color(0xFFFFA000);
 
   List<LocationHistoryPoint> get _points =>
       journeyV2StaticMapPoints(widget.route);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.showReplayPosition) _startPulse();
+  }
+
+  void _startPulse() {
+    _pulseTimer?.cancel();
+    _pulseTimer = Timer.periodic(const Duration(milliseconds: 650), (_) {
+      if (mounted) setState(() => _pulseExpanded = !_pulseExpanded);
+    });
+  }
 
   @override
   void didUpdateWidget(covariant JourneyV2StaticMap oldWidget) {
@@ -34,10 +59,20 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         oldWidget.route.record.polyline != widget.route.record.polyline) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
     }
+    if (oldWidget.showReplayPosition != widget.showReplayPosition) {
+      if (widget.showReplayPosition) {
+        _startPulse();
+      } else {
+        _pulseTimer?.cancel();
+        _pulseTimer = null;
+        _pulseExpanded = false;
+      }
+    }
   }
 
   @override
   void dispose() {
+    _pulseTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
@@ -142,15 +177,48 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
     if (widget.showReplayPosition && replayIndex < latLngs.length - 1) {
       circles.add(
         Circle(
-          circleId: const CircleId('journey-replay-position'),
+          circleId: const CircleId('journey-replay-pulse'),
           center: replayPoint,
-          radius: 14,
-          fillColor: const Color(0xFF168AAD),
-          strokeColor: Colors.white,
+          radius: _pulseExpanded ? 42 : 24,
+          fillColor: _replayColor.withValues(
+            alpha: _pulseExpanded ? 0.16 : 0.08,
+          ),
+          strokeColor: _replayColor.withValues(
+            alpha: _pulseExpanded ? 0.42 : 0.72,
+          ),
           strokeWidth: 3,
           zIndex: 30,
         ),
       );
+      circles.add(
+        Circle(
+          circleId: const CircleId('journey-replay-position'),
+          center: replayPoint,
+          radius: 11,
+          fillColor: _replayColor,
+          strokeColor: Colors.white,
+          strokeWidth: 4,
+          zIndex: 31,
+        ),
+      );
+    }
+
+    if (widget.onPointSelected != null) {
+      for (var index = 0; index < latLngs.length; index++) {
+        circles.add(
+          Circle(
+            circleId: CircleId('journey-point-hit-$index'),
+            center: latLngs[index],
+            radius: 22,
+            fillColor: Colors.transparent,
+            strokeColor: Colors.transparent,
+            strokeWidth: 0,
+            consumeTapEvents: true,
+            onTap: () => widget.onPointSelected!(index),
+            zIndex: 20,
+          ),
+        );
+      }
     }
 
     for (
@@ -207,8 +275,8 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
           polylineId: PolylineId('journey-route-full-$index'),
           points: segmentPoints,
           color: replayInProgress
-              ? GuardianColors.safe.withValues(alpha: 0.20)
-              : GuardianColors.safe.withValues(alpha: 0.86),
+              ? _routeColor.withValues(alpha: 0.22)
+              : _routeColor.withValues(alpha: 0.92),
           width: 4,
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
@@ -228,8 +296,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         polylines.add(
           Polyline(
             polylineId: PolylineId('journey-route-replayed-$index'),
-            points: [for (final point in segment) LatLng(point.lat, point.lng)],
-            color: GuardianColors.safe,
+            points: [
+              for (final point in segment) LatLng(point.lat, point.lng),
+            ],
+            color: _routeColor,
             width: 4,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
@@ -242,26 +312,83 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: latLngs[latLngs.length ~/ 2],
-          zoom: 13,
-        ),
-        onMapCreated: (controller) {
-          _controller = controller;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
-        },
-        markers: markers,
-        circles: circles,
-        polylines: polylines,
-        mapType: MapType.normal,
-        compassEnabled: false,
-        mapToolbarEnabled: false,
-        myLocationButtonEnabled: false,
-        myLocationEnabled: false,
-        zoomControlsEnabled: false,
-        rotateGesturesEnabled: false,
-        tiltGesturesEnabled: false,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: latLngs[latLngs.length ~/ 2],
+                zoom: 13,
+              ),
+              onMapCreated: (controller) {
+                _controller = controller;
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _fitRoute(),
+                );
+                Future<void>.delayed(const Duration(milliseconds: 350), () {
+                  if (mounted) _fitRoute();
+                });
+              },
+              markers: markers,
+              circles: circles,
+              polylines: polylines,
+              mapType: _mapType,
+              compassEnabled: false,
+              mapToolbarEnabled: false,
+              myLocationButtonEnabled: false,
+              myLocationEnabled: false,
+              zoomControlsEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+            ),
+          ),
+          if (widget.showMapTypeControl)
+            Positioned(
+              right: 16,
+              top: 72,
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(12),
+                elevation: 2,
+                child: InkWell(
+                  key: const ValueKey('journey-map-type-toggle'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => setState(() {
+                    _mapType = _mapType == MapType.normal
+                        ? MapType.satellite
+                        : MapType.normal;
+                  }),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _mapType == MapType.normal
+                              ? Icons.satellite_alt_rounded
+                              : Icons.map_outlined,
+                          size: 17,
+                          color: GuardianColors.forest,
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          _mapType == MapType.normal ? 'Satellite' : 'Map',
+                          style: const TextStyle(
+                            color: GuardianColors.forest,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

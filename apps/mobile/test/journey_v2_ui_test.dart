@@ -94,6 +94,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
+    expect(find.byKey(const ValueKey('journey-map-type-toggle')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('journey-replay-location-card')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('trip row remains selectable', (tester) async {
