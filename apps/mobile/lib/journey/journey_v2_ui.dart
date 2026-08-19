@@ -414,7 +414,7 @@ class _DayOverviewCard extends StatelessWidget {
               Expanded(
                 child: _OverviewMetric(
                   value: '${totals.pointCount}',
-                  label: 'Location updates',
+                  label: 'Location points',
                 ),
               ),
               Expanded(
@@ -565,7 +565,9 @@ class _DayRouteStrip extends StatelessWidget {
           letter: 'B',
           label: endAt == null ? '--:--' : DateFormat.Hm().format(endAt!),
           caption: confirmedReturn ? 'Returned' : 'Last recorded',
-          color: const Color(0xFFE84C4C),
+          color: confirmedReturn
+              ? GuardianColors.safe
+              : const Color(0xFFE84C4C),
         ),
       ],
     );
@@ -895,7 +897,7 @@ class _TripRow extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Text(
-                  '${journey.pointCount} updates',
+                  '${journey.pointCount} points',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 9,
@@ -1060,15 +1062,39 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           ),
                         ),
                       ),
-                      if (journey.hasInterruptedCoverage)
-                        Positioned(
-                          right: 16,
-                          top: 16,
-                          child: _MiniBadge(
-                            label:
-                                'Tracking gap · ${_compactDuration(journey.routeCoverage.largestGap)}',
-                          ),
+                      Positioned(
+                        left: 16,
+                        top: 52,
+                        child: _MapEvidenceLegend(
+                          hasGap: journey.hasInterruptedCoverage,
                         ),
+                      ),
+                      Positioned(
+                        right: 16,
+                        top: 16,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _MapExpandButton(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => _JourneyFullScreenMap(
+                                    journey: journey,
+                                    route: selectedRoute,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (journey.hasInterruptedCoverage) ...[
+                              const SizedBox(height: 8),
+                              _MiniBadge(
+                                label:
+                                    'Tracking gap · ${_compactDuration(journey.routeCoverage.largestGap)}',
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1155,7 +1181,7 @@ class _SelectedTripAB extends StatelessWidget {
                     letter: 'B',
                     time: DateFormat.Hm().format(journey.confirmedReturnAt),
                     caption: _arrivalCaption(journey),
-                    color: const Color(0xFFE84C4C),
+                    color: GuardianColors.safe,
                   ),
                 ],
               ),
@@ -1205,7 +1231,7 @@ class _SelectedTripAB extends StatelessWidget {
               letter: 'B',
               time: DateFormat.Hm().format(journey.confirmedReturnAt),
               caption: _arrivalCaption(journey),
-              color: const Color(0xFFE84C4C),
+              color: GuardianColors.safe,
             ),
           ],
         );
@@ -1293,6 +1319,241 @@ class _MiniBadge extends StatelessWidget {
   }
 }
 
+class _MapExpandButton extends StatelessWidget {
+  const _MapExpandButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.96),
+      borderRadius: BorderRadius.circular(11),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      child: InkWell(
+        key: const ValueKey('journey-expand-map'),
+        borderRadius: BorderRadius.circular(11),
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.open_in_full_rounded,
+                size: 15,
+                color: GuardianColors.forest,
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Expand map',
+                style: TextStyle(
+                  color: GuardianColors.forest,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyFullScreenMap extends StatelessWidget {
+  const _JourneyFullScreenMap({required this.journey, required this.route});
+
+  final JourneyRecord journey;
+  final JourneyV2Route route;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Scaffold(
+      backgroundColor: colors.canvas,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: JourneyV2StaticMap(
+                key: ValueKey('journey-fullscreen-map-${journey.id}'),
+                route: route,
+              ),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 16,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.96),
+                    shape: const CircleBorder(),
+                    elevation: 2,
+                    child: IconButton(
+                      key: const ValueKey('journey-close-fullscreen-map'),
+                      tooltip: 'Close full-screen map',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                      color: GuardianColors.forest,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 14,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '${_departureCaption(journey)} · '
+                        '${DateFormat.Hm().format(journey.confirmedDepartureAt)}  →  '
+                        '${_arrivalCaption(journey)} · '
+                        '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: GuardianColors.forest,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 16,
+              bottom: journey.hasInterruptedCoverage ? 90 : 20,
+              child: _MapEvidenceLegend(
+                hasGap: journey.hasInterruptedCoverage,
+              ),
+            ),
+            if (journey.hasInterruptedCoverage)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 20,
+                child: _RouteCoverageNotice(journey: journey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapEvidenceLegend extends StatelessWidget {
+  const _MapEvidenceLegend({required this.hasGap});
+
+  final bool hasGap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _MapLegendItem(
+            color: GuardianColors.safe,
+            label: 'Recorded route',
+          ),
+          if (hasGap) ...[
+            const SizedBox(height: 5),
+            const _MapLegendItem(
+              color: Color(0xFF7C8792),
+              label: 'Unobserved interval',
+              dashed: true,
+            ),
+          ],
+          const SizedBox(height: 5),
+          const _MapLegendItem(
+            color: Color(0xFF23A566),
+            label: 'Confirmed Home',
+            isDot: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapLegendItem extends StatelessWidget {
+  const _MapLegendItem({
+    required this.color,
+    required this.label,
+    this.dashed = false,
+    this.isDot = false,
+  });
+
+  final Color color;
+  final String label;
+  final bool dashed;
+  final bool isDot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isDot)
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          )
+        else
+          SizedBox(
+            width: 18,
+            child: Row(
+              children: dashed
+                  ? [
+                      Container(width: 6, height: 2, color: color),
+                      const SizedBox(width: 3),
+                      Container(width: 6, height: 2, color: color),
+                    ]
+                  : [Expanded(child: Container(height: 3, color: color))],
+            ),
+          ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(
+            color: GuardianColors.forest,
+            fontSize: 7.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RouteCoverageNotice extends StatelessWidget {
   const _RouteCoverageNotice({required this.journey});
 
@@ -1371,8 +1632,8 @@ class _SelectedMetricsRow extends StatelessWidget {
               icon: Icons.route_rounded,
               value: '${route.decodedPointCount}',
               label: _allLocationUpdatesAreGps(journey)
-                  ? 'GPS updates'
-                  : 'Location updates',
+                  ? 'GPS location points'
+                  : 'Location points',
             ),
           ),
           Expanded(
@@ -1485,7 +1746,9 @@ class _ReplayShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final currentTime = replay.currentTime ?? journey.startAt;
+    final currentTime = replay.currentIndex == 0
+        ? journey.confirmedDepartureAt
+        : (replay.currentTime ?? journey.confirmedDepartureAt);
 
     return Container(
       height: 58,
@@ -1730,7 +1993,7 @@ String _dayGuardianReadText(String deviceName, _DayTotals totals) {
       : '$deviceName has ${totals.tripCount} evidence-backed '
             '${totals.tripCount == 1 ? 'journey' : 'journeys'}. ';
   final route = 'Guardian recorded ${totals.distanceKm.toStringAsFixed(1)} km '
-      'from ${totals.pointCount} location updates.';
+      'from ${totals.pointCount} location points.';
   if (totals.gapCount == 0) return '$base$route';
   return '$base$route Tracking resumed after '
       '${totals.gapCount == 1 ? 'a' : totals.gapCount} '
@@ -1797,8 +2060,8 @@ bool _allLocationUpdatesAreGps(JourneyRecord journey) {
 
 String _locationUpdateText(JourneyRecord journey, int count) {
   return _allLocationUpdatesAreGps(journey)
-      ? '$count GPS updates'
-      : '$count location updates';
+      ? '$count GPS location points'
+      : '$count location points';
 }
 
 IconData _tripIcon(int index) {

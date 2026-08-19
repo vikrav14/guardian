@@ -136,6 +136,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
     final circles = journeyV2EndpointCircles(widget.route, points);
+    final polylines = <Polyline>{};
 
     if (widget.showReplayPosition && replayIndex < latLngs.length - 1) {
       circles.add(
@@ -155,7 +156,27 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
         gapIndex < widget.route.record.routeGaps.length;
         gapIndex++) {
       final gap = widget.route.record.routeGaps[gapIndex];
+      final stoppedIndex = gap.fromPointIndex;
       final resumeIndex = gap.toPointIndex;
+      if (stoppedIndex != null &&
+          stoppedIndex >= 0 &&
+          stoppedIndex < latLngs.length &&
+          resumeIndex != null &&
+          resumeIndex >= 0 &&
+          resumeIndex < latLngs.length) {
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-route-unobserved-$gapIndex'),
+            points: [latLngs[stoppedIndex], latLngs[resumeIndex]],
+            color: const Color(0xFF7C8792).withValues(alpha: 0.78),
+            width: 4,
+            patterns: [PatternItem.dash(12), PatternItem.gap(8)],
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            zIndex: 1,
+          ),
+        );
+      }
       if (resumeIndex == null ||
           resumeIndex < 0 ||
           resumeIndex >= latLngs.length) {
@@ -167,17 +188,16 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
           position: latLngs[resumeIndex],
           zIndexInt: 20,
           infoWindow: InfoWindow(
-            title: 'Tracking resumed',
-            snippet: '${_compactMapDuration(gap.duration)} gap',
+            title: 'Location reporting resumed',
+            snippet: 'After a ${_compactMapDuration(gap.duration)} gap',
           ),
           icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
+            BitmapDescriptor.hueAzure,
           ),
         ),
       );
     }
 
-    final polylines = <Polyline>{};
     final replayInProgress =
         widget.showReplayPosition && replayIndex < latLngs.length - 1;
     for (var index = 0; index < continuousSegments.length; index++) {
@@ -250,17 +270,36 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
   }
 }
 
-/// A confirmed return-to-origin outing is one round trip. The first stored
-/// route point is already an outside fix, so presenting it as a second
-/// destination makes the map look like a one-way trip. Round trips therefore
-/// use one calm safe-zone circle; non-return journeys retain endpoint pins.
+/// A confirmed return-to-origin outing is one round trip. Its anchored first
+/// point represents the known origin area, so the map shows one Home marker
+/// for both departure and return instead of inventing separate destinations.
 Set<Marker> journeyV2EndpointMarkers(
   JourneyV2Route route,
   List<LocationHistoryPoint> points,
 ) {
   if (points.isEmpty) return <Marker>{};
 
-  if (route.record.hasConfirmedReturn) return <Marker>{};
+  if (route.record.hasConfirmedReturn) {
+    final originPoint = route.record.routeStartAnchored
+        ? points.first
+        : points.last;
+    final origin = route.record.originGeofenceName?.trim();
+    final label = origin == null || origin.isEmpty ? 'Safe zone' : origin;
+    return <Marker>{
+      Marker(
+        markerId: const MarkerId('journey-origin-marker'),
+        position: LatLng(originPoint.lat, originPoint.lng),
+        zIndexInt: 25,
+        infoWindow: InfoWindow(
+          title: label,
+          snippet: 'Departure and return confirmed',
+        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueGreen,
+        ),
+      ),
+    };
+  }
 
   final start = LatLng(points.first.lat, points.first.lng);
   final end = LatLng(points.last.lat, points.last.lng);
@@ -297,11 +336,12 @@ Set<Circle> journeyV2EndpointCircles(
     Circle(
       circleId: const CircleId('journey-origin'),
       center: LatLng(originPoint.lat, originPoint.lng),
-      radius: 18,
-      fillColor: GuardianColors.safe,
-      strokeColor: Colors.white,
-      strokeWidth: 4,
-      zIndex: 20,
+      // This is a visibility halo, not the configured geofence boundary.
+      radius: 55,
+      fillColor: GuardianColors.safe.withValues(alpha: 0.12),
+      strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
+      strokeWidth: 2,
+      zIndex: 10,
     ),
   };
 }

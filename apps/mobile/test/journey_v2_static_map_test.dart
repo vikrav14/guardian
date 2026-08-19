@@ -116,7 +116,7 @@ void main() {
     expect(segments, hasLength(2));
   });
 
-  test('confirmed return-to-origin uses one safe-zone endpoint circle', () {
+  test('confirmed return-to-origin uses one visible Home marker and halo', () {
     final start = DateTime(2026, 8, 17, 15, 30);
     final journey = JourneyRecord(
       id: 'home-round-trip',
@@ -143,7 +143,11 @@ void main() {
     final markers = journeyV2EndpointMarkers(route, points);
     final circles = journeyV2EndpointCircles(route, points);
 
-    expect(markers, isEmpty);
+    expect(markers, hasLength(1));
+    expect(markers.single.markerId.value, 'journey-origin-marker');
+    expect(markers.single.infoWindow.title, 'Home');
+    expect(markers.single.position.latitude, closeTo(points.first.lat, 0.000001));
+    expect(markers.single.position.longitude, closeTo(points.first.lng, 0.000001));
     expect(circles, hasLength(1));
     expect(circles.single.circleId.value, 'journey-origin');
     expect(circles.single.center.latitude, closeTo(points.first.lat, 0.000001));

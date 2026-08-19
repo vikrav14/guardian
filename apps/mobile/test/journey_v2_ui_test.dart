@@ -73,9 +73,22 @@ void main() {
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
     expect(find.text('SELECTED TRIP'), findsOneWidget);
     expect(find.text('GUARDIAN READ'), findsNWidgets(2));
-    expect(find.text('Location updates'), findsOneWidget);
-    expect(find.text('GPS updates'), findsOneWidget);
+    expect(find.text('Location points'), findsOneWidget);
+    expect(find.text('GPS location points'), findsOneWidget);
     expect(find.textContaining('route points'), findsNothing);
+    expect(find.byKey(const ValueKey('journey-expand-map')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('journey-close-fullscreen-map')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('trip row remains selectable', (tester) async {
