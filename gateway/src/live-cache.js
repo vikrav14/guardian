@@ -5,6 +5,7 @@ const {
   trackJourneyPoint,
   hasActiveJourney,
   noteJourneyObservation,
+  noteJourneyDiagnosticEvent,
 } = require('./journey-builder');
 
 /**
@@ -281,6 +282,10 @@ function noteObservationForJourney(imei, outcome) {
   return noteJourneyObservation(getState(imei), outcome);
 }
 
+function noteDiagnosticEventForJourney(imei, type, at, details) {
+  return noteJourneyDiagnosticEvent(getState(imei), type, at, details);
+}
+
 function resetWriteGateStats() {
   skippedCount = 0;
   persistedCount = 0;
@@ -310,6 +315,7 @@ module.exports = {
   flushJourneyIfNeeded,
   isJourneyActive,
   noteObservationForJourney,
+  noteDiagnosticEventForJourney,
   getWriteGateStats,
   resetWriteGateStats,
   resetCacheForTests,

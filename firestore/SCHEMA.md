@@ -181,7 +181,9 @@ Merged dwell periods for Journey view. Gateway writes when the device stays stat
 
 Compressed movement segments for Journey route replay. Gateway accumulates GPS in memory during active travel and writes **one document per closed journey** (polyline-encoded route) instead of hundreds of raw location points.
 
-Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after last movement, daily boundary (midnight), or TCP disconnect.
+Closed by an outing boundary such as confirmed return to its origin, an eligible
+idle boundary for a journey without a safe-zone origin, or the daily boundary.
+A TCP disconnect is diagnostic evidence and does not split an outing.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -192,7 +194,9 @@ Closed when: geofence exit, idle ≥ `JOURNEY_IDLE_MINUTES` (default 15) after l
 | events | array | Optional inline events, e.g. `{ type: 'geofence_exit', geofenceId, name, at }` |
 | pointCount | number | Raw GPS fixes in buffer before compression |
 | compressed | boolean | Always `true` for gateway-written docs |
-| closeReason | string | `idle` \| `geofence_exit` \| `daily_boundary` \| `disconnect` |
+| closeReason | string | Current reasons include `return_to_origin`, `idle`, and `daily_boundary`; `disconnect` may exist on legacy documents only |
+| observationAudit | map | Aggregate counts for approximate packets, resolution and acceptance outcomes |
+| diagnosticEvents | array | Bounded timestamp-offset timeline of connection, heartbeat, location, fallback, recovery-probe and reporting-policy evidence used by the read-only gap investigator |
 | createdAt | timestamp | Write time |
 
 ## `geofences/{geofenceId}`

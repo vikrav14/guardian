@@ -915,3 +915,31 @@ test('completed journey explains approximate positioning outcomes', () => {
   });
   assert.equal(doc.routeCoverage.approximatePointCount, 1);
 });
+
+test('completed journey retains bounded timestamped diagnostic evidence', () => {
+  const state = emptyState();
+  const start = new Date('2026-08-19T14:00:00Z');
+  trackJourneyPoint(state, movingPoint(0, start.toISOString()), start);
+
+  const { noteJourneyDiagnosticEvent } = require('../src/journey-builder');
+  noteJourneyDiagnosticEvent(
+    state,
+    'heartbeat_received',
+    new Date('2026-08-19T14:01:00Z'),
+    { batteryPercent: 61 }
+  );
+  trackJourneyPoint(
+    state,
+    movingPoint(0.002, '2026-08-19T14:02:00Z'),
+    new Date('2026-08-19T14:02:00Z')
+  );
+
+  const doc = closeJourney(state, new Date('2026-08-19T14:03:00Z'), 'manual');
+  assert.deepEqual(doc.diagnosticEvents, [
+    {
+      type: 'heartbeat_received',
+      offsetMs: 60_000,
+      details: { batteryPercent: 61 },
+    },
+  ]);
+});

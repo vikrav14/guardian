@@ -101,6 +101,7 @@ const {
   isJourneyActive,
 
   noteObservationForJourney,
+  noteDiagnosticEventForJourney,
 
   getWriteGateStats,
 
@@ -232,6 +233,16 @@ async function resolveGeolocation(event) {
   if (!event.needsGeolocation) return event;
 
   noteObservationForJourney(event.imei, 'approximatePacketsReceived');
+  noteDiagnosticEventForJourney(
+    event.imei,
+    'approximate_packet_received',
+    new Date(),
+    {
+      source: event.accuracySource || null,
+      wifiCount: event.wifiAccessPoints?.length || 0,
+      cellCount: event.cellTowers?.length || 0,
+    }
+  );
 
   const wifiCount = event.wifiAccessPoints?.length || 0;
   const cellCount = event.cellTowers?.length || 0;
@@ -242,6 +253,12 @@ async function resolveGeolocation(event) {
 
   if (!geo) {
     noteObservationForJourney(event.imei, 'approximateResolutionFailed');
+    noteDiagnosticEventForJourney(
+      event.imei,
+      'approximate_resolution_failed',
+      new Date(),
+      { wifiCount, cellCount }
+    );
     console.log(
       `[geolocate] ${event.imei} wifi=${wifiCount} cells=${cellCount} → failed`
     );
@@ -249,6 +266,12 @@ async function resolveGeolocation(event) {
   }
 
   noteObservationForJourney(event.imei, 'approximateResolved');
+  noteDiagnosticEventForJourney(
+    event.imei,
+    'approximate_resolved',
+    new Date(),
+    { source: event.accuracySource || null, wifiCount, cellCount }
+  );
 
   const accLabel = geo.accuracyMeters != null ? `${Math.round(geo.accuracyMeters)}m` : '?';
   console.log(
@@ -298,7 +321,7 @@ async function applyEvents(events, session) {
       const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
       if (event.imei) {
-        await maybeAnnounceConnecting(
+        const connectionAnnounced = await maybeAnnounceConnecting(
           session,
           event.imei,
           devicePatch,
@@ -308,6 +331,14 @@ async function applyEvents(events, session) {
           getDeviceDocument,
           seedLastKnownLocation
         );
+        if (connectionAnnounced) {
+          noteDiagnosticEventForJourney(
+            event.imei,
+            'tcp_reconnected',
+            eventReceivedAt,
+            { protocolId: event.protocolId || null }
+          );
+        }
       }
 
       if (event.type === 'location') {
@@ -326,6 +357,17 @@ async function applyEvents(events, session) {
           location: provenancePatch.location,
           accuracySource: provenancePatch.accuracySource,
         };
+        noteDiagnosticEventForJourney(
+          locEvent.imei,
+          'location_received',
+          eventReceivedAt,
+          {
+            source: locEvent.location.source || locEvent.accuracySource || null,
+            gpsValid: locEvent.location.gpsValid === true,
+            satellites: locEvent.location.satellites ?? null,
+            batteryPercent: locEvent.batteryPercent ?? null,
+          }
+        );
         const accLabel = locEvent.location.accuracyMeters == null
           ? 'not supplied'
           : `${Math.round(locEvent.location.accuracyMeters)}m`;
@@ -614,7 +656,7 @@ async function applyEvents(events, session) {
           adaptiveDb &&
           (adaptiveBattery != null || outingActive || journeyReturned)
         ) {
-            await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
+            const reporting = await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
               batteryPercent: adaptiveBattery,
               outingActive,
               trigger: journeyReturned
@@ -624,9 +666,22 @@ async function applyEvents(events, session) {
                   : 'location',
               force: journeyReturned,
             });
+            noteDiagnosticEventForJourney(
+              locEvent.imei,
+              'reporting_policy',
+              eventReceivedAt,
+              reporting
+            );
         }
 
       } else if (event.type === 'heartbeat') {
+
+        noteDiagnosticEventForJourney(
+          event.imei,
+          'heartbeat_received',
+          eventReceivedAt,
+          { batteryPercent: event.batteryPercent ?? null }
+        );
 
         updateLiveState(event.imei, {
 
@@ -703,13 +758,19 @@ async function applyEvents(events, session) {
         if (event.batteryPercent != null) {
           const db = getDb();
           if (db) {
-            await applyAdaptiveReporting(db, event.imei, {
+            const reporting = await applyAdaptiveReporting(db, event.imei, {
               batteryPercent: event.batteryPercent,
               outingActive: isJourneyActive(event.imei),
               trigger: isJourneyActive(event.imei)
                 ? 'journey_heartbeat'
                 : 'heartbeat',
             });
+            noteDiagnosticEventForJourney(
+              event.imei,
+              'reporting_policy',
+              eventReceivedAt,
+              reporting
+            );
           }
         }
       } else if (event.type === 'alarm') {
@@ -995,6 +1056,12 @@ const server = net.createServer((socket) => {
       if (!target) return { ok: false, error: 'identity_pending' };
       const result = sendContinuousReporting(target);
       if (result.ok) {
+        noteDiagnosticEventForJourney(
+          target,
+          'recovery_probe_sent',
+          new Date(),
+          { reason }
+        );
         console.warn(
           `[recovery] ${target} CR requested after ${reason}`
         );
@@ -1062,6 +1129,13 @@ const server = net.createServer((socket) => {
     console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
 
     if (session?.imei) {
+
+      noteDiagnosticEventForJourney(
+        session.imei,
+        'tcp_disconnected',
+        new Date(),
+        { reachedLive: (session.persistCount || 0) >= SESSION_LIVE_PACKETS }
+      );
 
       maybeFlushDwell(session.imei, true).catch((err) => {
 

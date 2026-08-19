@@ -8,6 +8,7 @@ const MAX_JOURNEY_SEGMENT_METRES = 5000;
 const RETURN_CONFIRM_MS = 2 * 60 * 1000;
 const ROUTE_GAP_THRESHOLD_MS = 5 * 60 * 1000;
 const DEPARTURE_ANCHOR_MAX_AGE_MS = ROUTE_GAP_THRESHOLD_MS;
+const MAX_DIAGNOSTIC_EVENTS = 512;
 
 function emptyObservationAudit() {
   return {
@@ -27,6 +28,31 @@ function noteJourneyObservation(state, outcome) {
     return false;
   }
   journey.observationAudit[outcome] += 1;
+  return true;
+}
+
+function noteJourneyDiagnosticEvent(state, type, at = new Date(), details = {}) {
+  const journey = state?.currentJourney;
+  const eventAt = new Date(at);
+  const startAt = new Date(journey?.startAt);
+  if (
+    !journey ||
+    !String(type || '').trim() ||
+    Number.isNaN(eventAt.getTime()) ||
+    Number.isNaN(startAt.getTime())
+  ) {
+    return false;
+  }
+
+  journey.diagnosticEvents ||= [];
+  if (journey.diagnosticEvents.length >= MAX_DIAGNOSTIC_EVENTS) return false;
+  journey.diagnosticEvents.push({
+    type: String(type).trim(),
+    offsetMs: Math.max(0, eventAt.getTime() - startAt.getTime()),
+    details: Object.fromEntries(
+      Object.entries(details || {}).filter(([, value]) => value !== undefined)
+    ),
+  });
   return true;
 }
 
@@ -312,6 +338,7 @@ function startJourney(state, point, now, { routeAnchor = null } = {}) {
     returnEvidence: null,
     returnCandidateAt: null,
     observationAudit: emptyObservationAudit(),
+    diagnosticEvents: [],
   };
 }
 
@@ -416,6 +443,7 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
       ...emptyObservationAudit(),
       ...(journey.observationAudit || {}),
     },
+    diagnosticEvents: [...(journey.diagnosticEvents || [])],
     ...routeEvidence,
     ...(journey.originGeofenceId
       ? {
@@ -695,6 +723,7 @@ module.exports = {
   sameCalendarDay,
   buildRouteEvidence,
   noteJourneyObservation,
+  noteJourneyDiagnosticEvent,
   ROUTE_GAP_THRESHOLD_MS,
   DEPARTURE_ANCHOR_MAX_AGE_MS,
 };
