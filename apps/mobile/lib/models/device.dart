@@ -304,6 +304,28 @@ class Device {
     return latestLocationObservation ?? lastSatelliteLocation;
   }
 
+  /// Conservative map position for a family-facing live view.
+  ///
+  /// WiFi/LBS observations can be useful evidence but are too broad to move a
+  /// person's primary avatar. When a satellite fix exists, the map keeps that
+  /// last reliable position until a new GPS fix arrives. Raw approximate
+  /// observations remain available for an uncertainty circle and never alter
+  /// stored telemetry, journeys, geofences, alerts, or SOS location selection.
+  DeviceLocation? get mapDisplayLocation {
+    final source = latestLocationSource;
+    final satellite = lastSatelliteLocation;
+    if ((source == 'wifi' || source == 'lbs') && satellite?.isValid == true) {
+      return satellite;
+    }
+    return displayLocation;
+  }
+
+  bool get isMapDisplayingLastSatelliteLocation {
+    final source = latestLocationSource;
+    return (source == 'wifi' || source == 'lbs') &&
+        lastSatelliteLocation?.isValid == true;
+  }
+
   String? get displayLocationSource =>
       isDisplayingRetainedSatelliteLocation ? 'gps' : latestLocationSource;
 

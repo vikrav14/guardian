@@ -92,11 +92,10 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Set<Circle> _circles() {
     final selected = _selected;
-    final displayed = selected?.displayLocation;
+    final approximate = selected?.latestLocationObservation;
     final uncertaintyRadius =
-        selected?.hasApproximateLocation == true &&
-            selected?.isDisplayingRetainedSatelliteLocation != true
-        ? displayed?.accuracyMeters
+        selected?.hasApproximateLocation == true
+        ? approximate?.accuracyMeters
         : null;
     return {
       for (final zone in _selectedGeofences)
@@ -109,12 +108,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           strokeWidth: 2,
           zIndex: 1,
         ),
-      if (displayed?.isValid == true &&
+      if (approximate?.isValid == true &&
           uncertaintyRadius != null &&
           uncertaintyRadius > 0)
         Circle(
           circleId: const CircleId('display-location-uncertainty'),
-          center: LatLng(displayed!.lat, displayed.lng),
+          center: LatLng(approximate!.lat, approximate.lng),
           radius: uncertaintyRadius,
           fillColor: GuardianColors.warning.withValues(alpha: 0.12),
           strokeColor: GuardianColors.warning.withValues(alpha: 0.62),
@@ -128,12 +127,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     if (kIsWeb) return const {};
     return {
       for (final device in _devices)
-        if (device.displayLocation?.isValid == true)
+        if (device.mapDisplayLocation?.isValid == true)
           Marker(
             markerId: MarkerId(device.imei),
             position: LatLng(
-              device.displayLocation!.lat,
-              device.displayLocation!.lng,
+              device.mapDisplayLocation!.lat,
+              device.mapDisplayLocation!.lng,
             ),
             zIndexInt: device.imei == _selectedImei ? 2 : 1,
             alpha: device.isTrulyOffline ? 0.55 : 1,
@@ -143,7 +142,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   LatLng get _mapCenter {
-    final location = _selected?.displayLocation;
+    final location = _selected?.mapDisplayLocation;
     if (location?.isValid == true) {
       return LatLng(location!.lat, location.lng);
     }
@@ -163,7 +162,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   void _followSelected() {
-    final location = _selected?.displayLocation;
+    final location = _selected?.mapDisplayLocation;
     if (_mapController == null || location?.isValid != true) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -179,7 +178,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   VoidCallback? _centerSelectedAction() {
-    final location = _selected?.displayLocation;
+    final location = _selected?.mapDisplayLocation;
     if (location?.isValid != true) return null;
     return () =>
         unawaited(_animateTo(LatLng(location!.lat, location.lng), zoom: 16));
@@ -204,10 +203,10 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   String _mapStatus(Device device) {
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
-    if (device.isDisplayingRetainedSatelliteLocation) {
-      return 'Last satellite fix';
+    if (device.isMapDisplayingLastSatelliteLocation) {
+      return 'Last reliable fix';
     }
-    if (device.hasApproximateLocation) return 'Approximate';
+    if (device.hasApproximateLocation) return 'Approximate area';
     if (device.hasFreshLocation && device.displayLocationSource == 'gps') {
       return 'Satellite GPS';
     }
@@ -345,7 +344,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   void _showLocationFact(Device device) {
-    final location = device.displayLocation;
+    final location = device.mapDisplayLocation;
     if (location?.isValid != true) {
       _showQuickFact(
         '${device.displayName}\'s location',
@@ -357,7 +356,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final label = place == null || place.isEmpty
         ? 'the position shown on the map'
         : place;
-    if (device.isDisplayingRetainedSatelliteLocation) {
+    if (device.isMapDisplayingLastSatelliteLocation) {
       final approximate = device.latestLocationObservation;
       final radius = approximate?.accuracyMeters;
       final radiusCopy = radius == null
@@ -365,7 +364,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           : 'A newer indoor network estimate is available with an estimated radius of ${radius.round()}m.';
       _showQuickFact(
         '${device.displayName}\'s location',
-        'Showing $label from the last satellite fix. ${deviceLocationFixLabel(device)}. $radiusCopy',
+        'Showing $label from the last reliable satellite fix. ${deviceMapLocationFixLabel(device)}. $radiusCopy The approximate estimate does not move the main avatar.',
       );
       return;
     }
@@ -661,7 +660,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            deviceLocationFixLabel(selected),
+                            deviceMapLocationFixLabel(selected),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

@@ -112,11 +112,64 @@ void main() {
 
     expect(device.isDisplayingRetainedSatelliteLocation, false);
     expect(device.displayLocation, same(approximate));
+    expect(device.mapDisplayLocation, same(device.lastSatelliteLocation));
+    expect(device.isMapDisplayingLastSatelliteLocation, true);
     expect(deviceLocationStatusLabel(device), 'Approximate location');
     expect(
       deviceLocationFixLabel(device, now: approximateAt),
       'Approximate network location updated just now',
     );
+    expect(deviceMapLocationStatusLabel(device), 'Last reliable fix');
+    expect(
+      deviceMapLocationFixLabel(device, now: approximateAt),
+      'Last reliable GPS fix 31m ago',
+    );
+  });
+
+  test('map moves again when a new satellite fix arrives', () {
+    final now = DateTime.utc(2026, 8, 14, 20);
+    final gps = DeviceLocation(
+      lat: -20.04,
+      lng: 57.61,
+      source: 'gps',
+      gpsValid: true,
+      recordedAt: now,
+    );
+    final device = Device(
+      imei: '861397052547492',
+      online: true,
+      accuracySource: 'gps',
+      location: gps,
+      lastLocationObservation: gps,
+      lastSatelliteLocation: gps,
+      lastHeartbeatAt: now,
+    );
+
+    expect(device.mapDisplayLocation, same(gps));
+    expect(device.isMapDisplayingLastSatelliteLocation, false);
+  });
+
+  test('map can use approximate location when no satellite fix exists', () {
+    final now = DateTime.utc(2026, 8, 14, 20);
+    final approximate = DeviceLocation(
+      lat: -20.03,
+      lng: 57.60,
+      source: 'lbs',
+      gpsValid: false,
+      accuracyMeters: 800,
+      recordedAt: now,
+    );
+    final device = Device(
+      imei: '861397052547492',
+      online: true,
+      accuracySource: 'lbs',
+      location: approximate,
+      lastLocationObservation: approximate,
+      lastHeartbeatAt: now,
+    );
+
+    expect(device.mapDisplayLocation, same(approximate));
+    expect(device.isMapDisplayingLastSatelliteLocation, false);
   });
 
   test('cellular signal uses the measured V52 percentage while fresh', () {

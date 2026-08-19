@@ -138,6 +138,25 @@ String deviceLocationFixLabel(Device device, {DateTime? now}) {
   );
 }
 
+String deviceMapLocationStatusLabel(Device device) {
+  if (device.isMapDisplayingLastSatelliteLocation) return 'Last reliable fix';
+  return deviceLocationStatusLabel(device);
+}
+
+String deviceMapLocationFixLabel(Device device, {DateTime? now}) {
+  if (!device.isMapDisplayingLastSatelliteLocation) {
+    return deviceLocationFixLabel(device, now: now);
+  }
+  final timestamp = device.mapDisplayLocation?.recordedAt;
+  if (timestamp == null) return 'Reliable location time unavailable';
+  return _freshnessLabel(
+    timestamp,
+    now: now,
+    justNow: 'Last reliable GPS fix was just now',
+    prefix: 'Last reliable GPS fix',
+  );
+}
+
 String _freshnessLabel(
   DateTime timestamp, {
   required String justNow,
