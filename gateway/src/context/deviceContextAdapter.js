@@ -44,7 +44,7 @@ function displayNameFor(device = {}) {
 /** Convert the current Firestore device shape into the existing context API shape. */
 function adaptDeviceContext(device = {}, options = {}) {
   const now = options.now instanceof Date ? options.now : new Date(options.now || Date.now());
-  const selection = selectLocationForDisplay(device);
+  const selection = options.locationSelection || selectLocationForDisplay(device);
   const selectedLocation = selection.location;
   const lat = Number(selectedLocation?.lat);
   const lng = Number(selectedLocation?.lng);
