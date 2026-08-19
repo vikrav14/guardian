@@ -717,6 +717,27 @@ async function handleOpsHttpRequest(req, res, url) {
     return false;
   }
 
+  if (url.pathname === '/ops/context-sources') {
+    if (!(await requireStrictAdmin(req, res))) return true;
+    const runtime = getContextRuntime();
+    if (!runtime?.capAlertProvider) {
+      sendJson(res, 503, { error: 'Context source runtime unavailable' });
+      return true;
+    }
+    sendJson(res, 200, {
+      observeOnly: true,
+      automaticDelivery: false,
+      enabled: config.contextCapEnabled === true,
+      scheduler: {
+        active: runtime.sourceScheduler?.active === true,
+        intervalMinutes: runtime.sourceScheduler?.intervalMinutes || null,
+        reason: runtime.sourceScheduler?.reason || null,
+      },
+      sources: [runtime.capAlertProvider.getSnapshot()],
+    });
+    return true;
+  }
+
   if (!(await requireAdmin(req, res))) {
     return true;
   }
@@ -1094,6 +1115,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/growth?users=500');
     console.log('[guardian-http] GET  /ops/ai-stats');
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
+    console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
   });
 
   return server;

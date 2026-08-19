@@ -9,6 +9,88 @@ const Logger = require('../logger');
 const logger = new Logger({ module: 'context-evaluator' });
 
 class ContextEvaluator {
+  evaluateOfficialAlertRelevance(alerts, person, device, location) {
+    const result = {
+      relevant: false,
+      severity: 'none',
+      reasons: [],
+      uncertainty: [],
+      deviceState: {
+        online: device?.online,
+        lastSeenMinutes: device?.lastSeenMinutesAgo,
+        battery: device?.batteryPercent,
+      },
+      locationFreshness: location?.freshnessMinutes,
+      message: null,
+    };
+    const candidates = (Array.isArray(alerts) ? alerts : []).filter((alert) => (
+      alert?.source?.authority === 'official_authority' &&
+      alert?.active === true &&
+      alert?.status === 'actual' &&
+      alert?.messageType !== 'cancel' &&
+      alert?.applicability?.matches === true &&
+      alert?.certainty !== 'unlikely' &&
+      alert?.urgency !== 'past' &&
+      ['moderate', 'severe', 'extreme'].includes(alert?.severity)
+    ));
+    if (!candidates.length) return result;
+
+    const score = (alert) => {
+      const severity = { moderate: 2, severe: 3, extreme: 4 }[alert.severity] || 0;
+      const urgency = { future: 0, unknown: 0, expected: 1, immediate: 2 }[alert.urgency] || 0;
+      return severity * 10 + urgency;
+    };
+    candidates.sort((a, b) => score(b) - score(a));
+    const primary = candidates[0];
+    const freshLocation = location?.freshnessMinutes != null && location.freshnessMinutes <= 30;
+    let severity = primary.severity === 'extreme' &&
+      ['immediate', 'expected'].includes(primary.urgency)
+      ? 'urgent'
+      : (primary.severity === 'severe' ? 'check_in' : 'useful_information');
+
+    if (!freshLocation) {
+      result.uncertainty.push('The warning matches the wearer\'s last known area, but the location is over 30 minutes old');
+      severity = 'useful_information';
+    }
+    if (device?.online !== true) {
+      result.uncertainty.push('The watch is offline, so the wearer\'s current position cannot be confirmed');
+    }
+
+    const wearer = person?.displayName || 'the wearer';
+    const place = location?.placeName || 'the recorded area';
+    const headline = primary.headline || primary.event || 'Official weather warning';
+    result.relevant = true;
+    result.severity = severity;
+    result.reasons = candidates.slice(0, 5).map((alert) => (
+      `${alert.source.name}: ${alert.headline || alert.event} (${alert.severity}, ${alert.urgency})`
+    ));
+    result.message = freshLocation
+      ? `${headline} applies around ${wearer}'s recorded area near ${place}.`
+      : `${headline} applies around ${wearer}'s last known area near ${place}.`;
+    return result;
+  }
+
+  combineEvaluations(...evaluations) {
+    const available = evaluations.filter(Boolean);
+    if (!available.length) {
+      return { relevant: false, severity: 'none', reasons: [], uncertainty: [], message: null };
+    }
+    const strongest = available.slice(1).reduce((best, current) => (
+      this._severityScore(current.severity) > this._severityScore(best.severity)
+        ? current
+        : best
+    ), available[0]);
+    const relevant = available.some((evaluation) => evaluation.relevant === true);
+    return {
+      ...strongest,
+      relevant,
+      severity: relevant ? strongest.severity : 'none',
+      reasons: [...new Set(available.flatMap((evaluation) => evaluation.reasons || []))],
+      uncertainty: [...new Set(available.flatMap((evaluation) => evaluation.uncertainty || []))],
+      message: relevant ? strongest.message : (strongest.message || null),
+    };
+  }
+
   /**
    * Evaluate if weather is relevant to a person
    * @param {object} weather - Normalized weather from weatherProvider

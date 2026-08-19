@@ -124,6 +124,28 @@ const config = {
     String(process.env.CONTEXT_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
   contextPersistObservations:
     String(process.env.CONTEXT_PERSIST_OBSERVATIONS || 'false').toLowerCase() === 'true',
+
+  // Official Mauritius Meteorological Services CAP feed. This source remains
+  // observe-only: polling and evaluation never imply notification delivery.
+  contextCapEnabled:
+    String(process.env.CONTEXT_CAP_ENABLED || 'false').toLowerCase() === 'true',
+  contextCapFeedUrl:
+    process.env.CONTEXT_CAP_FEED_URL ||
+    'https://cap-sources.s3.amazonaws.com/mu-mms-en/rss.xml',
+  contextCapPollMinutes: Math.max(
+    5,
+    Number(process.env.CONTEXT_CAP_POLL_MINUTES || 5)
+  ),
+  contextCapMaxItems: Math.max(
+    1,
+    Math.min(100, Number(process.env.CONTEXT_CAP_MAX_ITEMS || 50))
+  ),
+  contextCapRunOnStartup:
+    String(process.env.CONTEXT_CAP_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextCapPersistEvents:
+    String(process.env.CONTEXT_CAP_PERSIST_EVENTS || 'false').toLowerCase() === 'true',
+  contextCapEvaluateDevices:
+    String(process.env.CONTEXT_CAP_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
 };
 
 module.exports = config;

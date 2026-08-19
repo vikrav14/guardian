@@ -28,6 +28,7 @@ class ContextService {
     );
     this.evaluator = dependencies.evaluator || new ContextEvaluator();
     this.ai = dependencies.ai || new ContextAI(llmProvider, this.config);
+    this.capAlertProvider = dependencies.capAlertProvider || null;
     this.observeLog = [];
   }
 
@@ -41,18 +42,35 @@ class ContextService {
         throw new Error('No trustworthy location available for context evaluation');
       }
       incrementMetric('contextDevicesEvaluated');
-      const weather = await this.weatherProvider.getWeather(
-        safeLocation.lat,
-        safeLocation.lng,
-        safeLocation.placeName
-      );
+      const weather = options.skipWeather === true
+        ? this._notRequestedWeather()
+        : await this.weatherProvider.getWeather(
+          safeLocation.lat,
+          safeLocation.lng,
+          safeLocation.placeName
+        );
       if (weather?.error) incrementMetric('contextWeatherErrors');
 
-      const deterministicEvaluation = this.evaluator.evaluateWeatherRelevance(
+      const weatherEvaluation = this.evaluator.evaluateWeatherRelevance(
         weather,
         person,
         safeDevice,
         safeLocation
+      );
+      const officialAlerts = this.capAlertProvider
+        ? this.capAlertProvider.getApplicableAlerts(safeLocation, {
+          now: options.now || new Date(),
+        })
+        : [];
+      const officialAlertEvaluation = this.evaluator.evaluateOfficialAlertRelevance(
+        officialAlerts,
+        person,
+        safeDevice,
+        safeLocation
+      );
+      const deterministicEvaluation = this.evaluator.combineEvaluations(
+        officialAlertEvaluation,
+        weatherEvaluation
       );
 
       let contextEvaluation = { ...deterministicEvaluation };
@@ -61,7 +79,8 @@ class ContextService {
         : null;
       let contextDecision = this._deterministicDecision(
         deterministicEvaluation,
-        weather
+        weather,
+        officialAlerts
       );
 
       if (deterministicEvaluation.relevant) {
@@ -71,7 +90,8 @@ class ContextService {
           person,
           safeDevice,
           safeLocation,
-          deterministicEvaluation
+          deterministicEvaluation,
+          officialAlerts
         );
         this._recordLlmUsage(aiResult);
 
@@ -108,6 +128,7 @@ class ContextService {
         device: safeDevice,
         location: safeLocation,
         weather,
+        officialAlerts,
         deterministicEvaluation,
         contextEvaluation,
         contextDecision,
@@ -133,7 +154,8 @@ class ContextService {
           safeDevice,
           safeLocation,
           deterministicEvaluation,
-          contextDecision
+          contextDecision,
+          officialAlerts
         );
       }
 
@@ -162,13 +184,29 @@ class ContextService {
     incrementMetric('contextLlmTokensOut', output);
   }
 
-  _deterministicDecision(evaluation, weather) {
+  _deterministicDecision(evaluation, weather, officialAlerts = []) {
+    const eligibleOfficialAlerts = officialAlerts.filter((alert) => (
+      alert?.source?.authority === 'official_authority' &&
+      alert?.active === true &&
+      alert?.status === 'actual' &&
+      alert?.messageType !== 'cancel' &&
+      alert?.certainty !== 'unlikely' &&
+      alert?.urgency !== 'past' &&
+      ['moderate', 'severe', 'extreme'].includes(alert?.severity)
+    ));
+    const sourceConfidence = eligibleOfficialAlerts.length
+      ? Math.max(...eligibleOfficialAlerts.map((alert) => (
+        alert.applicability?.confidence === 'exact' ? 0.98 : 0.85
+      )))
+      : null;
     return {
       mode: 'deterministic_fallback',
       relevant: evaluation.relevant,
-      confidence: Number.isFinite(Number(weather?.confidence))
+      confidence: sourceConfidence != null
+        ? sourceConfidence
+        : (Number.isFinite(Number(weather?.confidence))
         ? Number(weather.confidence)
-        : 0,
+        : 0),
       recommendedSurface: evaluation.relevant ? 'app' : 'suppress',
       recommendedAction: evaluation.relevant ? 'check_in' : 'none',
       reason: evaluation.relevant
@@ -212,7 +250,28 @@ class ContextService {
     };
   }
 
-  _logObservation(imei, person, device, location, deterministicEvaluation, decision) {
+  _notRequestedWeather() {
+    return {
+      temperature: null,
+      condition: 'not requested',
+      description: 'Weather was not fetched for this source-triggered evaluation.',
+      alerts: [],
+      severity: 'normal',
+      fetchedAt: Date.now(),
+      source: 'not_requested',
+      confidence: 0,
+    };
+  }
+
+  _logObservation(
+    imei,
+    person,
+    device,
+    location,
+    deterministicEvaluation,
+    decision,
+    officialAlerts = []
+  ) {
     const observation = {
       timestamp: new Date().toISOString(),
       imei: imei || null,
@@ -234,6 +293,7 @@ class ContextService {
         battery: device?.batteryPercent,
       },
       locationFreshness: location?.freshnessMinutes,
+      officialAlertIds: officialAlerts.map((alert) => alert.id),
       observeOnly: true,
     };
     this.observeLog.push(observation);
@@ -260,6 +320,7 @@ class ContextService {
         source: 'openweathermap',
         confidence: 0,
       },
+      officialAlerts: [],
       deterministicEvaluation: evaluation,
       contextEvaluation: evaluation,
       contextDecision: {
@@ -284,9 +345,11 @@ class ContextService {
   }
 
   getStats() {
+    const weatherStats = this.weatherProvider.getCacheStats();
     return {
-      weatherCacheSize: this.weatherProvider.getCacheStats().entries,
-      weatherCacheMinutes: this.weatherProvider.getCacheStats().maxDurationMinutes,
+      weatherCacheSize: weatherStats.entries,
+      weatherCacheMinutes: weatherStats.maxDurationMinutes,
+      officialAlertSource: this.capAlertProvider?.getSnapshot?.() || null,
       observationLogSize: this.observeLog.length,
       lastObservation: this.observeLog[this.observeLog.length - 1] || null,
     };

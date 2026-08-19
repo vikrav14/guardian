@@ -37,6 +37,12 @@ const counters = {
   contextLlmTokensIn: 0,
   contextLlmTokensOut: 0,
   contextPersistenceWrites: 0,
+  contextCapPolls: 0,
+  contextCapFetchErrors: 0,
+  contextCapAlertsSeen: 0,
+  contextCapAlertsChanged: 0,
+  contextCapEventWrites: 0,
+  contextCapDeviceSweeps: 0,
 };
 
 const alertTypes = {};

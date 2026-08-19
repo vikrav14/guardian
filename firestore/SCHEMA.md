@@ -321,6 +321,47 @@ controlled smoke message that was not created by an alert or reminder.
 | occurredAt | timestamp | Provider event time |
 | errors | array | Bounded sanitized provider errors |
 
+## `contextEvents/{eventId}`
+
+Optional gateway-only audit documents for normalized official context facts.
+The initial Mauritius CAP integration writes these only when
+`CONTEXT_CAP_PERSIST_EVENTS=true`. They are observe-only and cannot themselves
+trigger a WhatsApp send. IDs are stable hashes of the source plus the source
+alert identifier, so updates merge into the same document.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Normalized source-record version; currently `1` |
+| id | string | Stable namespaced event ID, e.g. `mu-mms-en:{identifier}` |
+| documentId | string | Stable Firestore-safe hash used as the document ID |
+| externalId | string | CAP authority identifier |
+| source | map | Bounded `{ id, name, authority, countryCode, feedUrl }` |
+| sourceUrl | string | Trusted full CAP document URL |
+| status | string | Normalized CAP status; only `actual` is eligible |
+| messageType | string | Normalized CAP message type, including `alert`, `update`, `cancel` |
+| active | boolean | True only while actual, non-cancelled, effective and unexpired |
+| inactiveReason | string \| null | `cancelled`, `cancelled_by_reference`, `superseded_by_update`, `outside_effective_window`, `removed_from_authoritative_feed`, or status reason |
+| eventType | string | Guardian-normalized event type, e.g. `heavy_rain`, `cyclone`, `strong_wind` |
+| headline | string | Bounded official headline |
+| description | string | Bounded official description |
+| instruction | string | Bounded official instruction |
+| urgency | string | Normalized CAP urgency |
+| severity | string | Normalized CAP severity |
+| certainty | string | Normalized CAP certainty |
+| areas | array | CAP area descriptions, polygons, circles and geocodes |
+| sentAt | string \| null | ISO CAP sent time |
+| effectiveAt | string \| null | ISO effective/onset time |
+| expiresAt | string \| null | ISO expiry; missing expiry fails closed |
+| contentHash | string | SHA-256 used for source-level deduplication |
+| observedAt | string | ISO time the gateway most recently observed this fact |
+| observeOnly | boolean | Always true in this phase |
+| deliverySent | boolean | Always false in this phase |
+
+`contextObservations/{observationId}` may optionally contain per-device shadow
+decisions when `CONTEXT_PERSIST_OBSERVATIONS=true`. CAP-triggered observations
+use source `official_cap_update`, include only bounded alert summaries, and are
+idempotent per device/source/hour.
+
 ## Gateway write map
 
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):

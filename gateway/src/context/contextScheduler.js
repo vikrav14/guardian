@@ -27,18 +27,29 @@ function hourBucket(date = new Date()) {
   return date.toISOString().slice(0, 13).replace(/[-T]/g, '');
 }
 
-function observationId(imei, date) {
+function observationId(imei, date, source = 'hourly_shadow_sweep') {
   const safeImei = String(imei || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '');
-  const digest = crypto.createHash('sha256').update(String(imei || '')).digest('hex').slice(0, 10);
-  return `${safeImei.slice(0, 24)}_${hourBucket(date)}_${digest}`;
+  const safeSource = String(source || 'context').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+  const digest = crypto.createHash('sha256')
+    .update(`${imei || ''}:${source || ''}`)
+    .digest('hex')
+    .slice(0, 10);
+  return `${safeImei.slice(0, 24)}_${hourBucket(date)}_${safeSource}_${digest}`;
 }
 
-async function persistObservation(db, imei, adapted, context, observedAt) {
-  const id = observationId(imei, observedAt);
+async function persistObservation(
+  db,
+  imei,
+  adapted,
+  context,
+  observedAt,
+  source = 'hourly_shadow_sweep'
+) {
+  const id = observationId(imei, observedAt, source);
   const payload = {
     imei,
     observedAt: observedAt.toISOString(),
-    source: 'hourly_shadow_sweep',
+    source,
     observeOnly: true,
     deliverySent: false,
     placeName: adapted.location.placeName,
@@ -50,6 +61,18 @@ async function persistObservation(db, imei, adapted, context, observedAt) {
       severity: context.weather?.severity || 'unknown',
       alertTypes: (context.weather?.alerts || []).map((alert) => alert.type),
     },
+    officialAlerts: (context.officialAlerts || []).map((alert) => ({
+      id: alert.id,
+      sourceId: alert.source?.id || null,
+      eventType: alert.eventType,
+      headline: alert.headline,
+      severity: alert.severity,
+      urgency: alert.urgency,
+      certainty: alert.certainty,
+      effectiveAt: alert.effectiveAt,
+      expiresAt: alert.expiresAt,
+      applicability: alert.applicability,
+    })),
     deterministicEvaluation: context.deterministicEvaluation,
     contextDecision: context.contextDecision,
   };
@@ -58,7 +81,14 @@ async function persistObservation(db, imei, adapted, context, observedAt) {
   incrementMetric('contextPersistenceWrites');
 }
 
-async function runContextSweep({ db, contextService, config = {}, now = new Date() }) {
+async function runContextSweep({
+  db,
+  contextService,
+  config = {},
+  now = new Date(),
+  source = 'hourly_shadow_sweep',
+  skipWeather = false,
+}) {
   const startedAt = Date.now();
   if (!db || !contextService) {
     return { ok: false, skipped: true, reason: 'context_dependencies_unavailable' };
@@ -74,6 +104,7 @@ async function runContextSweep({ db, contextService, config = {}, now = new Date
 
   const summary = {
     ok: true,
+    source,
     devicesRead: docs.length,
     devicesEvaluated: 0,
     devicesSkipped: 0,
@@ -101,7 +132,7 @@ async function runContextSweep({ db, contextService, config = {}, now = new Date
           adapted.device,
           adapted.person,
           adapted.location,
-          { imei: doc.id, source: 'hourly_shadow_sweep' }
+          { imei: doc.id, source, skipWeather, now }
         );
         if (context.error) summary.errors += 1;
         if (!context.deterministicEvaluation?.relevant) return;
@@ -111,7 +142,7 @@ async function runContextSweep({ db, contextService, config = {}, now = new Date
         else summary.suppressed += 1;
 
         if (config.contextPersistObservations === true) {
-          await persistObservation(db, doc.id, adapted, context, now);
+          await persistObservation(db, doc.id, adapted, context, now, source);
           summary.observationsPersisted += 1;
         }
       } catch (err) {
@@ -125,7 +156,7 @@ async function runContextSweep({ db, contextService, config = {}, now = new Date
   );
 
   summary.durationMs = Date.now() - startedAt;
-  logger.info('Hourly context shadow sweep completed', summary);
+  logger.info('Context shadow sweep completed', summary);
   return summary;
 }
 

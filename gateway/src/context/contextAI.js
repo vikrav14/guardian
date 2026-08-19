@@ -44,7 +44,7 @@ class ContextAI {
   }
 
   /** Make one structured relevance decision and explanation in a single call. */
-  async assessContext(weather, person, device, location, evaluation) {
+  async assessContext(weather, person, device, location, evaluation, officialAlerts = []) {
     if (!evaluation?.relevant) {
       return { attempted: false, valid: false, reason: 'not_a_candidate' };
     }
@@ -61,7 +61,14 @@ class ContextAI {
         systemPrompt: GUARDIAN_SYSTEM_PROMPT,
         messages: [{
           role: 'user',
-          content: this._buildFactSheet(weather, person, device, location, evaluation),
+          content: this._buildFactSheet(
+            weather,
+            person,
+            device,
+            location,
+            evaluation,
+            officialAlerts
+          ),
         }],
         tools: [],
         metadata: { feature: 'context-relevance' },
@@ -217,7 +224,7 @@ class ContextAI {
     return { valid: issues.length === 0, issues };
   }
 
-  _buildFactSheet(weather, person, device, location, evaluation) {
+  _buildFactSheet(weather, person, device, location, evaluation, officialAlerts = []) {
     const facts = {
       person: {
         displayName: person?.displayName || 'Loved one',
@@ -255,6 +262,22 @@ class ContextAI {
           ? Number(weather.confidence)
           : 0,
       },
+      officialAlerts: (Array.isArray(officialAlerts) ? officialAlerts : []).slice(0, 10).map(
+        (alert) => ({
+          id: alert.id,
+          source: alert.source?.name,
+          authority: alert.source?.authority,
+          eventType: alert.eventType,
+          headline: alert.headline,
+          severity: alert.severity,
+          urgency: alert.urgency,
+          certainty: alert.certainty,
+          effectiveAt: alert.effectiveAt,
+          expiresAt: alert.expiresAt,
+          applicability: alert.applicability,
+          instruction: alert.instruction || null,
+        })
+      ),
       deterministicCandidate: {
         severity: evaluation?.severity || 'none',
         reasons: evaluation?.reasons || [],

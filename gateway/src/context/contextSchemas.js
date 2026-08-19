@@ -61,6 +61,23 @@ const contextEvaluationSchema = {
   required: ['relevant', 'severity', 'message'],
 };
 
+const officialAlertSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    externalId: { type: 'string' },
+    active: { type: 'boolean' },
+    eventType: { type: 'string' },
+    headline: { type: 'string' },
+    urgency: { type: 'string' },
+    severity: { type: 'string' },
+    certainty: { type: 'string' },
+    effectiveAt: { type: ['string', 'null'] },
+    expiresAt: { type: ['string', 'null'] },
+  },
+  required: ['id', 'active', 'eventType', 'severity'],
+};
+
 const deviceContextSchema = {
   type: 'object',
   properties: {
@@ -85,6 +102,10 @@ const deviceContextSchema = {
       required: ['lat', 'lng', 'placeName'],
     },
     weather: weatherSchema,
+    officialAlerts: {
+      type: 'array',
+      items: officialAlertSchema,
+    },
     deterministicEvaluation: contextEvaluationSchema,
     contextEvaluation: contextEvaluationSchema,
     contextDecision: {
@@ -166,7 +187,7 @@ function validateSchema(obj, schema) {
             } else if (fieldSchema.required && obj[field]) {
               // Check nested required fields
               for (const nestedField of fieldSchema.required) {
-                if (obj[field][nestedField] === undefined || obj[field][nestedField] === null) {
+                if (obj[field][nestedField] === undefined) {
                   errors.push(`Field ${field}.${nestedField}: required but missing`);
                 }
               }
@@ -187,6 +208,7 @@ function validateSchema(obj, schema) {
 
 module.exports = {
   weatherSchema,
+  officialAlertSchema,
   contextEvaluationSchema,
   deviceContextSchema,
   validateSchema,
