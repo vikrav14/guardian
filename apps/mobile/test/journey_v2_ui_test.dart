@@ -28,7 +28,9 @@ void main() {
       pointEvidence: [
         for (var index = 0; index < pointCount; index++)
           JourneyPointEvidence(
-            offsetMs: pointCount <= 1 ? 0 : (45 * 60 * 1000 * index) ~/ (pointCount - 1),
+            offsetMs: pointCount <= 1
+                ? 0
+                : (45 * 60 * 1000 * index) ~/ (pointCount - 1),
             source: 'gps',
             gpsValid: true,
           ),
@@ -240,6 +242,9 @@ void main() {
       find.textContaining('Tracking stopped at 12:16 and resumed at 12:43'),
       findsWidgets,
     );
-    expect(find.textContaining('Distance excludes the unobserved interval.'), findsOneWidget);
+    expect(
+      find.textContaining('Distance excludes the unobserved interval.'),
+      findsOneWidget,
+    );
   });
 }

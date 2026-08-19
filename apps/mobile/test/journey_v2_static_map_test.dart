@@ -70,48 +70,49 @@ void main() {
     }
   });
 
-  test('tracking gaps produce separate map segments instead of a straight line', () {
-    final start = DateTime(2026, 8, 17, 12, 15);
-    final journey = JourneyRecord(
-      id: 'gap-trip',
-      startAt: start,
-      endAt: start.add(const Duration(minutes: 28)),
-      polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
-      distanceKm: 1.2,
-      pointCount: 3,
-      evidenceVersion: 3,
-      routeStartAnchored: true,
-      pointEvidence: const [
-        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(
-          offsetMs: 60 * 1000,
-          source: 'gps',
-          gpsValid: true,
-        ),
-        JourneyPointEvidence(
-          offsetMs: 28 * 60 * 1000,
-          source: 'gps',
-          gpsValid: true,
-        ),
-      ],
-    );
+  test(
+    'tracking gaps produce separate map segments instead of a straight line',
+    () {
+      final start = DateTime(2026, 8, 17, 12, 15);
+      final journey = JourneyRecord(
+        id: 'gap-trip',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 28)),
+        polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+        distanceKm: 1.2,
+        pointCount: 3,
+        evidenceVersion: 3,
+        routeStartAnchored: true,
+        pointEvidence: const [
+          JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+          JourneyPointEvidence(
+            offsetMs: 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+          ),
+          JourneyPointEvidence(
+            offsetMs: 28 * 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+          ),
+        ],
+      );
 
-    final segments = journeyV2StaticMapSegments(
-      journeyV2DecodeRecord(journey),
-    );
+      final segments = journeyV2StaticMapSegments(
+        journeyV2DecodeRecord(journey),
+      );
 
-    expect(segments, hasLength(2));
-    expect(segments.first, hasLength(2));
-    expect(segments.last, hasLength(1));
-  });
+      expect(segments, hasLength(2));
+      expect(segments.first, hasLength(2));
+      expect(segments.last, hasLength(1));
+    },
+  );
 
   test('missing point time never creates a connected map line', () {
-    final segments = journeyV2SplitPointsOnTrackingGaps(
-      const [
-        LocationHistoryPoint(lat: -20.02, lng: 57.59),
-        LocationHistoryPoint(lat: -20.03, lng: 57.60),
-      ],
-    );
+    final segments = journeyV2SplitPointsOnTrackingGaps(const [
+      LocationHistoryPoint(lat: -20.02, lng: 57.59),
+      LocationHistoryPoint(lat: -20.03, lng: 57.60),
+    ]);
 
     expect(segments, hasLength(2));
   });
@@ -146,11 +147,20 @@ void main() {
     expect(markers, hasLength(1));
     expect(markers.single.markerId.value, 'journey-origin-marker');
     expect(markers.single.infoWindow.title, 'Home');
-    expect(markers.single.position.latitude, closeTo(points.first.lat, 0.000001));
-    expect(markers.single.position.longitude, closeTo(points.first.lng, 0.000001));
+    expect(
+      markers.single.position.latitude,
+      closeTo(points.first.lat, 0.000001),
+    );
+    expect(
+      markers.single.position.longitude,
+      closeTo(points.first.lng, 0.000001),
+    );
     expect(circles, hasLength(1));
     expect(circles.single.circleId.value, 'journey-origin');
     expect(circles.single.center.latitude, closeTo(points.first.lat, 0.000001));
-    expect(circles.single.center.longitude, closeTo(points.first.lng, 0.000001));
+    expect(
+      circles.single.center.longitude,
+      closeTo(points.first.lng, 0.000001),
+    );
   });
 }
