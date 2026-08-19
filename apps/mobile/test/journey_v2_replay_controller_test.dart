@@ -152,5 +152,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1250));
     expect(replay.currentIndex, 1);
     expect(replay.isSkippingTrackingGap, isFalse);
+    replay.pause();
   });
 }
