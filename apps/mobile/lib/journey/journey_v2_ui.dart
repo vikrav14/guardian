@@ -1045,9 +1045,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           key: ValueKey('journey-map-${journey.id}'),
                           route: selectedRoute,
                           currentIndex: replay.currentIndex,
-                          showReplayPosition:
-                              replay.isPlaying ||
-                              replay.currentIndex > 0,
+                          showReplayPosition: true,
                           onPointSelected: replay.seekIndex,
                         ),
                       ),
@@ -1396,9 +1394,7 @@ class _JourneyFullScreenMap extends StatelessWidget {
                     key: ValueKey('journey-fullscreen-map-${journey.id}'),
                     route: route,
                     currentIndex: replay.currentIndex,
-                    showReplayPosition:
-                        replay.isPlaying ||
-                        replay.currentIndex > 0,
+                    showReplayPosition: true,
                     showMapTypeControl: true,
                     onPointSelected: replay.seekIndex,
                   ),
