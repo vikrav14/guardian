@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -226,6 +228,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         ? latLngs.length - 1
         : widget.currentIndex;
     final replayPoint = _displayReplayPoint(fallback: latLngs[replayIndex]);
+    final replayBaseRadius = journeyV2ReplayHaloRadius(points);
+    final replayCoreRadius = (replayBaseRadius * 0.38)
+        .clamp(11.0, 55.0)
+        .toDouble();
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
     final circles = journeyV2EndpointCircles(widget.route, points);
@@ -238,7 +244,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         Circle(
           circleId: const CircleId('journey-replay-pulse'),
           center: replayPoint,
-          radius: 24 + (22 * pulse),
+          radius: replayBaseRadius * (1 + (0.9 * pulse)),
           fillColor: _replayColor.withValues(
             alpha: 0.14 - (0.07 * pulse),
           ),
@@ -253,7 +259,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         Circle(
           circleId: const CircleId('journey-replay-position'),
           center: replayPoint,
-          radius: 11,
+          radius: replayCoreRadius,
           fillColor: _replayColor,
           strokeColor: Colors.white,
           strokeWidth: 4,
@@ -468,6 +474,38 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       ),
     );
   }
+}
+
+/// Google map circles are measured in metres. Scale the replay halo with the
+/// journey extent so it keeps roughly the same visual weight when a long trip
+/// forces the camera much farther out than a short local outing.
+double journeyV2ReplayHaloRadius(List<LocationHistoryPoint> points) {
+  if (points.length < 2) return 24;
+
+  var minLat = points.first.lat;
+  var maxLat = points.first.lat;
+  var minLng = points.first.lng;
+  var maxLng = points.first.lng;
+  for (final point in points.skip(1)) {
+    minLat = math.min(minLat, point.lat);
+    maxLat = math.max(maxLat, point.lat);
+    minLng = math.min(minLng, point.lng);
+    maxLng = math.max(maxLng, point.lng);
+  }
+
+  const metresPerLatitudeDegree = 111320.0;
+  final middleLatitudeRadians = ((minLat + maxLat) / 2) * math.pi / 180;
+  final latitudeMetres = (maxLat - minLat) * metresPerLatitudeDegree;
+  final longitudeMetres =
+      (maxLng - minLng) *
+      metresPerLatitudeDegree *
+      math.cos(middleLatitudeRadians).abs();
+  final diagonalMetres = math.sqrt(
+    (latitudeMetres * latitudeMetres) +
+        (longitudeMetres * longitudeMetres),
+  );
+
+  return (diagonalMetres * 0.0045).clamp(24.0, 260.0).toDouble();
 }
 
 /// Default Google marker hues are not consistently honoured on web. Confirmed
