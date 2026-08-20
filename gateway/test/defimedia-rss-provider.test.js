@@ -56,7 +56,35 @@ test('deterministic prefilter classifies local safety signals and place mentions
   assert.equal(result.safetyCandidate, true);
   assert.equal(result.eventType, 'road_disruption');
   assert.deepEqual(result.placeMentions, ['Grand Baie']);
+  assert.equal(result.localityEvidence, 'place_mentions');
   assert.equal(result.classification, 'deterministic_prefilter');
+});
+
+test('Mauritius-wide safety wording is eligible without inventing a locality', () => {
+  const result = classifySafetyCandidate({
+    title: 'Fermeture des ecoles a travers le pays',
+    description: 'Les classes sont suspendues a Maurice.',
+    categories: ['Actualites'],
+  });
+
+  assert.equal(result.safetyCandidate, true);
+  assert.equal(result.eventType, 'school_disruption');
+  assert.deepEqual(result.placeMentions, []);
+  assert.equal(result.mauritiusWide, true);
+  assert.equal(result.localityEvidence, 'mauritius_wide');
+});
+
+test('foreign safety news is rejected without Mauritius location evidence', () => {
+  const result = classifySafetyCandidate({
+    title: "Epidemie d Ebola en RDC",
+    description: 'Des vaccins sont distribues en Republique democratique du Congo.',
+    categories: ['Monde'],
+  });
+
+  assert.equal(result.safetyCandidate, false);
+  assert.equal(result.eventType, 'other');
+  assert.equal(result.reason, 'no_mauritius_location_signal');
+  assert.equal(result.localityEvidence, 'none');
 });
 
 test('politics and general editorial sections cannot become safety candidates', () => {

@@ -124,6 +124,13 @@ const EXCLUDED_SECTION_PATTERNS = Object.freeze([
   /\beconomie\b/,
 ]);
 
+const MAURITIUS_WIDE_PATTERNS = Object.freeze([
+  /\ba maurice\b/,
+  /\ben ile maurice\b/,
+  /\ba travers (?:l ile|le pays)\b/,
+  /\bsur (?:tout )?le territoire national\b/,
+]);
+
 // This is deliberately a recognition list, not a geocoder. Impact matching
 // must resolve these labels separately and fail closed when a place is vague.
 const MAURITIUS_PLACE_ALIASES = Object.freeze([
@@ -271,16 +278,28 @@ function classifySafetyCandidate(item) {
   const matches = EVENT_PATTERNS.filter(({ patterns }) => patterns.some((pattern) => pattern.test(text)));
   const eventTypes = matches.map((match) => match.eventType);
   const placeMentions = extractPlaceMentions(text);
-  const safetyCandidate = !excludedSection && eventTypes.length > 0;
+  const mauritiusWide = MAURITIUS_WIDE_PATTERNS.some((pattern) => pattern.test(text));
+  const hasMauritiusLocationSignal = placeMentions.length > 0 || mauritiusWide;
+  const safetyCandidate = !excludedSection
+    && eventTypes.length > 0
+    && hasMauritiusLocationSignal;
   return {
     safetyCandidate,
     eventType: safetyCandidate ? eventTypes[0] : 'other',
     eventTypes: safetyCandidate ? eventTypes : [],
     placeMentions,
+    mauritiusWide,
+    localityEvidence: placeMentions.length
+      ? 'place_mentions'
+      : (mauritiusWide ? 'mauritius_wide' : 'none'),
     classification: 'deterministic_prefilter',
     reason: excludedSection
       ? 'excluded_editorial_section'
-      : (eventTypes.length ? 'safety_keyword_match' : 'no_safety_signal'),
+      : (!eventTypes.length
+          ? 'no_safety_signal'
+          : (hasMauritiusLocationSignal
+              ? 'safety_keyword_and_mauritius_location_match'
+              : 'no_mauritius_location_signal')),
   };
 }
 
