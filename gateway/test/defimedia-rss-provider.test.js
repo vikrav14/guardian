@@ -6,6 +6,7 @@ const {
   classifySafetyCandidate,
   extractPlaceMentions,
   parseDefiMediaFeed,
+  safeSourceUrl,
 } = require('../src/context/defiMediaRssProvider');
 const {
   runDefiMediaRssPoll,
@@ -75,6 +76,15 @@ test('Mauritius place recognition is accent and punctuation tolerant', () => {
     extractPlaceMentions('Incendie à Bel-Air-Rivière-Sèche, près de Flacq.'),
     ['Flacq', 'Bel Air Riviere Seche']
   );
+});
+
+test('trusted HTTP article links are upgraded to HTTPS', () => {
+  assert.equal(
+    safeSourceUrl('http://defimedia.info/incendie-bel-air#video'),
+    'https://defimedia.info/incendie-bel-air'
+  );
+  assert.equal(safeSourceUrl('http://example.com/copied-story'), null);
+  assert.equal(safeSourceUrl('ftp://defimedia.info/archive'), null);
 });
 
 test('provider deduplicates an unchanged conditional feed and remains observe-only', async () => {

@@ -220,7 +220,17 @@ function sha256(value) {
 function safeSourceUrl(value, allowedHosts = DEFI_MEDIA_SOURCE.allowedHosts) {
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || !allowedHosts.includes(url.hostname)) return null;
+    if (!allowedHosts.includes(url.hostname)) return null;
+    if (url.protocol === 'http:') {
+      // Defi Media's RSS currently emits same-site HTTP article links even
+      // though the public site supports HTTPS. Upgrade only allowlisted hosts;
+      // never relax the host boundary or return an insecure source URL.
+      url.protocol = 'https:';
+    } else if (url.protocol !== 'https:') {
+      return null;
+    }
+    if (url.username || url.password) return null;
+    url.port = '';
     url.hash = '';
     return url.toString();
   } catch (_) {
