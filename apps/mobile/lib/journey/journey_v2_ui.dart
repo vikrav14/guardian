@@ -1634,7 +1634,7 @@ class _ReplayLocationCard extends StatelessWidget {
                 children: [
                   Text(
                     skippingGap
-                        ? 'Tracking unavailable · ${_compactDuration(pendingGap!)}'
+                        ? 'Tracking unavailable · ${_compactDuration(pendingGap)}'
                         : '${DateFormat.Hm().format(time)} · $label',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
