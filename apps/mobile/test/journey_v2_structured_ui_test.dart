@@ -89,7 +89,9 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // The replay halo intentionally animates continuously.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('1 \u00B7 8m'), findsOneWidget);
     expect(find.text('Stops'), findsOneWidget);
