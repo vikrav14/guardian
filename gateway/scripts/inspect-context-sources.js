@@ -16,6 +16,94 @@ function formatDate(value) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : String(value);
 }
 
+function formatMauritiusDate(value) {
+  if (!value) return 'time not supplied';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Indian/Mauritius',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
+function buildDefiMediaReview(items = []) {
+  const sorted = [...items].sort((a, b) => (
+    String(b.publishedAt || '').localeCompare(String(a.publishedAt || ''))
+  ));
+  return {
+    candidates: sorted.filter((item) => item.safetyCandidate && item.fresh),
+    safetyExcluded: sorted.filter((item) => (
+      !(item.safetyCandidate && item.fresh)
+      && (item.matchedEventTypes || []).length > 0
+    )),
+    otherNews: sorted.filter((item) => (
+      !(item.safetyCandidate && item.fresh)
+      && (item.matchedEventTypes || []).length === 0
+    )),
+  };
+}
+
+function friendlyDecision(item) {
+  if (item.safetyCandidate && item.fresh) {
+    const scope = item.placeMentions?.length
+      ? `recognised place: ${item.placeMentions.join(', ')}`
+      : 'explicit Mauritius-wide wording';
+    return `Guardian review candidate — ${item.eventType}; ${scope}.`;
+  }
+  if (item.safetyCandidate && !item.fresh) {
+    return 'Not current — outside the configured news-age window.';
+  }
+  if (item.reason === 'no_mauritius_location_signal') {
+    return 'Excluded — safety wording found, but no Mauritius place or Mauritius-wide scope.';
+  }
+  if (item.reason === 'excluded_editorial_section') {
+    return 'Excluded — editorial section is outside Guardian safety monitoring.';
+  }
+  return 'Not applicable — no supported Guardian safety signal in the RSS title or summary.';
+}
+
+function formatDefiMediaReview(items = []) {
+  const review = buildDefiMediaReview(items);
+  const lines = [
+    '',
+    'All Defi Media RSS articles — human review',
+    '==========================================',
+    `Total: ${items.length} | Guardian candidates: ${review.candidates.length} | Safety-related but excluded: ${review.safetyExcluded.length} | Other news: ${review.otherNews.length}`,
+    'These are RSS headline decisions only. No article was opened and no user impact was inferred.',
+  ];
+
+  const appendSection = (title, sectionItems) => {
+    lines.push('', `${title} (${sectionItems.length})`, '-'.repeat(Math.min(72, title.length + 8)));
+    if (!sectionItems.length) {
+      lines.push('None.');
+      return;
+    }
+    sectionItems.forEach((item, index) => {
+      lines.push(`${index + 1}. ${item.title}`);
+      lines.push(`   Published:  ${formatMauritiusDate(item.publishedAt)} MUT`);
+      lines.push(`   Categories: ${(item.categories || []).join(', ') || 'not supplied'}`);
+      lines.push(`   Decision:   ${friendlyDecision(item)}`);
+      if (item.placeMentions?.length) {
+        lines.push(`   Places:     ${item.placeMentions.join(', ')}`);
+      }
+      if ((item.matchedEventTypes || []).length) {
+        lines.push(`   Signals:    ${item.matchedEventTypes.join(', ')}`);
+      }
+      lines.push(`   Source:     ${item.sourceUrl}`);
+    });
+  };
+
+  appendSection('A. Guardian review candidates', review.candidates);
+  appendSection('B. Safety-related headlines excluded', review.safetyExcluded);
+  appendSection('C. Other RSS news', review.otherNews);
+  return lines.join('\n');
+}
+
 async function main() {
   const capProvider = new CapAlertProvider(config);
   const defiMediaProvider = new DefiMediaRssProvider(config);
@@ -93,17 +181,30 @@ async function main() {
   console.log(`Candidates:   ${defiMediaPoll.candidateItems.length}`);
   console.log('Delivery:     observe-only (no device matching or automatic WhatsApp)');
   if (defiMediaPoll.error) console.log(`Error:        ${defiMediaPoll.error}`);
-  for (const item of defiMediaPoll.candidateItems.slice(0, 10)) {
-    console.log('');
-    console.log(`- [${item.eventType}] ${item.title}`);
-    console.log(`  Published: ${formatDate(item.publishedAt)}`);
-    console.log(`  Places:    ${item.placeMentions.join(', ') || 'not resolved'}`);
-    console.log(`  Source:    ${item.sourceUrl}`);
+  if (hasFlag('--all') || hasFlag('--all-news')) {
+    console.log(formatDefiMediaReview(defiMediaPoll.items));
+  } else {
+    for (const item of defiMediaPoll.candidateItems.slice(0, 10)) {
+      console.log('');
+      console.log(`- [${item.eventType}] ${item.title}`);
+      console.log(`  Published: ${formatDate(item.publishedAt)}`);
+      console.log(`  Places:    ${item.placeMentions.join(', ') || 'not resolved'}`);
+      console.log(`  Source:    ${item.sourceUrl}`);
+    }
   }
   if (!capPoll.ok || !defiMediaPoll.ok) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(`Context source inspection failed: ${error.message}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`Context source inspection failed: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  buildDefiMediaReview,
+  formatDefiMediaReview,
+  formatMauritiusDate,
+  friendlyDecision,
+};

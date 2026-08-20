@@ -287,6 +287,7 @@ function classifySafetyCandidate(item) {
     safetyCandidate,
     eventType: safetyCandidate ? eventTypes[0] : 'other',
     eventTypes: safetyCandidate ? eventTypes : [],
+    matchedEventTypes: eventTypes,
     placeMentions,
     mauritiusWide,
     localityEvidence: placeMentions.length
