@@ -1,10 +1,15 @@
 const ContextService = require('./contextService');
 const { CapAlertProvider } = require('./capAlertProvider');
+const { DefiMediaRssProvider } = require('./defiMediaRssProvider');
 const { startContextScheduler } = require('./contextScheduler');
 const {
   startContextSourceScheduler,
   stopContextSourceSchedulerForTests,
 } = require('./contextSourceScheduler');
+const {
+  startDefiMediaRssScheduler,
+  stopDefiMediaRssSchedulerForTests,
+} = require('./defiMediaRssScheduler');
 
 let runtime = null;
 
@@ -12,6 +17,7 @@ let runtime = null;
 function initializeContextRuntime({ config, llmProvider, db }) {
   if (runtime) return runtime;
   const capAlertProvider = new CapAlertProvider(config);
+  const defiMediaRssProvider = new DefiMediaRssProvider(config);
   const service = new ContextService(config.openWeatherMapKey, llmProvider, config, {
     capAlertProvider,
   });
@@ -22,7 +28,18 @@ function initializeContextRuntime({ config, llmProvider, db }) {
     contextService: service,
     config,
   });
-  runtime = { service, scheduler, sourceScheduler, capAlertProvider };
+  const defiMediaRssScheduler = startDefiMediaRssScheduler({
+    provider: defiMediaRssProvider,
+    config,
+  });
+  runtime = {
+    service,
+    scheduler,
+    sourceScheduler,
+    capAlertProvider,
+    defiMediaRssProvider,
+    defiMediaRssScheduler,
+  };
   return runtime;
 }
 
@@ -33,7 +50,9 @@ function getContextRuntime() {
 function stopContextRuntimeForTests() {
   runtime?.scheduler?.stop?.();
   runtime?.sourceScheduler?.stop?.();
+  runtime?.defiMediaRssScheduler?.stop?.();
   stopContextSourceSchedulerForTests();
+  stopDefiMediaRssSchedulerForTests();
   runtime = null;
 }
 

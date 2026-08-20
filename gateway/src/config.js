@@ -146,6 +146,27 @@ const config = {
     String(process.env.CONTEXT_CAP_PERSIST_EVENTS || 'false').toLowerCase() === 'true',
   contextCapEvaluateDevices:
     String(process.env.CONTEXT_CAP_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
+
+  // Defi Media local-news RSS. This is a corroborating, observe-only source:
+  // it performs no device sweep, LLM call, Firestore write, or delivery.
+  contextDefiMediaEnabled:
+    String(process.env.CONTEXT_DEFIMEDIA_ENABLED || 'false').toLowerCase() === 'true',
+  contextDefiMediaFeedUrl:
+    process.env.CONTEXT_DEFIMEDIA_FEED_URL || 'https://defimedia.info/rss.xml',
+  contextDefiMediaPollMinutes: Math.max(
+    60,
+    Number(process.env.CONTEXT_DEFIMEDIA_POLL_MINUTES || 60)
+  ),
+  contextDefiMediaMaxItems: Math.max(
+    1,
+    Math.min(200, Number(process.env.CONTEXT_DEFIMEDIA_MAX_ITEMS || 100))
+  ),
+  contextDefiMediaMaxAgeHours: Math.max(
+    1,
+    Number(process.env.CONTEXT_DEFIMEDIA_MAX_AGE_HOURS || 24)
+  ),
+  contextDefiMediaRunOnStartup:
+    String(process.env.CONTEXT_DEFIMEDIA_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
 };
 
 module.exports = config;

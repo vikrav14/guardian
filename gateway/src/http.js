@@ -720,7 +720,7 @@ async function handleOpsHttpRequest(req, res, url) {
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
-    if (!runtime?.capAlertProvider) {
+    if (!runtime?.capAlertProvider || !runtime?.defiMediaRssProvider) {
       sendJson(res, 503, { error: 'Context source runtime unavailable' });
       return true;
     }
@@ -733,7 +733,24 @@ async function handleOpsHttpRequest(req, res, url) {
         intervalMinutes: runtime.sourceScheduler?.intervalMinutes || null,
         reason: runtime.sourceScheduler?.reason || null,
       },
-      sources: [runtime.capAlertProvider.getSnapshot()],
+      sourceSchedulers: {
+        cap: {
+          enabled: config.contextCapEnabled === true,
+          active: runtime.sourceScheduler?.active === true,
+          intervalMinutes: runtime.sourceScheduler?.intervalMinutes || null,
+          reason: runtime.sourceScheduler?.reason || null,
+        },
+        defiMedia: {
+          enabled: config.contextDefiMediaEnabled === true,
+          active: runtime.defiMediaRssScheduler?.active === true,
+          intervalMinutes: runtime.defiMediaRssScheduler?.intervalMinutes || null,
+          reason: runtime.defiMediaRssScheduler?.reason || null,
+        },
+      },
+      sources: [
+        runtime.capAlertProvider.getSnapshot(),
+        runtime.defiMediaRssProvider.getSnapshot(),
+      ],
     });
     return true;
   }
