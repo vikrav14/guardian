@@ -29,6 +29,7 @@ function initializeContextRuntime({ config, llmProvider, db }) {
     config,
   });
   const defiMediaRssScheduler = startDefiMediaRssScheduler({
+    db,
     provider: defiMediaRssProvider,
     config,
   });

@@ -186,7 +186,53 @@ test('shadow poll reports candidates without device, LLM, Firestore, or delivery
   assert.equal(result.automaticDelivery, false);
 });
 
-test('Defi Media scheduler is disabled by default and clamps polling to hourly', () => {
+test('unchanged actionable articles are rechecked against movement without becoming new articles', async () => {
+  let evaluated = null;
+  const candidate = {
+    id: 'one',
+    documentId: 'one',
+    eventType: 'fire',
+    actionable: true,
+  };
+  const result = await runDefiMediaRssPoll({
+    db: {},
+    config: {
+      contextDefiMediaPersistEvents: true,
+      contextDefiMediaEvaluateDevices: true,
+      contextDefiMediaPersistMatches: true,
+    },
+    provider: {
+      poll: async () => ({
+        ok: true,
+        source: 'mu-defimedia-rss',
+        notModified: true,
+        items: [candidate],
+        changedItems: [],
+        candidateItems: [candidate],
+        changedCandidates: [],
+      }),
+    },
+    persistEvents: async () => ({
+      persistent: true,
+      created: [],
+      updated: [],
+      unchanged: [],
+      writes: 0,
+    }),
+    evaluateExposure: async (options) => {
+      evaluated = options;
+      return { familyMatches: 0, observeOnly: true };
+    },
+  });
+
+  assert.deepEqual(evaluated.candidates, [candidate]);
+  assert.equal(evaluated.persist, true);
+  assert.equal(result.changedItems, 0);
+  assert.equal(result.changedCandidates, 0);
+  assert.equal(result.exposure.familyMatches, 0);
+});
+
+test('Defi Media scheduler is disabled by default and clamps polling to 15 minutes', () => {
   stopDefiMediaRssSchedulerForTests();
   const disabled = startDefiMediaRssScheduler({ config: {} });
   assert.equal(disabled.active, false);
@@ -204,6 +250,6 @@ test('Defi Media scheduler is disabled by default and clamps polling to hourly',
     },
   });
   assert.equal(scheduler.active, true);
-  assert.equal(scheduler.intervalMinutes, 60);
+  assert.equal(scheduler.intervalMinutes, 15);
   scheduler.stop();
 });

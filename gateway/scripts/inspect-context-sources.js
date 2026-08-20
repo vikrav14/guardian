@@ -35,28 +35,30 @@ function buildDefiMediaReview(items = []) {
   const sorted = [...items].sort((a, b) => (
     String(b.publishedAt || '').localeCompare(String(a.publishedAt || ''))
   ));
+  const actionable = (item) => item.actionable ?? (item.safetyCandidate && item.fresh);
   return {
-    candidates: sorted.filter((item) => item.safetyCandidate && item.fresh),
+    candidates: sorted.filter(actionable),
     safetyExcluded: sorted.filter((item) => (
-      !(item.safetyCandidate && item.fresh)
+      !actionable(item)
       && (item.matchedEventTypes || []).length > 0
     )),
     otherNews: sorted.filter((item) => (
-      !(item.safetyCandidate && item.fresh)
+      !actionable(item)
       && (item.matchedEventTypes || []).length === 0
     )),
   };
 }
 
 function friendlyDecision(item) {
-  if (item.safetyCandidate && item.fresh) {
+  const actionable = item.actionable ?? (item.safetyCandidate && item.fresh);
+  if (actionable) {
     const scope = item.placeMentions?.length
       ? `recognised place: ${item.placeMentions.join(', ')}`
       : 'explicit Mauritius-wide wording';
     return `Guardian review candidate — ${item.eventType}; ${scope}.`;
   }
-  if (item.safetyCandidate && !item.fresh) {
-    return 'Not current — outside the configured news-age window.';
+  if (item.safetyCandidate && !actionable) {
+    return 'Not current — outside the event-specific actionability window.';
   }
   if (item.reason === 'no_mauritius_location_signal') {
     return 'Excluded — safety wording found, but no Mauritius place or Mauritius-wide scope.';
@@ -86,6 +88,9 @@ function formatDefiMediaReview(items = []) {
     sectionItems.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.title}`);
       lines.push(`   Published:  ${formatMauritiusDate(item.publishedAt)} MUT`);
+      if (item.actionableUntil) {
+        lines.push(`   Relevant until: ${formatMauritiusDate(item.actionableUntil)} MUT`);
+      }
       lines.push(`   Categories: ${(item.categories || []).join(', ') || 'not supplied'}`);
       lines.push(`   Decision:   ${friendlyDecision(item)}`);
       if (item.placeMentions?.length) {
@@ -179,7 +184,7 @@ async function main() {
   console.log(`Last success: ${formatDate(defiMediaSnapshot.lastSuccessAt)}`);
   console.log(`Items seen:   ${defiMediaPoll.items.length}`);
   console.log(`Candidates:   ${defiMediaPoll.candidateItems.length}`);
-  console.log('Delivery:     observe-only (no device matching or automatic WhatsApp)');
+  console.log('Delivery:     observe-only matching (no automatic WhatsApp)');
   if (defiMediaPoll.error) console.log(`Error:        ${defiMediaPoll.error}`);
   if (hasFlag('--all') || hasFlag('--all-news')) {
     console.log(formatDefiMediaReview(defiMediaPoll.items));

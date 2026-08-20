@@ -118,3 +118,60 @@ test('geolocateFromV skips when FIRESTORE_DISABLED', async (t) => {
   assert.equal(result, null);
   assert.equal(called, false);
 });
+
+test('forward geocoding accepts only Mauritius results and caches place labels', async (t) => {
+  process.env.FIRESTORE_DISABLED = 'false';
+  delete require.cache[require.resolve('../src/config')];
+  delete require.cache[require.resolve('../src/geolocate/google')];
+  const {
+    clearGeolocationCache,
+    forwardGeocodeMauritiusPlace,
+  } = require('../src/geolocate/google');
+  clearGeolocationCache();
+  let calls = 0;
+  const fetchImpl = async (url) => {
+    calls += 1;
+    assert.match(url, /address=La%20Rosa%2C%20Mauritius/);
+    return {
+      ok: true,
+      async json() {
+        return {
+          results: [{
+            formatted_address: 'La Rosa, Mauritius',
+            place_id: 'place-la-rosa',
+            address_components: [{
+              short_name: 'MU',
+              long_name: 'Mauritius',
+              types: ['country'],
+            }],
+            geometry: { location: { lat: -20.02, lng: 57.57 } },
+          }],
+        };
+      },
+    };
+  };
+
+  t.after(() => {
+    delete process.env.FIRESTORE_DISABLED;
+    delete require.cache[require.resolve('../src/config')];
+    delete require.cache[require.resolve('../src/geolocate/google')];
+  });
+  const first = await forwardGeocodeMauritiusPlace('La Rosa', {
+    apiKey: 'test-key',
+    fetchImpl,
+  });
+  const second = await forwardGeocodeMauritiusPlace('La Rosa', {
+    apiKey: 'test-key',
+    fetchImpl,
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(second, first);
+  assert.deepEqual(first, {
+    lat: -20.02,
+    lng: 57.57,
+    placeName: 'La Rosa',
+    formattedAddress: 'La Rosa, Mauritius',
+    placeId: 'place-la-rosa',
+    source: 'google_geocoding',
+  });
+});

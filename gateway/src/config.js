@@ -147,15 +147,16 @@ const config = {
   contextCapEvaluateDevices:
     String(process.env.CONTEXT_CAP_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
 
-  // Defi Media local-news RSS. This is a corroborating, observe-only source:
-  // it performs no device sweep, LLM call, Firestore write, or delivery.
+  // Defi Media local-news RSS. This is a corroborating, observe-only source.
+  // It may persist idempotency/match evidence and sweep devices, but never
+  // calls the LLM or a delivery provider.
   contextDefiMediaEnabled:
     String(process.env.CONTEXT_DEFIMEDIA_ENABLED || 'false').toLowerCase() === 'true',
   contextDefiMediaFeedUrl:
     process.env.CONTEXT_DEFIMEDIA_FEED_URL || 'https://defimedia.info/rss.xml',
   contextDefiMediaPollMinutes: Math.max(
-    60,
-    Number(process.env.CONTEXT_DEFIMEDIA_POLL_MINUTES || 60)
+    15,
+    Number(process.env.CONTEXT_DEFIMEDIA_POLL_MINUTES || 15)
   ),
   contextDefiMediaMaxItems: Math.max(
     1,
@@ -167,6 +168,20 @@ const config = {
   ),
   contextDefiMediaRunOnStartup:
     String(process.env.CONTEXT_DEFIMEDIA_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextDefiMediaPersistEvents:
+    String(process.env.CONTEXT_DEFIMEDIA_PERSIST_EVENTS || 'true').toLowerCase() === 'true',
+  contextDefiMediaEvaluateDevices:
+    String(process.env.CONTEXT_DEFIMEDIA_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
+  contextDefiMediaPersistMatches:
+    String(process.env.CONTEXT_DEFIMEDIA_PERSIST_MATCHES || 'true').toLowerCase() === 'true',
+  contextDefiMediaLocationFreshMinutes: Math.max(
+    1,
+    Number(process.env.CONTEXT_DEFIMEDIA_LOCATION_FRESH_MINUTES || 15)
+  ),
+  contextDefiMediaMaxApproxAccuracyMeters: Math.max(
+    100,
+    Number(process.env.CONTEXT_DEFIMEDIA_MAX_APPROX_ACCURACY_METERS || 1000)
+  ),
 };
 
 module.exports = config;

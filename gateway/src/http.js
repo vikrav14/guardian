@@ -724,6 +724,8 @@ async function handleOpsHttpRequest(req, res, url) {
       sendJson(res, 503, { error: 'Context source runtime unavailable' });
       return true;
     }
+    const defiMediaStatus = runtime.defiMediaRssScheduler?.getStatus?.() || null;
+    const defiMediaRun = defiMediaStatus?.lastRun || null;
     sendJson(res, 200, {
       observeOnly: true,
       automaticDelivery: false,
@@ -745,6 +747,24 @@ async function handleOpsHttpRequest(req, res, url) {
           active: runtime.defiMediaRssScheduler?.active === true,
           intervalMinutes: runtime.defiMediaRssScheduler?.intervalMinutes || null,
           reason: runtime.defiMediaRssScheduler?.reason || null,
+          lastRun: defiMediaRun ? {
+            ok: defiMediaRun.ok === true,
+            notModified: defiMediaRun.notModified === true,
+            itemsSeen: defiMediaRun.itemsSeen || 0,
+            changedItems: defiMediaRun.changedItems || 0,
+            durableNewItems: defiMediaRun.durableNewItems || 0,
+            durableUpdatedItems: defiMediaRun.durableUpdatedItems || 0,
+            restartDuplicatesSuppressed:
+              defiMediaRun.restartDuplicatesSuppressed || 0,
+            actionableCandidates: defiMediaRun.freshCandidates || 0,
+            eventsPersisted: defiMediaRun.eventsPersisted || 0,
+            deviceMatches: defiMediaRun.exposure?.deviceMatches || 0,
+            familyMatches: defiMediaRun.exposure?.familyMatches || 0,
+            newFamilyMatches: defiMediaRun.exposure?.newFamilyMatches || 0,
+            duplicateFamilyMatches:
+              defiMediaRun.exposure?.duplicateFamilyMatches || 0,
+            automaticDelivery: false,
+          } : null,
         },
       },
       sources: [

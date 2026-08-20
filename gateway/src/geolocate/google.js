@@ -11,6 +11,9 @@ const cache = new Map();
 /** @type {Map<string, { result: string, expiresAt: number }>} */
 const reverseGeocodeCache = new Map();
 
+/** @type {Map<string, { result: object, expiresAt: number }>} */
+const forwardGeocodeCache = new Map();
+
 function cacheKey({ wifiAccessPoints = [], cellTowers = [] }) {
   const payload = JSON.stringify({
     w: wifiAccessPoints.map((w) => [w.macAddress, w.signalStrength ?? '']),
@@ -247,6 +250,7 @@ async function geolocateFromV({ wifiAccessPoints = [], cellTowers = [] } = {}, o
 function clearGeolocationCache() {
   cache.clear();
   reverseGeocodeCache.clear();
+  forwardGeocodeCache.clear();
 }
 
 function reverseGeocodeCacheKey(lat, lng) {
@@ -386,6 +390,70 @@ function setCachedPlaceName(lat, lng, placeName) {
   });
 }
 
+function isMauritiusGeocodeResult(result) {
+  return (result?.address_components || []).some((component) =>
+    (component.types || []).includes('country') &&
+    String(component.short_name || '').toUpperCase() === 'MU'
+  );
+}
+
+/**
+ * Resolve one RSS place label to a Mauritius coordinate.
+ *
+ * This is called only for actionable local-news candidates and is cached for
+ * 24 hours; the 15-minute feed schedule does not create a geocoding call every
+ * poll.
+ */
+async function forwardGeocodeMauritiusPlace(placeName, options = {}) {
+  const normalized = String(placeName || '').trim().replace(/\s+/g, ' ');
+  if (!normalized || normalized.length > 120) return null;
+  const key = normalized.toLocaleLowerCase('en');
+  const cached = forwardGeocodeCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
+  const apiKey = options.apiKey || config.googleGeolocationApiKey;
+  if (!apiKey) return null;
+  if (
+    config.firestoreDisabled &&
+    options.respectFirestoreDisabled !== false
+  ) return null;
+
+  const fetchImpl = options.fetchImpl || fetch;
+  try {
+    const query = `${normalized}, Mauritius`;
+    const url =
+      'https://maps.googleapis.com/maps/api/geocode/json?' +
+      `address=${encodeURIComponent(query)}&region=mu&key=${encodeURIComponent(apiKey)}`;
+    const response = await fetchImpl(url);
+    if (!response.ok) {
+      console.warn(`[forward-geocode] API error ${response.status}`);
+      return null;
+    }
+    const data = await response.json();
+    const result = (data.results || []).find(isMauritiusGeocodeResult);
+    const lat = Number(result?.geometry?.location?.lat);
+    const lng = Number(result?.geometry?.location?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    const resolved = {
+      lat,
+      lng,
+      placeName: normalized,
+      formattedAddress: cleanPlacePart(result.formatted_address),
+      placeId: cleanPlacePart(result.place_id),
+      source: 'google_geocoding',
+    };
+    forwardGeocodeCache.set(key, {
+      result: resolved,
+      expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+    });
+    return resolved;
+  } catch (error) {
+    console.warn('[forward-geocode] request failed:', error.message);
+    return null;
+  }
+}
+
 module.exports = {
   geolocateFromV,
   parseLteExtras,
@@ -395,6 +463,8 @@ module.exports = {
   cacheKey,
   clearGeolocationCache,
   reverseGeocodeToPlaceName,
+  forwardGeocodeMauritiusPlace,
+  isMauritiusGeocodeResult,
   selectReverseGeocodePlaceName,
   setCachedPlaceName,
 };

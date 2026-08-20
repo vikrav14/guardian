@@ -247,6 +247,22 @@ snapshot are treated as location unavailable.
 | retainedSatellite | boolean | True when the existing indoor-retention policy selected the recent satellite fix |
 | location | map \| null | Frozen `{ lat, lng, altitude, recordedAt, placeLabel, source, gpsValid, accuracyMeters }`; satellite accuracy remains null when V52 did not supply it |
 
+## `contextNewsEvents/{eventId}`
+
+Observe-only, backend-owned Défi Media RSS facts. Stable source ids and content
+hashes make article ingestion restart-safe. Records include `publishedAt`,
+`actionableUntil`, classification/place mentions, `firstObservedAt`,
+`lastChangedAt`, `observeOnly=true`, and `deliverySent=false`. Clients cannot
+write these documents.
+
+## `contextNewsMatches/{matchId}`
+
+Observe-only exposure evidence keyed from source event plus `serviceOwnerUid`.
+It combines all `impactedImeis` in the same service family and is created once,
+so repeated RSS polls and gateway restarts cannot manufacture a second match.
+It records only current-proximity or active-journey-approach evidence;
+`deliveryEligible=false` and `deliverySent=false` are mandatory in this phase.
+
 ## `deviceCommands/{commandId}`
 
 App-originated V52 commands delivered through the model-supported carrier SMS

@@ -64,3 +64,26 @@ test('human report explains decisions and uses Mauritius time', () => {
   assert.match(report, /recognised place: Bel Etang/);
   assert.match(report, /no Mauritius place or Mauritius-wide scope/);
 });
+
+test('human review separates an expired safety report from an actionable candidate', () => {
+  const review = buildDefiMediaReview([
+    item({
+      title: 'Recent fire',
+      safetyCandidate: true,
+      actionable: true,
+      eventType: 'fire',
+      matchedEventTypes: ['fire'],
+      placeMentions: ['Grand Baie'],
+    }),
+    item({
+      title: 'Old collision',
+      safetyCandidate: true,
+      actionable: false,
+      eventType: 'road_disruption',
+      matchedEventTypes: ['road_disruption'],
+      placeMentions: ['Bel Etang'],
+    }),
+  ]);
+  assert.equal(review.candidates.length, 1);
+  assert.equal(review.safetyExcluded.length, 1);
+});

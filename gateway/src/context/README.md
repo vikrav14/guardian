@@ -13,23 +13,26 @@ or LLM decision service beside it.
    Common Alerting Protocol (CAP) feed on its own five-minute schedule. RSS is
    only an index; every entry is resolved to its full CAP XML document before
    it can become a safety fact.
-4. `defiMediaRssProvider.js` polls the Defi Media site-wide RSS feed at most
-   once per hour. It deduplicates articles and applies a conservative local
-   safety prefilter. This media source remains corroboration-only: it does not
-   run the LLM, match devices, write Firestore, or deliver notifications.
-5. `deviceContextAdapter.js` uses Connectivity P0's provenance-aware
+4. `defiMediaRssProvider.js` polls the Defi Media site-wide RSS feed every 15
+   minutes. It applies HTTP-validator, process-memory, and Firestore content
+   hash deduplication plus event-specific expiry rules.
+5. `defiMediaExposureMatcher.js` resolves only actionable Mauritius place
+   mentions and performs a fail-closed shadow match against a recent reliable
+   location or a live outing whose measured heading approaches the incident.
+   Home addresses and learned routines are not used.
+6. `deviceContextAdapter.js` uses Connectivity P0's provenance-aware
    `location.lat/lng` shape and `selectLocationForDisplay`. The obsolete
    `lastLocation.coordinates` shape is not revived.
-6. `WeatherProvider` fetches OpenWeatherMap current conditions. Locations are
+7. `WeatherProvider` fetches OpenWeatherMap current conditions. Locations are
    rounded to two decimals and cached for at least one hour, so nearby users
    share one external fetch.
-7. `ContextEvaluator` applies deterministic source, severity, age, location
+8. `ContextEvaluator` applies deterministic source, severity, age, location
    freshness, and connectivity rules. Normal conditions never call the LLM.
-8. For a deterministic candidate, `ContextAI` makes one provider-agnostic LLM
+9. For a deterministic candidate, `ContextAI` makes one provider-agnostic LLM
    call that returns a strict JSON relevance decision and explanation.
-9. Invalid, refused, or failed LLM output falls back to the deterministic
+10. Invalid, refused, or failed LLM output falls back to the deterministic
    result. Source facts are retained separately as `deterministicEvaluation`.
-10. The result is observe-only. It may recommend `suppress`, `app`, or
+11. The result is observe-only. It may recommend `suppress`, `app`, or
    `whatsapp_template`, but this module does not call Meta or send a message.
 
 ## Configuration
@@ -67,13 +70,18 @@ CONTEXT_CAP_EVALUATE_DEVICES=true
 CONTEXT_CAP_PERSIST_EVENTS=false
 
 # Defi Media RSS shadow adapter. Disabled until explicitly enabled. Polling
-# is clamped to a minimum of 60 minutes.
+# is clamped to a minimum of 15 minutes.
 CONTEXT_DEFIMEDIA_ENABLED=false
 CONTEXT_DEFIMEDIA_FEED_URL=https://defimedia.info/rss.xml
-CONTEXT_DEFIMEDIA_POLL_MINUTES=60
+CONTEXT_DEFIMEDIA_POLL_MINUTES=15
 CONTEXT_DEFIMEDIA_MAX_ITEMS=100
 CONTEXT_DEFIMEDIA_MAX_AGE_HOURS=24
 CONTEXT_DEFIMEDIA_RUN_ON_STARTUP=true
+CONTEXT_DEFIMEDIA_PERSIST_EVENTS=true
+CONTEXT_DEFIMEDIA_EVALUATE_DEVICES=true
+CONTEXT_DEFIMEDIA_PERSIST_MATCHES=true
+CONTEXT_DEFIMEDIA_LOCATION_FRESH_MINUTES=15
+CONTEXT_DEFIMEDIA_MAX_APPROX_ACCURACY_METERS=1000
 ```
 
 `ANTHROPIC_MODEL` now defaults to `claude-sonnet-5`. The same provider factory
@@ -93,9 +101,10 @@ used by WhatsApp is reused here; no second AI client or key is created.
 - The official feed uses HTTP validators when supplied and only re-evaluates
   devices after a source fact changes. CAP-triggered evaluation skips a second
   weather fetch.
-- Defi Media uses HTTP validators when available, processes only changed feed
-  items, makes zero LLM calls, performs zero device sweeps, and writes no
-  Firestore documents in this phase.
+- Defi Media uses HTTP validators when available and content hashes across
+  gateway restarts. It performs device reads only while actionable candidates
+  exist, geocodes only recognised candidate places, makes zero LLM calls, and
+  writes only idempotent source/match evidence.
 
 ## Official MMS source policy
 
@@ -129,7 +138,7 @@ returns scheduler/source health without exposing a delivery action.
 - Feed: `https://defimedia.info/rss.xml`.
 - Trust: `local_media`, never `official_authority`. A news report cannot
   override CAP, watch telemetry, safe-zone evidence, or emergency services.
-- Schedule: one immediate startup poll followed by polling at most hourly.
+- Schedule: one immediate startup poll followed by polling every 15 minutes.
 - Collection: feed metadata only. Guardian does not scrape or fetch article
   pages in this phase.
 - Prefilter: deterministic French/Kreol-friendly keyword classes for serious
@@ -137,11 +146,22 @@ returns scheduler/source health without exposing a delivery action.
   infrastructure disruption, health hazards, and vulnerable missing persons.
   Politics, interviews, blogs, sport, entertainment, magazine, and economy
   sections are excluded.
-- Geography: known Mauritius place names are extracted as unverified mentions,
-  not coordinates. No user impact is inferred until a later, fail-closed place
-  resolver and proximity policy are reviewed.
+- Geography: recognised Mauritius place mentions are resolved only for active
+  candidates. A match requires a location recorded within 15 minutes from GPS,
+  or a WiFi/LBS estimate with an accuracy radius no broader than one kilometre.
+- Precision: approximate uncertainty must also fit inside the event's impact
+  radius. WiFi/LBS estimates are never used to infer direction of travel.
+- Relevance: current proximity is strongest. An active outing may match from
+  farther away only when speed and course show movement toward the incident.
+  Saved home addresses and learned routines are deliberately excluded.
+- Expiry: immediate public-safety reports expire after 90 minutes; road/fire
+  reports after three hours; flood, school, and infrastructure disruptions
+  after six hours; health and vulnerable-missing-person reports after 24 hours.
+- Deduplication: stable RSS id + content hash suppresses unchanged articles;
+  Firestore retains the hash across restarts. One idempotent shadow match is
+  claimed per service family and source event, combining affected watches.
 - Delivery: every record has `deliveryEligible=false` and `deliverySent=false`.
-  The scheduler makes no LLM call, device sweep, Firestore write, or Meta call.
+  The scheduler records what would have matched but contains no Meta call.
 
 ## Output contract
 
@@ -185,8 +205,9 @@ deterministic fallback, token accounting, and the no-delivery boundary.
 ## Next adapters
 
 Stable MMS warning pages can be added later as a monitored fallback if the CAP
-feed proves incomplete. The next Defi Media phase is a reviewed place resolver
-and fail-closed impact matcher. Local media RSS must remain corroboration-only,
+feed proves incomplete. The next Defi Media phase is review of the persisted
+shadow matches, followed by incident clustering if separate articles are found
+to describe the same event. Local media RSS must remain corroboration-only,
 with separate trust labels and no ability to override an official CAP fact. Do
 not fetch either inside the LLM prompt and do not enable proactive WhatsApp
 until shadow precision and template policy have been reviewed.

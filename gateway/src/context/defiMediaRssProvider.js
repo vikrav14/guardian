@@ -9,6 +9,10 @@
 const crypto = require('crypto');
 const { XMLParser } = require('fast-xml-parser');
 const { fetchText } = require('./capAlertProvider');
+const {
+  actionableUntilFor,
+  isActionableNewsItem,
+} = require('./defiMediaPolicy');
 const Logger = require('../logger');
 
 const logger = new Logger({ module: 'defimedia-rss-provider' });
@@ -66,6 +70,9 @@ const EVENT_PATTERNS = Object.freeze([
   {
     eventType: 'public_safety',
     patterns: [
+      /\bcoups? de feu\b/,
+      /\bfusillade\b/,
+      /\btirs? (?:d armes?|armes?|par balle)\b/,
       /\bevacuation\b/,
       /\bexplosion\b/,
       /\bfuite de gaz\b/,
@@ -169,6 +176,7 @@ const MAURITIUS_PLACE_ALIASES = Object.freeze([
   ['Tamarin', ['tamarin']],
   ['Black River', ['black river', 'riviere noire']],
   ['Le Morne', ['le morne']],
+  ['La Rosa', ['la rosa']],
 ]);
 
 function asArray(value) {
@@ -344,11 +352,15 @@ function normalizeFeedItem(item, {
     deliveryEligible: false,
     deliverySent: false,
   };
+  const actionableUntil = actionableUntilFor(normalized, { maxAgeHours });
+  normalized.actionableUntil = actionableUntil?.toISOString() || null;
+  normalized.actionable = isActionableNewsItem(normalized, now);
   normalized.contentHash = sha256(JSON.stringify({
     title: normalized.title,
     summary: normalized.summary,
     categories: normalized.categories,
     publishedAt: normalized.publishedAt,
+    actionableUntil: normalized.actionableUntil,
     classification,
   }));
   return normalized;
@@ -391,7 +403,7 @@ class DefiMediaRssProvider {
       if (response.statusCode === 304) {
         this.lastSuccessAt = now.toISOString();
         this.lastError = null;
-        return this._result([], true);
+        return this._result([], true, null, now);
       }
 
       this.etag = response.headers?.etag || this.etag;
@@ -425,17 +437,21 @@ class DefiMediaRssProvider {
       this.records = new Map(newest.map((item) => [item.id, item]));
       this.lastSuccessAt = now.toISOString();
       this.lastError = null;
-      return this._result(changedItems, false, feed);
+      return this._result(changedItems, false, feed, now);
     } catch (error) {
       this.lastError = error.message;
       logger.error('Defi Media RSS poll failed', { error: error.message });
-      return { ...this._result([], false), ok: false, error: error.message };
+      return { ...this._result([], false, null, now), ok: false, error: error.message };
     }
   }
 
-  _result(changedItems, notModified, feed = null) {
-    const items = Array.from(this.records.values());
-    const candidateItems = items.filter((item) => item.safetyCandidate && item.fresh);
+  _result(changedItems, notModified, feed = null, now = new Date()) {
+    const items = Array.from(this.records.values()).map((item) => {
+      const actionable = isActionableNewsItem(item, now);
+      if (item.actionable !== actionable) item.actionable = actionable;
+      return item;
+    });
+    const candidateItems = items.filter((item) => item.actionable);
     return {
       ok: true,
       source: this.source.id,
@@ -444,7 +460,7 @@ class DefiMediaRssProvider {
       items,
       candidateItems,
       changedItems,
-      changedCandidates: changedItems.filter((item) => item.safetyCandidate && item.fresh),
+      changedCandidates: changedItems.filter((item) => isActionableNewsItem(item, now)),
       observeOnly: true,
       automaticDelivery: false,
     };
@@ -452,7 +468,7 @@ class DefiMediaRssProvider {
 
   getSnapshot() {
     const items = Array.from(this.records.values());
-    const candidates = items.filter((item) => item.safetyCandidate && item.fresh);
+    const candidates = items.filter((item) => item.actionable);
     return {
       source: {
         id: this.source.id,

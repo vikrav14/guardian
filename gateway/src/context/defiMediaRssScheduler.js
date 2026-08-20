@@ -1,5 +1,7 @@
 const { increment: incrementMetric } = require('../ops-metrics/collector');
 const Logger = require('../logger');
+const { persistChangedNewsEvents } = require('./defiMediaEventStore');
+const { evaluateNewsExposure } = require('./defiMediaExposureMatcher');
 
 const logger = new Logger({ module: 'defimedia-rss-scheduler' });
 let activeScheduler = null;
@@ -12,7 +14,14 @@ function countByEventType(items) {
   }, {});
 }
 
-async function runDefiMediaRssPoll({ provider, now = new Date() } = {}) {
+async function runDefiMediaRssPoll({
+  db,
+  provider,
+  config = {},
+  now = new Date(),
+  persistEvents = persistChangedNewsEvents,
+  evaluateExposure = evaluateNewsExposure,
+} = {}) {
   if (!provider) {
     return { ok: false, skipped: true, reason: 'defimedia_provider_unavailable' };
   }
@@ -26,27 +35,64 @@ async function runDefiMediaRssPoll({ provider, now = new Date() } = {}) {
 
   incrementMetric('contextNewsItemsSeen', poll.items.length);
   incrementMetric('contextNewsItemsChanged', poll.changedItems.length);
-  incrementMetric('contextNewsCandidates', poll.changedCandidates.length);
+  let durable = {
+    persistent: false,
+    created: poll.changedItems,
+    updated: [],
+    unchanged: [],
+    writes: 0,
+  };
+  if (config.contextDefiMediaPersistEvents !== false && db) {
+    durable = await persistEvents(db, poll.changedItems, now);
+  }
+  const durableChanged = [...durable.created, ...durable.updated];
+  const durableChangedIds = new Set(
+    durableChanged.map((item) => item.documentId || item.id),
+  );
+  const durableChangedCandidates = poll.changedCandidates.filter((item) =>
+    durableChangedIds.has(item.documentId || item.id)
+  );
+  incrementMetric('contextNewsCandidates', durableChangedCandidates.length);
+
+  let exposure = null;
+  if (
+    config.contextDefiMediaEvaluateDevices !== false &&
+    db &&
+    poll.candidateItems.length
+  ) {
+    exposure = await evaluateExposure({
+      db,
+      candidates: poll.candidateItems,
+      now,
+      config,
+      persist: config.contextDefiMediaPersistMatches !== false,
+    });
+  }
   const summary = {
     ok: true,
     source: poll.source,
     notModified: poll.notModified,
     itemsSeen: poll.items.length,
     changedItems: poll.changedItems.length,
+    durableNewItems: durable.created.length,
+    durableUpdatedItems: durable.updated.length,
+    restartDuplicatesSuppressed: durable.unchanged.length,
     freshCandidates: poll.candidateItems.length,
-    changedCandidates: poll.changedCandidates.length,
-    eventTypes: countByEventType(poll.changedCandidates),
+    changedCandidates: durableChangedCandidates.length,
+    eventTypes: countByEventType(durableChangedCandidates),
+    eventsPersisted: durable.writes,
+    exposure,
     observeOnly: true,
     automaticDelivery: false,
     deviceSweep: null,
     llmCalls: 0,
-    firestoreWrites: 0,
+    firestoreWrites: durable.writes + Number(exposure?.newFamilyMatches || 0),
   };
   logger.info('Defi Media RSS shadow poll completed', summary);
   return summary;
 }
 
-function startDefiMediaRssScheduler({ provider, config = {} } = {}) {
+function startDefiMediaRssScheduler({ db, provider, config = {} } = {}) {
   if (activeScheduler) return activeScheduler;
   if (config.contextDefiMediaEnabled !== true) {
     return { active: false, reason: 'disabled', stop() {}, runNow: null };
@@ -60,9 +106,10 @@ function startDefiMediaRssScheduler({ provider, config = {} } = {}) {
     };
   }
 
-  const intervalMinutes = Math.max(60, Number(config.contextDefiMediaPollMinutes || 60));
+  const intervalMinutes = Math.max(15, Number(config.contextDefiMediaPollMinutes || 15));
   const intervalMs = intervalMinutes * 60_000;
   let running = false;
+  let lastRun = null;
 
   const runNow = async () => {
     if (running) {
@@ -70,7 +117,13 @@ function startDefiMediaRssScheduler({ provider, config = {} } = {}) {
     }
     running = true;
     try {
-      return await runDefiMediaRssPoll({ provider, now: new Date() });
+      lastRun = await runDefiMediaRssPoll({
+        db,
+        provider,
+        config,
+        now: new Date(),
+      });
+      return lastRun;
     } catch (error) {
       incrementMetric('contextNewsFetchErrors');
       logger.error('Defi Media RSS shadow poll failed', { error: error.message });
@@ -86,7 +139,7 @@ function startDefiMediaRssScheduler({ provider, config = {} } = {}) {
     active: true,
     intervalMinutes,
     runNow,
-    getStatus: () => provider.getSnapshot(),
+    getStatus: () => ({ ...provider.getSnapshot(), lastRun }),
     stop() {
       clearInterval(timer);
       activeScheduler = null;
@@ -100,6 +153,8 @@ function startDefiMediaRssScheduler({ provider, config = {} } = {}) {
     observeOnly: true,
     automaticDelivery: false,
     llmClassification: false,
+    persistentDeduplication: config.contextDefiMediaPersistEvents !== false && Boolean(db),
+    exposureMatching: config.contextDefiMediaEvaluateDevices !== false && Boolean(db),
   });
   return activeScheduler;
 }
