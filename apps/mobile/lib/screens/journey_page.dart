@@ -130,6 +130,7 @@ class _JourneyPageState extends State<JourneyPage> {
 
                 return JourneyV2Dashboard(
                   deviceName: widget.deviceName,
+                  deviceImei: widget.imei,
                   avatarUrl: widget.avatarUrl,
                   day: effectiveDay,
                   journeys: journeys,

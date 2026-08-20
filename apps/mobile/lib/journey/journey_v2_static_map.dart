@@ -1,16 +1,23 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/location_history_point.dart';
 import '../theme/app_theme.dart';
+import '../widgets/map/map_avatar_overlay.dart';
+import '../widgets/map/person_map_marker.dart';
 import 'journey_v2_data.dart';
 
 class JourneyV2StaticMap extends StatefulWidget {
   const JourneyV2StaticMap({
     super.key,
     required this.route,
+    this.deviceName = 'Wearer',
+    this.deviceImei = '',
+    this.avatarUrl,
     this.currentIndex = 0,
     this.showReplayPosition = false,
     this.showMapTypeControl = false,
@@ -18,6 +25,9 @@ class JourneyV2StaticMap extends StatefulWidget {
   });
 
   final JourneyV2Route route;
+  final String deviceName;
+  final String deviceImei;
+  final String? avatarUrl;
   final int currentIndex;
   final bool showReplayPosition;
   final bool showMapTypeControl;
@@ -30,6 +40,8 @@ class JourneyV2StaticMap extends StatefulWidget {
 class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     with TickerProviderStateMixin {
   GoogleMapController? _controller;
+  final ValueNotifier<int> _cameraGeneration = ValueNotifier<int>(0);
+  BitmapDescriptor? _replayAvatarIcon;
   late final AnimationController _pulseController;
   late final AnimationController _movementController;
   LatLng? _movementFrom;
@@ -53,7 +65,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       vsync: this,
       duration: const Duration(milliseconds: 680),
     )..addListener(_rebuildAnimation);
-    if (widget.showReplayPosition) _startPulse();
+    if (widget.showReplayPosition) {
+      _startPulse();
+      unawaited(_loadReplayAvatarIcon());
+    }
   }
 
   void _rebuildAnimation() {
@@ -63,6 +78,32 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   void _startPulse() {
     if (!_pulseController.isAnimating) {
       _pulseController.repeat(reverse: true);
+    }
+  }
+
+  Future<void> _loadReplayAvatarIcon() async {
+    if (kIsWeb || !widget.showReplayPosition) return;
+
+    final name = widget.deviceName.trim().isEmpty
+        ? 'Wearer'
+        : widget.deviceName.trim();
+    final identityKey = widget.deviceImei.trim().isEmpty
+        ? name
+        : widget.deviceImei.trim();
+
+    try {
+      final icon = await PersonMapMarker.create(
+        initials: initialsFor(name),
+        color: avatarColorForKey(identityKey),
+        selected: false,
+        surfaceColor: Colors.white,
+        imageUrl: widget.avatarUrl,
+      );
+      if (!mounted) return;
+      setState(() => _replayAvatarIcon = icon);
+    } catch (_) {
+      // The orange replay core remains a reliable fallback if avatar rendering
+      // is unavailable on a platform or the image cannot be loaded.
     }
   }
 
@@ -76,13 +117,22 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     if (oldWidget.currentIndex != widget.currentIndex) {
       _animateReplayMovement(oldWidget.currentIndex, widget.currentIndex);
     }
+    final avatarChanged =
+        oldWidget.deviceName != widget.deviceName ||
+        oldWidget.deviceImei != widget.deviceImei ||
+        oldWidget.avatarUrl != widget.avatarUrl;
     if (oldWidget.showReplayPosition != widget.showReplayPosition) {
       if (widget.showReplayPosition) {
         _startPulse();
+        unawaited(_loadReplayAvatarIcon());
       } else {
         _pulseController.stop();
         _pulseController.value = 0;
+        _replayAvatarIcon = null;
       }
+    } else if (widget.showReplayPosition && avatarChanged) {
+      _replayAvatarIcon = null;
+      unawaited(_loadReplayAvatarIcon());
     }
   }
 
@@ -133,6 +183,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   void dispose() {
     _pulseController.dispose();
     _movementController.dispose();
+    _cameraGeneration.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -237,6 +288,21 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     final circles = journeyV2EndpointCircles(widget.route, points);
     circles.addAll(journeyV2GapCircles(widget.route, points));
     final polylines = <Polyline>{};
+
+    final replayAvatarIcon = _replayAvatarIcon;
+    if (widget.showReplayPosition &&
+        !kIsWeb &&
+        replayAvatarIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('journey-replay-avatar'),
+          position: replayPoint,
+          icon: replayAvatarIcon,
+          anchor: const Offset(0.5, 0.5),
+          zIndexInt: 40,
+        ),
+      );
+    }
 
     if (widget.showReplayPosition) {
       final pulse = Curves.easeInOut.transform(_pulseController.value);
@@ -404,6 +470,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
               ),
               onMapCreated: (controller) {
                 _controller = controller;
+                _cameraGeneration.value++;
                 WidgetsBinding.instance.addPostFrameCallback(
                   (_) => _fitRoute(),
                 );
@@ -422,8 +489,38 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
               zoomControlsEnabled: false,
               rotateGesturesEnabled: false,
               tiltGesturesEnabled: false,
+              onCameraMove: (_) {
+                if (kIsWeb) _cameraGeneration.value++;
+              },
+              onCameraIdle: () {
+                if (kIsWeb) _cameraGeneration.value++;
+              },
             ),
           ),
+          if (kIsWeb && widget.showReplayPosition)
+            Positioned.fill(
+              child: ValueListenableBuilder<int>(
+                valueListenable: _cameraGeneration,
+                builder: (context, generation, _) {
+                  return JourneyMapAvatarOverlay(
+                    controller: _controller,
+                    slots: [
+                      JourneyMapAvatarSlot(
+                        id: 'journey-replay-avatar',
+                        latLng: replayPoint,
+                        selected: false,
+                      ),
+                    ],
+                    cameraGeneration: generation,
+                    deviceName: widget.deviceName,
+                    imei: widget.deviceImei.trim().isEmpty
+                        ? widget.deviceName
+                        : widget.deviceImei,
+                    avatarUrl: widget.avatarUrl,
+                  );
+                },
+              ),
+            ),
           if (widget.showMapTypeControl)
             Positioned(
               right: 16,

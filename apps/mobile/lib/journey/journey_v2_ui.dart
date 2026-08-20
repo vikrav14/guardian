@@ -11,6 +11,7 @@ class JourneyV2Dashboard extends StatelessWidget {
   const JourneyV2Dashboard({
     super.key,
     required this.deviceName,
+    this.deviceImei = '',
     this.avatarUrl,
     required this.day,
     required this.journeys,
@@ -21,6 +22,7 @@ class JourneyV2Dashboard extends StatelessWidget {
   });
 
   final String deviceName;
+  final String deviceImei;
   final String? avatarUrl;
   final DateTime day;
   final List<JourneyRecord> journeys;
@@ -90,6 +92,9 @@ class JourneyV2Dashboard extends StatelessWidget {
                       child: _SelectedTripPanel(
                         selected: authoritativeSelected,
                         route: selectedRoute,
+                        deviceName: deviceName,
+                        deviceImei: deviceImei,
+                        avatarUrl: avatarUrl,
                       ),
                     ),
                   ],
@@ -135,6 +140,9 @@ class JourneyV2Dashboard extends StatelessWidget {
                       child: _SelectedTripPanel(
                         selected: authoritativeSelected,
                         route: selectedRoute,
+                        deviceName: deviceName,
+                        deviceImei: deviceImei,
+                        avatarUrl: avatarUrl,
                       ),
                     ),
                   ],
@@ -921,10 +929,19 @@ class _TripRow extends StatelessWidget {
 }
 
 class _SelectedTripPanel extends StatefulWidget {
-  const _SelectedTripPanel({required this.selected, required this.route});
+  const _SelectedTripPanel({
+    required this.selected,
+    required this.route,
+    required this.deviceName,
+    required this.deviceImei,
+    this.avatarUrl,
+  });
 
   final JourneyRecord? selected;
   final JourneyV2Route? route;
+  final String deviceName;
+  final String deviceImei;
+  final String? avatarUrl;
 
   @override
   State<_SelectedTripPanel> createState() => _SelectedTripPanelState();
@@ -1044,6 +1061,9 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                         child: JourneyV2StaticMap(
                           key: ValueKey('journey-map-${journey.id}'),
                           route: selectedRoute,
+                          deviceName: widget.deviceName,
+                          deviceImei: widget.deviceImei,
+                          avatarUrl: widget.avatarUrl,
                           currentIndex: replay.currentIndex,
                           showReplayPosition: true,
                           onPointSelected: replay.seekIndex,
@@ -1081,6 +1101,9 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                                     journey: journey,
                                     route: selectedRoute,
                                     replay: replay,
+                                    deviceName: widget.deviceName,
+                                    deviceImei: widget.deviceImei,
+                                    avatarUrl: widget.avatarUrl,
                                   ),
                                 ),
                               ),
@@ -1371,11 +1394,17 @@ class _JourneyFullScreenMap extends StatelessWidget {
     required this.journey,
     required this.route,
     required this.replay,
+    required this.deviceName,
+    required this.deviceImei,
+    this.avatarUrl,
   });
 
   final JourneyRecord journey;
   final JourneyV2Route route;
   final JourneyV2ReplayController replay;
+  final String deviceName;
+  final String deviceImei;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1393,6 +1422,9 @@ class _JourneyFullScreenMap extends StatelessWidget {
                   child: JourneyV2StaticMap(
                     key: ValueKey('journey-fullscreen-map-${journey.id}'),
                     route: route,
+                    deviceName: deviceName,
+                    deviceImei: deviceImei,
+                    avatarUrl: avatarUrl,
                     currentIndex: replay.currentIndex,
                     showReplayPosition: true,
                     showMapTypeControl: true,

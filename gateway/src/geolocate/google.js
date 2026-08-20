@@ -253,6 +253,74 @@ function reverseGeocodeCacheKey(lat, lng) {
   return `${lat.toFixed(4)},${lng.toFixed(4)}`;
 }
 
+function cleanPlacePart(value) {
+  const cleaned = String(value || '').trim().replace(/\s+/g, ' ');
+  return cleaned && cleaned.length <= 100 ? cleaned : null;
+}
+
+function firstAddressComponent(results, types) {
+  for (const result of results || []) {
+    for (const component of result?.address_components || []) {
+      if ((component.types || []).some((type) => types.includes(type))) {
+        const value = cleanPlacePart(component.long_name);
+        if (value) return value;
+      }
+    }
+  }
+  return null;
+}
+
+function samePlacePart(left, right) {
+  return String(left || '').localeCompare(String(right || ''), undefined, {
+    sensitivity: 'base',
+  }) === 0;
+}
+
+/**
+ * Build a truthful, compact label from reverse-geocoder results.
+ *
+ * Locality remains the primary orientation, while a returned landmark,
+ * neighborhood or road adds useful "near" context. "Near" is deliberate:
+ * reverse geocoding cannot prove the wearer entered a nearby business.
+ */
+function selectReverseGeocodePlaceName(results) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+
+  const locality = firstAddressComponent(results, ['locality', 'postal_town']);
+  const sublocality = firstAddressComponent(results, [
+    'sublocality_level_1',
+    'sublocality',
+  ]);
+  const neighborhood = firstAddressComponent(results, ['neighborhood']);
+  const administrativeArea = firstAddressComponent(results, [
+    'administrative_area_level_2',
+    'administrative_area_level_1',
+  ]);
+  const area = locality || sublocality || neighborhood || administrativeArea;
+
+  const landmarkResults = results.filter((result) =>
+    (result?.types || []).some((type) =>
+      ['point_of_interest', 'establishment', 'premise'].includes(type)
+    )
+  );
+  const landmark = firstAddressComponent(landmarkResults, [
+    'point_of_interest',
+    'establishment',
+    'premise',
+  ]);
+  const route = firstAddressComponent(results, ['route']);
+  const nearbyArea =
+    area && neighborhood && !samePlacePart(area, neighborhood)
+      ? neighborhood
+      : null;
+  const detail = landmark || nearbyArea || route;
+
+  if (area && detail && !samePlacePart(area, detail)) {
+    return `${area} · near ${detail}`;
+  }
+  return area || detail;
+}
+
 /**
  * Reverse geocode lat/lng to a place name via Google Maps API.
  * Returns the best human-readable location name (address, locality, or administrative area).
@@ -294,45 +362,7 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
       return null;
     }
 
-    // Extract the best place name with priority on specific neighborhoods/areas
-    // Priority order: neighborhood > sublocality > locality > administrative_area_level_1
-    const firstResult = data.results[0];
-    let placeName = null;
-
-    // Look for the most specific location type first
-    for (const component of firstResult.address_components || []) {
-      if (component.types.includes('neighborhood')) {
-        placeName = component.long_name;
-        break;
-      }
-    }
-
-    if (!placeName) {
-      for (const component of firstResult.address_components || []) {
-        if (component.types.includes('sublocality')) {
-          placeName = component.long_name;
-          break;
-        }
-      }
-    }
-
-    if (!placeName) {
-      for (const component of firstResult.address_components || []) {
-        if (component.types.includes('locality')) {
-          placeName = component.long_name;
-          break;
-        }
-      }
-    }
-
-    if (!placeName) {
-      for (const component of firstResult.address_components || []) {
-        if (component.types.includes('administrative_area_level_1')) {
-          placeName = component.long_name;
-          break;
-        }
-      }
-    }
+    const placeName = selectReverseGeocodePlaceName(data.results);
 
     if (placeName) {
       reverseGeocodeCache.set(cacheKey, {
@@ -365,5 +395,6 @@ module.exports = {
   cacheKey,
   clearGeolocationCache,
   reverseGeocodeToPlaceName,
+  selectReverseGeocodePlaceName,
   setCachedPlaceName,
 };
