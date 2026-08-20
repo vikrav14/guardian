@@ -46,11 +46,11 @@ abstract final class JourneyScreenTheme {
 
   /// Insets passed to [GoogleMap.padding] so native map UI stays visible.
   static EdgeInsets get mapControlPadding => EdgeInsets.only(
-        top: spacing,
-        right: spacing2,
-        bottom: mapAttributionInset + playbackCollapsedHeight + spacing3,
-        left: spacing2,
-      );
+    top: spacing,
+    right: spacing2,
+    bottom: mapAttributionInset + playbackCollapsedHeight + spacing3,
+    left: spacing2,
+  );
 
   /// Bottom offset for floating playback bar (above map attribution).
   static double get playbackBottomOffset => mapAttributionInset;
@@ -109,13 +109,15 @@ abstract final class JourneyScreenTheme {
     );
   }
 
-  static BoxDecoration glassCard({double radius = radiusMedium}) => BoxDecoration(
+  static BoxDecoration glassCard({double radius = radiusMedium}) =>
+      BoxDecoration(
         color: cardFill,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: cardBorder),
       );
 
-  static BoxDecoration glassOverlay({double radius = radiusMedium}) => BoxDecoration(
+  static BoxDecoration glassOverlay({double radius = radiusMedium}) =>
+      BoxDecoration(
         color: cardFill,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: cardBorder),

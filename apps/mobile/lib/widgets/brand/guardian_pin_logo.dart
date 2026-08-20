@@ -26,7 +26,10 @@ class GuardianPinMark extends StatelessWidget {
     final dot = Container(
       width: size * 0.16,
       height: size * 0.16,
-      decoration: const BoxDecoration(color: GuardianColors.safe, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: GuardianColors.safe,
+        shape: BoxShape.circle,
+      ),
     );
 
     return Semantics(
@@ -38,19 +41,21 @@ class GuardianPinMark extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            CustomPaint(
-              size: Size(size, size),
-              painter: const _RingPainter(),
-            ),
+            CustomPaint(size: Size(size, size), painter: const _RingPainter()),
             Icon(Icons.location_on, size: size * 0.62, color: _ink),
             Align(
               alignment: const Alignment(0, -0.42),
               child: Container(
                 width: size * 0.22,
                 height: size * 0.22,
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
                 alignment: Alignment.center,
-                child: pulse == null ? dot : FadeTransition(opacity: pulse!, child: dot),
+                child: pulse == null
+                    ? dot
+                    : FadeTransition(opacity: pulse!, child: dot),
               ),
             ),
           ],
@@ -88,7 +93,13 @@ class _RingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     canvas.drawArc(rect, _goldStart, _goldSweep, false, gold);
-    canvas.drawArc(rect, _goldStart + _goldSweep, 2 * math.pi - _goldSweep, false, black);
+    canvas.drawArc(
+      rect,
+      _goldStart + _goldSweep,
+      2 * math.pi - _goldSweep,
+      false,
+      black,
+    );
   }
 
   @override
@@ -98,7 +109,12 @@ class _RingPainter extends CustomPainter {
 /// "Guardian" wordmark with a blinking dot on the "i", matching
 /// [GuardianPinMark]'s centre dot.
 class GuardianWordmark extends StatelessWidget {
-  const GuardianWordmark({super.key, this.fontSize = 24, this.pulse, this.color});
+  const GuardianWordmark({
+    super.key,
+    this.fontSize = 24,
+    this.pulse,
+    this.color,
+  });
 
   final double fontSize;
   final Animation<double>? pulse;
@@ -117,7 +133,10 @@ class GuardianWordmark extends StatelessWidget {
     final dot = Container(
       width: fontSize * 0.13,
       height: fontSize * 0.13,
-      decoration: const BoxDecoration(color: GuardianColors.safe, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: GuardianColors.safe,
+        shape: BoxShape.circle,
+      ),
     );
 
     return Semantics(
@@ -144,7 +163,9 @@ class GuardianWordmark extends StatelessWidget {
                 ),
                 Positioned(
                   top: 0,
-                  child: pulse == null ? dot : FadeTransition(opacity: pulse!, child: dot),
+                  child: pulse == null
+                      ? dot
+                      : FadeTransition(opacity: pulse!, child: dot),
                 ),
               ],
             ),
@@ -167,7 +188,8 @@ class _BlinkCycle extends StatefulWidget {
   State<_BlinkCycle> createState() => _BlinkCycleState();
 }
 
-class _BlinkCycleState extends State<_BlinkCycle> with SingleTickerProviderStateMixin {
+class _BlinkCycleState extends State<_BlinkCycle>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _opacity;
 
@@ -178,8 +200,10 @@ class _BlinkCycleState extends State<_BlinkCycle> with SingleTickerProviderState
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeInOut)
-        .drive(Tween(begin: 0.25, end: 1.0));
+    _opacity = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ).drive(Tween(begin: 0.25, end: 1.0));
   }
 
   @override
@@ -190,7 +214,8 @@ class _BlinkCycleState extends State<_BlinkCycle> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return widget.builder(context, reduceMotion ? null : _opacity);
   }
 }
@@ -199,7 +224,11 @@ class _BlinkCycleState extends State<_BlinkCycle> with SingleTickerProviderState
 /// dots pulsing green together. Drop-in replacement for the old
 /// shield-icon + plain-text header mark.
 class GuardianPinLogo extends StatelessWidget {
-  const GuardianPinLogo({super.key, this.iconSize = 44, this.wordmarkSize = 24});
+  const GuardianPinLogo({
+    super.key,
+    this.iconSize = 44,
+    this.wordmarkSize = 24,
+  });
 
   final double iconSize;
   final double wordmarkSize;
@@ -246,10 +275,7 @@ class GuardianHeaderBrandMark extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GuardianWordmark(fontSize: wordmarkSize, pulse: pulse),
-              if (caption != null) ...[
-                const SizedBox(height: 4),
-                caption!,
-              ],
+              if (caption != null) ...[const SizedBox(height: 4), caption!],
             ],
           ),
         ],

@@ -42,34 +42,33 @@ enum GuardianThemeId {
   }
 
   String get displayName => switch (this) {
-        islandGlass => 'Island Glass',
-        leMorne => 'Le Morne',
-        elderCare => 'Elder Care',
-        chamarel => 'Chamarel',
-        blueBay => 'Blue Bay',
-        indianOceanNight => 'Indian Ocean Night',
-        sugarBeach => 'Sugar Beach',
-      };
+    islandGlass => 'Island Glass',
+    leMorne => 'Le Morne',
+    elderCare => 'Elder Care',
+    chamarel => 'Chamarel',
+    blueBay => 'Blue Bay',
+    indianOceanNight => 'Indian Ocean Night',
+    sugarBeach => 'Sugar Beach',
+  };
 
   Brightness get brightness => switch (this) {
-        leMorne || indianOceanNight => Brightness.dark,
-        islandGlass ||
-        elderCare ||
-        chamarel ||
-        blueBay ||
-        sugarBeach =>
-          Brightness.light,
-      };
+    leMorne || indianOceanNight => Brightness.dark,
+    islandGlass ||
+    elderCare ||
+    chamarel ||
+    blueBay ||
+    sugarBeach => Brightness.light,
+  };
 
   GuardianThemeColors get semanticColors => switch (this) {
-        islandGlass => GuardianThemeColors.islandGlass,
-        leMorne => GuardianThemeColors.leMorne,
-        elderCare => GuardianThemeColors.elderCare,
-        chamarel => GuardianThemeColors.chamarel,
-        blueBay => GuardianThemeColors.blueBay,
-        indianOceanNight => GuardianThemeColors.indianOceanNight,
-        sugarBeach => GuardianThemeColors.sugarBeach,
-      };
+    islandGlass => GuardianThemeColors.islandGlass,
+    leMorne => GuardianThemeColors.leMorne,
+    elderCare => GuardianThemeColors.elderCare,
+    chamarel => GuardianThemeColors.chamarel,
+    blueBay => GuardianThemeColors.blueBay,
+    indianOceanNight => GuardianThemeColors.indianOceanNight,
+    sugarBeach => GuardianThemeColors.sugarBeach,
+  };
 
   bool get isHighContrast => this == GuardianThemeId.elderCare;
 }

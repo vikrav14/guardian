@@ -56,35 +56,34 @@ List<LinkingStoryMetric> linkingStoryMetrics(
   final variant = tick % 2;
 
   final hasSession = deviceHasSessionHeartbeat(device);
-  final hasLocation =
-      device.hasFreshLocation || device.hasApproximateLocation;
+  final hasLocation = device.hasFreshLocation || device.hasApproximateLocation;
   final pendantState = step >= 1
       ? LinkingStoryMetricState.complete
       : LinkingStoryMetricState.active;
   final networkState = hasSession
       ? LinkingStoryMetricState.complete
       : step >= 1
-          ? LinkingStoryMetricState.active
-          : LinkingStoryMetricState.pending;
+      ? LinkingStoryMetricState.active
+      : LinkingStoryMetricState.pending;
   final locationState = hasLocation
       ? LinkingStoryMetricState.complete
       : hasSession
-          ? LinkingStoryMetricState.active
-          : LinkingStoryMetricState.pending;
+      ? LinkingStoryMetricState.active
+      : LinkingStoryMetricState.pending;
   // Guardian AI / WhatsApp checks -- the last narrative beat, matching the
   // Dodo stage's own "GUARDIAN AI" step. There's no separate readiness
-  // signal for this one beyond the pendant already having a location, so
+  // signal for this one beyond the watch already having a location, so
   // it completes alongside it.
   final aiState = hasLocation
       ? LinkingStoryMetricState.complete
       : hasSession
-          ? LinkingStoryMetricState.active
-          : LinkingStoryMetricState.pending;
+      ? LinkingStoryMetricState.active
+      : LinkingStoryMetricState.pending;
 
   return [
     LinkingStoryMetric(
       label: step >= 1
-          ? 'Pendant awake'
+          ? 'Watch awake'
           : (variant == 0 ? 'Waking $name' : 'Checking pendant'),
       icon: step >= 1 ? Icons.sensors_rounded : Icons.bedtime_outlined,
       state: pendantState,
@@ -93,8 +92,8 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       label: hasSession
           ? 'Network ready'
           : (step >= 1
-              ? (variant == 0 ? 'Securing link' : 'Making contact')
-              : 'Network waiting'),
+                ? (variant == 0 ? 'Securing link' : 'Making contact')
+                : 'Network waiting'),
       icon: hasSession
           ? Icons.lock_outline_rounded
           : Icons.wifi_tethering_rounded,
@@ -104,10 +103,10 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       label: device.hasApproximateLocation
           ? 'Approx. location'
           : device.hasFreshLocation
-              ? 'Precise location'
-              : hasSession
-                  ? (variant == 0 ? 'Finding $name' : 'Locating…')
-                  : 'Location waiting',
+          ? 'Precise location'
+          : hasSession
+          ? (variant == 0 ? 'Finding $name' : 'Locating…')
+          : 'Location waiting',
       icon: device.hasFreshLocation && !device.hasApproximateLocation
           ? Icons.gps_fixed_rounded
           : Icons.explore_outlined,
@@ -117,8 +116,8 @@ List<LinkingStoryMetric> linkingStoryMetrics(
       label: hasLocation
           ? 'Guardian AI ready'
           : hasSession
-              ? (variant == 0 ? 'Warming up Guardian AI' : 'Connecting WhatsApp')
-              : 'Guardian AI waiting',
+          ? (variant == 0 ? 'Warming up Guardian AI' : 'Connecting WhatsApp')
+          : 'Guardian AI waiting',
       icon: Icons.auto_awesome_rounded,
       state: aiState,
     ),
@@ -157,49 +156,49 @@ DashboardInsight linkingGuardianInsight(
 
   final titles = switch (step) {
     0 => [
-        "Hi — I’m checking on $name.",
-        "Let’s see how $name is doing.",
-        'One moment while I wake the pendant…',
-      ],
+      "Hi — I’m checking on $name.",
+      "Let’s see how $name is doing.",
+      'One moment while I wake the pendant…',
+    ],
     1 => [
-        "I can hear $name’s pendant.",
-        'Getting a secure connection ready…',
-        'Signal looks good so far.',
-      ],
+      "I can hear $name’s pendant.",
+      'Getting a secure connection ready…',
+      'Signal looks good so far.',
+    ],
     2 => [
-        'Looking for $name…',
-        'Finding the best location signal…',
-        'Still waiting for the first location…',
-      ],
+      'Looking for $name…',
+      'Finding the best location signal…',
+      'Still waiting for the first location…',
+    ],
     _ => [
-        'Almost there!',
-        'Everything looks good so far.',
-        'Preparing the first location update…',
-      ],
+      'Almost there!',
+      'Everything looks good so far.',
+      'Preparing the first location update…',
+    ],
   };
 
   var details = switch (step) {
     0 => [
-        'The pendant has just come on.',
-        'Waking things up gently…',
-        'Making sure everything is ready…',
-        'Connecting to Guardian…',
-      ],
+      'The watch has just come on.',
+      'Waking things up gently…',
+      'Making sure everything is ready…',
+      'Connecting to Guardian…',
+    ],
     1 => [
-        'Linking up with the pendant now.',
-        'This usually only takes a moment.',
-        'Stay with me — we’re getting there.',
-      ],
+      'Linking up with the watch now.',
+      'This usually only takes a moment.',
+      'Stay with me — we’re getting there.',
+    ],
     2 => [
-        'Location can take a few moments, especially indoors.',
-        'Searching for a clear signal nearby…',
-        'Hang tight — a location update is on the way.',
-      ],
+      'Location can take a few moments, especially indoors.',
+      'Searching for a clear signal nearby…',
+      'Hang tight — a location update is on the way.',
+    ],
     _ => [
-        'Connection looks solid — finishing up now.',
-        'Almost ready to show you where $name is.',
-        'Good news is coming…',
-      ],
+      'Connection looks solid — finishing up now.',
+      'Almost ready to show you where $name is.',
+      'Good news is coming…',
+    ],
   };
 
   if (reassurance != null) {
@@ -221,7 +220,8 @@ DashboardInsight buildDashboardInsightForDevice(
   if (device == null) {
     return const DashboardInsight(
       title: 'Connect a device to begin',
-      detail: 'Guardian AI will summarize location, battery, and movement signals here.',
+      detail:
+          'Guardian AI will summarize location, battery, and movement signals here.',
       tone: DashboardInsightTone.neutral,
     );
   }

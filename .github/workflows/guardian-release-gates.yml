@@ -1,0 +1,117 @@
+name: Guardian release gates
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guardian-release-gates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gateway:
+    name: Gateway tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/package-lock.json
+
+      - name: Install gateway dependencies
+        run: npm ci
+
+      - name: Run gateway tests
+        run: npm test
+
+  flutter:
+    name: Flutter analyze, test and Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Flutter SDK
+        shell: bash
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin \
+            https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth 1 origin \
+            refs/tags/3.44.6:refs/tags/3.44.6
+          git -C "$RUNNER_TEMP/flutter" checkout --detach refs/tags/3.44.6
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)" = \
+            "ee80f08bbf97172ec030b8751ceab557177a34a6"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Flutter SDK
+        run: |
+          flutter config --no-analytics
+          flutter --version | tee "$RUNNER_TEMP/flutter-version.txt"
+          grep -q '^Flutter 3\.44\.6 ' "$RUNNER_TEMP/flutter-version.txt"
+
+      - name: Restore locked Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze Flutter app
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build Flutter Web release
+        run: flutter build web --release
+
+  firestore:
+    name: Firestore authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: firestore
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: firestore/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Firestore test dependencies
+        run: npm ci
+
+      - name: Run Firestore emulator authorization tests
+        run: npm test

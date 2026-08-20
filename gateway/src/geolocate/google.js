@@ -3,9 +3,13 @@ const crypto = require('crypto');
 const config = require('../config');
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
+const REVERSE_GEOCODE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** @type {Map<string, { result: object, expiresAt: number }>} */
 const cache = new Map();
+
+/** @type {Map<string, { result: string, expiresAt: number }>} */
+const reverseGeocodeCache = new Map();
 
 function cacheKey({ wifiAccessPoints = [], cellTowers = [] }) {
   const payload = JSON.stringify({
@@ -34,7 +38,7 @@ function isUsableMac(field) {
   return mac !== '00:00:00:00:00:00' && mac !== 'ff:ff:ff:ff:ff:ff';
 }
 
-/** Scan pre-WiFi fields for MCC/MNC/LAC/cellId (V28C buries them after status bytes). */
+/** Scan the V52 LTE tail for MCC/MNC/LAC/cellId after tracker-state fields. */
 function findCellBlockStart(fields) {
   for (let i = 0; i + 3 < fields.length; i++) {
     const mcc = parseInt(fields[i], 10);
@@ -242,16 +246,96 @@ async function geolocateFromV({ wifiAccessPoints = [], cellTowers = [] } = {}, o
 
 function clearGeolocationCache() {
   cache.clear();
+  reverseGeocodeCache.clear();
+}
+
+function reverseGeocodeCacheKey(lat, lng) {
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+function cleanPlacePart(value) {
+  const cleaned = String(value || '').trim().replace(/\s+/g, ' ');
+  return cleaned && cleaned.length <= 100 ? cleaned : null;
+}
+
+function firstAddressComponent(results, types) {
+  for (const result of results || []) {
+    for (const component of result?.address_components || []) {
+      if ((component.types || []).some((type) => types.includes(type))) {
+        const value = cleanPlacePart(component.long_name);
+        if (value) return value;
+      }
+    }
+  }
+  return null;
+}
+
+function samePlacePart(left, right) {
+  return String(left || '').localeCompare(String(right || ''), undefined, {
+    sensitivity: 'base',
+  }) === 0;
+}
+
+/**
+ * Build a truthful, compact label from reverse-geocoder results.
+ *
+ * Locality remains the primary orientation, while a returned landmark,
+ * neighborhood or road adds useful "near" context. "Near" is deliberate:
+ * reverse geocoding cannot prove the wearer entered a nearby business.
+ */
+function selectReverseGeocodePlaceName(results) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+
+  const locality = firstAddressComponent(results, ['locality', 'postal_town']);
+  const sublocality = firstAddressComponent(results, [
+    'sublocality_level_1',
+    'sublocality',
+  ]);
+  const neighborhood = firstAddressComponent(results, ['neighborhood']);
+  const administrativeArea = firstAddressComponent(results, [
+    'administrative_area_level_2',
+    'administrative_area_level_1',
+  ]);
+  const area = locality || sublocality || neighborhood || administrativeArea;
+
+  const landmarkResults = results.filter((result) =>
+    (result?.types || []).some((type) =>
+      ['point_of_interest', 'establishment', 'premise'].includes(type)
+    )
+  );
+  const landmark = firstAddressComponent(landmarkResults, [
+    'point_of_interest',
+    'establishment',
+    'premise',
+  ]);
+  const route = firstAddressComponent(results, ['route']);
+  const nearbyArea =
+    area && neighborhood && !samePlacePart(area, neighborhood)
+      ? neighborhood
+      : null;
+  const detail = landmark || nearbyArea || route;
+
+  if (area && detail && !samePlacePart(area, detail)) {
+    return `${area} · near ${detail}`;
+  }
+  return area || detail;
 }
 
 /**
  * Reverse geocode lat/lng to a place name via Google Maps API.
  * Returns the best human-readable location name (address, locality, or administrative area).
+ * Results are cached to ensure consistent place names for the same coordinates.
  *
  * @returns {Promise<string|null>} Place name or null if lookup fails / API unavailable
  */
 async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+
+  const cacheKey = reverseGeocodeCacheKey(lat, lng);
+  const cached = reverseGeocodeCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.result;
+  }
 
   const apiKey = config.googleGeolocationApiKey;
   if (!apiKey) {
@@ -278,25 +362,28 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
       return null;
     }
 
-    // Extract the best formatted address or component name
-    // Order: formatted_address (full) > first area_level_1 > first locality
-    const firstResult = data.results[0];
-    if (firstResult.formatted_address) {
-      return firstResult.formatted_address;
+    const placeName = selectReverseGeocodePlaceName(data.results);
+
+    if (placeName) {
+      reverseGeocodeCache.set(cacheKey, {
+        result: placeName,
+        expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+      });
     }
 
-    // Fallback: find locality or administrative area
-    for (const component of firstResult.address_components || []) {
-      if (component.types.includes('locality') || component.types.includes('administrative_area_level_1')) {
-        return component.long_name;
-      }
-    }
-
-    return null;
+    return placeName;
   } catch (err) {
     console.warn('[reverse-geocode] request failed:', err.message);
     return null;
   }
+}
+
+function setCachedPlaceName(lat, lng, placeName) {
+  const cacheKey = reverseGeocodeCacheKey(lat, lng);
+  reverseGeocodeCache.set(cacheKey, {
+    result: placeName,
+    expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+  });
 }
 
 module.exports = {
@@ -308,4 +395,6 @@ module.exports = {
   cacheKey,
   clearGeolocationCache,
   reverseGeocodeToPlaceName,
+  selectReverseGeocodePlaceName,
+  setCachedPlaceName,
 };

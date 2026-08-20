@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../navigation/home_shell_scope.dart';
+import '../services/guardian_entitlements_scope.dart';
+import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/layout/guardian_app_header.dart';
 import '../widgets/navigation/guardian_navigation.dart';
@@ -19,6 +21,13 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   final _dashboardKey = GlobalKey<MapDashboardPageState>();
+  late final Stream<GuardianSubscription> _subscriptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscriptions = UserProfileService().watchSubscription();
+  }
 
   void _goToTab(int index) => setState(() => _index = index);
 
@@ -35,40 +44,52 @@ class _HomeShellState extends State<HomeShell> {
       AlertsPage(),
       AccountPage(),
     ];
-    return HomeShellScope(
-      currentIndex: _index,
-      goToTab: _goToTab,
-      sidebarCollapsed: true,
-      child: Scaffold(
-        backgroundColor: context.guardianColors.canvas,
-        extendBody: true,
-        body: Column(
-          children: [
-            GuardianAppHeader(
-              onHome: () => _goToTab(0),
-              onAlerts: () => _goToTab(2),
-              onAccount: () => _goToTab(3),
-            ),
-            Expanded(
-              child: Stack(
+    return StreamBuilder<GuardianSubscription>(
+      stream: _subscriptions,
+      builder: (context, snapshot) {
+        return GuardianEntitlementsScope(
+          subscription: snapshot.data,
+          checking:
+              snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData,
+          error: snapshot.error,
+          child: HomeShellScope(
+            currentIndex: _index,
+            goToTab: _goToTab,
+            sidebarCollapsed: true,
+            child: Scaffold(
+              backgroundColor: context.guardianColors.canvas,
+              extendBody: true,
+              body: Column(
                 children: [
-                  IndexedStack(index: _index, children: pages),
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: 10,
-                    child: MobileBottomBar(
-                      currentIndex: _index,
-                      onTap: _goToTab,
-                      onSos: _sendSos,
+                  GuardianAppHeader(
+                    onHome: () => _goToTab(0),
+                    onAlerts: () => _goToTab(2),
+                    onAccount: () => _goToTab(3),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        IndexedStack(index: _index, children: pages),
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 10,
+                          child: MobileBottomBar(
+                            currentIndex: _index,
+                            onTap: _goToTab,
+                            onSos: _sendSos,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

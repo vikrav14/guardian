@@ -18,20 +18,29 @@ const config = {
   dwellMinMinutes: Number(process.env.DWELL_MIN_MINUTES || 10),
   journeyIdleMinutes: Number(process.env.JOURNEY_IDLE_MINUTES || 15),
 
-  // ReachFar V28C: 10-digit protocol id → 15-digit IMEI = prefix + id[3..9] + suffix digit.
+  // V52: 10-digit protocol id → configured 15-digit hardware IMEI.
   // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
   imeiPrefix: process.env.IMEI_PREFIX || '8613970',
   imeiDefaultSuffix: process.env.IMEI_DEFAULT_SUFFIX || '0',
   // Optional overrides when suffix digit differs: "9705313987:861397053139877"
   imeiMap: process.env.IMEI_MAP || '',
 
-  // Twilio (optional — without these, notifications are logged only)
+  // Optional carrier SMS. WhatsApp is Meta Cloud API only.
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || '',
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || '',
   twilioFromSms: process.env.TWILIO_FROM_SMS || '',
-  twilioWhatsAppFrom: process.env.TWILIO_WHATSAPP_FROM || '',
   notifySms: String(process.env.NOTIFY_SMS || 'true').toLowerCase() === 'true',
   notifyWhatsApp: String(process.env.NOTIFY_WHATSAPP || 'true').toLowerCase() === 'true',
+
+  // Meta WhatsApp Cloud API.
+  // Keep the access token only in gateway/.env or deployment secrets â€” never commit it.
+  metaWhatsAppAccessToken: process.env.META_WHATSAPP_ACCESS_TOKEN || '',
+  metaWhatsAppPhoneNumberId: process.env.META_WHATSAPP_PHONE_NUMBER_ID || '',
+  metaWhatsAppWabaId: process.env.META_WHATSAPP_WABA_ID || '',
+  metaGraphVersion: process.env.META_GRAPH_VERSION || 'v25.0',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
+  metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
@@ -41,7 +50,7 @@ const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
 
   // Layer 1 intelligence (rule-based device insights)
   intelligenceOfflineMinutes: Number(process.env.INTELLIGENCE_OFFLINE_MINUTES || 10),
@@ -57,20 +66,26 @@ const config = {
    */
   tcpIdleMinutes: Number(process.env.TCP_IDLE_MINUTES || 12),
 
+  /** Grace after a packet-silence CR probe before the socket is declared dead. */
+  tcpRecoveryGraceSeconds: Number(process.env.TCP_RECOVERY_GRACE_SECONDS || 90),
+
+  /** Kernel TCP keepalive protects otherwise healthy low-traffic watch sockets. */
+  tcpKeepAliveInitialDelayMs: Number(
+    process.env.TCP_KEEPALIVE_INITIAL_DELAY_MS || 60_000
+  ),
+
+  /** Request a fresh location when an active outing has no location observation. */
+  outingLocationStaleSeconds: Number(
+    process.env.OUTING_LOCATION_STALE_SECONDS || 150
+  ),
+  outingLocationProbeIntervalSeconds: Number(
+    process.env.OUTING_LOCATION_PROBE_INTERVAL_SECONDS || 180
+  ),
+
   /** Must exceed writeGateHeartbeatMinutes — heartbeats can be write-gated that long. */
   connectionStaleMinutes: Math.max(
     Number(process.env.CONNECTION_STALE_MINUTES || 10),
     Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) + 2
-  ),
-
-  /**
-   * Close zombie TCP with no packets. Keep in lockstep with tcpIdleMinutes so we
-   * never kill a live quiet session early and flash Offline for the family.
-   */
-  tcpSilentSeconds: Math.max(
-    Number(process.env.TCP_SILENT_SECONDS || 0) ||
-      Number(process.env.TCP_IDLE_MINUTES || 12) * 60,
-    Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5) * 60
   ),
 
   /** Wait before writing offline after TCP close — absorbs ngrok/carrier reconnect blips. */
@@ -86,6 +101,51 @@ const config = {
 
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
+
+  // OpenWeatherMap API — weather context for device locations
+  openWeatherMapKey: process.env.OPEN_WEATHER_MAP_KEY || '',
+
+  // Context intelligence — hourly, observe-only by default. This never sends WhatsApp.
+  contextIntelligenceEnabled:
+    String(process.env.CONTEXT_INTELLIGENCE_ENABLED || 'false').toLowerCase() === 'true',
+  contextLlmJudgmentEnabled:
+    String(process.env.CONTEXT_LLM_JUDGMENT_ENABLED || 'true').toLowerCase() === 'true',
+  contextPollMinutes: Math.max(Number(process.env.CONTEXT_POLL_MINUTES || 60), 60),
+  contextWeatherCacheMinutes: Math.max(
+    Number(process.env.CONTEXT_WEATHER_CACHE_MINUTES || 60),
+    60
+  ),
+  contextMaxDevicesPerSweep: Math.max(
+    1,
+    Number(process.env.CONTEXT_MAX_DEVICES_PER_SWEEP || 1000)
+  ),
+  contextConcurrency: Math.max(1, Number(process.env.CONTEXT_CONCURRENCY || 5)),
+  contextRunOnStartup:
+    String(process.env.CONTEXT_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextPersistObservations:
+    String(process.env.CONTEXT_PERSIST_OBSERVATIONS || 'false').toLowerCase() === 'true',
+
+  // Official Mauritius Meteorological Services CAP feed. This source remains
+  // observe-only: polling and evaluation never imply notification delivery.
+  contextCapEnabled:
+    String(process.env.CONTEXT_CAP_ENABLED || 'false').toLowerCase() === 'true',
+  contextCapFeedUrl:
+    process.env.CONTEXT_CAP_FEED_URL ||
+    'https://cap-sources.s3.amazonaws.com/mu-mms-en/rss.xml',
+  contextCapPollMinutes: Math.max(
+    5,
+    Number(process.env.CONTEXT_CAP_POLL_MINUTES || 5)
+  ),
+  contextCapMaxItems: Math.max(
+    1,
+    Math.min(100, Number(process.env.CONTEXT_CAP_MAX_ITEMS || 50))
+  ),
+  contextCapRunOnStartup:
+    String(process.env.CONTEXT_CAP_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextCapPersistEvents:
+    String(process.env.CONTEXT_CAP_PERSIST_EVENTS || 'false').toLowerCase() === 'true',
+  contextCapEvaluateDevices:
+    String(process.env.CONTEXT_CAP_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
 };
 
 module.exports = config;

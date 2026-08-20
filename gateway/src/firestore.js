@@ -1,6 +1,7 @@
 const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
+const { buildJourneyDocumentId } = require('./journey-id');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
 const { sendDeviceCommand } = require('./commands');
@@ -13,22 +14,41 @@ const {
 } = require('./intelligence');
 const { increment: incrementMetric, incrementAlert } = require('./ops-metrics/collector');
 const { reverseGeocodeToPlaceName } = require('./geolocate/google');
-const { listConnectedImeis, findSocketsForDevice, listSilentConnectedImeis } = require('./sessions');
+const {
+  enrichJourneyStopPlaceNames,
+  enrichJourneyPointPlaceNames,
+} = require('./journey-place-labels');
+const {
+  buildLocationProvenancePatch,
+  backfillLegacyLocationProvenance,
+} = require('./location-provenance');
+const { listConnectedImeis } = require('./sessions');
 const { hasPendingOffline } = require('./device-offline');
 const {
   connectionStaleMinutes,
   shouldReconcileStaleOnline,
 } = require('./device-presence');
+const { startPendingFamilyJoinWatcher } = require('./family-membership');
 
 let db = null;
 let enabled = false;
 let alertWatchUnsub = null;
 let commandWatchUnsub = null;
+const locationProvenanceSeeded = new Set();
 
-function initFirestore() {
+function initFirestore({ startWatchers = true } = {}) {
+  if (enabled) {
+    if (startWatchers) {
+      startPendingAlertWatcher();
+      startPendingCommandWatcher();
+      startPendingFamilyJoinWatcher(db);
+    }
+    return db;
+  }
+
   if (config.firestoreDisabled) {
     console.log('[firestore] disabled (FIRESTORE_DISABLED=true) — logging writes only');
-    return;
+    return null;
   }
 
   if (!config.firebaseProjectId) {
@@ -64,8 +84,12 @@ function initFirestore() {
   db = admin.firestore();
   enabled = true;
   console.log(`[firestore] connected to project ${config.firebaseProjectId}`);
-  startPendingAlertWatcher();
-  startPendingCommandWatcher();
+  if (startWatchers) {
+    startPendingAlertWatcher();
+    startPendingCommandWatcher();
+    startPendingFamilyJoinWatcher(db);
+  }
+  return db;
 }
 
 function getDb() {
@@ -141,6 +165,19 @@ async function upsertDevice(imei, patch = {}) {
         data.location = { ...data.location, placeLabel };
       }
     }
+
+    // Make every persisted fix self-contained and retain the most recent
+    // satellite and approximate observations independently. This prevents an
+    // indoor V packet from erasing the last A fix, and prevents a prior
+    // WiFi/LBS accuracy radius from leaking into a later GPS record.
+    Object.assign(
+      data,
+      buildLocationProvenancePatch(
+        data.location,
+        data.accuracySource || data.location.source,
+        data.location.gpsValid
+      )
+    );
   }
 
   if (!enabled) {
@@ -157,7 +194,20 @@ async function upsertDevice(imei, patch = {}) {
   }
 
   const ref = db.collection('devices').doc(canonicalImei);
+  if (data.location && !locationProvenanceSeeded.has(canonicalImei)) {
+    // One compatibility read per device and gateway process protects the
+    // rollout boundary. A legacy GPS location must be copied to
+    // lastSatelliteLocation before a newer indoor fallback replaces
+    // devices/{imei}.location.
+    const existingSnap = await ref.get();
+    const seeded = backfillLegacyLocationProvenance(
+      existingSnap.exists ? existingSnap.data() : null,
+      data
+    );
+    Object.assign(data, seeded);
+  }
   await ref.set(data, { merge: true });
+  if (data.location) locationProvenanceSeeded.add(canonicalImei);
   incrementMetric('firestoreWrites');
 }
 
@@ -192,17 +242,56 @@ async function appendSegment(imei, segment) {
 }
 
 async function appendJourney(imei, journey) {
+  const journeyId = buildJourneyDocumentId(imei, journey);
   const data = {
     ...journey,
+    journeyId,
     createdAt: nowTs(),
   };
 
   if (!enabled) {
-    console.log(`[firestore:dry-run] devices/${imei}/journeys`, JSON.stringify(data));
-    return null;
+    console.log(
+      `[firestore:dry-run] devices/${imei}/journeys/${journeyId}`,
+      JSON.stringify(data)
+    );
+    return journeyId;
   }
 
-  const ref = await db.collection('devices').doc(imei).collection('journeys').add(data);
+  const ref = db
+    .collection('devices')
+    .doc(imei)
+    .collection('journeys')
+    .doc(journeyId);
+
+  await ref.set(data, { merge: true });
+
+  // Persist the completed outing first so reverse geocoding can never delay it
+  // appearing in the app. Place labels are optional enrichment and arrive in
+  // a small follow-up merge when the provider is available.
+  const stops = await enrichJourneyStopPlaceNames(
+    journey.stops,
+    reverseGeocodeToPlaceName
+  );
+  const pointEvidence = await enrichJourneyPointPlaceNames(
+    journey,
+    reverseGeocodeToPlaceName
+  );
+  const stopsChanged = stops.some(
+    (stop, index) => stop.placeName !== journey.stops[index]?.placeName
+  );
+  const pointsChanged = pointEvidence.some(
+    (point, index) =>
+      point.placeName !== journey.pointEvidence?.[index]?.placeName
+  );
+  if (stopsChanged || pointsChanged) {
+    await ref.set(
+      {
+        ...(stopsChanged ? { stops } : {}),
+        ...(pointsChanged ? { pointEvidence } : {}),
+      },
+      { merge: true }
+    );
+  }
   return ref.id;
 }
 
@@ -217,7 +306,7 @@ function shouldNotify(alert) {
 // SMS/WhatsApp to emergency contacts stays reserved for the urgent subset.
 function shouldSms(alert) {
   const t = String(alert.type || '').toLowerCase();
-  return t === 'sos' || t === 'fall' || t === 'geofence_exit';
+  return t === 'sos' || t === 'fall';
 }
 
 async function deliverAlertNotifications(imei, alert, alertId) {
@@ -249,13 +338,30 @@ async function deliverAlertNotifications(imei, alert, alertId) {
   }
 
   try {
-    const tasks = [notifyGuardianDevices(db, imei, alert)];
-    if (shouldSms(alert)) tasks.push(notifyEmergencyContacts(db, imei, alert));
-    await Promise.all(tasks);
+    const pushPromise = notifyGuardianDevices(db, imei, alert);
+    const contactsPromise = shouldSms(alert)
+      ? notifyEmergencyContacts(db, imei, alert, { alertId })
+      : Promise.resolve(null);
+    const [pushResult, contactResult] = await Promise.all([
+      pushPromise,
+      contactsPromise,
+    ]);
+    const metaStatus = contactResult?.deliverySummary?.status || 'not_requested';
+    const pushSent = Number(pushResult?.sent || 0);
+    const notifyStatus = metaStatus === 'accepted'
+      ? 'accepted'
+      : metaStatus === 'failed'
+        ? (pushSent > 0 ? 'partial' : 'failed')
+        : 'sent';
     if (enabled && alertId) {
       await db.collection('alerts').doc(alertId).set(
         {
-          notifyStatus: 'sent',
+          notifyStatus,
+          notifyDispatch: {
+            pushSent,
+            metaStatus,
+            notificationLogId: contactResult?.notificationLogId || null,
+          },
           notifiedAt: nowTs(),
         },
         { merge: true }
@@ -489,28 +595,16 @@ async function reconcileStaleOnlineFlags() {
   if (!db || !enabled) return 0;
 
   const activeImeis = listConnectedImeis();
-  const silentImeis = listSilentConnectedImeis(config.tcpSilentSeconds * 1000);
   const staleMinutes = connectionStaleMinutes(config);
   const snap = await db.collection('devices').where('online', '==', true).get();
   let cleared = 0;
-
-  for (const silentImei of silentImeis) {
-    for (const { socket } of findSocketsForDevice(silentImei)) {
-      console.log(`[intelligence] closing silent TCP for ${silentImei} (no packets)`);
-      try {
-        socket.destroy();
-      } catch (_) {
-        /* ignore */
-      }
-    }
-  }
 
   for (const doc of snap.docs) {
     if (hasPendingOffline(doc.id)) continue;
 
     const device = doc.data();
-    // Any open TCP counts as connected. Silent sockets are closed above; do not
-    // also force offline here while the socket is still registered.
+    // Session recovery owns probing and socket closure. The Firestore monitor
+    // must never race it by destroying a socket without first requesting CR.
     if (activeImeis.has(doc.id)) continue;
 
     if (

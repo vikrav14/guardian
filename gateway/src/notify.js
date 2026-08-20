@@ -1,4 +1,18 @@
 const config = require('./config');
+const { buildSafetyMessage } = require('./safety-message');
+const {
+  prepareSosWhatsApp,
+  sendPreparedSosWhatsApp,
+} = require('./sos-whatsapp');
+const {
+  prepareFallWhatsApp,
+  sendPreparedFallWhatsApp,
+} = require('./fall-whatsapp');
+const { deviceAtFall } = require('./fall-location-snapshot');
+const { summarizeMetaDelivery } = require('./meta-delivery');
+const {
+  FEATURE, hasEntitlement, loadEntitlementsForUser,
+} = require('./entitlements');
 
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
@@ -8,6 +22,8 @@ async function findContactsForImei(db, imei) {
   const contacts = [];
   for (const doc of snap.docs) {
     const data = doc.data() || {};
+    const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
+    if (!hasEntitlement(entitlements, FEATURE.SOS_ALERTS)) continue;
     const list = Array.isArray(data.emergencyContacts) ? data.emergencyContacts : [];
     for (const c of list) {
       if (!c || !c.phone) continue;
@@ -16,6 +32,7 @@ async function findContactsForImei(db, imei) {
         phone: String(c.phone).trim(),
         whatsapp: c.whatsapp ? String(c.whatsapp).trim() : null,
         guardianUid: doc.id,
+        entitlements,
       });
     }
   }
@@ -64,32 +81,64 @@ async function sendSms(to, body) {
   });
 }
 
-async function sendWhatsApp(to, body) {
-  if (!config.twilioWhatsAppFrom) {
-    return { ok: false, skipped: true, reason: 'TWILIO_WHATSAPP_FROM missing' };
+function buildMessage(imei, alert, device = null) {
+  const normalizedType = String(alert?.type || '').trim().toLowerCase();
+  if (normalizedType === 'sos' || normalizedType === 'fall') {
+    const safetyDevice = normalizedType === 'fall'
+      ? deviceAtFall(device || {}, alert || {})
+      : (device || {});
+    return buildSafetyMessage({
+      type: normalizedType,
+      device: safetyDevice,
+      alert: alert || {},
+    });
   }
-  const dest = normalizeE164(to);
-  return twilioRequest('/Messages.json', {
-    To: dest.startsWith('whatsapp:') ? dest : `whatsapp:${dest}`,
-    From: config.twilioWhatsAppFrom,
-    Body: body,
-  });
+
+  const type = String(alert?.type || 'alert').toUpperCase();
+  const msg = alert?.message || 'Guardian alert';
+  return `Guardian ${type}: ${msg}`;
 }
 
-function buildMessage(imei, alert) {
-  const type = (alert.type || 'alert').toUpperCase();
-  const msg = alert.message || 'Guardian alert';
-  return `Guardian ${type}: ${msg}\nDevice IMEI ${imei}`;
+async function loadDeviceForNotification(db, imei) {
+  if (!db) return null;
+  try {
+    const snap = await db.collection('devices').doc(imei).get();
+    return snap.exists ? { imei, ...(snap.data() || {}) } : null;
+  } catch (err) {
+    console.error(`[notify] device context lookup failed for ${imei}: ${err.message}`);
+    return null;
+  }
 }
 
 /**
  * Notify all emergency contacts linked to this IMEI.
- * Uses Twilio when configured; always writes a notificationLogs row.
+ * Carrier SMS is optional; WhatsApp uses Meta Cloud API only. Every attempt is
+ * written to notificationLogs so Meta delivery webhooks can update it later.
  */
-async function notifyEmergencyContacts(db, imei, alert) {
+async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {}) {
   const contacts = await findContactsForImei(db, imei);
-  const text = buildMessage(imei, alert);
+  const device = await loadDeviceForNotification(db, imei);
+  const text = buildMessage(imei, alert, device);
   const results = [];
+  const isSos = String(alert?.type || '').toLowerCase() === 'sos';
+  const isFall = String(alert?.type || '').toLowerCase() === 'fall';
+
+  // Cost-smart: compose once per SOS event, then fan the same validated
+  // Meta template out to every emergency contact.
+  const sosPreparationPromise =
+    isSos && config.notifyWhatsApp &&
+      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
+      ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
+          error: err.message,
+        }))
+      : null;
+  const fallPreparationPromise =
+    isFall && config.notifyWhatsApp &&
+      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
+      ? prepareFallWhatsApp({ device: device || {}, alert }).catch((err) => ({
+          error: err.message,
+        }))
+      : null;
 
   if (contacts.length === 0) {
     console.log(`[notify] no emergency contacts for IMEI ${imei}`);
@@ -105,10 +154,58 @@ async function notifyEmergencyContacts(db, imei, alert) {
     }
 
     const waTarget = c.whatsapp || c.phone;
-    if (config.notifyWhatsApp) {
-      entry.channels.whatsapp = await sendWhatsApp(waTarget, text);
+    if (
+      config.notifyWhatsApp &&
+      hasEntitlement(c.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS)
+    ) {
+      if (isSos && sosPreparationPromise) {
+        const prepared = await sosPreparationPromise;
+        if (prepared?.error) {
+          entry.channels.whatsapp = {
+            ok: false,
+            provider: 'meta',
+            deliveryStatus: 'failed',
+            reason: 'SOS_TEMPLATE_PREPARATION_FAILED',
+            error: prepared.error,
+            fallbackUsed: false,
+          };
+        } else {
+          entry.channels.whatsapp = await sendPreparedSosWhatsApp(
+            waTarget,
+            prepared
+          );
+        }
+      } else if (isFall && fallPreparationPromise) {
+        const prepared = await fallPreparationPromise;
+        if (prepared?.error) {
+          entry.channels.whatsapp = {
+              ok: false,
+              provider: 'meta',
+              deliveryStatus: 'failed',
+              reason: 'FALL_TEMPLATE_PREPARATION_FAILED',
+              error: prepared.error,
+              fallbackUsed: false,
+          };
+        } else {
+          entry.channels.whatsapp = await sendPreparedFallWhatsApp(
+            waTarget,
+            prepared
+          );
+        }
+      } else {
+        entry.channels.whatsapp = {
+          ok: false,
+          skipped: true,
+          provider: 'meta',
+          reason: 'UNSUPPORTED_SAFETY_TEMPLATE',
+        };
+      }
     } else {
-      entry.channels.whatsapp = { ok: false, skipped: true, reason: 'NOTIFY_WHATSAPP=false' };
+      entry.channels.whatsapp = {
+        ok: false,
+        skipped: true,
+        reason: config.notifyWhatsApp ? 'PLAN_EXCLUDES_WHATSAPP' : 'NOTIFY_WHATSAPP=false',
+      };
     }
 
     // Always log intent so you can see fan-out without Twilio.
@@ -119,18 +216,28 @@ async function notifyEmergencyContacts(db, imei, alert) {
     results.push(entry);
   }
 
+  const metaMessageIds = results
+    .map((entry) => entry.channels?.whatsapp?.messageId)
+    .filter(Boolean);
+  const deliverySummary = summarizeMetaDelivery(results);
+  let notificationLogId = null;
   if (db) {
-    await db.collection('notificationLogs').add({
+    const ref = await db.collection('notificationLogs').add({
       imei,
+      alertId,
       alertType: alert.type || null,
       message: text,
       contactCount: contacts.length,
       results,
+      metaMessageIds,
+      deliveryStatus: deliverySummary.status,
+      deliverySummary,
       createdAt: adminTimestamp(),
     });
+    notificationLogId = ref?.id || null;
   }
 
-  return results;
+  return { results, notificationLogId, deliverySummary };
 }
 
 function adminTimestamp() {
@@ -146,7 +253,7 @@ module.exports = {
   notifyEmergencyContacts,
   findContactsForImei,
   buildMessage,
+  loadDeviceForNotification,
   normalizeE164,
   sendSms,
-  sendWhatsApp,
 };

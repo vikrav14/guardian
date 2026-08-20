@@ -51,16 +51,13 @@ void main() {
     expect(GuardianThemeId.allThemes, contains(GuardianThemeId.sugarBeach));
   });
 
-  test('buildGuardianTheme applies semantic colors per theme', () {
-    final leMorne = buildGuardianTheme(themeId: GuardianThemeId.leMorne);
+  test('theme identifiers map to their semantic color palettes', () {
     expect(
-      leMorne.extension<GuardianThemeColors>()?.canvas,
+      GuardianThemeId.leMorne.semanticColors.canvas,
       GuardianThemeColors.leMorne.canvas,
     );
-
-    final chamarel = buildGuardianTheme(themeId: GuardianThemeId.chamarel);
     expect(
-      chamarel.extension<GuardianThemeColors>()?.surfaceMuted,
+      GuardianThemeId.chamarel.semanticColors.surfaceMuted,
       GuardianThemeColors.chamarel.surfaceMuted,
     );
   });

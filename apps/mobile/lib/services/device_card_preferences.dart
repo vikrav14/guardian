@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persists whether the map floating device card is minimized per pendant IMEI.
+/// Persists whether the map floating device card is minimized per watch IMEI.
 class DeviceCardPreferences {
   static String _keyFor(String imei) => 'map_device_card_minimized_$imei';
 

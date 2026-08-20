@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
+    "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "test": "node --test"
   },
   "engines": {
@@ -17,6 +18,8 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "dotenv": "^16.4.7",
-    "firebase-admin": "^13.0.2"
+    "fast-xml-parser": "^5.10.1",
+    "firebase-admin": "^13.0.2",
+    "nodemailer": "^9.0.3"
   }
 }

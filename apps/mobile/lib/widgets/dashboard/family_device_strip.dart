@@ -96,7 +96,7 @@ class _FamilyDeviceChip extends StatelessWidget {
     };
 
     final whereLine = deviceLocationStatusLabel(device);
-    final detail = device.location?.isValid == true
+    final detail = device.displayLocation?.isValid == true
         ? '$whereLine · ${deviceUpdatedLabel(device, now: now)}'
         : whereLine;
 
@@ -146,7 +146,9 @@ class _FamilyDeviceChip extends StatelessWidget {
                       style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: 13,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),

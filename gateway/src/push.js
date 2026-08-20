@@ -1,14 +1,28 @@
 const admin = require('firebase-admin');
+const {
+  FEATURE, hasEntitlement, loadEntitlementsForUser,
+} = require('./entitlements');
+
+function requiredFeatureForAlert(alert) {
+  const type = String(alert?.type || '').toLowerCase();
+  if (type === 'sos' || type === 'fall') return FEATURE.SOS_ALERTS;
+  if (type === 'low_battery') return FEATURE.BATTERY_ALERTS;
+  if (type === 'geofence_exit' || type === 'geofence_enter') return FEATURE.SAFE_ZONES;
+  return FEATURE.PROACTIVE_SMART_NOTIFICATIONS;
+}
 
 /**
  * Find guardian users linked to this IMEI who have at least one FCM token
  * registered (i.e. have the app installed and notifications enabled).
  */
-async function findRecipientsForImei(db, imei) {
+async function findRecipientsForImei(db, imei, alert = {}) {
   const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
   const recipients = [];
   for (const doc of snap.docs) {
-    const tokens = Array.isArray(doc.data()?.fcmTokens) ? doc.data().fcmTokens : [];
+    const data = doc.data() || {};
+    const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
+    if (!hasEntitlement(entitlements, requiredFeatureForAlert(alert))) continue;
+    const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
     if (tokens.length) recipients.push({ uid: doc.id, tokens });
   }
   return recipients;
@@ -39,7 +53,7 @@ function titleFor(alert) {
 async function notifyGuardianDevices(db, imei, alert) {
   if (!db) return { sent: 0, pruned: 0 };
 
-  const recipients = await findRecipientsForImei(db, imei);
+  const recipients = await findRecipientsForImei(db, imei, alert);
   const allTokens = recipients.flatMap((r) => r.tokens);
   if (!allTokens.length) return { sent: 0, pruned: 0 };
 
@@ -91,4 +105,5 @@ async function notifyGuardianDevices(db, imei, alert) {
 
 module.exports = {
   notifyGuardianDevices,
+  requiredFeatureForAlert,
 };

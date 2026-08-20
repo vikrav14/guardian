@@ -70,7 +70,9 @@ class _LoginPageState extends State<LoginPage> {
     });
     try {
       await _auth.sendPasswordResetEmail(email);
-      setState(() => _resetSent = 'Password reset email sent — check your inbox.');
+      setState(
+        () => _resetSent = 'Password reset email sent — check your inbox.',
+      );
     } on FirebaseAuthException catch (e) {
       setState(() => _error = _friendlyAuthError(e));
     } catch (e) {
@@ -132,11 +134,17 @@ class _LoginPageState extends State<LoginPage> {
                       showShadow: false,
                     ),
                     const SizedBox(height: 14),
-                    Text('Guardian', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Guardian',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 4),
                     const Text(
                       'Keep watch over the people who matter',
-                      style: TextStyle(fontSize: 13, color: GuardianColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: GuardianColors.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     Container(
@@ -156,35 +164,50 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 14),
                             const Text(
                               'Display name',
-                              style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: GuardianColors.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 5),
                             TextFormField(
                               controller: _name,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(hintText: 'Your name'),
+                              decoration: const InputDecoration(
+                                hintText: 'Your name',
+                              ),
                             ),
                           ],
                           const SizedBox(height: 14),
                           const Text(
                             'Email',
-                            style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: GuardianColors.textSecondary,
+                            ),
                           ),
                           const SizedBox(height: 5),
                           TextFormField(
                             controller: _email,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(hintText: 'name@family.com'),
+                            decoration: const InputDecoration(
+                              hintText: 'name@family.com',
+                            ),
                             validator: (v) {
-                              if (v == null || !v.contains('@')) return 'Enter a valid email';
+                              if (v == null || !v.contains('@')) {
+                                return 'Enter a valid email';
+                              }
                               return null;
                             },
                           ),
                           const SizedBox(height: 14),
                           const Text(
                             'Password',
-                            style: TextStyle(fontSize: 12, color: GuardianColors.textSecondary),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: GuardianColors.textSecondary,
+                            ),
                           ),
                           const SizedBox(height: 5),
                           TextFormField(
@@ -196,14 +219,19 @@ class _LoginPageState extends State<LoginPage> {
                               hintText: '••••••••',
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscure ? Icons.visibility_off : Icons.visibility,
+                                  _obscure
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   size: 18,
                                 ),
-                                onPressed: () => setState(() => _obscure = !_obscure),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
                               ),
                             ),
                             validator: (v) {
-                              if (v == null || v.length < 6) return 'At least 6 characters';
+                              if (v == null || v.length < 6) {
+                                return 'At least 6 characters';
+                              }
                               return null;
                             },
                           ),
@@ -213,9 +241,13 @@ class _LoginPageState extends State<LoginPage> {
                               child: TextButton(
                                 onPressed: _busy ? null : _resetPassword,
                                 style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 0,
+                                    vertical: 4,
+                                  ),
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: const Text(
                                   'Forgot password?',
@@ -232,14 +264,20 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 12),
                             Text(
                               _resetSent!,
-                              style: const TextStyle(fontSize: 12, color: GuardianColors.safeText),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: GuardianColors.safeText,
+                              ),
                             ),
                           ],
                           if (_error != null) ...[
                             const SizedBox(height: 12),
                             Text(
                               _error!,
-                              style: const TextStyle(fontSize: 12, color: GuardianColors.danger),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: GuardianColors.danger,
+                              ),
                             ),
                           ],
                           const SizedBox(height: 18),
@@ -256,7 +294,11 @@ class _LoginPageState extends State<LoginPage> {
                                         color: Colors.white,
                                       ),
                                     )
-                                  : Text(_registerMode ? 'Create account' : 'Sign in'),
+                                  : Text(
+                                      _registerMode
+                                          ? 'Create account'
+                                          : 'Sign in',
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -265,10 +307,10 @@ class _LoginPageState extends State<LoginPage> {
                               onPressed: _busy
                                   ? null
                                   : () => setState(() {
-                                        _registerMode = !_registerMode;
-                                        _error = null;
-                                        _resetSent = null;
-                                      }),
+                                      _registerMode = !_registerMode;
+                                      _error = null;
+                                      _resetSent = null;
+                                    }),
                               child: Text(
                                 _registerMode
                                     ? 'Already have an account? Sign in'

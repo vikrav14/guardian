@@ -22,7 +22,11 @@ abstract final class GuardianTypography {
         fontWeight: FontWeight.w700,
         color: primary,
       ),
-      bodyMedium: GoogleFonts.manrope(fontSize: 13, height: 1.4, color: secondary),
+      bodyMedium: GoogleFonts.manrope(
+        fontSize: 13,
+        height: 1.4,
+        color: secondary,
+      ),
       labelSmall: GoogleFonts.inter(fontSize: 11, color: secondary),
     );
   }

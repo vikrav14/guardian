@@ -90,7 +90,8 @@ class _PulsingDot extends StatefulWidget {
   State<_PulsingDot> createState() => _PulsingDotState();
 }
 
-class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
@@ -118,7 +119,9 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
           width: 8 * scale,
           height: 8 * scale,
           decoration: BoxDecoration(
-            color: widget.color.withValues(alpha: 1.0 - _controller.value * 0.3),
+            color: widget.color.withValues(
+              alpha: 1.0 - _controller.value * 0.3,
+            ),
             shape: BoxShape.circle,
           ),
           child: child,

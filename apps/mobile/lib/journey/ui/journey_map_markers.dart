@@ -31,7 +31,8 @@ Set<Marker> buildJourneyColoredMarkers(
 
   var stopIndex = 0;
   for (final event in replay.events) {
-    if (event.type != JourneyEventType.stopped && event.type != JourneyEventType.dwell) {
+    if (event.type != JourneyEventType.stopped &&
+        event.type != JourneyEventType.dwell) {
       continue;
     }
     if (event.startIndex >= replay.rawPoints.length) continue;
@@ -66,7 +67,8 @@ Set<Marker> buildJourneyColoredMarkers(
       Marker(
         markerId: const MarkerId('replay'),
         position: LatLng(current.lat, current.lng),
-        icon: replayAvatarIcon ??
+        icon:
+            replayAvatarIcon ??
             BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
         rotation: usesAvatar ? 0 : bearing ?? 0,
         flat: !usesAvatar,

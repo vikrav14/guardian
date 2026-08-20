@@ -6,11 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocaleService {
   static const _prefsKey = 'guardian_locale';
 
-  static const supportedLocales = [
-    Locale('en'),
-    Locale('fr'),
-    Locale('mfe'),
-  ];
+  static const supportedLocales = [Locale('en'), Locale('fr'), Locale('mfe')];
 
   static const localeNames = {
     'en': 'English',

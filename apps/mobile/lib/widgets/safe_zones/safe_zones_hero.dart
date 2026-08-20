@@ -53,10 +53,7 @@ class SafeZonesHero extends StatelessWidget {
           const SizedBox(height: GuardianSpacing.xxs),
           Text(
             summary.detail,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
           ),
           if (summary.lastEventLabel != null) ...[
             const SizedBox(height: GuardianSpacing.sm),
@@ -81,10 +78,7 @@ class SafeZonesHero extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       relativeTimeLabel(summary.lastEventAt),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
                     ),
                   ],
                 ],

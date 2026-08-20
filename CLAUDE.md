@@ -1,9 +1,10 @@
 # Guardian
 
-A GPS safety app for families in Mauritius. A wearable pendant (V28C, Shenzhen
-Reachfar — GT06-family protocol) is worn by a child, an elderly relative, or
-anyone who needs tracking and an SOS button. A Flutter app lets a "guardian"
-see the pendant's location, get alerts, and manage everything from one place.
+A GPS safety app for families in Mauritius. Guardian supports one production
+hardware model: the Shenzhen ReachFar **V52 watch**. It is worn by a child, an
+elderly relative, or anyone who needs tracking and an SOS button. A Flutter
+app lets a guardian see honest location provenance, receive alerts and manage
+the family service.
 
 ## Architecture
 
@@ -18,8 +19,9 @@ see the pendant's location, get alerts, and manage everything from one place.
   and runs a Claude-powered WhatsApp assistant (`src/assistant/`).
 - `firestore/` — `SCHEMA.md` (source of truth for the data model) and
   `rules.example` (the real security rules — deploy via `firebase.json`).
-- `docs/reference/` — vendor PDFs (V28C datasheet, SMS command reference).
-  These are the *only* commands we have vendor confirmation for.
+- `docs/reference/` — raw vendor PDFs gathered during evaluation. Older-model
+  files are historical evidence only and must never override V52 captures,
+  acceptance results or V52-only tests.
 
 ## Where things are tracked
 
@@ -38,21 +40,19 @@ see the pendant's location, get alerts, and manage everything from one place.
 
 ## Hard rule: never fabricate hardware commands
 
-The pendant's SMS command set is only partially documented. `docs/reference/
-Switch-Server-SMS-Commands.pdf` (the actual vendor doc for this exact device)
-covers: server switch, SOS numbers, center number, status check, APN, IMEI
-change. That's it.
+The V52 command set is only partially proven. `gateway/src/commands.js` must
+contain V52 syntax only. Keep two evidence levels separate:
 
-`voice_monitor` (`monitor,<phone>#`) and `ring_to_find` (`find#`) in
-`gateway/src/commands.js` are borrowed from a third-party community source
-(github.com/matthiasmo/RF-V28) documenting a *related but different* hardware
-model (RF-V28, not this V28C) — flagged unverified in code comments and in
-the app UI. Treat them as unconfirmed until tested against real hardware.
+- **Live-proven V52 SMS provisioning:** center number, SOS1 and `ts#`.
+- **Documented V52 SMS provisioning:** SOS2/SOS3 use the same slot syntax but
+  still need explicit real-device acceptance.
+- **Documented V52 TCP data commands:** `MONITOR`, `FIND`, `FALLDOWN`, `LSSET`,
+  `TAKEPILLS` and `UPLOAD`. These require a live V52 session and must not gain
+  a guessed SMS fallback. A documented command is not a product promise until
+  its real-device acceptance passes.
 
-Remote photo capture, pill reminders, and pedometer/step-count have **no**
-known command syntax or protocol packet format anywhere we could find. Do not
-guess at these — verify with the vendor first. See GitHub issues #28, #29,
-#12.
+Never import older-model alarm bits, shortened packet layouts or community
+SMS commands into production. Never change APN or IMEI from an example value.
 
 ## Known gaps (see GitHub issues for the full, current list)
 
@@ -80,6 +80,9 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
   they're being listened to — a real privacy/consent question, not just a
   testing caveat. Worth a deliberate decision before this is used on a real
   person.
+- `MONITOR` and `FIND` have V52 protocol syntax and correct TCP framing, but
+  remain hardware-acceptance items. Do not claim call completion, audible-ring
+  duration or remote stop behaviour without a real V52 result.
 
 ## Dev setup
 
@@ -108,3 +111,45 @@ guess at these — verify with the vendor first. See GitHub issues #28, #29,
 - Tests use `fake_cloud_firestore` + `firebase_auth_mocks` on the Flutter
   side (real Firestore-shaped fakes, no platform channels needed) and
   `node:test` on the gateway side — no other test frameworks.
+
+## V52 Protocol Contract
+
+Frames use `[CS*protocolId*LEN*command,data...]`. The tracker state is the
+eight-character hexadecimal value at fixed argument index 15 in the full V52
+LTE layout. It is not the last LTE-tail value.
+
+| V52 bit | Meaning |
+|---------|---------|
+| 16 | SOS alarm |
+| 17 | Low-battery alarm |
+| 18 | Safe-zone exit |
+| 19 | Safe-zone entry |
+| 20 | Bracelet removal |
+| 22 | Fall alarm |
+
+`gateway/src/protocol/gt06.js` deliberately rejects bit 21 as fall and rejects
+shortened legacy alarm layouts. Do not weaken these guards to accommodate a
+mixed-generation example document.
+
+### Commands: TCP vs SMS Routing
+
+- **TCP-only V52 commands:** `MONITOR`, `FIND`, fall settings, medication
+  reminders and reporting interval. A live connection is mandatory.
+- **Live-proven SMS provisioning:** center number, SOS slots and `ts#` status.
+
+See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
+
+### Remaining V52 Acceptance Items
+
+1. Trigger a real fall and confirm bit 22 plus frozen event-location delivery.
+2. Verify `MONITOR,<phone>` callback behaviour and consent UX on the real V52.
+3. Verify `FIND` sound, duration and stop behaviour on the real V52.
+4. Test a canonical medication reminder end-to-end on the watch.
+5. Tune safe-zone hysteresis using outdoor/indoor V52 walks; approximate
+   Wi-Fi/LBS observations must not create false boundary transitions.
+
+Record results in `docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. A vendor claim
+or unit test alone never marks a hardware promise Proven.
+
+See `docs/GUARDIAN_V52_COMMAND_EVIDENCE.md` for the command-by-command evidence
+ledger and exact transports.

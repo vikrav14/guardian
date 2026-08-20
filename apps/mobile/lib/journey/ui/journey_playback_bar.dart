@@ -19,11 +19,11 @@ class _JourneyPlaybackBarState extends State<JourneyPlaybackBar> {
   var _expanded = false;
 
   List<JourneyEvent> get _scrubberEvents => widget.replay.events.where((event) {
-        return event.type == JourneyEventType.leftHome ||
-            event.type == JourneyEventType.vehicle ||
-            event.type == JourneyEventType.stopped ||
-            event.type == JourneyEventType.arrived;
-      }).toList();
+    return event.type == JourneyEventType.leftHome ||
+        event.type == JourneyEventType.vehicle ||
+        event.type == JourneyEventType.stopped ||
+        event.type == JourneyEventType.arrived;
+  }).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +33,10 @@ class _JourneyPlaybackBarState extends State<JourneyPlaybackBar> {
         final replay = widget.replay;
         final start = replay.stats.startTime;
         final end = replay.stats.endTime;
-        final currentTime = interpolateJourneyTime(replay.rawPoints, replay.progress);
+        final currentTime = interpolateJourneyTime(
+          replay.rawPoints,
+          replay.progress,
+        );
 
         return AnimatedContainer(
           duration: JourneyScreenTheme.animationDuration,
@@ -45,7 +48,9 @@ class _JourneyPlaybackBarState extends State<JourneyPlaybackBar> {
             bottom: 0,
           ),
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-          decoration: JourneyScreenTheme.glassOverlay(radius: JourneyScreenTheme.radiusLarge),
+          decoration: JourneyScreenTheme.glassOverlay(
+            radius: JourneyScreenTheme.radiusLarge,
+          ),
           child: _expanded
               ? Column(
                   mainAxisSize: MainAxisSize.min,
@@ -68,7 +73,11 @@ class _JourneyPlaybackBarState extends State<JourneyPlaybackBar> {
                           tooltip: 'Collapse',
                           visualDensity: VisualDensity.compact,
                           onPressed: () => setState(() => _expanded = false),
-                          icon: const Icon(Icons.expand_more_rounded, color: JourneyScreenTheme.textMuted, size: 20),
+                          icon: const Icon(
+                            Icons.expand_more_rounded,
+                            color: JourneyScreenTheme.textMuted,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
@@ -121,7 +130,9 @@ class _CollapsedRow extends StatelessWidget {
                 width: JourneyScreenTheme.minTouchTarget,
                 height: JourneyScreenTheme.minTouchTarget,
                 child: Icon(
-                  replay.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  replay.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
                   color: JourneyScreenTheme.accent,
                   size: 32,
                 ),
@@ -154,7 +165,11 @@ class _CollapsedRow extends StatelessWidget {
             tooltip: 'Expand controls',
             visualDensity: VisualDensity.compact,
             onPressed: onExpand,
-            icon: const Icon(Icons.expand_less_rounded, color: JourneyScreenTheme.textMuted, size: 20),
+            icon: const Icon(
+              Icons.expand_less_rounded,
+              color: JourneyScreenTheme.textMuted,
+              size: 20,
+            ),
           ),
         ],
       ),
@@ -176,13 +191,21 @@ class _ExpandedControls extends StatelessWidget {
           tooltip: 'Previous event',
           visualDensity: VisualDensity.compact,
           onPressed: replay.stepBackward,
-          icon: const Icon(Icons.fast_rewind_rounded, size: 20, color: JourneyScreenTheme.textPrimary),
+          icon: const Icon(
+            Icons.fast_rewind_rounded,
+            size: 20,
+            color: JourneyScreenTheme.textPrimary,
+          ),
         ),
         IconButton(
           tooltip: 'Skip to start',
           visualDensity: VisualDensity.compact,
           onPressed: replay.skipToStart,
-          icon: const Icon(Icons.skip_previous_rounded, size: 22, color: JourneyScreenTheme.textPrimary),
+          icon: const Icon(
+            Icons.skip_previous_rounded,
+            size: 22,
+            color: JourneyScreenTheme.textPrimary,
+          ),
         ),
         IconButton(
           tooltip: replay.isPlaying ? 'Pause' : 'Play',
@@ -197,13 +220,21 @@ class _ExpandedControls extends StatelessWidget {
           tooltip: 'Skip to end',
           visualDensity: VisualDensity.compact,
           onPressed: replay.skipToEnd,
-          icon: const Icon(Icons.skip_next_rounded, size: 22, color: JourneyScreenTheme.textPrimary),
+          icon: const Icon(
+            Icons.skip_next_rounded,
+            size: 22,
+            color: JourneyScreenTheme.textPrimary,
+          ),
         ),
         IconButton(
           tooltip: 'Next event',
           visualDensity: VisualDensity.compact,
           onPressed: replay.stepForward,
-          icon: const Icon(Icons.fast_forward_rounded, size: 20, color: JourneyScreenTheme.textPrimary),
+          icon: const Icon(
+            Icons.fast_forward_rounded,
+            size: 20,
+            color: JourneyScreenTheme.textPrimary,
+          ),
         ),
       ],
     );
@@ -250,8 +281,11 @@ class _TimelineRow extends StatelessWidget {
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 3,
                         activeTrackColor: JourneyScreenTheme.accent,
-                        inactiveTrackColor: JourneyScreenTheme.textMuted.withValues(alpha: 0.35),
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        inactiveTrackColor: JourneyScreenTheme.textMuted
+                            .withValues(alpha: 0.35),
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6,
+                        ),
                         overlayShape: SliderComponentShape.noOverlay,
                       ),
                       child: Slider(
@@ -264,7 +298,8 @@ class _TimelineRow extends StatelessWidget {
                     ),
                     ...scrubberEvents.map((event) {
                       final left =
-                          eventProgress(event, replay.rawPoints.length) * constraints.maxWidth;
+                          eventProgress(event, replay.rawPoints.length) *
+                          constraints.maxWidth;
                       return Positioned(
                         left: left.clamp(0, constraints.maxWidth - 8),
                         child: GestureDetector(
@@ -275,7 +310,10 @@ class _TimelineRow extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: JourneyScreenTheme.warning,
                               shape: BoxShape.circle,
-                              border: Border.all(color: JourneyScreenTheme.textPrimary, width: 1),
+                              border: Border.all(
+                                color: JourneyScreenTheme.textPrimary,
+                                width: 1,
+                              ),
                             ),
                           ),
                         ),
@@ -318,7 +356,10 @@ class _SpeedSelector extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<double>(
-          value: JourneyReplayController.playbackSpeedOptions.contains(replay.playbackSpeed)
+          value:
+              JourneyReplayController.playbackSpeedOptions.contains(
+                replay.playbackSpeed,
+              )
               ? replay.playbackSpeed
               : 1.0,
           isDense: true,
@@ -359,9 +400,13 @@ class _AutoFollowToggle extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              replay.followCamera ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+              replay.followCamera
+                  ? Icons.gps_fixed_rounded
+                  : Icons.gps_off_rounded,
               size: 16,
-              color: replay.followCamera ? JourneyScreenTheme.accent : JourneyScreenTheme.textMuted,
+              color: replay.followCamera
+                  ? JourneyScreenTheme.accent
+                  : JourneyScreenTheme.textMuted,
             ),
             const SizedBox(width: 4),
             Text(
@@ -369,7 +414,9 @@ class _AutoFollowToggle extends StatelessWidget {
               style: JourneyScreenTheme.textStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: replay.followCamera ? JourneyScreenTheme.accent : JourneyScreenTheme.textMuted,
+                color: replay.followCamera
+                    ? JourneyScreenTheme.accent
+                    : JourneyScreenTheme.textMuted,
               ),
             ),
           ],

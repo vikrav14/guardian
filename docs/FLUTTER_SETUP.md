@@ -14,7 +14,7 @@ The map dashboard lives in [`apps/mobile`](../apps/mobile).
 1. Firebase Console → **Authentication** → **Sign-in method**
 2. Enable **Email/Password** → Save
 
-The app shows a login/register screen. New accounts get a `users/{uid}` profile with no linked pendants — link a device from **Account → Link a pendant** (see [`V28C_DEVICE_SETUP.md`](V28C_DEVICE_SETUP.md) Part C).
+The app shows a login/register screen. New accounts get a `users/{uid}` profile with no linked watches — link the V52 from **Account → Link a watch**.
 
 ## Register a Firebase Web app
 

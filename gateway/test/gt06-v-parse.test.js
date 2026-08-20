@@ -73,6 +73,54 @@ test('parseLocationData rejects V without WiFi or cell data', () => {
   assert.equal(loc.error, 'gps_not_fixed');
 });
 
+test('parseLocationData marks A as a self-contained satellite observation', () => {
+  const fields = [
+    '140826', '194233', 'A', '-20.029278', 'S', '57.5960427', 'E', '0.0', '0',
+  ];
+  // The protocol coordinates are unsigned and direction supplies the sign.
+  fields[3] = '20.029278';
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.gpsValid, true);
+  assert.equal(loc.accuracySource, 'gps');
+  assert.equal(loc.location.source, 'gps');
+  assert.equal(loc.location.gpsValid, true);
+  assert.equal(loc.location.accuracyMeters, null);
+  assert.equal(loc.location.lat, -20.029278);
+});
+
+test('parseLocationData decodes the fixed V52 telemetry fields without shifting state', () => {
+  const fields = [
+    '160826', '101530', 'A', '20.029278', 'S', '57.5960427', 'E',
+    '3.5', '152', '41.7', '9', '80', '87', '1234', '50', '00010000',
+    '1', '0', '617', '1', '53', '203778', '169', '0', '3.9',
+  ];
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.location.altitude, 41.7);
+  assert.equal(loc.location.satellites, 9);
+  assert.equal(loc.cellularSignalPercent, 80);
+  assert.equal(loc.batteryPercent, 87);
+  assert.equal(loc.stepsRaw, 1234);
+  assert.equal(loc.rollCountRaw, 50);
+  assert.equal(fields[15], '00010000');
+});
+
+test('parseLocationData ignores malformed V52 telemetry instead of inventing values', () => {
+  const fields = [
+    '160826', '101530', 'A', '20.029278', 'S', '57.5960427', 'E',
+    '0', '0', '', '-1', '101', 'not-a-battery', '1.5', '-2', '00000000',
+  ];
+  const loc = parseLocationData(fields);
+
+  assert.equal(loc.location.altitude, null);
+  assert.equal(loc.location.satellites, null);
+  assert.equal(loc.cellularSignalPercent, null);
+  assert.equal(loc.batteryPercent, null);
+  assert.equal(loc.stepsRaw, null);
+  assert.equal(loc.rollCountRaw, null);
+});
+
 test('handlePacket emits location for V UD_LTE with WiFi scan', () => {
   const payload = [
     '241122', '062109', 'V', '22.680000', 'N', '113.990000', 'E', '0.0', '0',
@@ -95,7 +143,7 @@ test('handlePacket emits location_parse_error for bare V without extras', () => 
   assert.equal(events[0].reason, 'gps_not_fixed');
 });
 
-test('parseLteExtras finds Mauritius cell block after V28C status prefix', () => {
+test('parseLteExtras finds Mauritius cell block in the V52 LTE tail', () => {
   const extras = [
     '0.0', '0', '100', '80', '0', '0', '00000000', '1', '0',
     '617', '1', '53', '203778', '169', '1', '',
@@ -114,7 +162,7 @@ test('parseLteExtras finds Mauritius cell block after V28C status prefix', () =>
   assert.equal(wifiAccessPoints[0].macAddress, 'a4:08:ea:56:e7:bd');
 });
 
-test('parseLteExtras drops null WiFi MAC 00:00:00:00:00:00 from V28C scan', () => {
+test('parseLteExtras drops null WiFi MAC 00:00:00:00:00:00 from V52 scan', () => {
   const extras = [
     '0.0', '0', '87', '54', '0', '0', '00000000', '1', '0',
     '617', '1', '53', '203798', '164', '3', '',
@@ -144,4 +192,10 @@ test('parseLocationData handles live Bouboush V UD_LTE payload', () => {
   assert.equal(loc.wifiAccessPoints.length, 1);
   assert.equal(loc.cellTowers.length, 1);
   assert.equal(loc.cellTowers[0].mobileCountryCode, 617);
+  assert.equal(loc.location.altitude, 0);
+  assert.equal(loc.location.satellites, 0);
+  assert.equal(loc.cellularSignalPercent, 100);
+  assert.equal(loc.batteryPercent, 80);
+  assert.equal(loc.stepsRaw, 0);
+  assert.equal(loc.rollCountRaw, 0);
 });

@@ -7,6 +7,10 @@ class DeviceLocation {
     this.altitude,
     this.recordedAt,
     this.satellites,
+    this.placeLabel,
+    this.source,
+    this.gpsValid,
+    this.accuracyMeters,
   });
 
   final double lat;
@@ -14,6 +18,10 @@ class DeviceLocation {
   final double? altitude;
   final DateTime? recordedAt;
   final int? satellites;
+  final String? placeLabel;
+  final String? source;
+  final bool? gpsValid;
+  final double? accuracyMeters;
 
   factory DeviceLocation.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
@@ -25,6 +33,10 @@ class DeviceLocation {
       altitude: (map['altitude'] as num?)?.toDouble(),
       recordedAt: _asDateTime(map['recordedAt']),
       satellites: (map['satellites'] as num?)?.toInt(),
+      placeLabel: (map['placeLabel'] as String?)?.trim(),
+      source: (map['source'] as String?)?.trim().toLowerCase(),
+      gpsValid: map['gpsValid'] as bool?,
+      accuracyMeters: (map['accuracyMeters'] as num?)?.toDouble(),
     );
   }
 
@@ -36,6 +48,11 @@ const double deviceMovingSpeedThresholdKmh = 5;
 
 /// Location older than this gap behind the last heartbeat is treated as stale.
 const Duration deviceLocationFreshnessSlack = Duration(minutes: 8);
+
+/// A recent broad indoor estimate must not immediately displace the last
+/// satellite pin. Both observations remain available; after this window the
+/// newer approximate position becomes the map position and is labelled as such.
+const Duration deviceSatelliteDisplayRetention = Duration(minutes: 30);
 
 /// Last Firestore contact older than this is not treated as live, even if `online: true`.
 /// Must exceed the gateway write-gate heartbeat interval and normal quiet gaps
@@ -70,11 +87,13 @@ class DeviceIntelligence {
     final rawInsights = map['insights'];
     final insights = rawInsights is List
         ? rawInsights
-            .whereType<Map>()
-            .map((item) => DeviceIntelligenceInsight.fromMap(
+              .whereType<Map>()
+              .map(
+                (item) => DeviceIntelligenceInsight.fromMap(
                   Map<String, dynamic>.from(item),
-                ))
-            .toList(growable: false)
+                ),
+              )
+              .toList(growable: false)
         : const <DeviceIntelligenceInsight>[];
 
     final topRaw = map['topInsight'];
@@ -124,10 +143,20 @@ class Device {
     this.nickname,
     this.relationship,
     this.batteryPercent,
+    this.batteryUpdatedAt,
+    this.cellularSignalPercent,
+    this.cellularSignalUpdatedAt,
+    this.stepsRaw,
+    this.rollCountRaw,
+    this.activityUpdatedAt,
+    this.telemetryUpdatedAt,
     this.speedKmh,
     this.course,
     this.accuracySource,
     this.location,
+    this.lastLocationObservation,
+    this.lastSatelliteLocation,
+    this.lastApproximateLocation,
     this.lastHeartbeatAt,
     this.disconnectedAt,
     this.connectionState,
@@ -140,6 +169,10 @@ class Device {
     this.fallDetectionDialMonitor,
     this.fallDetectionSensitivity,
     this.locationReportingIntervalSeconds,
+    this.locationReportingMode = 'automatic',
+    this.careProfile,
+    this.carePriorities = const <String>[],
+    this.capabilities = const <String>[],
   });
 
   final String imei;
@@ -150,12 +183,28 @@ class Device {
   final String? relationship;
   final bool online;
   final int? batteryPercent;
+  final DateTime? batteryUpdatedAt;
+
+  /// Latest V52 cellular signal value (0-100), not inferred from connectivity.
+  final int? cellularSignalPercent;
+  final DateTime? cellularSignalUpdatedAt;
+
+  /// Raw V52 counters. Their reset/day semantics are not yet accepted, so the
+  /// app must not present them as daily activity totals.
+  final int? stepsRaw;
+  final int? rollCountRaw;
+  final DateTime? activityUpdatedAt;
+  final DateTime? telemetryUpdatedAt;
   final num? speedKmh;
   final num? course;
   final String? accuracySource;
   final DeviceLocation? location;
+  final DeviceLocation? lastLocationObservation;
+  final DeviceLocation? lastSatelliteLocation;
+  final DeviceLocation? lastApproximateLocation;
   final DateTime? lastHeartbeatAt;
   final DateTime? disconnectedAt;
+
   /// Gateway connection phase: `live`, `connecting`, or `offline`.
   final String? connectionState;
   final DateTime? connectingAt;
@@ -164,17 +213,25 @@ class Device {
   final String? avatarUrl;
   final DeviceIntelligence? intelligence;
 
-  /// Last preference the app asked the pendant for -- V46/V48/V52 only.
+  /// Last V52 preference the app asked the watch for.
   /// The device has no "read back my fall-detection config" command, so
   /// this is a cache of the last request, not confirmed device state.
   final bool? fallDetectionEnabled;
   final bool? fallDetectionDialMonitor;
   final int? fallDetectionSensitivity;
 
-  /// Last upload interval the app asked the pendant for, in seconds --
-  /// V46/V48/V52 only. Same "request cache, not confirmed state" caveat as
+  /// Last upload interval the app asked the watch for, in seconds --
+  /// V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
+  final String locationReportingMode;
+
+  /// Person context used by Guardian Intelligence. Never hard-code by IMEI.
+  final String? careProfile;
+  final List<String> carePriorities;
+
+  /// Hardware features this watch can provide. Kept separate from care intent.
+  final List<String> capabilities;
 
   String? get _legacyPersonName {
     final value = name?.trim();
@@ -209,7 +266,7 @@ class Device {
     return _legacyPersonName ?? 'Family member';
   }
 
-  /// Gateway says connected and we heard from the pendant recently.
+  /// Gateway says connected and we heard from the watch recently.
   bool get hasRecentContact {
     final contact = lastHeartbeatAt ?? updatedAt;
     if (contact == null) return false;
@@ -218,16 +275,70 @@ class Device {
 
   bool get isLiveConnected => online && hasRecentContact;
 
+  DeviceLocation? get latestLocationObservation {
+    final observation = lastLocationObservation;
+    if (observation?.isValid == true) return observation;
+    return location?.isValid == true ? location : null;
+  }
+
+  String? get latestLocationSource {
+    final source = latestLocationObservation?.source ?? accuracySource;
+    return source?.trim().toLowerCase();
+  }
+
+  bool get isDisplayingRetainedSatelliteLocation {
+    final latest = latestLocationObservation;
+    final satellite = lastSatelliteLocation;
+    if (latest?.isValid != true || satellite?.isValid != true) return false;
+    final source = latestLocationSource;
+    if (source != 'wifi' && source != 'lbs') return false;
+    final latestAt = latest?.recordedAt;
+    final satelliteAt = satellite?.recordedAt;
+    if (latestAt == null || satelliteAt == null) return false;
+    final gap = latestAt.difference(satelliteAt);
+    return !gap.isNegative && gap <= deviceSatelliteDisplayRetention;
+  }
+
+  DeviceLocation? get displayLocation {
+    if (isDisplayingRetainedSatelliteLocation) return lastSatelliteLocation;
+    return latestLocationObservation ?? lastSatelliteLocation;
+  }
+
+  /// Conservative map position for a family-facing live view.
+  ///
+  /// WiFi/LBS observations can be useful evidence but are too broad to move a
+  /// person's primary avatar. When a satellite fix exists, the map keeps that
+  /// last reliable position until a new GPS fix arrives. Raw approximate
+  /// observations remain available for an uncertainty circle and never alter
+  /// stored telemetry, journeys, geofences, alerts, or SOS location selection.
+  DeviceLocation? get mapDisplayLocation {
+    final source = latestLocationSource;
+    final satellite = lastSatelliteLocation;
+    if ((source == 'wifi' || source == 'lbs') && satellite?.isValid == true) {
+      return satellite;
+    }
+    return displayLocation;
+  }
+
+  bool get isMapDisplayingLastSatelliteLocation {
+    final source = latestLocationSource;
+    return (source == 'wifi' || source == 'lbs') &&
+        lastSatelliteLocation?.isValid == true;
+  }
+
+  String? get displayLocationSource =>
+      isDisplayingRetainedSatelliteLocation ? 'gps' : latestLocationSource;
+
   /// True when [location] has coordinates and was recorded near the last contact.
   ///
   /// Prevents simulator or old GPS writes from showing a map pin after the real
   /// device reconnects with heartbeats only (no fresh fix yet). Once the
-  /// pendant goes offline this check is skipped entirely -- an offline device
+  /// watch goes offline this check is skipped entirely -- an offline device
   /// will never send a newer heartbeat to "catch up" to, so the last known
   /// fix should keep showing (faded) rather than disappear once it crosses
   /// the slack window.
   bool get hasFreshLocation {
-    final loc = location;
+    final loc = latestLocationObservation;
     if (loc == null || !loc.isValid) return false;
     final recorded = loc.recordedAt;
     if (recorded == null) return false;
@@ -243,26 +354,26 @@ class Device {
   /// True when the latest fix came from WiFi/cell geolocation (gps=V), not satellite GPS.
   bool get hasApproximateLocation {
     if (!hasFreshLocation) return false;
-    final source = accuracySource?.toLowerCase();
+    final source = latestLocationSource;
     return source == 'wifi' || source == 'lbs';
   }
 
   /// Human-readable fix type for Guardian AI and map labels.
   DevicePositioningDescription? get positioningDescription {
-    final source = accuracySource?.toLowerCase();
+    final source = displayLocationSource;
     return switch (source) {
       'gps' => const DevicePositioningDescription(
-          label: 'satellite GPS',
-          approximate: false,
-        ),
+        label: 'satellite GPS',
+        approximate: false,
+      ),
       'wifi' => const DevicePositioningDescription(
-          label: 'WiFi positioning',
-          approximate: true,
-        ),
+        label: 'WiFi positioning',
+        approximate: true,
+      ),
       'lbs' => const DevicePositioningDescription(
-          label: 'cell tower positioning',
-          approximate: true,
-        ),
+        label: 'cell tower positioning',
+        approximate: true,
+      ),
       _ => null,
     };
   }
@@ -291,12 +402,34 @@ class Device {
       relationship: data['relationship'] as String?,
       online: data['online'] == true,
       batteryPercent: (data['batteryPercent'] as num?)?.toInt(),
+      batteryUpdatedAt: _asDateTime(data['batteryUpdatedAt']),
+      cellularSignalPercent: (data['cellularSignalPercent'] as num?)?.toInt(),
+      cellularSignalUpdatedAt: _asDateTime(data['cellularSignalUpdatedAt']),
+      stepsRaw: (data['stepsRaw'] as num?)?.toInt(),
+      rollCountRaw: (data['rollCountRaw'] as num?)?.toInt(),
+      activityUpdatedAt: _asDateTime(data['activityUpdatedAt']),
+      telemetryUpdatedAt: _asDateTime(data['telemetryUpdatedAt']),
       speedKmh: data['speedKmh'] as num?,
       course: data['course'] as num?,
       accuracySource: data['accuracySource'] as String?,
       location: DeviceLocation.fromMap(
         data['location'] is Map
             ? Map<String, dynamic>.from(data['location'] as Map)
+            : null,
+      ),
+      lastLocationObservation: DeviceLocation.fromMap(
+        data['lastLocationObservation'] is Map
+            ? Map<String, dynamic>.from(data['lastLocationObservation'] as Map)
+            : null,
+      ),
+      lastSatelliteLocation: DeviceLocation.fromMap(
+        data['lastSatelliteLocation'] is Map
+            ? Map<String, dynamic>.from(data['lastSatelliteLocation'] as Map)
+            : null,
+      ),
+      lastApproximateLocation: DeviceLocation.fromMap(
+        data['lastApproximateLocation'] is Map
+            ? Map<String, dynamic>.from(data['lastApproximateLocation'] as Map)
             : null,
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),
@@ -311,7 +444,8 @@ class Device {
             ? Map<String, dynamic>.from(data['intelligence'] as Map)
             : null,
       ),
-      fallDetectionEnabled: (data['fallDetection'] as Map?)?['enabled'] as bool?,
+      fallDetectionEnabled:
+          (data['fallDetection'] as Map?)?['enabled'] as bool?,
       fallDetectionDialMonitor:
           (data['fallDetection'] as Map?)?['dialMonitorOnFall'] as bool?,
       fallDetectionSensitivity:
@@ -319,6 +453,17 @@ class Device {
               ?.toInt(),
       locationReportingIntervalSeconds:
           (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
+      careProfile: data['careProfile'] as String?,
+      carePriorities:
+          (data['carePriorities'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
+          const <String>[],
+      capabilities:
+          (data['capabilities'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
+          const <String>[],
     );
   }
 }

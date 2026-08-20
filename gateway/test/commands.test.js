@@ -13,6 +13,7 @@ const {
   uploadIntervalCommand,
   textToHexUtf16,
 } = require('../src/commands');
+const { buildAckFrame } = require('../src/protocol/gt06');
 
 test('centerNumberCommand matches the vendor SMS syntax exactly', () => {
   assert.equal(centerNumberCommand('+23057123456'), 'pw,123456,center,+23057123456#');
@@ -32,18 +33,29 @@ test('statusCommand is the documented ts# check', () => {
   assert.equal(statusCommand(), 'ts#');
 });
 
-test('voiceMonitorCommand matches the RF-V28 community-documented syntax', () => {
-  assert.equal(voiceMonitorCommand('+23057123456'), 'monitor,+23057123456#');
+test('voiceMonitorCommand builds the V52 TCP data command', () => {
+  assert.equal(voiceMonitorCommand('+23057123456'), 'MONITOR,+23057123456');
 });
 
-test('ringToFindCommand matches the RF-V28 community-documented syntax', () => {
-  assert.equal(ringToFindCommand(), 'find#');
+test('ringToFindCommand builds the V52 TCP data command', () => {
+  assert.equal(ringToFindCommand(), 'FIND');
+});
+
+test('V52 runtime commands produce exact SG frames without SMS terminators', () => {
+  assert.equal(
+    buildAckFrame('9705254749', voiceMonitorCommand('+23058590100')).toString('ascii'),
+    '[SG*9705254749*0014*MONITOR,+23058590100]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', ringToFindCommand()).toString('ascii'),
+    '[SG*9705254749*0004*FIND]'
+  );
 });
 
 test('sendDeviceCommand rejects an unknown command type', async () => {
   const db = { collection: () => ({ doc: () => ({ get: async () => ({ data: () => ({}) }) }) }) };
   await assert.rejects(
-    () => sendDeviceCommand(db, '359633100123456', 'reboot_now', {}),
+    () => sendDeviceCommand(db, '861397052547400', 'reboot_now', {}),
     /Unknown device command type/
   );
 });
@@ -51,12 +63,12 @@ test('sendDeviceCommand rejects an unknown command type', async () => {
 test('sendDeviceCommand rejects a device with no simNumber on file', async () => {
   const db = { collection: () => ({ doc: () => ({ get: async () => ({ data: () => ({}) }) }) }) };
   await assert.rejects(
-    () => sendDeviceCommand(db, '359633100123456', 'check_status', {}),
+    () => sendDeviceCommand(db, '861397052547400', 'check_status', {}),
     /no simNumber on file/
   );
 });
 
-// --- V46-V48-V52 TCP downlink commands ---
+// --- V52 TCP downlink commands ---
 // Expected values below are the vendor's own example captures, not
 // hand-derived from the spec prose, so these pin byte-for-byte compatibility.
 
@@ -125,9 +137,94 @@ test('medicationReminderCommand rejects a malformed time', () => {
 test('sendDeviceCommand routes TCP-only types over downlink and fails clearly with no live session', async () => {
   const db = {};
   await assert.rejects(
-    () => sendDeviceCommand(db, '861397053141170', 'set_fall_detection', { enabled: true }),
+    () => sendDeviceCommand(db, '861397052547400', 'set_fall_detection', { enabled: true }),
     /no active connection right now/
   );
+});
+
+test('sendDeviceCommand sends V52 monitor and find commands only over TCP', async () => {
+  const calls = [];
+  const transports = {
+    sendDownlinkCommand: (imei, command) => {
+      calls.push({ imei, command });
+      return { ok: true, sessions: 1 };
+    },
+    sendSms: async () => {
+      throw new Error('V52 runtime commands must not use SMS');
+    },
+  };
+
+  const monitor = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'voice_monitor',
+    { phone: '+23058590100' },
+    transports
+  );
+  const find = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'ring_to_find',
+    {},
+    transports
+  );
+
+  assert.equal(monitor.channel, 'tcp');
+  assert.equal(monitor.text, 'MONITOR,+23058590100');
+  assert.equal(find.channel, 'tcp');
+  assert.equal(find.text, 'FIND');
+  assert.deepEqual(calls, [
+    { imei: '861397052547492', command: 'MONITOR,+23058590100' },
+    { imei: '861397052547492', command: 'FIND' },
+  ]);
+});
+
+test('sendDeviceCommand keeps live-proven V52 provisioning commands on SMS', async () => {
+  const calls = [];
+  const db = {
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({ data: () => ({ simNumber: '+23073332567' }) }),
+      }),
+    }),
+  };
+  const transports = {
+    sendDownlinkCommand: () => {
+      throw new Error('V52 provisioning commands must not use TCP');
+    },
+    sendSms: async (to, command) => {
+      calls.push({ to, command });
+      return { ok: true };
+    },
+  };
+
+  await sendDeviceCommand(
+    db,
+    '861397052547492',
+    'set_center_number',
+    { phone: '+23058590100' },
+    transports
+  );
+  await sendDeviceCommand(
+    db,
+    '861397052547492',
+    'set_sos_number',
+    { slot: 1, phone: '58590100' },
+    transports
+  );
+  await sendDeviceCommand(
+    db,
+    '861397052547492',
+    'check_status',
+    {},
+    transports
+  );
+
+  assert.deepEqual(calls, [
+    { to: '+23073332567', command: 'pw,123456,center,+23058590100#' },
+    { to: '+23073332567', command: 'sos1,58590100#' },
+    { to: '+23073332567', command: 'ts#' },
+  ]);
 });
 
 test('uploadIntervalCommand matches the vendor doc syntax', () => {
@@ -145,7 +242,7 @@ test('uploadIntervalCommand rejects out-of-range or non-integer intervals', () =
 test('sendDeviceCommand routes set_upload_interval over downlink and fails clearly with no live session', async () => {
   const db = {};
   await assert.rejects(
-    () => sendDeviceCommand(db, '861397053141170', 'set_upload_interval', { seconds: 60 }),
+    () => sendDeviceCommand(db, '861397052547400', 'set_upload_interval', { seconds: 60 }),
     /no active connection right now/
   );
 });

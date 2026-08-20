@@ -1,15 +1,13 @@
 /**
- * ReachFar ASCII protocol decoder — covers both the V28C protocol doc and
- * the V46-V48-V52 protocol doc (2021-12-20). Both share the same
- * [CS*YYYYYYYYYY*LEN*command,data...] framing, LK/UD/AL structure, and
- * Appendix I positioning field layout (including the A/V validity flag),
- * so one decoder serves both device families. V46/V48/V52-only commands
- * (health, pedometer, pill reminders, etc.) are additive — a V28C device
- * simply never sends them.
- * - CS: 2-byte factory code (e.g., "3G", "SG")
- * - YYYYYYYYYY: 10-digit device ID (protocol id; full IMEI is 15 digits — see imei.js)
- * - LEN: 4-char ASCII hex content length
- * - command,data: payload (LK, UD_LTE, AL_LTE, etc.)
+ * ReachFar V52 ASCII protocol decoder.
+ *
+ * Frames use [CS*YYYYYYYYYY*LEN*command,data...] and V52 Annex I's fixed
+ * positioning layout. Alarm decoding deliberately follows the V52 tracker
+ * state bitmap only; older model bit assignments are not accepted.
+ * - CS: 2-byte factory code (for example, "3G" or "SG")
+ * - YYYYYYYYYY: 10-digit protocol id; full IMEI is resolved separately
+ * - LEN: 4-character ASCII hexadecimal content length
+ * - command,data: payload (LK, UD_LTE, AL_LTE, and similar)
  */
 
 const {
@@ -19,18 +17,44 @@ const {
 } = require('../imei');
 const { parseLteExtras, isPlaceholderCoords } = require('../geolocate/google');
 
+function parseFiniteNumber(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseIntegerInRange(value, min, max) {
+  if (value == null || String(value).trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : null;
+}
+
+function parseV52Telemetry(fields) {
+  // V52 Annex I fixed positioning fields. Do not infer these values from the
+  // variable LTE/WiFi tail that starts after the tracker-state field.
+  return {
+    altitude: parseFiniteNumber(fields[9]),
+    satellites: parseIntegerInRange(fields[10], 0, 99),
+    cellularSignalPercent: parseIntegerInRange(fields[11], 0, 100),
+    batteryPercent: parseIntegerInRange(fields[12], 0, 100),
+    stepsRaw: parseIntegerInRange(fields[13], 0, Number.MAX_SAFE_INTEGER),
+    rollCountRaw: parseIntegerInRange(fields[14], 0, Number.MAX_SAFE_INTEGER),
+  };
+}
+
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
-// Includes V46/V48/V52-only additions confirmed in the 2021-12-20 protocol
-// doc and its companion example captures. 'profile'/'PROFILE' and
-// 'oxygen'/'hrtstart' case variants are both listed because the vendor's
-// own example captures aren't consistent about case on the ack.
+// Includes commands confirmed in the V52 vendor protocol and companion
+// captures. 'profile'/'PROFILE' and 'oxygen'/'hrtstart' case variants are
+// both listed because the vendor examples are inconsistent about ack case.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
-  // V46-V48-V52 additions
+  // Additional commands documented for the V52 data protocol/captures.
   'hrtstart', 'SEDENTARY', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
@@ -59,6 +83,7 @@ function parseLocationData(fields) {
   let lng = null;
   let course = 0;
   let speedKmh = null;
+  const telemetry = parseV52Telemetry(fields);
 
   if (fields.length > 5) {
     lat = parseFloat(fields[3]);
@@ -108,22 +133,44 @@ function parseLocationData(fields) {
       location: {
         lat: isPlaceholderCoords(lat, lng) ? null : lat,
         lng: isPlaceholderCoords(lat, lng) ? null : lng,
-        altitude: null,
+        altitude: telemetry.altitude,
         recordedAt,
-        satellites: null,
+        satellites: telemetry.satellites,
+        source: positioningMode,
+        gpsValid: false,
+        accuracyMeters: null,
       },
       speedKmh,
       course,
       accuracySource: positioningMode === 'wifi' ? 'wifi' : 'lbs',
+      cellularSignalPercent: telemetry.cellularSignalPercent,
+      batteryPercent: telemetry.batteryPercent,
+      stepsRaw: telemetry.stepsRaw,
+      rollCountRaw: telemetry.rollCountRaw,
     };
   }
 
   return {
     gpsValid: true,
-    location: { lat, lng, altitude: null, recordedAt, satellites: null },
+    location: {
+      lat,
+      lng,
+      altitude: telemetry.altitude,
+      recordedAt,
+      satellites: telemetry.satellites,
+      source: 'gps',
+      gpsValid: true,
+      // The V52 A packet proves satellite validity but does not include a
+      // dependable accuracy radius. Never retain a previous WiFi/LBS radius.
+      accuracyMeters: null,
+    },
     speedKmh,
     course,
     accuracySource: 'gps',
+    cellularSignalPercent: telemetry.cellularSignalPercent,
+    batteryPercent: telemetry.batteryPercent,
+    stepsRaw: telemetry.stepsRaw,
+    rollCountRaw: telemetry.rollCountRaw,
   };
 }
 
@@ -132,14 +179,41 @@ function truncatePayloadPreview(args, maxLen = 200) {
   return s.length <= maxLen ? s : `${s.slice(0, maxLen)}…`;
 }
 
+const V52_TRACKER_STATE_INDEX = 15;
+const V52_TRACKER_STATE_HEX = /^[0-9A-F]{8}$/i;
+
+function extractV52TrackerState(args) {
+  if (!Array.isArray(args)) return null;
+  const candidate = args[V52_TRACKER_STATE_INDEX];
+  return V52_TRACKER_STATE_HEX.test(candidate || '')
+    ? candidate.toUpperCase()
+    : null;
+}
+
+function classifyV52Alarm(alarmCode) {
+  if (!alarmCode) return 'other';
+
+  const stateBits = Number.parseInt(alarmCode, 16);
+  if (!Number.isFinite(stateBits)) return 'other';
+
+  // ReachFar V52 Appendix I: alarm flags occupy the high 16 bits.
+  // Bit 21 belongs to a different model and is intentionally not decoded.
+  if ((stateBits & (1 << 16)) !== 0) return 'sos';
+  if ((stateBits & (1 << 22)) !== 0) return 'fall';
+  if ((stateBits & (1 << 17)) !== 0) return 'low_battery';
+  if ((stateBits & (1 << 18)) !== 0) return 'geofence_exit';
+  if ((stateBits & (1 << 19)) !== 0) return 'geofence_enter';
+  if ((stateBits & (1 << 20)) !== 0) return 'bracelet_removed';
+  return 'other';
+}
+
 function parseLkData(fields) {
   // LK,steps,rolls,battery
-  let battery = null;
-  if (fields.length > 3) {
-    const b = parseInt(fields[3], 10);
-    if (!Number.isNaN(b)) battery = b;
-  }
-  return { batteryPercent: battery };
+  return {
+    stepsRaw: parseIntegerInRange(fields[1], 0, Number.MAX_SAFE_INTEGER),
+    rollCountRaw: parseIntegerInRange(fields[2], 0, Number.MAX_SAFE_INTEGER),
+    batteryPercent: parseIntegerInRange(fields[3], 0, 100),
+  };
 }
 
 function buildAckFrame(imei, command) {
@@ -235,8 +309,14 @@ function handlePacket(decoded, session) {
     const hb = parseLkData([command, ...args]);
     acks.push(buildAckFrame(protocolId, 'LK'));
     events.push({ type: 'heartbeat', ...eventMeta, ...hb });
+  } else if (command === 'TKQ') {
+    // V52: lightweight heartbeat/keepalive (sent immediately after LK during connection handshake)
+    // Treat as a valid session keepalive event to allow "connecting" → "live" transition.
+    // TKQ does not include battery data, so omit it (LK provides battery if available).
+    acks.push(buildAckFrame(protocolId, 'TKQ'));
+    events.push({ type: 'heartbeat', ...eventMeta, batteryPercent: null });
   } else if (command === 'UD2') {
-    // V46-V48-V52: blind-spot re-upload (data buffered while offline).
+    // V52: blind-spot re-upload (data buffered while offline).
     // "Server no need reply" per the protocol doc — no ack pushed.
     const loc = parseLocationData(args);
     if (loc && !loc.error) {
@@ -270,7 +350,7 @@ function handlePacket(decoded, session) {
       });
     }
   } else if (command === 'oxygen') {
-    // V46-V48-V52: SpO2 upload. [type, oxy]. Server must reply with a
+    // V52: SpO2 upload. [type, oxy]. Server must reply with a
     // status code: 1=normal, 0=process disorderly, 2=parameter error.
     const [oxyType, oxyValue] = args;
     const oxy = parseFloat(oxyValue);
@@ -285,7 +365,7 @@ function handlePacket(decoded, session) {
       });
     }
   } else if (command === 'bphrt') {
-    // V46-V48-V52: heart rate + blood pressure upload after `hrtstart`.
+    // V52: heart rate + blood pressure upload after `hrtstart`.
     // Only 3 leading fields are confirmed from the vendor's example
     // (systolic, diastolic, heart rate); trailing fields are unconfirmed
     // and left unparsed rather than guessed. No documented ack for this
@@ -305,41 +385,25 @@ function handlePacket(decoded, session) {
       diastolic: Number.isNaN(dia) ? null : dia,
     });
   } else if (command.startsWith('AL')) {
-    // Alarm upload: AL, AL_LTE, AL_WCDMA, etc.
-    const alarmStateField = args.length > 0 ? args[args.length - 1] : null;
-    const locArgs =
-      alarmStateField && /^[0-9a-f]+$/i.test(alarmStateField)
-        ? args.slice(0, -1)
-        : args;
-    const loc = parseLocationData(locArgs);
+    // V52 Annex I fixes tracker state at positioning field 15. LTE, cell,
+    // WiFi, delay, and voltage fields follow it, so the final argument is
+    // never a safe alarm-code heuristic.
+    const alarmCode = extractV52TrackerState(args);
+    const alarmType = classifyV52Alarm(alarmCode);
+    const loc = parseLocationData(args);
     acks.push(buildAckFrame(protocolId, 'AL'));
-    let alarmType = 'other';
-    let alarmCode = null;
-    if (args.length > 0) {
-      const stateField = alarmStateField ?? args[args.length - 1];
-      alarmCode = stateField;
-      const stateBits = parseInt(stateField, 16);
-      if (!Number.isNaN(stateBits)) {
-        // Bit 21 = fall, matching the existing (already-relied-upon) V28C
-        // reading. NOTE: the vendor's own docs disagree with each other
-        // here — the V28C doc and the V46-V48-V52 protocol doc both say
-        // bit 22 = fall, but the V46-V48-V52 *example* doc's own appendix
-        // says bit 21 = fall and bit 22 = heart-rate-abnormal. Left as-is
-        // (bit 21 = fall) since that's what's already working; bit 22 is
-        // added below as a new, additive alarm type that V28C never used.
-        if ((stateBits & (1 << 16)) !== 0) alarmType = 'sos';
-        else if ((stateBits & (1 << 21)) !== 0) alarmType = 'fall';
-        else if ((stateBits & (1 << 22)) !== 0) alarmType = 'heart_rate_abnormal';
-        else if ((stateBits & (1 << 20)) !== 0) alarmType = 'geofence_exit';
-        else if ((stateBits & (1 << 19)) !== 0) alarmType = 'geofence_enter';
-        else if ((stateBits & (1 << 17)) !== 0) alarmType = 'low_battery';
-      }
-    }
     events.push({
       type: 'alarm',
       ...eventMeta,
       alarmType,
-      ...(alarmCode != null ? { alarmCode } : {}),
+      ...(alarmCode != null
+        ? {
+            alarmCode,
+            alarmStateIndex: V52_TRACKER_STATE_INDEX,
+          }
+        : {}),
+      alarmCommand: command,
+      alarmArgCount: args.length,
       severity: alarmType === 'sos' || alarmType === 'fall' ? 'critical' : 'warning',
       ...(loc && !loc.error ? loc : {}),
     });
@@ -350,7 +414,7 @@ function handlePacket(decoded, session) {
     }
   } else if (command === 'CONFIG') {
     // Device firmware self-test packet — contains device state including UL (upload interval).
-    // Per V28C protocol: reply CONFIG,1 (not bare CONFIG).
+    // Per the V52 vendor protocol: reply CONFIG,1 (not bare CONFIG).
     acks.push(buildAckFrame(protocolId, 'CONFIG,1'));
     if (fullImeiHint && isFullImei(fullImeiHint)) {
       events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
@@ -381,4 +445,9 @@ module.exports = {
   handlePacket,
   buildAckFrame,
   parseLocationData,
+  parseLkData,
+  parseV52Telemetry,
+  extractV52TrackerState,
+  classifyV52Alarm,
+  V52_TRACKER_STATE_INDEX,
 };

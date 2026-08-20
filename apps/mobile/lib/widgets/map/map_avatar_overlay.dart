@@ -60,7 +60,7 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
         .map(
           (device) =>
               '${device.imei}|${device.avatarUrl ?? ''}|'
-              '${device.location?.lat}|${device.location?.lng}',
+              '${device.mapDisplayLocation?.lat}|${device.mapDisplayLocation?.lng}',
         )
         .join('||');
   }
@@ -74,14 +74,16 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
 
     final positions = <String, Offset>{};
     for (final device in widget.devices) {
-      if (!device.hasFreshLocation) continue;
-      final location = device.location!;
+      if (device.mapDisplayLocation?.isValid != true) continue;
+      final location = device.mapDisplayLocation!;
       try {
         final screen = await controller.getScreenCoordinate(
           LatLng(location.lat, location.lng),
         );
-        positions[device.imei] =
-            Offset(screen.x.toDouble(), screen.y.toDouble());
+        positions[device.imei] = Offset(
+          screen.x.toDouble(),
+          screen.y.toDouble(),
+        );
       } catch (_) {
         // The map may not be ready yet.
       }
@@ -189,8 +191,7 @@ class _JourneyMapAvatarOverlayState extends State<JourneyMapAvatarOverlay> {
     for (final slot in widget.slots) {
       try {
         final screen = await controller.getScreenCoordinate(slot.latLng);
-        positions[slot.id] =
-            Offset(screen.x.toDouble(), screen.y.toDouble());
+        positions[slot.id] = Offset(screen.x.toDouble(), screen.y.toDouble());
       } catch (_) {
         // The map may not be ready yet.
       }
@@ -291,7 +292,7 @@ class _AvatarMarker extends StatelessWidget {
             color: color,
             selected: selected,
             imageUrl: device.avatarUrl,
-            // Pendant is off/out of coverage: this is a last-known position,
+            // Watch is off/out of coverage: this is a last-known position,
             // not a live one -- fade it so that reads clearly on the map.
             faded: device.isTrulyOffline,
           ),
@@ -322,16 +323,16 @@ class _TrackedPersonPin extends StatelessWidget {
   final String? imageUrl;
   final bool faded;
 
-  /// Opacity applied to a last-known pin once the pendant is offline --
+  /// Opacity applied to a last-known pin once the watch is offline --
   /// visible enough to still read the position, faint enough to read as
   /// "not live" at a glance.
   static const double fadedOpacity = 0.5;
 
-  static double avatarSize(bool selected) => selected ? 48 : 42;
+  static double avatarSize(bool selected) => selected ? 62 : 42;
   static double markerSize(bool selected) =>
-      selected ? 118 : avatarSize(selected) + 12;
+      selected ? 142 : avatarSize(selected) + 12;
   static double markerHeight(bool selected) =>
-      selected ? 89 : avatarSize(selected) + 15;
+      selected ? 108 : avatarSize(selected) + 15;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +342,9 @@ class _TrackedPersonPin extends StatelessWidget {
     final ringColor = color;
 
     final pin = Semantics(
-      label: faded ? '$label last known location, pendant offline' : '$label location',
+      label: faded
+          ? '$label last known location, watch offline'
+          : '$label location',
       image: true,
       child: SizedBox(
         width: width,
@@ -354,9 +357,11 @@ class _TrackedPersonPin extends StatelessWidget {
               Positioned(
                 top: 0,
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 112),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  constraints: const BoxConstraints(maxWidth: 132),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: GuardianColors.forest,
                     borderRadius: BorderRadius.circular(999),
@@ -406,16 +411,11 @@ class _TrackedPersonPin extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: ringColor,
-                    width: selected ? 3 : 2,
-                  ),
+                  border: Border.all(color: ringColor, width: selected ? 3 : 2),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          (selected ? GuardianColors.safe : color).withValues(
-                        alpha: selected ? 0.24 : 0.14,
-                      ),
+                      color: (selected ? GuardianColors.safe : color)
+                          .withValues(alpha: selected ? 0.24 : 0.14),
                       blurRadius: selected ? 16 : 10,
                       offset: const Offset(0, 5),
                     ),

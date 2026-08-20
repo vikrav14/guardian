@@ -141,8 +141,7 @@ class _AvatarImageState extends State<_AvatarImage> {
 
   bool get _usesFirebaseStorage => isFirebaseStorageMediaUrl(widget.url);
 
-  bool get _useWebHtmlElement =>
-      shouldPreferWebHtmlElementAvatar(widget.url);
+  bool get _useWebHtmlElement => shouldPreferWebHtmlElementAvatar(widget.url);
 
   /// Auth-only Firebase Storage URLs need the SDK. Token URLs on web are shown
   /// via [WebHtmlElementStrategy.prefer] because XHR/`getData()` need CORS.
@@ -152,7 +151,9 @@ class _AvatarImageState extends State<_AvatarImage> {
   void initState() {
     super.initState();
     if (_needsSdkLoad && _firebaseReady()) {
-      _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
+        user,
+      ) {
         if (_authBytes != null || !mounted || user == null) return;
         _authLoadFinished = false;
         _authLoadInFlight = false;
@@ -266,11 +267,11 @@ class _AvatarImageState extends State<_AvatarImage> {
       },
       errorBuilder: (_, error, stackTrace) {
         if (kDebugMode) {
-          debugPrint(
-            'Avatar network load failed for ${widget.url}: $error',
-          );
+          debugPrint('Avatar network load failed for ${widget.url}: $error');
         }
-        if (_usesFirebaseStorage && !_networkLoadFailed && !_useWebHtmlElement) {
+        if (_usesFirebaseStorage &&
+            !_networkLoadFailed &&
+            !_useWebHtmlElement) {
           _networkLoadFailed = true;
           unawaited(_retrySdkAfterNetworkFailure());
         }
@@ -303,9 +304,7 @@ class _AvatarImageState extends State<_AvatarImage> {
         gaplessPlayback: true,
         errorBuilder: (_, error, stackTrace) {
           if (kDebugMode) {
-            debugPrint(
-              'Avatar memory image failed for ${widget.url}: $error',
-            );
+            debugPrint('Avatar memory image failed for ${widget.url}: $error');
           }
           return widget.fallback;
         },
@@ -388,9 +387,9 @@ class GuardianSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 }
@@ -463,9 +462,7 @@ class GuardianSettingsRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: danger
-                    ? GuardianColors.dangerBg
-                    : colors.accentMuted,
+                color: danger ? GuardianColors.dangerBg : colors.accentMuted,
                 borderRadius: BorderRadius.circular(13),
               ),
               child: Icon(icon, size: 19, color: iconColor),
@@ -475,19 +472,19 @@ class GuardianSettingsRow extends StatelessWidget {
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.normal,
-                      color: danger ? GuardianColors.danger : colors.textPrimary,
-                    ),
+                  fontSize: 13,
+                  fontWeight: FontWeight.normal,
+                  color: danger ? GuardianColors.danger : colors.textPrimary,
+                ),
               ),
             ),
             if (trailing != null)
               Text(
                 trailing!,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: colors.accent,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: colors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
               )
             else if (!danger)
               Icon(Icons.chevron_right, size: 16, color: colors.textMuted),

@@ -10,10 +10,13 @@ import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
+import 'guardian_entitlements.dart';
 import 'imei_utils.dart';
 
+export 'guardian_entitlements.dart';
+
 /// Firestore rules only allow reading devices/alerts/geofences whose `imei`
-/// is in the signed-in user's `linkedImeis` — so every list/stream here has
+/// is in the signed-in user's `linkedImeis` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so every list/stream here has
 /// to filter by that set rather than reading the collection unscoped.
 Stream<List<String>> _watchLinkedImeis(
   FirebaseFirestore db,
@@ -60,30 +63,21 @@ Stream<T> _combineLatest3<A, B, C, T>(
   }
 
   controller.onListen = () {
-    subA = streamA.listen(
-      (value) {
-        latestA = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
-    subB = streamB.listen(
-      (value) {
-        latestB = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
-    subC = streamC.listen(
-      (value) {
-        latestC = value;
-        anyEvent = true;
-        emit();
-      },
-      onError: controller.addError,
-    );
+    subA = streamA.listen((value) {
+      latestA = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
+    subB = streamB.listen((value) {
+      latestB = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
+    subC = streamC.listen((value) {
+      latestC = value;
+      anyEvent = true;
+      emit();
+    }, onError: controller.addError);
   };
 
   controller.onCancel = () async {
@@ -132,6 +126,22 @@ class DeviceService {
     });
   }
 
+  Future<void> updateCareProfile(
+    String imei, {
+    required GuardianSubscription subscription,
+    required String careProfile,
+    required List<String> carePriorities,
+  }) async {
+    if (!subscription.has(GuardianFeature.wellbeingActivitySummaries)) {
+      throw StateError('Care profiles require Guardian Care.');
+    }
+    await _db.collection('devices').doc(imei).update({
+      'careProfile': careProfile,
+      'carePriorities': carePriorities,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateAvatarUrl(String imei, String? avatarUrl) async {
     final trimmed = avatarUrl?.trim();
     await _db.collection('devices').doc(imei).update({
@@ -152,7 +162,7 @@ class DeviceService {
     });
   }
 
-  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// V52 TCP downlink; requires the device to currently hold
   /// a live connection to the gateway (see DeviceCommandService.setFallDetection
   /// and setFallSensitivity). Caches the requested state on the device doc
   /// since the device has no read-back command; the cache reflects what was
@@ -181,20 +191,28 @@ class DeviceService {
     await commands.setFallSensitivity(imei, sensitivityLevel);
   }
 
-  /// V46/V48/V52 only — TCP downlink, requires the device to currently hold
+  /// V52 TCP downlink; requires the device to currently hold
   /// a live connection to the gateway (see
   /// DeviceCommandService.setUploadInterval). Without this, the pendant's
   /// default reporting interval is long and irregular -- the map can show a
-  /// last-known fix that's 20-30+ minutes old even while the pendant is
+  /// last-known fix that's 20-30+ minutes old even while the watch is
   /// online and checking in every ~5 minutes. Caches the requested interval
   /// on the device doc since there's no read-back command; the cache
   /// reflects what was last *asked for*, not confirmed device state.
+  Future<void> setAutomaticLocationReporting(String imei) async {
+    await _db.collection('devices').doc(imei).update({
+      'locationReportingMode': 'automatic',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> updateLocationReportingInterval(
     String imei, {
     required int seconds,
   }) async {
     await _db.collection('devices').doc(imei).update({
       'locationReportingIntervalSeconds': seconds,
+      'locationReportingMode': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -202,10 +220,10 @@ class DeviceService {
     await commands.setUploadInterval(imei, seconds);
   }
 
-  /// Links a pendant IMEI to the signed-in guardian's account.
+  /// Links a watch IMEI to the signed-in guardian's account.
   ///
   /// Uses the 15-digit label/SMS IMEI (10-digit protocol ids are normalized).
-  /// The gateway creates `devices/{imei}` when the pendant first connects.
+  /// The gateway creates `devices/{imei}` when the watch first connects.
   Future<void> linkPendant(String rawImei) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
@@ -213,7 +231,7 @@ class DeviceService {
     final imei = canonicalDeviceImei(rawImei.trim());
     if (imei == null || !isFullImei(imei)) {
       throw StateError(
-        'Enter the 15-digit IMEI from the pendant label or status SMS',
+        'Enter the 15-digit IMEI from the watch label or status SMS',
       );
     }
 
@@ -223,16 +241,16 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
-  /// Removes a pendant IMEI from the signed-in guardian's linked set.
+  /// Removes a watch IMEI from the signed-in guardian's linked set.
   ///
-  /// Does not delete `devices/{imei}` — only drops access for this account.
+  /// Does not delete `devices/{imei}` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â only drops access for this account.
   Future<void> unlinkPendant(String rawImei) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
 
     final imei = canonicalDeviceImei(rawImei.trim());
     if (imei == null || !isFullImei(imei)) {
-      throw StateError('Invalid pendant IMEI');
+      throw StateError('Invalid watch IMEI');
     }
 
     await _db.collection('users').doc(user.uid).set({
@@ -241,12 +259,14 @@ class DeviceService {
     }, SetOptions(merge: true));
   }
 
-  /// Streams the given day's location history for a pendant (requires the
-  /// gateway's WRITE_LOCATION_HISTORY=true — otherwise this is always empty).
+  /// Streams the given day's location history for a watch (requires the
+  /// gateway's WRITE_LOCATION_HISTORY=true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â otherwise this is always empty).
   Stream<List<LocationHistoryPoint>> watchDayHistory(
     String imei,
-    DateTime day,
-  ) {
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _db
@@ -261,14 +281,22 @@ class DeviceService {
   }
 
   /// Streams compressed journeys for a calendar day.
-  Stream<List<JourneyRecord>> watchDayJourneys(String imei, DateTime day) {
+  Stream<List<JourneyRecord>> watchDayJourneys(
+    String imei,
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final localStart = DateTime(day.year, day.month, day.day);
     final localEnd = localStart.add(const Duration(days: 1));
     return _db
         .collection('devices')
         .doc(imei)
         .collection('journeys')
-        .where('startAt', isGreaterThanOrEqualTo: Timestamp.fromDate(localStart))
+        .where(
+          'startAt',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(localStart),
+        )
         .where('startAt', isLessThan: Timestamp.fromDate(localEnd))
         .orderBy('startAt')
         .snapshots()
@@ -276,7 +304,12 @@ class DeviceService {
   }
 
   /// Streams gateway dwell segments for a calendar day.
-  Stream<List<DwellSegment>> watchDaySegments(String imei, DateTime day) {
+  Stream<List<DwellSegment>> watchDaySegments(
+    String imei,
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireHistoryAccess(subscription, day);
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     return _db
@@ -294,12 +327,13 @@ class DeviceService {
   Stream<JourneyDayData> watchDayJourneyData(
     String imei,
     DateTime day, {
+    required GuardianSubscription subscription,
     List<Geofence> geofences = const [],
   }) {
     return _combineLatest3(
-      watchDayHistory(imei, day),
-      watchDayJourneys(imei, day),
-      watchDaySegments(imei, day),
+      watchDayHistory(imei, day, subscription: subscription),
+      watchDayJourneys(imei, day, subscription: subscription),
+      watchDaySegments(imei, day, subscription: subscription),
       (locations, journeys, segments) => buildJourneyDayData(
         locationPoints: locations,
         journeys: journeys,
@@ -313,28 +347,46 @@ class DeviceService {
   Future<JourneyDayData> fetchDayJourneyData(
     String imei,
     DateTime day, {
+    required GuardianSubscription subscription,
     List<Geofence> geofences = const [],
   }) {
-    return watchDayJourneyData(imei, day, geofences: geofences).first;
+    return watchDayJourneyData(
+      imei,
+      day,
+      subscription: subscription,
+      geofences: geofences,
+    ).first;
   }
 
   /// One-shot fetch for compare mode and share exports.
   Future<List<LocationHistoryPoint>> fetchDayHistory(
     String imei,
-    DateTime day,
-  ) {
-    return watchDayHistory(imei, day).first;
+    DateTime day, {
+    required GuardianSubscription subscription,
+  }) {
+    return watchDayHistory(imei, day, subscription: subscription).first;
   }
 
   /// Returns calendar days (midnight local) that have at least one location fix
-  /// within [lookbackDays] ending today — used by Journey Time Machine memories.
+  /// within [lookbackDays] ending today ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â used by Journey Time Machine memories.
   Future<Set<DateTime>> fetchDaysWithHistory(
     String imei, {
+    required GuardianSubscription subscription,
     int lookbackDays = 60,
   }) async {
+    if (!subscription.has(GuardianFeature.locationHistory)) {
+      throw StateError('Location history is unavailable for this family plan.');
+    }
     final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day)
-        .subtract(Duration(days: lookbackDays));
+    final permittedLookback = subscription.locationHistoryDays;
+    final effectiveLookback = permittedLookback == null
+        ? lookbackDays
+        : lookbackDays.clamp(1, permittedLookback).toInt();
+    final start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: effectiveLookback - 1));
     final end = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
     final snap = await _db
@@ -371,6 +423,33 @@ class DeviceService {
     }
 
     return days;
+  }
+
+  void _requireHistoryAccess(GuardianSubscription subscription, DateTime day) {
+    if (!subscription.canAccessHistoryDay(day)) {
+      final limit = subscription.locationHistoryDays;
+      throw StateError(
+        limit == null
+            ? 'Location history is unavailable for this family plan.'
+            : 'This plan includes only the most recent $limit days of location history.',
+      );
+    }
+  }
+
+  /// Streams one linked device so settings pages always use the latest
+  /// Firestore care profile instead of a stale Device object passed by
+  /// the previous screen.
+  Stream<Device?> watchDevice(String imei) {
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (!linked.contains(imei)) {
+        return Stream.value(null);
+      }
+
+      return _db.collection('devices').doc(imei).snapshots().map((snap) {
+        if (!snap.exists) return null;
+        return Device.fromDoc(snap);
+      });
+    });
   }
 
   /// Streams only the devices this signed-in guardian is linked to.
@@ -446,10 +525,10 @@ class GeofenceService {
   }
 }
 
-/// V46/V48/V52 only. The device has no "list my reminders" query command,
-/// so this collection is the app's own record of what's been scheduled —
+/// V52 only. The device has no "list my reminders" query command,
+/// so this collection is the app's own record of what's been scheduled ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
 /// saving or deleting also enqueues a matching `set_medication_reminder`
-/// deviceCommand so the pendant itself stays in sync (see
+/// deviceCommand so the watch itself stays in sync (see
 /// DeviceCommandService.setMedicationReminder and gateway/src/commands.js).
 class MedicationReminderService {
   MedicationReminderService({FirebaseFirestore? db, FirebaseAuth? auth})
@@ -459,24 +538,31 @@ class MedicationReminderService {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  Stream<List<MedicationReminder>> watchForDevice(String imei) {
+  Stream<List<MedicationReminder>> watchForDevice(
+    String imei, {
+    required GuardianSubscription subscription,
+  }) {
+    _requireCare(subscription);
     return _db
         .collection('medicationReminders')
         .where('imei', isEqualTo: imei)
         .snapshots()
         .map(
-          (snap) => snap.docs.map(MedicationReminder.fromDoc).toList()
-            ..sort((a, b) => a.time.compareTo(b.time)),
+          (snap) =>
+              snap.docs.map(MedicationReminder.fromDoc).toList()
+                ..sort((a, b) => a.time.compareTo(b.time)),
         );
   }
 
   Future<void> create({
+    required GuardianSubscription subscription,
     required String imei,
     required String time,
     required int frequency,
     required String text,
     String? week,
   }) async {
+    _requireCare(subscription);
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
 
@@ -492,10 +578,7 @@ class MedicationReminderService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(
-      db: _db,
-      auth: _auth,
-    ).setMedicationReminder(
+    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
       imei,
       time: time,
       frequency: frequency,
@@ -504,16 +587,18 @@ class MedicationReminderService {
     );
   }
 
-  Future<void> setEnabled(MedicationReminder reminder, bool enabled) async {
+  Future<void> setEnabled(
+    MedicationReminder reminder,
+    bool enabled, {
+    required GuardianSubscription subscription,
+  }) async {
+    _requireCare(subscription);
     await _db.collection('medicationReminders').doc(reminder.id).update({
       'enabled': enabled,
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(
-      db: _db,
-      auth: _auth,
-    ).setMedicationReminder(
+    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
       reminder.imei,
       time: reminder.time,
       frequency: reminder.frequency,
@@ -523,8 +608,30 @@ class MedicationReminderService {
     );
   }
 
-  Future<void> delete(String id) async {
+  Future<void> delete(
+    String id, {
+    required GuardianSubscription subscription,
+    String? imei,
+  }) async {
+    _requireCare(subscription);
+    // Delete from app's record
     await _db.collection('medicationReminders').doc(id).delete();
+
+    // Also delete from device's reminder collection (where scheduler reads from)
+    if (imei != null) {
+      await _db
+          .collection('devices')
+          .doc(imei)
+          .collection('reminders')
+          .doc(id)
+          .delete();
+    }
+  }
+
+  void _requireCare(GuardianSubscription subscription) {
+    if (!subscription.has(GuardianFeature.medicationReminders)) {
+      throw StateError('Medication reminders require Guardian Care.');
+    }
   }
 }
 
@@ -550,29 +657,6 @@ class EmergencyContact {
       name: (map['name'] as String?) ?? '',
       phone: (map['phone'] as String?) ?? '',
       whatsapp: map['whatsapp'] as String?,
-    );
-  }
-}
-
-/// Entitlement state only — there is no payment provider wired up yet, so
-/// every account is 'free' until a real processor (Stripe, Play Billing,
-/// MCB Juice, ...) is connected server-side. See account_page.dart.
-class GuardianSubscription {
-  const GuardianSubscription({required this.tier, this.status, this.renewsAt});
-
-  final String tier;
-  final String? status;
-  final DateTime? renewsAt;
-
-  bool get isPremium => tier == 'premium' && status != 'canceled';
-
-  factory GuardianSubscription.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const GuardianSubscription(tier: 'free');
-    final renews = map['renewsAt'];
-    return GuardianSubscription(
-      tier: (map['tier'] as String?) ?? 'free',
-      status: map['status'] as String?,
-      renewsAt: renews is Timestamp ? renews.toDate() : null,
     );
   }
 }
@@ -615,15 +699,48 @@ class UserProfileService {
   Stream<GuardianSubscription> watchSubscription() {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
-      return Stream.value(const GuardianSubscription(tier: 'free'));
-    }
-    return _db.collection('users').doc(uid).snapshots().map((snap) {
-      final raw = snap.data()?['subscription'];
-      return GuardianSubscription.fromMap(
-        raw is Map ? Map<String, dynamic>.from(raw) : null,
+      return Stream.value(
+        const GuardianSubscription.inactive(reason: 'not_signed_in'),
       );
-    });
+    }
+
+    late StreamController<GuardianSubscription> controller;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? ownerSub;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? planSub;
+
+    controller = StreamController<GuardianSubscription>(
+      onListen: () {
+        ownerSub = _db.collection('users').doc(uid).snapshots().listen((
+          snap,
+        ) async {
+          await planSub?.cancel();
+          final rawOwner = (snap.data()?['serviceOwnerUid'] as String?)?.trim();
+          final ownerUid = rawOwner == null || rawOwner.isEmpty
+              ? uid
+              : rawOwner;
+          planSub = _db
+              .collection('serviceSubscriptions')
+              .doc(ownerUid)
+              .snapshots()
+              .listen((planSnap) {
+                controller.add(
+                  GuardianSubscription.fromMap(
+                    planSnap.data(),
+                    ownerUid: ownerUid,
+                  ),
+                );
+              }, onError: controller.addError);
+        }, onError: controller.addError);
+      },
+      onCancel: () async {
+        await ownerSub?.cancel();
+        await planSub?.cancel();
+      },
+    );
+    return controller.stream;
   }
+
+  Future<GuardianSubscription> getSubscription() => watchSubscription().first;
 
   Stream<List<EmergencyContact>> watchContacts() {
     final uid = _auth.currentUser?.uid;
@@ -755,6 +872,32 @@ class FamilyInvite {
   }
 }
 
+class FamilyJoinRequest {
+  const FamilyJoinRequest({
+    required this.id,
+    required this.inviteCode,
+    required this.status,
+    this.reason,
+  });
+
+  final String id;
+  final String inviteCode;
+  final String status;
+  final String? reason;
+
+  factory FamilyJoinRequest.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
+    return FamilyJoinRequest(
+      id: doc.id,
+      inviteCode: (data['inviteCode'] as String?) ?? '',
+      status: (data['status'] as String?) ?? 'pending',
+      reason: data['reason'] as String?,
+    );
+  }
+}
+
 class FamilyService {
   FamilyService({FirebaseFirestore? db, FirebaseAuth? auth})
     : _db = db ?? FirebaseFirestore.instance,
@@ -798,39 +941,90 @@ class FamilyService {
         .where('createdBy', isEqualTo: uid)
         .snapshots()
         .map((snap) {
-          final list = snap.docs.map(FamilyInvite.fromDoc).toList();
+          final now = DateTime.now();
+          final list = snap.docs
+              .where((doc) {
+                final data = doc.data();
+                final status = data['status'] as String? ?? 'pending';
+                final expiresAt = data['expiresAt'];
+                if (status != 'pending') return true;
+                if (expiresAt is! Timestamp) return true;
+                return expiresAt.toDate().isAfter(now);
+              })
+              .map(FamilyInvite.fromDoc)
+              .toList();
           list.sort((a, b) => a.code.compareTo(b.code));
           return list;
         });
+  }
+
+  Stream<List<FamilyJoinRequest>> watchMyJoinRequests() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(const []);
+    return _db
+        .collection('familyJoinRequests')
+        .where('requestedBy', isEqualTo: uid)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map(FamilyJoinRequest.fromDoc).toList(growable: false),
+        );
   }
 
   Future<String> createInviteCode() async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
 
-    final profile = await _db.collection('users').doc(user.uid).get();
-    final linked =
-        (profile.data()?['linkedImeis'] as List?)
-            ?.whereType<String>()
-            .toList() ??
-        <String>[];
-    final code = _generateCode();
+    final subscription = await UserProfileService(
+      db: _db,
+      auth: _auth,
+    ).getSubscription();
+    if (!subscription.serviceActive) {
+      throw StateError('Guardian service is not active for this family.');
+    }
+    if (subscription.ownerUid != user.uid) {
+      throw StateError('Only the family plan owner can invite caregivers.');
+    }
 
-    await _db.collection('invites').add({
-      'code': code,
-      'createdBy': user.uid,
-      'createdByName': user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (user.email ?? 'Guardian'),
-      'createdByEmail': user.email,
-      'linkedImeis': linked,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(
-        DateTime.now().add(const Duration(days: 7)),
-      ),
-    });
-    return code;
+    final ownerDoc = await _db.collection('users').doc(user.uid).get();
+    final memberUids =
+        (ownerDoc.data()?['memberUids'] as List?)
+            ?.whereType<String>()
+            .map((value) => value.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet() ??
+        const <String>{};
+    if (memberUids.length >= subscription.caregiverLimit) {
+      throw StateError(
+        '${subscription.planLabel} includes up to ${subscription.caregiverLimit} caregiver${subscription.caregiverLimit == 1 ? '' : 's'}.',
+      );
+    }
+
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final code = _generateCode();
+      try {
+        // The code is also the document id. Firestore rules deny updates, so
+        // the extremely unlikely collision fails instead of replacing another
+        // family's invitation.
+        await _db.collection('invites').doc(code).set({
+          'code': code,
+          'createdBy': user.uid,
+          'createdByName': user.displayName?.trim().isNotEmpty == true
+              ? user.displayName!.trim()
+              : (user.email ?? 'Guardian'),
+          'createdByEmail': user.email,
+          'status': 'pending',
+          'createdAt': FieldValue.serverTimestamp(),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 7)),
+          ),
+        });
+        return code;
+      } catch (_) {
+        if (attempt == 4) rethrow;
+      }
+    }
+    throw StateError('Could not create a unique invite code');
   }
 
   Future<void> acceptInviteCode(String rawCode) async {
@@ -838,96 +1032,30 @@ class FamilyService {
     if (user == null) throw StateError('Not signed in');
 
     final code = rawCode.trim().toUpperCase();
-    if (code.length < 4) throw StateError('Enter a valid invite code');
-
-    final snap = await _db
-        .collection('invites')
-        .where('code', isEqualTo: code)
-        .limit(1)
-        .get();
-    if (snap.docs.isEmpty) throw StateError('Invite code not found');
-
-    final inviteDoc = snap.docs.first;
-    final invite = inviteDoc.data();
-    if (invite['status'] != 'pending') {
-      throw StateError('This invite is no longer active');
-    }
-    if (invite['createdBy'] == user.uid) {
-      throw StateError('You cannot accept your own invite');
+    if (!RegExp(r'^[A-Z0-9]{6}$').hasMatch(code)) {
+      throw StateError('Enter a valid 6-character invite code');
     }
 
-    final expiresAt = invite['expiresAt'];
-    if (expiresAt is Timestamp && expiresAt.toDate().isBefore(DateTime.now())) {
-      throw StateError('This invite has expired');
-    }
-
-    final linked =
-        (invite['linkedImeis'] as List?)?.whereType<String>().toList() ??
-        <String>[];
-    final inviter = FamilyMember(
-      uid: invite['createdBy'] as String,
-      displayName: (invite['createdByName'] as String?) ?? 'Guardian',
-      email: invite['createdByEmail'] as String?,
-    );
-    final acceptor = FamilyMember(
-      uid: user.uid,
-      displayName: user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (user.email ?? 'Guardian'),
-      email: user.email,
-    );
-
-    final myRef = _db.collection('users').doc(user.uid);
-    final inviterRef = _db.collection('users').doc(inviter.uid);
-    final mySnap = await myRef.get();
-    final inviterSnap = await inviterRef.get();
-    final existingMembers =
-        (mySnap.data()?['familyMembers'] as List?)
-            ?.whereType<Map>()
-            .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
-            .toList() ??
-        <FamilyMember>[];
-    if (!existingMembers.any((m) => m.uid == inviter.uid)) {
-      existingMembers.add(inviter);
-    }
-
-    final inviterMembers =
-        (inviterSnap.data()?['familyMembers'] as List?)
-            ?.whereType<Map>()
-            .map((m) => FamilyMember.fromMap(Map<String, dynamic>.from(m)))
-            .toList() ??
-        <FamilyMember>[];
-    if (!inviterMembers.any((m) => m.uid == acceptor.uid)) {
-      inviterMembers.add(acceptor);
-    }
-
-    final batch = _db.batch();
-    batch.update(inviteDoc.reference, {
-      'status': 'accepted',
-      'acceptedBy': user.uid,
-      'acceptedByName': acceptor.displayName,
-      'acceptedByEmail': user.email,
-      'acceptedAt': FieldValue.serverTimestamp(),
+    // The client never reads the invitation or grants itself watches, family
+    // membership or a service owner. The gateway validates the invitation,
+    // active plan and caregiver capacity before applying those backend-owned
+    // fields in a transaction.
+    await _db.collection('familyJoinRequests').add({
+      'inviteCode': code,
+      'requestedBy': user.uid,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
     });
-    batch.set(myRef, {
-      'linkedImeis': FieldValue.arrayUnion(linked),
-      'familyMembers': existingMembers.map((m) => m.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    batch.set(inviterRef, {
-      'familyMembers': inviterMembers.map((m) => m.toMap()).toList(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await batch.commit();
   }
 }
 
-/// Writes app-originated commands for the gateway to deliver to a pendant by
-/// SMS (see gateway/src/commands.js). Center number, SOS numbers, and status
-/// check are from the vendor's own manual; voice monitoring is documented
-/// only for the closely related RF-V28 by a third-party source, not verified
-/// against this exact device — see the comment in commands.js.
+/// Writes app-originated V52 commands for the gateway to deliver using the
+/// command's verified transport. Provisioning uses SMS; runtime watch actions
+/// use the active TCP connection. See gateway/src/commands.js.
+String _normalisePhoneForSafety(String value) {
+  return value.replaceAll(RegExp(r'[^0-9]'), '');
+}
+
 class DeviceCommandService {
   DeviceCommandService({FirebaseFirestore? db, FirebaseAuth? auth})
     : _db = db ?? FirebaseFirestore.instance,
@@ -957,30 +1085,46 @@ class DeviceCommandService {
     return _enqueue(imei, 'set_center_number', {'phone': phone.trim()});
   }
 
-  Future<void> setSosNumber(String imei, int slot, String phone) {
-    return _enqueue(imei, 'set_sos_number', {
-      'slot': slot,
-      'phone': phone.trim(),
-    });
+  Future<void> setSosNumber(String imei, int slot, String phone) async {
+    final trimmed = phone.trim();
+    if (trimmed.isEmpty) {
+      throw StateError('Choose a valid emergency contact');
+    }
+
+    final watch = await _db.collection('devices').doc(imei).get();
+    final watchSim = (watch.data()?['simNumber'] as String?)?.trim();
+    final sosDigits = _normalisePhoneForSafety(trimmed);
+    final simDigits = _normalisePhoneForSafety(watchSim ?? '');
+
+    if (watchSim != null &&
+        watchSim.isNotEmpty &&
+        sosDigits.isNotEmpty &&
+        sosDigits == simDigits) {
+      throw StateError(
+        "SOS contact cannot be the watch's own SIM number. Choose a family member or emergency contact.",
+      );
+    }
+
+    await _enqueue(imei, 'set_sos_number', {'slot': slot, 'phone': trimmed});
   }
 
   Future<void> checkStatus(String imei) {
     return _enqueue(imei, 'check_status', const {});
   }
 
-  /// Triggers the pendant to silently call [listenerPhone] for one-way
-  /// listening. Unverified against the V28C specifically — see class doc.
+  /// Sends the V52 MONITOR data command over its live TCP connection.
+  /// Product use still requires explicit wearer consent and real-device
+  /// acceptance; WhatsApp deliberately cannot invoke this action.
   Future<void> startVoiceMonitor(String imei, String listenerPhone) {
     return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
   }
 
-  /// Makes the pendant sound an audible alert so it can be found. Unverified
-  /// against the V28C specifically — see class doc.
+  /// Sends the V52 FIND command over its live TCP connection.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});
   }
 
-  /// V46/V48/V52 only — TCP downlink, no SMS equivalent exists. Requires the
+  /// V52 TCP downlink; no SMS fallback exists. Requires the
   /// device to currently hold a live connection to the gateway; fails
   /// clearly (not silently) if it doesn't. See gateway/src/commands.js.
   Future<void> setFallDetection(
@@ -994,12 +1138,12 @@ class DeviceCommandService {
     });
   }
 
-  /// V46/V48/V52 only. [level] is 0-6.
+  /// V52 only. [level] is 0-6.
   Future<void> setFallSensitivity(String imei, int level) {
     return _enqueue(imei, 'set_fall_sensitivity', {'level': level});
   }
 
-  /// V46/V48/V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
+  /// V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
   /// (daily), or 3 (weekly, requires [week] as a 7-digit Sun->Sat mask).
   Future<void> setMedicationReminder(
     String imei, {
@@ -1018,7 +1162,7 @@ class DeviceCommandService {
     });
   }
 
-  /// V46/V48/V52 only. Sets the pendant's standing location-reporting
+  /// V52 only. Sets the watch's standing location-reporting
   /// interval so it keeps sending fresh fixes on its own, instead of
   /// falling back to its long, irregular default between fixes. [seconds]
   /// is a UX guardrail (10-3600), not a vendor-documented limit.

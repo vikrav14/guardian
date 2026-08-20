@@ -13,6 +13,71 @@ service cloud.firestore {
       return signedIn() && imei in userDoc().linkedImeis;
     }
 
+    function effectiveServiceOwnerUid() {
+      return userDoc().get('serviceOwnerUid', request.auth.uid);
+    }
+
+    function verifiedServiceMember(ownerUid) {
+      return signedIn()
+        && effectiveServiceOwnerUid() == ownerUid
+        && (
+          request.auth.uid == ownerUid
+          || request.auth.uid in get(
+            /databases/$(database)/documents/users/$(ownerUid)
+          ).data.get('memberUids', [])
+        );
+    }
+
+    function serviceSubscription() {
+      return get(
+        /databases/$(database)/documents/serviceSubscriptions/$(effectiveServiceOwnerUid())
+      ).data;
+    }
+
+    function trustedActiveSubscription() {
+      let ownerUid = effectiveServiceOwnerUid();
+      let sub = serviceSubscription();
+      return verifiedServiceMember(ownerUid)
+        && sub.get('version', 0) == 1
+        && sub.get('managedBy', '') in ['guardian_admin', 'billing', 'migration']
+        && sub.get('plan', '') in ['essential', 'family', 'care']
+        && (
+          (sub.get('status', '') == 'active'
+            && (!('currentPeriodEnd' in sub)
+              || sub.currentPeriodEnd == null
+              || sub.currentPeriodEnd > request.time))
+          || (sub.get('status', '') == 'trialing'
+            && sub.get('trialEndsAt', request.time) > request.time)
+          || (sub.get('status', '') in ['grace_period', 'past_due']
+            && sub.get('graceEndsAt', request.time) > request.time)
+          || (sub.get('status', '') == 'cancelled'
+            && sub.get('currentPeriodEnd', request.time) > request.time)
+        );
+    }
+
+    function activePlanAtLeast(requiredPlan) {
+      let plan = serviceSubscription().get('plan', '');
+      return trustedActiveSubscription()
+        && (
+          requiredPlan == 'essential'
+          || (requiredPlan == 'family' && plan in ['family', 'care'])
+          || (requiredPlan == 'care' && plan == 'care')
+        );
+    }
+
+    function caregiverLimit() {
+      return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
+    }
+
+    function historyAllowed(recordedAt) {
+      return activePlanAtLeast('essential')
+        && recordedAt is timestamp
+        && (
+          activePlanAtLeast('family')
+          || recordedAt >= request.time - duration.value(7, 'd')
+        );
+    }
+
     function validUserAvatar() {
       return !('avatarUrl' in request.resource.data)
         || request.resource.data.avatarUrl == null
@@ -20,27 +85,44 @@ service cloud.firestore {
             && request.resource.data.avatarUrl.size() <= 2048);
     }
 
-    // Acceptor appends themselves to the inviter's familyMembers when joining.
-    function selfJoiningFamilyCircle(inviterUid) {
-      let oldMembers = resource.data.get('familyMembers', []);
-      let newMembers = request.resource.data.get('familyMembers', []);
-      return signedIn()
-        && request.auth.uid != inviterUid
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['familyMembers', 'updatedAt'])
-        && newMembers.size() == oldMembers.size() + 1
-        && newMembers[newMembers.size() - 1].uid == request.auth.uid
-        && newMembers[newMembers.size() - 1].displayName is string;
+    function doesNotMutateServiceAuthority() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny([
+          'subscription',
+          'serviceOwnerUid',
+          'memberUids',
+          'familyMembers'
+        ]);
+    }
+
+    function validNewUserAuthorityFields() {
+      return !request.resource.data.keys()
+          .hasAny(['subscription', 'serviceOwnerUid', 'memberUids'])
+        && (
+          !('familyMembers' in request.resource.data)
+          || (request.resource.data.familyMembers is list
+              && request.resource.data.familyMembers.size() == 0)
+        );
     }
 
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update: if signedIn() && (
-        (request.auth.uid == uid && validUserAvatar())
-        || selfJoiningFamilyCircle(uid)
-      );
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && validNewUserAuthorityFields();
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && validUserAvatar()
+        && doesNotMutateServiceAuthority();
       allow delete: if false;
+    }
+
+    // Backend-owned source of truth for Essential / Family / Care. The app
+    // may display only its verified effective family plan. Admin SDK billing,
+    // migration and support tools bypass these client rules for writes.
+    match /serviceSubscriptions/{ownerUid} {
+      allow read: if verifiedServiceMember(ownerUid);
+      allow create, update, delete: if false;
     }
 
     match /devices/{imei} {
@@ -61,22 +143,33 @@ service cloud.firestore {
               'simNumber',
               'fallDetection',
               'locationReportingIntervalSeconds',
+              'locationReportingMode',
+              'careProfile',
+              'carePriorities',
               'updatedAt'
-            ]);
+            ])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['careProfile', 'carePriorities'])
+          || activePlanAtLeast('care')
+        );
       allow create, delete: if false;
 
       match /locations/{locationId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.recordedAt);
         allow write: if false;
       }
 
       match /segments/{segmentId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.from);
         allow write: if false;
       }
 
       match /journeys/{journeyId} {
-        allow read: if linkedTo(imei);
+        allow read: if linkedTo(imei)
+          && historyAllowed(resource.data.startAt);
         allow write: if false;
       }
     }
@@ -91,11 +184,14 @@ service cloud.firestore {
     }
 
     match /medicationReminders/{reminderId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care');
       allow create: if signedIn()
         && linkedTo(request.resource.data.imei)
+        && activePlanAtLeast('care')
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care')
         && resource.data.createdBy == request.auth.uid;
     }
 
@@ -104,7 +200,7 @@ service cloud.firestore {
       allow update: if linkedTo(resource.data.imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
-      // App "Send help alert" — gateway still owns device-originated alerts.
+      // App "Send help alert" â€” gateway still owns device-originated alerts.
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.type == 'sos'
         && request.resource.data.severity == 'critical'
@@ -117,17 +213,52 @@ service cloud.firestore {
     }
 
     match /invites/{inviteId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && resource.data.createdBy == request.auth.uid;
       allow create: if signedIn()
+        && effectiveServiceOwnerUid() == request.auth.uid
+        && activePlanAtLeast('essential')
+        && userDoc().get('memberUids', []).size() < caregiverLimit()
+        && request.resource.data.keys().hasOnly([
+          'code',
+          'createdBy',
+          'createdByName',
+          'createdByEmail',
+          'status',
+          'createdAt',
+          'expiresAt'
+        ])
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == 'pending';
-      allow update: if signedIn() && (
-        resource.data.createdBy == request.auth.uid
-        || (resource.data.status == 'pending'
-            && request.resource.data.status == 'accepted'
-            && request.resource.data.acceptedBy == request.auth.uid)
-      );
+        && request.resource.data.status == 'pending'
+        && request.resource.data.code == inviteId
+        && request.resource.data.code is string
+        && request.resource.data.code.size() == 6
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(8, 'd');
+      allow update: if false;
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Joining a family is a backend-verified workflow. The requester may only
+    // enqueue the code. The gateway validates expiry, active plan and caregiver
+    // capacity before it writes serviceOwnerUid, memberUids or linked watches.
+    match /familyJoinRequests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'inviteCode',
+          'requestedBy',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.inviteCode is string
+        && request.resource.data.inviteCode.size() == 6
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow read: if signedIn()
+        && resource.data.requestedBy == request.auth.uid;
+      allow update, delete: if false;
     }
 
     match /notificationLogs/{logId} {
@@ -139,7 +270,11 @@ service cloud.firestore {
       allow read: if linkedTo(resource.data.imei);
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && (
+          request.resource.data.get('type', '') != 'set_medication_reminder'
+          || activePlanAtLeast('care')
+        );
       allow update, delete: if false; // gateway Admin SDK only
     }
   }

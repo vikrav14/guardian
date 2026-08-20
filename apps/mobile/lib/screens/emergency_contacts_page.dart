@@ -10,24 +10,15 @@ import '../widgets/guardian_widgets.dart';
 /// Mauritius national emergency numbers (Police, SAMU ambulance, Fire).
 List<({String label, String number, IconData icon})> _mauritiusEmergencyNumbers(
   AppLocalizations t,
-) =>
-    [
-      (
-        label: t.emergencyPolice,
-        number: '999',
-        icon: Icons.local_police_rounded,
-      ),
-      (
-        label: t.emergencySamu,
-        number: '114',
-        icon: Icons.medical_services_rounded,
-      ),
-      (
-        label: t.emergencyFire,
-        number: '995',
-        icon: Icons.local_fire_department_rounded,
-      ),
-    ];
+) => [
+  (label: t.emergencyPolice, number: '999', icon: Icons.local_police_rounded),
+  (label: t.emergencySamu, number: '114', icon: Icons.medical_services_rounded),
+  (
+    label: t.emergencyFire,
+    number: '995',
+    icon: Icons.local_fire_department_rounded,
+  ),
+];
 
 class EmergencyContactsPage extends StatelessWidget {
   const EmergencyContactsPage({super.key});
@@ -57,7 +48,10 @@ class EmergencyContactsPage extends StatelessWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: phoneCtrl,
@@ -68,13 +62,21 @@ class EmergencyContactsPage extends StatelessWidget {
             TextField(
               controller: waCtrl,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'WhatsApp (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'WhatsApp (optional)',
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -147,7 +149,8 @@ class EmergencyContactsPage extends StatelessWidget {
                         onTap: () => _call(context, e.number),
                       ),
                     ),
-                    if (e != emergencyNumbers.last) const SizedBox(width: GuardianSpacing.xs),
+                    if (e != emergencyNumbers.last)
+                      const SizedBox(width: GuardianSpacing.xs),
                   ],
                 ],
               ),
@@ -233,7 +236,9 @@ class _EmergencyNumberChip extends StatelessWidget {
               const SizedBox(height: GuardianSpacing.xxs),
               Text(
                 label,
-                style: textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

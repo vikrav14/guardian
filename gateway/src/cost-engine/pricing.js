@@ -31,10 +31,10 @@ module.exports = {
   },
 
   claude: {
-    /** MUR per 1,000 input tokens (Sonnet-class) */
-    inputPer1kTokensMur: 0.41,
-    /** MUR per 1,000 output tokens */
-    outputPer1kTokensMur: 2.03,
+    /** Claude Sonnet 5: USD 2 / MTok input, converted at murPerUsd. */
+    inputPer1kTokensMur: 0.09,
+    /** Claude Sonnet 5: USD 10 / MTok output, converted at murPerUsd. */
+    outputPer1kTokensMur: 0.45,
   },
 
   hosting: {

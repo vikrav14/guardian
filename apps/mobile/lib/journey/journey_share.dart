@@ -16,14 +16,20 @@ String buildJourneyShareText({
   final insights = buildJourneyInsights(points);
   final score = computeJourneyScore(points);
   final dateLabel = DateFormat.yMMMEd().format(day);
-  final start = stats.startTime != null ? DateFormat.Hm().format(stats.startTime!) : '--:--';
-  final end = stats.endTime != null ? DateFormat.Hm().format(stats.endTime!) : '--:--';
+  final start = stats.startTime != null
+      ? DateFormat.Hm().format(stats.startTime!)
+      : '--:--';
+  final end = stats.endTime != null
+      ? DateFormat.Hm().format(stats.endTime!)
+      : '--:--';
 
   final buffer = StringBuffer()
     ..writeln('🛡️ Guardian Journey — $deviceName')
     ..writeln(dateLabel)
     ..writeln('')
-    ..writeln('📍 ${stats.distanceKm.toStringAsFixed(1)} km · ${formatJourneyDuration(stats.duration)}')
+    ..writeln(
+      '📍 ${stats.distanceKm.toStringAsFixed(1)} km · ${formatJourneyDuration(stats.duration)}',
+    )
     ..writeln('⏱ $start – $end · ${stats.pointCount} GPS fixes')
     ..writeln('⭐ Journey score ${score.overall}/100')
     ..writeln('')
@@ -55,10 +61,9 @@ Future<ShareJourneyResult> shareJourneySummary(String text) async {
   }
 
   final whatsAppOk = await shareViaWhatsApp(text);
-  return whatsAppOk ? ShareJourneyResult.copiedAndWhatsApp : ShareJourneyResult.copiedOnly;
+  return whatsAppOk
+      ? ShareJourneyResult.copiedAndWhatsApp
+      : ShareJourneyResult.copiedOnly;
 }
 
-enum ShareJourneyResult {
-  copiedOnly,
-  copiedAndWhatsApp,
-}
+enum ShareJourneyResult { copiedOnly, copiedAndWhatsApp }

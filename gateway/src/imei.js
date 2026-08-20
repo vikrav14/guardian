@@ -1,5 +1,5 @@
 /**
- * ReachFar V28C IMEI normalization.
+ * ReachFar V52 protocol-ID normalization.
  *
  * The ASCII protocol uses a 10-digit device ID in every frame, but the label /
  * status SMS / Firestore linkedImeis use the full 15-digit IMEI. For this
@@ -62,7 +62,9 @@ function fullImeiFromProtocolId(protocolId) {
   const mapped = imeiMap.get(id);
   if (mapped && isFullImei(mapped)) return mapped;
 
-  // ReachFar V28C ids observed in the field start with 970.
+  // ReachFar V52 protocol ids observed in the field start with 970. The final
+  // IMEI digit is not encoded in the 10-digit id, so production devices should
+  // use IMEI_MAP or a full-IMEI packet whenever the default suffix is not 0.
   if (!id.startsWith('970')) return null;
 
   const prefix = config.imeiPrefix || '8613970';

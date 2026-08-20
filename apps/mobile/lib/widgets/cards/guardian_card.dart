@@ -40,9 +40,11 @@ class GuardianCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: borderColor ?? (glass
-                  ? Colors.white.withValues(alpha: 0.45)
-                  : colors.border),
+              color:
+                  borderColor ??
+                  (glass
+                      ? Colors.white.withValues(alpha: 0.45)
+                      : colors.border),
             ),
             boxShadow: [
               BoxShadow(

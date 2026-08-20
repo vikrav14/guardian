@@ -8,6 +8,7 @@ import '../models/device.dart';
 import '../services/auth_service.dart';
 import '../services/device_avatar_service.dart';
 import '../services/guardian_avatar_service.dart';
+import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -16,10 +17,17 @@ import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
 import 'care_settings_page.dart';
+import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Future<void> _createInvite(BuildContext context) async {
     try {
@@ -45,13 +53,13 @@ class AccountPage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Link a pendant'),
+        title: const Text('Link a watch'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Enter the 15-digit IMEI printed on the pendant or returned '
+              'Enter the 15-digit IMEI printed on the watch or returned '
               'by the status SMS (ts#).',
             ),
             const SizedBox(height: 12),
@@ -89,7 +97,7 @@ class AccountPage extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Pendant linked — it will appear when the gateway receives data',
+              'Watch linked - it will appear when the gateway receives data',
             ),
           ),
         );
@@ -139,7 +147,11 @@ class AccountPage extends StatelessWidget {
       await FamilyService().acceptInviteCode(ctrl.text);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Joined family — pendants linked')),
+          const SnackBar(
+            content: Text(
+              'Join request sent. Guardian will verify the invitation and family plan.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -164,6 +176,21 @@ class AccountPage extends StatelessWidget {
     final family = FamilyService();
     final t = AppLocalizations.of(context)!;
     final colors = context.guardianColors;
+    final entitlementScope = GuardianEntitlementsScope.of(context);
+    final subscription = entitlementScope.subscription;
+    final subscriptionPresentation = GuardianSubscriptionPresentation.resolve(
+      subscription: subscription,
+      checking: entitlementScope.checking,
+      error: entitlementScope.error,
+    );
+    final whatsappAlertsDecision = entitlementScope.decision(
+      GuardianFeature.whatsappSafetyAlerts,
+    );
+    final accountRole = subscription?.serviceActive == true
+        ? subscription!.ownerUid == user?.uid
+              ? 'Family account owner'
+              : 'Family caregiver'
+        : 'Guardian account';
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -182,7 +209,7 @@ class AccountPage extends StatelessWidget {
             const GuardianPageHeader(
               eyebrow: 'YOUR GUARDIAN CIRCLE',
               title: 'Account & family',
-              subtitle: 'People, pendant and preferences in one calm place.',
+              subtitle: 'People, watch and preferences in one calm place.',
             ),
             const SizedBox(height: GuardianSpacing.lg),
             GuardianCard(
@@ -192,14 +219,14 @@ class AccountPage extends StatelessWidget {
                   const SizedBox(height: GuardianSpacing.xs),
                   Text(name, style: textTheme.titleMedium),
                   Text(
-                    email.isEmpty ? 'Family admin' : 'Family admin · $email',
+                    email.isEmpty ? accountRole : '$accountRole - $email',
                     style: textTheme.bodyMedium,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: GuardianSpacing.lg),
-            const GuardianSectionTitle('Pendants'),
+            const GuardianSectionTitle('Watches'),
             const SizedBox(height: GuardianSpacing.sm),
             StreamBuilder<List<Device>>(
               stream: DeviceService().watchLinkedDevices(),
@@ -218,7 +245,7 @@ class AccountPage extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'No pendants linked yet. Add the 15-digit IMEI from '
+                          'No watches linked yet. Add the 15-digit IMEI from '
                           'the device label.',
                           style: textTheme.bodyMedium,
                         ),
@@ -226,12 +253,14 @@ class AccountPage extends StatelessWidget {
                     for (var i = 0; i < devices.length; i++)
                       _DeviceRow(
                         device: devices[i],
+                        subscription: subscription,
                         showDivider: i < devices.length - 1,
-                        onUnlink: () => _confirmUnlinkPendant(context, devices[i]),
+                        onUnlink: () =>
+                            _confirmUnlinkPendant(context, devices[i]),
                       ),
                     GuardianSettingsRow(
                       icon: Icons.link_rounded,
-                      label: 'Link a pendant',
+                      label: 'Link a watch',
                       showDivider: devices.isNotEmpty,
                       onTap: () => _linkPendant(context),
                     ),
@@ -250,74 +279,115 @@ class AccountPage extends StatelessWidget {
                   builder: (context, inviteSnap) {
                     final members = memberSnap.data ?? const <FamilyMember>[];
                     final invites = inviteSnap.data ?? const <FamilyInvite>[];
-                    final accepted = invites
-                        .where((i) => i.status == 'accepted')
-                        .toList();
                     final pending = invites
                         .where((i) => i.status == 'pending')
                         .toList();
+                    return StreamBuilder<List<FamilyJoinRequest>>(
+                      stream: family.watchMyJoinRequests(),
+                      builder: (context, requestSnap) {
+                        final requests =
+                            requestSnap.data ?? const <FamilyJoinRequest>[];
+                        final ownerUid = subscription?.ownerUid;
+                        final isOwner = user != null && ownerUid == user.uid;
+                        final active = subscription?.serviceActive == true;
+                        final limit = subscription?.caregiverLimit ?? 0;
+                        final full = active && members.length >= limit;
 
-                    return GuardianListGroup(
-                      children: [
-                        if (members.isEmpty &&
-                            accepted.isEmpty &&
-                            pending.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(GuardianSpacing.md),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: colors.border),
+                        String inviteMessage() {
+                          if (entitlementScope.error != null) {
+                            return 'Guardian could not verify the family plan. Try again when the connection is restored.';
+                          }
+                          if (entitlementScope.checking) {
+                            return 'Guardian is still checking the family plan.';
+                          }
+                          if (!active) {
+                            return 'An active Guardian service plan is required before inviting a caregiver.';
+                          }
+                          if (!isOwner) {
+                            return 'Only the family plan owner can invite caregivers.';
+                          }
+                          if (full) {
+                            return '${subscription!.planLabel} includes up to $limit caregiver${limit == 1 ? '' : 's'}.';
+                          }
+                          return '';
+                        }
+
+                        return GuardianListGroup(
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(GuardianSpacing.md),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: colors.border),
+                                ),
+                              ),
+                              child: Text(
+                                active
+                                    ? '${members.length} of $limit caregiver${limit == 1 ? '' : 's'} used on ${subscription!.planLabel}.'
+                                    : subscriptionPresentation.message,
+                                style: textTheme.bodyMedium,
                               ),
                             ),
-                            child: Text(
-                              'Invite a spouse or relative so they can watch the same pendants.',
-                              style: textTheme.bodyMedium,
+                            for (final member in members)
+                              _PersonRow(
+                                name: member.displayName,
+                                subtitle: member.email ?? 'Family caregiver',
+                                showDivider: true,
+                              ),
+                            for (final invite in pending)
+                              _PersonRow(
+                                name: 'Invite ${invite.code}',
+                                subtitle:
+                                    'Waiting to be accepted - tap to copy',
+                                showDivider: true,
+                                onTap: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: invite.code),
+                                  );
+                                  if (context.mounted) {
+                                    _showMessage(
+                                      context,
+                                      'Copied ${invite.code}',
+                                    );
+                                  }
+                                },
+                              ),
+                            for (final request in requests)
+                              _PersonRow(
+                                name: 'Join request ${request.inviteCode}',
+                                subtitle: request.status == 'pending'
+                                    ? 'Guardian is verifying this request'
+                                    : request.status == 'accepted'
+                                    ? 'Accepted'
+                                    : request.reason ?? 'Not accepted',
+                                showDivider: true,
+                              ),
+                            GuardianSettingsRow(
+                              icon: full
+                                  ? Icons.group_off_outlined
+                                  : Icons.person_add_rounded,
+                              label: full
+                                  ? 'Caregiver limit reached'
+                                  : 'Invite a family member',
+                              onTap: () {
+                                final message = inviteMessage();
+                                if (message.isNotEmpty) {
+                                  _showMessage(context, message);
+                                  return;
+                                }
+                                _createInvite(context);
+                              },
                             ),
-                          ),
-                        for (var i = 0; i < members.length; i++)
-                          _PersonRow(
-                            name: members[i].displayName,
-                            subtitle: members[i].email ?? 'Family member',
-                            showDivider: true,
-                          ),
-                        for (var i = 0; i < accepted.length; i++)
-                          _PersonRow(
-                            name:
-                                accepted[i].acceptedByName ?? 'Family member',
-                            subtitle: 'Joined with code ${accepted[i].code}',
-                            showDivider: true,
-                          ),
-                        for (final invite in pending)
-                          _PersonRow(
-                            name: 'Invite ${invite.code}',
-                            subtitle: 'Waiting to be accepted · tap to copy',
-                            showDivider: true,
-                            onTap: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: invite.code),
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Copied ${invite.code}'),
-                                  ),
-                                );
-                              }
-                            },
-                          ),
-                        GuardianSettingsRow(
-                          icon: Icons.person_add_rounded,
-                          label: 'Invite a family member',
-                          onTap: () => _createInvite(context),
-                        ),
-                        GuardianSettingsRow(
-                          icon: Icons.group_add_rounded,
-                          label: 'Have a code? Join a family',
-                          showDivider: false,
-                          onTap: () => _acceptInvite(context),
-                        ),
-                      ],
+                            GuardianSettingsRow(
+                              icon: Icons.group_add_rounded,
+                              label: 'Have a code? Join a family',
+                              showDivider: false,
+                              onTap: () => _acceptInvite(context),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 );
@@ -330,16 +400,18 @@ class AccountPage extends StatelessWidget {
               children: [
                 GuardianSettingsRow(
                   icon: Icons.sms_rounded,
-                  label: 'WhatsApp / SMS alerts',
+                  label: whatsappAlertsDecision.allowed
+                      ? 'WhatsApp / SMS alerts'
+                      : 'App / SMS alerts',
                   onTap: () {
                     showDialog<void>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Alert delivery'),
-                        content: const Text(
-                          'SOS, fall, and safe-zone exit alerts notify your emergency contacts '
-                          'through the gateway. Add Twilio keys in gateway/.env to send real '
-                          'SMS/WhatsApp. Until then, deliveries are logged in notificationLogs.',
+                        content: Text(
+                          whatsappAlertsDecision.allowed
+                              ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
+                              : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require Guardian Family or Guardian Care.',
                         ),
                         actions: [
                           TextButton(
@@ -362,36 +434,23 @@ class AccountPage extends StatelessWidget {
                     );
                   },
                 ),
-                StreamBuilder<GuardianSubscription>(
-                  stream: UserProfileService().watchSubscription(),
-                  builder: (context, subSnap) {
-                    final sub =
-                        subSnap.data ?? const GuardianSubscription(tier: 'free');
-                    return GuardianSettingsRow(
-                      icon: Icons.workspace_premium_rounded,
-                      label: t.subscriptionLabel,
-                      trailing: sub.isPremium ? t.premiumPlan : t.freePlan,
-                      onTap: () {
-                        showDialog<void>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: Text(t.subscriptionLabel),
-                            content: Text(
-                              sub.isPremium
-                                  ? 'You are on the Premium plan.'
-                                  : "You're on the Free plan. Paid plans aren't available yet -- "
-                                        'this needs a payment provider (e.g. Stripe or MCB Juice) '
-                                        'connected on the backend before real billing can go live.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('OK'),
-                              ),
-                            ],
+                GuardianSettingsRow(
+                  icon: Icons.workspace_premium_rounded,
+                  label: t.subscriptionLabel,
+                  trailing: subscriptionPresentation.trailingLabel,
+                  onTap: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(t.subscriptionLabel),
+                        content: Text(subscriptionPresentation.message),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK'),
                           ),
-                        );
-                      },
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -403,9 +462,10 @@ class AccountPage extends StatelessWidget {
                 GuardianSettingsRow(
                   icon: Icons.palette_rounded,
                   label: 'Theme',
-                  trailing: (GuardianApp.themeOf(context) ??
-                          GuardianThemeId.defaultTheme)
-                      .displayName,
+                  trailing:
+                      (GuardianApp.themeOf(context) ??
+                              GuardianThemeId.defaultTheme)
+                          .displayName,
                   onTap: () => showThemePickerDialog(context),
                 ),
                 GuardianSettingsRow(
@@ -534,7 +594,7 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
             ),
             if (_busy && _stage == AvatarUpdateStage.selection)
               Text(
-                'Photo chooser open — choose an image or cancel.',
+                'Photo chooser open Ã¢â‚¬â€ choose an image or cancel.',
                 style: textTheme.labelSmall,
               )
             else if (_busy)
@@ -553,10 +613,10 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
                   const SizedBox(height: GuardianSpacing.xxs),
                   Text(
                     _stage == AvatarUpdateStage.profileSave
-                        ? 'Saving profile photo…'
+                        ? 'Saving profile photoÃ¢â‚¬Â¦'
                         : _uploadFraction == null
-                        ? 'Uploading photo…'
-                        : 'Uploading photo… ${(_uploadFraction! * 100).round()}%',
+                        ? 'Uploading photoÃ¢â‚¬Â¦'
+                        : 'Uploading photoÃ¢â‚¬Â¦ ${(_uploadFraction! * 100).round()}%',
                     style: textTheme.labelSmall,
                   ),
                 ],
@@ -578,11 +638,13 @@ class _AccountAvatarEditorState extends State<AccountAvatarEditor> {
 class _DeviceRow extends StatelessWidget {
   const _DeviceRow({
     required this.device,
+    required this.subscription,
     required this.showDivider,
     required this.onUnlink,
   });
 
   final Device device;
+  final GuardianSubscription? subscription;
   final bool showDivider;
   final VoidCallback onUnlink;
 
@@ -621,21 +683,38 @@ class _DeviceRow extends StatelessWidget {
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, size: 18),
-            tooltip: 'Pendant options',
+            tooltip: 'Watch options',
             onSelected: (value) {
               if (value == 'unlink') onUnlink();
             },
             itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: 'unlink',
-                child: Text('Unlink pendant'),
-              ),
+              const PopupMenuItem(value: 'unlink', child: Text('Unlink watch')),
             ],
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
             tooltip: 'Person and device settings',
-            onPressed: () => _showDeviceSettingsDialog(context, device),
+            onPressed: () {
+              final verifiedSubscription = subscription;
+              if (verifiedSubscription == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Guardian is still verifying this family account.',
+                    ),
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => WatchSettingsPage(
+                    device: device,
+                    subscription: verifiedSubscription,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -647,10 +726,10 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Unlink pendant?'),
+      title: const Text('Unlink watch?'),
       content: Text(
         '${device.displayName} will disappear from your account. '
-        'The pendant itself is not reset — you can link it again with the IMEI.',
+        'The watch itself is not reset Ã¢â‚¬â€ you can link it again with the IMEI.',
       ),
       actions: [
         TextButton(
@@ -658,9 +737,7 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: GuardianColors.danger,
-          ),
+          style: FilledButton.styleFrom(backgroundColor: GuardianColors.danger),
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Unlink'),
         ),
@@ -672,15 +749,15 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
   try {
     await DeviceService().unlinkPendant(device.imei);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${device.displayName} unlinked')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${device.displayName} unlinked')));
     }
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not unlink pendant: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not unlink watch: $e')));
     }
   }
 }
@@ -718,9 +795,11 @@ Future<void> _showLanguagePicker(BuildContext context) async {
   }
 }
 
+// ignore: unused_element
 Future<void> _showDeviceSettingsDialog(
   BuildContext context,
   Device device,
+  GuardianSubscription subscription,
 ) async {
   final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
   final relationshipCtrl = TextEditingController(
@@ -842,8 +921,8 @@ Future<void> _showDeviceSettingsDialog(
                     controller: simCtrl,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
-                      labelText: "Pendant's SIM number",
-                      hintText: '+230…',
+                      labelText: "Watch's SIM number",
+                      hintText: '+230Ã¢â‚¬Â¦',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -868,25 +947,25 @@ Future<void> _showDeviceSettingsDialog(
                     leading: const Icon(Icons.favorite_outline),
                     title: const Text('Care settings'),
                     subtitle: const Text(
-                      'Fall detection & medication reminders — V46/V48/V52 only',
+                      'Fall detection & medication reminders — V52',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => CareSettingsPage(device: device),
+                          builder: (_) => CareSettingsPage(
+                            device: device,
+                            subscription: subscription,
+                          ),
                         ),
                       );
                     },
                   ),
                   const Divider(height: 24),
                   Text(
-                    'Send SMS commands to the pendant (see docs/reference/Switch-Server-SMS-Commands.pdf)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
+                    'Send SMS commands to the watch (see docs/reference/Switch-Server-SMS-Commands.pdf)',
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -951,13 +1030,9 @@ Future<void> _showDeviceSettingsDialog(
                   ),
                   const Divider(height: 24),
                   Text(
-                    'Voice monitoring: unverified against this exact device -- documented for '
-                    'the closely related RF-V28 by a third party, not the V28C vendor manual. '
-                    'Test carefully before relying on it.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
+                    'Voice monitoring uses the V52 live watch connection. Use it only with '
+                    'the wearer\'s knowledge and consent; availability can vary by firmware.',
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -965,7 +1040,7 @@ Future<void> _showDeviceSettingsDialog(
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Your number to receive the silent call',
-                      hintText: '+230…',
+                      hintText: '+230Ã¢â‚¬Â¦',
                     ),
                   ),
                   Align(
@@ -1013,10 +1088,10 @@ Future<void> _showDeviceSettingsDialog(
                         final confirmed = await showDialog<bool>(
                           context: ctx,
                           builder: (confirmCtx) => AlertDialog(
-                            title: const Text('Unlink pendant?'),
+                            title: const Text('Unlink watch?'),
                             content: Text(
                               '${device.displayName} will disappear from your account. '
-                              'The pendant itself is not reset — you can link it again with the IMEI.',
+                              'The watch itself is not reset Ã¢â‚¬â€ you can link it again with the IMEI.',
                             ),
                             actions: [
                               TextButton(
@@ -1045,7 +1120,7 @@ Future<void> _showDeviceSettingsDialog(
                 style: TextButton.styleFrom(
                   foregroundColor: GuardianColors.danger,
                 ),
-                child: const Text('Unlink pendant'),
+                child: const Text('Unlink watch'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),

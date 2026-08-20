@@ -21,7 +21,7 @@ test('classifyIntent: location requests', () => {
 test('classifyIntent: critical/emergency', () => {
   const cases = [
     { text: 'SOS!', expectedType: 'CRITICAL', expectedUrgency: 9 },
-    { text: 'HELP', expectedType: 'CRITICAL', expectedUrgency: 9 },
+
     { text: 'emergency', expectedType: 'CRITICAL', expectedUrgency: 9 },
     { text: 'danger danger', expectedType: 'CRITICAL', expectedUrgency: 9 },
   ];
@@ -49,6 +49,31 @@ test('classifyIntent: device status', () => {
 test('classifyIntent: reminder/medication', () => {
   const result = classifyIntent('medication reminder');
   assert.equal(result.type, 'REMINDER_REQUEST');
+});
+
+test('classifyIntent: journey history queries', () => {
+  const cases = [
+    'journey?',
+    'recent journey',
+    'latest trip',
+    'show journeys today',
+    'previous outings',
+    'where did Jesh go?',
+  ];
+  for (const text of cases) {
+    assert.equal(classifyIntent(text).type, 'JOURNEY_QUERY', `Failed for: ${text}`);
+  }
+});
+
+test('classifyIntent: weather near a wearer', () => {
+  for (const text of [
+    "How's the weather near Jesh?",
+    'Will it rain near Mum?',
+    'Temperature around Dad',
+    'Meteo kot Jesh',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'WEATHER_QUERY', `Failed for: ${text}`);
+  }
 });
 
 test('classifyIntent: safe zone', () => {
@@ -100,4 +125,15 @@ test('classifyIntent: Mauritian Creole support', () => {
   const result = classifyIntent('Mama koté?');
   // Currently: UNCLEAR (should be LOCATION_REQUEST after Creole support)
   // assert.equal(result.type, 'LOCATION_REQUEST');
+});
+test('classifyIntent: generic help is not a safety emergency', () => {
+  const result = classifyIntent('help me write something');
+  assert.equal(result.type, 'GENERAL_HELP');
+  assert.ok(!isCritical(result));
+});
+
+test('classifyIntent: explicit SOS remains safety-critical', () => {
+  const result = classifyIntent('SOS');
+  assert.equal(result.type, 'CRITICAL');
+  assert.ok(isCritical(result));
 });

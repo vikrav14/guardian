@@ -16,10 +16,42 @@ void main() {
         'relationship': 'Mum',
         'online': true,
         'batteryPercent': 72,
+        'batteryUpdatedAt': Timestamp.fromDate(DateTime.utc(2026, 8, 16, 9)),
+        'cellularSignalPercent': 80,
+        'cellularSignalUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
+        'stepsRaw': 1234,
+        'rollCountRaw': 50,
+        'activityUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
+        'telemetryUpdatedAt': Timestamp.fromDate(
+          DateTime.utc(2026, 8, 16, 9),
+        ),
         'speedKmh': 12,
         'course': 90,
         'accuracySource': 'gps',
-        'location': {'lat': -20.2642, 'lng': 57.4791, 'satellites': 8},
+        'location': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'satellites': 8,
+          'source': 'gps',
+          'gpsValid': true,
+          'accuracyMeters': null,
+        },
+        'lastLocationObservation': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'source': 'gps',
+          'gpsValid': true,
+        },
+        'lastSatelliteLocation': {
+          'lat': -20.2642,
+          'lng': 57.4791,
+          'source': 'gps',
+          'gpsValid': true,
+        },
         'simNumber': '+23057123456',
         'avatarUrl': 'https://example.com/avatar.jpg',
       });
@@ -32,8 +64,22 @@ void main() {
       expect(device.relationshipLabel, 'Mum');
       expect(device.online, true);
       expect(device.batteryPercent, 72);
+      expect(device.batteryUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
+      expect(device.cellularSignalPercent, 80);
+      expect(
+        device.cellularSignalUpdatedAt?.toUtc(),
+        DateTime.utc(2026, 8, 16, 9),
+      );
+      expect(device.stepsRaw, 1234);
+      expect(device.rollCountRaw, 50);
+      expect(device.activityUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
+      expect(device.telemetryUpdatedAt?.toUtc(), DateTime.utc(2026, 8, 16, 9));
       expect(device.location?.isValid, true);
       expect(device.location?.lat, -20.2642);
+      expect(device.location?.source, 'gps');
+      expect(device.location?.gpsValid, true);
+      expect(device.lastSatelliteLocation?.isValid, true);
+      expect(device.displayLocationSource, 'gps');
       expect(device.simNumber, '+23057123456');
       expect(device.avatarUrl, 'https://example.com/avatar.jpg');
     });

@@ -1,46 +1,107 @@
-# WhatsApp AI assistant
+# WhatsApp assistant — Meta Cloud API only
 
-Guardian answers family questions over WhatsApp using Claude + live Firestore data.
+Guardian answers registered family questions using live Firestore data and
+sends safety notifications through Meta WhatsApp Cloud API. Twilio is not a
+WhatsApp transport or fallback.
 
-## What it does
+## Required configuration
 
-Incoming message → gateway webhook → Claude with tools (`list_devices`, `get_last_location`, `get_battery`, `get_recent_alerts`) → natural reply on WhatsApp.
+Keep all secrets in `gateway/.env` or deployment secrets:
 
-Example: *"Where's mum?"* → location + Google Maps link.
-
-## Setup
-
-1. In `gateway/.env` set:
-
-```
+```dotenv
 HTTP_PORT=9001
-ANTHROPIC_API_KEY=sk-ant-...
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+META_WHATSAPP_ACCESS_TOKEN=
+META_WHATSAPP_PHONE_NUMBER_ID=
+META_WHATSAPP_WABA_ID=
+META_APP_SECRET=
+META_WHATSAPP_VERIFY_TOKEN=
 ```
 
-2. Restart the gateway (`npm start`). It listens on:
-   - TCP `9000` — GT06 pendants
-   - HTTP `9001` — webhooks
+Set `ANTHROPIC_API_KEY` and `LLM_PROVIDER=anthropic` for conversational
+questions. Critical SOS narration remains deterministic and does not call an
+LLM.
 
-3. **Local test (no Twilio):**
+Business-initiated messages require approved Meta templates:
+
+```dotenv
+META_WHATSAPP_REMINDER_TEMPLATE=
+```
+
+Fall alerts use three fixed English (`en`) templates selected from the location
+snapshot captured when the V52 fall event is persisted:
+
+| Location at event time | Template | Button |
+|---|---|---|
+| Trustworthy and at most 10 minutes old | `guardian_fall_alert_v1` | `View location` |
+| Trustworthy but older or missing a dependable timestamp | `guardian_fall_last_location_v1` | `View last known location` |
+| No trustworthy event-time location | `guardian_fall_unavailable_v1` | None |
+
+All three templates receive exactly four body values: deterministic safety
+narration, event time, location details/status, and watch status. The two
+location templates also receive the dynamic latitude/longitude suffix for
+`https://maps.google.com/?q={{1}}`. The unavailable template has no URL button.
+Location age is event-relative (for example, `2 mins before fall`) so a delayed
+provider retry cannot make the frozen evidence read like a current fix.
+
+Guardian never builds a fall map link from the current device document. The
+alert's immutable `payload.locationSnapshot` is the only fall-location source,
+so movement after the event cannot silently change the destination. Legacy
+fall alerts without a snapshot fail closed to the unavailable template.
+
+The reminder template receives wearer name, reminder text, and scheduled time.
+If any required template is missing or rejected, Guardian records a visible
+failure; it never switches to another WhatsApp provider.
+
+## Webhook
+
+Expose this signed endpoint over HTTPS and configure it in the Meta app:
+
+```text
+GET/POST https://YOUR_PUBLIC_HOST/webhooks/meta/whatsapp
+```
+
+Subscribe the WhatsApp Business Account to the `messages` webhook field. The
+same endpoint receives inbound family questions and outbound message status
+updates (`sent`, `delivered`, `read`, and `failed`). Guardian verifies
+`X-Hub-Signature-256` with `META_APP_SECRET` before processing either.
+
+Meta returning a `wamid` means the message was accepted by its API. Guardian
+does not label delivery proven until the webhook records `delivered` or `read`.
+Every signed status is also retained in `metaDeliveryEvents`, including smoke
+messages that are not linked to an alert.
+
+## Controlled smoke test
+
+Use the Meta-provided `hello_world` template with an approved test recipient:
 
 ```powershell
-cd C:\Users\MSI\repos\guardian\gateway
-npm run chat -- "Where is the pendant?"
+cd "C:\Users\MSI\repos\guardian\gateway"
+node .\scripts\meta-send-smoke.js +23058590100 hello_world en_US
 ```
 
-Or:
+This sends one real WhatsApp message and may incur Meta charges. Do not use a
+physical SOS press for configuration testing.
+
+Copy the printed `messageId`, wait for the webhook, then inspect it:
 
 ```powershell
-curl http://127.0.0.1:9001/dev/chat -ContentType application/json -Body '{"from":"+23051234567","text":"Battery?"}'
+node .\scripts\inspect-meta-delivery.js --message-id "wamid..."
 ```
 
-4. **Twilio sandbox:** point the WhatsApp webhook to  
-   `https://YOUR_PUBLIC_URL/webhooks/twilio/whatsapp`  
-   (use ngrok: `ngrok http 9001`).
+## Local chat without sending WhatsApp
 
-5. Put your WhatsApp number on the Firebase user as `phone` or `whatsapp` (E.164, e.g. `+2305xxxxxxx`) so the assistant knows which pendants you can see.
+```powershell
+npm run chat -- "Where is the watch?"
+```
 
-Without `ANTHROPIC_API_KEY`, `/dev/chat` still returns a simple non-LLM status from Firestore.
+or:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:9001/dev/chat `
+  -Method Post `
+  -ContentType application/json `
+  -Body '{"from":"+23051234567","text":"Battery?"}'
+```
+
+The sender number must match a Firebase user `phone` or `whatsapp` field before
+the assistant can disclose family data.

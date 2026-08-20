@@ -70,12 +70,18 @@ class AuditLog {
   /**
    * Record authentication/context resolution.
    */
-  async recordAuth({ requestId, uid, linkedImeis, status, reason }) {
+  async recordAuth({ requestId, uid, linkedImeis, status, reason, plan, subscriptionStatus }) {
     await this.record({
       requestId,
       phase: 'auth',
       uid: uid || null,
-      data: { status, reason, linkedImeis: linkedImeis?.length || 0 },
+      data: {
+        status,
+        reason,
+        linkedImeis: linkedImeis?.length || 0,
+        plan: plan || null,
+        subscriptionStatus: subscriptionStatus || null,
+      },
     });
   }
 

@@ -59,19 +59,24 @@ class _JourneyFabMenuState extends State<JourneyFabMenu>
       children: [
         AnimatedCrossFade(
           duration: JourneyScreenTheme.animationDuration,
-          crossFadeState:
-              _expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          crossFadeState: _expanded
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
           firstChild: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _FabMenuItem(
-                icon: widget.mapLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                icon: widget.mapLocked
+                    ? Icons.lock_rounded
+                    : Icons.lock_open_rounded,
                 label: widget.mapLocked ? 'Unlock Map' : 'Lock Map',
                 active: widget.mapLocked,
                 onTap: () => _action(widget.onLockToggle),
               ),
               _FabMenuItem(
-                icon: isSatellite ? Icons.map_outlined : Icons.satellite_alt_outlined,
+                icon: isSatellite
+                    ? Icons.map_outlined
+                    : Icons.satellite_alt_outlined,
                 label: isSatellite ? 'Street View' : 'Satellite View',
                 active: isSatellite,
                 onTap: () => _action(widget.onMapTypeToggle),
@@ -92,7 +97,9 @@ class _JourneyFabMenuState extends State<JourneyFabMenu>
                 onTap: () => _action(widget.onCenterMap),
               ),
               _FabMenuItem(
-                icon: widget.showHeatmap ? Icons.route_rounded : Icons.blur_on_rounded,
+                icon: widget.showHeatmap
+                    ? Icons.route_rounded
+                    : Icons.blur_on_rounded,
                 label: widget.showHeatmap ? 'Show Route' : 'Heatmap',
                 active: widget.showHeatmap,
                 onTap: () => _action(widget.onHeatmapToggle),
@@ -149,7 +156,9 @@ class _FabMenuItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: JourneyScreenTheme.spacing),
       child: Material(
-        color: active ? JourneyScreenTheme.fabItemFillActive : JourneyScreenTheme.fabItemFill,
+        color: active
+            ? JourneyScreenTheme.fabItemFillActive
+            : JourneyScreenTheme.fabItemFill,
         elevation: 3,
         shadowColor: Colors.black54,
         borderRadius: BorderRadius.circular(JourneyScreenTheme.radiusMedium),
@@ -159,7 +168,9 @@ class _FabMenuItem extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(JourneyScreenTheme.radiusMedium),
+              borderRadius: BorderRadius.circular(
+                JourneyScreenTheme.radiusMedium,
+              ),
               border: Border.all(
                 color: active
                     ? JourneyScreenTheme.accent

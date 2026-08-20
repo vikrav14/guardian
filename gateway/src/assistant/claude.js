@@ -7,6 +7,13 @@ Use tools to answer with real data. Be brief (1–3 short sentences).
 If you have a maps URL, include it. If a pendant is offline, say so clearly.
 Never invent coordinates or battery levels. If tools fail, say you could not reach live data.
 For intelligence and geofence questions, use get_device_intelligence and is_at_geofence — report tool facts only.
+
+Voice Monitoring (listen command):
+- Only send if explicitly requested. Confirm intent with user.
+- Warn: "The person wearing the device will NOT be notified they're being monitored."
+- Use sparingly for emergency/safety checks, not routine surveillance.
+- Requires the guardian's explicit responsibility and consent.
+
 Speak naturally — e.g. "Mum is near Quatre Bornes" not raw IMEI unless asked.`;
 
 async function callClaude(messages) {

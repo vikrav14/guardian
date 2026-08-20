@@ -62,7 +62,7 @@ test('validateLocationResponse: detects mismatched source label', () => {
 });
 
 test('validateLocationResponse: detects exposed IMEI', () => {
-  const response = 'Device 861397053141170 is offline.'; // V28C IMEI format
+  const response = 'Device 861397052547492 is offline.'; // V52 IMEI format
   const toolResult = { lat: null, lng: null };
 
   const result = validateLocationResponse(response, toolResult);
@@ -98,7 +98,7 @@ test('validateLocationResponse: allows offline when stated', () => {
 });
 
 test('validateBatteryResponse: valid', () => {
-  const response = 'Battery at 45%';
+  const response = 'The watch last reported 45% battery 2 minutes ago.';
   const toolResult = { batteryPercent: 45 };
 
   const result = validateBatteryResponse(response, toolResult);
@@ -115,7 +115,7 @@ test('validateBatteryResponse: detects invented battery %', () => {
 });
 
 test('validateBatteryResponse: allows small variance (±5%)', () => {
-  const response = 'Battery at 48%';
+  const response = 'The watch last reported 48% battery 2 minutes ago.';
   const toolResult = { batteryPercent: 45 }; // Within ±5
 
   const result = validateBatteryResponse(response, toolResult);
@@ -129,6 +129,16 @@ test('validateBatteryResponse: detects battery without data', () => {
   const result = validateBatteryResponse(response, toolResult);
   assert.ok(!result.valid);
   assert.ok(result.issues.includes('BATTERY_WITHOUT_DATA'));
+});
+
+test('validateBatteryResponse: stale reading must be disclosed', () => {
+  const result = validateBatteryResponse(
+    'The watch last reported 45% battery.',
+    { batteryPercent: 45, stale: true, online: false },
+  );
+  assert.ok(!result.valid);
+  assert.ok(result.issues.includes('STALE_BATTERY_NOT_STATED'));
+  assert.ok(result.issues.includes('OFFLINE_NOT_STATED'));
 });
 
 test('validateLocationResponse: health claims disallowed', () => {

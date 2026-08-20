@@ -2,22 +2,20 @@ const { sendSms } = require('./notify');
 const { sendDownlinkCommand } = require('./downlink');
 
 /**
- * Device command builders for the ReachFar GT06 family.
+ * Device command builders for the ReachFar V52 used by Guardian.
  *
- * Two dispatch paths, per TCP_ONLY_TYPES below:
- * - SMS (V28C): most of these use the exact syntax from
- *   docs/reference/Switch-Server-SMS-Commands.pdf (the vendor doc for that
- *   exact device). `voiceMonitorCommand` is the one exception: it's not in
- *   that PDF, but is documented for the RF-V28 -- the same "V28" family from
- *   the same manufacturer (Shenzhen Reachfar) -- by a third-party/community
- *   source (github.com/matthiasmo/RF-V28), not Reachfar's own V28C manual.
- *   Treat it as higher-confidence-but-unverified.
- * - TCP downlink (V46/V48/V52): fall detection, sensitivity, and medication
- *   reminders come from the vendor's "GPS Tracker Communication Protocol
- *   V46-V48-V52 2021-12-20" doc and its companion example captures. These
- *   are documented as data-channel-only (no SMS equivalent exists in the
- *   vendor's SMS command sheet), so they require the device to have a live
- *   TCP session with the gateway -- there is no SMS fallback to fake one.
+ * Guardian supports one production hardware model: V52. Command transport is
+ * selected from V52 vendor material and real-device evidence:
+ * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
+ *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
+ *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
+ * - TCP data commands: monitor callback, ring/find, fall settings, medication
+ *   reminders and upload interval. These are sent as `[SG*protocolId*LEN*...]`
+ *   over the watch's active gateway session. They deliberately have no guessed
+ *   SMS fallback.
+ *
+ * A documented command is not automatically an accepted product capability.
+ * Each user-visible feature still requires V52 real-device acceptance.
  */
 function centerNumberCommand(phone) {
   return `pw,123456,center,${phone}#`;
@@ -36,13 +34,11 @@ function statusCommand() {
 }
 
 function voiceMonitorCommand(phone) {
-  return `monitor,${phone}#`;
+  return `MONITOR,${phone}`;
 }
 
-// Same source/confidence caveat as voiceMonitorCommand: documented for the
-// RF-V28 by a third party, not the V28C's own manual.
 function ringToFindCommand() {
-  return 'find#';
+  return 'FIND';
 }
 
 /** UTF-16BE hex encoding, 4 hex chars per character, no separators -- the
@@ -60,9 +56,8 @@ function textToHexUtf16(text) {
 
 /**
  * Fall detection on/off, with an option to auto-dial the monitor number
- * when a fall is detected. TCP downlink only (V46-V48-V52 protocol doc
- * section 24, confirmed in the example captures as
- * `[3G*IMEI*LEN*FALLDOWN,1,1]`).
+ * when a fall is detected. V52 TCP downlink only, confirmed in the vendor
+ * example captures as `[3G*IMEI*LEN*FALLDOWN,1,1]`.
  */
 function fallDetectionCommand({ enabled, dialMonitorOnFall = false }) {
   return `FALLDOWN,${enabled ? 1 : 0},${dialMonitorOnFall ? 1 : 0}`;
@@ -83,8 +78,8 @@ function fallSensitivityCommand(level) {
 }
 
 /**
- * Medication reminder. TCP downlink only (protocol doc section 28,
- * confirmed against 3 example captures for once/daily/weekly).
+ * Medication reminder. V52 TCP downlink only, confirmed against three
+ * example captures for once/daily/weekly.
  * - time: 'HH:MM'
  * - frequency: 1 (once) | 2 (daily) | 3 (weekly)
  * - week: 7-digit Sun->Sat on/off mask, required when frequency is 3
@@ -139,6 +134,8 @@ function uploadIntervalCommand(seconds) {
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
+  'voice_monitor',
+  'ring_to_find',
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
@@ -158,14 +155,13 @@ const BUILDERS = {
 };
 
 /**
- * Send a device command. SMS for V28C-documented commands (the pendant's
- * own SIM number, exactly as the vendor documents). TCP downlink for
- * V46-V48-V52-only commands that have no SMS equivalent -- these require
- * the device to currently hold a live TCP session with the gateway; there
- * is no SMS fallback to fake one, so this fails clearly instead of
- * pretending to have queued something that can't be delivered.
+ * Send a V52 command. Provisioning commands use the watch SIM; runtime data
+ * commands use the active TCP session. There is no cross-model fallback and
+ * no transport substitution: an unavailable V52 session fails clearly.
  */
-async function sendDeviceCommand(db, imei, type, params) {
+async function sendDeviceCommand(db, imei, type, params, transports = {}) {
+  const tcpSender = transports.sendDownlinkCommand || sendDownlinkCommand;
+  const smsSender = transports.sendSms || sendSms;
   const builder = BUILDERS[type];
   if (!builder) {
     throw new Error(`Unknown device command type: ${type}`);
@@ -173,7 +169,7 @@ async function sendDeviceCommand(db, imei, type, params) {
   const text = builder(params || {});
 
   if (TCP_ONLY_TYPES.has(type)) {
-    const result = sendDownlinkCommand(imei, text);
+    const result = tcpSender(imei, text);
     if (!result.ok) {
       throw new Error(
         `Device has no active connection right now — ${type} requires a live session (no SMS fallback exists for this command)`
@@ -188,7 +184,7 @@ async function sendDeviceCommand(db, imei, type, params) {
     throw new Error('Device has no simNumber on file — set it in device settings first');
   }
 
-  const result = await sendSms(simNumber, text);
+  const result = await smsSender(simNumber, text);
   return { text, channel: 'sms', simNumber, result };
 }
 

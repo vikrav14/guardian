@@ -115,8 +115,7 @@ class _ZoneMiniMapPainter extends CustomPainter {
       canvas.drawCircle(
         wearerCenter,
         6,
-        Paint()
-          ..color = inside ? GuardianColors.safe : GuardianColors.warning,
+        Paint()..color = inside ? GuardianColors.safe : GuardianColors.warning,
       );
       canvas.drawCircle(
         wearerCenter,
@@ -134,7 +133,8 @@ class _ZoneMiniMapPainter extends CustomPainter {
     final lat1Rad = lat1 * math.pi / 180;
     final lat2Rad = lat2 * math.pi / 180;
     final y = math.sin(dLng) * math.cos(lat2Rad);
-    final x = math.cos(lat1Rad) * math.sin(lat2Rad) -
+    final x =
+        math.cos(lat1Rad) * math.sin(lat2Rad) -
         math.sin(lat1Rad) * math.cos(lat2Rad) * math.cos(dLng);
     return math.atan2(y, x);
   }

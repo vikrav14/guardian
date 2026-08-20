@@ -26,6 +26,23 @@ const counters = {
   smsSent: 0,
   mapLoads: 0,
   eventsProcessed: 0,
+  contextSweeps: 0,
+  contextDevicesEvaluated: 0,
+  contextRelevantCandidates: 0,
+  contextObservations: 0,
+  contextWeatherErrors: 0,
+  contextLlmCalls: 0,
+  contextLlmDecisions: 0,
+  contextLlmFallbacks: 0,
+  contextLlmTokensIn: 0,
+  contextLlmTokensOut: 0,
+  contextPersistenceWrites: 0,
+  contextCapPolls: 0,
+  contextCapFetchErrors: 0,
+  contextCapAlertsSeen: 0,
+  contextCapAlertsChanged: 0,
+  contextCapEventWrites: 0,
+  contextCapDeviceSweeps: 0,
 };
 
 const alertTypes = {};

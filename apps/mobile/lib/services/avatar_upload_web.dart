@@ -55,7 +55,9 @@ class WebRestAvatarUploadTransport implements AvatarUploadTransport {
         ),
         idToken: token,
         contentType: 'application/json; charset=UTF-8',
-        body: jsonEncode(buildFirebaseDownloadTokenMetadata(downloadToken)).toJS,
+        body: jsonEncode(
+          buildFirebaseDownloadTokenMetadata(downloadToken),
+        ).toJS,
         timeout: request.timeout,
         onProgress: (_) {},
         networkErrorMessage:

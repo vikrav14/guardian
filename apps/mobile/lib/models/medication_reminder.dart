@@ -22,11 +22,11 @@ class MedicationReminder {
   final String? createdBy;
 
   String get frequencyLabel => switch (frequency) {
-        1 => 'Once',
-        2 => 'Daily',
-        3 => 'Weekly',
-        _ => 'Unknown',
-      };
+    1 => 'Once',
+    2 => 'Daily',
+    3 => 'Weekly',
+    _ => 'Unknown',
+  };
 
   factory MedicationReminder.fromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc,

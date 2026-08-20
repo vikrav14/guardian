@@ -91,10 +91,7 @@ class ReconnectingStatusChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ReconnectingPulse(
-          size: compact ? 5 : 6,
-          iconSize: compact ? 12 : 14,
-        ),
+        ReconnectingPulse(size: compact ? 5 : 6, iconSize: compact ? 12 : 14),
         SizedBox(width: compact ? 2 : 4),
         Text(
           label,

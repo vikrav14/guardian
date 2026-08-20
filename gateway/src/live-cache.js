@@ -3,8 +3,9 @@ const config = require('./config');
 const { trackDwellPoint, flushDwellSegment } = require('./dwell');
 const {
   trackJourneyPoint,
-  forceCloseJourney,
   hasActiveJourney,
+  noteJourneyObservation,
+  noteJourneyDiagnosticEvent,
 } = require('./journey-builder');
 
 /**
@@ -78,9 +79,9 @@ function onDeviceConnect(imei) {
 }
 
 /**
- * Seed the reconnect-time reference position from Firestore (the in-memory
- * cache is wiped on every disconnect, so without this the jump-sanity check
- * has nothing to compare a fresh session's first fix against).
+ * Seed the reconnect-time reference position from Firestore.
+ * Active outing state now survives short transport disconnects, but this
+ * remains useful after a cold gateway start when no in-memory reference exists.
  */
 function seedLastKnownLocation(imei, location) {
   if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') return;
@@ -89,7 +90,21 @@ function seedLastKnownLocation(imei, location) {
 }
 
 function onDeviceDisconnect(imei) {
-  cache.delete(imei);
+  const state = cache.get(imei);
+  if (!state) return;
+
+  // A TCP disconnect is a transport event, not a journey boundary.
+  // Preserve currentJourney and persisted references so a carrier/ngrok
+  // reconnect continues the same outing instead of fragmenting it.
+  state.pendingFirstFix = true;
+  state.pendingSuspectLocation = null;
+  state.liveLocation = null;
+  state.liveBattery = null;
+  state.liveSpeedKmh = null;
+  state.liveAccuracySource = null;
+
+  // Dwell detection remains session-local for now.
+  state.currentDwell = null;
 }
 
 function updateLiveState(imei, patch) {
@@ -251,13 +266,24 @@ function trackPointForJourney(imei, point, now = new Date(), options = {}) {
 }
 
 function flushJourneyIfNeeded(imei, now = new Date(), force = false) {
-  const state = getState(imei);
-  if (!force) return null;
-  return forceCloseJourney(state, now, 'disconnect');
+  // Kept for server-call compatibility while the outing engine is migrated.
+  // Disconnect must not close an outing; closure is driven by outing semantics.
+  void imei;
+  void now;
+  void force;
+  return null;
 }
 
 function isJourneyActive(imei) {
   return hasActiveJourney(getState(imei));
+}
+
+function noteObservationForJourney(imei, outcome) {
+  return noteJourneyObservation(getState(imei), outcome);
+}
+
+function noteDiagnosticEventForJourney(imei, type, at, details) {
+  return noteJourneyDiagnosticEvent(getState(imei), type, at, details);
 }
 
 function resetWriteGateStats() {
@@ -288,6 +314,8 @@ module.exports = {
   trackPointForJourney,
   flushJourneyIfNeeded,
   isJourneyActive,
+  noteObservationForJourney,
+  noteDiagnosticEventForJourney,
   getWriteGateStats,
   resetWriteGateStats,
   resetCacheForTests,

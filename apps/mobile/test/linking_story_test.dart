@@ -15,7 +15,7 @@ void main() {
 
     expect(linkingStoryStep(device, now: now), 1);
     final metrics = linkingStoryMetrics(device, now: now);
-    expect(metrics[0].label, 'Pendant awake');
+    expect(metrics[0].label, 'Watch awake');
     expect(metrics[1].label, anyOf('Securing link', 'Making contact'));
     expect(metrics[1].state, LinkingStoryMetricState.active);
     expect(metrics[2].label, 'Location waiting');

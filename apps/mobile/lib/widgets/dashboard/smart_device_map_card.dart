@@ -32,8 +32,7 @@ class SmartDeviceMapCard extends StatelessWidget {
   final VoidCallback onExpand;
   final List<GuardianAlert> alerts;
 
-  bool get _statusNormal =>
-      deviceMapCardStatusNormal(device, alerts: alerts);
+  bool get _statusNormal => deviceMapCardStatusNormal(device, alerts: alerts);
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +98,9 @@ class _MinimizedDeviceChip extends StatelessWidget {
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
-                          color: device.online ? colors.accent : colors.textMuted,
+                          color: device.online
+                              ? colors.accent
+                              : colors.textMuted,
                           shape: BoxShape.circle,
                           border: Border.all(color: colors.surface, width: 1.5),
                         ),
@@ -164,7 +165,10 @@ class _ExpandedDeviceCard extends StatelessWidget {
             Row(
               children: [
                 if (_isReconnecting)
-                  const ReconnectingStatusChip(label: 'Linking up', compact: true)
+                  const ReconnectingStatusChip(
+                    label: 'Linking up',
+                    compact: true,
+                  )
                 else ...[
                   Container(
                     width: 7,
@@ -206,7 +210,10 @@ class _ExpandedDeviceCard extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
                   tooltip: 'Minimize',
                   onPressed: onMinimize,
                   icon: Icon(
@@ -259,10 +266,7 @@ class _ExpandedDeviceCard extends StatelessWidget {
             if (device.displayName != device.relationshipLabel)
               Text(
                 device.relationshipLabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: colors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 10, color: colors.textSecondary),
               ),
             const SizedBox(height: 6),
             Row(
@@ -275,36 +279,27 @@ class _ExpandedDeviceCard extends StatelessWidget {
                     color: device.isMoving
                         ? colors.accent
                         : _isReconnecting
-                            ? colors.accent
-                            : device.online
-                                ? colors.textSecondary
-                                : colors.textMuted,
+                        ? colors.accent
+                        : device.online
+                        ? colors.textSecondary
+                        : colors.textMuted,
                   ),
                 ),
                 if (device.isMoving && device.speedKmh != null) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      '•',
-                      style: TextStyle(color: colors.textMuted),
-                    ),
+                    child: Text('•', style: TextStyle(color: colors.textMuted)),
                   ),
                   Text(
                     '${device.speedKmh} km/h',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
                   ),
                 ],
               ],
             ),
             Text(
               updated,
-              style: TextStyle(
-                fontSize: 9,
-                color: colors.textMuted,
-              ),
+              style: TextStyle(fontSize: 9, color: colors.textMuted),
             ),
             Divider(height: 16, color: colors.border),
             Row(
@@ -319,10 +314,7 @@ class _ExpandedDeviceCard extends StatelessWidget {
                   device.batteryPercent == null
                       ? 'Battery unavailable'
                       : '${device.batteryPercent}% Battery',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: colors.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
                 ),
               ],
             ),

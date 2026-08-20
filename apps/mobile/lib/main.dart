@@ -42,16 +42,24 @@ final List<LocalizationsDelegate<dynamic>> guardianLocalizationsDelegates = [
   GlobalMaterialLocalizations.delegate,
   GlobalWidgetsLocalizations.delegate,
   GlobalCupertinoLocalizations.delegate,
-  _MfeFallbackDelegate<MaterialLocalizations>(GlobalMaterialLocalizations.delegate),
-  _MfeFallbackDelegate<WidgetsLocalizations>(GlobalWidgetsLocalizations.delegate),
-  _MfeFallbackDelegate<CupertinoLocalizations>(GlobalCupertinoLocalizations.delegate),
+  _MfeFallbackDelegate<MaterialLocalizations>(
+    GlobalMaterialLocalizations.delegate,
+  ),
+  _MfeFallbackDelegate<WidgetsLocalizations>(
+    GlobalWidgetsLocalizations.delegate,
+  ),
+  _MfeFallbackDelegate<CupertinoLocalizations>(
+    GlobalCupertinoLocalizations.delegate,
+  ),
 ];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (DefaultFirebaseOptions.isConfigured) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     unawaited(_initializeOptionalPush());
   }
