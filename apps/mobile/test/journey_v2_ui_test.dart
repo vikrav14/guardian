@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
+import 'package:guardian/journey/journey_v2_static_map.dart';
 import 'package:guardian/journey/journey_v2_ui.dart';
 
 Future<void> pumpJourneyUi(WidgetTester tester) async {
@@ -104,9 +105,29 @@ void main() {
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
     expect(find.byKey(const ValueKey('journey-map-type-toggle')), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('journey-fit-complete-route')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+      findsOneWidget,
+    );
+    expect(find.text('Show 3 GPS points'), findsOneWidget);
+    expect(
       find.byKey(const ValueKey('journey-replay-location-card')),
       findsOneWidget,
     );
+
+    await tester.tap(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+    );
+    await tester.pump();
+
+    expect(find.text('Hide 3 GPS points'), findsOneWidget);
+    final fullScreenMap = tester.widget<JourneyV2StaticMap>(
+      find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
+    );
+    expect(fullScreenMap.showSourceEvidence, isTrue);
   });
 
   testWidgets('trip row remains selectable', (tester) async {
@@ -262,5 +283,123 @@ void main() {
       find.textContaining('Distance excludes the unobserved interval.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('hybrid map uses compact sources and names a nearby landmark', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1050));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final start = DateTime(2026, 8, 21, 17);
+    final journey = JourneyRecord(
+      id: 'super-u-trip',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 40)),
+      polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      distanceKm: 6.7,
+      pointCount: 3,
+      closeReason: 'return_to_origin',
+      originGeofenceName: 'Home',
+      departureAt: start.add(const Duration(minutes: 1)),
+      returnAt: start.add(const Duration(minutes: 40)),
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 20 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 40 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+      stops: [
+        JourneyStop(
+          id: 'stop-super-u',
+          startAt: start.add(const Duration(minutes: 15)),
+          endAt: start.add(const Duration(minutes: 25)),
+          durationMinutes: 10,
+          centerLat: -20.01,
+          centerLng: 57.59,
+          pointStartIndex: 1,
+          pointEndIndex: 1,
+          placeName: 'Grand Baie',
+        ),
+      ],
+    );
+    final presentation = JourneyRoutePresentation(
+      version: 1,
+      generatedAt: DateTime(2026, 8, 21),
+      expiresAt: DateTime(2099),
+      segments: const [
+        JourneyPresentationSegment(
+          source: 'gps',
+          polyline: r'_p~iF~ps|U_ulLnnqC',
+          fromPointIndex: 0,
+          toPointIndex: 1,
+          fromOffsetMs: 0,
+          toOffsetMs: 20 * 60 * 1000,
+        ),
+        JourneyPresentationSegment(
+          source: 'google',
+          polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+          fromPointIndex: 1,
+          toPointIndex: 2,
+          fromOffsetMs: 20 * 60 * 1000,
+          toOffsetMs: 40 * 60 * 1000,
+        ),
+      ],
+      stopPlaces: const [
+        JourneyStopPlace(
+          stopId: 'stop-super-u',
+          pointStartIndex: 1,
+          pointEndIndex: 1,
+          placeId: 'super-u-grand-baie',
+          label: 'Near Super U Grand Baie',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JourneyV2Dashboard(
+            deviceName: 'Jesh',
+            day: DateTime(2026, 8, 21),
+            journeys: [journey],
+            selected: journey,
+            presentation: presentation,
+            onSelectJourney: (_) {},
+            onBack: () {},
+            onChooseDay: () {},
+          ),
+        ),
+      ),
+    );
+    await pumpJourneyUi(tester);
+
+    expect(find.text('Journey route'), findsOneWidget);
+    expect(find.text('GPS'), findsNothing);
+    expect(find.text('Google'), findsNothing);
+    expect(find.textContaining('Near Super U Grand Baie'), findsOneWidget);
+    expect(find.text('Nearby places · Google Maps'), findsOneWidget);
+    expect(find.text('Recorded route'), findsNothing);
+    expect(find.text('Location unavailable'), findsNothing);
+    expect(find.text('Confirmed Home'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
+    await pumpJourneyUi(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+    );
+    await tester.pump();
+
+    expect(find.text('GPS'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
   });
 }

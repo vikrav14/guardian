@@ -19,10 +19,11 @@ const config = {
   journeyIdleMinutes: Number(process.env.JOURNEY_IDLE_MINUTES || 15),
 
   // V52: 10-digit protocol id → configured 15-digit hardware IMEI.
-  // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
+  // A protocol id is expanded with the configured prefix/suffix into the
+  // corresponding 15-digit hardware IMEI.
   imeiPrefix: process.env.IMEI_PREFIX || '8613970',
   imeiDefaultSuffix: process.env.IMEI_DEFAULT_SUFFIX || '0',
-  // Optional overrides when suffix digit differs: "9705313987:861397053139877"
+  // Optional overrides when the suffix differs: "protocol-id:hardware-imei"
   imeiMap: process.env.IMEI_MAP || '',
 
   // Optional carrier SMS. WhatsApp is Meta Cloud API only.
@@ -93,7 +94,7 @@ const config = {
 
   // Command Center / ops API (GET /ops/metrics, /ops/cost-estimate)
   adminApiKey: process.env.ADMIN_API_KEY || '',
-  adminEmails: (process.env.ADMIN_EMAILS || 'vikrav14@gmail.com')
+  adminEmails: (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
@@ -101,6 +102,16 @@ const config = {
 
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
+
+  // Renewable Journey presentation. Raw GPS evidence remains authoritative;
+  // these server-only keys add expiring road geometry and nearby landmarks.
+  journeyGooglePresentationEnabled:
+    String(process.env.JOURNEY_GOOGLE_PRESENTATION_ENABLED || 'true')
+      .toLowerCase() === 'true',
+  googleRoadsApiKey: process.env.GOOGLE_ROADS_API_KEY || '',
+  googleRoutesApiKey:
+    process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_ROADS_API_KEY || '',
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
 
   // OpenWeatherMap API — weather context for device locations
   openWeatherMapKey: process.env.OPEN_WEATHER_MAP_KEY || '',

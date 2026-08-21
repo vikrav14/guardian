@@ -5,11 +5,30 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../theme/app_theme.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_v2_data.dart';
+
+class JourneyV2StaticMapController {
+  Future<void> Function()? _fitCompleteRoute;
+
+  Future<void> fitCompleteRoute() async {
+    await _fitCompleteRoute?.call();
+  }
+
+  void _attach(Future<void> Function() fitCompleteRoute) {
+    _fitCompleteRoute = fitCompleteRoute;
+  }
+
+  void _detach(Future<void> Function() fitCompleteRoute) {
+    if (_fitCompleteRoute == fitCompleteRoute) {
+      _fitCompleteRoute = null;
+    }
+  }
+}
 
 class JourneyV2StaticMap extends StatefulWidget {
   const JourneyV2StaticMap({
@@ -21,6 +40,9 @@ class JourneyV2StaticMap extends StatefulWidget {
     this.currentIndex = 0,
     this.showReplayPosition = false,
     this.showMapTypeControl = false,
+    this.showSourceEvidence = false,
+    this.originGeofence,
+    this.controller,
     this.onPointSelected,
   });
 
@@ -31,6 +53,9 @@ class JourneyV2StaticMap extends StatefulWidget {
   final int currentIndex;
   final bool showReplayPosition;
   final bool showMapTypeControl;
+  final bool showSourceEvidence;
+  final Geofence? originGeofence;
+  final JourneyV2StaticMapController? controller;
   final ValueChanged<int>? onPointSelected;
 
   @override
@@ -48,7 +73,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   LatLng? _movementTo;
   MapType _mapType = MapType.normal;
 
-  static const _routeColor = Color(0xFF4C5BD4);
+  static const _routeColor = Color(0xFF4F5CCB);
+  static const _gpsEvidenceColor = Color(0xFF2563EB);
+  static const _googleEvidenceColor = Color(0xFF7C3AED);
   static const _replayColor = Color(0xFFFFA000);
 
   List<LocationHistoryPoint> get _points =>
@@ -69,6 +96,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       _startPulse();
       unawaited(_loadReplayAvatarIcon());
     }
+    widget.controller?._attach(_fitRoute);
   }
 
   void _rebuildAnimation() {
@@ -110,8 +138,14 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   @override
   void didUpdateWidget(covariant JourneyV2StaticMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(_fitRoute);
+      widget.controller?._attach(_fitRoute);
+    }
     if (oldWidget.route.record.id != widget.route.record.id ||
-        oldWidget.route.record.polyline != widget.route.record.polyline) {
+        oldWidget.route.record.polyline != widget.route.record.polyline ||
+        oldWidget.route.presentation?.generatedAt !=
+            widget.route.presentation?.generatedAt) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
     }
     if (oldWidget.currentIndex != widget.currentIndex) {
@@ -146,7 +180,8 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       return;
     }
 
-    final crossesTrackingGap = widget.route.record.routeGaps.any(
+    final crossesTrackingGap = !widget.route.hasPresentation &&
+        widget.route.record.routeGaps.any(
       (gap) =>
           gap.fromPointIndex == fromIndex && gap.toPointIndex == toIndex,
     );
@@ -181,6 +216,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
 
   @override
   void dispose() {
+    widget.controller?._detach(_fitRoute);
     _pulseController.dispose();
     _movementController.dispose();
     _cameraGeneration.dispose();
@@ -272,6 +308,8 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     }
 
     final latLngs = [for (final point in points) LatLng(point.lat, point.lng)];
+    final presentationSegments = journeyV2PresentationMapSegments(widget.route);
+    final hasPresentation = presentationSegments.isNotEmpty;
     final evidenceSegments = journeyV2EvidenceSegments(widget.route);
     final replayIndex = widget.currentIndex < 0
         ? 0
@@ -285,8 +323,17 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         .toDouble();
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
-    final circles = journeyV2EndpointCircles(widget.route, points);
-    circles.addAll(journeyV2GapCircles(widget.route, points));
+    final circles = journeyV2EndpointCircles(
+      widget.route,
+      points,
+      originGeofence: widget.originGeofence,
+    );
+    if (widget.showSourceEvidence) {
+      circles.addAll(journeyV2SourceEvidenceCircles(widget.route));
+    }
+    if (!hasPresentation) {
+      circles.addAll(journeyV2GapCircles(widget.route, points));
+    }
     final polylines = <Polyline>{};
 
     final replayAvatarIcon = _replayAvatarIcon;
@@ -353,7 +400,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     }
 
     for (var gapIndex = 0;
-        gapIndex < widget.route.record.routeGaps.length;
+        !hasPresentation && gapIndex < widget.route.record.routeGaps.length;
         gapIndex++) {
       final gap = widget.route.record.routeGaps[gapIndex];
       final stoppedIndex = gap.fromPointIndex;
@@ -392,49 +439,106 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
 
     final replayInProgress =
         widget.showReplayPosition && replayIndex < latLngs.length - 1;
-    for (var index = 0; index < evidenceSegments.length; index++) {
-      final evidenceSegment = evidenceSegments[index];
-      final segment = evidenceSegment.points;
-      if (segment.length < 2) continue;
-      final segmentPoints = [
-        for (final point in segment) LatLng(point.lat, point.lng),
-      ];
-      polylines.add(
-        Polyline(
-          polylineId: PolylineId('journey-route-halo-$index'),
-          points: segmentPoints,
-          color: evidenceSegment.approximate
-              ? const Color(0xFFFFB020).withValues(alpha: 0.18)
-              : Colors.white.withValues(alpha: 0.86),
-          width: evidenceSegment.approximate ? 11 : 7,
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-          zIndex: 2,
-        ),
-      );
-      polylines.add(
-        Polyline(
-          polylineId: PolylineId('journey-route-full-$index'),
-          points: segmentPoints,
-          color: evidenceSegment.approximate
-              ? const Color(0xFFD98200).withValues(alpha: 0.72)
-              : replayInProgress
-              ? _routeColor.withValues(alpha: 0.22)
-              : _routeColor.withValues(alpha: 0.92),
-          width: evidenceSegment.approximate ? 3 : 4,
-          patterns: evidenceSegment.approximate
-              ? [PatternItem.dash(8), PatternItem.gap(4)]
-              : const <PatternItem>[],
-          startCap: Cap.roundCap,
-          endCap: Cap.roundCap,
-          jointType: JointType.round,
-          zIndex: 3,
-        ),
-      );
+    if (hasPresentation) {
+      for (var index = 0; index < presentationSegments.length; index++) {
+        final segment = presentationSegments[index];
+        if (segment.points.length < 2) continue;
+        final segmentPoints = [
+          for (final point in segment.points) LatLng(point.lat, point.lng),
+        ];
+        final sourceColor = segment.source == 'google'
+            ? _googleEvidenceColor
+            : _gpsEvidenceColor;
+        final color = widget.showSourceEvidence ? sourceColor : _routeColor;
+        final isGpsBridge = segment.source == 'gps_bridge';
+        final revealGpsBridge = widget.showSourceEvidence && isGpsBridge;
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-presentation-glow-$index'),
+            points: segmentPoints,
+            color: color.withValues(alpha: 0.14),
+            width: 11,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 1,
+          ),
+        );
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-presentation-casing-$index'),
+            points: segmentPoints,
+            color: Colors.white.withValues(alpha: 0.88),
+            width: 7,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 2,
+          ),
+        );
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-presentation-${segment.source}-$index'),
+            points: segmentPoints,
+            color: color.withValues(alpha: revealGpsBridge ? 0.74 : 0.96),
+            width: 3,
+            patterns: revealGpsBridge
+                ? [PatternItem.dash(9), PatternItem.gap(6)]
+                : const <PatternItem>[],
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 3,
+          ),
+        );
+      }
+    } else {
+      for (var index = 0; index < evidenceSegments.length; index++) {
+        final evidenceSegment = evidenceSegments[index];
+        final segment = evidenceSegment.points;
+        if (segment.length < 2) continue;
+        final revealApproximate =
+            widget.showSourceEvidence && evidenceSegment.approximate;
+        final segmentPoints = [
+          for (final point in segment) LatLng(point.lat, point.lng),
+        ];
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-route-halo-$index'),
+            points: segmentPoints,
+            color: revealApproximate
+                ? const Color(0xFFFFB020).withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.86),
+            width: revealApproximate ? 11 : 7,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 2,
+          ),
+        );
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-route-full-$index'),
+            points: segmentPoints,
+            color: revealApproximate
+                ? const Color(0xFFD98200).withValues(alpha: 0.72)
+                : replayInProgress
+                ? _routeColor.withValues(alpha: 0.22)
+                : _routeColor.withValues(alpha: 0.92),
+            width: revealApproximate ? 3 : 4,
+            patterns: revealApproximate
+                ? [PatternItem.dash(8), PatternItem.gap(4)]
+                : const <PatternItem>[],
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 3,
+          ),
+        );
+      }
     }
 
-    if (replayInProgress && replayIndex >= 1) {
+    if (!hasPresentation && replayInProgress && replayIndex >= 1) {
       final replaySegments = journeyV2SplitPointsOnTrackingGaps(
         points.sublist(0, replayIndex + 1),
       );
@@ -640,25 +744,37 @@ Set<Marker> journeyV2EndpointMarkers(
 
 Set<Circle> journeyV2EndpointCircles(
   JourneyV2Route route,
-  List<LocationHistoryPoint> points,
-) {
+  List<LocationHistoryPoint> points, {
+  Geofence? originGeofence,
+}) {
   if (!route.record.hasConfirmedReturn || points.isEmpty) return <Circle>{};
 
-  final originPoint = route.record.routeStartAnchored
+  final configuredZone = originGeofence;
+  final hasConfiguredSafeZone = configuredZone != null &&
+      configuredZone.active &&
+      _basicValid(configuredZone.lat, configuredZone.lng) &&
+      configuredZone.radiusMeters > 0;
+  final fallbackPoint = route.record.routeStartAnchored
       ? points.first
       : points.last;
-  final center = LatLng(originPoint.lat, originPoint.lng);
-  return <Circle>{
-    Circle(
-      circleId: const CircleId('journey-origin-halo'),
-      center: center,
-      // This is a visibility halo, not the configured geofence boundary.
-      radius: 55,
-      fillColor: GuardianColors.safe.withValues(alpha: 0.12),
-      strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
-      strokeWidth: 2,
-      zIndex: 10,
-    ),
+  final center = hasConfiguredSafeZone
+      ? LatLng(configuredZone.lat, configuredZone.lng)
+      : LatLng(fallbackPoint.lat, fallbackPoint.lng);
+  final circles = <Circle>{};
+  if (hasConfiguredSafeZone) {
+    circles.add(
+      Circle(
+        circleId: const CircleId('journey-origin-safe-zone'),
+        center: center,
+        radius: configuredZone.radiusMeters,
+        fillColor: GuardianColors.safe.withValues(alpha: 0.10),
+        strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
+        strokeWidth: 2,
+        zIndex: 10,
+      ),
+    );
+  }
+  circles.add(
     Circle(
       circleId: const CircleId('journey-origin-core'),
       center: center,
@@ -668,7 +784,61 @@ Set<Circle> journeyV2EndpointCircles(
       strokeWidth: 3,
       zIndex: 25,
     ),
-  };
+  );
+  return circles;
+}
+
+Set<Circle> journeyV2SourceEvidenceCircles(JourneyV2Route route) {
+  final rawPoints = journeyV2RecordedGpsEvidencePoints(route);
+  if (rawPoints.isEmpty) return <Circle>{};
+
+  // Evidence must remain visible when Fit complete route zooms out over a
+  // long outing. The old 6-22 m dots were effectively sub-pixel on Trip 2.
+  final evidenceRadius = (journeyV2ReplayHaloRadius(rawPoints) * 0.80)
+      .clamp(34.0, 140.0)
+      .toDouble();
+  final circles = <Circle>{};
+  for (var index = 0; index < rawPoints.length; index++) {
+    final point = rawPoints[index];
+    const color = _JourneyV2StaticMapState._gpsEvidenceColor;
+    circles.add(
+      Circle(
+        circleId: CircleId('journey-source-evidence-$index'),
+        center: LatLng(point.lat, point.lng),
+        radius: evidenceRadius,
+        fillColor: color.withValues(alpha: 0.88),
+        strokeColor: Colors.white,
+        strokeWidth: 3,
+        zIndex: 19,
+      ),
+    );
+  }
+  return circles;
+}
+
+List<LocationHistoryPoint> journeyV2RecordedGpsEvidencePoints(
+  JourneyV2Route route,
+) {
+  List<LocationHistoryPoint> validGpsPoints(
+    Iterable<LocationHistoryPoint> points,
+  ) {
+    return points.where((point) {
+      if (!_basicValid(point.lat, point.lng)) return false;
+      final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
+      return point.gpsValid == true || source == 'gps';
+    }).toList(growable: false);
+  }
+
+  final usableEvidence = validGpsPoints(route.usablePoints);
+  if (usableEvidence.isNotEmpty) return List.unmodifiable(usableEvidence);
+
+  final rawEvidence = validGpsPoints(route.rawPoints);
+  if (rawEvidence.isNotEmpty) return List.unmodifiable(rawEvidence);
+
+  // Chrome can leave rawPoints non-empty even when signed polyline decoding
+  // produced invalid coordinates. Do not let that block the arithmetic-only
+  // decoder used by the Journey map and its evidence counter.
+  return List.unmodifiable(validGpsPoints(_webSafeRecordPoints(route)));
 }
 
 Set<Circle> journeyV2GapCircles(
@@ -800,6 +970,24 @@ List<LocationHistoryPoint> _webSafeRecordPoints(JourneyV2Route route) {
       LocationHistoryPoint(
         lat: coords[i].lat,
         lng: coords[i].lng,
+        speedKmh: hasAlignedEvidence
+            ? route.record.pointEvidence[i].speedKmh
+            : null,
+        accuracySource: hasAlignedEvidence
+            ? route.record.pointEvidence[i].source
+            : null,
+        source: hasAlignedEvidence
+            ? route.record.pointEvidence[i].source
+            : null,
+        gpsValid: hasAlignedEvidence
+            ? route.record.pointEvidence[i].gpsValid
+            : null,
+        accuracyMeters: hasAlignedEvidence
+            ? route.record.pointEvidence[i].accuracyMeters
+            : null,
+        satellites: hasAlignedEvidence
+            ? route.record.pointEvidence[i].satellites
+            : null,
         recordedAt: hasAlignedEvidence
             ? DateTime.fromMillisecondsSinceEpoch(
                 startMs + route.record.pointEvidence[i].offsetMs,
@@ -903,6 +1091,11 @@ bool _journeyV2ApproximateEdge(
 ///
 /// No stored data or shared decoding logic is mutated here.
 List<LocationHistoryPoint> journeyV2StaticMapPoints(JourneyV2Route route) {
+  final presentationPoints = _webSafePresentationPoints(route);
+  if (presentationPoints.length >= 2) {
+    return List<LocationHistoryPoint>.unmodifiable(presentationPoints);
+  }
+
   if (route.usablePoints.length >= 2) {
     return List<LocationHistoryPoint>.unmodifiable(route.usablePoints);
   }
@@ -917,6 +1110,82 @@ List<LocationHistoryPoint> journeyV2StaticMapPoints(JourneyV2Route route) {
       .toList(growable: false);
 
   return List<LocationHistoryPoint>.unmodifiable(raw);
+}
+
+typedef JourneyV2PresentationMapSegment = ({
+  String source,
+  List<LocationHistoryPoint> points,
+});
+
+List<JourneyV2PresentationMapSegment> journeyV2PresentationMapSegments(
+  JourneyV2Route route,
+) {
+  final presentation = route.presentation;
+  if (presentation == null) return const [];
+  final output = <JourneyV2PresentationMapSegment>[];
+  for (final segment in presentation.segments) {
+    final coordinates = journeyV2DecodePolylineWebSafe(segment.polyline);
+    final points = [
+      for (final coordinate in coordinates)
+        LocationHistoryPoint(
+          lat: coordinate.lat,
+          lng: coordinate.lng,
+          source: segment.source,
+          gpsValid: segment.source == 'gps',
+        ),
+    ].where((point) => _basicValid(point.lat, point.lng)).toList(growable: false);
+    if (points.length >= 2) {
+      output.add((source: segment.source, points: List.unmodifiable(points)));
+    }
+  }
+  return List.unmodifiable(output);
+}
+
+List<LocationHistoryPoint> _webSafePresentationPoints(
+  JourneyV2Route route, {
+  int maxPointsPerSegment = 24,
+}) {
+  final presentation = route.presentation;
+  if (presentation == null) return const [];
+  final output = <LocationHistoryPoint>[];
+  for (final segment in presentation.segments) {
+    final coordinates = journeyV2DecodePolylineWebSafe(segment.polyline);
+    if (coordinates.length < 2) continue;
+    final step = coordinates.length <= maxPointsPerSegment
+        ? 1
+        : ((coordinates.length - 1) / (maxPointsPerSegment - 1)).ceil();
+    final indexes = <int>[
+      for (var index = 0; index < coordinates.length; index += step) index,
+      if ((coordinates.length - 1) % step != 0) coordinates.length - 1,
+    ];
+    for (final coordinateIndex in indexes) {
+      final coordinate = coordinates[coordinateIndex];
+      final ratio = coordinateIndex / (coordinates.length - 1);
+      final offsetMs = segment.fromOffsetMs +
+          ((segment.toOffsetMs - segment.fromOffsetMs) * ratio).round();
+      final sourcePointIndex = segment.fromPointIndex +
+          ((segment.toPointIndex - segment.fromPointIndex) * ratio).round();
+      final point = LocationHistoryPoint(
+        lat: coordinate.lat,
+        lng: coordinate.lng,
+        source: segment.source,
+        accuracySource: segment.source,
+        gpsValid: segment.source == 'gps',
+        recordedAt: route.record.startAt.add(
+          Duration(milliseconds: offsetMs),
+        ),
+        sourcePointIndex: sourcePointIndex,
+      );
+      if (!_basicValid(point.lat, point.lng)) continue;
+      final previous = output.isEmpty ? null : output.last;
+      final duplicate = previous != null &&
+          (previous.lat - point.lat).abs() < 0.0000001 &&
+          (previous.lng - point.lng).abs() < 0.0000001 &&
+          previous.recordedAt == point.recordedAt;
+      if (!duplicate) output.add(point);
+    }
+  }
+  return List.unmodifiable(output);
 }
 
 LatLngBounds? journeyV2Bounds(List<LocationHistoryPoint> points) {

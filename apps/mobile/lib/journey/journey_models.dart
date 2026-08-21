@@ -402,6 +402,165 @@ class JourneyRouteCoverage {
   }
 }
 
+class JourneyPresentationSegment {
+  const JourneyPresentationSegment({
+    required this.source,
+    required this.polyline,
+    required this.fromPointIndex,
+    required this.toPointIndex,
+    required this.fromOffsetMs,
+    required this.toOffsetMs,
+    this.roadAligned = false,
+    this.confidence,
+  });
+
+  final String source;
+  final String polyline;
+  final int fromPointIndex;
+  final int toPointIndex;
+  final int fromOffsetMs;
+  final int toOffsetMs;
+  final bool roadAligned;
+  final String? confidence;
+
+  bool get isGoogle => source == 'google';
+
+  factory JourneyPresentationSegment.fromMap(Map<String, dynamic> data) {
+    return JourneyPresentationSegment(
+      source: data['source'] as String? ?? 'gps',
+      polyline: data['polyline'] as String? ?? '',
+      fromPointIndex: (data['fromPointIndex'] as num?)?.toInt() ?? 0,
+      toPointIndex: (data['toPointIndex'] as num?)?.toInt() ?? 0,
+      fromOffsetMs: (data['fromOffsetMs'] as num?)?.toInt() ?? 0,
+      toOffsetMs: (data['toOffsetMs'] as num?)?.toInt() ?? 0,
+      roadAligned: data['roadAligned'] as bool? ?? false,
+      confidence: data['confidence'] as String?,
+    );
+  }
+}
+
+class JourneyStopPlace {
+  const JourneyStopPlace({
+    required this.stopId,
+    required this.pointStartIndex,
+    required this.pointEndIndex,
+    required this.placeId,
+    required this.label,
+    this.displayName,
+    this.primaryType,
+    this.distanceMeters,
+    this.provider = 'google_places',
+  });
+
+  final String stopId;
+  final int pointStartIndex;
+  final int pointEndIndex;
+  final String placeId;
+  final String label;
+  final String? displayName;
+  final String? primaryType;
+  final int? distanceMeters;
+  final String provider;
+
+  bool containsPoint(int index) =>
+      index >= pointStartIndex && index <= pointEndIndex;
+
+  factory JourneyStopPlace.fromMap(Map<String, dynamic> data) {
+    return JourneyStopPlace(
+      stopId: data['stopId'] as String? ?? '',
+      pointStartIndex: (data['pointStartIndex'] as num?)?.toInt() ?? 0,
+      pointEndIndex: (data['pointEndIndex'] as num?)?.toInt() ?? 0,
+      placeId: data['placeId'] as String? ?? '',
+      label: data['label'] as String? ?? '',
+      displayName: data['displayName'] as String?,
+      primaryType: data['primaryType'] as String?,
+      distanceMeters: (data['distanceMeters'] as num?)?.toInt(),
+      provider: data['provider'] as String? ?? 'google_places',
+    );
+  }
+}
+
+class JourneyRoutePresentation {
+  const JourneyRoutePresentation({
+    required this.version,
+    required this.generatedAt,
+    required this.expiresAt,
+    required this.segments,
+    required this.stopPlaces,
+    this.attribution = 'Google Maps',
+  });
+
+  final int version;
+  final DateTime generatedAt;
+  final DateTime expiresAt;
+  final List<JourneyPresentationSegment> segments;
+  final List<JourneyStopPlace> stopPlaces;
+  final String attribution;
+
+  bool isUsableAt(DateTime now) =>
+      version == 1 &&
+      expiresAt.isAfter(now) &&
+      (segments.isNotEmpty || stopPlaces.isNotEmpty);
+
+  bool get hasGoogleSegments => segments.any((segment) => segment.isGoogle);
+
+  JourneyStopPlace? placeForStop(JourneyStop stop) {
+    for (final place in stopPlaces) {
+      if (place.stopId == stop.id) return place;
+    }
+    return null;
+  }
+
+  JourneyStopPlace? placeForPoint(int pointIndex) {
+    for (final place in stopPlaces) {
+      if (place.containsPoint(pointIndex)) return place;
+    }
+    return null;
+  }
+
+  factory JourneyRoutePresentation.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? <String, dynamic>{};
+    final rawSegments = data['segments'];
+    final rawStopPlaces = data['stopPlaces'];
+    return JourneyRoutePresentation(
+      version: (data['version'] as num?)?.toInt() ?? 0,
+      generatedAt:
+          _asDateTime(data['generatedAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      expiresAt:
+          _asDateTime(data['expiresAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      segments: rawSegments is List
+          ? rawSegments
+                .whereType<Map>()
+                .map(
+                  (item) => JourneyPresentationSegment.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .where((segment) => segment.polyline.isNotEmpty)
+                .toList(growable: false)
+          : const [],
+      stopPlaces: rawStopPlaces is List
+          ? rawStopPlaces
+                .whereType<Map>()
+                .map(
+                  (item) => JourneyStopPlace.fromMap(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .where(
+                  (place) => place.placeId.isNotEmpty && place.label.isNotEmpty,
+                )
+                .toList(growable: false)
+          : const [],
+      attribution: data['attribution'] as String? ?? 'Google Maps',
+    );
+  }
+}
+
 class JourneyRecord {
   const JourneyRecord({
     required this.id,
@@ -417,6 +576,7 @@ class JourneyRecord {
     this.stopCount = 0,
     this.legCount = 0,
     this.closeReason,
+    this.originGeofenceId,
     this.originGeofenceName,
     this.departureAt,
     this.returnAt,
@@ -442,6 +602,7 @@ class JourneyRecord {
   final int stopCount;
   final int legCount;
   final String? closeReason;
+  final String? originGeofenceId;
   final String? originGeofenceName;
   final DateTime? departureAt;
   final DateTime? returnAt;
@@ -525,6 +686,7 @@ class JourneyRecord {
       stopCount: (data['stopCount'] as num?)?.toInt() ?? stops.length,
       legCount: (data['legCount'] as num?)?.toInt() ?? legs.length,
       closeReason: data['closeReason'] as String?,
+      originGeofenceId: data['originGeofenceId'] as String?,
       originGeofenceName: data['originGeofenceName'] as String?,
       departureAt: _asDateTime(data['departureAt']),
       returnAt: _asDateTime(data['returnAt']),

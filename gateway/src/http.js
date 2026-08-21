@@ -971,8 +971,11 @@ function startHttpServer() {
       ) {
         const imei =
           url.searchParams.get('imei') ||
-          url.searchParams.get('protocolId') ||
-          '861397053141170';
+          url.searchParams.get('protocolId');
+        if (!imei) {
+          sendJson(res, 400, { error: 'imei or protocolId required' });
+          return;
+        }
         const command = url.searchParams.get('command') || 'CR';
         const result =
           command === 'CR'
@@ -998,7 +1001,11 @@ function startHttpServer() {
       if (req.method === 'POST' && url.pathname === '/dev/chat') {
         const raw = await readBody(req);
         const payload = raw ? JSON.parse(raw) : {};
-        const from = payload.from || '+23050000000';
+        const from = String(payload.from || '').trim();
+        if (!from) {
+          sendJson(res, 400, { error: 'from required' });
+          return;
+        }
         const text = payload.text || payload.body || '';
         if (!text.trim()) {
           sendJson(res, 400, { error: 'text required' });
@@ -1145,7 +1152,7 @@ function startHttpServer() {
   server.listen(config.httpPort, config.host, () => {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
     console.log('[guardian-http] GET/POST /webhooks/meta/whatsapp');
-    console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
+    console.log('[guardian-http] POST /dev/chat  { "from": "<e164-phone>", "text": "Where is mum?" }');
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
     console.log('[guardian-http] GET  /ops/fleet');
     console.log('[guardian-http] GET  /ops/finance');

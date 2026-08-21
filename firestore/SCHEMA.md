@@ -199,6 +199,31 @@ A TCP disconnect is diagnostic evidence and does not split an outing.
 | diagnosticEvents | array | Bounded timestamp-offset timeline of connection, heartbeat, location, fallback, recovery-probe and reporting-policy evidence used by the read-only gap investigator |
 | createdAt | timestamp | Write time |
 
+### `devices/{imei}/journeys/{journeyId}/presentations/google_v1`
+
+Optional, renewable display enrichment. This document never replaces the
+parent journey's `polyline`, point evidence, distance, timestamps, safe-zone
+boundaries, or stop facts. It may contain Google-aligned GPS sections, purple
+Google route estimates between reliable fixes, and nearby-place labels for
+detected stops.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Presentation contract version; currently `1` |
+| journeyStartAt | timestamp | Duplicated solely for history authorization |
+| generatedAt | timestamp | Provider lookup time |
+| expiresAt | timestamp | Must be configured as a Firestore TTL field for the `presentations` collection group |
+| attribution | string | `Google Maps` |
+| segments | array | `{ source: 'gps'|'google', polyline, fromPointIndex, toPointIndex, fromOffsetMs, toOffsetMs, ... }` |
+| stopPlaces | array | Expiring `{ stopId, pointStartIndex, pointEndIndex, placeId, label, displayName, primaryType, distanceMeters, provider }` |
+| coverage | map | Counts of GPS, Google and unresolved presentation sections |
+
+`expiresAt` is set 28 days after generation, leaving deletion headroom below
+Google Maps Platform's 30-day cache limit. Only Place IDs are suitable for
+long-term retention; the complete presentation document is therefore removed
+by TTL. When missing or expired, Flutter falls back to the parent journey's
+unaltered GPS evidence.
+
 ## `geofences/{geofenceId}`
 
 | Field | Type | Notes |

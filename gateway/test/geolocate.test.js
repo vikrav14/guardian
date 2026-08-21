@@ -36,12 +36,13 @@ test('geolocateFromV caches successful responses', async (t) => {
   });
 
   const input = {
-    wifiAccessPoints: [{ macAddress: '8c:14:b4:5e:4b:a8', signalStrength: -80 }],
+    // Locally administered placeholder; never use a captured device address.
+    wifiAccessPoints: [{ macAddress: '02:00:00:00:00:01', signalStrength: -80 }],
     cellTowers: [{
       mobileCountryCode: 617,
       mobileNetworkCode: 1,
-      locationAreaCode: 10142,
-      cellId: 225274433,
+      locationAreaCode: 101,
+      cellId: 1001,
     }],
   };
 

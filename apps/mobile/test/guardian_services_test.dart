@@ -604,6 +604,53 @@ void main() {
     });
   });
 
+  group('DeviceService.watchDayJourneys', () {
+    test('keeps valid journeys when another document is malformed', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      final journeys = db
+          .collection('devices')
+          .doc('AAA')
+          .collection('journeys');
+      final start = DateTime(2026, 8, 21, 8);
+
+      await journeys.doc('valid').set({
+        'startAt': Timestamp.fromDate(start),
+        'endAt': Timestamp.fromDate(start.add(const Duration(minutes: 20))),
+        'polyline': 'encoded',
+        'distanceKm': 3.2,
+        'pointCount': 4,
+        'compressed': true,
+      });
+      await journeys.doc('malformed').set({
+        'startAt': Timestamp.fromDate(start.add(const Duration(hours: 1))),
+        'endAt': Timestamp.fromDate(start.add(const Duration(hours: 2))),
+        'polyline': 'encoded',
+        'distanceKm': 2,
+        'pointCount': 3,
+        'compressed': 'yes',
+      });
+
+      final records = await DeviceService(db: db, auth: auth)
+          .watchDayJourneys(
+            'AAA',
+            DateTime(2026, 8, 21),
+            subscription: GuardianSubscription.fromMap({
+              'version': 1,
+              'managedBy': 'guardian_admin',
+              'plan': 'family',
+              'status': 'active',
+            }),
+          )
+          .first;
+
+      expect(records.map((record) => record.id), ['valid']);
+    });
+  });
+
   group('UserProfileService', () {
     test(
       'watchSubscription fails closed when no trusted subscription exists',
