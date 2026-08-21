@@ -14,12 +14,14 @@ class JourneyPage extends StatefulWidget {
     required this.deviceName,
     required this.subscription,
     this.avatarUrl,
+    this.geofenceStream,
   });
 
   final String imei;
   final String deviceName;
   final GuardianSubscription subscription;
   final String? avatarUrl;
+  final Stream<List<Geofence>>? geofenceStream;
 
   @override
   State<JourneyPage> createState() => _JourneyPageState();
@@ -27,15 +29,9 @@ class JourneyPage extends StatefulWidget {
 
 class _JourneyPageState extends State<JourneyPage> {
   late DateTime _day = _today();
-  late final Stream<List<Geofence>> _geofenceStream;
+  Stream<List<Geofence>>? _geofenceStream;
   String? _selectedId;
   String? _lastReportedJourneyError;
-
-  @override
-  void initState() {
-    super.initState();
-    _geofenceStream = GeofenceService().watchAll();
-  }
 
   static DateTime _today() {
     final now = DateTime.now();
@@ -83,6 +79,8 @@ class _JourneyPageState extends State<JourneyPage> {
         ),
       );
     }
+    final geofenceStream = _geofenceStream ??=
+        widget.geofenceStream ?? GeofenceService().watchAll();
     final effectiveDay = subscription.canAccessHistoryDay(_day)
         ? _day
         : _today();
@@ -164,7 +162,7 @@ class _JourneyPageState extends State<JourneyPage> {
                   builder: (context, presentationSnapshot) {
                     return StreamBuilder<List<Geofence>>(
                       initialData: const <Geofence>[],
-                      stream: _geofenceStream,
+                      stream: geofenceStream,
                       builder: (context, geofenceSnapshot) {
                         return JourneyV2Dashboard(
                           deviceName: widget.deviceName,
