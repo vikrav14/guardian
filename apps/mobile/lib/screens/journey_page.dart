@@ -27,6 +27,7 @@ class JourneyPage extends StatefulWidget {
 class _JourneyPageState extends State<JourneyPage> {
   late DateTime _day = _today();
   String? _selectedId;
+  String? _lastReportedJourneyError;
 
   static DateTime _today() {
     final now = DateTime.now();
@@ -93,6 +94,20 @@ class _JourneyPageState extends State<JourneyPage> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
+                  final errorSignature = '${snapshot.error}';
+                  if (_lastReportedJourneyError != errorSignature) {
+                    _lastReportedJourneyError = errorSignature;
+                    debugPrint(
+                      '[journey] Failed to load ${widget.imei} for '
+                      '${effectiveDay.toIso8601String()}: ${snapshot.error}',
+                    );
+                    if (snapshot.stackTrace != null) {
+                      debugPrintStack(
+                        label: '[journey] Journey stream stack trace',
+                        stackTrace: snapshot.stackTrace,
+                      );
+                    }
+                  }
                   return _JourneyStateMessage(
                     icon: Icons.cloud_off_rounded,
                     title: 'Journey unavailable',
@@ -110,6 +125,8 @@ class _JourneyPageState extends State<JourneyPage> {
                     ),
                   );
                 }
+
+                _lastReportedJourneyError = null;
 
                 final journeys = snapshot.data!;
                 if (journeys.isEmpty) {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/alert.dart';
 import '../models/device.dart';
@@ -300,7 +301,34 @@ class DeviceService {
         .where('startAt', isLessThan: Timestamp.fromDate(localEnd))
         .orderBy('startAt')
         .snapshots()
-        .map((snap) => snap.docs.map(JourneyRecord.fromDoc).toList());
+        .map((snap) {
+          final journeys = <JourneyRecord>[];
+          Object? firstError;
+
+          for (final doc in snap.docs) {
+            try {
+              journeys.add(JourneyRecord.fromDoc(doc));
+            } catch (error, stackTrace) {
+              firstError ??= error;
+              debugPrint(
+                '[journey] Could not parse ${doc.reference.path}: $error',
+              );
+              debugPrintStack(
+                label: '[journey] Journey parsing stack trace',
+                stackTrace: stackTrace,
+              );
+            }
+          }
+
+          if (journeys.isEmpty && snap.docs.isNotEmpty) {
+            throw StateError(
+              'Guardian could not parse any journey for this day. '
+              'First error: $firstError',
+            );
+          }
+
+          return journeys;
+        });
   }
 
   /// Optional, provider-derived display layer for one journey. The parent
