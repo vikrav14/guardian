@@ -819,18 +819,26 @@ Set<Circle> journeyV2SourceEvidenceCircles(JourneyV2Route route) {
 List<LocationHistoryPoint> journeyV2RecordedGpsEvidencePoints(
   JourneyV2Route route,
 ) {
-  final rawPoints = route.usablePoints.isNotEmpty
-      ? route.usablePoints
-      : route.rawPoints.isNotEmpty
-      ? route.rawPoints
-      : _webSafeRecordPoints(route);
-  return List.unmodifiable(
-    rawPoints.where((point) {
+  List<LocationHistoryPoint> validGpsPoints(
+    Iterable<LocationHistoryPoint> points,
+  ) {
+    return points.where((point) {
       if (!_basicValid(point.lat, point.lng)) return false;
       final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
       return point.gpsValid == true || source == 'gps';
-    }),
-  );
+    }).toList(growable: false);
+  }
+
+  final usableEvidence = validGpsPoints(route.usablePoints);
+  if (usableEvidence.isNotEmpty) return List.unmodifiable(usableEvidence);
+
+  final rawEvidence = validGpsPoints(route.rawPoints);
+  if (rawEvidence.isNotEmpty) return List.unmodifiable(rawEvidence);
+
+  // Chrome can leave rawPoints non-empty even when signed polyline decoding
+  // produced invalid coordinates. Do not let that block the arithmetic-only
+  // decoder used by the Journey map and its evidence counter.
+  return List.unmodifiable(validGpsPoints(_webSafeRecordPoints(route)));
 }
 
 Set<Circle> journeyV2GapCircles(
