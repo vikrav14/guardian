@@ -72,6 +72,29 @@ async function main() {
   console.log(`GPS sections:    ${presentation.coverage.gpsSegmentCount}`);
   console.log(`Google sections: ${presentation.coverage.googleSegmentCount}`);
   console.log(`Unresolved:      ${presentation.coverage.unresolvedIntervalCount}`);
+  for (const interval of presentation.coverage.unresolvedIntervals || []) {
+    const pointRange = interval.fromPointIndex == null ||
+      interval.toPointIndex == null
+      ? 'unknown points'
+      : `points ${interval.fromPointIndex}-${interval.toPointIndex}`;
+    console.log(`  - ${interval.id || 'interval'} (${pointRange})`);
+    console.log(`    Reason: ${interval.reason}`);
+    console.log(`    Google candidates: ${interval.candidateCount || 0}`);
+    if (interval.failedChecks?.length) {
+      console.log(`    Failed checks: ${interval.failedChecks.join(', ')}`);
+    }
+    for (const [index, candidate] of
+      (interval.evaluatedCandidates || []).entries()) {
+      const metrics = candidate.metrics || {};
+      console.log(
+        `    Candidate ${index + 1}: ` +
+        `endpoint correction=${metrics.endpointMaxCorrectionMeters ?? 'n/a'}m, ` +
+        `approximate median=${metrics.approximateMedianDistanceMeters ?? 'n/a'}m, ` +
+        `detour=${metrics.detourRatio ?? 'n/a'}x, ` +
+        `duration overrun=${metrics.durationOverrunSeconds ?? 'n/a'}s`
+      );
+    }
+  }
   console.log(`Nearby places:   ${presentation.stopPlaces.length}`);
   for (const place of presentation.stopPlaces) {
     console.log(`  - ${place.label}`);

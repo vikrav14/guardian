@@ -134,4 +134,51 @@ test('presentation degrades to raw GPS when Google providers fail', async () => 
   assert.ok(presentation);
   assert.ok(presentation.segments.every((segment) => segment.source === 'gps'));
   assert.equal(presentation.stopPlaces.length, 0);
+  assert.equal(presentation.coverage.unresolvedIntervals[0].candidateCount, 0);
+  assert.deepEqual(
+    presentation.coverage.unresolvedIntervals[0].failedChecks,
+    []
+  );
+});
+
+test('presentation records safe diagnostics for rejected Google candidates', async () => {
+  const journey = sampleJourney();
+  const routePolyline = encodePolyline([
+    { lat: -20.0105, lng: 57.5905 },
+    { lat: -21.0000, lng: 58.5000 },
+    { lat: -20.0250, lng: 57.6050 },
+  ]);
+  const presentation = await buildJourneyGooglePresentation(journey, {
+    routesApiKey: 'routes-secret',
+    fetchImpl: async (url) => {
+      assert.equal(
+        url,
+        'https://routes.googleapis.com/directions/v2:computeRoutes'
+      );
+      return {
+        ok: true,
+        json: async () => ({
+          routes: [{
+            duration: '3600s',
+            distanceMeters: 120000,
+            routeLabels: ['DEFAULT_ROUTE'],
+            polyline: { encodedPolyline: routePolyline },
+          }],
+        }),
+      };
+    },
+  });
+
+  const unresolved = presentation.coverage.unresolvedIntervals[0];
+  assert.equal(unresolved.candidateCount, 1);
+  assert.ok(unresolved.failedChecks.includes(
+    'route_longer_than_recorded_time_allows'
+  ));
+  assert.ok(unresolved.failedChecks.includes('route_is_an_extreme_detour'));
+  assert.equal(unresolved.evaluatedCandidates.length, 1);
+  assert.equal(
+    unresolved.evaluatedCandidates[0].metrics.durationOverrunSeconds,
+    3300
+  );
+  assert.equal('candidate' in unresolved.evaluatedCandidates[0], false);
 });

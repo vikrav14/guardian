@@ -187,13 +187,25 @@ async function buildJourneyGooglePresentation(
     .filter(Boolean);
   const unresolvedIntervals = estimatedGaps
     .filter((estimate) => !estimate.accepted)
-    .map((estimate) => ({
-      id: estimate.gap?.id || null,
-      fromPointIndex: estimate.gap?.from?.originalJourneyIndex ?? null,
-      toPointIndex: estimate.gap?.to?.originalJourneyIndex ?? null,
-      reason: estimate.reason || 'unresolved',
-      attempts: estimate.attempts || 1,
-    }));
+    .map((estimate) => {
+      const evaluatedCandidates = (estimate.evaluated || []).map((item) => ({
+        reasons: [...(item.reasons || [])],
+        metrics: { ...(item.metrics || {}) },
+      }));
+      const failedChecks = [...new Set(
+        evaluatedCandidates.flatMap((item) => item.reasons)
+      )];
+      return {
+        id: estimate.gap?.id || null,
+        fromPointIndex: estimate.gap?.from?.originalJourneyIndex ?? null,
+        toPointIndex: estimate.gap?.to?.originalJourneyIndex ?? null,
+        reason: estimate.reason || 'unresolved',
+        attempts: estimate.attempts || 1,
+        candidateCount: evaluatedCandidates.length,
+        failedChecks,
+        evaluatedCandidates,
+      };
+    });
   const segments = [...gpsSegments, ...googleSegments]
     .sort((left, right) => left.fromOffsetMs - right.fromOffsetMs);
   if (segments.length === 0 && stopPlaces.length === 0) return null;
