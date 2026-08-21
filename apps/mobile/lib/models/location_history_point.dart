@@ -11,6 +11,7 @@ class LocationHistoryPoint {
     this.accuracyMeters,
     this.satellites,
     this.recordedAt,
+    this.sourcePointIndex,
   });
 
   final double lat;
@@ -22,6 +23,7 @@ class LocationHistoryPoint {
   final double? accuracyMeters;
   final int? satellites;
   final DateTime? recordedAt;
+  final int? sourcePointIndex;
 
   factory LocationHistoryPoint.fromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -37,6 +39,7 @@ class LocationHistoryPoint {
       accuracyMeters: (data['accuracyMeters'] as num?)?.toDouble(),
       satellites: (data['satellites'] as num?)?.toInt(),
       recordedAt: _asDateTime(data['recordedAt']),
+      sourcePointIndex: (data['sourcePointIndex'] as num?)?.toInt(),
     );
   }
 }

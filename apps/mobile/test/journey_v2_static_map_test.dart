@@ -202,4 +202,48 @@ void main() {
       expect(circle.center.longitude, closeTo(points.first.lng, 0.000001));
     }
   });
+
+  test('hybrid presentation preserves GPS and Google route sources', () {
+    final journey = record(
+      r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      pointCount: 3,
+    );
+    final presentation = JourneyRoutePresentation(
+      version: 1,
+      generatedAt: DateTime(2026, 8, 21),
+      expiresAt: DateTime(2099),
+      segments: const [
+        JourneyPresentationSegment(
+          source: 'gps',
+          polyline: r'_p~iF~ps|U_ulLnnqC',
+          fromPointIndex: 0,
+          toPointIndex: 1,
+          fromOffsetMs: 0,
+          toOffsetMs: 60 * 1000,
+        ),
+        JourneyPresentationSegment(
+          source: 'google',
+          polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+          fromPointIndex: 1,
+          toPointIndex: 2,
+          fromOffsetMs: 60 * 1000,
+          toOffsetMs: 45 * 60 * 1000,
+          confidence: 'supported_estimate',
+        ),
+      ],
+      stopPlaces: const [],
+    );
+    final route = journeyV2DecodeRecord(
+      journey,
+      presentation: presentation,
+    );
+
+    final segments = journeyV2PresentationMapSegments(route);
+    final points = journeyV2StaticMapPoints(route);
+
+    expect(segments.map((segment) => segment.source), ['gps', 'google']);
+    expect(points.length, greaterThanOrEqualTo(3));
+    expect(points.first.sourcePointIndex, 0);
+    expect(points.last.sourcePointIndex, 2);
+  });
 }

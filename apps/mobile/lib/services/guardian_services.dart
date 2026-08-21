@@ -303,6 +303,30 @@ class DeviceService {
         .map((snap) => snap.docs.map(JourneyRecord.fromDoc).toList());
   }
 
+  /// Optional, provider-derived display layer for one journey. The parent
+  /// journey remains the source of truth and is rendered when this document
+  /// is absent, expired, or temporarily unavailable.
+  Stream<JourneyRoutePresentation?> watchJourneyPresentation(
+    String imei,
+    String journeyId,
+  ) {
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('journeys')
+        .doc(journeyId)
+        .collection('presentations')
+        .doc('google_v1')
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final presentation = JourneyRoutePresentation.fromDoc(doc);
+          return presentation.isUsableAt(DateTime.now())
+              ? presentation
+              : null;
+        });
+  }
+
   /// Streams gateway dwell segments for a calendar day.
   Stream<List<DwellSegment>> watchDaySegments(
     String imei,

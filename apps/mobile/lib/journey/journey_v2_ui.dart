@@ -16,6 +16,7 @@ class JourneyV2Dashboard extends StatelessWidget {
     required this.day,
     required this.journeys,
     required this.selected,
+    this.presentation,
     required this.onSelectJourney,
     required this.onBack,
     required this.onChooseDay,
@@ -27,6 +28,7 @@ class JourneyV2Dashboard extends StatelessWidget {
   final DateTime day;
   final List<JourneyRecord> journeys;
   final JourneyRecord? selected;
+  final JourneyRoutePresentation? presentation;
   final ValueChanged<JourneyRecord> onSelectJourney;
   final VoidCallback onBack;
   final VoidCallback onChooseDay;
@@ -46,7 +48,12 @@ class JourneyV2Dashboard extends StatelessWidget {
     authoritativeSelected ??= meaningful.isEmpty ? null : meaningful.last;
     final selectedRoute = authoritativeSelected == null
         ? null
-        : journeyV2DecodeRecord(authoritativeSelected);
+        : journeyV2DecodeRecord(
+            authoritativeSelected,
+            presentation: authoritativeSelected.id == selected?.id
+                ? presentation
+                : null,
+          );
     final totals = _DayTotals.fromJourneys(meaningful);
 
     return LayoutBuilder(
@@ -961,7 +968,9 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
     super.didUpdateWidget(oldWidget);
     final tripChanged = oldWidget.selected?.id != widget.selected?.id;
     final routeChanged =
-        oldWidget.route?.record.polyline != widget.route?.record.polyline;
+        oldWidget.route?.record.polyline != widget.route?.record.polyline ||
+        oldWidget.route?.presentation?.generatedAt !=
+            widget.route?.presentation?.generatedAt;
     if (tripChanged || routeChanged) {
       _configureReplay();
     }
@@ -1082,10 +1091,10 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                       Positioned(
                         left: 16,
                         top: 52,
-                        child: _MapEvidenceLegend(
-                          hasGap: journey.hasInterruptedCoverage,
-                          hasApproximate:
-                              journey.routeCoverage.approximatePointCount > 0,
+                        child: _MapSourcePills(
+                          hasGoogle:
+                              selectedRoute.presentation?.hasGoogleSegments ==
+                              true,
                         ),
                       ),
                       Positioned(
@@ -1131,7 +1140,10 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
               ],
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: _JourneyStoryCard(journey: journey),
+                child: _JourneyStoryCard(
+                  journey: journey,
+                  presentation: selectedRoute.presentation,
+                ),
               ),
               _SelectedMetricsRow(journey: journey, route: selectedRoute),
               const SizedBox(height: 12),
@@ -1491,16 +1503,15 @@ class _JourneyFullScreenMap extends StatelessWidget {
                   top: compact ? 132 : 84,
                   child: _ReplayLocationCard(
                     journey: journey,
+                    route: route,
                     replay: replay,
                   ),
                 ),
                 Positioned(
                   left: 16,
                   bottom: journey.hasInterruptedCoverage ? 160 : 94,
-                  child: _MapEvidenceLegend(
-                    hasGap: journey.hasInterruptedCoverage,
-                    hasApproximate:
-                        journey.routeCoverage.approximatePointCount > 0,
+                  child: _MapSourcePills(
+                    hasGoogle: route.presentation?.hasGoogleSegments == true,
                   ),
                 ),
                 Positioned(
@@ -1525,22 +1536,39 @@ class _JourneyFullScreenMap extends StatelessWidget {
   }
 }
 
-class _MapEvidenceLegend extends StatelessWidget {
-  const _MapEvidenceLegend({
-    required this.hasGap,
-    required this.hasApproximate,
-  });
+class _MapSourcePills extends StatelessWidget {
+  const _MapSourcePills({required this.hasGoogle});
 
-  final bool hasGap;
-  final bool hasApproximate;
+  final bool hasGoogle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _MapSourcePill(color: Color(0xFF4C5BD4), label: 'GPS'),
+        if (hasGoogle) ...[
+          const SizedBox(width: 6),
+          const _MapSourcePill(color: Color(0xFF7C3AED), label: 'Google'),
+        ],
+      ],
+    );
+  }
+}
+
+class _MapSourcePill extends StatelessWidget {
+  const _MapSourcePill({required this.color, required this.label});
+
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(999),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -1548,34 +1576,25 @@ class _MapEvidenceLegend extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const _MapLegendItem(
-            color: Color(0xFF4C5BD4),
-            label: 'Recorded route',
+          Container(
+            width: 16,
+            height: 3,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
-          if (hasApproximate) ...[
-            const SizedBox(height: 5),
-            const _MapLegendItem(
-              color: Color(0xFFD98200),
-              label: 'Approximate positioning',
-              dashed: true,
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: GuardianColors.forest,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
             ),
-          ],
-          if (hasGap) ...[
-            const SizedBox(height: 5),
-            const _MapLegendItem(
-              color: Color(0xFFD98200),
-              label: 'Location unavailable',
-              dashed: true,
-            ),
-          ],
-          const SizedBox(height: 5),
-          const _MapLegendItem(
-            color: Color(0xFF23A566),
-            label: 'Confirmed Home',
-            isDot: true,
           ),
         ],
       ),
@@ -1584,9 +1603,14 @@ class _MapEvidenceLegend extends StatelessWidget {
 }
 
 class _ReplayLocationCard extends StatelessWidget {
-  const _ReplayLocationCard({required this.journey, required this.replay});
+  const _ReplayLocationCard({
+    required this.journey,
+    required this.route,
+    required this.replay,
+  });
 
   final JourneyRecord journey;
+  final JourneyV2Route route;
   final JourneyV2ReplayController replay;
 
   @override
@@ -1594,7 +1618,13 @@ class _ReplayLocationCard extends StatelessWidget {
     final point = replay.currentPoint;
     if (point == null) return const SizedBox.shrink();
     final colors = context.guardianColors;
-    final label = _pointPlaceLabel(journey, replay.currentIndex);
+    final sourcePointIndex = point.sourcePointIndex ?? replay.currentIndex;
+    final nearbyPlace = route.presentation?.placeForPoint(sourcePointIndex);
+    final label = _pointPlaceLabel(
+      journey,
+      sourcePointIndex,
+      presentation: route.presentation,
+    );
     final time = point.recordedAt ?? journey.confirmedDepartureAt;
     final pendingGap = replay.pendingTrackingGap;
     final skippingGap = replay.isSkippingTrackingGap && pendingGap != null;
@@ -1648,6 +1678,8 @@ class _ReplayLocationCard extends StatelessWidget {
                   Text(
                     skippingGap
                         ? 'Skipping to the next recorded location'
+                        : nearbyPlace != null
+                        ? 'Nearby place · Google Maps'
                         : label == 'Recorded location'
                         ? 'Location name unavailable'
                         : 'Recorded GPS location',
@@ -1663,57 +1695,6 @@ class _ReplayLocationCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MapLegendItem extends StatelessWidget {
-  const _MapLegendItem({
-    required this.color,
-    required this.label,
-    this.dashed = false,
-    this.isDot = false,
-  });
-
-  final Color color;
-  final String label;
-  final bool dashed;
-  final bool isDot;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isDot)
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          )
-        else
-          SizedBox(
-            width: 18,
-            child: Row(
-              children: dashed
-                  ? [
-                      Container(width: 6, height: 2, color: color),
-                      const SizedBox(width: 3),
-                      Container(width: 6, height: 2, color: color),
-                    ]
-                  : [Expanded(child: Container(height: 3, color: color))],
-            ),
-          ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            color: GuardianColors.forest,
-            fontSize: 7.5,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1760,9 +1741,13 @@ class _RouteCoverageNotice extends StatelessWidget {
 }
 
 class _JourneyStoryCard extends StatelessWidget {
-  const _JourneyStoryCard({required this.journey});
+  const _JourneyStoryCard({
+    required this.journey,
+    required this.presentation,
+  });
 
   final JourneyRecord journey;
+  final JourneyRoutePresentation? presentation;
 
   @override
   Widget build(BuildContext context) {
@@ -1808,7 +1793,7 @@ class _JourneyStoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _journeyStoryText(journey),
+                  _journeyStoryText(journey, presentation: presentation),
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 9,
@@ -1816,6 +1801,17 @@ class _JourneyStoryCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (presentation?.stopPlaces.isNotEmpty == true) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    'Nearby places · Google Maps',
+                    style: TextStyle(
+                      color: colors.textSecondary.withValues(alpha: 0.82),
+                      fontSize: 7.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2184,7 +2180,11 @@ String _arrivalCaption(JourneyRecord journey) {
   return 'Returned ${journey.originGeofenceName!.trim()}';
 }
 
-String _pointPlaceLabel(JourneyRecord journey, int pointIndex) {
+String _pointPlaceLabel(
+  JourneyRecord journey,
+  int pointIndex, {
+  JourneyRoutePresentation? presentation,
+}) {
   final origin = journey.originGeofenceName?.trim();
   if (pointIndex <= 0 && origin != null && origin.isNotEmpty) {
     return origin;
@@ -2196,10 +2196,8 @@ String _pointPlaceLabel(JourneyRecord journey, int pointIndex) {
     return origin;
   }
 
-  if (pointIndex >= 0 && pointIndex < journey.pointEvidence.length) {
-    final place = journey.pointEvidence[pointIndex].placeName?.trim();
-    if (place != null && place.isNotEmpty) return place;
-  }
+  final nearbyPlace = presentation?.placeForPoint(pointIndex)?.label.trim();
+  if (nearbyPlace != null && nearbyPlace.isNotEmpty) return nearbyPlace;
 
   for (final stop in journey.stops) {
     if (pointIndex < stop.pointStartIndex || pointIndex > stop.pointEndIndex) {
@@ -2208,6 +2206,11 @@ String _pointPlaceLabel(JourneyRecord journey, int pointIndex) {
     final place = stop.placeName?.trim();
     if (place != null && place.isNotEmpty) return place;
     return 'Recorded stop';
+  }
+
+  if (pointIndex >= 0 && pointIndex < journey.pointEvidence.length) {
+    final place = journey.pointEvidence[pointIndex].placeName?.trim();
+    if (place != null && place.isNotEmpty) return place;
   }
 
   return 'Recorded location';
@@ -2241,7 +2244,10 @@ String _routeGapText(JourneyRecord journey) {
       '(${_compactDuration(gap.duration)} gap).';
 }
 
-String _journeyStoryText(JourneyRecord journey) {
+String _journeyStoryText(
+  JourneyRecord journey, {
+  JourneyRoutePresentation? presentation,
+}) {
   final originName = journey.originGeofenceName?.trim();
   final origin = originName == null || originName.isEmpty
       ? 'Safe zone'
@@ -2256,7 +2262,9 @@ String _journeyStoryText(JourneyRecord journey) {
     parts.add('Recorded movement · ${journey.distanceKm.toStringAsFixed(1)} km');
   } else {
     for (final stop in orderedStops.take(2)) {
-      final place = stop.placeName?.trim();
+      final place =
+          presentation?.placeForStop(stop)?.label.trim() ??
+          stop.placeName?.trim();
       final label = place == null || place.isEmpty ? 'Recorded stop' : place;
       parts.add(
         '$label · ${DateFormat.Hm().format(stop.startAt)}'

@@ -102,6 +102,16 @@ const config = {
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
 
+  // Renewable Journey presentation. Raw GPS evidence remains authoritative;
+  // these server-only keys add expiring road geometry and nearby landmarks.
+  journeyGooglePresentationEnabled:
+    String(process.env.JOURNEY_GOOGLE_PRESENTATION_ENABLED || 'true')
+      .toLowerCase() === 'true',
+  googleRoadsApiKey: process.env.GOOGLE_ROADS_API_KEY || '',
+  googleRoutesApiKey:
+    process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_ROADS_API_KEY || '',
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || '',
+
   // OpenWeatherMap API — weather context for device locations
   openWeatherMapKey: process.env.OPEN_WEATHER_MAP_KEY || '',
 

@@ -171,6 +171,14 @@ service cloud.firestore {
         allow read: if linkedTo(imei)
           && historyAllowed(resource.data.startAt);
         allow write: if false;
+
+        match /presentations/{presentationId} {
+          allow read: if linkedTo(imei)
+            && historyAllowed(resource.data.journeyStartAt)
+            && resource.data.expiresAt is timestamp
+            && resource.data.expiresAt > request.time;
+          allow write: if false;
+        }
       }
     }
 

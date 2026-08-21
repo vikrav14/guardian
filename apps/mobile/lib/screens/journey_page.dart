@@ -127,19 +127,31 @@ class _JourneyPageState extends State<JourneyPage> {
                   journeys,
                   selectedId: _selectedId,
                 );
-
-                return JourneyV2Dashboard(
-                  deviceName: widget.deviceName,
-                  deviceImei: widget.imei,
-                  avatarUrl: widget.avatarUrl,
-                  day: effectiveDay,
-                  journeys: journeys,
-                  selected: selected,
-                  onSelectJourney: (journey) {
-                    setState(() => _selectedId = journey.id);
+                return StreamBuilder<JourneyRoutePresentation?>(
+                  key: ValueKey('journey-presentation-${selected?.id}'),
+                  initialData: null,
+                  stream: selected == null
+                      ? null
+                      : DeviceService().watchJourneyPresentation(
+                          widget.imei,
+                          selected.id,
+                        ),
+                  builder: (context, presentationSnapshot) {
+                    return JourneyV2Dashboard(
+                      deviceName: widget.deviceName,
+                      deviceImei: widget.imei,
+                      avatarUrl: widget.avatarUrl,
+                      day: effectiveDay,
+                      journeys: journeys,
+                      selected: selected,
+                      presentation: presentationSnapshot.data,
+                      onSelectJourney: (journey) {
+                        setState(() => _selectedId = journey.id);
+                      },
+                      onBack: () => Navigator.maybePop(context),
+                      onChooseDay: _chooseDay,
+                    );
                   },
-                  onBack: () => Navigator.maybePop(context),
-                  onChooseDay: _chooseDay,
                 );
               },
             ),
