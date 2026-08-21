@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
 import 'package:guardian/journey/journey_v2_static_map.dart';
+import 'package:guardian/models/geofence.dart';
 import 'package:guardian/models/location_history_point.dart';
 
 void main() {
@@ -164,7 +165,7 @@ void main() {
     expect(segments.last.points, hasLength(3));
   });
 
-  test('confirmed return-to-origin uses web-safe Home circles, not a pin', () {
+  test('confirmed return without zone data uses a Home point, not a fake radius', () {
     final start = DateTime(2026, 8, 17, 15, 30);
     final journey = JourneyRecord(
       id: 'home-round-trip',
@@ -192,15 +193,95 @@ void main() {
     final circles = journeyV2EndpointCircles(route, points);
 
     expect(markers, isEmpty);
-    expect(circles, hasLength(2));
+    expect(circles, hasLength(1));
     expect(
       circles.map((circle) => circle.circleId.value),
-      containsAll(['journey-origin-halo', 'journey-origin-core']),
+      contains('journey-origin-core'),
     );
     for (final circle in circles) {
       expect(circle.center.latitude, closeTo(points.first.lat, 0.000001));
       expect(circle.center.longitude, closeTo(points.first.lng, 0.000001));
     }
+  });
+
+  test('configured Home safe zone uses its real center and radius', () {
+    final start = DateTime(2026, 8, 21, 12, 20);
+    final journey = JourneyRecord(
+      id: 'configured-home-round-trip',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 28)),
+      polyline: r'f{`zBcmz~I}|XvfI',
+      distanceKm: 6.2,
+      pointCount: 2,
+      closeReason: 'return_to_origin',
+      originGeofenceId: 'home-id',
+      originGeofenceName: 'Home',
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 28 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+    );
+    final route = journeyV2DecodeRecord(journey);
+    final points = journeyV2StaticMapPoints(route);
+    const home = Geofence(
+      id: 'home-id',
+      imei: 'watch-1',
+      name: 'Home',
+      active: true,
+      lat: -20.02937,
+      lng: 57.59612,
+      radiusMeters: 150,
+    );
+
+    final circles = journeyV2EndpointCircles(
+      route,
+      points,
+      originGeofence: home,
+    );
+    final safeZone = circles.singleWhere(
+      (circle) => circle.circleId.value == 'journey-origin-safe-zone',
+    );
+
+    expect(circles, hasLength(2));
+    expect(safeZone.center.latitude, closeTo(home.lat, 0.000001));
+    expect(safeZone.center.longitude, closeTo(home.lng, 0.000001));
+    expect(safeZone.radius, home.radiusMeters);
+  });
+
+  test('source evidence shows only recorded GPS observations', () {
+    final start = DateTime(2026, 8, 21, 12);
+    final points = [
+      LocationHistoryPoint(
+        lat: -20.02,
+        lng: 57.59,
+        source: 'gps',
+        gpsValid: true,
+        recordedAt: start,
+      ),
+      LocationHistoryPoint(
+        lat: -20.03,
+        lng: 57.60,
+        source: 'wifi',
+        gpsValid: false,
+        recordedAt: start.add(const Duration(minutes: 1)),
+      ),
+    ];
+    final route = JourneyV2Route(
+      record: record('', pointCount: 2),
+      rawPoints: points,
+      usablePoints: points,
+    );
+
+    final circles = journeyV2SourceEvidenceCircles(route).toList();
+
+    expect(circles, hasLength(1));
+    expect(circles[0].circleId.value, 'journey-source-evidence-0');
   });
 
   test('hybrid presentation preserves GPS and Google route sources', () {

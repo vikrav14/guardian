@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../models/geofence.dart';
 import '../theme/app_theme.dart';
 import 'journey_models.dart';
 import 'journey_v2_data.dart';
@@ -17,6 +20,7 @@ class JourneyV2Dashboard extends StatelessWidget {
     required this.journeys,
     required this.selected,
     this.presentation,
+    this.originGeofence,
     required this.onSelectJourney,
     required this.onBack,
     required this.onChooseDay,
@@ -29,6 +33,7 @@ class JourneyV2Dashboard extends StatelessWidget {
   final List<JourneyRecord> journeys;
   final JourneyRecord? selected;
   final JourneyRoutePresentation? presentation;
+  final Geofence? originGeofence;
   final ValueChanged<JourneyRecord> onSelectJourney;
   final VoidCallback onBack;
   final VoidCallback onChooseDay;
@@ -102,6 +107,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                         deviceName: deviceName,
                         deviceImei: deviceImei,
                         avatarUrl: avatarUrl,
+                        originGeofence: originGeofence,
                       ),
                     ),
                   ],
@@ -150,6 +156,7 @@ class JourneyV2Dashboard extends StatelessWidget {
                         deviceName: deviceName,
                         deviceImei: deviceImei,
                         avatarUrl: avatarUrl,
+                        originGeofence: originGeofence,
                       ),
                     ),
                   ],
@@ -942,6 +949,7 @@ class _SelectedTripPanel extends StatefulWidget {
     required this.deviceName,
     required this.deviceImei,
     this.avatarUrl,
+    this.originGeofence,
   });
 
   final JourneyRecord? selected;
@@ -949,6 +957,7 @@ class _SelectedTripPanel extends StatefulWidget {
   final String deviceName;
   final String deviceImei;
   final String? avatarUrl;
+  final Geofence? originGeofence;
 
   @override
   State<_SelectedTripPanel> createState() => _SelectedTripPanelState();
@@ -1073,6 +1082,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                           deviceName: widget.deviceName,
                           deviceImei: widget.deviceImei,
                           avatarUrl: widget.avatarUrl,
+                          originGeofence: widget.originGeofence,
                           currentIndex: replay.currentIndex,
                           showReplayPosition: true,
                           onPointSelected: replay.seekIndex,
@@ -1113,6 +1123,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                                     deviceName: widget.deviceName,
                                     deviceImei: widget.deviceImei,
                                     avatarUrl: widget.avatarUrl,
+                                    originGeofence: widget.originGeofence,
                                   ),
                                 ),
                               ),
@@ -1401,7 +1412,7 @@ class _MapExpandButton extends StatelessWidget {
   }
 }
 
-class _JourneyFullScreenMap extends StatelessWidget {
+class _JourneyFullScreenMap extends StatefulWidget {
   const _JourneyFullScreenMap({
     required this.journey,
     required this.route,
@@ -1409,6 +1420,7 @@ class _JourneyFullScreenMap extends StatelessWidget {
     required this.deviceName,
     required this.deviceImei,
     this.avatarUrl,
+    this.originGeofence,
   });
 
   final JourneyRecord journey;
@@ -1417,11 +1429,25 @@ class _JourneyFullScreenMap extends StatelessWidget {
   final String deviceName;
   final String deviceImei;
   final String? avatarUrl;
+  final Geofence? originGeofence;
+
+  @override
+  State<_JourneyFullScreenMap> createState() =>
+      _JourneyFullScreenMapState();
+}
+
+class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
+  final JourneyV2StaticMapController _mapController =
+      JourneyV2StaticMapController();
+  bool _showSourceEvidence = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final compact = MediaQuery.sizeOf(context).width < 600;
+    final journey = widget.journey;
+    final route = widget.route;
+    final replay = widget.replay;
     return ListenableBuilder(
       listenable: replay,
       builder: (context, _) {
@@ -1434,12 +1460,15 @@ class _JourneyFullScreenMap extends StatelessWidget {
                   child: JourneyV2StaticMap(
                     key: ValueKey('journey-fullscreen-map-${journey.id}'),
                     route: route,
-                    deviceName: deviceName,
-                    deviceImei: deviceImei,
-                    avatarUrl: avatarUrl,
+                    deviceName: widget.deviceName,
+                    deviceImei: widget.deviceImei,
+                    avatarUrl: widget.avatarUrl,
+                    originGeofence: widget.originGeofence,
+                    controller: _mapController,
                     currentIndex: replay.currentIndex,
                     showReplayPosition: true,
                     showMapTypeControl: true,
+                    showSourceEvidence: _showSourceEvidence,
                     onPointSelected: replay.seekIndex,
                   ),
                 ),
@@ -1509,9 +1538,17 @@ class _JourneyFullScreenMap extends StatelessWidget {
                 ),
                 Positioned(
                   left: 16,
+                  right: compact ? 16 : null,
                   bottom: journey.hasInterruptedCoverage ? 160 : 94,
-                  child: _MapSourcePills(
+                  child: _FullScreenMapToolbar(
                     hasGoogle: route.presentation?.hasGoogleSegments == true,
+                    sourceEvidenceVisible: _showSourceEvidence,
+                    onFitRoute: () {
+                      unawaited(_mapController.fitCompleteRoute());
+                    },
+                    onToggleSourceEvidence: () => setState(() {
+                      _showSourceEvidence = !_showSourceEvidence;
+                    }),
                   ),
                 ),
                 Positioned(
@@ -1552,6 +1589,114 @@ class _MapSourcePills extends StatelessWidget {
           const _MapSourcePill(color: Color(0xFF7C3AED), label: 'Google'),
         ],
       ],
+    );
+  }
+}
+
+class _FullScreenMapToolbar extends StatelessWidget {
+  const _FullScreenMapToolbar({
+    required this.hasGoogle,
+    required this.sourceEvidenceVisible,
+    required this.onFitRoute,
+    required this.onToggleSourceEvidence,
+  });
+
+  final bool hasGoogle;
+  final bool sourceEvidenceVisible;
+  final VoidCallback onFitRoute;
+  final VoidCallback onToggleSourceEvidence;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.96),
+      borderRadius: BorderRadius.circular(18),
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha: 0.10),
+      child: Padding(
+        padding: const EdgeInsets.all(9),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _MapSourcePills(hasGoogle: hasGoogle),
+            _JourneyMapActionButton(
+              key: const ValueKey('journey-fit-complete-route'),
+              icon: Icons.fit_screen_rounded,
+              label: 'Fit complete route',
+              onTap: onFitRoute,
+            ),
+            _JourneyMapActionButton(
+              key: const ValueKey('journey-toggle-source-evidence'),
+              icon: sourceEvidenceVisible
+                  ? Icons.visibility_off_outlined
+                  : Icons.scatter_plot_rounded,
+              label: sourceEvidenceVisible
+                  ? 'Hide source evidence'
+                  : 'Show source evidence',
+              active: sourceEvidenceVisible,
+              onTap: onToggleSourceEvidence,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JourneyMapActionButton extends StatelessWidget {
+  const _JourneyMapActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final foreground = active ? const Color(0xFF5B34C8) : colors.textPrimary;
+    return Material(
+      color: active
+          ? const Color(0xFF7C3AED).withValues(alpha: 0.10)
+          : colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: active
+              ? const Color(0xFF7C3AED).withValues(alpha: 0.32)
+              : colors.border,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: foreground),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

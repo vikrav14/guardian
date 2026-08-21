@@ -576,6 +576,7 @@ class JourneyRecord {
     this.stopCount = 0,
     this.legCount = 0,
     this.closeReason,
+    this.originGeofenceId,
     this.originGeofenceName,
     this.departureAt,
     this.returnAt,
@@ -601,6 +602,7 @@ class JourneyRecord {
   final int stopCount;
   final int legCount;
   final String? closeReason;
+  final String? originGeofenceId;
   final String? originGeofenceName;
   final DateTime? departureAt;
   final DateTime? returnAt;
@@ -684,6 +686,7 @@ class JourneyRecord {
       stopCount: (data['stopCount'] as num?)?.toInt() ?? stops.length,
       legCount: (data['legCount'] as num?)?.toInt() ?? legs.length,
       closeReason: data['closeReason'] as String?,
+      originGeofenceId: data['originGeofenceId'] as String?,
       originGeofenceName: data['originGeofenceName'] as String?,
       departureAt: _asDateTime(data['departureAt']),
       returnAt: _asDateTime(data['returnAt']),

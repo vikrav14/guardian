@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_v2_data.dart';
 import '../journey/journey_v2_ui.dart';
+import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 
@@ -26,8 +27,15 @@ class JourneyPage extends StatefulWidget {
 
 class _JourneyPageState extends State<JourneyPage> {
   late DateTime _day = _today();
+  late final Stream<List<Geofence>> _geofenceStream;
   String? _selectedId;
   String? _lastReportedJourneyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _geofenceStream = GeofenceService().watchAll();
+  }
 
   static DateTime _today() {
     final now = DateTime.now();
@@ -154,19 +162,30 @@ class _JourneyPageState extends State<JourneyPage> {
                           selected.id,
                         ),
                   builder: (context, presentationSnapshot) {
-                    return JourneyV2Dashboard(
-                      deviceName: widget.deviceName,
-                      deviceImei: widget.imei,
-                      avatarUrl: widget.avatarUrl,
-                      day: effectiveDay,
-                      journeys: journeys,
-                      selected: selected,
-                      presentation: presentationSnapshot.data,
-                      onSelectJourney: (journey) {
-                        setState(() => _selectedId = journey.id);
+                    return StreamBuilder<List<Geofence>>(
+                      initialData: const <Geofence>[],
+                      stream: _geofenceStream,
+                      builder: (context, geofenceSnapshot) {
+                        return JourneyV2Dashboard(
+                          deviceName: widget.deviceName,
+                          deviceImei: widget.imei,
+                          avatarUrl: widget.avatarUrl,
+                          day: effectiveDay,
+                          journeys: journeys,
+                          selected: selected,
+                          presentation: presentationSnapshot.data,
+                          originGeofence: journeyOriginGeofence(
+                            selected,
+                            geofenceSnapshot.data ?? const <Geofence>[],
+                            imei: widget.imei,
+                          ),
+                          onSelectJourney: (journey) {
+                            setState(() => _selectedId = journey.id);
+                          },
+                          onBack: () => Navigator.maybePop(context),
+                          onChooseDay: _chooseDay,
+                        );
                       },
-                      onBack: () => Navigator.maybePop(context),
-                      onChooseDay: _chooseDay,
                     );
                   },
                 );
@@ -177,6 +196,30 @@ class _JourneyPageState extends State<JourneyPage> {
       ),
     );
   }
+}
+
+Geofence? journeyOriginGeofence(
+  JourneyRecord? journey,
+  List<Geofence> geofences, {
+  required String imei,
+}) {
+  if (journey == null) return null;
+  final candidates = geofences.where(
+    (zone) => zone.active && zone.imei == imei,
+  );
+  final originId = journey.originGeofenceId?.trim();
+  if (originId != null && originId.isNotEmpty) {
+    for (final zone in candidates) {
+      if (zone.id == originId) return zone;
+    }
+  }
+
+  final originName = journey.originGeofenceName?.trim().toLowerCase();
+  if (originName == null || originName.isEmpty) return null;
+  for (final zone in candidates) {
+    if (zone.name.trim().toLowerCase() == originName) return zone;
+  }
+  return null;
 }
 
 class _JourneyStateMessage extends StatelessWidget {

@@ -5,11 +5,30 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../theme/app_theme.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import '../widgets/map/person_map_marker.dart';
 import 'journey_v2_data.dart';
+
+class JourneyV2StaticMapController {
+  Future<void> Function()? _fitCompleteRoute;
+
+  Future<void> fitCompleteRoute() async {
+    await _fitCompleteRoute?.call();
+  }
+
+  void _attach(Future<void> Function() fitCompleteRoute) {
+    _fitCompleteRoute = fitCompleteRoute;
+  }
+
+  void _detach(Future<void> Function() fitCompleteRoute) {
+    if (_fitCompleteRoute == fitCompleteRoute) {
+      _fitCompleteRoute = null;
+    }
+  }
+}
 
 class JourneyV2StaticMap extends StatefulWidget {
   const JourneyV2StaticMap({
@@ -21,6 +40,9 @@ class JourneyV2StaticMap extends StatefulWidget {
     this.currentIndex = 0,
     this.showReplayPosition = false,
     this.showMapTypeControl = false,
+    this.showSourceEvidence = false,
+    this.originGeofence,
+    this.controller,
     this.onPointSelected,
   });
 
@@ -31,6 +53,9 @@ class JourneyV2StaticMap extends StatefulWidget {
   final int currentIndex;
   final bool showReplayPosition;
   final bool showMapTypeControl;
+  final bool showSourceEvidence;
+  final Geofence? originGeofence;
+  final JourneyV2StaticMapController? controller;
   final ValueChanged<int>? onPointSelected;
 
   @override
@@ -69,6 +94,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       _startPulse();
       unawaited(_loadReplayAvatarIcon());
     }
+    widget.controller?._attach(_fitRoute);
   }
 
   void _rebuildAnimation() {
@@ -110,6 +136,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   @override
   void didUpdateWidget(covariant JourneyV2StaticMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(_fitRoute);
+      widget.controller?._attach(_fitRoute);
+    }
     if (oldWidget.route.record.id != widget.route.record.id ||
         oldWidget.route.record.polyline != widget.route.record.polyline ||
         oldWidget.route.presentation?.generatedAt !=
@@ -184,6 +214,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
 
   @override
   void dispose() {
+    widget.controller?._detach(_fitRoute);
     _pulseController.dispose();
     _movementController.dispose();
     _cameraGeneration.dispose();
@@ -290,7 +321,14 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         .toDouble();
 
     final markers = journeyV2EndpointMarkers(widget.route, points);
-    final circles = journeyV2EndpointCircles(widget.route, points);
+    final circles = journeyV2EndpointCircles(
+      widget.route,
+      points,
+      originGeofence: widget.originGeofence,
+    );
+    if (widget.showSourceEvidence) {
+      circles.addAll(journeyV2SourceEvidenceCircles(widget.route));
+    }
     if (!hasPresentation) {
       circles.addAll(journeyV2GapCircles(widget.route, points));
     }
@@ -684,25 +722,37 @@ Set<Marker> journeyV2EndpointMarkers(
 
 Set<Circle> journeyV2EndpointCircles(
   JourneyV2Route route,
-  List<LocationHistoryPoint> points,
-) {
+  List<LocationHistoryPoint> points, {
+  Geofence? originGeofence,
+}) {
   if (!route.record.hasConfirmedReturn || points.isEmpty) return <Circle>{};
 
-  final originPoint = route.record.routeStartAnchored
+  final configuredZone = originGeofence;
+  final hasConfiguredSafeZone = configuredZone != null &&
+      configuredZone.active &&
+      _basicValid(configuredZone.lat, configuredZone.lng) &&
+      configuredZone.radiusMeters > 0;
+  final fallbackPoint = route.record.routeStartAnchored
       ? points.first
       : points.last;
-  final center = LatLng(originPoint.lat, originPoint.lng);
-  return <Circle>{
-    Circle(
-      circleId: const CircleId('journey-origin-halo'),
-      center: center,
-      // This is a visibility halo, not the configured geofence boundary.
-      radius: 55,
-      fillColor: GuardianColors.safe.withValues(alpha: 0.12),
-      strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
-      strokeWidth: 2,
-      zIndex: 10,
-    ),
+  final center = hasConfiguredSafeZone
+      ? LatLng(configuredZone!.lat, configuredZone.lng)
+      : LatLng(fallbackPoint.lat, fallbackPoint.lng);
+  final circles = <Circle>{};
+  if (hasConfiguredSafeZone) {
+    circles.add(
+      Circle(
+        circleId: const CircleId('journey-origin-safe-zone'),
+        center: center,
+        radius: configuredZone!.radiusMeters,
+        fillColor: GuardianColors.safe.withValues(alpha: 0.10),
+        strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
+        strokeWidth: 2,
+        zIndex: 10,
+      ),
+    );
+  }
+  circles.add(
     Circle(
       circleId: const CircleId('journey-origin-core'),
       center: center,
@@ -712,7 +762,41 @@ Set<Circle> journeyV2EndpointCircles(
       strokeWidth: 3,
       zIndex: 25,
     ),
-  };
+  );
+  return circles;
+}
+
+Set<Circle> journeyV2SourceEvidenceCircles(JourneyV2Route route) {
+  final rawPoints = route.usablePoints.isNotEmpty
+      ? route.usablePoints
+      : route.rawPoints;
+  if (rawPoints.isEmpty) return <Circle>{};
+
+  final evidenceRadius = (journeyV2ReplayHaloRadius(rawPoints) * 0.28)
+      .clamp(6.0, 22.0)
+      .toDouble();
+  final circles = <Circle>{};
+  for (var index = 0; index < rawPoints.length; index++) {
+    final point = rawPoints[index];
+    if (!_basicValid(point.lat, point.lng)) continue;
+    final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
+    final isGps = point.gpsValid == true || source == 'gps';
+    if (!isGps) continue;
+
+    const color = _JourneyV2StaticMapState._routeColor;
+    circles.add(
+      Circle(
+        circleId: CircleId('journey-source-evidence-$index'),
+        center: LatLng(point.lat, point.lng),
+        radius: evidenceRadius,
+        fillColor: color.withValues(alpha: 0.96),
+        strokeColor: Colors.white,
+        strokeWidth: 2,
+        zIndex: 18,
+      ),
+    );
+  }
+  return circles;
 }
 
 Set<Circle> journeyV2GapCircles(

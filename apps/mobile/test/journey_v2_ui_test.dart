@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
+import 'package:guardian/journey/journey_v2_static_map.dart';
 import 'package:guardian/journey/journey_v2_ui.dart';
 
 Future<void> pumpJourneyUi(WidgetTester tester) async {
@@ -104,9 +105,29 @@ void main() {
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
     expect(find.byKey(const ValueKey('journey-map-type-toggle')), findsOneWidget);
     expect(
+      find.byKey(const ValueKey('journey-fit-complete-route')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+      findsOneWidget,
+    );
+    expect(find.text('Show source evidence'), findsOneWidget);
+    expect(
       find.byKey(const ValueKey('journey-replay-location-card')),
       findsOneWidget,
     );
+
+    await tester.tap(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+    );
+    await tester.pump();
+
+    expect(find.text('Hide source evidence'), findsOneWidget);
+    final fullScreenMap = tester.widget<JourneyV2StaticMap>(
+      find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
+    );
+    expect(fullScreenMap.showSourceEvidence, isTrue);
   });
 
   testWidgets('trip row remains selectable', (tester) async {
