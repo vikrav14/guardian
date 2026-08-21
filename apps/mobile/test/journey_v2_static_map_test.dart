@@ -422,6 +422,6 @@ void main() {
     );
     expect(points.length, greaterThanOrEqualTo(3));
     expect(points.first.sourcePointIndex, 0);
-    expect(points.last.sourcePointIndex, 2);
+    expect(points.last.sourcePointIndex, 3);
   });
 }
