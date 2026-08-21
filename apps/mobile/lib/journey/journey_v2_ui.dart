@@ -1577,17 +1577,27 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
 }
 
 class _MapSourcePills extends StatelessWidget {
-  const _MapSourcePills({required this.hasGoogle});
+  const _MapSourcePills({
+    required this.hasGoogle,
+    this.showSources = false,
+  });
 
   final bool hasGoogle;
+  final bool showSources;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _MapSourcePill(color: Color(0xFF4C5BD4), label: 'GPS'),
-        if (hasGoogle) ...[
+        if (!showSources)
+          const _MapSourcePill(
+            color: Color(0xFF4F46E5),
+            label: 'Journey route',
+          )
+        else
+          const _MapSourcePill(color: Color(0xFF2563EB), label: 'GPS'),
+        if (showSources && hasGoogle) ...[
           const SizedBox(width: 6),
           const _MapSourcePill(color: Color(0xFF7C3AED), label: 'Google'),
         ],
@@ -1625,7 +1635,10 @@ class _FullScreenMapToolbar extends StatelessWidget {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _MapSourcePills(hasGoogle: hasGoogle),
+            _MapSourcePills(
+              hasGoogle: hasGoogle,
+              showSources: sourceEvidenceVisible,
+            ),
             _JourneyMapActionButton(
               key: const ValueKey('journey-fit-complete-route'),
               icon: Icons.fit_screen_rounded,

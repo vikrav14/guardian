@@ -383,12 +383,23 @@ void main() {
     );
     await pumpJourneyUi(tester);
 
-    expect(find.text('GPS'), findsOneWidget);
-    expect(find.text('Google'), findsOneWidget);
+    expect(find.text('Journey route'), findsOneWidget);
+    expect(find.text('GPS'), findsNothing);
+    expect(find.text('Google'), findsNothing);
     expect(find.textContaining('Near Super U Grand Baie'), findsOneWidget);
     expect(find.text('Nearby places · Google Maps'), findsOneWidget);
     expect(find.text('Recorded route'), findsNothing);
     expect(find.text('Location unavailable'), findsNothing);
     expect(find.text('Confirmed Home'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
+    await pumpJourneyUi(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+    );
+    await tester.pump();
+
+    expect(find.text('GPS'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
   });
 }

@@ -73,7 +73,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
   LatLng? _movementTo;
   MapType _mapType = MapType.normal;
 
-  static const _routeColor = Color(0xFF4C5BD4);
+  static const _routeColor = Color(0xFF4F46E5);
+  static const _gpsEvidenceColor = Color(0xFF2563EB);
+  static const _googleEvidenceColor = Color(0xFF7C3AED);
+  static const _directionColor = Color(0xFF312E81);
   static const _replayColor = Color(0xFFFFA000);
 
   List<LocationHistoryPoint> get _points =>
@@ -309,6 +312,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     final presentationSegments = journeyV2PresentationMapSegments(widget.route);
     final hasPresentation = presentationSegments.isNotEmpty;
     final evidenceSegments = journeyV2EvidenceSegments(widget.route);
+    final directionSegments = hasPresentation
+        ? [for (final segment in presentationSegments) segment.points]
+        : [for (final segment in evidenceSegments) segment.points];
     final replayIndex = widget.currentIndex < 0
         ? 0
         : widget.currentIndex >= latLngs.length
@@ -444,9 +450,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         final segmentPoints = [
           for (final point in segment.points) LatLng(point.lat, point.lng),
         ];
-        final color = segment.source == 'google'
-            ? const Color(0xFF7C3AED)
-            : _routeColor;
+        final sourceColor = segment.source == 'google'
+            ? _googleEvidenceColor
+            : _gpsEvidenceColor;
+        final color = widget.showSourceEvidence ? sourceColor : _routeColor;
         final isGpsBridge = segment.source == 'gps_bridge';
         polylines.add(
           Polyline(
@@ -481,6 +488,8 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         final evidenceSegment = evidenceSegments[index];
         final segment = evidenceSegment.points;
         if (segment.length < 2) continue;
+        final revealApproximate =
+            widget.showSourceEvidence && evidenceSegment.approximate;
         final segmentPoints = [
           for (final point in segment) LatLng(point.lat, point.lng),
         ];
@@ -488,10 +497,10 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
           Polyline(
             polylineId: PolylineId('journey-route-halo-$index'),
             points: segmentPoints,
-            color: evidenceSegment.approximate
+            color: revealApproximate
                 ? const Color(0xFFFFB020).withValues(alpha: 0.18)
                 : Colors.white.withValues(alpha: 0.86),
-            width: evidenceSegment.approximate ? 11 : 7,
+            width: revealApproximate ? 11 : 7,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,
@@ -502,19 +511,50 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
           Polyline(
             polylineId: PolylineId('journey-route-full-$index'),
             points: segmentPoints,
-            color: evidenceSegment.approximate
+            color: revealApproximate
                 ? const Color(0xFFD98200).withValues(alpha: 0.72)
                 : replayInProgress
                 ? _routeColor.withValues(alpha: 0.22)
                 : _routeColor.withValues(alpha: 0.92),
-            width: evidenceSegment.approximate ? 3 : 4,
-            patterns: evidenceSegment.approximate
+            width: revealApproximate ? 3 : 4,
+            patterns: revealApproximate
                 ? [PatternItem.dash(8), PatternItem.gap(4)]
                 : const <PatternItem>[],
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,
             zIndex: 3,
+          ),
+        );
+      }
+    }
+
+    if (widget.showMapTypeControl) {
+      final chevrons = journeyV2DirectionChevrons(directionSegments);
+      for (var index = 0; index < chevrons.length; index++) {
+        final chevron = chevrons[index];
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-direction-casing-$index'),
+            points: chevron,
+            color: Colors.white.withValues(alpha: 0.96),
+            width: 5,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 6,
+          ),
+        );
+        polylines.add(
+          Polyline(
+            polylineId: PolylineId('journey-direction-$index'),
+            points: chevron,
+            color: _directionColor,
+            width: 2,
+            startCap: Cap.roundCap,
+            endCap: Cap.roundCap,
+            jointType: JointType.round,
+            zIndex: 7,
           ),
         );
       }
@@ -691,6 +731,132 @@ double journeyV2ReplayHaloRadius(List<LocationHistoryPoint> points) {
   return (diagonalMetres * 0.0045).clamp(24.0, 260.0).toDouble();
 }
 
+class _JourneyV2DirectionLeg {
+  const _JourneyV2DirectionLeg({
+    required this.from,
+    required this.to,
+    required this.distanceMetres,
+  });
+
+  final LocationHistoryPoint from;
+  final LocationHistoryPoint to;
+  final double distanceMetres;
+}
+
+/// Builds a small number of open chevrons that follow recorded travel order.
+///
+/// Each chevron sits just to the traveller's right. A return along the same
+/// road therefore lands on the opposite side instead of drawing another thick
+/// line directly over the outbound pass.
+List<List<LatLng>> journeyV2DirectionChevrons(
+  Iterable<List<LocationHistoryPoint>> segments, {
+  int maxCount = 9,
+}) {
+  if (maxCount <= 0) return const [];
+
+  const metresPerLatitudeDegree = 111320.0;
+  final legs = <_JourneyV2DirectionLeg>[];
+  var totalMetres = 0.0;
+  for (final segment in segments) {
+    for (var index = 1; index < segment.length; index++) {
+      final from = segment[index - 1];
+      final to = segment[index];
+      if (!_basicValid(from.lat, from.lng) || !_basicValid(to.lat, to.lng)) {
+        continue;
+      }
+      final middleLatitudeRadians =
+          ((from.lat + to.lat) / 2) * math.pi / 180;
+      final northMetres = (to.lat - from.lat) * metresPerLatitudeDegree;
+      final eastMetres =
+          (to.lng - from.lng) *
+          metresPerLatitudeDegree *
+          math.cos(middleLatitudeRadians).abs();
+      final distanceMetres = math.sqrt(
+        (northMetres * northMetres) + (eastMetres * eastMetres),
+      );
+      if (!distanceMetres.isFinite || distanceMetres < 2) continue;
+      legs.add(
+        _JourneyV2DirectionLeg(
+          from: from,
+          to: to,
+          distanceMetres: distanceMetres,
+        ),
+      );
+      totalMetres += distanceMetres;
+    }
+  }
+  if (legs.isEmpty || totalMetres < 120) return const [];
+
+  final desiredCount = (totalMetres / 1800).round().clamp(2, maxCount).toInt();
+  final spacingMetres = totalMetres / (desiredCount + 1);
+  final arrowLengthMetres = (totalMetres * 0.0025)
+      .clamp(24.0, 72.0)
+      .toDouble();
+  final laneOffsetMetres = arrowLengthMetres * 0.58;
+  final wingHalfWidthMetres = arrowLengthMetres * 0.34;
+  final chevrons = <List<LatLng>>[];
+  var traversedMetres = 0.0;
+  var targetMetres = spacingMetres;
+
+  for (final leg in legs) {
+    while (targetMetres <= traversedMetres + leg.distanceMetres &&
+        chevrons.length < desiredCount) {
+      final ratio = ((targetMetres - traversedMetres) / leg.distanceMetres)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final centerLat = leg.from.lat + ((leg.to.lat - leg.from.lat) * ratio);
+      final centerLng = leg.from.lng + ((leg.to.lng - leg.from.lng) * ratio);
+      final latitudeRadians = centerLat * math.pi / 180;
+      final metresPerLongitudeDegree =
+          metresPerLatitudeDegree * math.cos(latitudeRadians).abs();
+      if (metresPerLongitudeDegree < 1) break;
+
+      final northMetres =
+          (leg.to.lat - leg.from.lat) * metresPerLatitudeDegree;
+      final eastMetres =
+          (leg.to.lng - leg.from.lng) * metresPerLongitudeDegree;
+      final magnitude = math.sqrt(
+        (northMetres * northMetres) + (eastMetres * eastMetres),
+      );
+      if (magnitude < 1) break;
+      final directionEast = eastMetres / magnitude;
+      final directionNorth = northMetres / magnitude;
+      final rightEast = directionNorth;
+      final rightNorth = -directionEast;
+
+      LatLng shifted({required double forward, required double right}) {
+        final east = (directionEast * forward) + (rightEast * right);
+        final north = (directionNorth * forward) + (rightNorth * right);
+        return LatLng(
+          centerLat + (north / metresPerLatitudeDegree),
+          centerLng + (east / metresPerLongitudeDegree),
+        );
+      }
+
+      final back = -(arrowLengthMetres * 0.48);
+      final tip = arrowLengthMetres * 0.48;
+      chevrons.add(
+        List<LatLng>.unmodifiable([
+          shifted(
+            forward: back,
+            right: laneOffsetMetres - wingHalfWidthMetres,
+          ),
+          shifted(forward: tip, right: laneOffsetMetres),
+          shifted(
+            forward: back,
+            right: laneOffsetMetres + wingHalfWidthMetres,
+          ),
+        ]),
+      );
+      targetMetres += spacingMetres;
+    }
+    traversedMetres += leg.distanceMetres;
+    if (chevrons.length >= desiredCount) break;
+  }
+
+  return List<List<LatLng>>.unmodifiable(chevrons);
+}
+
 /// Default Google marker hues are not consistently honoured on web. Confirmed
 /// round trips therefore use colored circles below instead of a pin that can
 /// incorrectly render red. Non-return journeys retain endpoint pins.
@@ -782,7 +948,7 @@ Set<Circle> journeyV2SourceEvidenceCircles(JourneyV2Route route) {
   final circles = <Circle>{};
   for (var index = 0; index < rawPoints.length; index++) {
     final point = rawPoints[index];
-    const color = _JourneyV2StaticMapState._routeColor;
+    const color = _JourneyV2StaticMapState._gpsEvidenceColor;
     circles.add(
       Circle(
         circleId: CircleId('journey-source-evidence-$index'),
