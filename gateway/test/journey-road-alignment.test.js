@@ -134,10 +134,11 @@ test('comparison HTML contains route layers but never an API key', () => {
     }],
   });
 
-  assert.match(html, /GPS-supported road alignment/);
-  assert.match(html, /Google-estimated route \(not recorded\)/);
-  assert.match(html, /Approximate WiFi\/LBS observation/);
-  assert.match(html, /exact path not recorded/);
+  assert.match(html, /Guardian Journey Lab/);
+  assert.match(html, /source-pill[^>]*>.*GPS/);
+  assert.match(html, /source-pill[^>]*>.*Google/);
+  assert.match(html, /Show source evidence/);
+  assert.doesNotMatch(html, /not recorded|Route confidence/);
   assert.doesNotMatch(html, /GOOGLE_ROADS_API_KEY|secret|key=/);
 });
 

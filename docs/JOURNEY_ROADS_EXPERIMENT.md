@@ -63,10 +63,10 @@ To inspect a specific journey, add:
 The report draws:
 
 - faint gray dashed: the complete stored evidence trace;
-- orange dots: trusted GPS samples;
+- blue dots: trusted GPS samples in the optional evidence overlay;
 - solid blue: GPS-supported Google Roads alignment;
-- dashed purple: Google-estimated route for a sparse interval, not recorded;
-- amber dots: approximate WiFi/LBS observations;
+- solid purple: Google route geometry for a sparse interval;
+- amber dots: approximate WiFi/LBS observations in the optional evidence overlay;
 - gray dashed interval: unresolved, with no route asserted as fact.
 
 The console and report show how many sections were aligned, estimated, or left
