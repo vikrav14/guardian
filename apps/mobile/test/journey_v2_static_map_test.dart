@@ -282,6 +282,8 @@ void main() {
 
     expect(circles, hasLength(1));
     expect(circles[0].circleId.value, 'journey-source-evidence-0');
+    expect(circles[0].radius, greaterThanOrEqualTo(34));
+    expect(journeyV2RecordedGpsEvidencePoints(route), hasLength(1));
   });
 
   test('hybrid presentation preserves GPS and Google route sources', () {

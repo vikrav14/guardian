@@ -1448,6 +1448,8 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
     final journey = widget.journey;
     final route = widget.route;
     final replay = widget.replay;
+    final sourceEvidenceCount =
+        journeyV2RecordedGpsEvidencePoints(route).length;
     return ListenableBuilder(
       listenable: replay,
       builder: (context, _) {
@@ -1542,6 +1544,7 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                   bottom: journey.hasInterruptedCoverage ? 160 : 94,
                   child: _FullScreenMapToolbar(
                     hasGoogle: route.presentation?.hasGoogleSegments == true,
+                    sourceEvidenceCount: sourceEvidenceCount,
                     sourceEvidenceVisible: _showSourceEvidence,
                     onFitRoute: () {
                       unawaited(_mapController.fitCompleteRoute());
@@ -1596,12 +1599,14 @@ class _MapSourcePills extends StatelessWidget {
 class _FullScreenMapToolbar extends StatelessWidget {
   const _FullScreenMapToolbar({
     required this.hasGoogle,
+    required this.sourceEvidenceCount,
     required this.sourceEvidenceVisible,
     required this.onFitRoute,
     required this.onToggleSourceEvidence,
   });
 
   final bool hasGoogle;
+  final int sourceEvidenceCount;
   final bool sourceEvidenceVisible;
   final VoidCallback onFitRoute;
   final VoidCallback onToggleSourceEvidence;
@@ -1633,8 +1638,8 @@ class _FullScreenMapToolbar extends StatelessWidget {
                   ? Icons.visibility_off_outlined
                   : Icons.scatter_plot_rounded,
               label: sourceEvidenceVisible
-                  ? 'Hide source evidence'
-                  : 'Show source evidence',
+                  ? 'Hide $sourceEvidenceCount GPS points'
+                  : 'Show $sourceEvidenceCount GPS points',
               active: sourceEvidenceVisible,
               onTap: onToggleSourceEvidence,
             ),

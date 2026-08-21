@@ -320,6 +320,7 @@ async function appendJourney(imei, journey) {
       `[journey-presentation] ${imei}/${journeyId} ` +
         `gps=${presentation.coverage.gpsSegmentCount} ` +
         `google=${presentation.coverage.googleSegmentCount} ` +
+        `unresolved=${presentation.coverage.unresolvedIntervalCount} ` +
         `places=${presentation.stopPlaces.length}`
     );
   }

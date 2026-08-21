@@ -149,4 +149,42 @@ test('failed Routes calls redact the server key', async () => {
 
   assert.match(result[0].error, /\[redacted\]/);
   assert.doesNotMatch(result[0].error, /never-print-me/);
+  assert.equal(result[0].attempts, 2);
+});
+
+test('a transient Routes failure is retried once before leaving a gap', async () => {
+  const encoded = encodePolyline([
+    { lat: -20.0, lng: 57.5 },
+    { lat: -20.01, lng: 57.51 },
+  ]);
+  let calls = 0;
+  const result = await estimateRouteGaps([{
+    id: 'gap-retry',
+    from: point(-20.0, 57.5, 0, 0),
+    to: point(-20.01, 57.51, 5, 1),
+    durationSeconds: 300,
+    directDistanceMeters: 1500,
+    approximatePoints: [],
+  }], {
+    apiKey: 'server-secret',
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('temporary provider failure');
+      return {
+        ok: true,
+        json: async () => ({
+          routes: [{
+            duration: '240s',
+            distanceMeters: 1800,
+            routeLabels: ['DEFAULT_ROUTE'],
+            polyline: { encodedPolyline: encoded },
+          }],
+        }),
+      };
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(result[0].accepted, true);
+  assert.equal(result[0].attempts, 2);
 });

@@ -112,7 +112,7 @@ void main() {
       find.byKey(const ValueKey('journey-toggle-source-evidence')),
       findsOneWidget,
     );
-    expect(find.text('Show source evidence'), findsOneWidget);
+    expect(find.text('Show 3 GPS points'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('journey-replay-location-card')),
       findsOneWidget,
@@ -123,7 +123,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Hide source evidence'), findsOneWidget);
+    expect(find.text('Hide 3 GPS points'), findsOneWidget);
     final fullScreenMap = tester.widget<JourneyV2StaticMap>(
       find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
     );

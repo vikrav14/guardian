@@ -767,36 +767,46 @@ Set<Circle> journeyV2EndpointCircles(
 }
 
 Set<Circle> journeyV2SourceEvidenceCircles(JourneyV2Route route) {
-  final rawPoints = route.usablePoints.isNotEmpty
-      ? route.usablePoints
-      : route.rawPoints;
+  final rawPoints = journeyV2RecordedGpsEvidencePoints(route);
   if (rawPoints.isEmpty) return <Circle>{};
 
-  final evidenceRadius = (journeyV2ReplayHaloRadius(rawPoints) * 0.28)
-      .clamp(6.0, 22.0)
+  // Evidence must remain visible when Fit complete route zooms out over a
+  // long outing. The old 6-22 m dots were effectively sub-pixel on Trip 2.
+  final evidenceRadius = (journeyV2ReplayHaloRadius(rawPoints) * 0.80)
+      .clamp(34.0, 140.0)
       .toDouble();
   final circles = <Circle>{};
   for (var index = 0; index < rawPoints.length; index++) {
     final point = rawPoints[index];
-    if (!_basicValid(point.lat, point.lng)) continue;
-    final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
-    final isGps = point.gpsValid == true || source == 'gps';
-    if (!isGps) continue;
-
     const color = _JourneyV2StaticMapState._routeColor;
     circles.add(
       Circle(
         circleId: CircleId('journey-source-evidence-$index'),
         center: LatLng(point.lat, point.lng),
         radius: evidenceRadius,
-        fillColor: color.withValues(alpha: 0.96),
+        fillColor: color.withValues(alpha: 0.88),
         strokeColor: Colors.white,
-        strokeWidth: 2,
-        zIndex: 18,
+        strokeWidth: 3,
+        zIndex: 19,
       ),
     );
   }
   return circles;
+}
+
+List<LocationHistoryPoint> journeyV2RecordedGpsEvidencePoints(
+  JourneyV2Route route,
+) {
+  final rawPoints = route.usablePoints.isNotEmpty
+      ? route.usablePoints
+      : route.rawPoints;
+  return List.unmodifiable(
+    rawPoints.where((point) {
+      if (!_basicValid(point.lat, point.lng)) return false;
+      final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
+      return point.gpsValid == true || source == 'gps';
+    }),
+  );
 }
 
 Set<Circle> journeyV2GapCircles(

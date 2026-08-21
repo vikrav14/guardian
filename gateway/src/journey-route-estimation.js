@@ -300,18 +300,38 @@ function selectLikelyGoogleRoute(gap, candidates) {
 
 async function estimateRouteGaps(
   gaps,
-  { apiKey, fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}
+  {
+    apiKey,
+    fetchImpl = fetch,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxAttempts = 2,
+  } = {}
 ) {
   const output = [];
   for (const gap of gaps || []) {
-    try {
-      const candidates = await fetchGoogleRouteCandidates(gap, {
-        apiKey,
-        fetchImpl,
-        timeoutMs,
-      });
-      output.push({ gap, ...selectLikelyGoogleRoute(gap, candidates), error: null });
-    } catch (error) {
+    const attemptLimit = Math.max(1, Number(maxAttempts) || 1);
+    let lastError = null;
+    let resolved = false;
+    for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
+      try {
+        const candidates = await fetchGoogleRouteCandidates(gap, {
+          apiKey,
+          fetchImpl,
+          timeoutMs,
+        });
+        output.push({
+          gap,
+          ...selectLikelyGoogleRoute(gap, candidates),
+          error: null,
+          attempts: attempt,
+        });
+        resolved = true;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!resolved) {
       output.push({
         gap,
         accepted: false,
@@ -319,8 +339,12 @@ async function estimateRouteGaps(
         selected: null,
         reason: 'google_routes_request_failed',
         error: apiKey
-          ? String(error?.message || error).replaceAll(String(apiKey), '[redacted]')
-          : String(error?.message || error),
+          ? String(lastError?.message || lastError).replaceAll(
+              String(apiKey),
+              '[redacted]'
+            )
+          : String(lastError?.message || lastError),
+        attempts: attemptLimit,
       });
     }
   }

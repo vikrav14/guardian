@@ -71,6 +71,7 @@ async function main() {
   console.log(`Journey: ${journeySnapshot.id}`);
   console.log(`GPS sections:    ${presentation.coverage.gpsSegmentCount}`);
   console.log(`Google sections: ${presentation.coverage.googleSegmentCount}`);
+  console.log(`Unresolved:      ${presentation.coverage.unresolvedIntervalCount}`);
   console.log(`Nearby places:   ${presentation.stopPlaces.length}`);
   for (const place of presentation.stopPlaces) {
     console.log(`  - ${place.label}`);

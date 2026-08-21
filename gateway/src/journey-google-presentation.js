@@ -185,6 +185,15 @@ async function buildJourneyGooglePresentation(
   const googleSegments = estimatedGaps
     .map((estimate) => googleSegment(journey, estimate))
     .filter(Boolean);
+  const unresolvedIntervals = estimatedGaps
+    .filter((estimate) => !estimate.accepted)
+    .map((estimate) => ({
+      id: estimate.gap?.id || null,
+      fromPointIndex: estimate.gap?.from?.originalJourneyIndex ?? null,
+      toPointIndex: estimate.gap?.to?.originalJourneyIndex ?? null,
+      reason: estimate.reason || 'unresolved',
+      attempts: estimate.attempts || 1,
+    }));
   const segments = [...gpsSegments, ...googleSegments]
     .sort((left, right) => left.fromOffsetMs - right.fromOffsetMs);
   if (segments.length === 0 && stopPlaces.length === 0) return null;
@@ -202,6 +211,7 @@ async function buildJourneyGooglePresentation(
       gpsSegmentCount: gpsSegments.length,
       googleSegmentCount: googleSegments.length,
       unresolvedIntervalCount: Math.max(0, gaps.length - googleSegments.length),
+      unresolvedIntervals,
     },
   };
 }
