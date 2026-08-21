@@ -17,11 +17,14 @@ test('journey road-alignment inspector loads gateway .env before reading its key
   );
   const dotenvLoad = source.indexOf("require('dotenv').config");
   const keyRead = source.indexOf('process.env.GOOGLE_ROADS_API_KEY');
+  const routesKeyRead = source.indexOf('process.env.GOOGLE_ROUTES_API_KEY');
 
   assert.ok(dotenvLoad >= 0);
   assert.ok(keyRead > dotenvLoad);
+  assert.ok(routesKeyRead > dotenvLoad);
 });
 const {
+  alignGpsSegments,
   buildComparisonHtml,
 } = require('../scripts/inspect-journey-road-alignment');
 
@@ -107,23 +110,52 @@ test('road alignment rejects sparse or heavily corrected proposals', () => {
 
 test('comparison HTML contains route layers but never an API key', () => {
   const html = buildComparisonHtml({
-    imei: '123',
     journeyId: 'journey-1',
-    allPoints: [{ lat: -20.01, lng: 57.6 }],
+    allPoints: [
+      { lat: -20.01, lng: 57.6, source: 'gps', gpsValid: true },
+      { lat: -20.02, lng: 57.61, source: 'wifi', gpsValid: false },
+    ],
     gpsPoints: [{ lat: -20.01, lng: 57.6 }],
-    snappedPoints: [{ lat: -20.01, lng: 57.6 }],
-    assessment: {
-      eligibleForDisplayExperiment: true,
-      matchedGpsPointCount: 1,
-      originalGpsPointCount: 1,
-      medianCorrectionMeters: 0,
-      p95CorrectionMeters: 0,
-      adjacentPairsOver300Meters: 0,
-      warnings: [],
+    roadSections: [{
+      accepted: true,
+      snappedPoints: [{ lat: -20.01, lng: 57.6 }, { lat: -20.015, lng: 57.605 }],
+    }],
+    estimatedGaps: [{
+      accepted: true,
+      gap: {
+        from: { lat: -20.015, lng: 57.605, recordedAt: '2026-08-21T10:00:00Z' },
+        to: { lat: -20.02, lng: 57.61, recordedAt: '2026-08-21T10:05:00Z' },
+      },
+      selected: {
+        candidate: {
+          points: [{ lat: -20.015, lng: 57.605 }, { lat: -20.02, lng: 57.61 }],
+        },
+      },
+    }],
+  });
+
+  assert.match(html, /GPS-supported road alignment/);
+  assert.match(html, /Google-estimated route \(not recorded\)/);
+  assert.match(html, /Approximate WiFi\/LBS observation/);
+  assert.match(html, /exact path not recorded/);
+  assert.doesNotMatch(html, /GOOGLE_ROADS_API_KEY|secret|key=/);
+});
+
+test('alignGpsSegments isolates a rejected section without failing the report', async () => {
+  const dense = [
+    { lat: -20, lng: 57.5 },
+    { lat: -20.0001, lng: 57.5001 },
+  ];
+  const result = await alignGpsSegments([dense, [dense[1]]], {
+    apiKey: 'secret',
+    snapImpl: async () => {
+      throw new Error('Google rejected secret');
     },
   });
 
-  assert.match(html, /Complete stored evidence/);
-  assert.match(html, /Google road-aligned proposal/);
-  assert.doesNotMatch(html, /GOOGLE_ROADS_API_KEY|secret|key=/);
+  assert.equal(result.length, 2);
+  assert.equal(result[0].accepted, false);
+  assert.equal(result[0].reason, 'google_roads_request_failed');
+  assert.equal(result[0].error, 'Google rejected [redacted]');
+  assert.equal(result[1].reason, 'single_gps_sample');
 });

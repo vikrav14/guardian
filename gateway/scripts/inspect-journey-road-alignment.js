@@ -11,6 +11,11 @@ const {
   selectTrustedGpsPoints,
   snapJourneyToRoads,
 } = require('../src/journey-road-alignment');
+const {
+  estimateRouteGaps,
+  findEstimatedRouteGaps,
+  partitionGpsSegments,
+} = require('../src/journey-route-estimation');
 
 function parseArgs(argv) {
   const args = {};
@@ -45,52 +50,124 @@ function journeyPoints(journey) {
   return coords.map((point, index) => ({
     lat: point.lat,
     lng: point.lng,
+    originalJourneyIndex: index,
     recordedAt: new Date(
       startAt.getTime() + Number(evidence[index]?.offsetMs || 0)
     ).toISOString(),
+    source: evidence[index]?.source || evidence[index]?.accuracySource || null,
+    gpsValid: evidence[index]?.gpsValid,
+    accuracyMeters: evidence[index]?.accuracyMeters != null &&
+      Number.isFinite(Number(evidence[index].accuracyMeters))
+      ? Number(evidence[index].accuracyMeters)
+      : null,
   }));
+}
+
+function redactSecret(message, secret) {
+  const text = String(message || 'Unknown error');
+  return secret ? text.replaceAll(String(secret), '[redacted]') : text;
+}
+
+async function alignGpsSegments(
+  segments,
+  { apiKey, snapImpl = snapJourneyToRoads } = {}
+) {
+  const output = [];
+  for (let index = 0; index < (segments || []).length; index += 1) {
+    const points = segments[index];
+    if (points.length < 2) {
+      output.push({
+        segmentIndex: index,
+        points,
+        snappedPoints: [],
+        accepted: false,
+        assessment: null,
+        reason: 'single_gps_sample',
+        error: null,
+      });
+      continue;
+    }
+
+    try {
+      const snappedPoints = await snapImpl(points, { apiKey });
+      const assessment = assessRoadAlignment(points, snappedPoints);
+      output.push({
+        segmentIndex: index,
+        points,
+        snappedPoints,
+        accepted: assessment.eligibleForDisplayExperiment,
+        assessment,
+        reason: assessment.eligibleForDisplayExperiment
+          ? null
+          : 'roads_alignment_failed_display_checks',
+        error: null,
+      });
+    } catch (error) {
+      output.push({
+        segmentIndex: index,
+        points,
+        snappedPoints: [],
+        accepted: false,
+        assessment: null,
+        reason: 'google_roads_request_failed',
+        error: redactSecret(error?.message || error, apiKey),
+      });
+    }
+  }
+  return output;
 }
 
 function htmlEscapeJson(value) {
   return JSON.stringify(value).replaceAll('</script', '<\\/script');
 }
 
-function buildComparisonHtml({ imei, journeyId, allPoints, gpsPoints, snappedPoints, assessment }) {
+function buildComparisonHtml({
+  journeyId,
+  allPoints,
+  gpsPoints,
+  roadSections,
+  estimatedGaps,
+}) {
   const payload = htmlEscapeJson({
-    imei,
     journeyId,
     allPoints,
     gpsPoints,
-    snappedPoints,
-    assessment,
+    roadSections,
+    estimatedGaps,
   });
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Guardian journey road-alignment experiment</title>
+  <title>Guardian hybrid journey experiment</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     html,body,#map{height:100%;margin:0} body{font-family:Inter,Segoe UI,sans-serif}
-    .panel{position:absolute;z-index:1000;top:16px;left:16px;max-width:390px;background:#fffefb;
+    .panel{position:absolute;z-index:1000;top:16px;left:16px;max-width:410px;background:#fffefb;
       border-radius:16px;padding:14px 16px;box-shadow:0 8px 28px #17362b33;color:#17362b}
     .panel h1{font-size:16px;margin:0 0 8px}.panel p{font-size:12px;line-height:1.45;margin:5px 0}
-    .pass{color:#067647;font-weight:800}.fail{color:#b42318;font-weight:800}
+    .notice{color:#6941c6;font-weight:800}
     .legend{display:grid;grid-template-columns:18px 1fr;gap:6px 8px;margin-top:10px;font-size:12px}
-    .line{height:4px;margin-top:6px;border-radius:3px}.raw{background:#6b7280}.gps{background:#f59e0b}.snap{background:#2563eb}
+    .line{height:4px;margin-top:6px;border-radius:3px}.raw{background:#98a2b3}.gps{background:#f59e0b}
+    .snap{background:#3157d5}.approx{background:#f79009}
+    .estimate{border-top:4px dashed #8b5cf6;margin-top:6px}.unresolved{border-top:3px dashed #667085;margin-top:6px}
   </style>
 </head>
 <body>
   <div id="map"></div>
   <section class="panel">
-    <h1>Guardian road-alignment experiment</h1>
-    <p><strong>Journey:</strong> ${journeyId}</p>
-    <p id="decision"></p><p id="metrics"></p><p id="warnings"></p>
+    <h1>Guardian hybrid journey experiment</h1>
+    <p><strong>Journey:</strong> <span id="journey"></span></p>
+    <p class="notice">Dashed purple sections are Google estimates, not recorded movement.</p>
+    <p id="metrics"></p>
     <div class="legend">
-      <span class="line raw"></span><span>Complete stored evidence</span>
-      <span class="line gps"></span><span>Trusted satellite GPS samples</span>
-      <span class="line snap"></span><span>Google road-aligned proposal</span>
+      <span class="line raw"></span><span>Stored evidence trace</span>
+      <span class="line gps"></span><span>Trusted satellite GPS sample</span>
+      <span class="line snap"></span><span>GPS-supported road alignment</span>
+      <span class="estimate"></span><span>Google-estimated route (not recorded)</span>
+      <span class="line approx"></span><span>Approximate WiFi/LBS observation</span>
+      <span class="unresolved"></span><span>Unresolved interval</span>
     </div>
   </section>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -102,22 +179,44 @@ function buildComparisonHtml({ imei, journeyId, allPoints, gpsPoints, snappedPoi
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
     const latLng = points => points.map(point => [point.lat, point.lng]);
-    const raw = L.polyline(latLng(data.allPoints), {color:'#6b7280',weight:3,opacity:.5,dashArray:'7 7'}).addTo(map);
-    L.polyline(latLng(data.gpsPoints), {color:'#f59e0b',weight:4,opacity:.85}).addTo(map);
+    const bounds = L.latLngBounds(latLng(data.allPoints));
+    if (data.allPoints.length > 1) {
+      L.polyline(latLng(data.allPoints), {color:'#98a2b3',weight:2,opacity:.38,dashArray:'4 8'}).addTo(map);
+    }
     data.gpsPoints.forEach((point, index) => L.circleMarker([point.lat,point.lng], {
       radius:4,color:'#fff',weight:2,fillColor:'#f59e0b',fillOpacity:1
     }).bindTooltip('GPS ' + (index + 1) + '<br>' + (point.recordedAt || '')).addTo(map));
-    L.polyline(latLng(data.snappedPoints), {color:'#2563eb',weight:5,opacity:.9}).addTo(map);
-    map.fitBounds(raw.getBounds(), {padding:[30,30]});
-    const a = data.assessment;
-    document.getElementById('decision').innerHTML = a.eligibleForDisplayExperiment
-      ? '<span class="pass">PASS for visual evaluation</span> — still not raw SOS evidence.'
-      : '<span class="fail">REJECT for product display</span> — Google had to infer too much.';
+    data.allPoints.filter(point => {
+      const source = String(point.source || '').toLowerCase();
+      return source === 'wifi' || source === 'lbs' || point.gpsValid === false;
+    }).forEach(point => L.circleMarker([point.lat,point.lng], {
+      radius:3,color:'#f79009',weight:1,fillColor:'#fdb022',fillOpacity:.65
+    }).bindTooltip('Approximate observation<br>' + (point.recordedAt || '')).addTo(map));
+    const acceptedRoads = data.roadSections.filter(section => section.accepted);
+    acceptedRoads.forEach(section => L.polyline(latLng(section.snappedPoints), {
+      color:'#3157d5',weight:5,opacity:.9
+    }).bindTooltip('GPS-supported road alignment').addTo(map));
+    const acceptedEstimates = data.estimatedGaps.filter(item => item.accepted && item.selected);
+    acceptedEstimates.forEach(item => {
+      const gap = item.gap;
+      L.polyline(latLng(item.selected.candidate.points), {
+        color:'#8b5cf6',weight:5,opacity:.92,dashArray:'12 10'
+      }).bindTooltip(
+        'Estimated by Google · exact path not recorded<br>' +
+        new Date(gap.from.recordedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '–' +
+        new Date(gap.to.recordedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+      ).addTo(map);
+    });
+    const unresolved = data.estimatedGaps.filter(item => !item.accepted);
+    unresolved.forEach(item => L.polyline(latLng([item.gap.from,item.gap.to]), {
+      color:'#667085',weight:3,opacity:.75,dashArray:'6 10'
+    }).bindTooltip('Unresolved interval · no route shown as fact').addTo(map));
+    map.fitBounds(bounds, {padding:[30,30]});
+    document.getElementById('journey').textContent = data.journeyId;
     document.getElementById('metrics').textContent =
-      a.matchedGpsPointCount + '/' + a.originalGpsPointCount + ' GPS points mapped · median correction ' +
-      (a.medianCorrectionMeters ?? 'n/a') + ' m · P95 ' + (a.p95CorrectionMeters ?? 'n/a') + ' m · ' +
-      a.adjacentPairsOver300Meters + ' sparse pair(s) over 300 m.';
-    document.getElementById('warnings').textContent = a.warnings.join(' ');
+      acceptedRoads.length + '/' + data.roadSections.length + ' GPS section(s) road-aligned · ' +
+      acceptedEstimates.length + '/' + data.estimatedGaps.length + ' sparse interval(s) estimated · ' +
+      unresolved.length + ' unresolved.';
   </script>
 </body>
 </html>`;
@@ -145,8 +244,9 @@ async function main() {
     );
   }
 
-  const apiKey = process.env.GOOGLE_ROADS_API_KEY;
-  if (!apiKey) {
+  const roadsApiKey = process.env.GOOGLE_ROADS_API_KEY;
+  const routesApiKey = process.env.GOOGLE_ROUTES_API_KEY || roadsApiKey;
+  if (!roadsApiKey) {
     throw new Error(
       'GOOGLE_ROADS_API_KEY is missing. Add a server-restricted Roads API key to gateway/.env.'
     );
@@ -168,35 +268,46 @@ async function main() {
   console.log(`Stored points:${String(allPoints.length).padStart(4)}`);
   console.log(`Trusted GPS:  ${String(gpsPoints.length).padStart(4)}`);
   console.log('Firestore:    read-only');
-  console.log('Google Roads: diagnostic requests only; no result persistence');
+  console.log('Google APIs:  diagnostic requests only; no result persistence');
 
-  const snappedPoints = await snapJourneyToRoads(gpsPoints, { apiKey });
-  const assessment = assessRoadAlignment(gpsPoints, snappedPoints);
+  const gaps = findEstimatedRouteGaps(gpsPoints, allPoints);
+  const gpsSegments = partitionGpsSegments(gpsPoints, gaps);
+  const roadSections = await alignGpsSegments(gpsSegments, {
+    apiKey: roadsApiKey,
+  });
+  const estimatedGaps = await estimateRouteGaps(gaps, {
+    apiKey: routesApiKey,
+  });
   const outputPath = path.resolve(
     args.output || `journey-road-alignment-${journey.id}.html`
   );
   fs.writeFileSync(
     outputPath,
     buildComparisonHtml({
-      imei: args.imei,
       journeyId: journey.id,
       allPoints,
       gpsPoints,
-      snappedPoints,
-      assessment,
+      roadSections,
+      estimatedGaps,
     }),
     'utf8'
   );
 
-  console.log('');
-  console.log(`Coverage:     ${assessment.coveragePercent}%`);
-  console.log(`Median snap:  ${assessment.medianCorrectionMeters ?? 'n/a'} m`);
-  console.log(`P95 snap:     ${assessment.p95CorrectionMeters ?? 'n/a'} m`);
-  console.log(`Sparse pairs: ${assessment.adjacentPairsOver300Meters}/${assessment.adjacentPairCount}`);
-  console.log(
-    `Assessment:   ${assessment.eligibleForDisplayExperiment ? 'PASS for visual evaluation' : 'REJECT — too much inference'}`
+  const acceptedRoadSections = roadSections.filter((section) => section.accepted);
+  const acceptedEstimatedGaps = estimatedGaps.filter((item) => item.accepted);
+  const approximateSupported = acceptedEstimatedGaps.filter(
+    (item) => item.confidence === 'supported_estimate'
   );
-  for (const warning of assessment.warnings) console.log(`Warning:      ${warning}`);
+  const unresolvedGaps = estimatedGaps.filter((item) => !item.accepted);
+  console.log('');
+  console.log(`GPS sections: ${acceptedRoadSections.length}/${roadSections.length} road-aligned`);
+  console.log(`Sparse gaps:  ${gaps.length}`);
+  console.log(`Estimated:    ${acceptedEstimatedGaps.length}/${estimatedGaps.length}`);
+  console.log(`Corroborated: ${approximateSupported.length} by approximate observations`);
+  console.log(`Unresolved:   ${unresolvedGaps.length}`);
+  for (const item of unresolvedGaps) {
+    console.log(`Gap warning:  ${item.gap.id} — ${item.reason}`);
+  }
   console.log(`Report:       ${outputPath}`);
   console.log('No Firestore documents or Guardian routes were changed.');
 }
@@ -209,6 +320,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  alignGpsSegments,
   buildComparisonHtml,
   journeyPoints,
   parseArgs,
