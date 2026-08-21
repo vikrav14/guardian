@@ -70,11 +70,14 @@ service cloud.firestore {
     }
 
     function historyAllowed(recordedAt) {
-      return activePlanAtLeast('essential')
-        && recordedAt is timestamp
-        && (
-          activePlanAtLeast('family')
-          || recordedAt >= request.time - duration.value(7, 'd')
+      // Family and Care have retained history, so their collection queries do
+      // not need a per-document time predicate. Essential remains restricted
+      // to records inside its seven-day window.
+      return activePlanAtLeast('family')
+        || (
+          activePlanAtLeast('essential')
+          && recordedAt is timestamp
+          && recordedAt >= request.time - duration.value(7, 'd')
         );
     }
 
