@@ -6,6 +6,7 @@ const {
   prepareSosWhatsApp,
   renderSosFallbackText,
   sendPreparedSosWhatsApp,
+  callbackTemplatesEnabledForDevice,
 } = require('../src/sos-whatsapp');
 
 const now = new Date('2026-08-13T00:00:00.000Z');
@@ -43,6 +44,34 @@ function providerWith(text, counter = null) {
 
 test('SOS templates use English language code selected in Meta', () => {
   assert.equal(SOS_TEMPLATE_LANGUAGE, 'en');
+});
+
+test('callback templates require an exact private pilot IMEI and SIM match', () => {
+  const pilot = {
+    metaWhatsAppSosCallbackPilotImei: '999999999999999',
+    metaWhatsAppSosCallbackPilotNumber: '+230 5000 0000',
+  };
+  const matching = device(now, {
+    imei: '999999999999999',
+    simNumber: '+23050000000',
+  });
+
+  assert.equal(callbackTemplatesEnabledForDevice(matching, pilot), true);
+  assert.equal(
+    callbackTemplatesEnabledForDevice(
+      { ...matching, imei: '999999999999998' },
+      pilot
+    ),
+    false
+  );
+  assert.equal(
+    callbackTemplatesEnabledForDevice(
+      { ...matching, simNumber: '+23059999999' },
+      pilot
+    ),
+    false
+  );
+  assert.equal(callbackTemplatesEnabledForDevice(matching, {}), false);
 });
 
 test('fresh SOS prepares exact Meta template with human narration', async () => {
@@ -97,6 +126,26 @@ test('unavailable SOS prepares exact no-location Meta template with no button', 
   );
   assert.equal(prepared.plan.buttonUrlParameter, null);
   assert.equal(prepared.plan.components.length, 1);
+});
+
+test('callback SOS prepares approved call-watch template contract', async () => {
+  const prepared = await prepareSosWhatsApp({
+    device: device(new Date('2026-08-12T23:58:00.000Z')),
+    alert: { type: 'sos', eventAt: now },
+    now,
+    provider: providerWith('This text must not control the emergency action.'),
+    callbackTemplatesEnabled: true,
+  });
+
+  assert.equal(
+    prepared.plan.templateName,
+    'guardian_sos_callback_alert_v1'
+  );
+  assert.equal(prepared.plan.callButtonIncluded, true);
+  assert.equal(prepared.plan.components[1].sub_type, 'url');
+  assert.equal(prepared.plan.components[1].index, '1');
+  assert.match(prepared.plan.bodyParameters[0], /Please call Jesh's watch now/);
+  assert.doesNotMatch(prepared.plan.bodyParameters[0], /must not control/);
 });
 
 test('prepared SOS can fan out to multiple contacts with only one LLM call', async () => {

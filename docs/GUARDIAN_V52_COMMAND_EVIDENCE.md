@@ -34,6 +34,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Request location | `CR` | Proven | Real V52 returned GPS and Wi-Fi/LBS observations. |
 | Voice monitor callback | `MONITOR,<phone>` | Documented | Confirm callback, audio, consent indication and carrier behaviour. |
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
+| SOS alarm delivery mode | `MOD,<0..3>` | Documented | `0` platform only; `1` platform+SMS+call; `2` platform+call; `3` platform+SMS. Confirm both no-call modes on the real V52 before changing the product default. The protocol does not provide a command to change the watch's on-screen SOS wording. |
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |

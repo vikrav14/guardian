@@ -41,6 +41,30 @@ function ringToFindCommand() {
   return 'FIND';
 }
 
+/**
+ * V52 alarm-delivery mode from vendor protocol section 41.
+ *
+ * 0: upload to platform only
+ * 1: upload, then SMS, then call
+ * 2: upload, then call
+ * 3: upload, then SMS
+ *
+ * Modes 0 and 3 are the documented no-automatic-call choices. They remain a
+ * real-device acceptance item: sending this command proves only that Guardian
+ * handed the frame to the live TCP session, not what the watch displayed or
+ * whether its firmware applied the setting.
+ */
+function alarmModeCommand(mode) {
+  if (mode == null || String(mode).trim() === '') {
+    throw new Error('Alarm mode must be an integer from 0 to 3');
+  }
+  const n = Number(mode);
+  if (!Number.isInteger(n) || n < 0 || n > 3) {
+    throw new Error('Alarm mode must be an integer from 0 to 3');
+  }
+  return `MOD,${n}`;
+}
+
 /** UTF-16BE hex encoding, 4 hex chars per character, no separators -- the
  * format TAKEPILLS reminder text uses. Confirmed against the vendor's own
  * example captures: "00660066"->"ff" is a placeholder-looking test string,
@@ -136,6 +160,7 @@ function uploadIntervalCommand(seconds) {
 const TCP_ONLY_TYPES = new Set([
   'voice_monitor',
   'ring_to_find',
+  'set_alarm_mode',
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
@@ -148,6 +173,7 @@ const BUILDERS = {
   check_status: () => statusCommand(),
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
+  set_alarm_mode: ({ mode }) => alarmModeCommand(mode),
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
   set_medication_reminder: (params) => medicationReminderCommand(params),
@@ -195,6 +221,7 @@ module.exports = {
   statusCommand,
   voiceMonitorCommand,
   ringToFindCommand,
+  alarmModeCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,

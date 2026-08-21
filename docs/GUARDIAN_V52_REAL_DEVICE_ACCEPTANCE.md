@@ -67,6 +67,44 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
+### Test 2B — no-call SOS callback pilot
+
+This test changes emergency behaviour. Tell every recipient first, keep the
+watch and guardian phone together, and choose a documented restoration mode
+before starting. The protocol has no mode read-back, so if the current mode is
+unknown, confirm the intended restore value with the supplier before testing.
+
+1. With a live V52 TCP session, enqueue `set_alarm_mode` with mode `0`
+   (platform only). Mode `3` is the separate platform+backup-SMS, no-call
+   option. The guarded operator command is:
+
+   ```powershell
+   npm run sos:alarm-mode -- --imei <15-digit-hardware-imei> --mode 0 --confirm CHANGE_SOS_MODE
+   ```
+2. Treat `deviceCommands.status=sent` only as socket handoff. Press SOS once
+   and confirm the V52 actually sends one Guardian `sos` event without placing
+   a carrier call. For mode `0`, also confirm it sends no carrier SMS.
+3. Photograph or record the exact watch screen. The protocol has no display
+   text command, so do not claim Guardian changed `Calling...` to `SOS sent`
+   unless the real firmware shows it.
+4. Require the approved callback WhatsApp template, signed Meta delivery, and
+   a `Call watch` button that rings this watch - never another device. Use a
+   Family/Care pilot entitlement unless SOS-only WhatsApp has been explicitly
+   approved and implemented for Essential.
+5. For fresh/last-known location, require the map button at template index 1
+   and verify it opens the correct event location.
+6. Hold one short two-way call initiated by the guardian. Record ring, answer,
+   two-way audio and carrier charge behaviour.
+7. Stop the gateway and document the failure mode. Platform-only SOS cannot be
+   marketed as an offline voice fallback.
+8. Restore the previous alarm mode immediately if any event, notification,
+   button destination or call result is wrong.
+
+Pass: the physical V52 emits one SOS event, makes no automatic call, the correct
+guardian receives one Meta-confirmed notification, `Call watch` reaches the
+same V52, and all screen/offline limitations are disclosed. Only after this
+pass may the private pilot IMEI and SIM settings be enabled in deployment.
+
 ## Test 3 — calls
 
 1. From the Guardian app, call the watch and hold a short two-way conversation.

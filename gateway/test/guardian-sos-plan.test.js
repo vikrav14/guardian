@@ -173,3 +173,40 @@ test('approximate fresh fix remains explicitly approximate', () => {
   assert.match(plan.bodyParameters[2], /Approximate location near Lower Vale/);
   assert.match(plan.bodyParameters[2], /WiFi positioning/);
 });
+
+test('callback SOS uses deterministic call-watch copy and map button index 1', () => {
+  const plan = buildSosTemplatePlan({
+    device: deviceWithLocation(new Date('2026-08-12T23:58:00.000Z')),
+    alert: { type: 'sos', createdAt: now },
+    composeResult: composeResult(),
+    now,
+    callbackTemplatesEnabled: true,
+  });
+
+  assert.equal(plan.templateName, 'guardian_sos_callback_alert_v1');
+  assert.equal(plan.callButtonIncluded, true);
+  assert.equal(plan.locationButtonIndex, 1);
+  assert.equal(plan.components[1].index, '1');
+  assert.equal(plan.narrationSource, 'fallback');
+  assert.equal(plan.narrationOverrideReason, 'callback_action_required');
+  assert.equal(
+    plan.bodyParameters[0],
+    "Jesh pressed SOS and is requesting help. Please call Jesh's watch now."
+  );
+});
+
+test('callback SOS without location keeps the static call button template', () => {
+  const plan = buildSosTemplatePlan({
+    device: deviceWithLocation(null, { location: null }),
+    alert: { type: 'sos', createdAt: now },
+    composeResult: composeResult(),
+    now,
+    callbackTemplatesEnabled: true,
+  });
+
+  assert.equal(plan.templateName, 'guardian_sos_callback_unavailable_v1');
+  assert.equal(plan.callButtonIncluded, true);
+  assert.equal(plan.buttonUrlParameter, null);
+  assert.equal(plan.locationButtonIndex, null);
+  assert.equal(plan.components.length, 1);
+});
