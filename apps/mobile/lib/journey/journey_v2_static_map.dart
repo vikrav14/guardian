@@ -803,7 +803,9 @@ List<LocationHistoryPoint> journeyV2RecordedGpsEvidencePoints(
 ) {
   final rawPoints = route.usablePoints.isNotEmpty
       ? route.usablePoints
-      : route.rawPoints;
+      : route.rawPoints.isNotEmpty
+      ? route.rawPoints
+      : _webSafeRecordPoints(route);
   return List.unmodifiable(
     rawPoints.where((point) {
       if (!_basicValid(point.lat, point.lng)) return false;
@@ -942,6 +944,24 @@ List<LocationHistoryPoint> _webSafeRecordPoints(JourneyV2Route route) {
       LocationHistoryPoint(
         lat: coords[i].lat,
         lng: coords[i].lng,
+        speedKmh: hasAlignedEvidence
+            ? route.record.pointEvidence[i].speedKmh
+            : null,
+        accuracySource: hasAlignedEvidence
+            ? route.record.pointEvidence[i].source
+            : null,
+        source: hasAlignedEvidence
+            ? route.record.pointEvidence[i].source
+            : null,
+        gpsValid: hasAlignedEvidence
+            ? route.record.pointEvidence[i].gpsValid
+            : null,
+        accuracyMeters: hasAlignedEvidence
+            ? route.record.pointEvidence[i].accuracyMeters
+            : null,
+        satellites: hasAlignedEvidence
+            ? route.record.pointEvidence[i].satellites
+            : null,
         recordedAt: hasAlignedEvidence
             ? DateTime.fromMillisecondsSinceEpoch(
                 startMs + route.record.pointEvidence[i].offsetMs,

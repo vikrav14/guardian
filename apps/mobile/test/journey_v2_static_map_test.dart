@@ -286,6 +286,39 @@ void main() {
     expect(journeyV2RecordedGpsEvidencePoints(route), hasLength(1));
   });
 
+  test('source evidence uses web-safe decoding when raw points are empty', () {
+    final start = DateTime(2026, 8, 21, 18);
+    final journey = JourneyRecord(
+      id: 'web-evidence-trip',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 1)),
+      polyline: r'f{`zBcmz~I}|XvfI',
+      distanceKm: 1,
+      pointCount: 2,
+      evidenceVersion: 3,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+    );
+    final route = JourneyV2Route(
+      record: journey,
+      rawPoints: const [],
+      usablePoints: const [],
+    );
+
+    final evidence = journeyV2RecordedGpsEvidencePoints(route);
+
+    expect(evidence, hasLength(2));
+    expect(evidence.every((point) => point.gpsValid == true), isTrue);
+    expect(evidence.first.lat, closeTo(-20.16196, 0.00001));
+    expect(evidence.last.lng, closeTo(57.59590, 0.00001));
+  });
+
   test('hybrid presentation preserves GPS and Google route sources', () {
     final journey = record(
       r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
