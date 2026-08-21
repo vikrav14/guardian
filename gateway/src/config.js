@@ -19,10 +19,11 @@ const config = {
   journeyIdleMinutes: Number(process.env.JOURNEY_IDLE_MINUTES || 15),
 
   // V52: 10-digit protocol id → configured 15-digit hardware IMEI.
-  // e.g. 9705314117 → 8613970 + 5314117 + 0 = 861397053141170
+  // A protocol id is expanded with the configured prefix/suffix into the
+  // corresponding 15-digit hardware IMEI.
   imeiPrefix: process.env.IMEI_PREFIX || '8613970',
   imeiDefaultSuffix: process.env.IMEI_DEFAULT_SUFFIX || '0',
-  // Optional overrides when suffix digit differs: "9705313987:861397053139877"
+  // Optional overrides when the suffix differs: "protocol-id:hardware-imei"
   imeiMap: process.env.IMEI_MAP || '',
 
   // Optional carrier SMS. WhatsApp is Meta Cloud API only.
@@ -93,7 +94,7 @@ const config = {
 
   // Command Center / ops API (GET /ops/metrics, /ops/cost-estimate)
   adminApiKey: process.env.ADMIN_API_KEY || '',
-  adminEmails: (process.env.ADMIN_EMAILS || 'vikrav14@gmail.com')
+  adminEmails: (process.env.ADMIN_EMAILS || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
@@ -156,6 +157,42 @@ const config = {
     String(process.env.CONTEXT_CAP_PERSIST_EVENTS || 'false').toLowerCase() === 'true',
   contextCapEvaluateDevices:
     String(process.env.CONTEXT_CAP_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
+
+  // Defi Media local-news RSS. This is a corroborating, observe-only source.
+  // It may persist idempotency/match evidence and sweep devices, but never
+  // calls the LLM or a delivery provider.
+  contextDefiMediaEnabled:
+    String(process.env.CONTEXT_DEFIMEDIA_ENABLED || 'false').toLowerCase() === 'true',
+  contextDefiMediaFeedUrl:
+    process.env.CONTEXT_DEFIMEDIA_FEED_URL || 'https://defimedia.info/rss.xml',
+  contextDefiMediaPollMinutes: Math.max(
+    15,
+    Number(process.env.CONTEXT_DEFIMEDIA_POLL_MINUTES || 15)
+  ),
+  contextDefiMediaMaxItems: Math.max(
+    1,
+    Math.min(200, Number(process.env.CONTEXT_DEFIMEDIA_MAX_ITEMS || 100))
+  ),
+  contextDefiMediaMaxAgeHours: Math.max(
+    1,
+    Number(process.env.CONTEXT_DEFIMEDIA_MAX_AGE_HOURS || 24)
+  ),
+  contextDefiMediaRunOnStartup:
+    String(process.env.CONTEXT_DEFIMEDIA_RUN_ON_STARTUP || 'true').toLowerCase() === 'true',
+  contextDefiMediaPersistEvents:
+    String(process.env.CONTEXT_DEFIMEDIA_PERSIST_EVENTS || 'true').toLowerCase() === 'true',
+  contextDefiMediaEvaluateDevices:
+    String(process.env.CONTEXT_DEFIMEDIA_EVALUATE_DEVICES || 'true').toLowerCase() === 'true',
+  contextDefiMediaPersistMatches:
+    String(process.env.CONTEXT_DEFIMEDIA_PERSIST_MATCHES || 'true').toLowerCase() === 'true',
+  contextDefiMediaLocationFreshMinutes: Math.max(
+    1,
+    Number(process.env.CONTEXT_DEFIMEDIA_LOCATION_FRESH_MINUTES || 15)
+  ),
+  contextDefiMediaMaxApproxAccuracyMeters: Math.max(
+    100,
+    Number(process.env.CONTEXT_DEFIMEDIA_MAX_APPROX_ACCURACY_METERS || 1000)
+  ),
 };
 
 module.exports = config;

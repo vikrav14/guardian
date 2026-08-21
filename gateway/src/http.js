@@ -720,10 +720,12 @@ async function handleOpsHttpRequest(req, res, url) {
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
-    if (!runtime?.capAlertProvider) {
+    if (!runtime?.capAlertProvider || !runtime?.defiMediaRssProvider) {
       sendJson(res, 503, { error: 'Context source runtime unavailable' });
       return true;
     }
+    const defiMediaStatus = runtime.defiMediaRssScheduler?.getStatus?.() || null;
+    const defiMediaRun = defiMediaStatus?.lastRun || null;
     sendJson(res, 200, {
       observeOnly: true,
       automaticDelivery: false,
@@ -733,7 +735,42 @@ async function handleOpsHttpRequest(req, res, url) {
         intervalMinutes: runtime.sourceScheduler?.intervalMinutes || null,
         reason: runtime.sourceScheduler?.reason || null,
       },
-      sources: [runtime.capAlertProvider.getSnapshot()],
+      sourceSchedulers: {
+        cap: {
+          enabled: config.contextCapEnabled === true,
+          active: runtime.sourceScheduler?.active === true,
+          intervalMinutes: runtime.sourceScheduler?.intervalMinutes || null,
+          reason: runtime.sourceScheduler?.reason || null,
+        },
+        defiMedia: {
+          enabled: config.contextDefiMediaEnabled === true,
+          active: runtime.defiMediaRssScheduler?.active === true,
+          intervalMinutes: runtime.defiMediaRssScheduler?.intervalMinutes || null,
+          reason: runtime.defiMediaRssScheduler?.reason || null,
+          lastRun: defiMediaRun ? {
+            ok: defiMediaRun.ok === true,
+            notModified: defiMediaRun.notModified === true,
+            itemsSeen: defiMediaRun.itemsSeen || 0,
+            changedItems: defiMediaRun.changedItems || 0,
+            durableNewItems: defiMediaRun.durableNewItems || 0,
+            durableUpdatedItems: defiMediaRun.durableUpdatedItems || 0,
+            restartDuplicatesSuppressed:
+              defiMediaRun.restartDuplicatesSuppressed || 0,
+            actionableCandidates: defiMediaRun.freshCandidates || 0,
+            eventsPersisted: defiMediaRun.eventsPersisted || 0,
+            deviceMatches: defiMediaRun.exposure?.deviceMatches || 0,
+            familyMatches: defiMediaRun.exposure?.familyMatches || 0,
+            newFamilyMatches: defiMediaRun.exposure?.newFamilyMatches || 0,
+            duplicateFamilyMatches:
+              defiMediaRun.exposure?.duplicateFamilyMatches || 0,
+            automaticDelivery: false,
+          } : null,
+        },
+      },
+      sources: [
+        runtime.capAlertProvider.getSnapshot(),
+        runtime.defiMediaRssProvider.getSnapshot(),
+      ],
     });
     return true;
   }
@@ -934,8 +971,11 @@ function startHttpServer() {
       ) {
         const imei =
           url.searchParams.get('imei') ||
-          url.searchParams.get('protocolId') ||
-          '861397053141170';
+          url.searchParams.get('protocolId');
+        if (!imei) {
+          sendJson(res, 400, { error: 'imei or protocolId required' });
+          return;
+        }
         const command = url.searchParams.get('command') || 'CR';
         const result =
           command === 'CR'
@@ -961,7 +1001,11 @@ function startHttpServer() {
       if (req.method === 'POST' && url.pathname === '/dev/chat') {
         const raw = await readBody(req);
         const payload = raw ? JSON.parse(raw) : {};
-        const from = payload.from || '+23050000000';
+        const from = String(payload.from || '').trim();
+        if (!from) {
+          sendJson(res, 400, { error: 'from required' });
+          return;
+        }
         const text = payload.text || payload.body || '';
         if (!text.trim()) {
           sendJson(res, 400, { error: 'text required' });
@@ -1108,7 +1152,7 @@ function startHttpServer() {
   server.listen(config.httpPort, config.host, () => {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
     console.log('[guardian-http] GET/POST /webhooks/meta/whatsapp');
-    console.log('[guardian-http] POST /dev/chat  { "from": "+2305…", "text": "Where is mum?" }');
+    console.log('[guardian-http] POST /dev/chat  { "from": "<e164-phone>", "text": "Where is mum?" }');
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
     console.log('[guardian-http] GET  /ops/fleet');
     console.log('[guardian-http] GET  /ops/finance');

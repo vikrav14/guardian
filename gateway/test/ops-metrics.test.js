@@ -20,6 +20,7 @@ const { resetForTests: resetAiTelemetry } = require('../src/ai-telemetry');
 const config = require('../src/config');
 
 const originalAdminApiKey = config.adminApiKey;
+const originalAdminEmails = [...config.adminEmails];
 
 test.beforeEach(() => {
   resetForTests();
@@ -30,10 +31,12 @@ test.beforeEach(() => {
   // tests must control their own configuration instead of depending on the
   // developer machine that runs them.
   config.adminApiKey = '';
+  config.adminEmails = [];
 });
 
 test.after(() => {
   config.adminApiKey = originalAdminApiKey;
+  config.adminEmails = originalAdminEmails;
 });
 
 test('increment and getSnapshot track counters', () => {
@@ -109,6 +112,7 @@ test('checkAdminAuth requires key when configured', async () => {
 });
 
 test('isAdminEmail matches configured allowlist', () => {
-  assert.equal(isAdminEmail('vikrav14@gmail.com'), true);
-  assert.equal(isAdminEmail('other@example.com'), false);
+  config.adminEmails = ['admin@example.com'];
+  assert.equal(isAdminEmail('ADMIN@example.com'), true);
+  assert.equal(isAdminEmail('someone@example.com'), false);
 });

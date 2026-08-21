@@ -43,6 +43,14 @@ const counters = {
   contextCapAlertsChanged: 0,
   contextCapEventWrites: 0,
   contextCapDeviceSweeps: 0,
+  contextNewsPolls: 0,
+  contextNewsFetchErrors: 0,
+  contextNewsItemsSeen: 0,
+  contextNewsItemsChanged: 0,
+  contextNewsCandidates: 0,
+  contextNewsEventWrites: 0,
+  contextNewsMatchWrites: 0,
+  contextNewsExposureMatches: 0,
 };
 
 const alertTypes = {};
