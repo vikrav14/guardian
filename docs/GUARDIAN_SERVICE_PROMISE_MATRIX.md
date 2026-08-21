@@ -1,6 +1,6 @@
 # Guardian service promise and entitlement contract
 
-**Status:** Release contract — evidence reviewed 14 August 2026
+**Status:** Release contract — evidence reviewed 22 August 2026
 **Applies to:** Guardian Essential, Guardian Family, Guardian Care
 **Release rule:** A feature is not launch-ready merely because a screen or code path exists.
 
@@ -34,14 +34,18 @@ The versioned backend catalogue is implemented in `gateway/src/entitlements.js`.
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
 | Live GPS | Gateway distinguishes `gps=A` satellite fixes from `gps=V` WiFi/LBS estimates, retains both independently, separates watch and location clocks, and labels approximate uncertainty. | Partial | Complete the outdoor-to-indoor V52 sequence in `GUARDIAN_LOCATION_PROVENANCE.md`, then separately measure satellite error before advertising a numerical precision. |
-| SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. The read-only acceptance collector correlates real alerts and delivery outcomes. | Partial | End-to-end V52 SOS test through every enabled Essential channel; delivery and duplicate-suppression evidence using `GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. |
+| SOS alerts | Device/app alert ingestion, deterministic safety messaging and notification fan-out exist. Essential includes app push plus one SOS WhatsApp template to its primary emergency contact. Repeated wearer packets collapse into one 90-second incident. The read-only acceptance collector correlates real alerts and delivery outcomes. | Partial | End-to-end V52 SOS test through every enabled Essential channel; Meta-confirmed delivery, primary-recipient selection and duplicate-suppression evidence using `GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. |
 | 7-day location history | Locations, segments and compressed journeys exist. Flutter date controls and service calls reject older days, and Firestore rules reject records older than seven rolling days. | Partial | Run the emulator boundary suite and retention/downgrade acceptance test against the release candidate. |
 | Two-way calls | Mobile can launch a carrier voice call to the saved watch SIM. Desktop presents the number, voice/data distinction and an explicit handoff. The acceptance gate requires manual proof because carrier calls bypass Guardian servers. | Partial | V52 incoming/outgoing call acceptance, per-minute carrier charging, failure copy and carrier/SIM prerequisites. |
 | Home and school safe zones | Geofence storage, transitions and alerts exist. | Partial | Real entry/exit, boundary jitter, offline recovery and duplicate-alert field tests. |
 | Battery alerts | Persist-on-change, freshness-aware status and low-battery alert routing exist. | Partial | V52 threshold and stale-reading test; one alert per policy window. |
 | 1 family caregiver | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce the active owner's one-caregiver limit. Clients cannot grant membership or service ownership. | Partial | Concurrent two-account live acceptance test and revocation lifecycle. |
 
-Essential does **not** include WhatsApp questions and answers. Critical safety continues through the Essential channels that are explicitly configured; the service must never silently substitute an excluded WhatsApp service.
+Essential does **not** include WhatsApp questions and answers, AI, commands,
+fall alerts, or routine alerts on WhatsApp. Its sole WhatsApp entitlement is a
+physical-watch SOS template to one primary emergency contact. Critical safety
+continues through explicitly configured channels; the service must never widen
+that exception into the Family/Care WhatsApp contract.
 
 ### Guardian Family
 
@@ -126,7 +130,10 @@ No release decision may be based only on a green unit-test count.
 ## Adaptive Flutter contract
 
 - `HomeShell` resolves the effective family subscription once and exposes it through `GuardianEntitlementsScope` to all routed pages.
-- Essential receives factual watch status, core safety controls, a seven-day history selector and one caregiver slot. Guardian AI, WhatsApp service actions and Care observations are not presented as active.
+- Essential receives factual watch status, core safety controls, app and
+  primary-contact WhatsApp delivery for physical-watch SOS, a seven-day history
+  selector and one caregiver slot. Guardian AI, WhatsApp service actions, other
+  WhatsApp safety alerts and Care observations are not presented as active.
 - Family adds Guardian AI, deterministic Guardian-help actions, optional WhatsApp continuation, smart-notification presentation, retained history and five caregiver slots. Care-only medication and wellbeing controls remain locked.
 - Care adds medication, wellbeing and routine-care surfaces. Medication and care-profile writes require the verified Care subscription in Flutter services and Firestore rules.
 - Loading, permission/network error, inactive, excluded and allowed states use different deterministic copy. Restricted services fail closed while the plan is unverified.

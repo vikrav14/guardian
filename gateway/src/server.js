@@ -49,6 +49,7 @@ const { startHttpServer } = require('./http');
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
+const { claimSosIncident } = require('./sos-incident-window');
 
 const {
   incrementEvent,
@@ -946,19 +947,30 @@ async function applyEvents(events, session) {
 
 
 
-        await createAlert(alarmEvent.imei, {
+        const sosIncident = alarmType === 'sos'
+          ? claimSosIncident(alarmEvent.imei, { nowMs: alarmAt.getTime() })
+          : { accepted: true };
 
-          type: alarmType,
+        if (sosIncident.accepted) {
+          await createAlert(alarmEvent.imei, {
 
-          severity: alarmEvent.severity || 'warning',
+            type: alarmType,
 
-          message: `Device alarm: ${alarmType}`,
+            severity: alarmEvent.severity || 'warning',
 
-          eventAt: alarmAt,
+            message: `Device alarm: ${alarmType}`,
 
-          payload: alarmPayload,
+            eventAt: alarmAt,
 
-        });
+            payload: alarmPayload,
+
+          });
+        } else {
+          console.log(
+            `[sos] duplicate packet collapsed for ${alarmEvent.imei}; ` +
+              `retry window ${Math.ceil(sosIncident.retryAfterMs / 1000)}s`
+          );
+        }
 
       } else if (event.type === 'crc_error') {
 

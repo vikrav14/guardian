@@ -18,7 +18,7 @@ Firebase Auth UID as document ID.
 | subscription | map \| null | **Deprecated and untrusted.** Legacy `{ tier: 'free'\|'premium', ... }` display data. It must never grant service access. |
 | serviceOwnerUid | string | UID whose authoritative Guardian plan this account inherits. Defaults to the same UID for the purchaser. A family relationship must also be verified on the owner's record. |
 | memberUids | string[] | Backend-managed normalized family membership used to verify plan inheritance. Keep a display copy in `familyMembers`, but never authorize from that legacy field. |
-| emergencyContacts | array | `{ name, phone, whatsapp? }` |
+| emergencyContacts | array | `{ name, phone, whatsapp?, isPrimary? }`; exactly one primary is preferred, with the first valid contact as the legacy fallback |
 | familyMembers | array | Backend-managed display list `{ uid, displayName, email? }`; never use it for authorization. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |

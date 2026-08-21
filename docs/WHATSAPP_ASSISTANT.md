@@ -77,9 +77,17 @@ from displaying a button that calls the pilot watch. The template button text
 is static; use the generic production label `Call watch` rather than embedding
 a wearer's name. This is not yet the scalable multi-watch call-link design.
 
-The current plan catalogue grants WhatsApp safety alerts to Guardian Family
-and Care, not Essential. Enabling SOS-only WhatsApp in Essential is a separate
-commercial and entitlement decision; this pilot does not silently change it.
+Guardian Essential includes only the physical-watch SOS WhatsApp entitlement.
+It sends one template per accepted SOS incident to the family's primary
+emergency contact. It does not grant WhatsApp questions/answers, fall or
+routine WhatsApp alerts, AI, reminders, or watch commands. Family and Care keep
+the broader WhatsApp safety-alert entitlement and recipient fan-out.
+
+The static `Call watch` button remains protected by the exact pilot IMEI and SIM
+match above. Essential entitlement alone must never activate a phone button
+whose approved number belongs to another watch. Non-pilot Essential devices
+use the approved standard SOS template until a scalable per-device call-link
+design passes security and delivery acceptance.
 
 ## Webhook
 

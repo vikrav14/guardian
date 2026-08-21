@@ -13,6 +13,10 @@ const { summarizeMetaDelivery } = require('./meta-delivery');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser,
 } = require('./entitlements');
+const {
+  whatsappFeatureForAlert,
+  selectWhatsAppContacts,
+} = require('./notification-whatsapp-policy');
 
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
@@ -25,12 +29,15 @@ async function findContactsForImei(db, imei) {
     const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
     if (!hasEntitlement(entitlements, FEATURE.SOS_ALERTS)) continue;
     const list = Array.isArray(data.emergencyContacts) ? data.emergencyContacts : [];
-    for (const c of list) {
+    for (let contactIndex = 0; contactIndex < list.length; contactIndex += 1) {
+      const c = list[contactIndex];
       if (!c || !c.phone) continue;
       contacts.push({
         name: c.name || 'Contact',
         phone: String(c.phone).trim(),
         whatsapp: c.whatsapp ? String(c.whatsapp).trim() : null,
+        isPrimary: c.isPrimary === true,
+        contactIndex,
         guardianUid: doc.id,
         entitlements,
       });
@@ -122,19 +129,22 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   const results = [];
   const isSos = String(alert?.type || '').toLowerCase() === 'sos';
   const isFall = String(alert?.type || '').toLowerCase() === 'fall';
+  const whatsappContacts = selectWhatsAppContacts(contacts, alert);
+  const whatsappContactSet = new Set(whatsappContacts);
+  const requiredWhatsAppFeature = whatsappFeatureForAlert(alert);
 
-  // Cost-smart: compose once per SOS event, then fan the same validated
-  // Meta template out to every emergency contact.
+  // Cost-smart: compose once per event, then fan the same validated Meta
+  // template only to recipients selected by the plan/channel policy.
   const sosPreparationPromise =
     isSos && config.notifyWhatsApp &&
-      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
+      whatsappContacts.length > 0
       ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
           error: err.message,
         }))
       : null;
   const fallPreparationPromise =
     isFall && config.notifyWhatsApp &&
-      contacts.some((contact) => hasEntitlement(contact.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS))
+      whatsappContacts.length > 0
       ? prepareFallWhatsApp({ device: device || {}, alert }).catch((err) => ({
           error: err.message,
         }))
@@ -156,7 +166,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
     const waTarget = c.whatsapp || c.phone;
     if (
       config.notifyWhatsApp &&
-      hasEntitlement(c.entitlements, FEATURE.WHATSAPP_SAFETY_ALERTS)
+      whatsappContactSet.has(c)
     ) {
       if (isSos && sosPreparationPromise) {
         const prepared = await sosPreparationPromise;
@@ -201,10 +211,18 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
         };
       }
     } else {
+      const planIncludesChannel = hasEntitlement(
+        c.entitlements,
+        requiredWhatsAppFeature
+      );
       entry.channels.whatsapp = {
         ok: false,
         skipped: true,
-        reason: config.notifyWhatsApp ? 'PLAN_EXCLUDES_WHATSAPP' : 'NOTIFY_WHATSAPP=false',
+        reason: !config.notifyWhatsApp
+          ? 'NOTIFY_WHATSAPP=false'
+          : planIncludesChannel
+            ? 'PRIMARY_WHATSAPP_RECIPIENT_ONLY'
+            : 'PLAN_EXCLUDES_WHATSAPP',
       };
     }
 

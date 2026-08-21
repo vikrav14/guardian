@@ -27,7 +27,7 @@ void main() {
     expect(result.reason, 'untrusted_legacy_subscription');
   });
 
-  test('Essential has core services, one caregiver and seven days', () {
+  test('Essential has core services and SOS-only WhatsApp', () {
     final result = GuardianSubscription.fromMap(
       subscription('essential'),
       now: now,
@@ -35,7 +35,9 @@ void main() {
 
     expect(result.serviceActive, true);
     expect(result.has(GuardianFeature.liveGps), true);
+    expect(result.has(GuardianFeature.sosWhatsappAlerts), true);
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), false);
+    expect(result.has(GuardianFeature.whatsappSafetyAlerts), false);
     expect(result.caregiverLimit, 1);
     expect(result.locationHistoryDays, 7);
   });

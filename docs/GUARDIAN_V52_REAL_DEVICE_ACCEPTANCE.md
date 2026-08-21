@@ -63,9 +63,14 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 2. Confirm one backend `sos` alert appears with critical severity.
 3. Confirm the alert is persisted and its notification log contains a Meta `wamid`.
 4. Require a signed Meta webhook receipt with `deliveryStatus=delivered` or `read` for every configured WhatsApp recipient.
-5. Confirm no duplicate arrives during the suppression window.
+5. Confirm no duplicate arrives during the 90-second wearer-SOS incident
+   window. A new press after that window must still create a new incident.
 
-Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
+Pass: one real device event and no duplicate. Essential requires
+Meta-confirmed WhatsApp delivery to its one primary emergency contact. Family
+and Care require delivery to every configured WhatsApp recipient. API
+acceptance alone is Partial, not Passed. Essential does not inherit fall,
+routine, assistant, AI, or command WhatsApp capabilities from this SOS gate.
 
 ### Test 2B — no-call SOS callback pilot
 
@@ -88,9 +93,10 @@ unknown, confirm the intended restore value with the supplier before testing.
    text command, so do not claim Guardian changed `Calling...` to `SOS sent`
    unless the real firmware shows it.
 4. Require the approved callback WhatsApp template, signed Meta delivery, and
-   a `Call watch` button that rings this watch - never another device. Use a
-   Family/Care pilot entitlement unless SOS-only WhatsApp has been explicitly
-   approved and implemented for Essential.
+   a `Call watch` button that rings this watch - never another device. Essential
+   now includes SOS-only WhatsApp, but the callback template still requires the
+   exact private pilot IMEI and SIM match because Meta fixes the phone number in
+   the approved button.
 5. For fresh/last-known location, require the map button at template index 1
    and verify it opens the correct event location.
 6. Hold one short two-way call initiated by the guardian. Record ring, answer,

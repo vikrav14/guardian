@@ -12,6 +12,7 @@ const FEATURE = Object.freeze({
   SAFE_ZONES: 'safe_zones',
   BATTERY_ALERTS: 'battery_alerts',
   FAMILY_CAREGIVERS: 'family_caregivers',
+  SOS_WHATSAPP_ALERTS: 'sos_whatsapp_alerts',
   GUARDIAN_AI: 'guardian_ai',
   WHATSAPP_QA: 'whatsapp_questions_answers',
   WHATSAPP_SAFETY_ALERTS: 'whatsapp_safety_alerts',
@@ -35,6 +36,7 @@ const ESSENTIAL_FEATURES = Object.freeze([
   FEATURE.SAFE_ZONES,
   FEATURE.BATTERY_ALERTS,
   FEATURE.FAMILY_CAREGIVERS,
+  FEATURE.SOS_WHATSAPP_ALERTS,
 ]);
 
 const FAMILY_FEATURES = Object.freeze([
