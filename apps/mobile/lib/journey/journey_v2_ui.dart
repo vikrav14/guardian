@@ -1592,7 +1592,7 @@ class _MapSourcePills extends StatelessWidget {
       children: [
         if (!showSources)
           const _MapSourcePill(
-            color: Color(0xFF4F46E5),
+            color: Color(0xFF4F5CCB),
             label: 'Journey route',
           )
         else

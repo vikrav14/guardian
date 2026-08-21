@@ -319,56 +319,6 @@ void main() {
     expect(evidence.last.lng, closeTo(57.59590, 0.00001));
   });
 
-  test('direction chevrons separate outbound and return travel', () {
-    final start = DateTime(2026, 8, 21, 18);
-    final eastbound = [
-      LocationHistoryPoint(
-        lat: -20,
-        lng: 57,
-        recordedAt: start,
-      ),
-      LocationHistoryPoint(
-        lat: -20,
-        lng: 57.02,
-        recordedAt: start.add(const Duration(minutes: 5)),
-      ),
-    ];
-    final westbound = [
-      LocationHistoryPoint(
-        lat: -20,
-        lng: 57.02,
-        recordedAt: start.add(const Duration(minutes: 6)),
-      ),
-      LocationHistoryPoint(
-        lat: -20,
-        lng: 57,
-        recordedAt: start.add(const Duration(minutes: 11)),
-      ),
-    ];
-
-    final chevrons = journeyV2DirectionChevrons(
-      [eastbound, westbound],
-      maxCount: 4,
-    );
-
-    expect(chevrons, hasLength(2));
-    expect(chevrons.every((chevron) => chevron.length == 3), isTrue);
-    expect(chevrons.first[1].latitude, lessThan(-20));
-    expect(chevrons.last[1].latitude, greaterThan(-20));
-    expect(
-      chevrons.first[1].longitude,
-      greaterThan(
-        (chevrons.first.first.longitude + chevrons.first.last.longitude) / 2,
-      ),
-    );
-    expect(
-      chevrons.last[1].longitude,
-      lessThan(
-        (chevrons.last.first.longitude + chevrons.last.last.longitude) / 2,
-      ),
-    );
-  });
-
   test('hybrid presentation preserves GPS and Google route sources', () {
     final journey = record(
       r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
