@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
 
 const {
   assessRoadAlignment,
@@ -7,6 +9,18 @@ const {
   selectTrustedGpsPoints,
   snapJourneyToRoads,
 } = require('../src/journey-road-alignment');
+
+test('journey road-alignment inspector loads gateway .env before reading its key', () => {
+  const source = readFileSync(
+    join(__dirname, '..', 'scripts', 'inspect-journey-road-alignment.js'),
+    'utf8'
+  );
+  const dotenvLoad = source.indexOf("require('dotenv').config");
+  const keyRead = source.indexOf('process.env.GOOGLE_ROADS_API_KEY');
+
+  assert.ok(dotenvLoad >= 0);
+  assert.ok(keyRead > dotenvLoad);
+});
 const {
   buildComparisonHtml,
 } = require('../scripts/inspect-journey-road-alignment');
