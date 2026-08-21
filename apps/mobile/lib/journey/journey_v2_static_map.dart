@@ -447,12 +447,13 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         final color = segment.source == 'google'
             ? const Color(0xFF7C3AED)
             : _routeColor;
+        final isGpsBridge = segment.source == 'gps_bridge';
         polylines.add(
           Polyline(
             polylineId: PolylineId('journey-presentation-casing-$index'),
             points: segmentPoints,
-            color: Colors.white.withValues(alpha: 0.90),
-            width: 8,
+            color: Colors.white.withValues(alpha: isGpsBridge ? 0.78 : 0.90),
+            width: isGpsBridge ? 6 : 8,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,
@@ -463,8 +464,11 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
           Polyline(
             polylineId: PolylineId('journey-presentation-${segment.source}-$index'),
             points: segmentPoints,
-            color: color.withValues(alpha: 0.94),
-            width: 4,
+            color: color.withValues(alpha: isGpsBridge ? 0.72 : 0.94),
+            width: isGpsBridge ? 3 : 4,
+            patterns: isGpsBridge
+                ? [PatternItem.dash(9), PatternItem.gap(6)]
+                : const <PatternItem>[],
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,

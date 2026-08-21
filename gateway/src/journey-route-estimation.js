@@ -220,6 +220,14 @@ function candidateMetrics(gap, candidate) {
   const available = Number(gap.durationSeconds);
 
   return {
+    directDistanceMeters: rounded(directDistance),
+    routeDistanceMeters: rounded(routeDistance),
+    availableDurationSeconds: Number.isFinite(available)
+      ? Math.round(available)
+      : null,
+    routeDurationSeconds: Number.isFinite(duration)
+      ? Math.round(duration)
+      : null,
     approximateMedianDistanceMeters: rounded(median(approximateDistances)),
     approximatePointCount: approximateDistances.length,
     endpointMaxCorrectionMeters: rounded(

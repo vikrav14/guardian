@@ -5,6 +5,7 @@ const { encodePolyline } = require('../src/polyline');
 const {
   PRESENTATION_TTL_MS,
   buildJourneyGooglePresentation,
+  gpsBridgeSegment,
 } = require('../src/journey-google-presentation');
 
 function sampleJourney() {
@@ -108,6 +109,7 @@ test('presentation combines grounded GPS, plausible Google geometry and a landma
   assert.equal(JSON.stringify(journey), rawBefore);
   assert.equal(presentation.coverage.gpsSegmentCount, 2);
   assert.equal(presentation.coverage.googleSegmentCount, 1);
+  assert.equal(presentation.coverage.gpsBridgeSegmentCount, 0);
   assert.deepEqual(
     presentation.segments.map((segment) => segment.source),
     ['gps', 'google', 'gps']
@@ -133,6 +135,7 @@ test('presentation degrades to raw GPS when Google providers fail', async () => 
 
   assert.ok(presentation);
   assert.ok(presentation.segments.every((segment) => segment.source === 'gps'));
+  assert.equal(presentation.coverage.gpsBridgeSegmentCount, 0);
   assert.equal(presentation.stopPlaces.length, 0);
   assert.equal(presentation.coverage.unresolvedIntervals[0].candidateCount, 0);
   assert.deepEqual(
@@ -181,4 +184,47 @@ test('presentation records safe diagnostics for rejected Google candidates', asy
     3300
   );
   assert.equal('candidate' in unresolved.evaluatedCandidates[0], false);
+  assert.equal(presentation.coverage.gpsBridgeSegmentCount, 0);
+  assert.ok(unresolved.directDistanceMeters > 1500);
+});
+
+test('a short unresolved interval receives a bounded GPS bridge', () => {
+  const journey = sampleJourney();
+  const segment = gpsBridgeSegment(journey, {
+    accepted: false,
+    gap: {
+      directDistanceMeters: 480,
+      durationSeconds: 180,
+      from: {
+        lat: -20.0105,
+        lng: 57.5905,
+        originalJourneyIndex: 1,
+      },
+      to: {
+        lat: -20.0130,
+        lng: 57.5940,
+        originalJourneyIndex: 3,
+      },
+    },
+  });
+
+  assert.equal(segment.source, 'gps_bridge');
+  assert.equal(segment.confidence, 'trusted_gps_endpoints');
+  assert.equal(segment.fromOffsetMs, 60_000);
+  assert.equal(segment.toOffsetMs, 360_000);
+});
+
+test('a large unresolved interval does not receive a GPS bridge', () => {
+  const journey = sampleJourney();
+  const segment = gpsBridgeSegment(journey, {
+    accepted: false,
+    gap: {
+      directDistanceMeters: 5000,
+      durationSeconds: 180,
+      from: { lat: -20.01, lng: 57.59, originalJourneyIndex: 1 },
+      to: { lat: -20.05, lng: 57.63, originalJourneyIndex: 3 },
+    },
+  });
+
+  assert.equal(segment, null);
 });

@@ -18,6 +18,10 @@ function hasFlag(name) {
   return process.argv.includes(`--${name}`);
 }
 
+function measurement(value, suffix) {
+  return value == null ? 'n/a' : `${value}${suffix}`;
+}
+
 async function loadJourney(db, imei, journeyId) {
   const journeys = db.collection('devices').doc(imei).collection('journeys');
   if (journeyId) {
@@ -71,6 +75,9 @@ async function main() {
   console.log(`Journey: ${journeySnapshot.id}`);
   console.log(`GPS sections:    ${presentation.coverage.gpsSegmentCount}`);
   console.log(`Google sections: ${presentation.coverage.googleSegmentCount}`);
+  console.log(
+    `GPS bridges:     ${presentation.coverage.gpsBridgeSegmentCount || 0}`
+  );
   console.log(`Unresolved:      ${presentation.coverage.unresolvedIntervalCount}`);
   for (const interval of presentation.coverage.unresolvedIntervals || []) {
     const pointRange = interval.fromPointIndex == null ||
@@ -79,6 +86,11 @@ async function main() {
       : `points ${interval.fromPointIndex}-${interval.toPointIndex}`;
     console.log(`  - ${interval.id || 'interval'} (${pointRange})`);
     console.log(`    Reason: ${interval.reason}`);
+    console.log(
+      `    GPS endpoints: ` +
+      `${measurement(interval.directDistanceMeters, 'm')} apart over ` +
+      `${measurement(interval.durationSeconds, 's')}`
+    );
     console.log(`    Google candidates: ${interval.candidateCount || 0}`);
     if (interval.failedChecks?.length) {
       console.log(`    Failed checks: ${interval.failedChecks.join(', ')}`);
@@ -88,10 +100,12 @@ async function main() {
       const metrics = candidate.metrics || {};
       console.log(
         `    Candidate ${index + 1}: ` +
-        `endpoint correction=${metrics.endpointMaxCorrectionMeters ?? 'n/a'}m, ` +
-        `approximate median=${metrics.approximateMedianDistanceMeters ?? 'n/a'}m, ` +
-        `detour=${metrics.detourRatio ?? 'n/a'}x, ` +
-        `duration overrun=${metrics.durationOverrunSeconds ?? 'n/a'}s`
+        `endpoint correction=${measurement(metrics.endpointMaxCorrectionMeters, 'm')}, ` +
+        `approximate median=${measurement(metrics.approximateMedianDistanceMeters, 'm')}, ` +
+        `distance=${measurement(metrics.routeDistanceMeters, 'm')}, ` +
+        `detour=${measurement(metrics.detourRatio, 'x')}, ` +
+        `duration=${measurement(metrics.routeDurationSeconds, 's')}, ` +
+        `duration overrun=${measurement(metrics.durationOverrunSeconds, 's')}`
       );
     }
   }

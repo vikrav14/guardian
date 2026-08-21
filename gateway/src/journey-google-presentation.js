@@ -14,6 +14,8 @@ const {
 const { findNearbyLandmark } = require('./geolocate/nearby-place');
 
 const PRESENTATION_VERSION = 1;
+const MAX_GPS_BRIDGE_METRES = 1500;
+const MAX_GPS_BRIDGE_SECONDS = 10 * 60;
 // Firestore TTL deletion can lag. Twenty-eight days leaves a safe margin under
 // Google Maps Platform's 30-day cache ceiling.
 const PRESENTATION_TTL_MS = 28 * 24 * 60 * 60 * 1000;
@@ -127,6 +129,33 @@ function googleSegment(journey, estimate) {
   };
 }
 
+function gpsBridgeSegment(journey, estimate) {
+  const gap = estimate?.gap;
+  if (estimate?.accepted || !gap?.from || !gap?.to) return null;
+  const directDistanceMeters = Number(gap.directDistanceMeters);
+  const durationSeconds = Number(gap.durationSeconds);
+  if (!Number.isFinite(directDistanceMeters) ||
+      directDistanceMeters <= 0 ||
+      directDistanceMeters > MAX_GPS_BRIDGE_METRES ||
+      !Number.isFinite(durationSeconds) ||
+      durationSeconds < 0 ||
+      durationSeconds > MAX_GPS_BRIDGE_SECONDS) {
+    return null;
+  }
+  return {
+    source: 'gps_bridge',
+    polyline: encodePolyline([
+      { lat: gap.from.lat, lng: gap.from.lng },
+      { lat: gap.to.lat, lng: gap.to.lng },
+    ]),
+    fromPointIndex: gap.from.originalJourneyIndex,
+    toPointIndex: gap.to.originalJourneyIndex,
+    fromOffsetMs: offsetForPoint(journey, gap.from),
+    toOffsetMs: offsetForPoint(journey, gap.to),
+    confidence: 'trusted_gps_endpoints',
+  };
+}
+
 async function buildStopPlaces(
   stops,
   { placesApiKey, fetchImpl = fetch } = {}
@@ -185,6 +214,9 @@ async function buildJourneyGooglePresentation(
   const googleSegments = estimatedGaps
     .map((estimate) => googleSegment(journey, estimate))
     .filter(Boolean);
+  const gpsBridgeSegments = estimatedGaps
+    .map((estimate) => gpsBridgeSegment(journey, estimate))
+    .filter(Boolean);
   const unresolvedIntervals = estimatedGaps
     .filter((estimate) => !estimate.accepted)
     .map((estimate) => {
@@ -201,12 +233,14 @@ async function buildJourneyGooglePresentation(
         toPointIndex: estimate.gap?.to?.originalJourneyIndex ?? null,
         reason: estimate.reason || 'unresolved',
         attempts: estimate.attempts || 1,
+        directDistanceMeters: estimate.gap?.directDistanceMeters ?? null,
+        durationSeconds: estimate.gap?.durationSeconds ?? null,
         candidateCount: evaluatedCandidates.length,
         failedChecks,
         evaluatedCandidates,
       };
     });
-  const segments = [...gpsSegments, ...googleSegments]
+  const segments = [...gpsSegments, ...googleSegments, ...gpsBridgeSegments]
     .sort((left, right) => left.fromOffsetMs - right.fromOffsetMs);
   if (segments.length === 0 && stopPlaces.length === 0) return null;
 
@@ -222,6 +256,7 @@ async function buildJourneyGooglePresentation(
     coverage: {
       gpsSegmentCount: gpsSegments.length,
       googleSegmentCount: googleSegments.length,
+      gpsBridgeSegmentCount: gpsBridgeSegments.length,
       unresolvedIntervalCount: Math.max(0, gaps.length - googleSegments.length),
       unresolvedIntervals,
     },
@@ -234,5 +269,6 @@ module.exports = {
   buildGpsSegments,
   buildJourneyGooglePresentation,
   buildStopPlaces,
+  gpsBridgeSegment,
   journeyPoints,
 };

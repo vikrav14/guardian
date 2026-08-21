@@ -313,6 +313,15 @@ void main() {
           toOffsetMs: 45 * 60 * 1000,
           confidence: 'supported_estimate',
         ),
+        JourneyPresentationSegment(
+          source: 'gps_bridge',
+          polyline: r'_p~iF~ps|U_ulLnnqC',
+          fromPointIndex: 2,
+          toPointIndex: 3,
+          fromOffsetMs: 45 * 60 * 1000,
+          toOffsetMs: 46 * 60 * 1000,
+          confidence: 'trusted_gps_endpoints',
+        ),
       ],
       stopPlaces: const [],
     );
@@ -324,7 +333,10 @@ void main() {
     final segments = journeyV2PresentationMapSegments(route);
     final points = journeyV2StaticMapPoints(route);
 
-    expect(segments.map((segment) => segment.source), ['gps', 'google']);
+    expect(
+      segments.map((segment) => segment.source),
+      ['gps', 'google', 'gps_bridge'],
+    );
     expect(points.length, greaterThanOrEqualTo(3));
     expect(points.first.sourcePointIndex, 0);
     expect(points.last.sourcePointIndex, 2);
