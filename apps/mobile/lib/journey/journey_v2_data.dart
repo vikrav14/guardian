@@ -7,15 +7,21 @@ class JourneyV2Route {
     required this.record,
     required this.rawPoints,
     required this.usablePoints,
+    this.presentation,
+    this.presentationPoints = const [],
   });
 
   final JourneyRecord record;
   final List<LocationHistoryPoint> rawPoints;
   final List<LocationHistoryPoint> usablePoints;
+  final JourneyRoutePresentation? presentation;
+  final List<LocationHistoryPoint> presentationPoints;
 
   int get decodedPointCount => rawPoints.length;
   int get usablePointCount => usablePoints.length;
-  bool get hasReplayableRoute => usablePoints.length >= 2;
+  bool get hasReplayableRoute =>
+      presentationPoints.length >= 2 || usablePoints.length >= 2;
+  bool get hasPresentation => presentation != null;
 
   List<List<LocationHistoryPoint>> get continuousSegments {
     if (usablePoints.isEmpty) return const [];
@@ -89,13 +95,24 @@ JourneyRecord? journeyV2SelectRecord(
   return sorted.last;
 }
 
-JourneyV2Route journeyV2DecodeRecord(JourneyRecord record) {
+JourneyV2Route journeyV2DecodeRecord(
+  JourneyRecord record, {
+  JourneyRoutePresentation? presentation,
+}) {
+  final usablePresentation = presentation?.isUsableAt(DateTime.now()) == true
+      ? presentation
+      : null;
+  final presentationPoints = usablePresentation == null
+      ? const <LocationHistoryPoint>[]
+      : journeyV2PresentationReplayPoints(record, usablePresentation);
   final coords = decodePolyline(record.polyline);
   if (coords.isEmpty) {
     return JourneyV2Route(
       record: record,
       rawPoints: const [],
       usablePoints: const [],
+      presentation: usablePresentation,
+      presentationPoints: presentationPoints,
     );
   }
 
@@ -144,10 +161,55 @@ JourneyV2Route journeyV2DecodeRecord(JourneyRecord record) {
   final usablePoints = rawPoints
       .where((point) => isPlausibleCoord(point.lat, point.lng))
       .toList(growable: false);
-
   return JourneyV2Route(
     record: record,
     rawPoints: List.unmodifiable(rawPoints),
     usablePoints: List.unmodifiable(usablePoints),
+    presentation: usablePresentation,
+    presentationPoints: presentationPoints,
   );
+}
+
+List<LocationHistoryPoint> journeyV2PresentationReplayPoints(
+  JourneyRecord record,
+  JourneyRoutePresentation presentation, {
+  int maxPointsPerSegment = 24,
+}) {
+  final output = <LocationHistoryPoint>[];
+  for (final segment in presentation.segments) {
+    final coordinates = decodePolyline(segment.polyline);
+    if (coordinates.length < 2) continue;
+    final step = coordinates.length <= maxPointsPerSegment
+        ? 1
+        : ((coordinates.length - 1) / (maxPointsPerSegment - 1)).ceil();
+    final indexes = <int>[
+      for (var index = 0; index < coordinates.length; index += step) index,
+      if ((coordinates.length - 1) % step != 0) coordinates.length - 1,
+    ];
+
+    for (final coordinateIndex in indexes) {
+      final coordinate = coordinates[coordinateIndex];
+      final ratio = coordinateIndex / (coordinates.length - 1);
+      final offsetMs = segment.fromOffsetMs +
+          ((segment.toOffsetMs - segment.fromOffsetMs) * ratio).round();
+      final sourcePointIndex = segment.fromPointIndex +
+          ((segment.toPointIndex - segment.fromPointIndex) * ratio).round();
+      final point = LocationHistoryPoint(
+        lat: coordinate.lat,
+        lng: coordinate.lng,
+        source: segment.source,
+        accuracySource: segment.source,
+        gpsValid: segment.source == 'gps',
+        recordedAt: record.startAt.add(Duration(milliseconds: offsetMs)),
+        sourcePointIndex: sourcePointIndex,
+      );
+      final previous = output.isEmpty ? null : output.last;
+      final duplicate = previous != null &&
+          (previous.lat - point.lat).abs() < 0.0000001 &&
+          (previous.lng - point.lng).abs() < 0.0000001 &&
+          previous.recordedAt == point.recordedAt;
+      if (!duplicate) output.add(point);
+    }
+  }
+  return List.unmodifiable(output);
 }

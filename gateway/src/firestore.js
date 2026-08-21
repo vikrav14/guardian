@@ -19,6 +19,9 @@ const {
   enrichJourneyPointPlaceNames,
 } = require('./journey-place-labels');
 const {
+  buildJourneyGooglePresentation,
+} = require('./journey-google-presentation');
+const {
   buildLocationProvenancePatch,
   backfillLegacyLocationProvenance,
 } = require('./location-provenance');
@@ -272,10 +275,26 @@ async function appendJourney(imei, journey) {
     journey.stops,
     reverseGeocodeToPlaceName
   );
-  const pointEvidence = await enrichJourneyPointPlaceNames(
-    journey,
-    reverseGeocodeToPlaceName
-  );
+  const presentationEnabled =
+    config.journeyGooglePresentationEnabled &&
+    Boolean(
+      config.googleRoadsApiKey ||
+      config.googleRoutesApiKey ||
+      config.googlePlacesApiKey
+    );
+  const [pointEvidence, presentation] = await Promise.all([
+    enrichJourneyPointPlaceNames(journey, reverseGeocodeToPlaceName),
+    presentationEnabled
+      ? buildJourneyGooglePresentation(
+          { ...journey, stops },
+          {
+            roadsApiKey: config.googleRoadsApiKey,
+            routesApiKey: config.googleRoutesApiKey,
+            placesApiKey: config.googlePlacesApiKey,
+          }
+        )
+      : Promise.resolve(null),
+  ]);
   const stopsChanged = stops.some(
     (stop, index) => stop.placeName !== journey.stops[index]?.placeName
   );
@@ -290,6 +309,19 @@ async function appendJourney(imei, journey) {
         ...(pointsChanged ? { pointEvidence } : {}),
       },
       { merge: true }
+    );
+  }
+  if (presentation) {
+    await ref
+      .collection('presentations')
+      .doc('google_v1')
+      .set(presentation);
+    console.log(
+      `[journey-presentation] ${imei}/${journeyId} ` +
+        `gps=${presentation.coverage.gpsSegmentCount} ` +
+        `google=${presentation.coverage.googleSegmentCount} ` +
+        `unresolved=${presentation.coverage.unresolvedIntervalCount} ` +
+        `places=${presentation.stopPlaces.length}`
     );
   }
   return ref.id;

@@ -8,12 +8,17 @@ const {
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 const {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } = require('firebase/firestore');
 
 const projectId = 'guardian-rules-test';
@@ -80,6 +85,53 @@ beforeEach(async () => {
         lat: -20,
         lng: 57,
         recordedAt: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '861397052547492',
+        'journeys',
+        'journey-1',
+      ),
+      {
+        startAt: new Date(now - 60 * 60 * 1000),
+        endAt: new Date(now - 30 * 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '861397052547492',
+        'journeys',
+        'journey-1',
+        'presentations',
+        'google_v1',
+      ),
+      {
+        version: 1,
+        journeyStartAt: new Date(now - 60 * 60 * 1000),
+        expiresAt: new Date(now + 24 * 60 * 60 * 1000),
+        segments: [],
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '861397052547492',
+        'journeys',
+        'journey-expired',
+        'presentations',
+        'google_v1',
+      ),
+      {
+        version: 1,
+        journeyStartAt: new Date(now - 60 * 60 * 1000),
+        expiresAt: new Date(now - 60 * 1000),
+        segments: [],
       },
     );
     await setDoc(doc(db, 'medicationReminders', 'med-1'), {
@@ -245,6 +297,67 @@ test('Family and Care can read retained history without the Essential window', a
       ),
     ),
   );
+});
+
+test('linked Family users can query journeys for a bounded day', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  const now = Date.now();
+  const journeys = query(
+    collection(
+      authedDb('member'),
+      'devices',
+      '861397052547492',
+      'journeys',
+    ),
+    where('startAt', '>=', new Date(now - 24 * 60 * 60 * 1000)),
+    where('startAt', '<', new Date(now + 24 * 60 * 60 * 1000)),
+    orderBy('startAt'),
+  );
+
+  await assertSucceeds(getDocs(journeys));
+});
+
+test('linked users can read only unexpired journey presentations', async () => {
+  const db = authedDb('member');
+  const active = doc(
+    db,
+    'devices',
+    '861397052547492',
+    'journeys',
+    'journey-1',
+    'presentations',
+    'google_v1',
+  );
+  const expired = doc(
+    db,
+    'devices',
+    '861397052547492',
+    'journeys',
+    'journey-expired',
+    'presentations',
+    'google_v1',
+  );
+
+  await assertSucceeds(getDoc(active));
+  await assertFails(getDoc(expired));
+  await assertFails(
+    getDoc(
+      doc(
+        authedDb('attacker'),
+        'devices',
+        '861397052547492',
+        'journeys',
+        'journey-1',
+        'presentations',
+        'google_v1',
+      ),
+    ),
+  );
+  await assertFails(updateDoc(active, { attribution: 'forged' }));
 });
 
 test('medication data and commands require Guardian Care', async () => {

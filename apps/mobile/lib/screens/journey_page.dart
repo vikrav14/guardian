@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_v2_data.dart';
 import '../journey/journey_v2_ui.dart';
+import '../models/geofence.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 
@@ -13,12 +14,14 @@ class JourneyPage extends StatefulWidget {
     required this.deviceName,
     required this.subscription,
     this.avatarUrl,
+    this.geofenceStream,
   });
 
   final String imei;
   final String deviceName;
   final GuardianSubscription subscription;
   final String? avatarUrl;
+  final Stream<List<Geofence>>? geofenceStream;
 
   @override
   State<JourneyPage> createState() => _JourneyPageState();
@@ -26,7 +29,9 @@ class JourneyPage extends StatefulWidget {
 
 class _JourneyPageState extends State<JourneyPage> {
   late DateTime _day = _today();
+  Stream<List<Geofence>>? _geofenceStream;
   String? _selectedId;
+  String? _lastReportedJourneyError;
 
   static DateTime _today() {
     final now = DateTime.now();
@@ -74,6 +79,8 @@ class _JourneyPageState extends State<JourneyPage> {
         ),
       );
     }
+    final geofenceStream = _geofenceStream ??=
+        widget.geofenceStream ?? GeofenceService().watchAll();
     final effectiveDay = subscription.canAccessHistoryDay(_day)
         ? _day
         : _today();
@@ -93,6 +100,20 @@ class _JourneyPageState extends State<JourneyPage> {
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
+                  final errorSignature = '${snapshot.error}';
+                  if (_lastReportedJourneyError != errorSignature) {
+                    _lastReportedJourneyError = errorSignature;
+                    debugPrint(
+                      '[journey] Failed to load ${widget.imei} for '
+                      '${effectiveDay.toIso8601String()}: ${snapshot.error}',
+                    );
+                    if (snapshot.stackTrace != null) {
+                      debugPrintStack(
+                        label: '[journey] Journey stream stack trace',
+                        stackTrace: snapshot.stackTrace,
+                      );
+                    }
+                  }
                   return _JourneyStateMessage(
                     icon: Icons.cloud_off_rounded,
                     title: 'Journey unavailable',
@@ -111,6 +132,8 @@ class _JourneyPageState extends State<JourneyPage> {
                   );
                 }
 
+                _lastReportedJourneyError = null;
+
                 final journeys = snapshot.data!;
                 if (journeys.isEmpty) {
                   return _JourneyStateMessage(
@@ -127,19 +150,42 @@ class _JourneyPageState extends State<JourneyPage> {
                   journeys,
                   selectedId: _selectedId,
                 );
-
-                return JourneyV2Dashboard(
-                  deviceName: widget.deviceName,
-                  deviceImei: widget.imei,
-                  avatarUrl: widget.avatarUrl,
-                  day: effectiveDay,
-                  journeys: journeys,
-                  selected: selected,
-                  onSelectJourney: (journey) {
-                    setState(() => _selectedId = journey.id);
+                return StreamBuilder<JourneyRoutePresentation?>(
+                  key: ValueKey('journey-presentation-${selected?.id}'),
+                  initialData: null,
+                  stream: selected == null
+                      ? null
+                      : DeviceService().watchJourneyPresentation(
+                          widget.imei,
+                          selected.id,
+                        ),
+                  builder: (context, presentationSnapshot) {
+                    return StreamBuilder<List<Geofence>>(
+                      initialData: const <Geofence>[],
+                      stream: geofenceStream,
+                      builder: (context, geofenceSnapshot) {
+                        return JourneyV2Dashboard(
+                          deviceName: widget.deviceName,
+                          deviceImei: widget.imei,
+                          avatarUrl: widget.avatarUrl,
+                          day: effectiveDay,
+                          journeys: journeys,
+                          selected: selected,
+                          presentation: presentationSnapshot.data,
+                          originGeofence: journeyOriginGeofence(
+                            selected,
+                            geofenceSnapshot.data ?? const <Geofence>[],
+                            imei: widget.imei,
+                          ),
+                          onSelectJourney: (journey) {
+                            setState(() => _selectedId = journey.id);
+                          },
+                          onBack: () => Navigator.maybePop(context),
+                          onChooseDay: _chooseDay,
+                        );
+                      },
+                    );
                   },
-                  onBack: () => Navigator.maybePop(context),
-                  onChooseDay: _chooseDay,
                 );
               },
             ),
@@ -148,6 +194,30 @@ class _JourneyPageState extends State<JourneyPage> {
       ),
     );
   }
+}
+
+Geofence? journeyOriginGeofence(
+  JourneyRecord? journey,
+  List<Geofence> geofences, {
+  required String imei,
+}) {
+  if (journey == null) return null;
+  final candidates = geofences.where(
+    (zone) => zone.active && zone.imei == imei,
+  );
+  final originId = journey.originGeofenceId?.trim();
+  if (originId != null && originId.isNotEmpty) {
+    for (final zone in candidates) {
+      if (zone.id == originId) return zone;
+    }
+  }
+
+  final originName = journey.originGeofenceName?.trim().toLowerCase();
+  if (originName == null || originName.isEmpty) return null;
+  for (final zone in candidates) {
+    if (zone.name.trim().toLowerCase() == originName) return zone;
+  }
+  return null;
 }
 
 class _JourneyStateMessage extends StatelessWidget {

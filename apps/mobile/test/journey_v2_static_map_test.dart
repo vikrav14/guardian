@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
 import 'package:guardian/journey/journey_v2_data.dart';
 import 'package:guardian/journey/journey_v2_static_map.dart';
+import 'package:guardian/models/geofence.dart';
 import 'package:guardian/models/location_history_point.dart';
 
 void main() {
@@ -164,7 +165,7 @@ void main() {
     expect(segments.last.points, hasLength(3));
   });
 
-  test('confirmed return-to-origin uses web-safe Home circles, not a pin', () {
+  test('confirmed return without zone data uses a Home point, not a fake radius', () {
     final start = DateTime(2026, 8, 17, 15, 30);
     final journey = JourneyRecord(
       id: 'home-round-trip',
@@ -192,14 +193,236 @@ void main() {
     final circles = journeyV2EndpointCircles(route, points);
 
     expect(markers, isEmpty);
-    expect(circles, hasLength(2));
+    expect(circles, hasLength(1));
     expect(
       circles.map((circle) => circle.circleId.value),
-      containsAll(['journey-origin-halo', 'journey-origin-core']),
+      contains('journey-origin-core'),
     );
     for (final circle in circles) {
       expect(circle.center.latitude, closeTo(points.first.lat, 0.000001));
       expect(circle.center.longitude, closeTo(points.first.lng, 0.000001));
     }
+  });
+
+  test('configured Home safe zone uses its real center and radius', () {
+    final start = DateTime(2026, 8, 21, 12, 20);
+    final journey = JourneyRecord(
+      id: 'configured-home-round-trip',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 28)),
+      polyline: r'f{`zBcmz~I}|XvfI',
+      distanceKm: 6.2,
+      pointCount: 2,
+      closeReason: 'return_to_origin',
+      originGeofenceId: 'home-id',
+      originGeofenceName: 'Home',
+      evidenceVersion: 3,
+      routeStartAnchored: true,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 28 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+    );
+    final route = journeyV2DecodeRecord(journey);
+    final points = journeyV2StaticMapPoints(route);
+    const home = Geofence(
+      id: 'home-id',
+      imei: 'watch-1',
+      name: 'Home',
+      active: true,
+      lat: -20.02937,
+      lng: 57.59612,
+      radiusMeters: 150,
+    );
+
+    final circles = journeyV2EndpointCircles(
+      route,
+      points,
+      originGeofence: home,
+    );
+    final safeZone = circles.singleWhere(
+      (circle) => circle.circleId.value == 'journey-origin-safe-zone',
+    );
+
+    expect(circles, hasLength(2));
+    expect(safeZone.center.latitude, closeTo(home.lat, 0.000001));
+    expect(safeZone.center.longitude, closeTo(home.lng, 0.000001));
+    expect(safeZone.radius, home.radiusMeters);
+  });
+
+  test('source evidence shows only recorded GPS observations', () {
+    final start = DateTime(2026, 8, 21, 12);
+    final points = [
+      LocationHistoryPoint(
+        lat: -20.02,
+        lng: 57.59,
+        source: 'gps',
+        gpsValid: true,
+        recordedAt: start,
+      ),
+      LocationHistoryPoint(
+        lat: -20.03,
+        lng: 57.60,
+        source: 'wifi',
+        gpsValid: false,
+        recordedAt: start.add(const Duration(minutes: 1)),
+      ),
+    ];
+    final route = JourneyV2Route(
+      record: record('', pointCount: 2),
+      rawPoints: points,
+      usablePoints: points,
+    );
+
+    final circles = journeyV2SourceEvidenceCircles(route).toList();
+
+    expect(circles, hasLength(1));
+    expect(circles[0].circleId.value, 'journey-source-evidence-0');
+    expect(circles[0].radius, greaterThanOrEqualTo(34));
+    expect(journeyV2RecordedGpsEvidencePoints(route), hasLength(1));
+  });
+
+  test('source evidence uses web-safe decoding when raw points are empty', () {
+    final start = DateTime(2026, 8, 21, 18);
+    final journey = JourneyRecord(
+      id: 'web-evidence-trip',
+      startAt: start,
+      endAt: start.add(const Duration(minutes: 1)),
+      polyline: r'f{`zBcmz~I}|XvfI',
+      distanceKm: 1,
+      pointCount: 2,
+      evidenceVersion: 3,
+      pointEvidence: const [
+        JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+      ],
+    );
+    final route = JourneyV2Route(
+      record: journey,
+      rawPoints: const [],
+      usablePoints: const [],
+    );
+
+    final evidence = journeyV2RecordedGpsEvidencePoints(route);
+
+    expect(evidence, hasLength(2));
+    expect(evidence.every((point) => point.gpsValid == true), isTrue);
+    expect(evidence.first.lat, closeTo(-20.16196, 0.00001));
+    expect(evidence.last.lng, closeTo(57.59590, 0.00001));
+  });
+
+  test(
+    'source evidence ignores invalid raw decoding before web-safe fallback',
+    () {
+      final start = DateTime(2026, 8, 21, 18);
+      final journey = JourneyRecord(
+        id: 'web-evidence-invalid-raw-trip',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 1)),
+        polyline: r'f{`zBcmz~I}|XvfI',
+        distanceKm: 1,
+        pointCount: 2,
+        evidenceVersion: 3,
+        pointEvidence: const [
+          JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
+          JourneyPointEvidence(
+            offsetMs: 60 * 1000,
+            source: 'gps',
+            gpsValid: true,
+          ),
+        ],
+      );
+      final route = JourneyV2Route(
+        record: journey,
+        rawPoints: [
+          LocationHistoryPoint(
+            lat: 42929.511,
+            lng: 57.59189,
+            source: 'gps',
+            gpsValid: true,
+            recordedAt: start,
+          ),
+          LocationHistoryPoint(
+            lat: 42929.520,
+            lng: 57.59590,
+            source: 'gps',
+            gpsValid: true,
+            recordedAt: start.add(const Duration(minutes: 1)),
+          ),
+        ],
+        usablePoints: const [],
+      );
+
+      final evidence = journeyV2RecordedGpsEvidencePoints(route);
+
+      expect(evidence, hasLength(2));
+      expect(evidence.every((point) => point.gpsValid == true), isTrue);
+      expect(evidence.first.lat, closeTo(-20.16196, 0.00001));
+      expect(evidence.last.lng, closeTo(57.59590, 0.00001));
+    },
+  );
+
+  test('hybrid presentation preserves GPS and Google route sources', () {
+    final journey = record(
+      r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+      pointCount: 3,
+    );
+    final presentation = JourneyRoutePresentation(
+      version: 1,
+      generatedAt: DateTime(2026, 8, 21),
+      expiresAt: DateTime(2099),
+      segments: const [
+        JourneyPresentationSegment(
+          source: 'gps',
+          polyline: r'_p~iF~ps|U_ulLnnqC',
+          fromPointIndex: 0,
+          toPointIndex: 1,
+          fromOffsetMs: 0,
+          toOffsetMs: 60 * 1000,
+        ),
+        JourneyPresentationSegment(
+          source: 'google',
+          polyline: r'_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+          fromPointIndex: 1,
+          toPointIndex: 2,
+          fromOffsetMs: 60 * 1000,
+          toOffsetMs: 45 * 60 * 1000,
+          confidence: 'supported_estimate',
+        ),
+        JourneyPresentationSegment(
+          source: 'gps_bridge',
+          polyline: r'_p~iF~ps|U_ulLnnqC',
+          fromPointIndex: 2,
+          toPointIndex: 3,
+          fromOffsetMs: 45 * 60 * 1000,
+          toOffsetMs: 46 * 60 * 1000,
+          confidence: 'trusted_gps_endpoints',
+        ),
+      ],
+      stopPlaces: const [],
+    );
+    final route = journeyV2DecodeRecord(
+      journey,
+      presentation: presentation,
+    );
+
+    final segments = journeyV2PresentationMapSegments(route);
+    final points = journeyV2StaticMapPoints(route);
+
+    expect(
+      segments.map((segment) => segment.source),
+      ['gps', 'google', 'gps_bridge'],
+    );
+    expect(points.length, greaterThanOrEqualTo(3));
+    expect(points.first.sourcePointIndex, 0);
+    expect(points.last.sourcePointIndex, 3);
   });
 }
