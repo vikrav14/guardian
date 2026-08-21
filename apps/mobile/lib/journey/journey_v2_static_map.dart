@@ -736,7 +736,7 @@ Set<Circle> journeyV2EndpointCircles(
       ? points.first
       : points.last;
   final center = hasConfiguredSafeZone
-      ? LatLng(configuredZone!.lat, configuredZone.lng)
+      ? LatLng(configuredZone.lat, configuredZone.lng)
       : LatLng(fallbackPoint.lat, fallbackPoint.lng);
   final circles = <Circle>{};
   if (hasConfiguredSafeZone) {
@@ -744,7 +744,7 @@ Set<Circle> journeyV2EndpointCircles(
       Circle(
         circleId: const CircleId('journey-origin-safe-zone'),
         center: center,
-        radius: configuredZone!.radiusMeters,
+        radius: configuredZone.radiusMeters,
         fillColor: GuardianColors.safe.withValues(alpha: 0.10),
         strokeColor: GuardianColors.safe.withValues(alpha: 0.72),
         strokeWidth: 2,
