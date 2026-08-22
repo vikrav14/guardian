@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Send one manufacturer-documented V52 PHBX phonebook entry through the
- * running local Guardian gateway.
+ * Provision one manufacturer-documented V52 PHBX incoming-call allowlist
+ * entry through the running local Guardian gateway.
  *
  * The watch must have an active TCP session. The script deliberately uses the
- * authenticated local HTTP downlink so it never needs Firebase credentials
- * and never places real contact data in source control.
+ * authenticated, purpose-specific local admin endpoint so it never needs
+ * Firebase credentials, never exposes PHBX through the generic command
+ * channel, and never places real contact data in source control.
  *
  * Usage:
  *   node scripts/send-phonebook-contact.js --imei <10-or-15-digits> \
@@ -14,7 +15,6 @@
  */
 const http = require('http');
 const config = require('../src/config');
-const { phonebookContactCommand } = require('../src/commands');
 
 function parseArgs(argv) {
   const result = {};
@@ -49,25 +49,23 @@ if (!config.adminApiKey) {
   usageError('ADMIN_API_KEY is not configured in gateway/.env. Configure it and restart the gateway first.');
 }
 
-let command;
-try {
-  command = phonebookContactCommand({
-    slot: args.slot,
-    name: args.name,
-    phone: args.phone,
-  });
-} catch (error) {
-  usageError(error.message);
-}
-
-const query = new URLSearchParams({ imei, command }).toString();
+const requestBody = JSON.stringify({
+  imei,
+  slot: args.slot,
+  name: args.name,
+  phone: args.phone,
+});
 const request = http.request(
   {
     hostname: '127.0.0.1',
     port: config.httpPort,
-    path: `/dev/downlink?${query}`,
+    path: '/admin/device-phonebook/contact',
     method: 'POST',
-    headers: { 'X-Admin-Key': config.adminApiKey },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(requestBody),
+      'X-Admin-Key': config.adminApiKey,
+    },
   },
   (response) => {
     let body = '';
@@ -88,13 +86,20 @@ const request = http.request(
         process.exit(1);
       }
 
-      console.log('V52 phonebook command handed to the live watch session.');
+      console.log('V52 incoming-call allowlist entry handed to the live watch session.');
       console.log(`Slot: ${args.slot}`);
       console.log(`Name: ${String(args.name || '').trim()}`);
       console.log(`Phone: ${redactPhone(args.phone)}`);
       console.log(`Protocol ID: ${payload.protocolId}`);
       console.log(`Active sessions: ${payload.sessions}`);
-      console.log('Now open Contacts/Phonebook on the watch and verify the entry before attempting a call.');
+      if (payload.auditRecorded !== true) {
+        console.warn('Warning: socket handoff succeeded, but the local audit record was unavailable. Do not retry blindly.');
+      }
+      console.log('Physical acceptance is still required:');
+      console.log('1. Confirm the contact appears, then reboot and confirm it persists.');
+      console.log('2. Confirm the approved number rings the watch and both sides can speak.');
+      console.log('3. Confirm an unknown number is blocked.');
+      console.log('The wearer cannot place outbound calls with Guardian\'s current SIM package.');
     });
   }
 );
@@ -105,4 +110,8 @@ request.on('error', (error) => {
   process.exit(1);
 });
 
-request.end();
+request.setTimeout(10_000, () => {
+  request.destroy(new Error('Guardian phonebook provisioning request timed out after 10 seconds'));
+});
+
+request.end(requestBody);

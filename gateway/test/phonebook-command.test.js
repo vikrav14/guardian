@@ -37,31 +37,24 @@ test('phonebook contact validation rejects ambiguous phones and unsafe slots', (
   );
 });
 
-test('sendDeviceCommand sends a PHBX contact only over the live V52 session', async () => {
-  const calls = [];
+test('generic deviceCommands cannot provision the administrator-only phonebook', async () => {
   const transports = {
-    sendDownlinkCommand: (imei, command) => {
-      calls.push({ imei, command });
-      return { ok: true, sessions: 1 };
+    sendDownlinkCommand: () => {
+      throw new Error('generic device command transport must not run');
     },
     sendSms: async () => {
-      throw new Error('PHBX must not use SMS');
+      throw new Error('generic device command SMS must not run');
     },
   };
 
-  const result = await sendDeviceCommand(
-    {},
-    '999999999999999',
-    'set_phonebook_contact',
-    { slot: 1, name: 'Test', phone: SYNTHETIC_PHONE },
-    transports
+  await assert.rejects(
+    sendDeviceCommand(
+      {},
+      '999999999999999',
+      'set_phonebook_contact',
+      { slot: 1, name: 'Test', phone: SYNTHETIC_PHONE },
+      transports
+    ),
+    /Unknown device command type/
   );
-
-  const expected = `PHBX,1,0054006500730074,${SYNTHETIC_PHONE},`;
-  assert.equal(result.channel, 'tcp');
-  assert.equal(result.text, expected);
-  assert.deepEqual(calls, [{
-    imei: '999999999999999',
-    command: expected,
-  }]);
 });

@@ -6,9 +6,34 @@ class ApprovedCallingBackbone {
   static const String minimumPlan = 'essential';
   static const String lifecycle = 'backbone';
   static const bool enabledByDefault = false;
-  static const bool customerVisible = true;
-  static const List<String> protocolCommands = <String>['CALL', 'PHBX', 'DEVREFUSEPHONESWITCH'];
-  static const List<String> safetyControls = <String>['approved-contact allowlist', 'authenticated guardian changes', 'arbitrary dialling disabled by default', 'call attempt audit trail', 'carrier voice-cost disclosure'];
-  static const List<String> frontendMilestones = <String>['manage approved family contacts', 'show call-watch and allowed-call actions', 'explain carrier voice usage', 'show sync and failure states'];
-  static const List<String> acceptanceGates = <String>['confirm exact V52 command forms on the target firmware', 'verify wearer-to-approved-contact and guardian-to-watch calls', 'verify unknown-number rejection behaviour', 'test two supported SIM/carrier configurations'];
+  static const bool customerVisible = false;
+  static const String callDirection = 'approved-guardian-to-watch-only';
+  static const List<String> protocolCommands = <String>['PHBX'];
+  static const List<String> pendingProtocolCommands = <String>[
+    'DEVREFUSEPHONESWITCH',
+  ];
+  static const List<String> safetyControls = <String>[
+    'incoming approved-contact allowlist',
+    'administrator-only phonebook provisioning',
+    'unknown callers blocked',
+    'wearer outbound calling unavailable',
+    'carrier voice-cost disclosure',
+  ];
+  static const List<String> provenBehaviors = <String>[
+    'approved phonebook number rings watch',
+    'unknown number is blocked',
+    'clear two-way audio after wearer answers',
+    'phonebook entry persists after reboot',
+  ];
+  static const List<String> frontendMilestones = <String>[
+    'manage approved family contacts',
+    'show call-watch action only',
+    'explain that the wearer cannot call out',
+    'show sync and failure states',
+  ];
+  static const List<String> acceptanceGates = <String>[
+    'repeat approved and unknown incoming-call checks on a second production watch',
+    'confirm safe replacement or removal with ReachFar',
+    'complete privacy, billing and contact-management acceptance',
+  ];
 }

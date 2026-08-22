@@ -6,12 +6,40 @@ const SERVICE_CONTRACT = Object.freeze({
   minimumPlan: 'essential',
   lifecycle: 'backbone',
   enabledByDefault: false,
-  customerVisible: true,
-  protocolCommands: Object.freeze(['CALL', 'PHBX', 'DEVREFUSEPHONESWITCH']),
-  safetyControls: Object.freeze(['approved-contact allowlist', 'authenticated guardian changes', 'arbitrary dialling disabled by default', 'call attempt audit trail', 'carrier voice-cost disclosure']),
-  backendMilestones: Object.freeze(['persist approved contacts', 'sync V52 phonebook and whitelist', 'dispatch wearer call requests safely', 'record command and call outcomes']),
-  frontendMilestones: Object.freeze(['manage approved family contacts', 'show call-watch and allowed-call actions', 'explain carrier voice usage', 'show sync and failure states']),
-  acceptanceGates: Object.freeze(['confirm exact V52 command forms on the target firmware', 'verify wearer-to-approved-contact and guardian-to-watch calls', 'verify unknown-number rejection behaviour', 'test two supported SIM/carrier configurations']),
+  customerVisible: false,
+  callDirection: 'approved-guardian-to-watch-only',
+  protocolCommands: Object.freeze(['PHBX']),
+  pendingProtocolCommands: Object.freeze(['DEVREFUSEPHONESWITCH']),
+  safetyControls: Object.freeze([
+    'incoming approved-contact allowlist',
+    'administrator-only phonebook provisioning',
+    'unknown callers blocked',
+    'wearer outbound calling unavailable',
+    'carrier voice-cost disclosure',
+  ]),
+  provenBehaviors: Object.freeze([
+    'approved phonebook number rings watch',
+    'unknown number is blocked',
+    'clear two-way audio after wearer answers',
+    'phonebook entry persists after reboot',
+  ]),
+  backendMilestones: Object.freeze([
+    'persist approved contacts without client-written commands',
+    'sync V52 phonebook through administrator-only provisioning',
+    'verify safe-mode state on each new watch',
+    'record provisioning and physical acceptance outcomes',
+  ]),
+  frontendMilestones: Object.freeze([
+    'manage approved family contacts',
+    'show call-watch action only',
+    'explain that the wearer cannot call out',
+    'show sync and failure states',
+  ]),
+  acceptanceGates: Object.freeze([
+    'repeat approved and unknown incoming-call checks on a second production watch',
+    'confirm safe replacement or removal with ReachFar',
+    'complete privacy, billing and contact-management acceptance',
+  ]),
 });
 
 module.exports = { SERVICE_CONTRACT };

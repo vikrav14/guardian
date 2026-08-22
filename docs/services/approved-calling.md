@@ -4,80 +4,111 @@
 |---|---|
 | Service ID | `approved-calling` |
 | Minimum package | Essential |
-| Current state | Backbone only; disabled |
-| Customer-visible | Only after acceptance |
-| Protocol surface | `CALL`, `PHBX`, `DEVREFUSEPHONESWITCH` |
+| Current state | Backbone and administrator provisioning only; disabled |
+| Customer-visible | No |
+| Supported direction | Approved guardian calls the watch |
+| Live-proven protocol | `PHBX` |
+| Documented but not product-accepted | `DEVREFUSEPHONESWITCH` |
+| Excluded from Guardian's current SIM product | Outbound `CALL` and wearer-originated carrier calls |
 
-This draft establishes matching gateway and Flutter contracts. It does not activate a device command, expose a menu item, or promise the service to customers.
+The physical pilot proved clear two-way audio after an approved guardian calls
+and the wearer answers. “Two-way audio” does not mean the wearer can originate
+a call: Guardian's current Machine 500 MB SIM does not permit outbound calls.
+
+This branch does not activate a customer menu or feature flag.
 
 ## Safety controls
 
-- approved-contact allowlist
-- authenticated guardian changes
-- arbitrary dialling disabled by default
-- call attempt audit trail
-- carrier voice-cost disclosure
+- phonebook entries form an incoming-call allowlist
+- provisioning is restricted to the strict administrator endpoint
+- Firestore clients cannot enqueue `set_phonebook_contact`
+- the generic device-command dispatcher rejects phonebook changes
+- unknown callers were blocked on the pilot watch
+- the current product never promises wearer-originated calling
+- real contact values stay in the private operator session, not source control
 
-## Backend completion
+## Current implementation
 
-- [ ] persist approved contacts
-- [ ] sync V52 phonebook and whitelist
-- [ ] dispatch wearer call requests safely
-- [ ] record command and call outcomes
+- [x] manufacturer-format `PHBX` builder
+- [x] dedicated `POST /admin/device-phonebook/contact` endpoint
+- [x] strict `ADMIN_API_KEY`/Firebase administrator authentication
+- [x] JSON request body rather than contact data in a URL
+- [x] contact name, number, command and frame omitted from API responses/audit
+- [x] local `phonebook:provision` technician command
+- [x] client Firestore command path denied with authorization tests
+- [x] physical approved/unknown incoming-call and two-way-audio acceptance
+- [x] phonebook persistence after reboot
+- [ ] backend-owned approved-contact records and lifecycle
+- [ ] authenticated customer contact-management UI
+- [ ] safe-mode enforcement proven on a second production watch
+- [ ] manufacturer-confirmed contact replacement/removal
 
-## App completion
+## New-device provisioning
 
-- [ ] manage approved family contacts
-- [ ] show call-watch and allowed-call actions
-- [ ] explain carrier voice usage
-- [ ] show sync and failure states
-
-## Real-device acceptance
-
-- [ ] confirm exact V52 command forms on the target firmware
-- [ ] verify wearer-to-approved-contact and guardian-to-watch calls
-- [ ] verify unknown-number rejection behaviour
-- [ ] test two supported SIM/carrier configurations
-
-The feature flag must remain off until every acceptance gate has evidence attached to this pull request.
-
-## Controlled PHBX phonebook acceptance
-
-The supplied manufacturer protocol defines one phonebook entry as:
-
-```text
-PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
-```
-
-Guardian's first acceptance leaves the optional picture field empty. The
-gateway computes the frame length and wraps the payload in the existing V52
-`[SG*<protocol-id>*<hex-length>*...]` transport. `PHBX` is TCP-only: the watch
-must be online with a live session, and no SMS fallback is allowed.
-
-Before testing, configure a strong `ADMIN_API_KEY` in the private
-`gateway/.env` and restart the gateway. The raw downlink route now rejects
-dev-open access, including access through an HTTP ngrok tunnel.
-
-In a second PowerShell window, from `gateway`:
+The watch must already have a live Guardian TCP session. Configure a strong
+`ADMIN_API_KEY` in private `gateway/.env`, restart the gateway, then run from
+`gateway` in a second PowerShell window:
 
 ```powershell
 $imei = Read-Host "Watch 10-digit protocol ID or 15-digit IMEI"
-$phone = Read-Host "Approved test number in E.164 form, for example +230..."
+$phone = Read-Host "Approved guardian number in E.164 form, for example +230..."
 
-npm run phonebook:test -- `
+npm run phonebook:provision -- `
   --imei "$imei" `
   --slot 1 `
-  --name "Test" `
+  --name "Primary guardian" `
   --phone "$phone"
 ```
 
-Expected script result: the command is handed to exactly one active watch
-session. That proves transport only. Open Contacts/Phonebook on the physical
-watch and confirm that slot 1 shows **Test** before attempting a short call.
+Repeat with a different empty slot for another approved caregiver. Do not
+reuse an occupied slot until replacement behavior has been accepted.
+
+A successful response proves only that Guardian handed the PHBX frame to a
+live watch socket. Every new device still requires this physical checklist:
+
+1. Confirm the contact appears in the watch phonebook.
+2. Reboot and confirm the contact persists.
+3. Call from the approved number and confirm the watch rings.
+4. Answer and confirm clear audio in both directions.
+5. Call from an unknown number and confirm the watch does not ring.
+6. Record the watch firmware, SIM package, slot and outcome without storing
+   the contact number in GitHub.
+
+If an unknown caller reaches a new watch, stop provisioning that device. Do
+not guess a `DEVREFUSEPHONESWITCH` value: confirm the safe-mode state through
+the watch/supplier workflow before handoff.
+
+## Pilot evidence - 22 August 2026
+
+- PHBX entry appeared on the physical V52.
+- Entry remained after reboot.
+- Approved phonebook number rang the watch.
+- Unknown number did not ring the watch.
+- Wearer answered; both sides could hear and speak clearly.
+- Watch dial-pad and phonebook outbound attempts did not reach the guardian.
+- The SIM was confirmed not to permit outbound calls.
+
+No real wearer name, guardian number, SIM number or administrator key was
+committed.
+
+## Product wording
+
+Use:
+
+> Approved family members can call the watch, with clear two-way audio after
+> the wearer answers. Unknown callers are blocked.
+
+Do not use “wearer can call family”, “outgoing calls”, or an unqualified
+“two-way calls” promise with Guardian's current SIM package.
+
+## Remaining release gates
+
+1. Repeat provisioning, approved calling and unknown rejection on a second
+   production-equivalent V52 and SIM.
+2. Prove or obtain the exact safe replacement/removal process from ReachFar.
+3. Implement backend-owned contact persistence and authenticated customer UI.
+4. Complete privacy, billing, Android and failure-state acceptance.
 
 The manufacturer material supplied to Guardian does not document a PHBX
-delete/clear form. Use only an approved number that may safely remain in slot
-1 until replacement/removal is confirmed with ReachFar. Do not experiment
-with a stranger's number. A real contact appearance and short carrier call
-must be recorded as acceptance evidence; a successful HTTP response alone is
-not enough.
+delete/clear form. Use only an approved number that may safely remain on the
+watch until replacement/removal is confirmed.

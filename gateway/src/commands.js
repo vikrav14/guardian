@@ -9,10 +9,11 @@ const { sendDownlinkCommand } = require('./downlink');
  * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
- * - TCP data commands: monitor callback, ring/find, fall settings, medication
- *   reminders and upload interval. These are sent as `[SG*protocolId*LEN*...]`
- *   over the watch's active gateway session. They deliberately have no guessed
- *   SMS fallback.
+ * - TCP data commands: administrator-only PHBX phonebook provisioning plus
+ *   monitor callback, ring/find, fall settings, medication reminders and
+ *   upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
+ *   watch's active gateway session. They deliberately have no guessed SMS
+ *   fallback. PHBX is not exposed through the generic deviceCommands channel.
  *
  * A documented command is not automatically an accepted product capability.
  * Each user-visible feature still requires V52 real-device acceptance.
@@ -68,7 +69,8 @@ function phonebookNameHex(name) {
 }
 
 /**
- * Add or replace one V52 phonebook entry over the live TCP session.
+ * Set one V52 phonebook entry over the live TCP session. Safe replacement and
+ * deletion remain unproven and must not be inferred from this builder.
  *
  * Vendor form:
  *   PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
@@ -178,7 +180,6 @@ function uploadIntervalCommand(seconds) {
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
-  'set_phonebook_contact',
   'voice_monitor',
   'ring_to_find',
   'set_fall_detection',
@@ -191,7 +192,6 @@ const BUILDERS = {
   set_center_number: ({ phone }) => centerNumberCommand(phone),
   set_sos_number: ({ slot, phone }) => sosNumberCommand(slot, phone),
   check_status: () => statusCommand(),
-  set_phonebook_contact: (params) => phonebookContactCommand(params),
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
   set_fall_detection: (params) => fallDetectionCommand(params),
