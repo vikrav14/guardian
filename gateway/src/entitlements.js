@@ -210,9 +210,12 @@ function featureForWhatsAppIntent(intentType) {
   const type = String(intentType || '').trim().toUpperCase();
   if (type === 'REMINDER_REQUEST') return FEATURE.MEDICATION_REMINDERS;
   if (type === 'DAILY_SUMMARY') return FEATURE.WELLBEING_ACTIVITY_SUMMARIES;
-  if (type === 'DEVICE_COMMAND' || type === 'VOICE_MONITOR') {
+  if (type === 'DEVICE_COMMAND') {
     return FEATURE.WHATSAPP_WATCH_COMMANDS;
   }
+  // VOICE_MONITOR is deterministically blocked before assistant/tool routing.
+  // Returning null avoids implying that any paid plan currently enables it.
+  if (type === 'VOICE_MONITOR') return null;
   if (type === 'CRITICAL') return null;
   return FEATURE.WHATSAPP_QA;
 }

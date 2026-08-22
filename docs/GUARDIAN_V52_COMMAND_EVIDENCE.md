@@ -32,7 +32,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Action | Data payload | Evidence | Acceptance still required |
 |---|---|---|---|
 | Request location | `CR` | Proven | Real V52 returned GPS and Wi-Fi/LBS observations. |
-| Voice monitor callback | `MONITOR,<phone>` | Documented | Confirm callback, audio, consent indication and carrier behaviour. |
+| Audio monitor callback | Protocol PDF: `MONITOR`; communication example: `MONITOR,<phone>` | Documented conflict; client-blocked | The protocol PDF says bare MONITOR calls the master mobile number, while the example supplies a destination. Neither variant is live-proven. Resolve the exact target firmware behavior, callback destination, wearer indication, audio direction, termination and carrier charging through an informed admin-only test before enabling any customer path. |
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |

@@ -11,12 +11,12 @@ const ALLOWED_SURFACES = new Set(['suppress', 'app', 'whatsapp_template']);
 const ALLOWED_ACTIONS = new Set([
   'none',
   'check_in',
-  'enable_voice_monitor',
+  'call_watch',
   'monitor_battery',
 ]);
 const ACTION_PHRASES = {
   check_in: 'check in',
-  enable_voice_monitor: 'enable voice monitor',
+  call_watch: 'call watch',
   monitor_battery: 'monitor battery',
 };
 
@@ -24,7 +24,7 @@ const GUARDIAN_SYSTEM_PROMPT = `You are Guardian's context relevance judge.
 You receive only structured facts that have already passed deterministic safety rules.
 
 Return exactly one JSON object with these keys:
-{"relevant":boolean,"confidence":number,"recommendedSurface":"suppress|app|whatsapp_template","recommendedAction":"none|check_in|enable_voice_monitor|monitor_battery","reason":string,"explanation":string|null}
+{"relevant":boolean,"confidence":number,"recommendedSurface":"suppress|app|whatsapp_template","recommendedAction":"none|check_in|call_watch|monitor_battery","reason":string,"explanation":string|null}
 
 Rules:
 1. Decide whether this context is useful to this guardian now.
@@ -33,7 +33,7 @@ Rules:
 4. Prefer suppress for stale, uncertain, generic, or non-actionable context.
 5. Prefer app for useful but non-urgent context. Recommend whatsapp_template only for a timely check-in candidate.
 6. If relevant, choose exactly one non-none recommendedAction. If irrelevant, use recommendedAction "none".
-7. If relevant, explanation must be calm, 20-150 characters, at most two sentences, and contain the exact literal phrase for the chosen action: "check in", "enable voice monitor", or "monitor battery".
+7. If relevant, explanation must be calm, 20-150 characters, at most two sentences, and contain the exact literal phrase for the chosen action: "check in", "call watch", or "monitor battery".
 8. Never mention AI, algorithms, raw coordinates, emergency dispatch, or 911.
 9. This is observe-only. A recommendation does not send anything.`;
 
@@ -313,7 +313,7 @@ class ContextAI {
     const requiredPhrase = ACTION_PHRASES[recommendedAction];
     if (requiredPhrase && !lower.includes(requiredPhrase)) {
       issues.push(`Explanation does not contain action phrase: ${requiredPhrase}`);
-    } else if (!requiredPhrase && !/(check in|enable voice monitor|monitor battery)/i.test(text)) {
+    } else if (!requiredPhrase && !/(check in|call watch|monitor battery)/i.test(text)) {
       issues.push('Explanation does not contain an allowed action phrase');
     }
     if (/https?:\/\/|[-+]?\d{1,3}\.\d{3,}/.test(text)) {

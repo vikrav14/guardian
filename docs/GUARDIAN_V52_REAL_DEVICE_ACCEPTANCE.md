@@ -145,6 +145,35 @@ Medication reminders are Guardian Care only.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+## Test 8 — consent-based audio safety check-in
+
+This is an informed privacy test, never a covert test. The wearer and test
+guardian must both agree before either command is sent. Do not test on an
+unaware person and do not use a destination that has not been verified.
+
+The supplied manufacturer documents conflict: the protocol PDF uses bare
+`MONITOR` and says the watch calls the master number; the communication example
+uses `MONITOR,<phone>`. Test and record them as separate variants.
+
+1. Record firmware, SIM package, configured master number, test guardian and
+   explicit wearer consent without placing real phone numbers in GitHub.
+2. With a live watch session, send one variant from a strict administrator
+   environment and wait for a single callback. Do not expose MONITOR through
+   the app, WhatsApp or generic Firestore command collection.
+3. Record whether the callback arrives, its destination, delay, visible/audible
+   indication on the watch and whether audio is one-way or two-way.
+4. End the call from the receiving phone and verify the watch returns to its
+   normal state. Guardian currently has no proven remote carrier-call stop.
+5. Check carrier usage/charging, then wait before testing the other variant.
+6. Confirm an unlinked client, emergency contact and arbitrary request-supplied
+   destination cannot stage or dispatch either variant.
+
+Pass for protocol selection: exactly one recorded variant is deliberately
+accepted for the target firmware and repeated on a second production-equivalent
+watch/SIM. Product activation additionally requires wearer-visible consent UX,
+verified guardian destination lifecycle, audit/rate-limit evidence and privacy/
+legal approval. Socket handoff or a unit-test frame alone is insufficient.
+
 ## Final collection
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.

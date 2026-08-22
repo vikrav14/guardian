@@ -282,10 +282,12 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
-        // Phonebook entries control who may ring a wearer's watch. Until the
-        // authenticated contact-management backend is complete, PHBX remains
-        // administrator-only through the Admin SDK/local provisioning route.
+        // Phonebook entries control who may ring a wearer's watch. MONITOR can
+        // cause a silent callback. Until their dedicated authorization,
+        // consent and audit services are accepted, both remain off the generic
+        // client command channel and available only for controlled admin tests.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
+        && request.resource.data.get('type', '') != 'voice_monitor'
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
           || activePlanAtLeast('care')

@@ -111,6 +111,7 @@ test('minimum plan is deterministic for every advertised feature', () => {
 test('WhatsApp intent mapping protects Care-only summaries and reminders', () => {
   assert.equal(featureForWhatsAppIntent('LOCATION_REQUEST'), FEATURE.WHATSAPP_QA);
   assert.equal(featureForWhatsAppIntent('DEVICE_COMMAND'), FEATURE.WHATSAPP_WATCH_COMMANDS);
+  assert.equal(featureForWhatsAppIntent('VOICE_MONITOR'), null);
   assert.equal(featureForWhatsAppIntent('REMINDER_REQUEST'), FEATURE.MEDICATION_REMINDERS);
   assert.equal(featureForWhatsAppIntent('DAILY_SUMMARY'), FEATURE.WELLBEING_ACTIVITY_SUMMARIES);
   assert.equal(featureForWhatsAppIntent('CRITICAL'), null);

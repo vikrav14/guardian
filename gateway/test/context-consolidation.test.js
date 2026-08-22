@@ -363,3 +363,29 @@ test('ContextAI requires the explanation to match the structured action enum', (
   assert.equal(validation.valid, false);
   assert(validation.issues.some((issue) => issue.includes('action phrase: check in')));
 });
+
+test('ContextAI may recommend an ordinary approved call but never voice monitoring', () => {
+  const ai = new ContextAI(null, {});
+  const approvedCall = ai._validateDecision({
+    relevant: true,
+    confidence: 0.9,
+    recommendedSurface: 'app',
+    recommendedAction: 'call_watch',
+    reason: 'A family check-in is timely.',
+    explanation: 'Please call watch from an approved family number now.',
+  });
+  assert.equal(approvedCall.valid, true);
+
+  const voiceMonitor = ai._validateDecision({
+    relevant: true,
+    confidence: 0.9,
+    recommendedSurface: 'app',
+    recommendedAction: 'enable_voice_monitor',
+    reason: 'A family check-in is timely.',
+    explanation: 'Please enable voice monitor for a family check-in.',
+  });
+  assert.equal(voiceMonitor.valid, false);
+  assert(
+    voiceMonitor.issues.some((issue) => issue.includes('recommendedAction is invalid')),
+  );
+});

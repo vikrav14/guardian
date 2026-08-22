@@ -104,7 +104,7 @@ Example:
 | `DAILY_SUMMARY` | wearer plus today/yesterday | aggregate journeys, alerts, safe-zone events and qualified watch status | B |
 | `REMINDER_REQUEST` | wearer plus medicine/time/frequency | create or explain reminder | A/B |
 | `DEVICE_COMMAND` | wearer plus command | controlled write | A/B |
-| `VOICE_MONITOR` | wearer | high-risk command | A/B; explicit policy required |
+| `VOICE_MONITOR` | none | deterministic safety block; no tool/LLM/action staging | A |
 | `GENERAL_HELP` | none | capabilities only | A |
 | `UNCLEAR` | none | one focused clarification | A |
 
@@ -295,7 +295,8 @@ Initial supported language concepts include location, status/battery, alerts, jo
 - persistent pending-action records;
 - confirmation state machine and idempotent command receipts;
 - strict reminder validation and command-specific policy matrix;
-- keep high-risk voice monitoring disabled until legal and product approval.
+- keep audio safety check-in disabled until consent, protocol, carrier, legal
+  and product acceptance; never expose raw voice monitoring through WhatsApp.
 
 ### Phase 4 — Shared conversation state and controlled summaries
 
