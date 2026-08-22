@@ -52,6 +52,7 @@ test('active Essential receives core services but no WhatsApp', () => {
   const result = evaluateSubscription(subscription(PLAN.ESSENTIAL), { now: NOW });
   assert.equal(hasEntitlement(result, FEATURE.LIVE_GPS), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), false);
+  assert.equal(hasEntitlement(result, FEATURE.SOS_VOICE_MESSAGES), false);
   assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
 });
 
@@ -59,6 +60,7 @@ test('Family receives WhatsApp but not Care medication services', () => {
   const result = evaluateSubscription(subscription(PLAN.FAMILY), { now: NOW });
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_WATCH_COMMANDS), true);
+  assert.equal(hasEntitlement(result, FEATURE.SOS_VOICE_MESSAGES), true);
   assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
 });
 
@@ -105,6 +107,7 @@ test('forged service owner relationship fails closed', async () => {
 test('minimum plan is deterministic for every advertised feature', () => {
   assert.equal(minimumPlanFor(FEATURE.LIVE_GPS), PLAN.ESSENTIAL);
   assert.equal(minimumPlanFor(FEATURE.WHATSAPP_QA), PLAN.FAMILY);
+  assert.equal(minimumPlanFor(FEATURE.SOS_VOICE_MESSAGES), PLAN.FAMILY);
   assert.equal(minimumPlanFor(FEATURE.MEDICATION_REMINDERS), PLAN.CARE);
 });
 

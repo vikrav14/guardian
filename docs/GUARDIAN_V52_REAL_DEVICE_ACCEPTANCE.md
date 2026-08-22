@@ -67,14 +67,61 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
-## Test 3 — calls
+## Test 2A — SOS voice message over data
 
-1. From the Guardian app, call the watch and hold a short two-way conversation.
-2. From the watch, call the configured guardian/SOS number and hold a short two-way conversation.
-3. Repeat once with the gateway stopped. Voice should remain a carrier function when cellular voice coverage is available.
-4. Record date, direction, ring result, two-way audio and any carrier charge.
+This test covers a wearer-recorded V52 message, not silent listening. Keep
+`SOS_VOICE_MESSAGES_ENABLED=false` until the Meta template below is approved
+and the test recipients have been informed.
 
-Pass: both directions work on the target SIM/carrier and failure copy is accurate. These calls do not use the watch's 500MB data allowance; normal carrier voice charges may apply.
+1. Submit and obtain approval for the English Utility template
+   `guardian_sos_voice_ready_v1` exactly as documented in
+   `docs/services/voice-messages.md`.
+2. Configure `FIREBASE_STORAGE_BUCKET` and the template name. Enable the flag
+   only for the controlled pilot.
+3. Press SOS on the physical watch once and require the normal SOS alert first.
+4. Use the watch's voice-message interface to record approximately five
+   seconds saying a harmless test phrase.
+5. Require a binary `TK` receipt, a valid `audio/amr` clip tied to that alert,
+   and `TK,1` only after Storage and Firestore both accept it.
+6. Require one `guardian_sos_voice_ready_v1` template for each entitled test
+   recipient. Confirm it contains **Play SOS voice message**.
+7. Tap the button from the intended WhatsApp number and confirm an intelligible
+   audio message arrives. Copying the same button payload to another number
+   must not release audio.
+8. Record packet bytes and clip duration. Repeat with 15 and 30 seconds; clips
+   beyond the configured bounds must receive `TK,0`.
+9. Record a voice message without an unresolved SOS and require `TK,0`, no
+   Storage object and no WhatsApp template.
+10. Let a test clip expire and confirm local Storage deletion, delivery-token
+    deletion and a Meta media deletion attempt. The original SOS alert remains.
+
+Pass: one complete real V52 AMR upload, durable SOS binding, recipient-bound
+template delivery, intelligible WhatsApp audio after the recipient taps, and
+expiry enforcement. If the watch sends undocumented chunks, stop acceptance
+and update the parser from the redacted capture; do not guess chunk framing.
+
+## Test 3 — approved incoming family calls
+
+Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
+The supported direction is an approved guardian calling the watch; after the
+wearer answers, audio is two-way.
+
+1. Provision an approved number through `npm run phonebook:provision`.
+2. Confirm the entry appears, then reboot and confirm it persists.
+3. Call the watch from the approved number and hold a short conversation.
+4. Call from an unknown number and confirm the watch does not ring.
+5. Repeat the approved call with the gateway stopped. Voice should remain a
+   carrier function when cellular voice coverage is available.
+6. Record date, firmware, SIM package, ring result, two-way audio and carrier
+   charging without recording the contact number in GitHub.
+
+Pass: approved incoming call rings, unknown caller is blocked, and both sides
+can hear and speak clearly after answer. Outbound `CALL`, watch dial-pad calls
+and wearer-originated phonebook calls are not part of the Guardian promise.
+
+Pilot result, 22 August 2026: passed on one physical V52, including persistence
+after reboot. Repeat on a second production-equivalent watch/SIM before
+customer activation.
 
 ## Test 4 — safe zones
 

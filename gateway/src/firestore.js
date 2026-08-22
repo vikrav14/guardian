@@ -1,6 +1,7 @@
 const fs = require('fs');
 const admin = require('firebase-admin');
 const config = require('./config');
+const sosVoiceConfig = require('./sos-voice-config');
 const { buildJourneyDocumentId } = require('./journey-id');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
@@ -82,6 +83,9 @@ function initFirestore({ startWatchers = true } = {}) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     projectId: config.firebaseProjectId,
+    ...(sosVoiceConfig.firebaseStorageBucket
+      ? { storageBucket: sosVoiceConfig.firebaseStorageBucket }
+      : {}),
   });
 
   db = admin.firestore();

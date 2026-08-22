@@ -36,6 +36,7 @@ void main() {
     expect(result.serviceActive, true);
     expect(result.has(GuardianFeature.liveGps), true);
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), false);
+    expect(result.has(GuardianFeature.sosVoiceMessages), false);
     expect(result.caregiverLimit, 1);
     expect(result.locationHistoryDays, 7);
   });
@@ -47,6 +48,7 @@ void main() {
     );
 
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
+    expect(result.has(GuardianFeature.sosVoiceMessages), true);
     expect(result.has(GuardianFeature.medicationReminders), false);
     expect(result.caregiverLimit, 5);
     expect(result.locationHistoryDays, isNull);

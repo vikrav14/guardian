@@ -10,6 +10,10 @@ const {
 const { answerWithAssistant } = require('./assistant/claude');
 const { normalizeE164 } = require('./notify');
 const { sendMetaText } = require('./whatsapp-meta');
+const { deliverSosVoiceButton } = require('./sos-voice-messages');
+const {
+  parseSosVoiceButtonPayload,
+} = require('./service-backbones/voice-messages');
 const {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
@@ -19,6 +23,7 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
+const { provisionPhonebookContact } = require('./phonebook-provisioning');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -693,9 +698,9 @@ async function requireAdmin(req, res) {
 }
 
 /**
- * Device context includes a loved one's location and must never inherit the
- * ops API's convenient "dev-open" behavior. Local/ngrok testing therefore
- * requires either X-Admin-Key or an authorized Firebase bearer token.
+ * Sensitive reads and device-changing operations must never inherit the ops
+ * API's convenient "dev-open" behavior. Local/ngrok use therefore requires
+ * either X-Admin-Key or an authorized Firebase administrator bearer token.
  */
 async function requireStrictAdmin(req, res) {
   const auth = await checkAdminAuth(req);
@@ -705,7 +710,7 @@ async function requireStrictAdmin(req, res) {
   }
   if (auth.method === 'dev-open') {
     sendJson(res, 503, {
-      error: 'Device context endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
+      error: 'Strict admin endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
     });
     return false;
   }
@@ -966,9 +971,66 @@ function startHttpServer() {
       }
 
       if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-phonebook/contact'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionPhonebookContact(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'phonebook_contact',
+                slot: result.slot,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // The watch may already have received PHBX. Return the real handoff
+          // result so an operator does not retry blindly and duplicate work.
+          console.error('[phonebook-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
+        // This route can write arbitrary commands to a live watch. It must
+        // never inherit the ops API's convenient dev-open behavior, including
+        // when HTTP port 9001 is exposed through an ngrok webhook tunnel.
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
         const imei =
           url.searchParams.get('imei') ||
           url.searchParams.get('protocolId');
@@ -1090,6 +1152,46 @@ function startHttpServer() {
           if (!metaInboundDeduper.claim(message.id)) {
             console.log(`[meta-webhook] duplicate ignored id=${message.id}`);
             continue;
+          }
+
+          const sosVoiceToken = parseSosVoiceButtonPayload(message.buttonPayload);
+          if (sosVoiceToken) {
+            incrementMetric('whatsappInbound');
+            try {
+              const playback = await deliverSosVoiceButton({
+                db: getDb(),
+                from: normalizeE164(message.from),
+                buttonPayload: message.buttonPayload,
+              });
+              if (playback.ok) {
+                metaInboundDeduper.markDone(message.id);
+                console.log(
+                  `[meta-webhook] SOS voice delivered id=${message.id} ` +
+                    `outbound=${playback.messageId || 'unknown'}`
+                );
+                continue;
+              }
+
+              const unavailable = await sendMetaText(
+                message.from,
+                'This SOS voice message is unavailable or has expired. Check the Guardian SOS alert and call the watch if you still need to check on the wearer.'
+              );
+              if (unavailable.ok) {
+                metaInboundDeduper.markDone(message.id);
+                console.warn(
+                  `[meta-webhook] SOS voice unavailable id=${message.id} reason=${playback.reason}`
+                );
+              } else {
+                metaInboundDeduper.release(message.id);
+                shouldRetry = true;
+              }
+              continue;
+            } catch (err) {
+              metaInboundDeduper.release(message.id);
+              shouldRetry = true;
+              console.error('[meta-webhook] SOS voice playback failed', err.message);
+              continue;
+            }
           }
 
           // Media/unsupported payloads are acknowledged but intentionally do

@@ -78,6 +78,17 @@ function extractMessageText(message = {}) {
   return '';
 }
 
+function extractMessageButtonPayload(message = {}) {
+  const type = String(message.type || '').toLowerCase();
+  if (type === 'button') {
+    return String(message.button?.payload || '').trim() || null;
+  }
+  if (type === 'interactive' && message.interactive?.type === 'button_reply') {
+    return String(message.interactive?.button_reply?.id || '').trim() || null;
+  }
+  return null;
+}
+
 function extractMetaInboundMessages(payload, expectedPhoneNumberId = '') {
   if (!payload || payload.object !== 'whatsapp_business_account') {
     return [];
@@ -112,6 +123,7 @@ function extractMetaInboundMessages(payload, expectedPhoneNumberId = '') {
           timestamp: message.timestamp || null,
           type: message.type || null,
           text: extractMessageText(message),
+          buttonPayload: extractMessageButtonPayload(message),
           phoneNumberId,
         });
       }
@@ -247,6 +259,7 @@ module.exports = {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
   extractMessageText,
+  extractMessageButtonPayload,
   extractMetaInboundMessages,
   extractMetaDeliveryStatuses,
   MetaMessageDeduper,
