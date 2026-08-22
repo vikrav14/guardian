@@ -969,6 +969,12 @@ function startHttpServer() {
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
+        // This route can write arbitrary commands to a live watch. It must
+        // never inherit the ops API's convenient dev-open behavior, including
+        // when HTTP port 9001 is exposed through an ngrok webhook tunnel.
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
         const imei =
           url.searchParams.get('imei') ||
           url.searchParams.get('protocolId');

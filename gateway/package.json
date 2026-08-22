@@ -10,6 +10,7 @@
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
+    "phonebook:test": "node scripts/send-phonebook-contact.js",
     "journey:enrich": "node scripts/enrich-journey-presentation.js",
     "test": "node --test"
   },

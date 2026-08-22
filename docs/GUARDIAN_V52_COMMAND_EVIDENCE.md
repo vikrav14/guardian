@@ -38,6 +38,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
+| Phonebook contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Documented | First acceptance leaves picture empty. Confirm the entry appears, remains after reboot and can place/receive an approved carrier call. No delete form is assumed. |
 
 ## Alarm decoding guardrail
 

@@ -41,6 +41,50 @@ function ringToFindCommand() {
   return 'FIND';
 }
 
+function normalizeCallingPhone(phone) {
+  const normalized = String(phone || '')
+    .trim()
+    .replace(/[\s().-]/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+    throw new Error('Calling phone must use E.164 format, for example +23057123456');
+  }
+  return normalized;
+}
+
+/**
+ * V52 PHBX contact names are sent as UTF-16BE hexadecimal. This mirrors the
+ * vendor example (`0045007a0075006e`) without copying a real person's data.
+ */
+function phonebookNameHex(name) {
+  const normalized = String(name || '').trim();
+  const characters = Array.from(normalized);
+  if (characters.length === 0 || characters.length > 20) {
+    throw new Error('Phonebook name must contain 1-20 characters');
+  }
+  if (/[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error('Phonebook name contains unsupported control characters');
+  }
+  return Buffer.from(normalized, 'utf16le').swap16().toString('hex').toUpperCase();
+}
+
+/**
+ * Add or replace one V52 phonebook entry over the live TCP session.
+ *
+ * Vendor form:
+ *   PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
+ *
+ * Guardian deliberately leaves the optional picture field empty during the
+ * first real-device acceptance. Slots 1-15 are a conservative Guardian
+ * guardrail until the exact V52 capacity is confirmed on the target firmware.
+ */
+function phonebookContactCommand({ slot, name, phone }) {
+  const serial = Number(slot);
+  if (!Number.isInteger(serial) || serial < 1 || serial > 15) {
+    throw new Error('Phonebook slot must be an integer between 1 and 15');
+  }
+  return `PHBX,${serial},${phonebookNameHex(name)},${normalizeCallingPhone(phone)},`;
+}
+
 /** UTF-16BE hex encoding, 4 hex chars per character, no separators -- the
  * format TAKEPILLS reminder text uses. Confirmed against the vendor's own
  * example captures: "00660066"->"ff" is a placeholder-looking test string,
@@ -134,6 +178,7 @@ function uploadIntervalCommand(seconds) {
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
+  'set_phonebook_contact',
   'voice_monitor',
   'ring_to_find',
   'set_fall_detection',
@@ -146,6 +191,7 @@ const BUILDERS = {
   set_center_number: ({ phone }) => centerNumberCommand(phone),
   set_sos_number: ({ slot, phone }) => sosNumberCommand(slot, phone),
   check_status: () => statusCommand(),
+  set_phonebook_contact: (params) => phonebookContactCommand(params),
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
   set_fall_detection: (params) => fallDetectionCommand(params),
@@ -195,6 +241,9 @@ module.exports = {
   statusCommand,
   voiceMonitorCommand,
   ringToFindCommand,
+  normalizeCallingPhone,
+  phonebookNameHex,
+  phonebookContactCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
