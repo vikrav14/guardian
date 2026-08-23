@@ -1,5 +1,5 @@
 /**
- * ReachFar V52 ASCII protocol decoder.
+ * ReachFar V52 protocol decoder.
  *
  * Frames use [CS*YYYYYYYYYY*LEN*command,data...] and V52 Annex I's fixed
  * positioning layout. Alarm decoding deliberately follows the V52 tracker
@@ -7,7 +7,7 @@
  * - CS: 2-byte factory code (for example, "3G" or "SG")
  * - YYYYYYYYYY: 10-digit protocol id; full IMEI is resolved separately
  * - LEN: 4-character ASCII hexadecimal content length
- * - command,data: payload (LK, UD_LTE, AL_LTE, and similar)
+ * - command,data: payload (normally ASCII; TK carries escaped binary AMR)
  */
 
 const {
@@ -16,6 +16,10 @@ const {
   isFullImei,
 } = require('../imei');
 const { parseLteExtras, isPlaceholderCoords } = require('../geolocate/google');
+const {
+  unescapeV52VoiceData,
+  validateSosVoiceClip,
+} = require('../service-backbones/voice-messages');
 
 function parseFiniteNumber(value) {
   if (value == null || String(value).trim() === '') return null;
@@ -247,32 +251,85 @@ function extractFrames(buffer) {
 }
 
 function decodeFrame(frame) {
-  // Parse ASCII frame: [CS*IMEI*LEN*cmd,data...]
-  const frameStr = frame.toString('ascii');
-  if (!frameStr.startsWith('[') || !frameStr.endsWith(']')) {
-    console.log(`[protocol] invalid frame delimiters: ${frameStr.substring(0, 50)}`);
+  // Parse [CS*IMEI*LEN*cmd,data...]. Do not convert the entire frame to a
+  // string: TK embeds escaped AMR bytes and ASCII conversion corrupts bytes
+  // above 0x7f before they can be persisted or sent to WhatsApp.
+  if (
+    !Buffer.isBuffer(frame)
+    || frame.length < 8
+    || frame[0] !== 0x5b
+    || frame[frame.length - 1] !== 0x5d
+  ) {
+    console.log('[protocol] invalid frame delimiters');
     return { error: 'invalid_frame_delimiters' };
   }
 
-  const content = frameStr.slice(1, -1); // Remove brackets
-  const parts = content.split('*');
-  if (parts.length < 4) {
-    console.log(`[protocol] incomplete frame (${parts.length} parts): ${frameStr.substring(0, 50)}`);
+  const firstStar = frame.indexOf(0x2a, 1);
+  const secondStar = firstStar < 0 ? -1 : frame.indexOf(0x2a, firstStar + 1);
+  const thirdStar = secondStar < 0 ? -1 : frame.indexOf(0x2a, secondStar + 1);
+  if (firstStar < 0 || secondStar < 0 || thirdStar < 0) {
+    console.log('[protocol] incomplete frame header');
     return { error: 'incomplete_frame' };
   }
 
-  const factory = parts[0]; // CS (2 chars)
-  const imei = parts[1]; // YYYYYYYYYY (10 digits)
-  const lenHex = parts[2]; // LEN (4 hex digits)
-  const payload = parts.slice(3).join('*'); // Everything after 3rd *
+  const factory = frame.subarray(1, firstStar).toString('ascii');
+  const imei = frame.subarray(firstStar + 1, secondStar).toString('ascii');
+  const lenHex = frame.subarray(secondStar + 1, thirdStar).toString('ascii');
+  const payloadBuffer = frame.subarray(thirdStar + 1, frame.length - 1);
 
   const expectedLen = parseInt(lenHex, 16);
-  if (payload.length !== expectedLen) {
+  if (!Number.isFinite(expectedLen) || payloadBuffer.length !== expectedLen) {
     return { error: 'length_mismatch' };
   }
 
-  // Split payload on first comma to separate command from args
-  const [command, ...argParts] = payload.split(',');
+  const commaIndex = payloadBuffer.indexOf(0x2c);
+  const commandBuffer = commaIndex < 0
+    ? payloadBuffer
+    : payloadBuffer.subarray(0, commaIndex);
+  const command = commandBuffer.toString('ascii');
+
+  if (command === 'TK') {
+    const wireData = commaIndex < 0
+      ? Buffer.alloc(0)
+      : payloadBuffer.subarray(commaIndex + 1);
+    const resultText = wireData.toString('ascii');
+    const voiceResult = wireData.length === 1 && (resultText === '0' || resultText === '1')
+      ? Number(resultText)
+      : null;
+
+    if (voiceResult != null) {
+      return {
+        factory,
+        imei,
+        command,
+        args: [resultText],
+        payload: `TK,${resultText}`,
+        voiceResult,
+      };
+    }
+
+    let voiceData;
+    try {
+      voiceData = unescapeV52VoiceData(wireData);
+    } catch (err) {
+      return { error: err.message || 'invalid_v52_tk_escape' };
+    }
+
+    return {
+      factory,
+      imei,
+      command,
+      args: [],
+      payload: 'TK,<binary-amr>',
+      voiceData,
+      voiceWireBytes: wireData.length,
+    };
+  }
+
+  const payload = payloadBuffer.toString('ascii');
+  const argParts = commaIndex < 0
+    ? []
+    : payloadBuffer.subarray(commaIndex + 1).toString('ascii').split(',');
 
   return {
     factory,
@@ -284,6 +341,13 @@ function decodeFrame(frame) {
 }
 
 function handlePacket(decoded, session) {
+  if (decoded?.error) {
+    return {
+      acks: [],
+      events: [{ type: 'parse_error', error: decoded.error }],
+    };
+  }
+
   const { imei: rawId, command, args, payload } = decoded;
   const acks = [];
   const events = [];
@@ -304,7 +368,40 @@ function handlePacket(decoded, session) {
   const eventMeta = { imei, protocolId };
 
   // Route by command type
-  if (command === 'LK') {
+  if (command === 'TK') {
+    if (decoded.voiceResult != null) {
+      events.push({
+        type: 'voice_message_receipt',
+        ...eventMeta,
+        accepted: decoded.voiceResult === 1,
+      });
+    } else {
+      const inspection = validateSosVoiceClip(decoded.voiceData);
+      if (!inspection.ok) {
+        acks.push(buildAckFrame(protocolId, 'TK,0'));
+        events.push({
+          type: 'voice_message_rejected',
+          ...eventMeta,
+          reason: inspection.reason,
+        });
+      } else {
+        // ACK is deliberately deferred until the clip is bound to an active
+        // SOS and stored. TK,1 must mean Guardian accepted the clip, not only
+        // that its bytes happened to parse.
+        events.push({
+          type: 'voice_message',
+          ...eventMeta,
+          audio: Buffer.from(decoded.voiceData),
+          codec: inspection.codec,
+          contentType: inspection.contentType,
+          byteLength: inspection.byteLength,
+          durationMs: inspection.durationMs,
+          voiceWireBytes: decoded.voiceWireBytes,
+          deferredAck: true,
+        });
+      }
+    }
+  } else if (command === 'LK') {
     // Link keep-alive / heartbeat
     const hb = parseLkData([command, ...args]);
     acks.push(buildAckFrame(protocolId, 'LK'));

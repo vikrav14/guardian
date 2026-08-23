@@ -6,6 +6,7 @@ const {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
   extractMessageText,
+  extractMessageButtonPayload,
   extractMetaInboundMessages,
   extractMetaDeliveryStatuses,
   MetaMessageDeduper,
@@ -65,17 +66,17 @@ test('extracts Meta inbound text message and stable wamid', () => {
     object: 'whatsapp_business_account',
     entry: [
       {
-        id: '930822510061984',
+        id: 'waba-test',
         changes: [
           {
             field: 'messages',
             value: {
               metadata: {
-                phone_number_id: '1172425059296685',
+                phone_number_id: 'phone-number-id-test',
               },
               messages: [
                 {
-                  from: '23058590100',
+                  from: '15550000001',
                   id: 'wamid.TEST123',
                   timestamp: '1786570000',
                   type: 'text',
@@ -91,12 +92,12 @@ test('extracts Meta inbound text message and stable wamid', () => {
 
   const messages = extractMetaInboundMessages(
     payload,
-    '1172425059296685'
+    'phone-number-id-test'
   );
 
   assert.equal(messages.length, 1);
   assert.equal(messages[0].id, 'wamid.TEST123');
-  assert.equal(messages[0].from, '23058590100');
+  assert.equal(messages[0].from, '15550000001');
   assert.equal(messages[0].text, 'Where is Mum?');
 });
 
@@ -110,7 +111,7 @@ test('ignores delivery-status webhook payloads', () => {
             field: 'messages',
             value: {
               metadata: {
-                phone_number_id: '1172425059296685',
+                phone_number_id: 'phone-number-id-test',
               },
               statuses: [
                 {
@@ -126,13 +127,13 @@ test('ignores delivery-status webhook payloads', () => {
   };
 
   assert.deepEqual(
-    extractMetaInboundMessages(payload, '1172425059296685'),
+    extractMetaInboundMessages(payload, 'phone-number-id-test'),
     []
   );
 
   const statuses = extractMetaDeliveryStatuses(
     payload,
-    '1172425059296685'
+    'phone-number-id-test'
   );
   assert.equal(statuses.length, 1);
   assert.equal(statuses[0].messageId, 'wamid.OUTBOUND');
@@ -143,9 +144,9 @@ test('extracts sanitized Meta failure details and provider timestamp', () => {
   const payload = {
     object: 'whatsapp_business_account',
     entry: [{ changes: [{ field: 'messages', value: {
-      metadata: { phone_number_id: '1172425059296685' },
+      metadata: { phone_number_id: 'phone-number-id-test' },
       statuses: [{
-        id: 'wamid.FAIL', status: 'failed', recipient_id: '23058590100',
+        id: 'wamid.FAIL', status: 'failed', recipient_id: '15550000001',
         timestamp: '1786570000',
         errors: [{
           code: 131026, title: 'Message undeliverable',
@@ -155,9 +156,9 @@ test('extracts sanitized Meta failure details and provider timestamp', () => {
       }],
     } }] }],
   };
-  const [status] = extractMetaDeliveryStatuses(payload, '1172425059296685');
+  const [status] = extractMetaDeliveryStatuses(payload, 'phone-number-id-test');
   assert.equal(status.status, 'failed');
-  assert.equal(status.recipientId, '23058590100');
+  assert.equal(status.recipientId, '15550000001');
   assert.equal(status.errors[0].code, 131026);
   assert.equal(status.errors[0].details, 'Recipient unavailable');
   assert(status.occurredAt instanceof Date);
@@ -177,7 +178,7 @@ test('ignores messages for a different configured phone number id', () => {
               },
               messages: [
                 {
-                  from: '23058590100',
+                  from: '15550000001',
                   id: 'wamid.WRONG_PHONE',
                   type: 'text',
                   text: { body: 'Battery?' },
@@ -191,7 +192,7 @@ test('ignores messages for a different configured phone number id', () => {
   };
 
   assert.equal(
-    extractMetaInboundMessages(payload, '1172425059296685').length,
+    extractMetaInboundMessages(payload, 'phone-number-id-test').length,
     0
   );
 });
@@ -217,6 +218,52 @@ test('supports button and interactive quick-reply text', () => {
       },
     }),
     'Battery'
+  );
+
+  assert.equal(
+    extractMessageButtonPayload({
+      type: 'button',
+      button: {
+        text: 'Play SOS voice message',
+        payload: 'guardian_sos_voice:abcdefghijklmnopqrstuvwxyz123456',
+      },
+    }),
+    'guardian_sos_voice:abcdefghijklmnopqrstuvwxyz123456'
+  );
+
+  assert.equal(
+    extractMessageButtonPayload({
+      type: 'interactive',
+      interactive: {
+        type: 'button_reply',
+        button_reply: { id: 'voice-token', title: 'Play' },
+      },
+    }),
+    'voice-token'
+  );
+});
+
+test('extracts recipient-bound payload from a template quick reply webhook', () => {
+  const payload = {
+    object: 'whatsapp_business_account',
+    entry: [{ changes: [{ field: 'messages', value: {
+      metadata: { phone_number_id: 'phone-number-id-test' },
+      messages: [{
+        from: '15550000001',
+        id: 'wamid.VOICE_BUTTON',
+        type: 'button',
+        button: {
+          text: 'Play SOS voice message',
+          payload: 'guardian_sos_voice:abcdefghijklmnopqrstuvwxyz123456',
+        },
+      }],
+    } }] }],
+  };
+  const [message] = extractMetaInboundMessages(payload, 'phone-number-id-test');
+  assert.equal(message.text, 'Play SOS voice message');
+  assert.equal(
+    message.buttonPayload,
+    'guardian_sos_voice:abcdefghijklmnopqrstuvwxyz123456'
   );
 });
 

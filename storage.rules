@@ -27,5 +27,12 @@ service firebase.storage {
         && request.resource.size <= 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+
+    // V52 SOS audio is backend-only. A linked guardian cannot turn a Storage
+    // path into a permanent bearer URL; playback is released through the
+    // recipient-bound WhatsApp quick reply while its SOS delivery is valid.
+    match /sosVoiceMessages/{clipId}/{fileName} {
+      allow read, write: if false;
+    }
   }
 }

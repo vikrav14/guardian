@@ -44,12 +44,12 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users', 'owner'), {
       serviceOwnerUid: 'owner',
       memberUids: ['member'],
-      linkedImeis: ['861397052547492'],
+      linkedImeis: ['123456789012345'],
       displayName: 'Owner',
     });
     await setDoc(doc(db, 'users', 'member'), {
       serviceOwnerUid: 'owner',
-      linkedImeis: ['861397052547492'],
+      linkedImeis: ['123456789012345'],
       displayName: 'Member',
     });
     await setDoc(doc(db, 'users', 'unverified'), {
@@ -66,13 +66,13 @@ beforeEach(async () => {
       plan: 'care',
       status: 'active',
     });
-    await setDoc(doc(db, 'devices', '861397052547492'), {
+    await setDoc(doc(db, 'devices', '123456789012345'), {
       online: true,
       careProfile: 'senior',
       carePriorities: [],
     });
     await setDoc(
-      doc(db, 'devices', '861397052547492', 'locations', 'recent'),
+      doc(db, 'devices', '123456789012345', 'locations', 'recent'),
       {
         lat: -20,
         lng: 57,
@@ -80,7 +80,7 @@ beforeEach(async () => {
       },
     );
     await setDoc(
-      doc(db, 'devices', '861397052547492', 'locations', 'old'),
+      doc(db, 'devices', '123456789012345', 'locations', 'old'),
       {
         lat: -20,
         lng: 57,
@@ -91,7 +91,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '123456789012345',
         'journeys',
         'journey-1',
       ),
@@ -104,7 +104,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '123456789012345',
         'journeys',
         'journey-1',
         'presentations',
@@ -121,7 +121,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '123456789012345',
         'journeys',
         'journey-expired',
         'presentations',
@@ -135,9 +135,27 @@ beforeEach(async () => {
       },
     );
     await setDoc(doc(db, 'medicationReminders', 'med-1'), {
-      imei: '861397052547492',
+      imei: '123456789012345',
       text: 'Tablets',
       createdBy: 'owner',
+    });
+    await setDoc(doc(db, 'sosVoiceMessages', 'voice-active'), {
+      imei: '123456789012345',
+      alertId: 'sos-1',
+      status: 'available',
+      durationMs: 2000,
+      expiresAt: new Date(now + 60 * 60 * 1000),
+    });
+    await setDoc(doc(db, 'sosVoiceMessages', 'voice-expired'), {
+      imei: '123456789012345',
+      alertId: 'sos-1',
+      status: 'available',
+      durationMs: 2000,
+      expiresAt: new Date(now - 60 * 1000),
+    });
+    await setDoc(doc(db, 'sosVoiceDeliveries', 'opaque-token-hash'), {
+      clipId: 'voice-active',
+      expiresAt: new Date(now + 60 * 60 * 1000),
     });
   });
 });
@@ -273,10 +291,10 @@ test('Essential can read recent history but not history older than seven days', 
   });
   const db = authedDb('owner');
   await assertSucceeds(
-    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'recent')),
+    getDoc(doc(db, 'devices', '123456789012345', 'locations', 'recent')),
   );
   await assertFails(
-    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'old')),
+    getDoc(doc(db, 'devices', '123456789012345', 'locations', 'old')),
   );
 });
 
@@ -291,7 +309,7 @@ test('Family and Care can read retained history without the Essential window', a
       doc(
         authedDb('member'),
         'devices',
-        '861397052547492',
+        '123456789012345',
         'locations',
         'old',
       ),
@@ -310,7 +328,7 @@ test('linked Family users can query journeys for a bounded day', async () => {
     collection(
       authedDb('member'),
       'devices',
-      '861397052547492',
+      '123456789012345',
       'journeys',
     ),
     where('startAt', '>=', new Date(now - 24 * 60 * 60 * 1000)),
@@ -326,7 +344,7 @@ test('linked users can read only unexpired journey presentations', async () => {
   const active = doc(
     db,
     'devices',
-    '861397052547492',
+    '123456789012345',
     'journeys',
     'journey-1',
     'presentations',
@@ -335,7 +353,7 @@ test('linked users can read only unexpired journey presentations', async () => {
   const expired = doc(
     db,
     'devices',
-    '861397052547492',
+    '123456789012345',
     'journeys',
     'journey-expired',
     'presentations',
@@ -349,7 +367,7 @@ test('linked users can read only unexpired journey presentations', async () => {
       doc(
         authedDb('attacker'),
         'devices',
-        '861397052547492',
+        '123456789012345',
         'journeys',
         'journey-1',
         'presentations',
@@ -358,6 +376,40 @@ test('linked users can read only unexpired journey presentations', async () => {
     ),
   );
   await assertFails(updateDoc(active, { attribution: 'forged' }));
+});
+
+test('only linked Family or Care members can read unexpired SOS voice metadata', async () => {
+  const careMember = authedDb('member');
+  await assertSucceeds(
+    getDoc(doc(careMember, 'sosVoiceMessages', 'voice-active')),
+  );
+  await assertFails(
+    getDoc(doc(careMember, 'sosVoiceMessages', 'voice-expired')),
+  );
+  await assertFails(
+    getDoc(doc(authedDb('attacker'), 'sosVoiceMessages', 'voice-active')),
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'essential',
+    });
+  });
+  await assertFails(
+    getDoc(doc(authedDb('owner'), 'sosVoiceMessages', 'voice-active')),
+  );
+});
+
+test('clients cannot alter SOS voice metadata or inspect recipient delivery tokens', async () => {
+  const db = authedDb('owner');
+  await assertFails(
+    updateDoc(doc(db, 'sosVoiceMessages', 'voice-active'), {
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    }),
+  );
+  await assertFails(
+    getDoc(doc(db, 'sosVoiceDeliveries', 'opaque-token-hash')),
+  );
 });
 
 test('medication data and commands require Guardian Care', async () => {
@@ -370,14 +422,14 @@ test('medication data and commands require Guardian Care', async () => {
   await assertFails(getDoc(doc(familyDb, 'medicationReminders', 'med-1')));
   await assertFails(
     setDoc(doc(familyDb, 'medicationReminders', 'med-family'), {
-      imei: '861397052547492',
+      imei: '123456789012345',
       text: 'Tablets',
       createdBy: 'owner',
     }),
   );
   await assertFails(
     setDoc(doc(familyDb, 'deviceCommands', 'med-command-family'), {
-      imei: '861397052547492',
+      imei: '123456789012345',
       type: 'set_medication_reminder',
       params: {},
       status: 'pending',
@@ -400,7 +452,7 @@ test('Care profile writes require Guardian Care', async () => {
       plan: 'family',
     });
   });
-  const deviceRef = doc(authedDb('owner'), 'devices', '861397052547492');
+  const deviceRef = doc(authedDb('owner'), 'devices', '123456789012345');
   await assertFails(updateDoc(deviceRef, { careProfile: 'adult' }));
 
   await testEnv.withSecurityRulesDisabled(async (context) => {

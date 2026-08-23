@@ -39,6 +39,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
 | Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
+| Watch/app voice message | `TK,<escaped AMR bytes>`; receiver replies `TK,1` or `TK,0` | Documented | Guardian has binary-safe decoding, AMR bounds and deferred durable ACK tests. Confirm whether the production V52 sends one complete AMR file or undocumented chunks, then prove a WhatsApp playback on the real watch. This is not `MONITOR` and never starts the microphone remotely. |
 
 ## Alarm decoding guardrail
 

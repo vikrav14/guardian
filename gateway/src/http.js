@@ -10,6 +10,10 @@ const {
 const { answerWithAssistant } = require('./assistant/claude');
 const { normalizeE164 } = require('./notify');
 const { sendMetaText } = require('./whatsapp-meta');
+const { deliverSosVoiceButton } = require('./sos-voice-messages');
+const {
+  parseSosVoiceButtonPayload,
+} = require('./service-backbones/voice-messages');
 const {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
@@ -1148,6 +1152,46 @@ function startHttpServer() {
           if (!metaInboundDeduper.claim(message.id)) {
             console.log(`[meta-webhook] duplicate ignored id=${message.id}`);
             continue;
+          }
+
+          const sosVoiceToken = parseSosVoiceButtonPayload(message.buttonPayload);
+          if (sosVoiceToken) {
+            incrementMetric('whatsappInbound');
+            try {
+              const playback = await deliverSosVoiceButton({
+                db: getDb(),
+                from: normalizeE164(message.from),
+                buttonPayload: message.buttonPayload,
+              });
+              if (playback.ok) {
+                metaInboundDeduper.markDone(message.id);
+                console.log(
+                  `[meta-webhook] SOS voice delivered id=${message.id} ` +
+                    `outbound=${playback.messageId || 'unknown'}`
+                );
+                continue;
+              }
+
+              const unavailable = await sendMetaText(
+                message.from,
+                'This SOS voice message is unavailable or has expired. Check the Guardian SOS alert and call the watch if you still need to check on the wearer.'
+              );
+              if (unavailable.ok) {
+                metaInboundDeduper.markDone(message.id);
+                console.warn(
+                  `[meta-webhook] SOS voice unavailable id=${message.id} reason=${playback.reason}`
+                );
+              } else {
+                metaInboundDeduper.release(message.id);
+                shouldRetry = true;
+              }
+              continue;
+            } catch (err) {
+              metaInboundDeduper.release(message.id);
+              shouldRetry = true;
+              console.error('[meta-webhook] SOS voice playback failed', err.message);
+              continue;
+            }
           }
 
           // Media/unsupported payloads are acknowledged but intentionally do

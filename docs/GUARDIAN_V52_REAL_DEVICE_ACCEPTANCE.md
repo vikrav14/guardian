@@ -67,6 +67,39 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
+## Test 2A — SOS voice message over data
+
+This test covers a wearer-recorded V52 message, not silent listening. Keep
+`SOS_VOICE_MESSAGES_ENABLED=false` until the Meta template below is approved
+and the test recipients have been informed.
+
+1. Submit and obtain approval for the English Utility template
+   `guardian_sos_voice_ready_v1` exactly as documented in
+   `docs/services/voice-messages.md`.
+2. Configure `FIREBASE_STORAGE_BUCKET` and the template name. Enable the flag
+   only for the controlled pilot.
+3. Press SOS on the physical watch once and require the normal SOS alert first.
+4. Use the watch's voice-message interface to record approximately five
+   seconds saying a harmless test phrase.
+5. Require a binary `TK` receipt, a valid `audio/amr` clip tied to that alert,
+   and `TK,1` only after Storage and Firestore both accept it.
+6. Require one `guardian_sos_voice_ready_v1` template for each entitled test
+   recipient. Confirm it contains **Play SOS voice message**.
+7. Tap the button from the intended WhatsApp number and confirm an intelligible
+   audio message arrives. Copying the same button payload to another number
+   must not release audio.
+8. Record packet bytes and clip duration. Repeat with 15 and 30 seconds; clips
+   beyond the configured bounds must receive `TK,0`.
+9. Record a voice message without an unresolved SOS and require `TK,0`, no
+   Storage object and no WhatsApp template.
+10. Let a test clip expire and confirm local Storage deletion, delivery-token
+    deletion and a Meta media deletion attempt. The original SOS alert remains.
+
+Pass: one complete real V52 AMR upload, durable SOS binding, recipient-bound
+template delivery, intelligible WhatsApp audio after the recipient taps, and
+expiry enforcement. If the watch sends undocumented chunks, stop acceptance
+and update the parser from the redacted capture; do not guess chunk framing.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

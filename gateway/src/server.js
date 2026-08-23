@@ -8,7 +8,12 @@ const { buildSessionPersistPatch, shouldForceSessionPersist, buildPresenceTouchP
 const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offline');
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
 
-const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
+const {
+  extractFrames,
+  decodeFrame,
+  handlePacket,
+  buildAckFrame,
+} = require('./protocol/gt06');
 
 const {
 
@@ -47,6 +52,10 @@ const {
 const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
+const {
+  ingestSosVoiceMessage,
+  startSosVoiceMessageCleanup,
+} = require('./sos-voice-messages');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 
@@ -122,6 +131,7 @@ startHttpServer();
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
   startReminderScheduler(getDb(), { checkIntervalMs: 60000 });
+  startSosVoiceMessageCleanup(getDb());
 }
 
 
@@ -1018,6 +1028,19 @@ async function applyEvents(events, session) {
 
         );
 
+      } else if (event.type === 'voice_message_receipt') {
+
+        console.log(
+          `[sos-voice] watch ${event.protocolId || event.imei} ` +
+            `reported downlink=${event.accepted ? 'accepted' : 'failed'}`
+        );
+
+      } else if (event.type === 'voice_message_rejected') {
+
+        console.warn(
+          `[sos-voice] rejected ${event.protocolId || event.imei}: ${event.reason}`
+        );
+
       } else if (event.type === 'unknown_command') {
 
         console.log(
@@ -1040,6 +1063,35 @@ async function applyEvents(events, session) {
 
   }
 
+}
+
+
+
+async function acceptSosVoiceMessage(socket, event) {
+
+  let outcome;
+  try {
+    outcome = await ingestSosVoiceMessage({
+      db: getDb(),
+      imei: event.imei,
+      audio: event.audio,
+    });
+  } catch (err) {
+    outcome = { ok: false, reason: err.message || 'voice_ingest_failed' };
+  }
+
+  const result = outcome?.ok ? 1 : 0;
+  if (!socket.destroyed && socket.writable) {
+    socket.write(buildAckFrame(event.protocolId, `TK,${result}`));
+  }
+  if (outcome?.ok) {
+    console.log(
+      `[sos-voice] accepted ${event.imei} clip=${outcome.clipId} ` +
+        `durationMs=${outcome.durationMs || 'duplicate'}`
+    );
+  } else {
+    console.warn(`[sos-voice] rejected ${event.imei}: ${outcome?.reason || 'unknown'}`);
+  }
 }
 
 
@@ -1102,7 +1154,18 @@ const server = net.createServer((socket) => {
 
       }
 
-      applyEvents(events, session).catch((err) => {
+      const ordinaryEvents = [];
+      for (const event of events) {
+        if (event.type === 'voice_message') {
+          acceptSosVoiceMessage(socket, event).catch((err) => {
+            console.error('[sos-voice] ingest failed', err);
+          });
+        } else {
+          ordinaryEvents.push(event);
+        }
+      }
+
+      applyEvents(ordinaryEvents, session).catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 

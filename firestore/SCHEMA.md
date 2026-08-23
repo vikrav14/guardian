@@ -254,6 +254,7 @@ unaltered GPS evidence.
 | notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+| voiceMessage | map \| null | Backend-owned `{ clipId, status, durationMs, expiresAt }` added only when a valid V52 `TK` clip is bound to this unresolved SOS. |
 
 ### Fall `payload.locationSnapshot`
 
@@ -346,6 +347,54 @@ Gateway fan-out audit trail (optional carrier SMS and Meta WhatsApp attempts).
 | deliverySummary | map | Aggregate Meta accepted/delivered/failed counts |
 | deliveryUpdatedAt | timestamp \| null | Latest Meta status timestamp |
 | createdAt | timestamp | |
+
+## `sosVoiceMessages/{clipId}`
+
+Backend-owned metadata for a bounded V52 AMR clip. Audio bytes live in private
+Storage at `sosVoiceMessages/{clipId}/{imei}.amr`; no client Storage rule can
+read or mint a permanent download URL. Family/Care clients may read only
+unexpired metadata for a linked watch. Playback is released through a separate
+recipient-bound WhatsApp capability.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Currently `1` |
+| imei | string | Watch that uploaded the `TK` frame |
+| alertId | string | Unresolved SOS inside the 30-minute acceptance window |
+| source | string | `v52_tk` |
+| wearerName | string | Bounded display label used by the approved template |
+| eventAt | timestamp | Matched SOS event time |
+| storagePath | string \| null | Private Admin-SDK object path; cleared at expiry |
+| status | string | `available` \| `expired` |
+| codec | string | `amr-nb` after frame validation; AMR-WB fails closed pending hardware/provider acceptance |
+| contentType | string | Meta-supported AMR content type |
+| byteLength | number | Maximum 512 KiB |
+| durationMs | number | Parsed from AMR frames; maximum 30 seconds |
+| metaMediaId | string \| null | Created only after the recipient taps Play; cleared at expiry |
+| readyTemplateStatus | string | `pending` \| `accepted` \| `failed` \| `not_configured` |
+| createdAt | timestamp | Gateway receipt time |
+| expiresAt | timestamp | Maximum 24 hours after receipt |
+| expiredAt | timestamp \| null | Cleanup evidence |
+
+## `sosVoiceDeliveries/{deliveryHash}`
+
+Backend-only capability record for one approved WhatsApp recipient. The
+plaintext quick-reply token and phone number are never stored. The document ID
+is an HMAC over token plus recipient using the Meta app secret. Clients cannot
+read or write this collection.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | Currently `1` |
+| clipId | string | Related `sosVoiceMessages` record |
+| imei | string | Related watch |
+| alertId | string | Related SOS |
+| status | string | `ready` \| `template_accepted` \| `template_failed` \| `audio_accepted` \| `audio_failed` |
+| templateMessageId | string \| null | Meta template `wamid` |
+| audioMessageId | string \| null | Meta audio `wamid` after the recipient taps |
+| createdAt | timestamp | |
+| expiresAt | timestamp | Matches the clip expiry; record is deleted by cleanup |
+| lastPlayedAt | timestamp \| null | Recipient action time |
 
 ## `metaDeliveryEvents/{eventId}`
 

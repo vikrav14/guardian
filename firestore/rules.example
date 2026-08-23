@@ -277,6 +277,21 @@ service cloud.firestore {
       allow write: if false; // gateway Admin SDK only
     }
 
+    match /sosVoiceMessages/{clipId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('family')
+        && resource.data.status == 'available'
+        && resource.data.expiresAt is timestamp
+        && resource.data.expiresAt > request.time;
+      allow create, update, delete: if false;
+    }
+
+    // Opaque quick-reply tokens are recipient-bound backend capabilities.
+    // Clients never read token hashes, recipient hashes, or delivery state.
+    match /sosVoiceDeliveries/{deliveryId} {
+      allow read, write: if false;
+    }
+
     match /deviceCommands/{commandId} {
       allow read: if linkedTo(resource.data.imei);
       allow create: if linkedTo(request.resource.data.imei)
