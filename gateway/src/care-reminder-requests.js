@@ -4,6 +4,8 @@ const admin = require('firebase-admin');
 const { evaluateSubscription } = require('./entitlements');
 const { buildCareReminderSchedule } = require('./care-reminder-policy');
 
+let requestWatchUnsub = null;
+
 function normalizeAction(value) {
   const action = String(value || '').trim().toLowerCase();
   if (!['upsert', 'delete'].includes(action)) {
@@ -171,8 +173,43 @@ async function processCareReminderRequest(db, requestId, { now = new Date() } = 
   });
 }
 
+function startPendingCareReminderRequestWatcher(db) {
+  if (!db || requestWatchUnsub) return;
+  requestWatchUnsub = db
+    .collection('careReminderRequests')
+    .where('status', '==', 'pending')
+    .onSnapshot(
+      (snap) => {
+        snap.docChanges().forEach((change) => {
+          if (change.type !== 'added' && change.type !== 'modified') return;
+          if ((change.doc.data() || {}).status !== 'pending') return;
+          processCareReminderRequest(db, change.doc.id)
+            .then((result) => {
+              const outcome = result.ok ? 'accepted_backend_only' : result.reason;
+              console.log(`[care-reminders] request ${change.doc.id} ${outcome}`);
+            })
+            .catch((error) => {
+              console.error('[care-reminders] request watcher error', error.message);
+            });
+        });
+      },
+      (error) => {
+        console.error('[care-reminders] request watcher failed', error.message);
+      },
+    );
+  console.log('[care-reminders] watching careReminderRequests with status=pending (backend-only)');
+}
+
+function stopPendingCareReminderRequestWatcher() {
+  if (!requestWatchUnsub) return;
+  requestWatchUnsub();
+  requestWatchUnsub = null;
+}
+
 module.exports = {
   normalizeAction,
   assessCareReminderAccess,
   processCareReminderRequest,
+  startPendingCareReminderRequestWatcher,
+  stopPendingCareReminderRequestWatcher,
 };
