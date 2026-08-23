@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const {
   buildConsentPatch,
   deleteDeviceReadings,
+  requestScheduleStop,
 } = require('../scripts/manage-wellbeing-consent');
 
 test('consent script records explicit grant and revocation authority', () => {
@@ -22,6 +23,36 @@ test('consent script records explicit grant and revocation authority', () => {
   });
   assert.equal(revoked.status, 'revoked');
   assert.equal(revoked.revokedAt, now);
+});
+
+test('revocation stop helper issues hrtstart,0 before consent is removed', async () => {
+  let request;
+  const result = await requestScheduleStop({
+    imei: '000000000000001',
+    adminApiKey: 'test-key',
+    httpPort: 9001,
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, async json() { return { sessions: 1 }; } };
+    },
+  });
+  assert.deepEqual(result, { requested: true, sessions: 1 });
+  assert.equal(request.options.headers['X-Admin-Key'], 'test-key');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    imei: '000000000000001',
+    metricSet: 'heart_rate_blood_pressure',
+    action: 'stop',
+  });
+});
+
+test('revocation still reports safely when the watch stop cannot be issued', async () => {
+  const result = await requestScheduleStop({
+    imei: '000000000000001',
+    adminApiKey: 'test-key',
+    httpPort: 9001,
+    fetchImpl: async () => { throw new Error('gateway offline'); },
+  });
+  assert.deepEqual(result, { requested: false, reason: 'gateway offline' });
 });
 
 test('revocation helper deletes every retained reading in bounded batches', async () => {
