@@ -98,3 +98,30 @@ surfaces.
 The customer flags must remain off until every acceptance gate has evidence
 attached to this pull request. A backend write, command acknowledgement or unit
 test is not physical counter acceptance.
+
+
+## QA handoff — counter accuracy and merge block
+
+The first pilot observations are useful but not a controlled accuracy result:
+
+- a prior controlled 100-step walk produced a backend delta of 99;
+- a later watch-display increase included carrying the watch outdoors for GPS
+  acceptance, so it cannot be classified as stationary false-step inflation;
+- one short carry back indoors increased the display by more than the operator's
+  estimated walking steps, but hand carrying, delayed counter updates and
+  pickup/put-down motion were not isolated.
+
+QA must complete and attach all of the following before merge:
+
+- [ ] 30-minute flat, untouched indoor stationary test;
+- [ ] 30-minute flat, untouched outdoor stationary test;
+- [ ] at least three 100-step walks with the watch worn normally;
+- [ ] a longer measured walk;
+- [ ] compare the on-watch value with Guardian's passive raw value after allowing
+      for delayed updates;
+- [ ] midnight rollover;
+- [ ] watch reboot and gateway restart as separate cases;
+- [ ] document acceptable tolerance and obtain product acceptance.
+
+Until QA signs off, keep the counter mode `unverified`, keep every customer
+surface disabled, do not advertise activity accuracy and do not merge this PR.
