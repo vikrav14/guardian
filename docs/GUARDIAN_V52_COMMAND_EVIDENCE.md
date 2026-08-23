@@ -38,8 +38,8 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
-| Enable/disable pedometer | `PEDO,1|0` | Documented | This configures counting; it is not a step-total upload. Guardian does not send it in the passive activity implementation. |
-| Configure counting windows | `WALKTIME,...` | Documented | Three vendor time sheets are documented. Confirm exact firmware behaviour only if Guardian needs to change watch defaults. |
+| Enable/disable pedometer | `PEDO,1|0` | Live-proven on one V52 for enable | `PEDO,1`, following the full-day sheet, changed the inactive Steps screen into a working counter. `PEDO,0` remains documented only. This configures counting; it does not upload a total. |
+| Configure counting windows | `WALKTIME,...` | Live-proven on one V52 as part of enable sequence | The vendor example's full-day sheet plus `PEDO,1` activated counting. The time-sheet command's independent effect and alternate windows remain unproven. |
 | Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
 
 ## Alarm decoding guardrail
@@ -69,9 +69,10 @@ battery field. Telemetry piggybacks on existing throttled device writes; it
 does not add one Firestore history document per packet.
 
 The activity pipeline consumes the same passive counter. `PEDO` and `WALKTIME`
-are configuration commands, not prerequisites for upload and are not sent by
-the implementation. Shadow aggregation and customer display have independent,
-default-off gates.
+are configuration commands, not step-total requests, and are never sent by
+passive ingestion. The explicit strict-admin provisioning workflow exists for
+new watches whose pedometer is inactive. Shadow aggregation and customer
+display have independent, default-off gates.
 
 Vendor documentation, automated tests and real-device acceptance are three
 different forms of evidence. A capability becomes a Guardian product promise

@@ -22,8 +22,25 @@ recorded.
   `WALKTIME`.
 
 Neither `PEDO` nor `WALKTIME` uploads a total. Guardian aggregates the passive
-counter already received in normal watch traffic. The commands are not sent by
-this implementation.
+counter already received in normal watch traffic. The passive pipeline never
+sends these commands automatically. A strict-admin technician workflow is
+available because the first live Guardian V52 presented an inactive pedometer.
+
+## Provision a new watch
+
+With the gateway running and the watch online, a technician may explicitly run:
+
+```bash
+npm run activity:provision -- --imei YOUR_DEVICE_IMEI --enable
+```
+
+The dedicated endpoint applies the documented full-day sheet
+`00:00-23:59,00:00-00:00,00:00-00:00` before `PEDO,1`. It requires
+`ADMIN_API_KEY`, records an audit event and returns no arbitrary downlink
+surface. A successful response means socket handoff only; the technician must
+still confirm that the watch's Steps screen activates and passive telemetry
+matches it. Disabling requires the explicit `--disable` flag and preserves the
+stored time sheet.
 
 ## Safety controls
 
@@ -42,6 +59,7 @@ this implementation.
 - [x] persist bounded `activityDays` records without per-packet history writes
 - [x] enforce linked-watch and Family/Care reads in Firestore rules
 - [x] serve deterministic today/seven-day WhatsApp summaries without an LLM
+- [x] provide strict-admin, audited new-watch pedometer provisioning
 
 ## Completed app
 
@@ -70,10 +88,10 @@ surfaces.
 
 ## Real-device acceptance
 
-- [ ] confirm raw `LK` and position counters on the exact V52 firmware
+- [x] confirm raw `LK` counter on the first Guardian V52 firmware
 - [ ] determine midnight, reboot and PEDO-off reset semantics
-- [ ] confirm `PEDO`/`WALKTIME` only if Guardian needs to change watch defaults
-- [ ] compare watch counters against controlled walks
+- [x] confirm the documented full-day `WALKTIME` plus `PEDO,1` activates the first Guardian V52
+- [ ] repeat controlled-walk accuracy across longer walks and another V52
 - [ ] test midnight timezone and reboot resets
 - [ ] measure battery and data impact
 

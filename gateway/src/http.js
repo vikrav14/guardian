@@ -20,6 +20,7 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { provisionActivitySteps } = require('./activity-steps-provisioning');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -1058,6 +1059,60 @@ function startHttpServer() {
         }
 
         sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-activity-steps/pedometer'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionActivitySteps(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'activity_steps_pedometer',
+                enabled: result.enabled,
+                windowMode: result.windowMode,
+                commandsHandedOff: result.commandsHandedOff,
+                commandsRequired: result.commandsRequired,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // A command may already have reached the watch. Preserve the exact
+          // handoff result so an operator does not retry a partial operation.
+          console.error('[activity-steps-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 409, { ...result, auditRecorded });
         return;
       }
 

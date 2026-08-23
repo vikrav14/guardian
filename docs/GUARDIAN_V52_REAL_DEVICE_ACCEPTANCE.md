@@ -147,8 +147,10 @@ Pass for the current product: canonical record, TCP dispatch, watch presentation
 
 ## Test 8 — steps and daily activity
 
-This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` unless a
-separate, vendor-confirmed configuration test requires them.
+This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
+ordinary accuracy run. If a new watch displays an inactive pedometer, use the
+strict-admin `activity:provision` workflow once and physically verify the
+result before continuing.
 
 1. Keep `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` and compile the app without
    `GUARDIAN_ACTIVITY_STEPS_ENABLED`.
@@ -165,6 +167,13 @@ separate, vendor-confirmed configuration test requires them.
 7. Observe data use and battery behaviour over at least one representative day.
 8. Only after the semantics are accepted, set counter mode to `daily_reset`,
    keep both customer surfaces off, and verify at least one clean stored day.
+
+First-device evidence collected on 23 August 2026: the documented full-day
+`WALKTIME` followed by `PEDO,1` activated the watch counter, and its displayed
+103 matched the backend raw 103. A subsequent controlled 100-step walk advanced
+the backend raw counter by 99, with no reset or anomaly; record the corresponding
+final watch display before closing the run. This is initial evidence on one
+device, not fleet acceptance.
 
 Pass: controlled walk difference is within the recorded tolerance, midnight
 and reboot/reset semantics are repeatable, anomalous or out-of-order packets
