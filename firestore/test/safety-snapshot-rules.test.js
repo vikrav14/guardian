@@ -48,7 +48,7 @@ before(async () => {
       imei,
       requestedBy: 'family-user',
       serviceOwnerUid: 'family-user',
-      status: 'authorized_backend_only',
+      state: 'waiting_for_device_acceptance',
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       publicUrl: null,
     });
@@ -57,7 +57,7 @@ before(async () => {
       imei,
       requestedBy: 'family-user',
       serviceOwnerUid: 'family-user',
-      outcome: 'authorized_backend_only',
+      outcome: 'accepted_backend_only',
       deviceCommandSent: false,
     });
   });
@@ -72,7 +72,7 @@ function validRequest(requestedBy) {
     imei,
     requestedBy,
     status: 'pending',
-    purposeConfirmed: true,
+    safetyPurposeConfirmed: true,
     consentConfirmed: true,
     purpose: 'Check the immediate surroundings after a safety concern',
     createdAt: serverTimestamp(),
@@ -108,6 +108,12 @@ test('requester identity and explicit consent cannot be spoofed or omitted', asy
       consentConfirmed: false,
     }),
   );
+  await assertFails(
+    setDoc(doc(db, 'safetySnapshotRequests', 'no-purpose-confirmation'), {
+      ...validRequest('family-user'),
+      safetyPurposeConfirmed: false,
+    }),
+  );
 });
 
 test('eligible linked Family user may read backend-owned authorization and audit', async () => {
@@ -122,7 +128,7 @@ test('clients cannot write authorization or audit records', async () => {
     setDoc(doc(db, 'safetySnapshotAuthorizations', 'client-write'), {
       imei,
       serviceOwnerUid: 'family-user',
-      status: 'authorized_backend_only',
+      state: 'waiting_for_device_acceptance',
     }),
   );
   await assertFails(
