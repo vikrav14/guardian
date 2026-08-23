@@ -224,16 +224,10 @@ function locationCapability(device, since) {
 }
 
 function wellbeingCapability(readings, since) {
-  const matching = readings.filter((reading) => after(reading, since));
-  const latestByMetric = {};
-  for (const reading of matching) {
-    const metric = String(reading.metricSet || 'unknown');
-    const current = latestByMetric[metric];
-    if (!current || (eventAt(reading)?.getTime() || 0) > (eventAt(current)?.getTime() || 0)) {
-      latestByMetric[metric] = reading;
-    }
-  }
-  const evidence = Object.values(latestByMetric).map((reading) => ({
+  const matching = readings
+    .filter((reading) => after(reading, since))
+    .sort((a, b) => (eventAt(b)?.getTime() || 0) - (eventAt(a)?.getTime() || 0));
+  const evidence = matching.slice(0, 24).map((reading) => ({
     id: reading.id || null,
     metricSet: reading.metricSet || null,
     values: reading.values || {},
@@ -241,16 +235,40 @@ function wellbeingCapability(readings, since) {
     displayable: reading.displayable === true,
     observedAt: asIso(reading.observedAt || reading.receivedAt),
   }));
+  const timestampsByMetric = {};
+  for (const reading of matching) {
+    const metric = String(reading.metricSet || 'unknown');
+    (timestampsByMetric[metric] ||= []).push(eventAt(reading));
+  }
+  const recurringMetrics = Object.fromEntries(
+    Object.entries(timestampsByMetric).map(([metric, timestamps]) => {
+      const ordered = timestamps.filter(Boolean).sort((a, b) => a - b);
+      return [metric, {
+        count: ordered.length,
+        observedAt: ordered.map((value) => value.toISOString()),
+        intervalSeconds: ordered.slice(1).map((value, index) =>
+          Math.round((value.getTime() - ordered[index].getTime()) / 1000)
+        ),
+      }];
+    }),
+  );
+  const recurringScheduleObserved =
+    (recurringMetrics.heart_rate_blood_pressure?.count || 0) >= 2 &&
+    (recurringMetrics.spo2?.count || 0) >= 2;
   return {
     releaseBlocking: false,
     status: evidence.length > 0
       ? ACCEPTANCE_STATUS.MANUAL_REQUIRED
       : ACCEPTANCE_STATUS.PENDING,
     protectedEvidencePresent: evidence.length > 0,
+    recurringScheduleObserved,
+    recurringMetrics,
     readings: evidence,
     note: evidence.length === 0
       ? 'No consent-gated V52 wellbeing upload was captured in this acceptance window.'
-      : 'Packet evidence exists. Compare each value with the watch display and repeat measurements before accepting the exact V52 firmware; no medical accuracy claim is made.',
+      : recurringScheduleObserved
+        ? 'Multiple protected heart/BP and SpO2 uploads exist in the window. Confirm no wearer action occurred and compare the schedule intervals; no medical accuracy claim is made.'
+        : 'Packet evidence exists. Compare each value with the watch display and repeat measurements before accepting the exact V52 firmware; no medical accuracy claim is made.',
   };
 }
 
