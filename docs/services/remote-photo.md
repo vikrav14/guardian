@@ -1,42 +1,100 @@
-# Secure safety photo requests
+# Safety snapshot
 
 | Field | Value |
 |---|---|
 | Service ID | `remote-photo` |
+| Product wording | **Safety snapshot** |
 | Minimum package | Family |
-| Current state | Backbone only; disabled |
-| Customer-visible | Only after acceptance |
-| Protocol surface | `FTPIP`, `FTPPWD`, `PIC` |
+| Current state | Software safety path; disabled |
+| Customer-visible | No |
+| Protocol inventory | `FTPIP`, `FTPPWD`, `PIC`, `rcapture` |
+| Accepted V52 capture commands | None |
 
-This draft establishes matching gateway and Flutter contracts. It does not activate a device command, expose a menu item, or promise the service to customers.
+Safety snapshot is designed as a **single, consent-bound contextual image** for a genuine family-safety question. It is not a live camera, continuous monitoring service, background camera, or covert-surveillance feature.
 
-## Safety controls
+## Intended product flow
 
-- explicit household consent
-- approved guardians only
-- private isolated media ingress
-- short automatic expiry
-- request rate limits and immutable audit
+1. An approved Family/Care guardian states a short safety purpose and confirms household consent.
+2. Guardian verifies the family membership, linked watch and active plan.
+3. The backend creates a one-time authorization bound to that requester and 15-digit IMEI.
+4. The authorization expires quickly and repeated requests are cooldown-limited.
+5. Only after exact-device protocol acceptance may a later reviewed path ask the V52 for one capture.
+6. Any returned image must match the same unexpired authorization before Guardian accepts it.
+7. Media stays private, has no permanent/public URL, and expires automatically after a short retention period.
+8. Authorized deletion removes the media immediately while preserving privacy-safe audit evidence.
 
-## Backend completion
+## Implemented software boundary
 
-- [ ] issue one-time photo request authorization
-- [ ] isolate V52 FTP ingress from public storage
-- [ ] validate and scan uploads
-- [ ] store encrypted media with automatic expiry
+- Family/Care linked-device authorization policy
+- inherited-family access requires backend-managed `memberUids`
+- explicit consent and safety-purpose confirmation
+- one-device / one-request authorization
+- 10-minute default authorization window
+- 15-minute default request cooldown
+- 24-hour default media-retention ceiling in the policy model
+- upload matching by authorization, device and request
+- public snapshot URLs rejected by policy
+- delete state clears the private media path
+- immutable request audit shape with `deviceCommandSent: false`
+- hidden Flutter snapshot status model and compile-time-gated read service
+- Flutter customer request path deliberately unavailable
+- product wording explicitly says a snapshot provides context only and does not prove safety
 
-## App completion
+## Protocol boundary
 
-- [ ] require safety-purpose confirmation
-- [ ] show request and upload progress
-- [ ] display access and expiry notice
-- [ ] support immediate photo deletion
+Guardian's V52 decoder recognizes `FTPIP`, `FTPPWD`, `PIC` and `rcapture` as server-to-watch protocol inventory. The current Guardian command-evidence ledger does **not** establish an accepted production payload or role for this capture family.
 
-## Real-device acceptance
+This PR therefore contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. In particular, Guardian must not assume that `rcapture` alone triggers a safe capture, that `PIC` is the request command, or that FTP configuration can safely point at arbitrary infrastructure.
 
-- [ ] confirm FTPIP FTPPWD and PIC behaviour on exact V52 firmware
-- [ ] complete privacy and security review
-- [ ] verify upload isolation and expiry
-- [ ] measure image size latency and SIM data use
+Exact physical acceptance must establish:
 
-The feature flag must remain off until every acceptance gate has evidence attached to this pull request.
+- which command/configuration initiates one capture
+- whether FTP configuration is persistent or per-session
+- where and how the V52 uploads the image
+- image type, size and naming behavior
+- latency and SIM data use
+- offline/reconnect behavior
+- whether the wearer sees or hears a capture indication
+- what happens on repeated requests, reboot and partial configuration
+
+## Media security boundary
+
+The repository currently has Firebase Storage CORS configuration but no dedicated Firebase Storage authorization rules for Safety snapshots. For this phase, media ingress must therefore remain **backend-only**. The mobile app must not upload snapshot media and must not receive a permanent/public Storage URL.
+
+Before real image ingestion is enabled, Guardian still needs:
+
+- isolated private ingress for the V52 upload transport
+- strict MIME/signature and size validation
+- malware/content-processing safety as appropriate to the accepted image format
+- a private storage path bound to the request/owner/device
+- short automatic expiry and deletion processing
+- authenticated, audited image viewing rather than public download URLs
+- access/deletion audit evidence
+
+## Remaining software gates
+
+- [x] one-time authorization policy
+- [x] Family/Care backend access policy
+- [x] cooldown and expiry semantics
+- [x] private-media/no-public-URL policy
+- [x] hidden Flutter read/presentation model
+- [ ] Firestore request/auth/audit authorization rules and emulator tests
+- [ ] backend watcher/startup gate for request processing
+- [ ] default-off gateway flags and release-gate regression tests
+- [ ] private media-ingress/storage implementation after transport acceptance
+- [ ] full gateway, Firestore and Flutter release gates on the completed software checkpoint
+
+## Physical/privacy acceptance
+
+- [ ] capture supplier documentation or exact-device evidence for `FTPIP`, `FTPPWD`, `PIC` and `rcapture`
+- [ ] prove wearer-visible/audible indication behavior
+- [ ] verify single-capture behavior and prevent continuous/repeated capture
+- [ ] measure image size, latency and SIM data use
+- [ ] test offline, reconnect, reboot and failure recovery
+- [ ] verify private ingress, expiry and immediate deletion
+- [ ] repeat on a second production-equivalent V52
+- [ ] complete privacy/security/product acceptance
+
+## Release rule
+
+Keep Safety snapshot customer-hidden and non-dispatchable. No photo command or FTP credential should be sent to a V52 until the exact transport and capture behavior are physically proven and separately accepted.
