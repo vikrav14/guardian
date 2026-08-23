@@ -4,12 +4,12 @@
 |---|---|
 | Service ID | `care-reminders` |
 | Minimum package | Care |
-| Current state | Software policy implemented; device sync disabled |
+| Current state | Software path implemented; device sync disabled |
 | Customer-visible | No |
 | Protocol surface | `SEDENTARY`, `REMIND`, `HSW` |
 | Accepted V52 reminder commands | None |
 
-This draft builds the safe software boundary for Care routines without activating a V52 command, exposing a customer menu, or claiming that a reminder proves adherence.
+This draft implements the safe software boundary for Care routines without activating a V52 command, exposing a customer menu, or claiming that a reminder proves adherence.
 
 ## Implemented software boundary
 
@@ -19,19 +19,56 @@ This draft builds the safe software boundary for Care routines without activatin
 - explicit backend-only / blocked-unverified / sent / failed sync states
 - delivery evidence kept separate from wearer acknowledgement
 - acknowledgement support fixed to unavailable until a real signal exists
+- Care-only, linked-device backend authorization
+- inherited family access requires backend-managed `memberUids`
+- audited `careReminderRequests` -> `careReminderSchedules` processing
+- immutable `careReminderAudit` evidence with `deviceCommandSent: false`
+- direct client writes to canonical schedules and audit records denied
+- Firestore emulator coverage for Care, Family, unlinked and requester-spoofing boundaries
+- backend request watcher integrated into the existing reminder scheduler, but gated off by default
 - Flutter schedule presentation model
-- Flutter customer read surface compiled out by default with `GUARDIAN_CARE_REMINDERS_ENABLED=false`
-- Flutter write/change path deliberately throws until audited backend processing is implemented and accepted
-- service contracts now customer-hidden with no accepted protocol command
+- Flutter customer reads compiled out by default with `GUARDIAN_CARE_REMINDERS_ENABLED=false`
+- Flutter write/change path remains unavailable until customer/product acceptance
+
+## Default-off release gates
+
+```dotenv
+CARE_REMINDERS_REQUESTS_ENABLED=false
+CARE_REMINDERS_DEVICE_MODE=unverified
+CARE_REMINDERS_CUSTOMER_ENABLED=false
+```
+
+Flutter remains compiled out by default:
+
+```text
+GUARDIAN_CARE_REMINDERS_ENABLED=false
+```
+
+`CARE_REMINDERS_DEVICE_MODE=accepted` by itself does not start request processing or expose customers. The request watcher requires its own explicit gate. This PR contains no `SEDENTARY`, `REMIND` or `HSW` dispatcher.
+
+## Firestore ownership
+
+### `careReminderRequests/{requestId}`
+
+A signed-in, linked Guardian Care user may enqueue a narrowly shaped `pending` request for their own identity. Clients cannot update or delete it after creation.
+
+### `careReminderSchedules/{scheduleId}`
+
+Canonical backend-owned schedule state. Eligible linked Care members may read records belonging to their effective service owner. All client writes are denied.
+
+### `careReminderAudit/{requestId}`
+
+Immutable backend-owned caregiver-change evidence. Eligible linked Care members may read their family records. All client writes are denied.
 
 ## Safety controls
 
-- Guardian Care entitlement remains required
+- Guardian Care entitlement is required
 - schedules must be wearer-visible when customer activation eventually occurs
-- quiet hours and rate limits remain mandatory
-- caregiver changes require immutable backend audit evidence before writes can be exposed
+- quiet hours remain part of the canonical schedule model
+- caregiver changes produce backend audit evidence before canonical state changes
 - no claim that reminders prove medication use, activity, acknowledgement or adherence
 - no `SEDENTARY`, `REMIND`, `HSW` or other reminder payload may be guessed from a command name
+- the existing medication reminder scheduler remains a separate service path
 
 ## Protocol boundary
 
@@ -39,22 +76,26 @@ The repository recognizes `SEDENTARY`, `REMIND` and `HSW` as server-to-watch pro
 
 `TAKEPILLS` has a separate documented builder in the existing command layer. That evidence does not prove that `SEDENTARY`, `REMIND` or `HSW` share its fields, schedule limits, display behaviour or acknowledgement semantics.
 
+## Software acceptance status
+
+- [x] canonical schedule policy
+- [x] Care/link authorization policy
+- [x] backend request processor and immutable audit shape
+- [x] request watcher startup wiring behind a default-off gate
+- [x] Care-only Firestore reads and denied direct client writes
+- [x] Firestore emulator authorization tests
+- [x] default-off gateway runtime gates
+- [x] hidden Flutter read/presentation model
+- [x] release-gate regression tests preventing device dispatch
+- [ ] full GitHub gateway, Firestore and Flutter release gates on the final software head
+
 ## Still required before customer activation
 
-### Backend and authorization
+### App / product
 
-- [ ] add backend-owned create/update/delete request processing with immutable caregiver audit
-- [ ] add Care-only Firestore reads for canonical schedules and deny direct client writes
-- [ ] add per-item idempotency/rate limits and safe retry state
-- [ ] add an explicit default-off gateway feature flag and accepted-device-mode gate before any dispatch path exists
-
-### App
-
-- [x] hidden schedule/read model
-- [x] watch-sync state wording
-- [x] separate delivered from acknowledged
-- [ ] accessible configuration UI after backend request/audit path exists
+- [ ] accessible configuration UI only after privacy/security/product approval
 - [ ] wearer-facing schedule visibility/product acceptance
+- [ ] customer feature flags enabled in a later reviewed PR
 
 ### Real-device acceptance
 
