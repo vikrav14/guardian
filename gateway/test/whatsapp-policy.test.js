@@ -11,6 +11,7 @@ test('functional Guardian intents may use the assistant', () => {
   for (const type of [
     'LOCATION_REQUEST',
     'DEVICE_STATUS',
+    'ACTIVITY_QUERY',
     'RECENT_ALERTS',
     'JOURNEY_QUERY',
     'DAILY_SUMMARY',

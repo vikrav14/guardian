@@ -123,6 +123,11 @@ Live device state. Document ID = device IMEI (digits only).
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
+The raw `stepsRaw` and `rollCountRaw` fields are diagnostic counters, not
+customer activity totals. Accepted daily totals are stored separately under
+`activityDays` so Family/Care rules can fail closed without placing a total on
+the broadly readable device document.
+
 ### `location` map
 
 | Field | Type |
@@ -142,6 +147,38 @@ This prevents a WiFi/LBS radius from leaking into a later GPS observation.
 During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
+
+## `devices/{imei}/activityDays/{localDate}`
+
+Gateway-owned daily activity records. Document ID is the local calendar date
+(`YYYY-MM-DD`) in the configured watch timezone. Clients cannot write these
+documents. Linked Family/Care users can read only records whose
+`displayable=true`; Essential and unverified records fail closed in rules.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| schemaVersion | number | Currently `1`. |
+| imei | string | Parent watch IMEI. |
+| localDate | string | Local `YYYY-MM-DD` date. |
+| timeZone | string | IANA timezone used for the day boundary. |
+| source | string | `v52_counter`; passive protocol telemetry. |
+| counterMode | string | `unverified` or physically accepted `daily_reset`. |
+| displayable | boolean | True only in accepted counter mode with no anomaly. |
+| reportedSteps | number \| null | Customer total only when `displayable=true`. |
+| observedDeltaSteps | number | Diagnostic sum of accepted raw deltas. |
+| firstRaw | number | First valid raw counter observed for the day. |
+| lastRaw | number | Most recent valid raw counter observed for the day. |
+| firstObservedAt | timestamp | Gateway receipt time of first sample. |
+| lastObservedAt | timestamp | Gateway receipt time of latest accepted-order sample. |
+| sampleCount | number | Valid in-order observations processed. |
+| resetCount | number | Same-day counter decreases recovered by the aggregator. |
+| anomalyCount | number | Implausible jumps; any positive value hides the day. |
+| quality | string | `unverified`, `partial`, `reset_recovered`, or `anomalous`. |
+| expiresAt | timestamp | Gateway retention deadline. |
+| updatedAt | timestamp | Last gateway persistence time. |
+
+The collection intentionally does not derive active minutes, distance,
+calories, fitness or medical conclusions from steps.
 
 ## `devices/{imei}/locations/{locationId}`
 
@@ -296,7 +333,7 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state. `set_phonebook_contact` is explicitly rejected by Firestore rules and the generic gateway command dispatcher; PHBX is available only through the strict administrator provisioning endpoint. |
 | params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
@@ -412,6 +449,7 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
 | Battery integer change | Upsert `batteryPercent` and its independent receipt timestamp. |
 | Persisted V52 heartbeat/location/alarm | Store validated latest cellular signal and raw activity counters without creating extra history writes. |
+| Passive V52 step observation while activity ingestion is enabled | Upsert one protected local-day `activityDays` document; duplicate counters are throttled and no customer total is exposed in `unverified` mode. |
 | SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
 | Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
 | First GPS fix after TCP connect | Always upsert location |

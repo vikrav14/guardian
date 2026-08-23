@@ -444,6 +444,49 @@ async function getDailySummary(
   };
 }
 
+async function getActivitySummary(
+  db,
+  ctx,
+  { days = 1, device_name: deviceName, imei } = {},
+) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  if (!db) return { error: 'Activity storage is unavailable.' };
+  const safeDays = Math.floor(Math.min(7, Math.max(1, Number(days) || 1)));
+  const snap = await db
+    .collection('devices')
+    .doc(device.imei)
+    .collection('activityDays')
+    .orderBy('localDate', 'desc')
+    .limit(7)
+    .get();
+  const records = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter(
+      (day) =>
+        day.displayable === true &&
+        Number.isInteger(day.reportedSteps) &&
+        day.reportedSteps >= 0,
+    )
+    .slice(0, safeDays)
+    .map((day) => ({
+      localDate: day.localDate || day.id,
+      steps: day.reportedSteps,
+      lastObservedAt:
+        day.lastObservedAt?.toDate?.()?.toISOString?.() ||
+        day.lastObservedAt ||
+        null,
+      quality: day.quality || 'partial',
+      resetRecovered: Number(day.resetCount || 0) > 0,
+    }));
+  return {
+    name: deviceLabel(device),
+    requestedDays: safeDays,
+    days: records,
+    medicalUse: false,
+  };
+}
+
 function listDevices(ctx) {
   return {
     devices: ctx.devices.map((d) => ({
@@ -862,6 +905,20 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'get_activity_summary',
+    description:
+      'Get accepted daily V52 step totals and freshness for one authorised watch.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        device_name: { type: 'string' },
+        imei: { type: 'string' },
+        days: { type: 'number', description: '1 for today or up to 7 recent days' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_device_intelligence',
     description:
       'Get gateway rule-based insights for a watch (topInsight from devices/{imei}.intelligence). Facts only — do not invent.',
@@ -940,6 +997,7 @@ async function runTool(db, ctx, name, input) {
     send_device_command: FEATURE.WHATSAPP_WATCH_COMMANDS,
     schedule_reminder: FEATURE.MEDICATION_REMINDERS,
     get_daily_summary: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
+    get_activity_summary: FEATURE.ACTIVITY_STEPS,
   }[name];
   if (requiredFeature && !hasEntitlement(ctx?.entitlements, requiredFeature)) {
     return { error: planBoundaryReply(ctx?.entitlements, requiredFeature), code: 'plan_required' };
@@ -957,6 +1015,8 @@ async function runTool(db, ctx, name, input) {
       return getRecentJourneys(db, ctx, input || {});
     case 'get_daily_summary':
       return getDailySummary(db, ctx, input || {});
+    case 'get_activity_summary':
+      return getActivitySummary(db, ctx, input || {});
     case 'get_device_intelligence':
       return getDeviceIntelligence(ctx, input || {});
     case 'is_at_geofence':
@@ -984,6 +1044,7 @@ module.exports = {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  getActivitySummary,
   executeConfirmedAction,
   planBoundaryReply,
   isAtGeofence,

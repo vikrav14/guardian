@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/alert.dart';
+import '../models/activity_day.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
@@ -516,6 +517,44 @@ class DeviceService {
           )
           .snapshots()
           .map((snap) => snap.docs.map(Device.fromDoc).toList());
+    });
+  }
+}
+
+class ActivityService {
+  ActivityService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<ActivityDay>> watchRecentDays({
+    required String imei,
+    required GuardianSubscription subscription,
+    int limit = 7,
+  }) {
+    if (!subscription.has(GuardianFeature.activitySteps)) {
+      return Stream.error(
+        StateError('Steps and daily activity require Guardian Family or Care.'),
+      );
+    }
+    final boundedLimit = limit.clamp(1, 31);
+    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+      if (!linked.contains(imei)) return Stream.value(const <ActivityDay>[]);
+      return _db
+          .collection('devices')
+          .doc(imei)
+          .collection('activityDays')
+          .where('displayable', isEqualTo: true)
+          .orderBy('localDate', descending: true)
+          .limit(boundedLimit)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map(ActivityDay.fromDoc)
+                .toList(growable: false),
+          );
     });
   }
 }

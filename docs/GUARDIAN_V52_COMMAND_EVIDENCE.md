@@ -38,6 +38,9 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
+| Enable/disable pedometer | `PEDO,1|0` | Documented | This configures counting; it is not a step-total upload. Guardian does not send it in the passive activity implementation. |
+| Configure counting windows | `WALKTIME,...` | Documented | Three vendor time sheets are documented. Confirm exact firmware behaviour only if Guardian needs to change watch defaults. |
+| Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
 
 ## Alarm decoding guardrail
 
@@ -57,13 +60,18 @@ field at index 15 or changing how the variable LTE/WiFi tail is scanned.
 | Satellite count (index 10) | Stored with the GPS observation and shown as GPS context. | Satellite count does not prove a metre-level accuracy radius. |
 | Cellular signal 0–100 (index 11) | Stored with an independent receipt timestamp and shown as the exact fresh percentage. | Never infer “Signal good” merely because the TCP session is connected. |
 | Battery 0–100 (index 12) | Stored with an independent receipt timestamp and used by existing battery safety logic. | Missing or stale data remains unknown. |
-| Steps (index 13) | Stored as `stepsRaw` for later acceptance and aggregation work. | Do not call it “today's steps” until reset, reboot and midnight behaviour are proven. |
+| Steps (index 13) | Stored as `stepsRaw`; the disabled activity pipeline can aggregate it into protected local-day shadow records. | Do not call it “today's steps” until reset, reboot and midnight behaviour are proven and customer gates are enabled. |
 | Roll count (index 14) | Stored as `rollCountRaw` for diagnostics. | Do not display or interpret it until vendor/real-device semantics are proven. |
 | Tracker state (index 15) | V52 alarm bitmap only. | Must never be shifted or replaced by a tail value. |
 
 The `LK,steps,rolls,battery` heartbeat updates the same raw counters and
 battery field. Telemetry piggybacks on existing throttled device writes; it
 does not add one Firestore history document per packet.
+
+The activity pipeline consumes the same passive counter. `PEDO` and `WALKTIME`
+are configuration commands, not prerequisites for upload and are not sent by
+the implementation. Shadow aggregation and customer display have independent,
+default-off gates.
 
 Vendor documentation, automated tests and real-device acceptance are three
 different forms of evidence. A capability becomes a Guardian product promise

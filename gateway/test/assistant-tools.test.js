@@ -7,6 +7,7 @@ const {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  getActivitySummary,
 } = require('../src/assistant/tools');
 
 test('deviceLabel prefers nickname, then relationship', () => {
@@ -250,4 +251,45 @@ test('getDailySummary aggregates only the requested authorised wearer and period
   assert.equal(result.safeZoneEventCount, 1);
   assert.equal(result.criticalAlertCount, 0);
   assert.equal(result.batteryPercent, 70);
+});
+
+test('getActivitySummary returns only accepted displayable step records', async () => {
+  const docs = [
+    {
+      id: '2026-08-23',
+      data: () => ({
+        localDate: '2026-08-23',
+        displayable: true,
+        reportedSteps: 4321,
+        lastObservedAt: new Date('2026-08-23T10:00:00Z'),
+      }),
+    },
+    {
+      id: '2026-08-22',
+      data: () => ({
+        localDate: '2026-08-22',
+        displayable: false,
+        observedDeltaSteps: 300,
+      }),
+    },
+  ];
+  const query = {
+    orderBy() { return this; },
+    limit() { return this; },
+    async get() { return { docs }; },
+  };
+  const db = {
+    collection() {
+      return { doc: () => ({ collection: () => query }) };
+    },
+  };
+  const result = await getActivitySummary(
+    db,
+    { devices: [{ imei: 'A', nickname: 'Jesh' }] },
+    { imei: 'A', days: 7 },
+  );
+  assert.equal(result.name, 'Jesh');
+  assert.equal(result.days.length, 1);
+  assert.equal(result.days[0].steps, 4321);
+  assert.equal(result.medicalUse, false);
 });

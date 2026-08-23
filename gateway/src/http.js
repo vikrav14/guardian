@@ -19,6 +19,7 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
+const { provisionPhonebookContact } = require('./phonebook-provisioning');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -48,6 +49,7 @@ const {
 const { formatBatteryReply } = require('./battery-freshness');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { formatActivityReply } = require('./activity-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
 const { answerWeatherQuery } = require('./weather-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
@@ -229,6 +231,22 @@ async function handleChat({ from, text }) {
     // LLM/tool work. Critical messages retain the deterministic emergency
     // boundary even when service is inactive.
     const initialIntent = classifyIntent(text);
+    if (
+      initialIntent.type === 'ACTIVITY_QUERY' &&
+      ctx.uid &&
+      config.activityStepsCustomerEnabled !== true
+    ) {
+      const reply =
+        'Steps and daily activity are still being validated on the watch and are not enabled yet.';
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: 'activity_steps_customer_disabled',
+      });
+      return { ctx, reply, deterministic: true, featureDisabled: true };
+    }
     if (!isCritical(initialIntent) && ctx.uid) {
       const requiredFeature = featureForWhatsAppIntent(initialIntent.type);
       if (requiredFeature && !hasEntitlement(ctx.entitlements, requiredFeature)) {
@@ -414,6 +432,33 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: journeyResult?.error ? 'journey_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'ACTIVITY_QUERY') {
+      const requestedDays = /\b(week|weekly|seven|7 days|last days)\b/i.test(
+        effectiveText,
+      )
+        ? 7
+        : 1;
+      let activityResult;
+      try {
+        activityResult = await runTool(db, ctx, 'get_activity_summary', {
+          imei: wearerResolution.wearer?.imei,
+          days: requestedDays,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'activity_query', error: err });
+        activityResult = { error: err.message };
+      }
+      const reply = formatActivityReply(activityResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: activityResult?.error ? 'activity_query_failed' : null,
       });
       return { ctx, reply, deterministic: true };
     }
@@ -693,9 +738,9 @@ async function requireAdmin(req, res) {
 }
 
 /**
- * Device context includes a loved one's location and must never inherit the
- * ops API's convenient "dev-open" behavior. Local/ngrok testing therefore
- * requires either X-Admin-Key or an authorized Firebase bearer token.
+ * Sensitive reads and device-changing operations must never inherit the ops
+ * API's convenient "dev-open" behavior. Local/ngrok use therefore requires
+ * either X-Admin-Key or an authorized Firebase administrator bearer token.
  */
 async function requireStrictAdmin(req, res) {
   const auth = await checkAdminAuth(req);
@@ -705,7 +750,7 @@ async function requireStrictAdmin(req, res) {
   }
   if (auth.method === 'dev-open') {
     sendJson(res, 503, {
-      error: 'Device context endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
+      error: 'Strict admin endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
     });
     return false;
   }
@@ -966,9 +1011,66 @@ function startHttpServer() {
       }
 
       if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-phonebook/contact'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionPhonebookContact(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'phonebook_contact',
+                slot: result.slot,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // The watch may already have received PHBX. Return the real handoff
+          // result so an operator does not retry blindly and duplicate work.
+          console.error('[phonebook-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
+        // This route can write arbitrary commands to a live watch. It must
+        // never inherit the ops API's convenient dev-open behavior, including
+        // when HTTP port 9001 is exposed through an ngrok webhook tunnel.
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
         const imei =
           url.searchParams.get('imei') ||
           url.searchParams.get('protocolId');

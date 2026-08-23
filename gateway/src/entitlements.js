@@ -18,6 +18,7 @@ const FEATURE = Object.freeze({
   PROACTIVE_SMART_NOTIFICATIONS: 'proactive_smart_notifications',
   VOICE_ASSISTANT: 'voice_assistant',
   WHATSAPP_WATCH_COMMANDS: 'whatsapp_watch_commands',
+  ACTIVITY_STEPS: 'activity_steps',
   MEDICATION_REMINDERS: 'medication_reminders',
   REMINDER_ACKNOWLEDGEMENTS: 'reminder_acknowledgements',
   WELLBEING_ACTIVITY_SUMMARIES: 'wellbeing_activity_summaries',
@@ -45,6 +46,7 @@ const FAMILY_FEATURES = Object.freeze([
   FEATURE.PROACTIVE_SMART_NOTIFICATIONS,
   FEATURE.VOICE_ASSISTANT,
   FEATURE.WHATSAPP_WATCH_COMMANDS,
+  FEATURE.ACTIVITY_STEPS,
 ]);
 
 const CARE_FEATURES = Object.freeze([
@@ -208,6 +210,7 @@ function minimumPlanFor(feature) {
 
 function featureForWhatsAppIntent(intentType) {
   const type = String(intentType || '').trim().toUpperCase();
+  if (type === 'ACTIVITY_QUERY') return FEATURE.ACTIVITY_STEPS;
   if (type === 'REMINDER_REQUEST') return FEATURE.MEDICATION_REMINDERS;
   if (type === 'DAILY_SUMMARY') return FEATURE.WELLBEING_ACTIVITY_SUMMARIES;
   if (type === 'DEVICE_COMMAND' || type === 'VOICE_MONITOR') {

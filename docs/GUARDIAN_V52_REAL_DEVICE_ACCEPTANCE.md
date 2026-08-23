@@ -67,14 +67,28 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
-## Test 3 — calls
+## Test 3 — approved incoming family calls
 
-1. From the Guardian app, call the watch and hold a short two-way conversation.
-2. From the watch, call the configured guardian/SOS number and hold a short two-way conversation.
-3. Repeat once with the gateway stopped. Voice should remain a carrier function when cellular voice coverage is available.
-4. Record date, direction, ring result, two-way audio and any carrier charge.
+Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
+The supported direction is an approved guardian calling the watch; after the
+wearer answers, audio is two-way.
 
-Pass: both directions work on the target SIM/carrier and failure copy is accurate. These calls do not use the watch's 500MB data allowance; normal carrier voice charges may apply.
+1. Provision an approved number through `npm run phonebook:provision`.
+2. Confirm the entry appears, then reboot and confirm it persists.
+3. Call the watch from the approved number and hold a short conversation.
+4. Call from an unknown number and confirm the watch does not ring.
+5. Repeat the approved call with the gateway stopped. Voice should remain a
+   carrier function when cellular voice coverage is available.
+6. Record date, firmware, SIM package, ring result, two-way audio and carrier
+   charging without recording the contact number in GitHub.
+
+Pass: approved incoming call rings, unknown caller is blocked, and both sides
+can hear and speak clearly after answer. Outbound `CALL`, watch dial-pad calls
+and wearer-originated phonebook calls are not part of the Guardian promise.
+
+Pilot result, 22 August 2026: passed on one physical V52, including persistence
+after reboot. Repeat on a second production-equivalent watch/SIM before
+customer activation.
 
 ## Test 4 — safe zones
 
@@ -130,6 +144,32 @@ Medication reminders are Guardian Care only.
 5. Confirm the guardian reminder's actual delivery outcome.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
+
+## Test 8 — steps and daily activity
+
+This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` unless a
+separate, vendor-confirmed configuration test requires them.
+
+1. Keep `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` and compile the app without
+   `GUARDIAN_ACTIVITY_STEPS_ENABLED`.
+2. Set `ACTIVITY_STEPS_INGEST_ENABLED=true` and keep
+   `ACTIVITY_STEPS_COUNTER_MODE=unverified` for the first shadow run.
+3. Record the watch-displayed count, take a controlled walk with a manually
+   counted step range, and record the watch count again.
+4. Run `npm run acceptance:v52 -- --imei YOUR_DEVICE_IMEI --since 24h` and
+   compare its bounded `activitySteps.days` evidence with the watch.
+5. Observe the final sample before local midnight and the first samples after
+   midnight. Record whether the raw counter resets and when.
+6. Repeat around a watch reboot and a gateway restart. Confirm stale packets do
+   not inflate the day and a gateway restart restores the stored day.
+7. Observe data use and battery behaviour over at least one representative day.
+8. Only after the semantics are accepted, set counter mode to `daily_reset`,
+   keep both customer surfaces off, and verify at least one clean stored day.
+
+Pass: controlled walk difference is within the recorded tolerance, midnight
+and reboot/reset semantics are repeatable, anomalous or out-of-order packets
+fail closed, restart recovery preserves the day, and data/battery impact is
+acceptable. Then—and only then—enable WhatsApp and app customer surfaces.
 
 ## Final collection
 

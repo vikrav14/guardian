@@ -48,6 +48,7 @@ function needsWearer(intentType) {
     'SAFE_ZONE_CHECK',
     'JOURNEY_QUERY',
     'DAILY_SUMMARY',
+    'ACTIVITY_QUERY',
     'WEATHER_QUERY',
   ].includes(intentType);
 }
@@ -61,6 +62,7 @@ function expandWithWearer(text, intentType, wearer) {
   if (intentType === 'SAFE_ZONE_CHECK') return `${text} for ${name}`;
   if (intentType === 'JOURNEY_QUERY') return `${text} for ${name}`;
   if (intentType === 'DAILY_SUMMARY') return `${text} for ${name}`;
+  if (intentType === 'ACTIVITY_QUERY') return `${text} for ${name}`;
   if (intentType === 'WEATHER_QUERY') return `${text} for ${name}`;
   return text;
 }

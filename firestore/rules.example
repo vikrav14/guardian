@@ -183,6 +183,16 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      // Gateway-owned V52 daily activity. A client must be linked, hold an
+      // active Family/Care entitlement, and query only physically accepted
+      // displayable records. Unverified raw counters remain backend-only.
+      match /activityDays/{localDate} {
+        allow read: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.displayable == true;
+        allow create, update, delete: if false;
+      }
     }
 
     match /geofences/{geofenceId} {
@@ -282,6 +292,10 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
+        // Phonebook entries control who may ring a wearer's watch. Until the
+        // authenticated contact-management backend is complete, PHBX remains
+        // administrator-only through the Admin SDK/local provisioning route.
+        && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
           || activePlanAtLeast('care')

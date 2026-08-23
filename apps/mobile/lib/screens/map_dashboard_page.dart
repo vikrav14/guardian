@@ -18,6 +18,7 @@ import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/dashboard/around_them_panel.dart';
+import '../widgets/dashboard/activity_steps_panel.dart';
 import '../widgets/dashboard/family_device_strip.dart';
 import '../widgets/dashboard/guardian_intelligence_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
@@ -26,6 +27,11 @@ import '../widgets/dashboard/today_summary_panel.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
+
+const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
+  'GUARDIAN_ACTIVITY_STEPS_ENABLED',
+  defaultValue: false,
+);
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -707,6 +713,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final historyDecision = entitlementScope.decision(
       GuardianFeature.locationHistory,
     );
+    final activityDecision = entitlementScope.decision(
+      GuardianFeature.activitySteps,
+    );
     final aiInterpretation = buildGuardianAiInterpretation(selected);
     final todayText = buildTodaySummary(selected);
     final activityStatus = buildTodayActivityStatus(selected);
@@ -759,6 +768,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           careEnabled: careSummaryDecision.allowed,
           medicationEnabled: medicationDecision.allowed,
         ),
+        if (_activityStepsCustomerEnabled && selected != null) ...[
+          const SizedBox(height: 18),
+          ActivityStepsPanel(
+            device: selected,
+            decision: activityDecision,
+            subscription: entitlementScope.subscription,
+          ),
+        ],
         if (aiDecision.allowed || careSummaryDecision.allowed) ...[
           const SizedBox(height: 18),
           LayoutBuilder(
