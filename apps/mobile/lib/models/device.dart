@@ -49,11 +49,6 @@ const double deviceMovingSpeedThresholdKmh = 5;
 /// Location older than this gap behind the last heartbeat is treated as stale.
 const Duration deviceLocationFreshnessSlack = Duration(minutes: 8);
 
-/// A recent broad indoor estimate must not immediately displace the last
-/// satellite pin. Both observations remain available; after this window the
-/// newer approximate position becomes the map position and is labelled as such.
-const Duration deviceSatelliteDisplayRetention = Duration(minutes: 30);
-
 /// Last Firestore contact older than this is not treated as live, even if `online: true`.
 /// Must exceed the gateway write-gate heartbeat interval and normal quiet gaps
 /// (stationary pendants often go several minutes between packets).
@@ -291,12 +286,7 @@ class Device {
     final satellite = lastSatelliteLocation;
     if (latest?.isValid != true || satellite?.isValid != true) return false;
     final source = latestLocationSource;
-    if (source != 'wifi' && source != 'lbs') return false;
-    final latestAt = latest?.recordedAt;
-    final satelliteAt = satellite?.recordedAt;
-    if (latestAt == null || satelliteAt == null) return false;
-    final gap = latestAt.difference(satelliteAt);
-    return !gap.isNegative && gap <= deviceSatelliteDisplayRetention;
+    return source == 'wifi' || source == 'lbs';
   }
 
   DeviceLocation? get displayLocation {
