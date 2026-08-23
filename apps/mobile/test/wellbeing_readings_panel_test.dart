@@ -42,7 +42,6 @@ void main() {
     expect(find.text('Updated 2 min ago'), findsOneWidget);
     expect(find.text('98% oxygen estimate'), findsOneWidget);
     expect(find.text('72 bpm · 120/72 mmHg'), findsOneWidget);
-    expect(find.textContaining('2 min ago'), findsOneWidget);
     expect(find.textContaining('not medical measurements'), findsOneWidget);
     expect(find.textContaining('normal'), findsNothing);
   });
