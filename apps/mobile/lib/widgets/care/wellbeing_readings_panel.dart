@@ -42,7 +42,7 @@ class WellbeingReadingsPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             allowed
-                ? 'Automatic watch estimates, normally updated hourly when a measurement succeeds.'
+                ? 'Automatic watch estimates, scheduled hourly when a measurement succeeds.'
                 : 'Wellbeing insights are available with Guardian Care.',
             style: TextStyle(color: colors.textSecondary),
           ),
