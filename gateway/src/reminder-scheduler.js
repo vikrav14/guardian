@@ -1,26 +1,18 @@
 'use strict';
 
-/**
- * Care reminder scheduler. The canonical record is
- * medicationReminders/{reminderId}; Flutter, WhatsApp and this worker all use
- * that same schema. Delivery is recorded separately from acknowledgement,
- * which the current V52 protocol does not prove.
- */
-
 const config = require('./config');
 const { normalizeE164 } = require('./notify');
 const { sendMetaTemplate } = require('./whatsapp-meta');
 const { FEATURE, hasEntitlement, loadEntitlementsForUser } = require('./entitlements');
 const { reminderDue } = require('./medication-reminders');
+const { readSafetySnapshotRuntime } = require('./safety-snapshot-runtime');
+const { startPendingSnapshotRequestWatcher } = require('./safety-snapshot-requests');
 
 async function runReminderCheck(db, options = {}) {
   const now = options.now || new Date();
   const send = options.sendMetaTemplate || sendMetaTemplate;
   const entitlementLoader = options.loadEntitlementsForUser || loadEntitlementsForUser;
-  const remindersSnap = await db
-    .collection('medicationReminders')
-    .where('enabled', '==', true)
-    .get();
+  const remindersSnap = await db.collection('medicationReminders').where('enabled', '==', true).get();
   const userCache = new Map();
 
   for (const reminderDoc of remindersSnap.docs) {
@@ -55,9 +47,7 @@ async function runReminderCheck(db, options = {}) {
     const device = deviceSnap.exists ? (deviceSnap.data() || {}) : {};
     const deviceName = device.nickname || device.relatedName || 'Your loved one';
     const target = normalizeE164(guardianPhone);
-    const templateName = String(
-      options.metaTemplateName || config.metaWhatsAppReminderTemplate || ''
-    ).trim();
+    const templateName = String(options.metaTemplateName || config.metaWhatsAppReminderTemplate || '').trim();
     const result = templateName
       ? await send(target, templateName, {
           languageCode: 'en',
@@ -67,12 +57,7 @@ async function runReminderCheck(db, options = {}) {
               .map((text) => ({ type: 'text', text: String(text) })),
           }],
         })
-      : {
-          ok: false,
-          skipped: true,
-          provider: 'meta',
-          reason: 'META_WHATSAPP_REMINDER_TEMPLATE missing',
-        };
+      : { ok: false, skipped: true, provider: 'meta', reason: 'META_WHATSAPP_REMINDER_TEMPLATE missing' };
     const accepted = result?.accepted === true || result?.ok === true;
     await reminderDoc.ref.update({
       deliveryStatus: accepted ? 'accepted' : 'failed',
@@ -93,12 +78,20 @@ async function runReminderCheck(db, options = {}) {
   }
 }
 
-function startReminderScheduler(db, config = {}) {
+function startReminderScheduler(db, options = {}) {
   if (!db) {
     console.warn('[reminder-scheduler] Firestore unavailable, skipping scheduler');
     return { stop: () => {} };
   }
-  const interval = config.checkIntervalMs || 60000;
+
+  const snapshotRuntime = readSafetySnapshotRuntime(options.env || process.env);
+  if (snapshotRuntime.requestWatcherEnabled) {
+    startPendingSnapshotRequestWatcher(db);
+  } else {
+    console.log('[safety-snapshot] request watcher disabled');
+  }
+
+  const interval = options.checkIntervalMs || 60000;
   let active = true;
   async function check() {
     if (!active) return;
