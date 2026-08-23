@@ -38,6 +38,8 @@ void main() {
     )));
     await tester.pump();
 
+    expect(find.text('Latest wellbeing'), findsOneWidget);
+    expect(find.text('Updated 2 min ago'), findsOneWidget);
     expect(find.text('98% oxygen estimate'), findsOneWidget);
     expect(find.text('72 bpm · 120/72 mmHg'), findsOneWidget);
     expect(find.textContaining('2 min ago'), findsOneWidget);
@@ -51,8 +53,30 @@ void main() {
       readings: Stream.empty(),
     )));
     expect(
-      find.text('Guardian Care is required for watch wellbeing readings.'),
+      find.text('Wellbeing insights are available with Guardian Care.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('does not present an old estimate as a current reading', (tester) async {
+    final now = DateTime.utc(2026, 8, 23, 16);
+    await tester.pumpWidget(app(WellbeingReadingsPanel(
+      allowed: true,
+      now: now,
+      readings: Stream.value([
+        WellbeingReading(
+          id: 'old-heart',
+          metricSet: WellbeingMetricSet.heartRateBloodPressure,
+          observedAt: now.subtract(const Duration(hours: 2)),
+          quality: 'device_accepted',
+          displayable: true,
+          heartRateBpm: 72,
+          systolicMmHg: 120,
+          diastolicMmHg: 72,
+        ),
+      ]),
+    )));
+    await tester.pump();
+    expect(find.text('No recent reading · last update 2 h ago'), findsOneWidget);
   });
 }
