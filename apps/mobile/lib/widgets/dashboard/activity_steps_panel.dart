@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/activity_day.dart';
 import '../../models/device.dart';
-import '../../services/guardian_entitlements.dart';
 import '../../services/guardian_services.dart';
 import '../../theme/app_theme.dart';
 
@@ -61,24 +60,24 @@ class ActivityStepsPanel extends StatelessWidget {
 
 class ActivityStepsCard extends StatelessWidget {
   const ActivityStepsCard({required this.days, super.key})
-    : mode = _ActivityCardMode.data,
+    : _mode = _ActivityCardMode.data,
       message = null;
 
   const ActivityStepsCard.locked({required this.message, super.key})
-    : mode = _ActivityCardMode.locked,
+    : _mode = _ActivityCardMode.locked,
       days = const <ActivityDay>[];
 
   const ActivityStepsCard.unavailable({required this.message, super.key})
-    : mode = _ActivityCardMode.unavailable,
+    : _mode = _ActivityCardMode.unavailable,
       days = const <ActivityDay>[];
 
   const ActivityStepsCard.loading({super.key})
-    : mode = _ActivityCardMode.loading,
+    : _mode = _ActivityCardMode.loading,
       days = const <ActivityDay>[],
       message = null;
 
   final List<ActivityDay> days;
-  final _ActivityCardMode mode;
+  final _ActivityCardMode _mode;
   final String? message;
 
   @override
@@ -116,14 +115,14 @@ class ActivityStepsCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (mode == _ActivityCardMode.locked)
+              if (_mode == _ActivityCardMode.locked)
                 const Icon(Icons.lock_outline_rounded, size: 18),
             ],
           ),
           const SizedBox(height: 16),
-          if (mode == _ActivityCardMode.loading)
+          if (_mode == _ActivityCardMode.loading)
             const LinearProgressIndicator(minHeight: 3)
-          else if (mode != _ActivityCardMode.data)
+          else if (_mode != _ActivityCardMode.data)
             Text(
               message ?? 'Activity is unavailable.',
               style: textTheme.bodyMedium?.copyWith(
