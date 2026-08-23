@@ -5,7 +5,7 @@
 | Service ID | `remote-photo` |
 | Product wording | **Safety snapshot** |
 | Minimum package | Family |
-| Current state | Software safety path; disabled |
+| Current state | Software safety path implemented; capture/media disabled |
 | Customer-visible | No |
 | Protocol inventory | `FTPIP`, `FTPPWD`, `PIC`, `rcapture` |
 | Accepted V52 capture commands | None |
@@ -36,9 +36,30 @@ Safety snapshot is designed as a **single, consent-bound contextual image** for 
 - public snapshot URLs rejected by policy
 - delete state clears the private media path
 - immutable request audit shape with `deviceCommandSent: false`
+- Firestore request creation restricted to linked Family/Care users
+- backend-owned authorization/audit documents are client read-only
+- Essential, unlinked and requester-spoofed requests denied by emulator tests
+- backend pending-request watcher wired behind an explicit default-off runtime gate
 - hidden Flutter snapshot status model and compile-time-gated read service
 - Flutter customer request path deliberately unavailable
 - product wording explicitly says a snapshot provides context only and does not prove safety
+
+## Default-off release gates
+
+```dotenv
+SAFETY_SNAPSHOT_REQUESTS_ENABLED=false
+SAFETY_SNAPSHOT_DEVICE_MODE=unverified
+SAFETY_SNAPSHOT_MEDIA_INGRESS_ENABLED=false
+SAFETY_SNAPSHOT_CUSTOMER_ENABLED=false
+```
+
+Flutter remains hidden by default:
+
+```text
+GUARDIAN_SAFETY_SNAPSHOT_ENABLED=false
+```
+
+`SAFETY_SNAPSHOT_DEVICE_MODE=accepted` alone cannot start request processing, media ingress or customer visibility. This PR hard-codes `deviceDispatchAllowed=false`, so even enabling all current flags cannot send a capture command.
 
 ## Protocol boundary
 
@@ -59,11 +80,11 @@ Exact physical acceptance must establish:
 
 ## Media security boundary
 
-The repository currently has Firebase Storage CORS configuration but no dedicated Firebase Storage authorization rules for Safety snapshots. For this phase, media ingress must therefore remain **backend-only**. The mobile app must not upload snapshot media and must not receive a permanent/public Storage URL.
+The repository currently has Firebase Storage CORS configuration but no dedicated Firebase Storage authorization rules for Safety snapshots. For this phase, media ingress remains **backend-only and disabled**. The mobile app must not upload snapshot media and must not receive a permanent/public Storage URL.
 
 Before real image ingestion is enabled, Guardian still needs:
 
-- isolated private ingress for the V52 upload transport
+- isolated private ingress for the accepted V52 upload transport
 - strict MIME/signature and size validation
 - malware/content-processing safety as appropriate to the accepted image format
 - a private storage path bound to the request/owner/device
@@ -71,16 +92,16 @@ Before real image ingestion is enabled, Guardian still needs:
 - authenticated, audited image viewing rather than public download URLs
 - access/deletion audit evidence
 
-## Remaining software gates
+## Software gates
 
 - [x] one-time authorization policy
 - [x] Family/Care backend access policy
 - [x] cooldown and expiry semantics
 - [x] private-media/no-public-URL policy
 - [x] hidden Flutter read/presentation model
-- [ ] Firestore request/auth/audit authorization rules and emulator tests
-- [ ] backend watcher/startup gate for request processing
-- [ ] default-off gateway flags and release-gate regression tests
+- [x] Firestore request/auth/audit authorization rules and emulator tests
+- [x] backend watcher/startup gate for request processing
+- [x] explicit default-off gateway flags and release-gate regression tests
 - [ ] private media-ingress/storage implementation after transport acceptance
 - [ ] full gateway, Firestore and Flutter release gates on the completed software checkpoint
 
