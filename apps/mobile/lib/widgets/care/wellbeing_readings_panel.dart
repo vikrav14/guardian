@@ -34,7 +34,7 @@ class WellbeingReadingsPanel extends StatelessWidget {
               Icon(Icons.favorite_outline, size: 21),
               SizedBox(width: 10),
               Text(
-                'Watch wellbeing readings',
+                'Latest wellbeing',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
             ],
@@ -42,8 +42,8 @@ class WellbeingReadingsPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             allowed
-                ? 'Wearer-initiated readings received from the watch.'
-                : 'Guardian Care is required for watch wellbeing readings.',
+                ? 'Automatic watch estimates, normally updated hourly when a measurement succeeds.'
+                : 'Wellbeing insights are available with Guardian Care.',
             style: TextStyle(color: colors.textSecondary),
           ),
           if (allowed) ...[
@@ -60,11 +60,28 @@ class WellbeingReadingsPanel extends StatelessWidget {
                 final values = snapshot.data!;
                 if (values.isEmpty) {
                   return const Text(
-                    'No accepted readings yet. Take a reading on the watch.',
+                    'No wellbeing reading has been received yet.',
                   );
                 }
+                final latest = values.reduce(
+                  (a, b) => a.observedAt.isAfter(b.observedAt) ? a : b,
+                );
+                final latestAge = (now ?? DateTime.now()).difference(latest.observedAt);
+                final recent = !latestAge.isNegative && latestAge.inMinutes <= 90;
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      recent
+                          ? 'Updated ${_ageLabel(latestAge)}'
+                          : 'No recent reading · last update ${_ageLabel(latestAge)}',
+                      style: TextStyle(
+                        color: recent ? colors.accent : colors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     for (final reading in values.take(4))
                       _ReadingRow(reading: reading, now: now ?? DateTime.now()),
                   ],
@@ -73,7 +90,7 @@ class WellbeingReadingsPanel extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'These are watch estimates, not medical measurements. They do not confirm that someone is safe or unwell. If symptoms or concerns exist, check on the wearer and seek appropriate medical help.',
+              'Watch estimates only—not medical measurements. A missing or old reading does not mean the wearer is safe or unwell. If symptoms or concerns exist, check on the wearer and seek appropriate medical help.',
               style: TextStyle(
                 color: colors.textSecondary,
                 fontSize: 12,
