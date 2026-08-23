@@ -120,6 +120,18 @@ function buildWellbeingRequestCommand(metricSet) {
   throw new Error(`No confirmed V52 request command for ${metricSet}`);
 }
 
+function buildWellbeingScheduleCommand({ enabled, intervalSeconds = 3600 } = {}) {
+  if (enabled === false) return 'hrtstart,0';
+  if (enabled !== true) {
+    throw new Error('Wellbeing schedule requires enabled=true or enabled=false');
+  }
+  const interval = Number(intervalSeconds);
+  if (!Number.isInteger(interval) || interval < 300 || interval > 65535) {
+    throw new Error('Wellbeing interval must be a whole number from 300 to 65535 seconds');
+  }
+  return `hrtstart,${interval}`;
+}
+
 function createWellbeingStore({
   db,
   enabled = false,
@@ -225,5 +237,6 @@ module.exports = {
   validConsent,
   readingIdFor,
   buildWellbeingRequestCommand,
+  buildWellbeingScheduleCommand,
   createWellbeingStore,
 };
