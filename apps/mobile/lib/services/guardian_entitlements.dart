@@ -24,6 +24,7 @@ enum GuardianFeature {
   whatsappQuestionsAnswers,
   whatsappSafetyAlerts,
   proactiveSmartNotifications,
+  watchRemovalAlerts,
   voiceAssistant,
   whatsappWatchCommands,
   medicationReminders,
@@ -60,6 +61,7 @@ extension GuardianFeaturePresentation on GuardianFeature {
     GuardianFeature.whatsappSafetyAlerts => 'WhatsApp safety alerts',
     GuardianFeature.proactiveSmartNotifications =>
       'Proactive smart notifications',
+    GuardianFeature.watchRemovalAlerts => 'Watch-removal safety alerts',
     GuardianFeature.voiceAssistant => 'Voice assistant',
     GuardianFeature.whatsappWatchCommands => 'WhatsApp watch commands',
     GuardianFeature.medicationReminders => 'Medication reminders',
@@ -99,6 +101,7 @@ const _familyFeatures = <GuardianFeature>{
   GuardianFeature.whatsappQuestionsAnswers,
   GuardianFeature.whatsappSafetyAlerts,
   GuardianFeature.proactiveSmartNotifications,
+  GuardianFeature.watchRemovalAlerts,
   GuardianFeature.voiceAssistant,
   GuardianFeature.whatsappWatchCommands,
 };

@@ -11,6 +11,16 @@ const config = {
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
 
+  // V52 bracelet-removal evidence is fail-closed. Raw tracker-state
+  // observations may be collected in an explicit shadow pilot, but customer
+  // delivery requires accepted firmware semantics and a separate gate.
+  removalAlertsIngestEnabled:
+    String(process.env.REMOVAL_ALERTS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  removalAlertsCustomerEnabled:
+    String(process.env.REMOVAL_ALERTS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  removalAlertsDeviceMode:
+    process.env.REMOVAL_ALERTS_DEVICE_MODE === 'accepted' ? 'accepted' : 'unverified',
+
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),
   writeGateHeartbeatMinutes: Number(process.env.WRITE_GATE_HEARTBEAT_MINUTES || 5),

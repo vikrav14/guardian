@@ -183,6 +183,11 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      match /safetyStates/{stateId} {
+        allow read: if linkedTo(imei) && activePlanAtLeast('family');
+        allow write: if false;
+      }
     }
 
     match /geofences/{geofenceId} {
@@ -275,6 +280,12 @@ service cloud.firestore {
     match /notificationLogs/{logId} {
       allow read: if linkedTo(resource.data.imei);
       allow write: if false; // gateway Admin SDK only
+    }
+
+    match /removalAlertAudit/{eventId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('family');
+      allow write: if false;
     }
 
     match /deviceCommands/{commandId} {

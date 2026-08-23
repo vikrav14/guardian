@@ -19,6 +19,7 @@ class AlertsPage extends StatelessWidget {
     if (t.contains('geofence') ||
         t == 'low_battery' ||
         t == 'offline' ||
+        t == 'watch_removed' ||
         s == 'warning') {
       return _AlertTone.warning;
     }
@@ -37,6 +38,8 @@ class AlertsPage extends StatelessWidget {
         return Icons.battery_1_bar;
       case 'offline':
         return Icons.signal_wifi_off_rounded;
+      case 'watch_removed':
+        return Icons.watch_off_outlined;
       default:
         return Icons.notifications_outlined;
     }

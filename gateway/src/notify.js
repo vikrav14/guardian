@@ -17,13 +17,13 @@ const {
 /**
  * Find guardian users who linked this IMEI and collect emergency contacts.
  */
-async function findContactsForImei(db, imei) {
+async function findContactsForImei(db, imei, requiredFeature = FEATURE.SOS_ALERTS) {
   const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
   const contacts = [];
   for (const doc of snap.docs) {
     const data = doc.data() || {};
     const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
-    if (!hasEntitlement(entitlements, FEATURE.SOS_ALERTS)) continue;
+    if (!hasEntitlement(entitlements, requiredFeature)) continue;
     const list = Array.isArray(data.emergencyContacts) ? data.emergencyContacts : [];
     for (const c of list) {
       if (!c || !c.phone) continue;
@@ -116,7 +116,11 @@ async function loadDeviceForNotification(db, imei) {
  * written to notificationLogs so Meta delivery webhooks can update it later.
  */
 async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {}) {
-  const contacts = await findContactsForImei(db, imei);
+  const alertType = String(alert?.type || '').toLowerCase();
+  const requiredFeature = alertType === 'watch_removed'
+    ? FEATURE.WATCH_REMOVAL_ALERTS
+    : FEATURE.SOS_ALERTS;
+  const contacts = await findContactsForImei(db, imei, requiredFeature);
   const device = await loadDeviceForNotification(db, imei);
   const text = buildMessage(imei, alert, device);
   const results = [];
