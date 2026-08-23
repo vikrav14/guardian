@@ -145,6 +145,25 @@ Medication reminders are Guardian Care only.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+## Test 8 — Care wellbeing readings
+
+This test records watch estimates, not medical accuracy. Obtain explicit wearer consent first. Do not use it to diagnose, clear an emergency, or decide that a person is safe.
+
+1. Keep `CARE_WELLBEING_DEVICE_MODE=unverified` and `CARE_WELLBEING_CUSTOMER_ENABLED=false`.
+2. Record consent with `npm run wellbeing:consent -- --grant --wearer-confirmed --imei YOUR_15_DIGIT_IMEI --recorded-by YOUR_ADMIN_EMAIL`.
+3. Enable ingestion only, restart the gateway, take a heart/BP reading on the watch, and note the watch display and exact local time.
+4. Enable the schedule pilot for the acceptance minimum with `npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --schedule-seconds 300`. Do not touch the health screen.
+5. Require at least two protected `bphrt` and `oxygen` pairs at approximately five-minute intervals, with `displayable` remaining false.
+6. Compare one wearer-initiated reading with the exact watch display values. Never classify the results as normal or abnormal.
+7. Repeat malformed-value, deduplication, freshness and retention checks.
+8. Run the acceptance inspector and attach only redacted evidence to the pull request.
+9. Change to the intended hourly interval with `npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --schedule-seconds 3600` and complete a 24-hour reliability/battery run.
+10. Stop explicitly with `npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --stop`, or revoke consent with `npm run wellbeing:consent -- --revoke --imei YOUR_15_DIGIT_IMEI --recorded-by YOUR_ADMIN_EMAIL`. Revocation attempts the stop before deleting retained readings and reports when the watch was unreachable.
+
+Pilot evidence, 23 August 2026: one exact V52 acknowledged `hrtstart,1` but did not start a visible measurement. Its manually initiated values matched the stored `bphrt` and `oxygen` fields exactly. The same watch then produced two autonomous protected reading pairs under `hrtstart,300`, approximately five minutes apart. Identifiers and health values are intentionally omitted here. Hourly reliability and battery impact remain pending.
+
+Temperature remains blocked until the exact V52 upload shape is captured. Passing this test permits an engineering evidence update; it does not turn on customer flags or establish medical accuracy.
+
 ## Final collection
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.

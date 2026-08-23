@@ -128,3 +128,51 @@ test('geofence requires both transition directions and completed notification ha
   assert.equal(report.capabilities.geofence.enter, null);
   assert.equal(report.capabilities.geofence.exit.id, 'g1');
 });
+
+test('wellbeing packet evidence remains a manual exact-device acceptance item', () => {
+  const report = buildDeviceAcceptanceReport({
+    wellbeingReadings: [{
+      id: 'reading-1',
+      metricSet: 'heart_rate_blood_pressure',
+      values: { heartRateBpm: 72, systolicMmHg: 120, diastolicMmHg: 72 },
+      quality: 'transport_valid_unverified',
+      displayable: false,
+      observedAt: new Date('2026-08-15T09:30:00.000Z'),
+    }],
+  }, { since, now });
+
+  assert.equal(
+    report.capabilities.careWellbeing.status,
+    ACCEPTANCE_STATUS.MANUAL_REQUIRED,
+  );
+  assert.equal(report.capabilities.careWellbeing.protectedEvidencePresent, true);
+  assert.equal(report.capabilities.careWellbeing.readings[0].displayable, false);
+  assert.match(report.capabilities.careWellbeing.note, /Compare each value/);
+});
+
+test('wellbeing acceptance preserves recurring timestamps instead of only latest values', () => {
+  const readings = [];
+  for (const [minute, heart, oxygen] of [['30', 72, 98], ['35', 74, 97]]) {
+    const observedAt = new Date(`2026-08-15T09:${minute}:00.000Z`);
+    readings.push({
+      id: `heart-${minute}`,
+      metricSet: 'heart_rate_blood_pressure',
+      values: { heartRateBpm: heart, systolicMmHg: 120, diastolicMmHg: 72 },
+      quality: 'transport_valid_unverified', displayable: false, observedAt,
+    });
+    readings.push({
+      id: `oxygen-${minute}`,
+      metricSet: 'spo2', values: { spo2Percent: oxygen },
+      quality: 'transport_valid_unverified', displayable: false, observedAt,
+    });
+  }
+  const report = buildDeviceAcceptanceReport({ wellbeingReadings: readings }, { since, now });
+  const wellbeing = report.capabilities.careWellbeing;
+  assert.equal(wellbeing.readings.length, 4);
+  assert.equal(wellbeing.recurringScheduleObserved, true);
+  assert.deepEqual(
+    wellbeing.recurringMetrics.heart_rate_blood_pressure.intervalSeconds,
+    [300],
+  );
+  assert.match(wellbeing.note, /Multiple protected/);
+});

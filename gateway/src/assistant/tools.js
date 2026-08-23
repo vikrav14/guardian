@@ -395,6 +395,40 @@ function timestampMs(value) {
   return Number.isFinite(time) ? time : null;
 }
 
+async function getWellbeingReadings(
+  db,
+  ctx,
+  { device_name: deviceName, imei, limit = 6 } = {},
+) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  const safeLimit = Math.min(20, Math.max(1, Number(limit) || 6));
+  const snap = await db
+    .collection('devices')
+    .doc(device.imei)
+    .collection('wellbeingReadings')
+    .where('displayable', '==', true)
+    .orderBy('observedAt', 'desc')
+    .limit(safeLimit)
+    .get();
+  return {
+    name: deviceLabel(device),
+    readings: snap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        metricSet: data.metricSet || null,
+        values: data.values || {},
+        quality: data.quality || null,
+        observedAt: data.observedAt?.toDate?.()?.toISOString?.()
+          || data.observedAt?.toISOString?.()
+          || data.observedAt
+          || null,
+      };
+    }),
+  };
+}
+
 async function getDailySummary(
   db,
   ctx,
@@ -940,6 +974,7 @@ async function runTool(db, ctx, name, input) {
     send_device_command: FEATURE.WHATSAPP_WATCH_COMMANDS,
     schedule_reminder: FEATURE.MEDICATION_REMINDERS,
     get_daily_summary: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
+    get_wellbeing_readings: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
   }[name];
   if (requiredFeature && !hasEntitlement(ctx?.entitlements, requiredFeature)) {
     return { error: planBoundaryReply(ctx?.entitlements, requiredFeature), code: 'plan_required' };
@@ -957,6 +992,8 @@ async function runTool(db, ctx, name, input) {
       return getRecentJourneys(db, ctx, input || {});
     case 'get_daily_summary':
       return getDailySummary(db, ctx, input || {});
+    case 'get_wellbeing_readings':
+      return getWellbeingReadings(db, ctx, input || {});
     case 'get_device_intelligence':
       return getDeviceIntelligence(ctx, input || {});
     case 'is_at_geofence':
@@ -984,6 +1021,7 @@ module.exports = {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  getWellbeingReadings,
   executeConfirmedAction,
   planBoundaryReply,
   isAtGeofence,

@@ -49,6 +49,7 @@ const { startHttpServer } = require('./http');
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
+const { createWellbeingStore } = require('./care-wellbeing');
 
 const {
   incrementEvent,
@@ -115,6 +116,14 @@ const {
 
 initFirestore();
 
+const wellbeingStore = createWellbeingStore({
+  db: getDb(),
+  enabled: config.careWellbeingIngestEnabled,
+  deviceMode: config.careWellbeingDeviceMode,
+  customerEnabled: config.careWellbeingCustomerEnabled,
+  retentionDays: config.careWellbeingRetentionDays,
+});
+
 startIntelligenceMonitor();
 
 startHttpServer();
@@ -122,6 +131,17 @@ startHttpServer();
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
   startReminderScheduler(getDb(), { checkIntervalMs: 60000 });
+}
+
+if (config.careWellbeingIngestEnabled) {
+  const wellbeingCleanupTimer = setInterval(() => {
+    wellbeingStore.cleanupExpired().then(({ deleted }) => {
+      if (deleted > 0) console.log(`[wellbeing] removed ${deleted} expired reading(s)`);
+    }).catch((error) => {
+      console.error('[wellbeing] retention cleanup failed:', error.message);
+    });
+  }, 6 * 60 * 60 * 1000);
+  wellbeingCleanupTimer.unref?.();
 }
 
 
@@ -959,6 +979,16 @@ async function applyEvents(events, session) {
           payload: alarmPayload,
 
         });
+
+      } else if (event.type === 'health_reading') {
+
+        const result = await wellbeingStore.ingest(event, eventReceivedAt);
+        // Health values are deliberately excluded from routine logs. The
+        // acceptance inspector reads protected evidence after explicit consent.
+        console.log(
+          `[wellbeing] ${event.imei} metric=${result.metricSet || event.metric || 'unknown'} ` +
+            `status=${result.status}`
+        );
 
       } else if (event.type === 'crc_error') {
 

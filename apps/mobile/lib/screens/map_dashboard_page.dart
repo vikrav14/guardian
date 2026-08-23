@@ -23,9 +23,15 @@ import '../widgets/dashboard/guardian_intelligence_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_now_hero.dart';
 import '../widgets/dashboard/today_summary_panel.dart';
+import '../widgets/care/wellbeing_readings_panel.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
+
+const bool _careWellbeingCustomerEnabled = bool.fromEnvironment(
+  'GUARDIAN_CARE_WELLBEING_ENABLED',
+  defaultValue: false,
+);
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -36,6 +42,7 @@ class MapDashboardPage extends StatefulWidget {
 
 class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
+  late final WellbeingService _wellbeingService;
   GoogleMapController? _mapController;
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
 
@@ -54,6 +61,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _wellbeingService = WellbeingService();
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
@@ -759,6 +767,20 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           careEnabled: careSummaryDecision.allowed,
           medicationEnabled: medicationDecision.allowed,
         ),
+        if (selected != null && _careWellbeingCustomerEnabled) ...[
+          const SizedBox(height: 18),
+          WellbeingReadingsPanel(
+            allowed: careSummaryDecision.allowed,
+            readings:
+                careSummaryDecision.allowed &&
+                    entitlementScope.subscription != null
+                ? _wellbeingService.watchRecentReadings(
+                    selected.imei,
+                    subscription: entitlementScope.subscription!,
+                  )
+                : const Stream.empty(),
+          ),
+        ],
         if (aiDecision.allowed || careSummaryDecision.allowed) ...[
           const SizedBox(height: 18),
           LayoutBuilder(

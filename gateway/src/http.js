@@ -20,6 +20,11 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const {
+  buildWellbeingRequestCommand,
+  buildWellbeingScheduleCommand,
+  validConsent,
+} = require('./care-wellbeing');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -49,6 +54,7 @@ const {
 const { formatBatteryReply } = require('./battery-freshness');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { formatWellbeingReply } = require('./wellbeing-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
 const { answerWeatherQuery } = require('./weather-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
@@ -430,6 +436,40 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'WELLBEING_QUERY') {
+      if (!config.careWellbeingCustomerEnabled) {
+        const reply = 'Watch wellbeing readings are still in Guardian Care device acceptance and are not customer-enabled yet.';
+        idempotencyStore.store(requestId, reply);
+        await auditLog.recordResponse({
+          requestId,
+          destination: 'whatsapp',
+          replyLength: reply.length,
+          fallbackReason: 'care_wellbeing_customer_disabled',
+        });
+        return { ctx, reply, deterministic: true };
+      }
+
+      let wellbeingResult;
+      try {
+        wellbeingResult = await runTool(db, ctx, 'get_wellbeing_readings', {
+          imei: wearerResolution.wearer?.imei,
+          limit: 6,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'wellbeing_query', error: err });
+        wellbeingResult = { error: err.message };
+      }
+      const reply = formatWellbeingReply(wellbeingResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: wellbeingResult?.error ? 'wellbeing_query_failed' : null,
       });
       return { ctx, reply, deterministic: true };
     }
@@ -1014,6 +1054,79 @@ function startHttpServer() {
         }
 
         sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-wellbeing/request'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        if (!config.careWellbeingRequestEnabled) {
+          sendJson(res, 409, {
+            error: 'Care wellbeing request pilot is disabled',
+            requiredSetting: 'CARE_WELLBEING_REQUEST_ENABLED=true',
+          });
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        const imei = String(payload.imei || '').trim();
+        if (!/^\d{15}$/.test(imei)) {
+          sendJson(res, 400, { error: 'The 15-digit hardware IMEI is required' });
+          return;
+        }
+
+        const wellbeingDb = getDb();
+        if (!wellbeingDb) {
+          sendJson(res, 503, { error: 'Firestore is unavailable' });
+          return;
+        }
+        const consentSnap = await wellbeingDb
+          .collection('wellbeingConsents')
+          .doc(imei)
+          .get();
+        if (!consentSnap.exists || !validConsent(consentSnap.data(), new Date())) {
+          sendJson(res, 403, {
+            error: 'A current backend-recorded wearer consent is required',
+          });
+          return;
+        }
+
+        let command;
+        try {
+          const action = String(payload.action || 'single');
+          command = action === 'schedule'
+            ? buildWellbeingScheduleCommand({
+                enabled: true,
+                intervalSeconds: payload.intervalSeconds,
+              })
+            : action === 'stop'
+              ? buildWellbeingScheduleCommand({ enabled: false })
+              : buildWellbeingRequestCommand(String(payload.metricSet || ''));
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        const result = sendDownlinkCommand(imei, command);
+        sendJson(res, result.ok ? 200 : 404, {
+          ...result,
+          action: String(payload.action || 'single'),
+          intervalSeconds: payload.action === 'schedule'
+            ? Number(payload.intervalSeconds)
+            : null,
+          pilotOnly: true,
+          customerVisible: false,
+        });
         return;
       }
 
