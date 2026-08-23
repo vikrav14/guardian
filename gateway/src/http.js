@@ -20,7 +20,11 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
-const { buildWellbeingRequestCommand, validConsent } = require('./care-wellbeing');
+const {
+  buildWellbeingRequestCommand,
+  buildWellbeingScheduleCommand,
+  validConsent,
+} = require('./care-wellbeing');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -1099,7 +1103,15 @@ function startHttpServer() {
 
         let command;
         try {
-          command = buildWellbeingRequestCommand(String(payload.metricSet || ''));
+          const action = String(payload.action || 'single');
+          command = action === 'schedule'
+            ? buildWellbeingScheduleCommand({
+                enabled: true,
+                intervalSeconds: payload.intervalSeconds,
+              })
+            : action === 'stop'
+              ? buildWellbeingScheduleCommand({ enabled: false })
+              : buildWellbeingRequestCommand(String(payload.metricSet || ''));
         } catch (error) {
           sendJson(res, 400, { error: error.message });
           return;
@@ -1108,6 +1120,10 @@ function startHttpServer() {
         const result = sendDownlinkCommand(imei, command);
         sendJson(res, result.ok ? 200 : 404, {
           ...result,
+          action: String(payload.action || 'single'),
+          intervalSeconds: payload.action === 'schedule'
+            ? Number(payload.intervalSeconds)
+            : null,
           pilotOnly: true,
           customerVisible: false,
         });
