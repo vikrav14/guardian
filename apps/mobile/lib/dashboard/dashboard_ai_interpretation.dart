@@ -23,12 +23,12 @@ String buildGuardianAiInterpretation(Device? device) {
     return 'Connecting to the watch and waiting for a fresh update.';
   }
 
-  if (isLive && !hasLocation) {
-    return 'Watch connected. Waiting for a fresh location fix.';
-  }
-
   if (device.isDisplayingRetainedSatelliteLocation) {
     return 'Watch connected. Precise GPS is unavailable indoors, so Guardian is keeping the last satellite fix visible and retaining the newer approximate network observation separately.';
+  }
+
+  if (isLive && !hasLocation) {
+    return 'Watch connected. Waiting for a fresh location fix.';
   }
 
   if (device.hasApproximateLocation) {
