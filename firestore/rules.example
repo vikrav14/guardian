@@ -194,23 +194,20 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
     }
 
-    // Safety snapshot uses a narrow client request -> backend authorization
-    // workflow. Clients never create capture authorization, audit evidence or
-    // media metadata directly.
     match /safetySnapshotRequests/{requestId} {
       allow create: if signedIn()
         && activePlanAtLeast('family')
         && linkedTo(request.resource.data.imei)
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
-        && request.resource.data.purposeConfirmed == true
+        && request.resource.data.safetyPurposeConfirmed == true
         && request.resource.data.consentConfirmed == true
         && request.resource.data.createdAt == request.time
         && request.resource.data.keys().hasOnly([
           'imei',
           'requestedBy',
           'status',
-          'purposeConfirmed',
+          'safetyPurposeConfirmed',
           'consentConfirmed',
           'purpose',
           'createdAt'
