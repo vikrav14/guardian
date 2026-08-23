@@ -4,7 +4,7 @@
   "private": true,
   "description": "Emulator tests for Guardian Firestore authorization boundaries",
   "scripts": {
-    "test": "firebase --config firebase.test.json emulators:exec --project guardian-rules-test --only firestore \"node --test test/firestore-rules.test.js\""
+    "test": "firebase --config firebase.test.json emulators:exec --project guardian-rules-test --only firestore \"node --test test/*.test.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
