@@ -27,6 +27,34 @@ test('acceptance report never treats a carrier call as backend-proven', () => {
     ACCEPTANCE_STATUS.MANUAL_REQUIRED
   );
   assert.match(report.capabilities.twoWayCall.note, /bypasses Guardian servers/);
+  assert.equal(
+    report.capabilities.activitySteps.status,
+    ACCEPTANCE_STATUS.MANUAL_REQUIRED,
+  );
+});
+
+test('acceptance report exposes bounded activity shadow evidence without auto-passing it', () => {
+  const report = buildDeviceAcceptanceReport({
+    activityDays: [{
+      id: '2026-08-15',
+      localDate: '2026-08-15',
+      displayable: false,
+      reportedSteps: null,
+      firstRaw: 100,
+      lastRaw: 850,
+      sampleCount: 12,
+      quality: 'unverified',
+      lastObservedAt: new Date('2026-08-15T09:50:00.000Z'),
+    }],
+  }, { since, now });
+
+  assert.equal(report.capabilities.activitySteps.shadowEvidencePresent, true);
+  assert.equal(report.capabilities.activitySteps.days.length, 1);
+  assert.equal(report.capabilities.activitySteps.days[0].reportedSteps, null);
+  assert.equal(
+    report.capabilities.activitySteps.status,
+    ACCEPTANCE_STATUS.MANUAL_REQUIRED,
+  );
 });
 
 test('real alert and notification statuses prove machine-observable safety paths', () => {

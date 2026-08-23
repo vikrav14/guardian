@@ -105,6 +105,36 @@ beforeEach(async () => {
         db,
         'devices',
         '861397052547492',
+        'activityDays',
+        '2026-08-23',
+      ),
+      {
+        localDate: '2026-08-23',
+        displayable: true,
+        reportedSteps: 4321,
+        lastObservedAt: new Date(now - 5 * 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '861397052547492',
+        'activityDays',
+        '2026-08-22-unverified',
+      ),
+      {
+        localDate: '2026-08-22',
+        displayable: false,
+        reportedSteps: null,
+        observedDeltaSteps: 300,
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '861397052547492',
         'journeys',
         'journey-1',
         'presentations',
@@ -319,6 +349,70 @@ test('linked Family users can query journeys for a bounded day', async () => {
   );
 
   await assertSucceeds(getDocs(journeys));
+});
+
+test('daily activity requires Family and hides unverified counters', async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'essential',
+    });
+  });
+  const path = [
+    'devices',
+    '861397052547492',
+    'activityDays',
+    '2026-08-23',
+  ];
+  await assertFails(getDoc(doc(authedDb('owner'), ...path)));
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  await assertSucceeds(getDoc(doc(authedDb('member'), ...path)));
+  const acceptedDays = query(
+    collection(
+      authedDb('member'),
+      'devices',
+      '861397052547492',
+      'activityDays',
+    ),
+    where('displayable', '==', true),
+    orderBy('localDate', 'desc'),
+  );
+  await assertSucceeds(getDocs(acceptedDays));
+  await assertFails(
+    getDocs(
+      query(
+        collection(
+          authedDb('member'),
+          'devices',
+          '861397052547492',
+          'activityDays',
+        ),
+        orderBy('localDate', 'desc'),
+      ),
+    ),
+  );
+  await assertFails(
+    getDoc(
+      doc(
+        authedDb('member'),
+        'devices',
+        '861397052547492',
+        'activityDays',
+        '2026-08-22-unverified',
+      ),
+    ),
+  );
+  await assertFails(
+    setDoc(doc(authedDb('owner'), ...path), {
+      localDate: '2026-08-23',
+      displayable: true,
+      reportedSteps: 999999,
+    }),
+  );
 });
 
 test('linked users can read only unexpired journey presentations', async () => {

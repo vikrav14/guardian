@@ -1,6 +1,11 @@
 require('dotenv').config();
 const path = require('path');
 
+function finiteAtLeast(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 9000),
@@ -10,6 +15,40 @@ const config = {
     ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
+
+  // V52 activity is passive and fail-closed. Raw counters continue to be
+  // retained on devices/{imei}; daily aggregation stays off until the exact
+  // firmware's midnight/reboot semantics have passed physical acceptance.
+  activityStepsIngestEnabled:
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCustomerEnabled:
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCounterMode:
+    process.env.ACTIVITY_STEPS_COUNTER_MODE === 'daily_reset'
+      ? 'daily_reset'
+      : 'unverified',
+  activityStepsTimeZone:
+    process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
+  activityStepsRetentionDays: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_RETENTION_DAYS,
+    90,
+    7,
+  ),
+  activityStepsWriteMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_WRITE_MINUTES,
+    15,
+    1,
+  ),
+  activityStepsMaxPerMinute: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_MAX_PER_MINUTE,
+    300,
+    30,
+  ),
+  activityStepsCleanupMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_CLEANUP_MINUTES,
+    360,
+    60,
+  ),
 
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),

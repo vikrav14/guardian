@@ -145,6 +145,41 @@ Medication reminders are Guardian Care only.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+## Test 8 — steps and daily activity
+
+This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
+ordinary accuracy run. If a new watch displays an inactive pedometer, use the
+strict-admin `activity:provision` workflow once and physically verify the
+result before continuing.
+
+1. Keep `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` and compile the app without
+   `GUARDIAN_ACTIVITY_STEPS_ENABLED`.
+2. Set `ACTIVITY_STEPS_INGEST_ENABLED=true` and keep
+   `ACTIVITY_STEPS_COUNTER_MODE=unverified` for the first shadow run.
+3. Record the watch-displayed count, take a controlled walk with a manually
+   counted step range, and record the watch count again.
+4. Run `npm run acceptance:v52 -- --imei YOUR_DEVICE_IMEI --since 24h` and
+   compare its bounded `activitySteps.days` evidence with the watch.
+5. Observe the final sample before local midnight and the first samples after
+   midnight. Record whether the raw counter resets and when.
+6. Repeat around a watch reboot and a gateway restart. Confirm stale packets do
+   not inflate the day and a gateway restart restores the stored day.
+7. Observe data use and battery behaviour over at least one representative day.
+8. Only after the semantics are accepted, set counter mode to `daily_reset`,
+   keep both customer surfaces off, and verify at least one clean stored day.
+
+First-device evidence collected on 23 August 2026: the documented full-day
+`WALKTIME` followed by `PEDO,1` activated the watch counter, and its displayed
+103 matched the backend raw 103. A subsequent controlled 100-step walk advanced
+the backend raw counter by 99, with no reset or anomaly; record the corresponding
+final watch display before closing the run. This is initial evidence on one
+device, not fleet acceptance.
+
+Pass: controlled walk difference is within the recorded tolerance, midnight
+and reboot/reset semantics are repeatable, anomalous or out-of-order packets
+fail closed, restart recovery preserves the day, and data/battery impact is
+acceptable. Then—and only then—enable WhatsApp and app customer surfaces.
+
 ## Final collection
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.

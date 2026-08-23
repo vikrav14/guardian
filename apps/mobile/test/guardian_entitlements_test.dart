@@ -47,6 +47,7 @@ void main() {
     );
 
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
+    expect(result.has(GuardianFeature.activitySteps), true);
     expect(result.has(GuardianFeature.medicationReminders), false);
     expect(result.caregiverLimit, 5);
     expect(result.locationHistoryDays, isNull);
@@ -59,6 +60,7 @@ void main() {
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
     expect(result.has(GuardianFeature.medicationReminders), true);
     expect(result.has(GuardianFeature.weeklyCareSummaries), true);
+    expect(result.has(GuardianFeature.activitySteps), true);
   });
 
   test('bounded statuses expire deterministically', () {
@@ -136,6 +138,10 @@ void main() {
       feature: GuardianFeature.medicationReminders,
       subscription: family,
     );
+    final activity = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.activitySteps,
+      subscription: essential,
+    );
 
     expect(whatsapp.allowed, false);
     expect(whatsapp.state, GuardianEntitlementDecisionState.upgradeRequired);
@@ -143,6 +149,9 @@ void main() {
     expect(medication.allowed, false);
     expect(medication.minimumPlan, GuardianPlan.care);
     expect(medication.message, contains('Guardian Care'));
+    expect(activity.allowed, false);
+    expect(activity.minimumPlan, GuardianPlan.family);
+    expect(activity.message, contains('Guardian Family or Guardian Care'));
   });
 
   test('feature decisions fail closed while checking or unavailable', () {

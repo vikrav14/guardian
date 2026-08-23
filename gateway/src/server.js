@@ -43,6 +43,10 @@ const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
 } = require('./v52-telemetry');
+const {
+  ActivityStepsStore,
+  deleteExpiredActivityDays,
+} = require('./activity-steps');
 
 const { startHttpServer } = require('./http');
 
@@ -114,6 +118,33 @@ const {
 
 
 initFirestore();
+
+const activityStepsStore = new ActivityStepsStore(getDb(), {
+  enabled: config.activityStepsIngestEnabled,
+  counterMode: config.activityStepsCounterMode,
+  timeZone: config.activityStepsTimeZone,
+  retentionDays: config.activityStepsRetentionDays,
+  writeIntervalMinutes: config.activityStepsWriteMinutes,
+  maxStepsPerMinute: config.activityStepsMaxPerMinute,
+});
+
+if (config.activityStepsIngestEnabled && getDb()) {
+  const cleanupActivityDays = async () => {
+    try {
+      const deleted = await deleteExpiredActivityDays(getDb());
+      if (deleted > 0) {
+        console.log(`[activity] deleted ${deleted} expired daily record(s)`);
+      }
+    } catch (err) {
+      console.warn(`[activity] expiry cleanup failed: ${err.message}`);
+    }
+  };
+  const timer = setInterval(
+    cleanupActivityDays,
+    config.activityStepsCleanupMinutes * 60_000,
+  );
+  timer.unref?.();
+}
 
 startIntelligenceMonitor();
 
@@ -338,6 +369,25 @@ async function applyEvents(events, session) {
             eventReceivedAt,
             { protocolId: event.protocolId || null }
           );
+        }
+      }
+
+      if (event.imei && event.stepsRaw != null) {
+        try {
+          const activityResult = await activityStepsStore.ingest(
+            event,
+            eventReceivedAt,
+          );
+          if (activityResult.status === 'stored') {
+            console.log(
+              `[activity] ${event.imei} ${activityResult.day.localDate} ` +
+                `quality=${activityResult.day.quality}`
+            );
+          }
+        } catch (err) {
+          // Activity is supplementary. A malformed counter or Firestore issue
+          // must never interrupt heartbeat, location or SOS processing.
+          console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
         }
       }
 

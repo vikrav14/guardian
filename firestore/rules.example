@@ -183,6 +183,16 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      // Gateway-owned V52 daily activity. A client must be linked, hold an
+      // active Family/Care entitlement, and query only physically accepted
+      // displayable records. Unverified raw counters remain backend-only.
+      match /activityDays/{localDate} {
+        allow read: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.displayable == true;
+        allow create, update, delete: if false;
+      }
     }
 
     match /geofences/{geofenceId} {

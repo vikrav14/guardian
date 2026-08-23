@@ -177,6 +177,43 @@ function uploadIntervalCommand(seconds) {
   return `UPLOAD,${n}`;
 }
 
+function pedometerCommand(enabled) {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Pedometer enabled must be a boolean');
+  }
+  return `PEDO,${enabled ? 1 : 0}`;
+}
+
+function normalizeWalkTimeWindow(value) {
+  const window = String(value || '').trim();
+  const match = window.match(
+    /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/
+  );
+  if (!match) {
+    throw new Error('Pedometer window must use HH:MM-HH:MM in 24-hour time');
+  }
+
+  const startMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const endMinutes = Number(match[3]) * 60 + Number(match[4]);
+  const disabledWindow = startMinutes === 0 && endMinutes === 0;
+  if (!disabledWindow && endMinutes <= startMinutes) {
+    throw new Error('Pedometer window end must be after its start');
+  }
+  return window;
+}
+
+/**
+ * The V52 accepts exactly three counting windows. Unused vendor windows are
+ * represented by 00:00-00:00. This builder deliberately does not infer a
+ * timezone or silently widen a supplied schedule.
+ */
+function walkTimeCommand(windows) {
+  if (!Array.isArray(windows) || windows.length !== 3) {
+    throw new Error('Exactly three pedometer windows are required');
+  }
+  return `WALKTIME,${windows.map(normalizeWalkTimeWindow).join(',')}`;
+}
+
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
@@ -248,5 +285,7 @@ module.exports = {
   fallSensitivityCommand,
   medicationReminderCommand,
   uploadIntervalCommand,
+  pedometerCommand,
+  walkTimeCommand,
   textToHexUtf16,
 };
