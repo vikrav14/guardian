@@ -65,6 +65,26 @@ service cloud.firestore {
         );
     }
 
+    function activeWellbeingConsent(imei) {
+      let consent = get(
+        /databases/$(database)/documents/wellbeingConsents/$(imei)
+      ).data;
+      return consent.get('version', 0) == 1
+        && consent.get('status', '') == 'granted'
+        && consent.get('managedBy', '') in ['guardian_admin', 'migration']
+        && consent.wearerAcknowledgedAt is timestamp
+        && consent.wearerAcknowledgedAt <= request.time
+        && (
+          !('expiresAt' in consent)
+          || consent.expiresAt == null
+          || consent.expiresAt > request.time
+        )
+        && (
+          !('revokedAt' in consent)
+          || consent.revokedAt == null
+        );
+    }
+
     function caregiverLimit() {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
@@ -183,6 +203,23 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      // Sensitive watch wellbeing estimates. Only backend-accepted,
+      // customer-enabled evidence is readable, and only on Guardian Care.
+      // Admin SDK owns every write and all unverified shadow evidence.
+      match /wellbeingReadings/{readingId} {
+        allow read: if linkedTo(imei)
+          && activePlanAtLeast('care')
+          && activeWellbeingConsent(imei)
+          && resource.data.displayable == true;
+        allow write: if false;
+      }
+    }
+
+    // Durable wearer-consent authority is backend-only. It must never be
+    // readable or forgeable through a mobile/web client.
+    match /wellbeingConsents/{imei} {
+      allow read, write: if false;
     }
 
     match /geofences/{geofenceId} {
@@ -282,6 +319,10 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
+        // Phonebook entries control who may ring a wearer's watch. Until the
+        // authenticated contact-management backend is complete, PHBX remains
+        // administrator-only through the Admin SDK/local provisioning route.
+        && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
           || activePlanAtLeast('care')

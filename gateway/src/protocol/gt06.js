@@ -47,8 +47,10 @@ function parseV52Telemetry(fields) {
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
 // Includes commands confirmed in the V52 vendor protocol and companion
-// captures. 'profile'/'PROFILE' and 'oxygen'/'hrtstart' case variants are
-// both listed because the vendor examples are inconsistent about ack case.
+// captures. 'profile'/'PROFILE' case variants are both listed because the
+// vendor examples are inconsistent about command case. `hrtstart` is retained
+// as a pilot-only V46/V52-compatible downlink; incoming `oxygen` and `bphrt`
+// are device uploads and are parsed below.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
@@ -354,8 +356,9 @@ function handlePacket(decoded, session) {
     // status code: 1=normal, 0=process disorderly, 2=parameter error.
     const [oxyType, oxyValue] = args;
     const oxy = parseFloat(oxyValue);
-    acks.push(buildAckFrame(protocolId, `oxygen,${Number.isNaN(oxy) ? 2 : 1}`));
-    if (!Number.isNaN(oxy)) {
+    const validOxy = Number.isInteger(oxy) && oxy >= 1 && oxy <= 100;
+    acks.push(buildAckFrame(protocolId, `oxygen,${validOxy ? 1 : 2}`));
+    if (validOxy) {
       events.push({
         type: 'health_reading',
         ...eventMeta,
@@ -365,7 +368,8 @@ function handlePacket(decoded, session) {
       });
     }
   } else if (command === 'bphrt') {
-    // V52: heart rate + blood pressure upload after `hrtstart`.
+    // Heart-rate + blood-pressure upload. V46/V52 command parity is supplier
+    // guidance; the exact V52 request/response still requires device evidence.
     // Only 3 leading fields are confirmed from the vendor's example
     // (systolic, diastolic, heart rate); trailing fields are unconfirmed
     // and left unparsed rather than guessed. No documented ack for this

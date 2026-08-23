@@ -67,14 +67,28 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 
 Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
 
-## Test 3 — calls
+## Test 3 — approved incoming family calls
 
-1. From the Guardian app, call the watch and hold a short two-way conversation.
-2. From the watch, call the configured guardian/SOS number and hold a short two-way conversation.
-3. Repeat once with the gateway stopped. Voice should remain a carrier function when cellular voice coverage is available.
-4. Record date, direction, ring result, two-way audio and any carrier charge.
+Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
+The supported direction is an approved guardian calling the watch; after the
+wearer answers, audio is two-way.
 
-Pass: both directions work on the target SIM/carrier and failure copy is accurate. These calls do not use the watch's 500MB data allowance; normal carrier voice charges may apply.
+1. Provision an approved number through `npm run phonebook:provision`.
+2. Confirm the entry appears, then reboot and confirm it persists.
+3. Call the watch from the approved number and hold a short conversation.
+4. Call from an unknown number and confirm the watch does not ring.
+5. Repeat the approved call with the gateway stopped. Voice should remain a
+   carrier function when cellular voice coverage is available.
+6. Record date, firmware, SIM package, ring result, two-way audio and carrier
+   charging without recording the contact number in GitHub.
+
+Pass: approved incoming call rings, unknown caller is blocked, and both sides
+can hear and speak clearly after answer. Outbound `CALL`, watch dial-pad calls
+and wearer-originated phonebook calls are not part of the Guardian promise.
+
+Pilot result, 22 August 2026: passed on one physical V52, including persistence
+after reboot. Repeat on a second production-equivalent watch/SIM before
+customer activation.
 
 ## Test 4 — safe zones
 
@@ -130,6 +144,22 @@ Medication reminders are Guardian Care only.
 5. Confirm the guardian reminder's actual delivery outcome.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
+
+## Test 8 — Care wellbeing readings
+
+This test records watch estimates, not medical accuracy. Obtain explicit wearer consent first. Do not use it to diagnose, clear an emergency, or decide that a person is safe.
+
+1. Keep `CARE_WELLBEING_DEVICE_MODE=unverified` and `CARE_WELLBEING_CUSTOMER_ENABLED=false`.
+2. Record consent with `npm run wellbeing:consent -- --grant --wearer-confirmed --imei YOUR_15_DIGIT_IMEI --recorded-by YOUR_ADMIN_EMAIL`.
+3. Enable ingestion only, restart the gateway, take a heart/BP reading on the watch, and note the watch display and exact local time.
+4. If the watch has no wearer-initiated heart/BP control, separately enable the request pilot and run `npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --metric heart_rate_blood_pressure` once.
+5. Require one protected `bphrt` reading whose three fields match the watch display and whose `displayable` value remains false.
+6. Take an oxygen reading on the watch. Require one protected `oxygen` reading matching the display and verify the gateway acknowledgement.
+7. Repeat each reading to test deduplication, malformed values, freshness and retention. Never classify the results as normal or abnormal.
+8. Run the acceptance inspector and attach only redacted evidence to the pull request.
+9. Revoke consent when the pilot ends with `npm run wellbeing:consent -- --revoke --imei YOUR_15_DIGIT_IMEI --recorded-by YOUR_ADMIN_EMAIL`.
+
+Temperature remains blocked until the exact V52 upload shape is captured. Passing this test permits an engineering evidence update; it does not turn on customer flags or establish medical accuracy.
 
 ## Final collection
 

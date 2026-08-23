@@ -9,10 +9,11 @@ const { sendDownlinkCommand } = require('./downlink');
  * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
- * - TCP data commands: monitor callback, ring/find, fall settings, medication
- *   reminders and upload interval. These are sent as `[SG*protocolId*LEN*...]`
- *   over the watch's active gateway session. They deliberately have no guessed
- *   SMS fallback.
+ * - TCP data commands: administrator-only PHBX phonebook provisioning plus
+ *   monitor callback, ring/find, fall settings, medication reminders and
+ *   upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
+ *   watch's active gateway session. They deliberately have no guessed SMS
+ *   fallback. PHBX is not exposed through the generic deviceCommands channel.
  *
  * A documented command is not automatically an accepted product capability.
  * Each user-visible feature still requires V52 real-device acceptance.
@@ -39,6 +40,51 @@ function voiceMonitorCommand(phone) {
 
 function ringToFindCommand() {
   return 'FIND';
+}
+
+function normalizeCallingPhone(phone) {
+  const normalized = String(phone || '')
+    .trim()
+    .replace(/[\s().-]/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+    throw new Error('Calling phone must use E.164 format, for example +23057123456');
+  }
+  return normalized;
+}
+
+/**
+ * V52 PHBX contact names are sent as UTF-16BE hexadecimal. This mirrors the
+ * vendor example (`0045007a0075006e`) without copying a real person's data.
+ */
+function phonebookNameHex(name) {
+  const normalized = String(name || '').trim();
+  const characters = Array.from(normalized);
+  if (characters.length === 0 || characters.length > 20) {
+    throw new Error('Phonebook name must contain 1-20 characters');
+  }
+  if (/[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error('Phonebook name contains unsupported control characters');
+  }
+  return Buffer.from(normalized, 'utf16le').swap16().toString('hex').toUpperCase();
+}
+
+/**
+ * Set one V52 phonebook entry over the live TCP session. Safe replacement and
+ * deletion remain unproven and must not be inferred from this builder.
+ *
+ * Vendor form:
+ *   PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
+ *
+ * Guardian deliberately leaves the optional picture field empty during the
+ * first real-device acceptance. Slots 1-15 are a conservative Guardian
+ * guardrail until the exact V52 capacity is confirmed on the target firmware.
+ */
+function phonebookContactCommand({ slot, name, phone }) {
+  const serial = Number(slot);
+  if (!Number.isInteger(serial) || serial < 1 || serial > 15) {
+    throw new Error('Phonebook slot must be an integer between 1 and 15');
+  }
+  return `PHBX,${serial},${phonebookNameHex(name)},${normalizeCallingPhone(phone)},`;
 }
 
 /** UTF-16BE hex encoding, 4 hex chars per character, no separators -- the
@@ -195,6 +241,9 @@ module.exports = {
   statusCommand,
   voiceMonitorCommand,
   ringToFindCommand,
+  normalizeCallingPhone,
+  phonebookNameHex,
+  phonebookContactCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,

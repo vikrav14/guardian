@@ -100,6 +100,22 @@ const config = {
     .filter(Boolean),
   opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
 
+  // V52 Care wellbeing. Health readings are sensitive and remain fail-closed:
+  // ingestion requires a backend-owned consent record, unverified readings
+  // are never displayable, and on-demand requests are a separate pilot gate.
+  careWellbeingIngestEnabled:
+    String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingDeviceMode:
+    String(process.env.CARE_WELLBEING_DEVICE_MODE || 'unverified').toLowerCase(),
+  careWellbeingCustomerEnabled:
+    String(process.env.CARE_WELLBEING_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRequestEnabled:
+    String(process.env.CARE_WELLBEING_REQUEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRetentionDays: Math.min(
+    365,
+    Math.max(1, Number(process.env.CARE_WELLBEING_RETENTION_DAYS || 30))
+  ),
+
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',
 

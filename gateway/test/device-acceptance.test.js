@@ -128,3 +128,24 @@ test('geofence requires both transition directions and completed notification ha
   assert.equal(report.capabilities.geofence.enter, null);
   assert.equal(report.capabilities.geofence.exit.id, 'g1');
 });
+
+test('wellbeing packet evidence remains a manual exact-device acceptance item', () => {
+  const report = buildDeviceAcceptanceReport({
+    wellbeingReadings: [{
+      id: 'reading-1',
+      metricSet: 'heart_rate_blood_pressure',
+      values: { heartRateBpm: 72, systolicMmHg: 120, diastolicMmHg: 72 },
+      quality: 'transport_valid_unverified',
+      displayable: false,
+      observedAt: new Date('2026-08-15T09:30:00.000Z'),
+    }],
+  }, { since, now });
+
+  assert.equal(
+    report.capabilities.careWellbeing.status,
+    ACCEPTANCE_STATUS.MANUAL_REQUIRED,
+  );
+  assert.equal(report.capabilities.careWellbeing.protectedEvidencePresent, true);
+  assert.equal(report.capabilities.careWellbeing.readings[0].displayable, false);
+  assert.match(report.capabilities.careWellbeing.note, /Compare each value/);
+});

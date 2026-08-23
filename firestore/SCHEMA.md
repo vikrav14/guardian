@@ -147,6 +147,40 @@ to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
 Optional history (gateway throttles writes — see write gate below).
 
+## `devices/{imei}/wellbeingReadings/{readingId}`
+
+Short-retention, backend-owned V52 wellbeing estimates. These records are
+sensitive. Clients can read only records with `displayable == true`, only when
+linked to the watch, and only with an active Guardian Care subscription.
+Unverified pilot evidence remains backend-only.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| schemaVersion | number | `1` |
+| imei | string | Device IMEI |
+| metricSet | string | `spo2` \| `heart_rate_blood_pressure` |
+| values | map | Confirmed packet fields only: `spo2Percent`, or `heartRateBpm`, `systolicMmHg`, `diastolicMmHg` |
+| measurementType | string \| null | Vendor oxygen type field, retained without interpretation |
+| source | string | `v52_upload` |
+| sourceCommand | string | `oxygen` \| `bphrt` |
+| observedAt | timestamp | Gateway receipt time; the packets do not supply a measurement timestamp |
+| receivedAt | timestamp | Same receipt evidence as `observedAt` |
+| quality | string | `transport_valid_unverified` \| `device_accepted` |
+| deviceMode | string | `unverified` \| `accepted` |
+| displayable | boolean | True only after device acceptance and customer release gates |
+| expiresAt | timestamp | Retention deadline, 30 days by default |
+
+These values are watch estimates, not medical measurements. No schema field
+labels a reading normal, abnormal, safe or unsafe.
+
+## `wellbeingConsents/{imei}`
+
+Backend-only durable wearer-consent authority. Client rules deny every read and
+write. Ingestion fails closed unless `version == 1`, `status == granted`,
+`managedBy` is trusted, `wearerAcknowledgedAt` exists, and the record is neither
+revoked nor expired. The same current-consent predicate gates customer reads;
+revocation also deletes the device's retained wellbeing readings.
+
 | Field | Type |
 |-------|------|
 | lat | number |
@@ -296,7 +330,7 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state. `set_phonebook_contact` is explicitly rejected by Firestore rules and the generic gateway command dispatcher; PHBX is available only through the strict administrator provisioning endpoint. |
 | params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |

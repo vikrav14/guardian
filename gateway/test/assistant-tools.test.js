@@ -7,6 +7,7 @@ const {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  getWellbeingReadings,
 } = require('../src/assistant/tools');
 
 test('deviceLabel prefers nickname, then relationship', () => {
@@ -34,7 +35,7 @@ test('getDeviceIntelligence returns topInsight facts only', async () => {
   const ctx = {
     devices: [
       {
-        imei: '861397053141170',
+        imei: '000000000000001',
         nickname: 'Mimi',
         online: true,
         intelligence: {
@@ -250,4 +251,64 @@ test('getDailySummary aggregates only the requested authorised wearer and period
   assert.equal(result.safeZoneEventCount, 1);
   assert.equal(result.criticalAlertCount, 0);
   assert.equal(result.batteryPercent, 70);
+});
+
+test('getWellbeingReadings queries only displayable readings for the selected watch', async () => {
+  const calls = [];
+  const query = {
+    where(field, operator, value) {
+      calls.push(['where', field, operator, value]);
+      return this;
+    },
+    orderBy(field, direction) {
+      calls.push(['orderBy', field, direction]);
+      return this;
+    },
+    limit(value) {
+      calls.push(['limit', value]);
+      return this;
+    },
+    async get() {
+      return {
+        docs: [{
+          id: 'reading-1',
+          data: () => ({
+            metricSet: 'spo2',
+            values: { spo2Percent: 98 },
+            quality: 'device_accepted',
+            observedAt: { toDate: () => new Date('2026-08-23T14:00:00Z') },
+          }),
+        }],
+      };
+    },
+  };
+  const db = {
+    collection(name) {
+      assert.equal(name, 'devices');
+      return {
+        doc(imei) {
+          assert.equal(imei, 'A');
+          return {
+            collection(name) {
+              assert.equal(name, 'wellbeingReadings');
+              return query;
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const result = await getWellbeingReadings(
+    db,
+    { devices: [{ imei: 'A', nickname: 'Jesh' }] },
+    { imei: 'A', limit: 6 },
+  );
+  assert.equal(result.name, 'Jesh');
+  assert.equal(result.readings[0].values.spo2Percent, 98);
+  assert.deepEqual(calls, [
+    ['where', 'displayable', '==', true],
+    ['orderBy', 'observedAt', 'desc'],
+    ['limit', 6],
+  ]);
 });

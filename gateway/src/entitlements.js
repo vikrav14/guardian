@@ -210,6 +210,7 @@ function featureForWhatsAppIntent(intentType) {
   const type = String(intentType || '').trim().toUpperCase();
   if (type === 'REMINDER_REQUEST') return FEATURE.MEDICATION_REMINDERS;
   if (type === 'DAILY_SUMMARY') return FEATURE.WELLBEING_ACTIVITY_SUMMARIES;
+  if (type === 'WELLBEING_QUERY') return FEATURE.WELLBEING_ACTIVITY_SUMMARIES;
   if (type === 'DEVICE_COMMAND' || type === 'VOICE_MONITOR') {
     return FEATURE.WHATSAPP_WATCH_COMMANDS;
   }

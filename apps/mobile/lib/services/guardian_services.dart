@@ -9,6 +9,7 @@ import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
+import '../models/wellbeing_reading.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
 import 'guardian_entitlements.dart';
@@ -684,6 +685,44 @@ class MedicationReminderService {
     if (!subscription.has(GuardianFeature.medicationReminders)) {
       throw StateError('Medication reminders require Guardian Care.');
     }
+  }
+}
+
+class WellbeingService {
+  WellbeingService({FirebaseFirestore? db})
+    : _db = db ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _db;
+
+  Stream<List<WellbeingReading>> watchRecentReadings(
+    String imei, {
+    required GuardianSubscription subscription,
+    int limit = 12,
+  }) {
+    if (!subscription.has(GuardianFeature.wellbeingActivitySummaries)) {
+      throw StateError('Watch wellbeing readings require Guardian Care.');
+    }
+    final safeLimit = limit.clamp(1, 30).toInt();
+    return _db
+        .collection('devices')
+        .doc(imei)
+        .collection('wellbeingReadings')
+        .where('displayable', isEqualTo: true)
+        .orderBy('observedAt', descending: true)
+        .limit(safeLimit)
+        .snapshots()
+        .map((snapshot) {
+          final readings = <WellbeingReading>[];
+          for (final doc in snapshot.docs) {
+            try {
+              readings.add(WellbeingReading.fromDoc(doc));
+            } catch (error, stackTrace) {
+              debugPrint('[wellbeing] Could not parse ${doc.reference.path}: $error');
+              debugPrintStack(stackTrace: stackTrace);
+            }
+          }
+          return readings;
+        });
   }
 }
 

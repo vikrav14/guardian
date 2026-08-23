@@ -10,6 +10,10 @@
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
+    "phonebook:provision": "node scripts/send-phonebook-contact.js",
+    "phonebook:test": "node scripts/send-phonebook-contact.js",
+    "wellbeing:consent": "node scripts/manage-wellbeing-consent.js",
+    "wellbeing:request": "node scripts/request-wellbeing-reading.js",
     "journey:enrich": "node scripts/enrich-journey-presentation.js",
     "test": "node --test"
   },

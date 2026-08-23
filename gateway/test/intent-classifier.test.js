@@ -76,6 +76,18 @@ test('classifyIntent: weather near a wearer', () => {
   }
 });
 
+test('classifyIntent: watch wellbeing readings before weather', () => {
+  for (const text of [
+    "Mum's heart rate",
+    'latest blood pressure for Dad',
+    'show oxygen saturation',
+    'SpO2 reading',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'WELLBEING_QUERY', `Failed for: ${text}`);
+  }
+  assert.equal(classifyIntent('Temperature around Dad').type, 'WEATHER_QUERY');
+});
+
 test('classifyIntent: safe zone', () => {
   const result = classifyIntent('Is Dad at home?');
   assert.equal(result.type, 'SAFE_ZONE_CHECK');

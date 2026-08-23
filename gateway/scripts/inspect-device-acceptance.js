@@ -31,12 +31,13 @@ function docsWithIds(snapshot) {
 
 async function loadEvidence(db, imei) {
   const deviceRef = db.collection('devices').doc(imei);
-  const [device, alerts, commands, logs, reminders] = await Promise.all([
+  const [device, alerts, commands, logs, reminders, wellbeingReadings] = await Promise.all([
     deviceRef.get(),
     db.collection('alerts').where('imei', '==', imei).get(),
     db.collection('deviceCommands').where('imei', '==', imei).get(),
     db.collection('notificationLogs').where('imei', '==', imei).get(),
     db.collection('medicationReminders').where('imei', '==', imei).get(),
+    deviceRef.collection('wellbeingReadings').get(),
   ]);
   if (!device.exists) throw new Error(`devices/${imei} was not found.`);
   return {
@@ -45,6 +46,7 @@ async function loadEvidence(db, imei) {
     deviceCommands: docsWithIds(commands),
     notificationLogs: docsWithIds(logs),
     reminders: docsWithIds(reminders),
+    wellbeingReadings: docsWithIds(wellbeingReadings),
   };
 }
 

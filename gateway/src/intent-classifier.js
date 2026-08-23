@@ -19,6 +19,7 @@ const KEYWORDS = {
   RECENT_ALERTS: ['alert', 'alerts', 'alerte', 'alertes', 'warning', 'warnings', 'fall', 'geofence', 'event', 'incident', 'incidents', 'trigger'],
   JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings', 'trajet', 'voyage', 'sortie'],
   WEATHER: ['weather', 'forecast', 'rain', 'raining', 'temperature', 'meteo'],
+  WELLBEING: ['spo2', 'oxygen saturation', 'blood pressure', 'heart rate', 'wellbeing reading', 'health reading'],
   DEVICE_COMMAND: ['ring', 'vibrate', 'alarm', 'sound', 'sonner', 'sone', 'trigger', 'activate', 'send command'],
   VOICE_MONITOR: ['listen', 'monitor', 'hear', 'listening', 'voice'],
   REMINDER: ['reminder', 'reminders', 'medicine', 'medsinn', 'pill', 'medication', 'medicament', 'rappel', 'rapel', 'remember', 'remind', 'remind me', 'schedule', 'programme'],
@@ -147,6 +148,19 @@ function classifyIntent(text) {
       urgency: 2,
       confidence: journeyMatch.found ? 0.90 : 0.85,
       matchedKeywords: journeyMatch.keywords,
+    };
+  }
+
+  // Watch wellbeing is more specific than weather. Do not classify the bare
+  // word "temperature" here because that normally means local weather and the
+  // V52 temperature upload shape is not accepted yet.
+  const wellbeingMatch = findKeywordMatch(lower, KEYWORDS.WELLBEING);
+  if (wellbeingMatch.found) {
+    return {
+      type: 'WELLBEING_QUERY',
+      urgency: 2,
+      confidence: 0.90,
+      matchedKeywords: wellbeingMatch.keywords,
     };
   }
 

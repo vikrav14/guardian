@@ -19,6 +19,8 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
+const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { buildWellbeingRequestCommand, validConsent } = require('./care-wellbeing');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -48,6 +50,7 @@ const {
 const { formatBatteryReply } = require('./battery-freshness');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { formatWellbeingReply } = require('./wellbeing-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
 const { answerWeatherQuery } = require('./weather-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
@@ -433,6 +436,40 @@ async function handleChat({ from, text }) {
       return { ctx, reply, deterministic: true };
     }
 
+    if (intent.type === 'WELLBEING_QUERY') {
+      if (!config.careWellbeingCustomerEnabled) {
+        const reply = 'Watch wellbeing readings are still in Guardian Care device acceptance and are not customer-enabled yet.';
+        idempotencyStore.store(requestId, reply);
+        await auditLog.recordResponse({
+          requestId,
+          destination: 'whatsapp',
+          replyLength: reply.length,
+          fallbackReason: 'care_wellbeing_customer_disabled',
+        });
+        return { ctx, reply, deterministic: true };
+      }
+
+      let wellbeingResult;
+      try {
+        wellbeingResult = await runTool(db, ctx, 'get_wellbeing_readings', {
+          imei: wearerResolution.wearer?.imei,
+          limit: 6,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'wellbeing_query', error: err });
+        wellbeingResult = { error: err.message };
+      }
+      const reply = formatWellbeingReply(wellbeingResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: wellbeingResult?.error ? 'wellbeing_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
     if (intent.type === 'DAILY_SUMMARY') {
       const period = extractTimePeriod(effectiveText);
       let summaryResult;
@@ -693,9 +730,9 @@ async function requireAdmin(req, res) {
 }
 
 /**
- * Device context includes a loved one's location and must never inherit the
- * ops API's convenient "dev-open" behavior. Local/ngrok testing therefore
- * requires either X-Admin-Key or an authorized Firebase bearer token.
+ * Sensitive reads and device-changing operations must never inherit the ops
+ * API's convenient "dev-open" behavior. Local/ngrok use therefore requires
+ * either X-Admin-Key or an authorized Firebase administrator bearer token.
  */
 async function requireStrictAdmin(req, res) {
   const auth = await checkAdminAuth(req);
@@ -705,7 +742,7 @@ async function requireStrictAdmin(req, res) {
   }
   if (auth.method === 'dev-open') {
     sendJson(res, 503, {
-      error: 'Device context endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
+      error: 'Strict admin endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
     });
     return false;
   }
@@ -966,9 +1003,127 @@ function startHttpServer() {
       }
 
       if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-phonebook/contact'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionPhonebookContact(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'phonebook_contact',
+                slot: result.slot,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // The watch may already have received PHBX. Return the real handoff
+          // result so an operator does not retry blindly and duplicate work.
+          console.error('[phonebook-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-wellbeing/request'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        if (!config.careWellbeingRequestEnabled) {
+          sendJson(res, 409, {
+            error: 'Care wellbeing request pilot is disabled',
+            requiredSetting: 'CARE_WELLBEING_REQUEST_ENABLED=true',
+          });
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        const imei = String(payload.imei || '').trim();
+        if (!/^\d{15}$/.test(imei)) {
+          sendJson(res, 400, { error: 'The 15-digit hardware IMEI is required' });
+          return;
+        }
+
+        const wellbeingDb = getDb();
+        if (!wellbeingDb) {
+          sendJson(res, 503, { error: 'Firestore is unavailable' });
+          return;
+        }
+        const consentSnap = await wellbeingDb
+          .collection('wellbeingConsents')
+          .doc(imei)
+          .get();
+        if (!consentSnap.exists || !validConsent(consentSnap.data(), new Date())) {
+          sendJson(res, 403, {
+            error: 'A current backend-recorded wearer consent is required',
+          });
+          return;
+        }
+
+        let command;
+        try {
+          command = buildWellbeingRequestCommand(String(payload.metricSet || ''));
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        const result = sendDownlinkCommand(imei, command);
+        sendJson(res, result.ok ? 200 : 404, {
+          ...result,
+          pilotOnly: true,
+          customerVisible: false,
+        });
+        return;
+      }
+
+      if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
+        // This route can write arbitrary commands to a live watch. It must
+        // never inherit the ops API's convenient dev-open behavior, including
+        // when HTTP port 9001 is exposed through an ngrok webhook tunnel.
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
         const imei =
           url.searchParams.get('imei') ||
           url.searchParams.get('protocolId');

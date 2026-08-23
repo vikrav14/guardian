@@ -38,6 +38,18 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
+| Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
+| Request heart/BP pilot | `hrtstart,1` | Documented / supplier-guided | The mixed-family example labels this V46-only; supplier guidance states the V46 and V52 implementation is shared. Keep strict-admin and flag-disabled until the exact V52 returns `bphrt` and the watch display is recorded. |
+
+## Care wellbeing uploads
+
+| Upload | Evidence | Guardian handling | Remaining boundary |
+|---|---|---|---|
+| `bphrt,<systolic>,<diastolic>,<heart rate>,...` | Documented | Parse only the three confirmed leading values; persist only with durable wearer consent; no clinical classification. | Capture on the exact V52 and compare with the watch display. |
+| `oxygen,<type>,<value>` | Documented | Validate a whole-number percentage, acknowledge `oxygen,1` when transport-valid or `oxygen,2` on invalid input, and retain the type without interpretation. | Capture wearer-initiated exact-V52 upload and compare with the watch display. |
+| `bodytemp`, `bodytemp2`, `BTTIMESET` | Incomplete | Blocked: no customer parser, value or command surface. | Establish the exact V52 firmware variant, request form and upload value shape. |
+
+The V52 datasheet lists the sensors, but a sensor claim does not establish a command or upload schema. Customer display remains off until the separate real-device gate passes.
 
 ## Alarm decoding guardrail
 
