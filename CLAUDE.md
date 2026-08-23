@@ -133,8 +133,10 @@ mixed-generation example document.
 
 ### Commands: TCP vs SMS Routing
 
-- **TCP-only V52 commands:** `MONITOR`, `FIND`, fall settings, medication
-  reminders and reporting interval. A live connection is mandatory.
+- **TCP-only V52 commands:** live-proven administrator-only `PHBX`, plus
+  documented `MONITOR`, `FIND`, fall settings, medication reminders and
+  reporting interval. A live connection is mandatory. PHBX is an incoming
+  allowlist on Guardian's current SIM; never promise wearer-originated calls.
 - **Live-proven SMS provisioning:** center number, SOS slots and `ts#` status.
 
 See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
@@ -147,6 +149,9 @@ See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
 4. Test a canonical medication reminder end-to-end on the watch.
 5. Tune safe-zone hysteresis using outdoor/indoor V52 walks; approximate
    Wi-Fi/LBS observations must not create false boundary transitions.
+6. Repeat PHBX provisioning, approved incoming calling and unknown-caller
+   rejection on a second production V52/SIM; confirm replacement/removal with
+   ReachFar before customer contact management is enabled.
 
 Record results in `docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. A vendor claim
 or unit test alone never marks a hardware promise Proven.
