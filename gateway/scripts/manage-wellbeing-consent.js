@@ -52,6 +52,33 @@ async function deleteDeviceReadings(db, imei) {
   }
 }
 
+async function requestScheduleStop({ imei, adminApiKey, httpPort, fetchImpl = fetch }) {
+  if (!adminApiKey) return { requested: false, reason: 'admin_api_key_missing' };
+  try {
+    const response = await fetchImpl(
+      `http://127.0.0.1:${httpPort}/admin/device-wellbeing/request`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': adminApiKey,
+        },
+        body: JSON.stringify({
+          imei,
+          metricSet: 'heart_rate_blood_pressure',
+          action: 'stop',
+        }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return response.ok
+      ? { requested: true, sessions: Number(payload.sessions || 0) }
+      : { requested: false, reason: payload.error || `HTTP ${response.status}` };
+  } catch (error) {
+    return { requested: false, reason: error.message };
+  }
+}
+
 async function main() {
   const grant = hasFlag('grant');
   const revoke = hasFlag('revoke');
@@ -74,6 +101,13 @@ async function main() {
   const db = getDb();
   if (!db) throw new Error('Firestore is unavailable');
   const operation = grant ? 'grant' : 'revoke';
+  const scheduleStop = operation === 'revoke'
+    ? await requestScheduleStop({
+        imei,
+        adminApiKey: config.adminApiKey,
+        httpPort: config.httpPort,
+      })
+    : null;
   await db.collection('wellbeingConsents').doc(imei).set(
     buildConsentPatch({ operation, recordedBy }),
     { merge: true },
@@ -86,6 +120,7 @@ async function main() {
     operation,
     imei: `${imei.slice(0, 4)}*******${imei.slice(-4)}`,
     readingsDeleted,
+    scheduleStop,
   }, null, 2));
 }
 
@@ -96,4 +131,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildConsentPatch, deleteDeviceReadings };
+module.exports = { buildConsentPatch, deleteDeviceReadings, requestScheduleStop };
