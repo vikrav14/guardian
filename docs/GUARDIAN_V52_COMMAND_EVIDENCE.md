@@ -39,6 +39,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
 | Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
+| Bracelet-removal SMS setting | `REMOVESMS` variant not yet accepted | Blocked | The documents identify the command name but the exact safe payload and target behaviour are not accepted. Do not send it until the supplier or a controlled capture confirms syntax. Incoming tracker-state bit 20 can be observed independently in shadow mode. |
 
 ## Alarm decoding guardrail
 

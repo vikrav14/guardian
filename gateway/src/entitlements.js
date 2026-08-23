@@ -16,6 +16,7 @@ const FEATURE = Object.freeze({
   WHATSAPP_QA: 'whatsapp_questions_answers',
   WHATSAPP_SAFETY_ALERTS: 'whatsapp_safety_alerts',
   PROACTIVE_SMART_NOTIFICATIONS: 'proactive_smart_notifications',
+  WATCH_REMOVAL_ALERTS: 'watch_removal_alerts',
   VOICE_ASSISTANT: 'voice_assistant',
   WHATSAPP_WATCH_COMMANDS: 'whatsapp_watch_commands',
   MEDICATION_REMINDERS: 'medication_reminders',
@@ -43,6 +44,7 @@ const FAMILY_FEATURES = Object.freeze([
   FEATURE.WHATSAPP_QA,
   FEATURE.WHATSAPP_SAFETY_ALERTS,
   FEATURE.PROACTIVE_SMART_NOTIFICATIONS,
+  FEATURE.WATCH_REMOVAL_ALERTS,
   FEATURE.VOICE_ASSISTANT,
   FEATURE.WHATSAPP_WATCH_COMMANDS,
 ]);

@@ -39,6 +39,7 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
 const { withFallLocationSnapshot } = require('./fall-location-snapshot');
+const { ingestRemovalObservation } = require('./removal-alert-store');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
@@ -337,6 +338,32 @@ async function applyEvents(events, session) {
             'tcp_reconnected',
             eventReceivedAt,
             { protocolId: event.protocolId || null }
+          );
+        }
+      }
+
+      let removalOutcome = null;
+      const braceletRemoved = event.alarmType === 'bracelet_removed'
+        ? true
+        : event.braceletRemoved;
+      if (typeof braceletRemoved === 'boolean') {
+        removalOutcome = await ingestRemovalObservation(getDb(), {
+          imei: event.imei,
+          braceletRemoved,
+          observedAt: eventReceivedAt,
+          source: event.alarmType === 'bracelet_removed'
+            ? 'v52_removal_alarm'
+            : 'v52_tracker_state',
+          trackerState: event.trackerState || event.alarmCode || null,
+        }, {
+          enabled: config.removalAlertsIngestEnabled,
+          mode: config.removalAlertsDeviceMode,
+          customerEnabled: config.removalAlertsCustomerEnabled,
+        });
+        if (removalOutcome.status === 'stored') {
+          console.log(
+            `[removal] ${event.imei} state=${removalOutcome.state.state} ` +
+              `mode=${removalOutcome.state.mode}`
           );
         }
       }
@@ -946,7 +973,24 @@ async function applyEvents(events, session) {
 
 
 
-        await createAlert(alarmEvent.imei, {
+        if (alarmType === 'bracelet_removed') {
+          if (removalOutcome?.transition?.notify === true) {
+            await createAlert(alarmEvent.imei, {
+              type: 'watch_removed',
+              severity: 'warning',
+              message: 'The watch may have been removed. Please check with the wearer.',
+              eventAt: alarmAt,
+              payload: {
+                source: 'v52_removal_policy',
+                quiet: false,
+              },
+            });
+          } else {
+            console.log(
+              `[removal] ${alarmEvent.imei} raw alarm retained without customer delivery`
+            );
+          }
+        } else await createAlert(alarmEvent.imei, {
 
           type: alarmType,
 

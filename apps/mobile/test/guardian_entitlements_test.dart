@@ -47,6 +47,7 @@ void main() {
     );
 
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
+    expect(result.has(GuardianFeature.watchRemovalAlerts), true);
     expect(result.has(GuardianFeature.medicationReminders), false);
     expect(result.caregiverLimit, 5);
     expect(result.locationHistoryDays, isNull);

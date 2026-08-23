@@ -403,6 +403,42 @@ decisions when `CONTEXT_PERSIST_OBSERVATIONS=true`. CAP-triggered observations
 use source `official_cap_update`, include only bounded alert summaries, and are
 idempotent per device/source/hour.
 
+## `devices/{imei}/safetyStates/watchRemoval`
+
+Gateway-owned current bracelet-removal transition state. In unverified mode it
+is protected acceptance evidence and is not customer-displayable.
+
+| Field | Type | Notes |
+|---|---|---|
+| imei | string | Canonical linked device identity |
+| state | string | `unknown`, `worn`, or `removed` |
+| candidateState | string \| null | Unconfirmed next state during debounce |
+| candidateSince | timestamp \| null | Start of the current debounce window |
+| stateChangedAt | timestamp \| null | Last confirmed transition |
+| lastObservedAt | timestamp | Last accepted tracker-state observation |
+| mode | string | `unverified` or `accepted` |
+| displayable | boolean | True only for accepted firmware mode |
+| observationCount | number | Bounded current-state evidence count |
+| transitionCount | number | Confirmed transition count |
+| duplicateCount | number | Same-state observations suppressed |
+| settings | map | Backend-owned enable, debounce, quiet-period and timezone values |
+
+## `removalAlertAudit/{eventId}`
+
+Privacy-safe backend-only transition audit. Linked Family/Care clients may read
+it only after the customer build gate is enabled; clients cannot write it.
+
+| Field | Type | Notes |
+|---|---|---|
+| imei | string | Canonical linked device identity |
+| eventType | string | `watch_removed` or `watch_restored` |
+| eventAt | timestamp | Confirmed transition time |
+| source | string | Bounded protocol-source label |
+| quiet | boolean | Whether quiet-period policy applied |
+| notificationEligible | boolean | True only after every backend acceptance gate |
+| mode | string | Firmware acceptance mode at transition time |
+| createdAt | timestamp | Gateway audit write time |
+
 ## Gateway write map
 
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
