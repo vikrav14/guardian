@@ -9,6 +9,7 @@ const {
   validConsent,
   readingIdFor,
   buildWellbeingRequestCommand,
+  buildWellbeingScheduleCommand,
   createWellbeingStore,
 } = require('../src/care-wellbeing');
 
@@ -122,6 +123,26 @@ test('request command is limited to the supplier-guided heart/BP pilot', () => {
   assert.throws(
     () => buildWellbeingRequestCommand(METRIC_SET.SPO2),
     /No confirmed V52 request command/,
+  );
+});
+
+test('scheduled wellbeing uses the proven vendor interval and explicit stop commands', () => {
+  assert.equal(
+    buildWellbeingScheduleCommand({ enabled: true, intervalSeconds: 3600 }),
+    'hrtstart,3600',
+  );
+  assert.equal(
+    buildWellbeingScheduleCommand({ enabled: true, intervalSeconds: 300 }),
+    'hrtstart,300',
+  );
+  assert.equal(buildWellbeingScheduleCommand({ enabled: false }), 'hrtstart,0');
+  assert.throws(
+    () => buildWellbeingScheduleCommand({ enabled: true, intervalSeconds: 299 }),
+    /300 to 65535/,
+  );
+  assert.throws(
+    () => buildWellbeingScheduleCommand({ enabled: true, intervalSeconds: 65536 }),
+    /300 to 65535/,
   );
 });
 
