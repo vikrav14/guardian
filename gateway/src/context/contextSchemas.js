@@ -120,7 +120,7 @@ const deviceContextSchema = {
         },
         recommendedAction: {
           type: 'string',
-          enum: ['none', 'check_in', 'enable_voice_monitor', 'monitor_battery'],
+          enum: ['none', 'check_in', 'call_watch', 'monitor_battery'],
         },
         reason: { type: 'string' },
         observeOnly: { type: 'boolean' },

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  AUDIO_CHECKIN_DISABLED_REPLY,
   SCOPE_REPLY,
   decideInboundRoute,
   decideProactiveWhatsApp,
@@ -15,7 +16,6 @@ test('functional Guardian intents may use the assistant', () => {
     'JOURNEY_QUERY',
     'DAILY_SUMMARY',
     'DEVICE_COMMAND',
-    'VOICE_MONITOR',
     'REMINDER_REQUEST',
     'SAFE_ZONE_CHECK',
     'WEATHER_QUERY',
@@ -25,6 +25,14 @@ test('functional Guardian intents may use the assistant', () => {
     assert.equal(decision.allowAssistant, true, type);
     assert.equal(decision.reply, null, type);
   }
+});
+
+test('voice-monitor requests are blocked deterministically without the assistant', () => {
+  const decision = decideInboundRoute({ type: 'VOICE_MONITOR' });
+  assert.equal(decision.route, 'safety_block');
+  assert.equal(decision.allowAssistant, false);
+  assert.equal(decision.reply, AUDIO_CHECKIN_DISABLED_REPLY);
+  assert.equal(decision.reason, 'audio_checkin_disabled');
 });
 
 test('unclear/general messages get one deterministic scope response', () => {

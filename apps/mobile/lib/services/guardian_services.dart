@@ -1164,13 +1164,6 @@ class DeviceCommandService {
     return _enqueue(imei, 'check_status', const {});
   }
 
-  /// Sends the V52 MONITOR data command over its live TCP connection.
-  /// Product use still requires explicit wearer consent and real-device
-  /// acceptance; WhatsApp deliberately cannot invoke this action.
-  Future<void> startVoiceMonitor(String imei, String listenerPhone) {
-    return _enqueue(imei, 'voice_monitor', {'phone': listenerPhone.trim()});
-  }
-
   /// Sends the V52 FIND command over its live TCP connection.
   Future<void> ringToFind(String imei) {
     return _enqueue(imei, 'ring_to_find', const {});

@@ -4,6 +4,7 @@ const {
   centerNumberCommand,
   sosNumberCommand,
   statusCommand,
+  voiceMonitorMasterCommand,
   voiceMonitorCommand,
   ringToFindCommand,
   sendDeviceCommand,
@@ -33,8 +34,10 @@ test('statusCommand is the documented ts# check', () => {
   assert.equal(statusCommand(), 'ts#');
 });
 
-test('voiceMonitorCommand builds the V52 TCP data command', () => {
+test('MONITOR builders preserve both conflicting vendor-documented variants', () => {
+  assert.equal(voiceMonitorMasterCommand(), 'MONITOR');
   assert.equal(voiceMonitorCommand('+23057123456'), 'MONITOR,+23057123456');
+  assert.throws(() => voiceMonitorCommand('57123456'), /E\.164/);
 });
 
 test('ringToFindCommand builds the V52 TCP data command', () => {
@@ -42,6 +45,10 @@ test('ringToFindCommand builds the V52 TCP data command', () => {
 });
 
 test('V52 runtime commands produce exact SG frames without SMS terminators', () => {
+  assert.equal(
+    buildAckFrame('9705254749', voiceMonitorMasterCommand()).toString('ascii'),
+    '[SG*9705254749*0007*MONITOR]'
+  );
   assert.equal(
     buildAckFrame('9705254749', voiceMonitorCommand('+23058590100')).toString('ascii'),
     '[SG*9705254749*0014*MONITOR,+23058590100]'
@@ -142,7 +149,28 @@ test('sendDeviceCommand routes TCP-only types over downlink and fails clearly wi
   );
 });
 
-test('sendDeviceCommand sends V52 monitor and find commands only over TCP', async () => {
+test('generic device command dispatch rejects privacy-sensitive MONITOR', async () => {
+  const transports = {
+    sendDownlinkCommand: () => {
+      throw new Error('generic command transport must not run');
+    },
+    sendSms: async () => {
+      throw new Error('generic command SMS must not run');
+    },
+  };
+  await assert.rejects(
+    sendDeviceCommand(
+      {},
+      '861397052547492',
+      'voice_monitor',
+      { phone: '+23058590100' },
+      transports
+    ),
+    /Unknown device command type/
+  );
+});
+
+test('sendDeviceCommand sends V52 find commands only over TCP', async () => {
   const calls = [];
   const transports = {
     sendDownlinkCommand: (imei, command) => {
@@ -154,13 +182,6 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
     },
   };
 
-  const monitor = await sendDeviceCommand(
-    {},
-    '861397052547492',
-    'voice_monitor',
-    { phone: '+23058590100' },
-    transports
-  );
   const find = await sendDeviceCommand(
     {},
     '861397052547492',
@@ -169,12 +190,9 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
     transports
   );
 
-  assert.equal(monitor.channel, 'tcp');
-  assert.equal(monitor.text, 'MONITOR,+23058590100');
   assert.equal(find.channel, 'tcp');
   assert.equal(find.text, 'FIND');
   assert.deepEqual(calls, [
-    { imei: '861397052547492', command: 'MONITOR,+23058590100' },
     { imei: '861397052547492', command: 'FIND' },
   ]);
 });

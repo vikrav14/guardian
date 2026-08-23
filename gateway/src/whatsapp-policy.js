@@ -5,7 +5,6 @@ const GUARDIAN_FUNCTIONAL_INTENTS = new Set([
   'JOURNEY_QUERY',
   'DAILY_SUMMARY',
   'DEVICE_COMMAND',
-  'VOICE_MONITOR',
   'REMINDER_REQUEST',
   'SAFE_ZONE_CHECK',
   'WEATHER_QUERY',
@@ -13,6 +12,9 @@ const GUARDIAN_FUNCTIONAL_INTENTS = new Set([
 
 const SCOPE_REPLY =
   "I'm Guardian, your family-safety assistant. I can help with a wearer's location, watch status and battery, weather nearby, safe zones, alerts, journeys, reminders, and watch safety commands.";
+
+const AUDIO_CHECKIN_DISABLED_REPLY =
+  'Audio safety check-in is not available yet. Guardian blocks listen or monitor requests until wearer consent, verified guardian access and V52 hardware acceptance are complete. If you need to speak with the wearer, call the watch from an approved phonebook number.';
 
 function decideInboundRoute(intent = {}) {
   const type = String(intent.type || 'UNCLEAR');
@@ -23,6 +25,15 @@ function decideInboundRoute(intent = {}) {
       allowAssistant: false,
       reply: null,
       reason: 'critical_safety_path',
+    };
+  }
+
+  if (type === 'VOICE_MONITOR') {
+    return {
+      route: 'safety_block',
+      allowAssistant: false,
+      reply: AUDIO_CHECKIN_DISABLED_REPLY,
+      reason: 'audio_checkin_disabled',
     };
   }
 
@@ -325,6 +336,7 @@ function decideProactiveWhatsApp(candidate = {}) {
 }
 
 module.exports = {
+  AUDIO_CHECKIN_DISABLED_REPLY,
   GUARDIAN_FUNCTIONAL_INTENTS,
   SCOPE_REPLY,
   decideInboundRoute,

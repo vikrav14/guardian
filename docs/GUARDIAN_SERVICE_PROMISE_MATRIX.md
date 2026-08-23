@@ -53,6 +53,7 @@ Essential does **not** include WhatsApp questions and answers. Critical safety c
 | Proactive smart notifications | Push/WhatsApp policy and deterministic escalation rules exist. | Partial | Scenario matrix, quiet-hour policy, rate limits and real delivery tests. |
 | Unlimited location history | Family/Care bypass the Essential query/rule window and the app exposes retained dates. | Partial | Publish a retention/fair-use definition and prove restore/export and downgrade behaviour. |
 | Voice assistant | No verified voice-assistant product exists. Voice monitoring/listen is intentionally prohibited. | Not implemented | Define a safe product separately and implement it, or remove/reword this promise. |
+| Audio safety check-in (not advertised) | A disabled, hidden Family/Care backbone now fails closed on service plan, linked guardian role, explicit wearer consent, backend-verified callback, accepted protocol variant, concurrency and rate limits. Generic app/Firestore/WhatsApp MONITOR paths are blocked. | Not implemented end to end | Resolve the two conflicting vendor MONITOR forms on two real V52/SIM combinations; then complete consent storage/UX, dispatch, audit, charging, privacy/legal review and revocation before adding it to package menus. |
 | Up to 5 family caregivers | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce five caregivers for the verified owner. | Partial | Concurrent live acceptance, revocation and owner/member lifecycle. |
 
 ### Guardian Care

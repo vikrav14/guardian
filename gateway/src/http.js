@@ -334,17 +334,23 @@ async function handleChat({ from, text }) {
     // general chatbot. Out-of-scope/general messages get one deterministic
     // response and never reach Gemini/Claude.
     const inboundRoute = decideInboundRoute(intent);
-    if (inboundRoute.route === 'scope_reply') {
+    if (inboundRoute.reply && inboundRoute.allowAssistant === false) {
       const reply = inboundRoute.reply;
-      metrics.trackFallback('outside_guardian_scope', { intentType: intent.type });
+      metrics.trackFallback(inboundRoute.reason, { intentType: intent.type });
       idempotencyStore.store(requestId, reply);
       await auditLog.recordResponse({
         requestId,
         destination: 'whatsapp',
         replyLength: reply.length,
-        fallbackReason: 'outside_guardian_scope',
+        fallbackReason: inboundRoute.reason,
       });
-      return { ctx, reply, scopeLimited: true };
+      return {
+        ctx,
+        reply,
+        deterministic: true,
+        scopeLimited: inboundRoute.route === 'scope_reply',
+        safetyBlocked: inboundRoute.route === 'safety_block',
+      };
     }
 
     // [5] Handle critical intents immediately (SOS, emergency)
@@ -627,8 +633,6 @@ async function handleChat({ from, text }) {
       } else if (intent.type === 'SAFE_ZONE_CHECK' && safeZoneToolResult) {
         validation = validateSafeZoneResponse(reply, safeZoneToolResult);
       } else if (intent.type === 'DEVICE_COMMAND') {
-        validation = validateDeviceCommandResponse(reply, commandToolResult);
-      } else if (intent.type === 'VOICE_MONITOR') {
         validation = validateDeviceCommandResponse(reply, commandToolResult);
       } else if (intent.type === 'REMINDER_REQUEST') {
         validation = validateReminderResponse(reply, reminderToolResult);

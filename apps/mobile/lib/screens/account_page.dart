@@ -808,7 +808,6 @@ Future<void> _showDeviceSettingsDialog(
   final simCtrl = TextEditingController(text: device.simNumber ?? '');
   final centerCtrl = TextEditingController();
   final sosCtrl = TextEditingController();
-  final monitorCtrl = TextEditingController();
   var busy = false;
 
   await showDialog<void>(
@@ -1029,36 +1028,6 @@ Future<void> _showDeviceSettingsDialog(
                     ),
                   ),
                   const Divider(height: 24),
-                  Text(
-                    'Voice monitoring uses the V52 live watch connection. Use it only with '
-                    'the wearer\'s knowledge and consent; availability can vary by firmware.',
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: monitorCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Your number to receive the silent call',
-                      hintText: '+230Ã¢â‚¬Â¦',
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: busy
-                          ? null
-                          : () => run(
-                              () => DeviceCommandService().startVoiceMonitor(
-                                device.imei,
-                                monitorCtrl.text,
-                              ),
-                              'Listen-in command queued',
-                            ),
-                      icon: const Icon(Icons.hearing, size: 16),
-                      label: const Text('Listen in'),
-                    ),
-                  ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
@@ -1138,7 +1107,6 @@ Future<void> _showDeviceSettingsDialog(
   simCtrl.dispose();
   centerCtrl.dispose();
   sosCtrl.dispose();
-  monitorCtrl.dispose();
 }
 
 class _PersonRow extends StatelessWidget {

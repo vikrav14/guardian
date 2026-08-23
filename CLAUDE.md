@@ -48,8 +48,10 @@ contain V52 syntax only. Keep two evidence levels separate:
   still need explicit real-device acceptance.
 - **Documented V52 TCP data commands:** `MONITOR`, `FIND`, `FALLDOWN`, `LSSET`,
   `TAKEPILLS` and `UPLOAD`. These require a live V52 session and must not gain
-  a guessed SMS fallback. A documented command is not a product promise until
-  its real-device acceptance passes.
+  a guessed SMS fallback. The supplied documents conflict between bare
+  `MONITOR` (master-number callback) and `MONITOR,<phone>`; neither variant is
+  live-proven. A documented command is not a product promise until its
+  real-device acceptance passes.
 
 Never import older-model alarm bits, shortened packet layouts or community
 SMS commands into production. Never change APN or IMEI from an example value.
@@ -76,10 +78,11 @@ SMS commands into production. Never change APN or IMEI from an example value.
   pendant talks over cellular data and cannot reach `127.0.0.1` — it needs to
   be exposed (tunnel for testing, real hosting for production) before real
   hardware can be linked.
-- "Listen in" (voice monitoring) gives the wearer no on-device indication
+- "Listen in" (voice monitoring) may give the wearer no on-device indication
   they're being listened to — a real privacy/consent question, not just a
-  testing caveat. Worth a deliberate decision before this is used on a real
-  person.
+  testing caveat. The old app and generic Firestore command paths are blocked;
+  keep the replacement audio-check-in entry point hidden until deliberate
+  consent, hardware, carrier and legal acceptance is complete.
 - `MONITOR` and `FIND` have V52 protocol syntax and correct TCP framing, but
   remain hardware-acceptance items. Do not claim call completion, audible-ring
   duration or remote stop behaviour without a real V52 result.
@@ -134,9 +137,11 @@ mixed-generation example document.
 ### Commands: TCP vs SMS Routing
 
 - **TCP-only V52 commands:** live-proven administrator-only `PHBX`, plus
-  documented `MONITOR`, `FIND`, fall settings, medication reminders and
-  reporting interval. A live connection is mandatory. PHBX is an incoming
-  allowlist on Guardian's current SIM; never promise wearer-originated calls.
+  customer-dispatchable documented `FIND`, fall settings, medication reminders
+  and reporting interval. A live connection is mandatory. The two documented
+  MONITOR variants remain admin-acceptance builders only and are excluded from
+  the generic dispatcher. PHBX is an incoming allowlist on Guardian's current
+  SIM; never promise wearer-originated calls.
 - **Live-proven SMS provisioning:** center number, SOS slots and `ts#` status.
 
 See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
@@ -144,7 +149,8 @@ See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
 ### Remaining V52 Acceptance Items
 
 1. Trigger a real fall and confirm bit 22 plus frozen event-location delivery.
-2. Verify `MONITOR,<phone>` callback behaviour and consent UX on the real V52.
+2. Resolve bare `MONITOR` versus `MONITOR,<verified phone>` callback behavior,
+   wearer indication, consent UX and carrier charging on the real V52.
 3. Verify `FIND` sound, duration and stop behaviour on the real V52.
 4. Test a canonical medication reminder end-to-end on the watch.
 5. Tune safe-zone hysteresis using outdoor/indoor V52 walks; approximate

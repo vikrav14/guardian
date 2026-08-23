@@ -10,10 +10,10 @@ const { sendDownlinkCommand } = require('./downlink');
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
  * - TCP data commands: administrator-only PHBX phonebook provisioning plus
- *   monitor callback, ring/find, fall settings, medication reminders and
- *   upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
- *   watch's active gateway session. They deliberately have no guessed SMS
- *   fallback. PHBX is not exposed through the generic deviceCommands channel.
+ *   ring/find, fall settings, medication reminders and upload interval. These
+ *   are sent as `[SG*protocolId*LEN*...]` over the watch's active gateway
+ *   session. They deliberately have no guessed SMS fallback. PHBX and MONITOR
+ *   are not exposed through the generic deviceCommands channel.
  *
  * A documented command is not automatically an accepted product capability.
  * Each user-visible feature still requires V52 real-device acceptance.
@@ -34,10 +34,6 @@ function statusCommand() {
   return 'ts#';
 }
 
-function voiceMonitorCommand(phone) {
-  return `MONITOR,${phone}`;
-}
-
 function ringToFindCommand() {
   return 'FIND';
 }
@@ -50,6 +46,23 @@ function normalizeCallingPhone(phone) {
     throw new Error('Calling phone must use E.164 format, for example +23057123456');
   }
   return normalized;
+}
+
+/**
+ * The supplied V52 documents conflict on MONITOR syntax:
+ * - the protocol PDF sends bare `MONITOR` and says the watch calls its master
+ *   mobile number;
+ * - the communication-example PDF sends `MONITOR,<phone>`.
+ *
+ * Keep both exact payload builders for controlled administrator acceptance.
+ * Neither builder is registered in the generic customer command dispatcher.
+ */
+function voiceMonitorMasterCommand() {
+  return 'MONITOR';
+}
+
+function voiceMonitorCommand(phone) {
+  return `MONITOR,${normalizeCallingPhone(phone)}`;
 }
 
 /**
@@ -180,7 +193,6 @@ function uploadIntervalCommand(seconds) {
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
-  'voice_monitor',
   'ring_to_find',
   'set_fall_detection',
   'set_fall_sensitivity',
@@ -192,7 +204,6 @@ const BUILDERS = {
   set_center_number: ({ phone }) => centerNumberCommand(phone),
   set_sos_number: ({ slot, phone }) => sosNumberCommand(slot, phone),
   check_status: () => statusCommand(),
-  voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
@@ -239,6 +250,7 @@ module.exports = {
   centerNumberCommand,
   sosNumberCommand,
   statusCommand,
+  voiceMonitorMasterCommand,
   voiceMonitorCommand,
   ringToFindCommand,
   normalizeCallingPhone,
