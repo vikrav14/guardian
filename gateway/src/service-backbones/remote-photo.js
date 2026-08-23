@@ -2,16 +2,45 @@
 
 const SERVICE_CONTRACT = Object.freeze({
   serviceId: 'remote-photo',
-  displayName: 'Secure safety photo requests',
+  displayName: 'Safety snapshot',
   minimumPlan: 'family',
-  lifecycle: 'backbone',
+  lifecycle: 'software_safety_path',
   enabledByDefault: false,
-  customerVisible: true,
-  protocolCommands: Object.freeze(['FTPIP', 'FTPPWD', 'PIC']),
-  safetyControls: Object.freeze(['explicit household consent', 'approved guardians only', 'private isolated media ingress', 'short automatic expiry', 'request rate limits and immutable audit']),
-  backendMilestones: Object.freeze(['issue one-time photo request authorization', 'isolate V52 FTP ingress from public storage', 'validate and scan uploads', 'store encrypted media with automatic expiry']),
-  frontendMilestones: Object.freeze(['require safety-purpose confirmation', 'show request and upload progress', 'display access and expiry notice', 'support immediate photo deletion']),
-  acceptanceGates: Object.freeze(['confirm FTPIP FTPPWD and PIC behaviour on exact V52 firmware', 'complete privacy and security review', 'verify upload isolation and expiry', 'measure image size latency and SIM data use']),
+  customerVisible: false,
+  protocolCommands: Object.freeze(['FTPIP', 'FTPPWD', 'PIC', 'rcapture']),
+  acceptedProtocolCommands: Object.freeze([]),
+  safetyControls: Object.freeze([
+    'explicit household consent',
+    'approved guardians only',
+    'one-time authorization bound to one device and requester',
+    'private isolated media ingress',
+    'short automatic expiry and immediate deletion',
+    'request cooldown and immutable audit',
+    'no live camera and no continuous capture',
+  ]),
+  backendMilestones: Object.freeze([
+    'issue one-time safety snapshot authorization',
+    'bind any upload to an unexpired authorization',
+    'isolate media ingress from public storage',
+    'validate media metadata before acceptance',
+    'store private media with automatic expiry',
+    'record request access expiry and deletion audit evidence',
+  ]),
+  frontendMilestones: Object.freeze([
+    'require safety-purpose confirmation',
+    'show requested waiting available expired and deleted states',
+    'display capture time and expiry notice',
+    'support immediate deletion',
+    'never imply a snapshot proves the wearer is safe',
+  ]),
+  acceptanceGates: Object.freeze([
+    'confirm FTPIP FTPPWD PIC and rcapture roles on exact V52 firmware',
+    'prove whether the wearer receives a visible or audible capture indication',
+    'verify upload transport image type size latency and SIM data use',
+    'verify private ingress expiry deletion and access logging',
+    'repeat on a second production-equivalent V52',
+    'complete privacy security and product acceptance',
+  ]),
 });
 
 module.exports = { SERVICE_CONTRACT };
