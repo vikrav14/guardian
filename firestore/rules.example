@@ -70,9 +70,6 @@ service cloud.firestore {
     }
 
     function historyAllowed(recordedAt) {
-      // Family and Care have retained history, so their collection queries do
-      // not need a per-document time predicate. Essential remains restricted
-      // to records inside its seven-day window.
       return activePlanAtLeast('family')
         || (
           activePlanAtLeast('essential')
@@ -120,9 +117,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Backend-owned source of truth for Essential / Family / Care. The app
-    // may display only its verified effective family plan. Admin SDK billing,
-    // migration and support tools bypass these client rules for writes.
     match /serviceSubscriptions/{ownerUid} {
       allow read: if verifiedServiceMember(ownerUid);
       allow create, update, delete: if false;
@@ -130,12 +124,6 @@ service cloud.firestore {
 
     match /devices/{imei} {
       allow read: if linkedTo(imei);
-      // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer,
-      // set the wearable's SIM number (used for calls / SMS commands), and
-      // cache the last fall-detection / location-reporting-interval
-      // preference they asked the pendant for (V46/V48/V52 only -- the
-      // device has no read-back command, so this is a request cache, not
-      // confirmed device state; see commands.js).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
@@ -206,12 +194,56 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
     }
 
+    // Safety snapshot uses a narrow client request -> backend authorization
+    // workflow. Clients never create capture authorization, audit evidence or
+    // media metadata directly.
+    match /safetySnapshotRequests/{requestId} {
+      allow create: if signedIn()
+        && activePlanAtLeast('family')
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.purposeConfirmed == true
+        && request.resource.data.consentConfirmed == true
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly([
+          'imei',
+          'requestedBy',
+          'status',
+          'purposeConfirmed',
+          'consentConfirmed',
+          'purpose',
+          'createdAt'
+        ])
+        && request.resource.data.imei is string
+        && request.resource.data.imei.size() == 15
+        && request.resource.data.purpose is string
+        && request.resource.data.purpose.size() >= 8
+        && request.resource.data.purpose.size() <= 240;
+      allow read: if signedIn()
+        && resource.data.requestedBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /safetySnapshotAuthorizations/{authorizationId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('family')
+        && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /safetySnapshotAudit/{auditId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('family')
+        && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
+      allow create, update, delete: if false;
+    }
+
     match /alerts/{alertId} {
       allow read: if linkedTo(resource.data.imei);
       allow update: if linkedTo(resource.data.imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
-      // App "Send help alert" â€” gateway still owns device-originated alerts.
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.type == 'sos'
         && request.resource.data.severity == 'critical'
@@ -251,9 +283,6 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
     }
 
-    // Joining a family is a backend-verified workflow. The requester may only
-    // enqueue the code. The gateway validates expiry, active plan and caregiver
-    // capacity before it writes serviceOwnerUid, memberUids or linked watches.
     match /familyJoinRequests/{requestId} {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
@@ -274,7 +303,7 @@ service cloud.firestore {
 
     match /notificationLogs/{logId} {
       allow read: if linkedTo(resource.data.imei);
-      allow write: if false; // gateway Admin SDK only
+      allow write: if false;
     }
 
     match /deviceCommands/{commandId} {
@@ -282,15 +311,12 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
-        // Phonebook entries control who may ring a wearer's watch. Until the
-        // authenticated contact-management backend is complete, PHBX remains
-        // administrator-only through the Admin SDK/local provisioning route.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
           || activePlanAtLeast('care')
         );
-      allow update, delete: if false; // gateway Admin SDK only
+      allow update, delete: if false;
     }
   }
 }
