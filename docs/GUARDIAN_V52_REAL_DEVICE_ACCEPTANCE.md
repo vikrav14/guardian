@@ -111,14 +111,28 @@ guardian receives one Meta-confirmed notification, `Call watch` reaches the
 same V52, and all screen/offline limitations are disclosed. Only after this
 pass may the private pilot IMEI and SIM settings be enabled in deployment.
 
-## Test 3 — calls
+## Test 3 — approved incoming family calls
 
-1. From the Guardian app, call the watch and hold a short two-way conversation.
-2. From the watch, call the configured guardian/SOS number and hold a short two-way conversation.
-3. Repeat once with the gateway stopped. Voice should remain a carrier function when cellular voice coverage is available.
-4. Record date, direction, ring result, two-way audio and any carrier charge.
+Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
+The supported direction is an approved guardian calling the watch; after the
+wearer answers, audio is two-way.
 
-Pass: both directions work on the target SIM/carrier and failure copy is accurate. These calls do not use the watch's 500MB data allowance; normal carrier voice charges may apply.
+1. Provision an approved number through `npm run phonebook:provision`.
+2. Confirm the entry appears, then reboot and confirm it persists.
+3. Call the watch from the approved number and hold a short conversation.
+4. Call from an unknown number and confirm the watch does not ring.
+5. Repeat the approved call with the gateway stopped. Voice should remain a
+   carrier function when cellular voice coverage is available.
+6. Record date, firmware, SIM package, ring result, two-way audio and carrier
+   charging without recording the contact number in GitHub.
+
+Pass: approved incoming call rings, unknown caller is blocked, and both sides
+can hear and speak clearly after answer. Outbound `CALL`, watch dial-pad calls
+and wearer-originated phonebook calls are not part of the Guardian promise.
+
+Pilot result, 22 August 2026: passed on one physical V52, including persistence
+after reboot. Repeat on a second production-equivalent watch/SIM before
+customer activation.
 
 ## Test 4 — safe zones
 
