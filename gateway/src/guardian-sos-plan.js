@@ -1,4 +1,8 @@
-const { buildSafetyContext } = require('./safety-message');
+const {
+  readSosLocationSnapshot,
+  buildSosSafetyContext,
+  formatSosLocationValue,
+} = require('./sos-location-snapshot');
 const {
   buildDeterministicNarration,
   buildWatchTemplateValue,
@@ -7,7 +11,6 @@ const {
   buildGuardianSafetyTemplateComponents,
 } = require('./whatsapp-meta');
 const {
-  classifySosLocation,
   formatLocationAge,
 } = require('./sos-location-policy');
 
@@ -105,8 +108,15 @@ function buildSosTemplatePlan({
   now = new Date(),
   callbackTemplatesEnabled = false,
 } = {}) {
-  const ctx = composeResult?.context || buildSafetyContext({ device, alert, now });
-  const locationDecision = classifySosLocation({ device, now });
+  // The composer (or a later device read) cannot override incident coordinates.
+  const snapshot = readSosLocationSnapshot(alert);
+  const ctx = buildSosSafetyContext({ device, alert, now });
+  const locationDecision = snapshot || {
+    state: 'unavailable',
+    reason: 'sos_snapshot_missing_or_invalid',
+    ageSeconds: null,
+    location: null,
+  };
 
   let narration = String(composeResult?.narration || '').trim();
   let narrationSource = composeResult?.source || 'fallback';
@@ -142,14 +152,7 @@ function buildSosTemplatePlan({
     narrationOverrideReason = 'callback_action_required';
   }
 
-  let locationValue;
-  if (locationDecision.state === 'fresh') {
-    locationValue = buildFreshLocationValue(ctx);
-  } else if (locationDecision.state === 'last_known') {
-    locationValue = buildLastKnownLocationValue(ctx, locationDecision);
-  } else {
-    locationValue = 'Current location unavailable';
-  }
+  const locationValue = formatSosLocationValue(snapshot);
 
   const bodyParameters = [
     narration,

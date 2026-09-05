@@ -39,6 +39,7 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
 const { withFallLocationSnapshot } = require('./fall-location-snapshot');
+const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
@@ -776,6 +777,19 @@ async function applyEvents(events, session) {
         }
       } else if (event.type === 'alarm') {
 
+        // Capture pre-alarm evidence before geolocation/reporting/persistence
+        // can yield to a later watch observation. Never read it at send time.
+        let sosDeviceAtReceipt = null;
+        if (event.alarmType === 'sos') {
+          sosDeviceAtReceipt = { ...getLiveDeviceState(event.imei) };
+          try {
+            sosDeviceAtReceipt = await getDeviceDocument(event.imei)
+              || sosDeviceAtReceipt;
+          } catch (err) {
+            console.error('[sos] location evidence lookup failed:', err.message);
+          }
+        }
+
         let alarmEvent = event;
         if (event.needsGeolocation) {
           const resolved = await resolveGeolocation(event);
@@ -804,7 +818,17 @@ async function applyEvents(events, session) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
-        const alarmAt = new Date();
+        const alarmAt = alarmType === 'sos' ? eventReceivedAt : new Date();
+        const sosLocationSnapshot = alarmType === 'sos'
+          ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
+              now: alarmAt,
+              observation: alarmProvenance.location ? {
+                ...alarmProvenance.location,
+                // A resolver completion time is not a device observation time.
+                recordedAt: event.location?.recordedAt || null,
+              } : null,
+            })
+          : null;
         if (alarmType === 'sos') {
           const adaptiveDb = getDb();
           if (adaptiveDb) {
@@ -963,6 +987,8 @@ async function applyEvents(events, session) {
             eventAt: alarmAt,
 
             payload: alarmPayload,
+
+            ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
 
           });
         } else {

@@ -9,6 +9,19 @@ const {
   callbackTemplatesEnabledForDevice,
 } = require('../src/sos-whatsapp');
 
+const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
+
+// Model the backend capture before testing notification preparation.
+function prepareFromEvidence(input) {
+  return prepareSosWhatsApp({
+    ...input,
+    alert: {
+      ...input.alert,
+      sosLocationSnapshot: buildSosLocationSnapshot(input.device, { now: input.now }),
+    },
+  });
+}
+
 const now = new Date('2026-08-13T00:00:00.000Z');
 
 function device(recordedAt, overrides = {}) {
@@ -75,7 +88,7 @@ test('callback templates require an exact private pilot IMEI and SIM match', () 
 });
 
 test('fresh SOS prepares exact Meta template with human narration', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -92,7 +105,7 @@ test('fresh SOS prepares exact Meta template with human narration', async () => 
 });
 
 test('last-known SOS prepares exact last-location Meta template', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:22:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -104,12 +117,12 @@ test('last-known SOS prepares exact last-location Meta template', async () => {
     prepared.plan.templateName,
     'guardian_sos_last_location_v1'
   );
-  assert.match(prepared.plan.bodyParameters[2], /recorded 38 mins ago/);
+  assert.match(prepared.plan.bodyParameters[2], /recorded 38 mins before SOS receipt/);
   assert.equal(prepared.plan.buttonUrlParameter, '-20.1609,57.5012');
 });
 
 test('unavailable SOS prepares exact no-location Meta template with no button', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(null, {
       location: null,
       accuracySource: null,
@@ -129,7 +142,7 @@ test('unavailable SOS prepares exact no-location Meta template with no button', 
 });
 
 test('callback SOS prepares approved call-watch template contract', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -150,7 +163,7 @@ test('callback SOS prepares approved call-watch template contract', async () => 
 
 test('prepared SOS can fan out to multiple contacts with only one LLM call', async () => {
   const counter = { calls: 0 };
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -177,7 +190,7 @@ test('prepared SOS can fan out to multiple contacts with only one LLM call', asy
 });
 
 test('Meta failure remains failed and never invokes another WhatsApp provider', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -204,7 +217,7 @@ test('Meta failure remains failed and never invokes another WhatsApp provider', 
 });
 
 test('last-known fallback text never presents old location as current', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(new Date('2026-08-12T23:22:00.000Z')),
     alert: { type: 'sos', eventAt: now },
     now,
@@ -213,12 +226,12 @@ test('last-known fallback text never presents old location as current', async ()
 
   const text = renderSosFallbackText(prepared);
   assert.match(text, /Last known location:/);
-  assert.match(text, /38 mins ago/);
+  assert.match(text, /38 mins before SOS receipt/);
   assert.match(text, /View last known location:/);
 });
 
 test('unavailable fallback text has no map link', async () => {
-  const prepared = await prepareSosWhatsApp({
+  const prepared = await prepareFromEvidence({
     device: device(null, { location: null, accuracySource: null }),
     alert: { type: 'sos', eventAt: now },
     now,

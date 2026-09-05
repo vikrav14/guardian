@@ -5,6 +5,19 @@ const {
   buildSosTemplatePlan,
 } = require('../src/guardian-sos-plan');
 
+const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
+
+// Model the backend capture before testing notification preparation.
+function planFromEvidence(input) {
+  return buildSosTemplatePlan({
+    ...input,
+    alert: {
+      ...input.alert,
+      sosLocationSnapshot: buildSosLocationSnapshot(input.device, { now: input.now }),
+    },
+  });
+}
+
 const now = new Date('2026-08-13T00:00:00.000Z');
 
 function deviceWithLocation(recordedAt, overrides = {}) {
@@ -39,7 +52,7 @@ test('fresh SOS uses guardian_sos_alert and View location button payload', () =>
     new Date('2026-08-12T23:58:00.000Z')
   );
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -50,7 +63,7 @@ test('fresh SOS uses guardian_sos_alert and View location button payload', () =>
   assert.equal(plan.templateName, 'guardian_sos_alert');
   assert.equal(plan.bodyParameters.length, 4);
   assert.match(plan.bodyParameters[2], /Lower Vale/);
-  assert.match(plan.bodyParameters[2], /updated 2 mins ago/);
+  assert.match(plan.bodyParameters[2], /recorded 2 mins before SOS receipt/);
   assert.equal(plan.buttonUrlParameter, '-20.1609,57.5012');
   assert.equal(plan.components.length, 2);
   assert.equal(plan.components[1].type, 'button');
@@ -61,7 +74,7 @@ test('38-minute SOS uses last-known template and explicit age', () => {
     new Date('2026-08-12T23:22:00.000Z')
   );
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -71,7 +84,7 @@ test('38-minute SOS uses last-known template and explicit age', () => {
   assert.equal(plan.locationState, 'last_known');
   assert.equal(plan.templateName, 'guardian_sos_last_location_v1');
   assert.match(plan.bodyParameters[2], /^Last known location:/);
-  assert.match(plan.bodyParameters[2], /recorded 38 mins ago/);
+  assert.match(plan.bodyParameters[2], /recorded 38 mins before SOS receipt/);
   assert.equal(plan.buttonUrlParameter, '-20.1609,57.5012');
   assert.equal(plan.components[1].type, 'button');
 });
@@ -79,7 +92,7 @@ test('38-minute SOS uses last-known template and explicit age', () => {
 test('valid coordinates with unknown age use last-known template', () => {
   const device = deviceWithLocation(null);
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -87,7 +100,7 @@ test('valid coordinates with unknown age use last-known template', () => {
   });
 
   assert.equal(plan.locationState, 'last_known');
-  assert.match(plan.bodyParameters[2], /recorded time unavailable/);
+  assert.match(plan.bodyParameters[2], /recording time unavailable/);
 });
 
 test('no usable coordinates uses no-location template with no button', () => {
@@ -95,7 +108,7 @@ test('no usable coordinates uses no-location template with no button', () => {
     location: null,
   });
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -115,7 +128,7 @@ test('last-known state rejects LLM wording that presents stale location as curre
     new Date('2026-08-12T23:22:00.000Z')
   );
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult({
@@ -140,7 +153,7 @@ test('unavailable state rejects LLM location claims', () => {
     location: null,
   });
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult({
@@ -162,7 +175,7 @@ test('approximate fresh fix remains explicitly approximate', () => {
     { accuracySource: 'wifi' }
   );
 
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device,
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -175,7 +188,7 @@ test('approximate fresh fix remains explicitly approximate', () => {
 });
 
 test('callback SOS uses deterministic call-watch copy and map button index 1', () => {
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device: deviceWithLocation(new Date('2026-08-12T23:58:00.000Z')),
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),
@@ -196,7 +209,7 @@ test('callback SOS uses deterministic call-watch copy and map button index 1', (
 });
 
 test('callback SOS without location keeps the static call button template', () => {
-  const plan = buildSosTemplatePlan({
+  const plan = planFromEvidence({
     device: deviceWithLocation(null, { location: null }),
     alert: { type: 'sos', createdAt: now },
     composeResult: composeResult(),

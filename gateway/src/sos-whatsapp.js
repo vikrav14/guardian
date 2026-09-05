@@ -8,6 +8,7 @@ const {
   sendMetaTemplate,
 } = require('./whatsapp-meta');
 const config = require('./config');
+const { buildSosSafetyContext } = require('./sos-location-snapshot');
 
 const SOS_TEMPLATE_LANGUAGE = 'en';
 
@@ -59,6 +60,7 @@ async function prepareSosWhatsApp({
     alert,
     now,
     provider: narrationProvider,
+    context: buildSosSafetyContext({ device, alert, now }),
   });
 
   const plan = buildSosTemplatePlan({
@@ -97,7 +99,8 @@ function renderSosFallbackText(prepared) {
     watchValue || 'Watch status unavailable',
   ];
 
-  const mapUrl = prepared?.composeResult?.context?.mapsUrl || null;
+  const mapUrl = plan.buttonUrlParameter
+    ? `https://maps.google.com/?q=${plan.buttonUrlParameter}` : null;
   if (mapUrl && plan.locationState !== 'unavailable') {
     lines.push(
       '',

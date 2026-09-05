@@ -247,6 +247,7 @@ unaltered GPS evidence.
 | severity | string | `info` \| `warning` \| `critical` |
 | message | string | Human-readable |
 | payload | map | Raw / extra fields. V52 fall alerts include immutable `locationSnapshot`; see below. |
+| sosLocationSnapshot | map \| null | Backend-only frozen primary/secondary location evidence for physical V52 SOS; see below. |
 | resolved | boolean | Default false |
 | resolvedAt | timestamp \| null | |
 | notifyStatus | string \| null | `pending` \| `sending` \| `accepted` \| `partial` \| `sent` \| `delivered` \| `failed` \| `skipped`; `accepted` means provider acceptance, not handset delivery |
@@ -254,6 +255,46 @@ unaltered GPS evidence.
 | notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+
+### Physical SOS `sosLocationSnapshot`
+
+The gateway captures this top-level field at physical SOS receipt, before
+notification work. It is **not** stored in the client-writable `payload` map.
+The existing alerts create allowlist rejects this field from clients, and the
+update allowlist permits only resolution fields. Read access remains linked
+watch access. No rules relaxation or new index is required.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | `1` |
+| policy | string | `map_retained_satellite_v1` |
+| capturedAt | timestamp | Gateway receipt time, not a claim of the exact physical button-press time. |
+| state | string | `fresh`, `last_known`, or `unavailable`; retained GPS is always `last_known`. |
+| reason | string | Selection/freshness reason, including `retained_satellite` and `source_unconfirmed`. |
+| ageSeconds | number \| null | Primary observation age relative to receipt; readers recompute it from the frozen timestamps. |
+| retainedSatellite | boolean | The primary pin uses retained satellite evidence rather than the latest approximate observation. |
+| location | map \| null | Copied `{ lat, lng, source, gpsValid, accuracyMeters, recordedAt, placeLabel }`. GPS accuracy is null, never inherited from WiFi/LBS. |
+| latestObservation | map \| null | Separate copied observation with its own time, source and radius. Can be secondary network evidence. |
+
+The primary pin follows the existing Flutter map's retained-GPS policy, tested
+in both languages against `docs/testing/sos-location-selection.json`. Very old
+or unknown-age GPS remains historical and explicitly says the current position
+is unconfirmed; there is no promise that the wearer is still there. Newer
+approximate evidence is retained and disclosed separately. Freshness alone
+does not imply positional precision.
+
+Post-receipt coordinates and malformed/null/blank/out-of-range coordinates are
+excluded. A missing device observation timestamp stays unknown; completion of
+a network geolocation lookup does not invent a timestamp. Body, template state,
+map button and notification-log location text use this snapshot. Battery and
+connection status may still reflect the notification-time device record.
+
+Legacy/app-created SOS alerts without a valid backend snapshot still notify,
+but fail closed to the no-location template. Do not retroactively fill their
+location from a newer device document. Existing sent messages are not edited
+or resent. Fall snapshot semantics and raw tracking data are unchanged.
+
+See `docs/services/sos-location.md` for the physical QA checklist and limits.
 
 ### Fall `payload.locationSnapshot`
 

@@ -1,5 +1,6 @@
 const config = require('./config');
 const { buildSafetyMessage } = require('./safety-message');
+const { buildSosSafetyMessage } = require('./sos-location-snapshot');
 const {
   prepareSosWhatsApp,
   sendPreparedSosWhatsApp,
@@ -90,7 +91,10 @@ async function sendSms(to, body) {
 
 function buildMessage(imei, alert, device = null) {
   const normalizedType = String(alert?.type || '').trim().toLowerCase();
-  if (normalizedType === 'sos' || normalizedType === 'fall') {
+  if (normalizedType === 'sos') {
+    return buildSosSafetyMessage({ device: device || {}, alert: alert || {} });
+  }
+  if (normalizedType === 'fall') {
     const safetyDevice = normalizedType === 'fall'
       ? deviceAtFall(device || {}, alert || {})
       : (device || {});
