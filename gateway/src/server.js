@@ -299,6 +299,19 @@ async function resolveGeolocation(event) {
 
 
 
+// Tracking/reporting failures must not prevent a physical SOS from reaching
+// createAlert. Keep the original error behavior for every other event type.
+// Alert persistence and delivery are deliberately NOT wrapped by this helper.
+async function runTrackingSideEffect(event, stage, operation) {
+  try {
+    return await operation();
+  } catch (err) {
+    if (event.type !== 'alarm' || event.alarmType !== 'sos') throw err;
+    console.error(`[sos] ${stage} failed; continuing emergency alert:`, err.message);
+    return null;
+  }
+}
+
 async function applyEvents(events, session) {
 
   for (const event of events) {
@@ -323,7 +336,7 @@ async function applyEvents(events, session) {
       const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
       if (event.imei) {
-        const connectionAnnounced = await maybeAnnounceConnecting(
+        const connectionAnnounced = await runTrackingSideEffect(event, 'connection', () => maybeAnnounceConnecting(
           session,
           event.imei,
           devicePatch,
@@ -332,7 +345,7 @@ async function applyEvents(events, session) {
           cancelPendingOffline,
           getDeviceDocument,
           seedLastKnownLocation
-        );
+        ));
         if (connectionAnnounced) {
           noteDiagnosticEventForJourney(
             event.imei,
@@ -792,7 +805,7 @@ async function applyEvents(events, session) {
 
         let alarmEvent = event;
         if (event.needsGeolocation) {
-          const resolved = await resolveGeolocation(event);
+          const resolved = await runTrackingSideEffect(event, 'geolocation', () => resolveGeolocation(event));
           if (resolved?.location && typeof resolved.location.lat === 'number') {
             alarmEvent = resolved;
           } else {
@@ -832,10 +845,10 @@ async function applyEvents(events, session) {
         if (alarmType === 'sos') {
           const adaptiveDb = getDb();
           if (adaptiveDb) {
-            await activateSosOverride(adaptiveDb, alarmEvent.imei, {
+            await runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
               batteryPercent: alarmEvent.batteryPercent,
               outingActive: isJourneyActive(alarmEvent.imei),
-            });
+            }));
           }
         }
 
@@ -899,7 +912,8 @@ async function applyEvents(events, session) {
 
 
 
-        await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session);
+        await runTrackingSideEffect(event, 'persistence', () =>
+          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session));
 
         if (alarmType === 'fall') {
           let deviceAtFall = null;
@@ -923,7 +937,7 @@ async function applyEvents(events, session) {
 
         if (alarmEvent.location) {
 
-          await appendLocation(alarmEvent.imei, {
+          await runTrackingSideEffect(event, 'history', () => appendLocation(alarmEvent.imei, {
 
             lat: alarmEvent.location.lat,
 
@@ -945,11 +959,11 @@ async function applyEvents(events, session) {
 
             recordedAt: alarmEvent.location.recordedAt,
 
-          });
+          }));
 
         }
 
-        await refreshDeviceIntelligence(alarmEvent.imei, {
+        await runTrackingSideEffect(event, 'intelligence', () => refreshDeviceIntelligence(alarmEvent.imei, {
 
           ...getLiveDeviceState(alarmEvent.imei),
 
@@ -967,7 +981,7 @@ async function applyEvents(events, session) {
 
           ...telemetryValues,
 
-        });
+        }));
 
 
 

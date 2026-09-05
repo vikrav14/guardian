@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 
 const config = require('../src/config');
 const { notifyEmergencyContacts } = require('../src/notify');
+const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
+const fixtures = require('../../docs/testing/sos-location-selection.json');
 
-function fakeDb() {
+function fakeDb({ liveDevice = {}, logs = [] } = {}) {
   const subscription = {
     version: 1,
     managedBy: 'guardian_admin',
@@ -63,6 +65,7 @@ function fakeDb() {
                     batteryPercent: 70,
                     simNumber: '+23057333333',
                     location: null,
+                    ...liveDevice,
                   }),
                 };
               },
@@ -73,6 +76,7 @@ function fakeDb() {
       if (name === 'notificationLogs') {
         return {
           async add(data) {
+            logs.push(data);
             return { id: 'notification-log-1', data };
           },
         };
@@ -82,7 +86,8 @@ function fakeDb() {
   };
 }
 
-test('Essential SOS sends one Meta template to the primary contact only', async () => {
+for (const withSnapshot of [false, true]) {
+test(`Essential SOS sends one Meta template to its primary contact (${withSnapshot ? 'frozen GPS' : 'no snapshot'})`, async () => {
   const previous = {
     notifySms: config.notifySms,
     notifyWhatsApp: config.notifyWhatsApp,
@@ -91,6 +96,9 @@ test('Essential SOS sends one Meta template to the primary contact only', async 
     fetch: global.fetch,
   };
   const requests = [];
+  const logs = [];
+  const receipt = new Date(fixtures[0].now);
+  const sosLocationSnapshot = buildSosLocationSnapshot(fixtures[0].device, { now: receipt });
 
   config.notifySms = false;
   config.notifyWhatsApp = true;
@@ -109,15 +117,31 @@ test('Essential SOS sends one Meta template to the primary contact only', async 
 
   try {
     const result = await notifyEmergencyContacts(
-      fakeDb(),
+      fakeDb({ logs, liveDevice: {
+        location: { lat: -21, lng: 58, source: 'gps', recordedAt: new Date() },
+        accuracySource: 'gps',
+      } }),
       '359633100123456',
-      { type: 'sos', severity: 'critical', eventAt: new Date() },
+      { type: 'sos', severity: 'critical', eventAt: receipt,
+        ...(withSnapshot ? { sosLocationSnapshot } : {}),
+      },
       { alertId: 'alert-1' }
     );
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].body.to, '23057222222');
-    assert.equal(requests[0].body.template.name, 'guardian_sos_unavailable_v1');
+    assert.equal(requests[0].body.template.name, withSnapshot
+      ? 'guardian_sos_last_location_v1' : 'guardian_sos_unavailable_v1');
+    assert.equal(logs.length, 1);
+    assert.doesNotMatch(JSON.stringify(requests[0].body), /-21,58/);
+    assert.doesNotMatch(logs[0].message, /-21,58/);
+    if (withSnapshot) {
+      const components = requests[0].body.template.components;
+      assert.equal(components[1].parameters[0].text, '-20.1,57.1');
+      assert.match(components[0].parameters[2].text, /13 mins before SOS receipt/);
+      assert.match(logs[0].message, /q=-20\.1,57\.1/);
+      assert.match(logs[0].message, /13 mins before SOS receipt/);
+    }
     assert.equal(result.results[0].channels.whatsapp.skipped, true);
     assert.equal(
       result.results[0].channels.whatsapp.reason,
@@ -134,3 +158,4 @@ test('Essential SOS sends one Meta template to the primary contact only', async 
     global.fetch = previous.fetch;
   }
 });
+}

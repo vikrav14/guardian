@@ -72,44 +72,42 @@ and Care require delivery to every configured WhatsApp recipient. API
 acceptance alone is Partial, not Passed. Essential does not inherit fall,
 routine, assistant, AI, or command WhatsApp capabilities from this SOS gate.
 
-### Test 2B — no-call SOS callback pilot
+### Test 2B — callback notification and frozen location pilot
 
-This test changes emergency behaviour. Tell every recipient first, keep the
-watch and guardian phone together, and choose a documented restoration mode
-before starting. The protocol has no mode read-back, so if the current mode is
-unknown, confirm the intended restore value with the supplier before testing.
+**Recorded firmware result, 24 August 2026:** acknowledged `MOD,0` still
+produced the stock **Calling...** screen and a carrier SMS. No call completed,
+but the pilot SIM already blocks outbound calls. The watch was restored to
+`MOD,1` with acknowledgement. The intended platform-only/no-dialing behavior
+is rejected for this firmware; a bare command echo does not prove it.
 
-1. With a live V52 TCP session, enqueue `set_alarm_mode` with mode `0`
-   (platform only). Mode `3` is the separate platform+backup-SMS, no-call
-   option. The guarded operator command is:
+Do not repeat the old `MOD,0` experiment or try another mode combination as
+part of the location test. Custom screen wording/no dialing requires supplier
+confirmation and a separate firmware acceptance plan.
 
-   ```powershell
-   npm run sos:alarm-mode -- --imei <15-digit-hardware-imei> --mode 0 --confirm CHANGE_SOS_MODE
-   ```
-2. Treat `deviceCommands.status=sent` only as socket handoff. Press SOS once
-   and confirm the V52 actually sends one Guardian `sos` event without placing
-   a carrier call. For mode `0`, also confirm it sends no carrier SMS.
-3. Photograph or record the exact watch screen. The protocol has no display
-   text command, so do not claim Guardian changed `Calling...` to `SOS sent`
-   unless the real firmware shows it.
-4. Require the approved callback WhatsApp template, signed Meta delivery, and
-   a `Call watch` button that rings this watch - never another device. Essential
-   now includes SOS-only WhatsApp, but the callback template still requires the
-   exact private pilot IMEI and SIM match because Meta fixes the phone number in
-   the approved button.
-5. For fresh/last-known location, require the map button at template index 1
-   and verify it opens the correct event location.
-6. Hold one short two-way call initiated by the guardian. Record ring, answer,
-   two-way audio and carrier charge behaviour.
-7. Stop the gateway and document the failure mode. Platform-only SOS cannot be
-   marketed as an offline voice fallback.
-8. Restore the previous alarm mode immediately if any event, notification,
-   button destination or call result is wrong.
+The next test is limited to the Guardian notification and callback path:
 
-Pass: the physical V52 emits one SOS event, makes no automatic call, the correct
-guardian receives one Meta-confirmed notification, `Call watch` reaches the
-same V52, and all screen/offline limitations are disclosed. Only after this
-pass may the private pilot IMEI and SIM settings be enabled in deployment.
+1. Run the verified callback-SOS PR head with existing watch settings. Confirm
+   the gateway and TCP/Meta webhook tunnels are healthy.
+2. Privately revalidate the Meta token, approved standard/callback templates,
+   intended primary contact and exact callback pilot IMEI/SIM guard. Tell the
+   wearer and recipient the test objective and known Calling/SMS limitation.
+3. With retained GPS followed by a newer WiFi/LBS observation, press SOS once.
+   Confirm one backend critical alert with a top-level `sosLocationSnapshot`.
+4. Confirm app receipt and signed Meta `delivered` or `read` evidence. API
+   acceptance alone does not prove handset receipt.
+5. Confirm the WhatsApp map matches the retained GPS, its wording states the
+   GPS age relative to SOS receipt, and the newer estimate is separate.
+   The standard map button uses index 0; the callback map button uses index 1.
+6. If callback templates are selected, verify **Call watch** reaches the same
+   watch. Record ring, answer, two-way audio, carrier charging and any delay
+   caused by the stock Calling screen.
+7. Obtain a later observation and confirm the prior incident's snapshot/link
+   stays unchanged. After the 90-second window, a separate SOS must capture a
+   new incident. Repeated packets inside that window must not create duplicates.
+
+Keep PR #109 draft until this evidence is recorded. This test does not accept
+platform-only routing or guarantee delivery while the gateway is offline.
+See [SOS location details](services/sos-location.md) for the software contract.
 
 ## Test 3 — approved incoming family calls
 

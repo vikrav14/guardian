@@ -91,6 +91,43 @@ the retained GPS and the text states its real receipt-relative age. Then obtain
 a new watch observation and confirm it does not rewrite the previous incident
 or its link. Verify a later, separate SOS can capture different evidence.
 
+### Software completion checks
+
+The integration suite executes the real event dispatcher with failing connection
+bookkeeping, geolocation, adaptive reporting, device persistence, history and
+intelligence dependencies. Each failure is logged and the physical SOS still
+reaches alert creation with its frozen GPS evidence. These are recoverable
+supporting-operation failures; this does not provide offline delivery when the
+alert store or notification provider itself is unavailable.
+
+The Essential contact-dispatch test also passes a later live GPS position into
+the actual notification pipeline. The single primary recipient's Meta map button
+and notification-log text both retain the incident coordinates and age. A missing
+snapshot continues to select the no-location template.
+
+### Next controlled pilot
+
+The 24 August test rejected `MOD,0` as a platform-only/no-call solution on the
+pilot firmware: the watch displayed **Calling...** and sent a carrier SMS. It was
+restored to `MOD,1`. Do not send another mode command for this location test.
+
+Before one new physical SOS, confirm all of the following privately:
+
+- the tested PR head is running in the gateway and its TCP/Meta webhook tunnels
+  are healthy;
+- the Meta token is valid, each selected template is approved, and the intended
+  emergency recipient is correct;
+- callback templates are used only when the exact existing pilot IMEI/SIM guard
+  matches; otherwise the standard SOS templates remain selected;
+- the wearer and recipient understand the stock Calling-screen/carrier-SMS
+  limitation and the purpose of this notification/location test.
+
+Record app receipt, signed Meta `delivered`/`read` evidence, the exact map
+destination, and a completed guardian-initiated callback with two-way audio.
+Then verify later movement leaves the first snapshot unchanged. A later SOS,
+after the 90-second window, must create a separate incident. API `accepted`
+alone is not handset delivery. Keep PR #109 draft until these results exist.
+
 Continue tracking the stock watch's prolonged Calling screen and inbound-call
 availability separately. This software location fix does not resolve that
 firmware behaviour or mark callback audio as accepted.

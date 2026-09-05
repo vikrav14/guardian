@@ -17,10 +17,13 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
+  const failIf = stage => {
+    if (failAt === stage) throw new Error(`fixture ${stage} unavailable`);
+  };
   let clock = receipt.getTime();
   class Clock extends Date {
     constructor(...args) { super(...(args.length ? args : [clock])); }
@@ -30,16 +33,22 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false } = {}) {
     net: { createServer: () => ({ on: noop, listen: noop }) },
     './config': { firestoreDisabled: true },
     './firestore': {
-      initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => null,
+      initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => ({}),
       getDeviceDocument: async () => {
         if (lookupFails) throw new Error('fixture lookup unavailable');
         return structuredClone(evidence);
       },
-      upsertDevice: async (_imei, patch) => { writes.push(patch); clock = after.getTime(); },
-      appendLocation: async () => {}, refreshDeviceIntelligence: async () => {},
+      upsertDevice: async (_imei, patch) => {
+        failIf('persistence'); writes.push(patch); clock = after.getTime();
+      },
+      appendLocation: async () => { failIf('history'); },
+      refreshDeviceIntelligence: async () => { failIf('intelligence'); },
       createAlert: async (_imei, alert) => { alerts.push(alert); },
     },
-    './connection-handshake': { maybeAnnounceConnecting: async () => false },
+    './connection-handshake': { maybeAnnounceConnecting: async () => {
+      failIf('connection'); return false;
+    } },
+    './adaptive-reporting': { activateSosOverride: async () => { failIf('reporting'); } },
     './connection-live': { buildSessionPersistPatch: (_s, patch) => patch },
     './location-provenance': provenance,
     './sos-location-snapshot': snapshotApi,
@@ -50,8 +59,11 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false } = {}) {
     './live-cache': {
       getLiveDeviceState: () => ({}), updateLiveState: noop,
       recordPersist: noop, noteObservationForJourney: noop, noteDiagnosticEventForJourney: noop,
+      isJourneyActive: () => false,
     },
-    './geolocate/google': { geolocateFromV: async () => { clock = after.getTime(); return geoResult; } },
+    './geolocate/google': { geolocateFromV: async () => {
+      failIf('geolocation'); clock = after.getTime(); return geoResult;
+    } },
     './sos-incident-window': { claimSosIncident: () => ({ accepted: true }) },
   };
   const sandbox = {
@@ -119,6 +131,20 @@ test('unavailable prior evidence does not drop the physical alarm or invent a GP
   assert.equal(run.errors.length, 1);
   assert.match(run.errors[0][0], /evidence lookup failed/);
 });
+
+for (const failAt of ['connection', 'geolocation', 'reporting', 'persistence', 'history', 'intelligence']) {
+  test(`SOS survives ${failAt} failure with the same frozen primary GPS`, async () => {
+    const run = dispatcher(fixtures[0].device, { failAt });
+    await run.apply([alarm({ needsGeolocation: failAt === 'geolocation' })], {});
+    assert.equal(run.alerts.length, 1, 'ancillary failures must not suppress SOS');
+    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+    assert.equal(run.alerts[0].sosLocationSnapshot.capturedAt.getTime(), receipt.getTime());
+    assert.equal(run.errors.length, 1, 'failed work remains observable');
+    assert.match(run.errors[0].join(' '), new RegExp(failAt));
+    const prepared = await prepareSosWhatsApp({ alert: run.alerts[0], now: after });
+    assert.equal(prepared.plan.buttonUrlParameter, '-20.1,57.1');
+  });
+}
 
 test('actual notification text builder uses the same frozen SOS point, not live coordinates', () => {
   const notifySource = fs.readFileSync(path.join(__dirname, '../src/notify.js'), 'utf8');
