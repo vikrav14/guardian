@@ -365,6 +365,13 @@ void main() {
         await _tap(tester, 'alert-resolve');
         await _tap(tester, 'alert-keep-open');
         if (width < 880) {
+          // The Back row is lazily removed after scrolling through a long
+          // incident. Bring it back into the viewport before tapping it.
+          await tester.scrollUntilVisible(
+            find.byKey(const Key('alerts-back')),
+            -300,
+            scrollable: find.byType(Scrollable).first,
+          );
           await _tap(tester, 'alerts-back');
           expect(find.byKey(const Key('alert-row-first')), findsOneWidget);
           expect(find.byKey(const Key('alert-detail-first')), findsNothing);

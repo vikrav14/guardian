@@ -265,28 +265,34 @@ class _SosLocation extends StatelessWidget {
           ),
           if (network != null) ...[
             const SizedBox(height: 10),
-            ExpansionTile(
-              key: PageStorageKey('alert-network-${alert.id}'),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 8),
-              title: const Text(
-                'Approximate network observation',
-                style: TextStyle(fontSize: 12),
-              ),
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    [
-                      sosReceiptAge(network.ageAt(snapshot!.capturedAt)),
-                      if (network.accuracyMeters != null)
-                        'Estimated radius: ${network.accuracyMeters!.round()} m.',
-                      'Kept separately from the GPS location above.',
-                    ].join(' '),
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                  ),
+            Material(
+              type: MaterialType.transparency,
+              child: ExpansionTile(
+                key: PageStorageKey('alert-network-${alert.id}'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: const Text(
+                  'Approximate network observation',
+                  style: TextStyle(fontSize: 12),
                 ),
-              ],
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      [
+                        sosReceiptAge(network.ageAt(snapshot!.capturedAt)),
+                        if (network.accuracyMeters != null)
+                          'Estimated radius: ${network.accuracyMeters!.round()} m.',
+                        'Kept separately from the GPS location above.',
+                      ].join(' '),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
