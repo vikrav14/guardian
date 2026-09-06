@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'sos_location_snapshot.dart';
+
 class GuardianAlert {
   const GuardianAlert({
     required this.id,
@@ -12,6 +14,7 @@ class GuardianAlert {
     this.createdAt,
     this.resolvedAt,
     this.payload,
+    this.sosLocationSnapshot,
   });
 
   final String id;
@@ -24,6 +27,7 @@ class GuardianAlert {
   final DateTime? createdAt;
   final DateTime? resolvedAt;
   final Map<String, dynamic>? payload;
+  final SosLocationSnapshot? sosLocationSnapshot;
 
   factory GuardianAlert.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
@@ -39,6 +43,9 @@ class GuardianAlert {
       resolvedAt: _asDateTime(data['resolvedAt']),
       payload: data['payload'] is Map
           ? Map<String, dynamic>.from(data['payload'] as Map)
+          : null,
+      sosLocationSnapshot: data['type'] == 'sos'
+          ? SosLocationSnapshot.tryParse(data['sosLocationSnapshot'])
           : null,
     );
   }

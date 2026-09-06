@@ -1,5 +1,8 @@
 # SOS location selection and frozen incident evidence
 
+The [Alerts screen](alerts-screen.md) reads this same frozen snapshot for
+incident details and maps. Reviewing an incident does not resolve it.
+
 ## Defect addressed
 
 At callback-SOS checkpoint `004b3ba`, the live Flutter avatar retained the last
