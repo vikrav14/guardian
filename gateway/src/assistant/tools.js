@@ -4,6 +4,9 @@ const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
+const { hasJourneyGpsEvidence, isJourneyGps } = require('../journey-source-evidence');
+const { journeyDistanceKm } = require('../journey-builder');
+const { decodePolyline } = require('../polyline');
 const { selectLocationForDisplay } = require('../location-provenance');
 const {
   canonicalMedicationReminder,
@@ -360,7 +363,29 @@ async function getRecentJourneys(
     if (startMs != null && (journeyTime == null || journeyTime < startMs)) continue;
     if (endMs != null && (journeyTime == null || journeyTime >= endMs)) continue;
     const analysis = analyzeJourney({ id: doc.id, ...journey });
-    if (analysis.assessment === 'likely_stationary_drift') {
+    if (!hasJourneyGpsEvidence(journey) || analysis.assessment === 'likely_stationary_drift') {
+      omittedLowQualityCount += 1;
+      continue;
+    }
+    const coords = decodePolyline(journey.polyline);
+    const journeyStartMs = timestampMs(journey.startAt);
+    if (coords.length !== journey.pointCount || journeyStartMs == null ||
+        journey.pointEvidence.some(point => !Number.isFinite(point.offsetMs) || point.offsetMs < 0)) {
+      omittedLowQualityCount += 1;
+      continue;
+    }
+    const route = coords.map((coord, index) => ({
+      ...journey.pointEvidence[index], ...coord,
+      recordedAt: new Date(journeyStartMs + journey.pointEvidence[index].offsetMs),
+    }));
+    const distanceKm = Math.round(journeyDistanceKm(route, {
+      excludeTrackingGaps: true, gpsOnly: true,
+    }) * 1000) / 1000;
+    const confirmedReturn = journey.closeReason === 'return_to_origin' &&
+      Boolean(String(journey.originGeofenceName || '').trim());
+    // Match the app's existing minimum-distance and anchored-return policy.
+    if ((confirmedReturn && journey.routeStartAnchored !== true) ||
+        (!confirmedReturn && distanceKm < 0.02)) {
       omittedLowQualityCount += 1;
       continue;
     }
@@ -368,12 +393,10 @@ async function getRecentJourneys(
       id: doc.id,
       startAt: journey.startAt?.toDate?.()?.toISOString?.() || journey.startAt || null,
       endAt: journey.endAt?.toDate?.()?.toISOString?.() || journey.endAt || null,
-      distanceKm: Number.isFinite(Number(journey.distanceKm))
-        ? Number(journey.distanceKm)
-        : null,
+      distanceKm,
       closeReason: journey.closeReason || null,
       originGeofenceName: journey.originGeofenceName || null,
-      stopCount: Number.isFinite(Number(journey.stopCount))
+      stopCount: !journey.pointEvidence.every(isJourneyGps) ? 0 : Number.isFinite(Number(journey.stopCount))
         ? Number(journey.stopCount)
         : Array.isArray(journey.stops) ? journey.stops.length : 0,
     });

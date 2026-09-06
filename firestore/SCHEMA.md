@@ -189,15 +189,27 @@ A TCP disconnect is diagnostic evidence and does not split an outing.
 |-------|------|-------|
 | startAt | timestamp | Journey start |
 | endAt | timestamp | Journey end |
-| distanceKm | number | Path length along buffered GPS points |
+| distanceKm | number | Sum of consecutive valid GPS edges; excludes Wi-Fi/LBS edges and tracking gaps over five minutes. Older stored totals are recomputed on customer reads. |
 | polyline | string | Google encoded polyline (precision 5) |
 | events | array | Optional inline events, e.g. `{ type: 'geofence_exit', geofenceId, name, at }` |
-| pointCount | number | Raw GPS fixes in buffer before compression |
+| pointCount | number | Raw buffered observations before compression, including approximate observations retained during a GPS journey |
+| evidenceVersion | number | Version 3 stores aligned per-point source evidence and route-start anchoring |
+| pointEvidence | array | One entry per polyline point: source, gpsValid, offsetMs and optional quality metadata; a network estimate is never valid movement evidence |
+| routeStartAnchored | boolean | Whether a safe-zone departure has a retained inside-origin GPS anchor; required for customer-facing confirmed-return outings |
+| routeCoverage | map | GPS/approximate counts and tracking gaps; structureReliable is false for mixed-source routes |
 | compressed | boolean | Always `true` for gateway-written docs |
 | closeReason | string | Current reasons include `return_to_origin`, `idle`, and `daily_boundary`; `disconnect` may exist on legacy documents only |
 | observationAudit | map | Aggregate counts for approximate packets, resolution and acceptance outcomes |
 | diagnosticEvents | array | Bounded timestamp-offset timeline of connection, heartbeat, location, fallback, recovery-probe and reporting-policy evidence used by the read-only gap investigator |
 | createdAt | timestamp | Write time |
+
+Journey creation and boundary confirmation require valid satellite observations.
+Provider Wi-Fi/LBS estimates remain observations, even if their estimated radius
+lies outside a safe zone. Existing records without at least two valid GPS points
+and aligned version-3 source evidence are excluded from customer trip counts,
+distance totals and replay selection; raw documents are retained for diagnostics.
+The existing minimum-distance and anchored-return rules still apply. See
+[`journey-source-validation.md`](../docs/services/journey-source-validation.md).
 
 ### `devices/{imei}/journeys/{journeyId}/presentations/google_v1`
 

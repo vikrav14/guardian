@@ -23,6 +23,7 @@ test('TCP disconnect and reconnect preserve the active outing', () => {
     {
       lat: -20.16196,
       lng: 57.64834,
+      source: 'gps', gpsValid: true,
       speedKmh: 12,
       recordedAt: start,
     },
@@ -53,6 +54,7 @@ test('TCP disconnect and reconnect preserve the active outing', () => {
     {
       lat: -20.16050,
       lng: 57.64750,
+      source: 'gps', gpsValid: true,
       speedKmh: 10,
       recordedAt: reconnectAt,
     },

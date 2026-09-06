@@ -2,6 +2,7 @@ const { encodePolyline } = require('./polyline');
 const { haversineMeters } = require('./geofence');
 const config = require('./config');
 const { deriveJourneyStructure } = require('./journey-structure');
+const { isJourneyGps } = require('./journey-source-evidence');
 
 const STATIONARY_SPEED_KMH = 1;
 const MAX_JOURNEY_SEGMENT_METRES = 5000;
@@ -76,11 +77,14 @@ function sameCalendarDay(a, b) {
 }
 
 function isMoving(point, reference) {
+  // A changing Wi-Fi/LBS estimate is not movement evidence, even if its
+  // packet carries a stale/nonzero speed. Nor can it serve as a GPS baseline.
+  if (!isJourneyGps(point)) return false;
   if (point.speedKmh != null && Number(point.speedKmh) >= STATIONARY_SPEED_KMH) {
     return true;
   }
   if (
-    reference &&
+    isJourneyGps(reference) &&
     typeof point.lat === 'number' &&
     typeof point.lng === 'number' &&
     typeof reference.lat === 'number' &&
@@ -91,16 +95,19 @@ function isMoving(point, reference) {
   return false;
 }
 
-function journeyDistanceKm(points, { excludeTrackingGaps = false } = {}) {
+function journeyDistanceKm(points, { excludeTrackingGaps = false, gpsOnly = false } = {}) {
   if (!Array.isArray(points) || points.length < 2) return 0;
   let meters = 0;
   for (let i = 1; i < points.length; i += 1) {
     const a = points[i - 1];
     const b = points[i];
+    if (gpsOnly && (!isJourneyGps(a) || !isJourneyGps(b))) continue;
+    if (gpsOnly && (!isPlausibleCoord(a.lat, a.lng) || !isPlausibleCoord(b.lat, b.lng))) continue;
     if (excludeTrackingGaps) {
       const aAt = recordedAtOrNow(a, new Date(0));
       const bAt = recordedAtOrNow(b, aAt);
-      if (bAt.getTime() - aAt.getTime() > ROUTE_GAP_THRESHOLD_MS) continue;
+      const elapsedMs = bAt.getTime() - aAt.getTime();
+      if (elapsedMs > ROUTE_GAP_THRESHOLD_MS || (gpsOnly && elapsedMs <= 0)) continue;
     }
     meters += haversineMeters(a.lat, a.lng, b.lat, b.lng);
   }
@@ -181,7 +188,7 @@ function buildRouteEvidence(points, journeyStartAt) {
         endPointIndex: index - 1,
         pointCount: segmentPoints.length,
         distanceKm:
-          Math.round(journeyDistanceKm(segmentPoints) * 1000) / 1000,
+          Math.round(journeyDistanceKm(segmentPoints, { gpsOnly: true }) * 1000) / 1000,
         polyline: encodePolyline(segmentPoints),
       });
       segmentStartIndex = index;
@@ -194,7 +201,7 @@ function buildRouteEvidence(points, journeyStartAt) {
     endPointIndex: points.length - 1,
     pointCount: finalSegmentPoints.length,
     distanceKm:
-      Math.round(journeyDistanceKm(finalSegmentPoints) * 1000) / 1000,
+      Math.round(journeyDistanceKm(finalSegmentPoints, { gpsOnly: true }) * 1000) / 1000,
     polyline: encodePolyline(finalSegmentPoints),
   });
 
@@ -216,7 +223,7 @@ function buildRouteEvidence(points, journeyStartAt) {
       gapCount: routeGaps.length,
       largestGapSeconds,
       interrupted: routeGaps.length > 0,
-      structureReliable: routeGaps.length === 0,
+      structureReliable: routeGaps.length === 0 && points.every(isJourneyGps),
     },
   };
 }
@@ -419,7 +426,10 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
   // Stops and legs are derived from the completed factual GPS path.
   // They enrich one outing; they never create additional journeys or infer purpose.
   const routeEvidence = buildRouteEvidence(journey.points, startAt);
-  const structure = deriveJourneyStructure(journey.points);
+  // Approximate clusters must not become alleged stops at nearby businesses.
+  const structure = journey.points.every(isJourneyGps)
+    ? deriveJourneyStructure(journey.points)
+    : { stops: [], legs: [], stopCount: 0, legCount: 0 };
 
   const doc = {
     startAt: journey.startAt,
@@ -428,7 +438,7 @@ function buildJourneyDoc(state, endAt, reason, extraEvent = null) {
     // point before an upload gap and the first point after it is unknown.
     distanceKm:
       Math.round(
-        journeyDistanceKm(journey.points, { excludeTrackingGaps: true }) * 1000
+        journeyDistanceKm(journey.points, { excludeTrackingGaps: true, gpsOnly: true }) * 1000
       ) / 1000,
     polyline: encodePolyline(journey.points),
     events,
@@ -519,6 +529,11 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   } = options;
   const flushes = [];
   const pointAt = recordedAtOrNow(point, now);
+  const satelliteObservation = isJourneyGps(point);
+
+  if (!state.currentJourney && !satelliteObservation) {
+    return { flushes, started: false };
+  }
 
   if (
     !state.currentJourney &&
@@ -560,7 +575,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     if (closed) flushes.push(closed);
   }
 
-  if (geofenceTransition && transitionType === 'geofence_exit') {
+  if (satelliteObservation && geofenceTransition && transitionType === 'geofence_exit') {
     const exitEvent = {
       type: 'geofence_exit',
       geofenceId: geofenceId || null,
@@ -610,6 +625,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   }
 
   if (
+    satelliteObservation &&
     geofenceTransition &&
     transitionType === 'geofence_enter' &&
     state.currentJourney
@@ -640,7 +656,10 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
     const journey = state.currentJourney;
     const candidateAt = new Date(journey.returnCandidateAt);
 
-    if (pointAt.getTime() - candidateAt.getTime() >= RETURN_CONFIRM_MS) {
+    if (
+      satelliteObservation && !hasUncertainSafeZones &&
+      pointAt.getTime() - candidateAt.getTime() >= RETURN_CONFIRM_MS
+    ) {
       const closed = closeJourney(state, candidateAt, 'return_to_origin', {
         type: 'outing_return',
         geofenceId: journey.originGeofenceId,
