@@ -1,4 +1,5 @@
 import '../models/location_history_point.dart';
+import '../safe_zones/safe_zone_logic.dart' show haversineMeters;
 import 'journey_models.dart';
 import 'journey_utils.dart';
 
@@ -90,11 +91,13 @@ double journeyV2RecordedDistanceKm(JourneyRecord journey) {
     if (!a.isSatelliteObservation ||
         !b.isSatelliteObservation ||
         elapsed <= 0 ||
-        elapsed > const Duration(minutes: 5).inMilliseconds)
+        elapsed > const Duration(minutes: 5).inMilliseconds) {
       continue;
+    }
     if (!isPlausibleCoord(coords[i - 1].lat, coords[i - 1].lng) ||
-        !isPlausibleCoord(coords[i].lat, coords[i].lng))
+        !isPlausibleCoord(coords[i].lat, coords[i].lng)) {
       continue;
+    }
     metres += haversineMeters(
       coords[i - 1].lat,
       coords[i - 1].lng,

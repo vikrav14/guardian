@@ -549,7 +549,7 @@ class _DayRouteStrip extends StatelessWidget {
         _TimelineEndpoint(
           letter: 'A',
           label: startAt == null ? '--:--' : DateFormat.Hm().format(startAt!),
-          caption: totals.allConfirmedReturns ? 'Left' : 'First recorded',
+          caption: confirmedReturn ? 'Left' : 'First recorded',
           color: GuardianColors.safe,
         ),
         const SizedBox(width: 9),
