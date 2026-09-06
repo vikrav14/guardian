@@ -70,6 +70,8 @@ class _Harness {
   final calls = <Device>[];
   final maps = <Uri>[];
   Future<void> Function(String)? resolve;
+  final bulkCalls = <List<GuardianAlert>>[];
+  Future<int> Function(List<GuardianAlert>)? clear;
 
   Future<void> mount(
     WidgetTester tester,
@@ -107,6 +109,11 @@ class _Harness {
           resolveAlert: (id) async {
             writes.add(id);
             await resolve?.call(id);
+          },
+          resolveAlerts: (records) async {
+            bulkCalls.add(List.of(records));
+            if (clear != null) return clear!(records);
+            return records.length;
           },
           onCallWatch: (device) async {
             calls.add(device);
@@ -170,6 +177,12 @@ void main() {
     await tester.tap(find.byKey(const Key('alert-confirm-resolve')));
     await tester.pump(const Duration(milliseconds: 400));
     expect(h.writes, ['second']);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('alerts-clear-all')))
+          .onPressed,
+      isNull,
+    );
     expect(
       tester
           .widget<OutlinedButton>(find.byKey(const Key('alert-resolve')))
@@ -381,4 +394,216 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Clear all confirms the selected category and cancellation writes nothing',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester, [
+        _alert('sos'),
+        _alert('place', type: 'geofence_enter'),
+        _alert('battery', type: 'low_battery'),
+        _alert('history', resolved: true),
+      ]);
+      await _tap(tester, 'alerts-category-places');
+      expect(find.text('Clear all (1)'), findsOneWidget);
+      await _tap(tester, 'alerts-clear-all');
+      expect(find.text('Clear 1 open alert?'), findsOneWidget);
+      expect(find.textContaining('in the Places category'), findsOneWidget);
+      expect(find.textContaining('SOS or fall alert'), findsNothing);
+      await _tap(tester, 'alerts-cancel-clear');
+      expect(h.bulkCalls, isEmpty);
+      expect(h.writes, isEmpty);
+
+      h.clear = (records) async {
+        h.alerts.add([
+          _alert('sos'),
+          _alert('place', type: 'geofence_enter', resolved: true),
+          _alert('battery', type: 'low_battery'),
+          _alert('history', resolved: true),
+        ]);
+        return records.length;
+      };
+      await _tap(tester, 'alerts-clear-all');
+      await _tap(tester, 'alerts-confirm-clear');
+      expect(h.bulkCalls.single.map((a) => a.id), ['place']);
+      expect(find.text('Open (2)'), findsOneWidget);
+      await _tap(tester, 'alerts-history');
+      expect(find.byKey(const Key('alert-row-place')), findsOneWidget);
+      expect(find.byKey(const Key('alerts-clear-all')), findsNothing);
+      expect(h.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Clear all freezes IDs before confirmation and keeps a new SOS open',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester, [
+        _alert('old-sos'),
+        _alert('place', type: 'geofence_enter'),
+      ]);
+      await _tap(tester, 'alerts-clear-all');
+      expect(find.text('Clear 2 open alerts?'), findsOneWidget);
+      expect(
+        find.textContaining('Includes 1 SOS or fall alert'),
+        findsOneWidget,
+      );
+      h.alerts.add([
+        _alert('new-sos'),
+        _alert('old-sos'),
+        _alert('place', type: 'geofence_enter'),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Clear 2 open alerts?'), findsOneWidget);
+      h.clear = (records) async {
+        h.alerts.add([
+          _alert('new-sos'),
+          _alert('old-sos', resolved: true),
+          _alert('place', type: 'geofence_enter', resolved: true),
+        ]);
+        return records.length;
+      };
+      await _tap(tester, 'alerts-confirm-clear');
+      expect(h.bulkCalls.single.map((a) => a.id), ['old-sos', 'place']);
+      expect(find.text('Open (1)'), findsOneWidget);
+      expect(find.byKey(const Key('alert-row-new-sos')), findsOneWidget);
+      expect(h.calls, isEmpty);
+      expect(h.maps, isEmpty);
+      expect(h.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Clear all rechecks resolution and linked visibility after confirmation',
+    (tester) async {
+      final h = _Harness();
+      await h.mount(tester, [
+        _alert('resolved-elsewhere'),
+        _alert('unlinked'),
+        _alert('remaining'),
+      ]);
+      await _tap(tester, 'alerts-clear-all');
+      h.alerts.add([
+        _alert('resolved-elsewhere', resolved: true),
+        _alert('remaining'),
+      ]);
+      await tester.pumpAndSettle();
+      h.clear = (records) async {
+        h.alerts.add([
+          _alert('resolved-elsewhere', resolved: true),
+          _alert('remaining', resolved: true),
+        ]);
+        return records.length;
+      };
+      await _tap(tester, 'alerts-confirm-clear');
+      expect(h.bulkCalls.single.map((a) => a.id), ['remaining']);
+    },
+  );
+
+  testWidgets('Clear all skips writes if its entire group disappears', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester, [_alert('unlinked')]);
+    await _tap(tester, 'alerts-clear-all');
+    h.alerts.add([]);
+    await tester.pumpAndSettle();
+    await _tap(tester, 'alerts-confirm-clear');
+    expect(h.bulkCalls, isEmpty);
+    expect(h.writes, isEmpty);
+  });
+
+  testWidgets('Clear all failure keeps the group open and offers a retry', (
+    tester,
+  ) async {
+    final h = _Harness()
+      ..clear = (_) => Future<int>.error(StateError('denied'));
+    await h.mount(tester, [_alert('first'), _alert('second')]);
+    await _tap(tester, 'alerts-clear-all');
+    await _tap(tester, 'alerts-confirm-clear');
+    expect(find.byKey(const Key('alerts-clear-error')), findsOneWidget);
+    expect(find.text('Open (2)'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('alerts-clear-all')))
+          .onPressed,
+      isNotNull,
+    );
+    h.clear = (records) async {
+      h.alerts.add([
+        _alert('first', resolved: true),
+        _alert('second', resolved: true),
+      ]);
+      return records.length;
+    };
+    await _tap(tester, 'alerts-clear-all');
+    await _tap(tester, 'alerts-confirm-clear');
+    expect(h.bulkCalls, hasLength(2));
+    expect(find.byKey(const Key('alerts-clear-error')), findsNothing);
+    expect(find.text('Open (0)'), findsOneWidget);
+  });
+
+  testWidgets('Clear all blocks repeat submission while the group is saving', (
+    tester,
+  ) async {
+    final pending = Completer<int>();
+    final h = _Harness()..clear = (_) => pending.future;
+    await h.mount(tester, [_alert('first')]);
+    await _tap(tester, 'alerts-clear-all');
+    await tester.tap(find.byKey(const Key('alerts-confirm-clear')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(h.bulkCalls, hasLength(1));
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('alerts-clear-all')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('alert-resolve')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.byKey(const Key('alert-row-first')), findsOneWidget);
+    pending.complete(1);
+    h.alerts.add([_alert('first', resolved: true)]);
+    await tester.pumpAndSettle();
+    expect(h.bulkCalls, hasLength(1));
+  });
+
+  testWidgets('Clear all is disabled for an empty Open view', (tester) async {
+    final h = _Harness();
+    await h.mount(tester, []);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('alerts-clear-all')))
+          .onPressed,
+      isNull,
+    );
+    await _tap(tester, 'alerts-history');
+    expect(find.byKey(const Key('alerts-clear-all')), findsNothing);
+  });
+
+  testWidgets('Clear all confirmation fits a narrow screen with large text', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(
+      tester,
+      [_alert('first'), _alert('second')],
+      width: 320,
+      textScale: 1.6,
+      theme: GuardianThemeId.leMorne,
+    );
+    await _tap(tester, 'alerts-clear-all');
+    expect(
+      find.textContaining('Includes 2 SOS or fall alerts'),
+      findsOneWidget,
+    );
+    await _tap(tester, 'alerts-cancel-clear');
+    expect(tester.takeException(), isNull);
+    expect(h.bulkCalls, isEmpty);
+  });
 }

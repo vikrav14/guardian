@@ -17,6 +17,7 @@ class AlertsPage extends StatefulWidget {
     this.alertsStream,
     this.devicesStream,
     this.resolveAlert,
+    this.resolveAlerts,
     this.onCallWatch,
     this.openLocation,
     this.clock,
@@ -25,6 +26,7 @@ class AlertsPage extends StatefulWidget {
   final Stream<List<GuardianAlert>>? alertsStream;
   final Stream<List<Device>>? devicesStream;
   final Future<void> Function(String)? resolveAlert;
+  final Future<int> Function(List<GuardianAlert>)? resolveAlerts;
   final Future<void> Function(Device)? onCallWatch;
   final Future<bool> Function(Uri)? openLocation;
   final DateTime Function()? clock;
@@ -40,6 +42,8 @@ class _AlertsPageState extends State<AlertsPage> {
   bool _history = false;
   bool _mobileDetail = false;
   bool _confirming = false;
+  bool _clearing = false;
+  String? _clearError;
   String? _selectedId;
   List<GuardianAlert> _latestAlerts = const [];
   List<Device> _latestDevices = const [];
@@ -108,8 +112,127 @@ class _AlertsPageState extends State<AlertsPage> {
     if (category != null) _category = category;
     _selectedId = null;
     _mobileDetail = false;
+    _clearError = null;
     _scrollToTop();
   });
+
+  Future<void> _clearAll() async {
+    if (_history || _confirming || _clearing || _pending.isNotEmpty) {
+      return;
+    }
+    // Freeze the IDs and category before showing the count for confirmation.
+    final category = _category;
+    final candidates = _latestAlerts
+        .where((alert) => !alert.resolved && category.includes(alert))
+        .toList(growable: false);
+    if (candidates.isEmpty) return;
+    final urgent = candidates
+        .where(
+          (alert) => const {'sos', 'fall'}.contains(alert.type.toLowerCase()),
+        )
+        .length;
+    final scope = category == AlertCategory.all
+        ? 'from all categories'
+        : 'in the ${category.label} category';
+    _confirming = true;
+    bool? confirmed;
+    try {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          scrollable: true,
+          title: Text(
+            'Clear ${candidates.length} open ${candidates.length == 1 ? 'alert' : 'alerts'}?',
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mark ${candidates.length == 1 ? 'this alert' : 'these ${candidates.length} alerts'} $scope as resolved for every linked guardian. Cleared alerts remain in recent history.',
+              ),
+              if (urgent > 0) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Includes $urgent SOS or fall ${urgent == 1 ? 'alert' : 'alerts'}. Confirm only after checking on the wearer.',
+                ),
+              ],
+              const SizedBox(height: 12),
+              const Text(
+                'New alerts arriving after this dialog opened will stay open.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              key: const Key('alerts-cancel-clear'),
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const Key('alerts-confirm-clear'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Clear these alerts'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _confirming = false;
+    }
+    if (!mounted || confirmed != true) return;
+    final current = <GuardianAlert>[];
+    for (final candidate in candidates) {
+      final alert = _findAlert(candidate.id);
+      if (alert != null &&
+          alert.imei == candidate.imei &&
+          !alert.resolved &&
+          !_pending.contains(alert.id)) {
+        current.add(alert);
+      }
+    }
+    if (current.isEmpty) {
+      _notice(
+        'These alerts changed or are no longer available. Review the current list.',
+      );
+      return;
+    }
+    final ids = current.map((alert) => alert.id).toSet();
+    setState(() {
+      _clearing = true;
+      _clearError = null;
+      _pending.addAll(ids);
+      for (final id in ids) {
+        _errors.remove(id);
+      }
+    });
+    try {
+      final count =
+          await (widget.resolveAlerts?.call(current) ??
+              AlertService().resolveMany(current));
+      if (!mounted) return;
+      if (ids.contains(_selectedId)) {
+        setState(() {
+          _selectedId = null;
+          _mobileDetail = false;
+        });
+      }
+      _notice(
+        count == 0
+            ? 'These alerts were already resolved.'
+            : '$count ${count == 1 ? 'alert' : 'alerts'} cleared and kept in recent history.',
+      );
+      // The existing stream confirms which records move to History.
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _pending.removeAll(ids);
+        _clearError = 'Could not clear the alerts. Please try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
 
   Future<void> _resolve(GuardianAlert alert) async {
     if (_confirming || _pending.contains(alert.id) || alert.resolved) return;
@@ -382,6 +505,23 @@ class _AlertsPageState extends State<AlertsPage> {
               selected: _history,
               onSelected: (_) => _changeView(history: true),
             ),
+            if (!_history)
+              TextButton.icon(
+                key: const Key('alerts-clear-all'),
+                onPressed: alerts.isEmpty || _clearing || _pending.isNotEmpty
+                    ? null
+                    : _clearAll,
+                icon: _clearing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.done_all_rounded, size: 18),
+                label: Text(
+                  _clearing ? 'Clearing…' : 'Clear all (${alerts.length})',
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 14),
@@ -399,6 +539,17 @@ class _AlertsPageState extends State<AlertsPage> {
           ],
         ),
         const SizedBox(height: 12),
+        if (_clearError != null) ...[
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _clearError!,
+              key: const Key('alerts-clear-error'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (alerts.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 18),

@@ -38,6 +38,30 @@ whole unresolved list. The replacement makes these actions explicit.
   A watch-detail error disables stale call actions while recorded incident
   evidence remains accessible.
 
+### Clear all
+
+Clear all is available in Open and applies to the current category: Places
+clears the displayed Places alerts, while All includes every loaded open alert.
+It is disabled for an empty view or while resolution is pending, and is absent
+from History. It resolves records into recent History; it does not delete them.
+
+Confirmation names the count and category, calls out any SOS/fall alerts, and
+explains the shared effect for linked guardians. The selected IDs are frozen
+before the dialog opens. Later arrivals are never added to the operation.
+
+After confirmation, the screen rechecks visibility, IMEI and resolution. The
+service then verifies current watch linkage and incident identity in one
+Firestore transaction, reads all targets before writing, and updates only
+`resolved` and `resolvedAt`. Already-resolved records retain their original
+resolution time. A failed group cannot partially commit; the user gets a retry
+message. The existing latest-100 query limit remains visible and unchanged.
+
+Regression coverage is in `alerts_page_test.dart`,
+`alerts_bulk_resolution_test.dart` and
+`firestore/test/alerts-bulk-resolution-rules.test.js`. The emulator verifies
+the existing rules support all 100 records without weakening authorization or
+SOS snapshot protection.
+
 ## SOS location
 
 The detail panel reads only the backend-owned top-level `sosLocationSnapshot`

@@ -874,6 +874,60 @@ class AlertService {
     });
   }
 
+  /// Resolve only the incidents captured by the user's bulk confirmation.
+  /// Reads precede writes so a failed/access-changed group cannot partly clear.
+  Future<int> resolveMany(Iterable<GuardianAlert> alerts) async {
+    final targets = <String, String>{};
+    for (final alert in alerts) {
+      if (alert.resolved) continue;
+      if (alert.id.isEmpty ||
+          alert.id.contains('/') ||
+          alert.imei.isEmpty ||
+          (targets.containsKey(alert.id) && targets[alert.id] != alert.imei)) {
+        throw ArgumentError('Invalid alert selection');
+      }
+      targets[alert.id] = alert.imei;
+    }
+    if (targets.isEmpty) return 0;
+    if (targets.length > 100) {
+      throw ArgumentError('Select at most 100 recent alerts');
+    }
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+    return _db.runTransaction<int>((transaction) async {
+      final profile = await transaction.get(_db.collection('users').doc(uid));
+      final raw =
+          (profile.data()?['linkedImeis'] as List?)?.whereType<String>() ??
+          const <String>[];
+      final linked = normalizeLinkedImeis(raw).toSet();
+      if (!targets.values.every(linked.contains)) {
+        throw StateError('The linked watches changed. Refresh the alerts.');
+      }
+      final snapshots = await Future.wait([
+        for (final id in targets.keys)
+          transaction.get(_db.collection('alerts').doc(id)),
+      ]);
+      final unresolved = <DocumentReference<Map<String, dynamic>>>[];
+      for (final snapshot in snapshots) {
+        final data = snapshot.data();
+        if (data == null || data['imei'] != targets[snapshot.id]) {
+          throw StateError('An alert changed. Refresh the alerts.');
+        }
+        // Preserve another guardian's original resolution time on retries.
+        if (data['resolved'] != true) {
+          unresolved.add(snapshot.reference);
+        }
+      }
+      for (final ref in unresolved) {
+        transaction.update(ref, {
+          'resolved': true,
+          'resolvedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return unresolved.length;
+    });
+  }
+
   /// Streams recent alerts for devices this signed-in guardian is linked to.
   Stream<List<GuardianAlert>> watchLinkedAlerts({int limit = 100}) {
     return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
