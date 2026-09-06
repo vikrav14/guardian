@@ -36,8 +36,9 @@ class SosLocationSnapshot {
     if (capturedAt == null) return null;
     final location = SosLocationPoint._parse(value['location'], capturedAt);
     if (value['state'] != 'unavailable' && location == null) return null;
-    if (value['state'] == 'unavailable' && value['location'] != null)
+    if (value['state'] == 'unavailable' && value['location'] != null) {
       return null;
+    }
     final retained =
         value['retainedSatellite'] == true && location?.source == 'gps';
     final age = location?.ageAt(capturedAt);

@@ -83,17 +83,19 @@ Future<void> callWatch(
               await Clipboard.setData(ClipboardData(text: sim));
               if (!dialogContext.mounted) return;
               Navigator.pop(dialogContext);
-              if (context.mounted)
+              if (context.mounted) {
                 _notice(
                   context,
                   'Watch number copied. Call it from your phone.',
                 );
+              }
             } catch (_) {
-              if (context.mounted)
+              if (context.mounted) {
                 _notice(
                   context,
                   'Could not copy the number. You can select it above.',
                 );
+              }
             }
           },
           icon: const Icon(Icons.copy_rounded),

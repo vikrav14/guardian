@@ -144,8 +144,9 @@ class _AlertsPageState extends State<AlertsPage> {
     if (!mounted || confirmed != true) return;
     // Recheck the stream after confirmation; access or resolution may change.
     final current = _findAlert(alert.id);
-    if (current == null || current.imei != alert.imei || current.resolved)
+    if (current == null || current.imei != alert.imei || current.resolved) {
       return;
+    }
     setState(() {
       _pending.add(alert.id);
       _errors.remove(alert.id);
@@ -189,11 +190,13 @@ class _AlertsPageState extends State<AlertsPage> {
       final opened =
           await (widget.openLocation?.call(uri) ??
               launchUrl(uri, mode: LaunchMode.externalApplication));
-      if (!opened && mounted)
+      if (!opened && mounted) {
         _notice('Could not open the incident map. Please try again.');
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         _notice('Could not open the incident map. Please try again.');
+      }
     }
   }
 
