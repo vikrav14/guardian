@@ -58,6 +58,21 @@ npm run wifi-home:setup
 
 Enter the Home router's 2.4 GHz Wi-Fi BSSID privately when prompted. Setup uses
 the existing SOS pilot watch if configured, otherwise asks for the pilot IMEI.
+On Windows, `netsh wlan show networks mode=bssid` can list nearby radios. Under
+the owner's Home network, select the entry explicitly labelled `Band: 2.4 GHz`.
+Paste only that entry's complete BSSID value (six hexadecimal pairs with colons
+or hyphens), without its `BSSID 1` label or quotation marks. Input stays hidden;
+press Enter after pasting. The software still cannot verify that this radio is
+the owner's Home router or that it uses the chosen band.
+
+Blank or malformed input now gives a field-specific explanation and another
+private prompt. A valid locally administered unicast BSSID is accepted. Setup
+does not write configuration until all inputs pass. Ctrl+C or ending input
+before a valid answer exits without changing the environment. The earlier
+generic "Valid pilot watch, router identifier and hash key are required" error
+could be caused by router input alone; it did not mean the existing SOS pilot
+or automatically generated key needed replacement.
+
 It changes only its managed `WIFI_HOME_*` block in the ignored private `.env`,
 preserving other configuration. It rejects conflicting shell overrides,
 unmanaged duplicate settings, malformed blocks and an environment file changed
@@ -95,6 +110,10 @@ Tests cover canonical passive V52 packet decoding into the observer, strong
 and weak/unknown router observations, timestamp replay, stale/future readings,
 backlog bursts, heartbeat expiry, source contradictions, fresh GPS, restarts,
 watch-scoped fingerprints, redacted runtime logging and private setup/removal.
+Setup CLI regressions cover hidden retries, blank/labelled pastes, Windows CRLF
+input, locally administered BSSIDs, buffered answers and cancellation without
+environment changes. These are software checks, not a real Windows terminal or
+router acceptance result.
 The actual SOS dispatcher is also tested with observer failure and failed
 provider geolocation: alert creation and the frozen GPS snapshot are preserved.
 No live observation, new Home UI, customer enrollment, Firestore write or

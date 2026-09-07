@@ -48,7 +48,9 @@ test('malformed or unmanaged settings are rejected instead of silently shadowed'
     'WIFI_HOME_OBSERVE_ENABLED=true\n',
     'export WIFI_HOME_HASH_KEY="private-existing-value"\n',
   ]) assert.throws(() => buildObserverEnv(text, input), /configuration block|outside the managed block/);
-  assert.throws(() => buildObserverEnv('', { ...input, routerId: 'Home' }), /Valid pilot/);
+  assert.throws(() => buildObserverEnv('', { ...input, routerId: 'Home' }), /Paste only the complete BSSID/);
+  assert.throws(() => buildObserverEnv('', { ...input, imei: '123' }), /Pilot watch IMEI/);
+  assert.throws(() => buildObserverEnv('', { ...input, hashKey: 'invalid-key' }), /Wi-Fi fingerprint key/);
 });
 
 test('setup writes atomically and rejects an environment changed during the prompt', t => {
@@ -66,20 +68,29 @@ test('setup writes atomically and rejects an environment changed during the prom
   assert.equal(fs.readFileSync(envPath, 'utf8'), updated);
 });
 
-test('the actual setup CLI reuses the pilot, saves privately and prints no identifiers or keys', t => {
+function setupCliFixture(t, original = `META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI=${input.imei}\nMETA_WHATSAPP_ACCESS_TOKEN=fixture-token\n`) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'guardian-wifi-cli-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.mkdirSync(path.join(dir, 'scripts')); fs.mkdirSync(path.join(dir, 'src'));
   fs.copyFileSync(path.join(__dirname, '../scripts/setup-wifi-home-observer.js'), path.join(dir, 'scripts/setup.js'));
   fs.copyFileSync(path.join(__dirname, '../src/wifi-home-observer.js'), path.join(dir, 'src/wifi-home-observer.js'));
-  fs.writeFileSync(path.join(dir, '.env'), `META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI=${input.imei}\nMETA_WHATSAPP_ACCESS_TOKEN=fixture-token\n`);
+  const envPath = path.join(dir, '.env');
+  fs.writeFileSync(envPath, original);
   const env = { ...process.env, NODE_PATH: path.join(__dirname, '../node_modules') };
   for (const key of Object.keys(env)) if (key.startsWith('WIFI_HOME_')) delete env[key];
-  const result = spawnSync(process.execPath, [path.join(dir, 'scripts/setup.js')], {
-    env, input: input.routerId + '\n', encoding: 'utf8', timeout: 5000,
-  });
+  return {
+    envPath, original,
+    run: privateInput => spawnSync(process.execPath, [path.join(dir, 'scripts/setup.js')], {
+      env, input: privateInput, encoding: 'utf8', timeout: 5000,
+    }),
+  };
+}
+
+test('the actual setup CLI reuses the pilot, saves privately and prints no identifiers or keys', t => {
+  const fixture = setupCliFixture(t);
+  const result = fixture.run(input.routerId + '\n');
   assert.equal(result.status, 0, result.stderr);
-  const saved = dotenv.parse(fs.readFileSync(path.join(dir, '.env')));
+  const saved = dotenv.parse(fs.readFileSync(fixture.envPath, 'utf8'));
   assert.equal(saved.META_WHATSAPP_ACCESS_TOKEN, 'fixture-token');
   assert.equal(saved.WIFI_HOME_OBSERVE_ENABLED, 'true');
   assert.equal(saved.WIFI_HOME_ROUTER_HASH, fingerprintRouter({
@@ -88,4 +99,45 @@ test('the actual setup CLI reuses the pilot, saves privately and prints no ident
   for (const secret of [input.imei, input.routerId, saved.WIFI_HOME_HASH_KEY, saved.WIFI_HOME_ROUTER_HASH, 'fixture-token']) {
     assert.ok(!(result.stdout + result.stderr).includes(secret));
   }
+});
+
+test('blank or labelled router input gets a private retry and accepts a complete locally administered BSSID', t => {
+  const fixture = setupCliFixture(t);
+  const routerId = '82:10:20:30:40:5a'; // Synthetic unicast radio, not a real Home identifier.
+  const badPaste = `BSSID 1 : ${routerId}`;
+  const acceptedPaste = routerId.toUpperCase().replace(/:/g, '-');
+  const result = fixture.run(`\r\n${badPaste}\r\n  ${acceptedPaste}  \r\n`);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /No router identifier was received/);
+  assert.match(result.stdout, /Paste only the complete BSSID/);
+  const saved = dotenv.parse(fs.readFileSync(fixture.envPath, 'utf8'));
+  assert.equal(saved.WIFI_HOME_ROUTER_HASH, fingerprintRouter({
+    imei: input.imei, routerId, hashKey: saved.WIFI_HOME_HASH_KEY,
+  }));
+  for (const secret of [input.imei, routerId, badPaste, acceptedPaste, saved.WIFI_HOME_HASH_KEY, saved.WIFI_HOME_ROUTER_HASH]) {
+    assert.ok(!(result.stdout + result.stderr).toLowerCase().includes(secret.toLowerCase()));
+  }
+  assert.ok(fs.readFileSync(fixture.envPath, 'utf8').startsWith(fixture.original));
+});
+
+test('ending private input after an invalid router leaves the environment unchanged and exits unsuccessfully', t => {
+  const fixture = setupCliFixture(t);
+  const result = fixture.run('\nnot-a-radio\n');
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /No router identifier was received/);
+  assert.match(result.stdout, /Paste only the complete BSSID/);
+  assert.match(result.stderr, /Setup cancelled; gateway settings were not changed/);
+  assert.ok(!(result.stdout + result.stderr).includes('not-a-radio'));
+  assert.equal(fs.readFileSync(fixture.envPath, 'utf8'), fixture.original);
+});
+
+test('setup can read and retry both private fields when no existing pilot is configured', t => {
+  const fixture = setupCliFixture(t, 'META_WHATSAPP_ACCESS_TOKEN=fixture-token\n');
+  const result = fixture.run(`\n${input.imei}\n${input.routerId}\n`);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Pilot watch IMEI must contain exactly 15 digits/);
+  const saved = dotenv.parse(fs.readFileSync(fixture.envPath, 'utf8'));
+  assert.equal(saved.WIFI_HOME_PILOT_IMEI, input.imei);
+  assert.ok(!(result.stdout + result.stderr).includes(input.imei));
+  assert.ok(!(result.stdout + result.stderr).includes(input.routerId));
 });

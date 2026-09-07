@@ -3,15 +3,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const readline = require('node:readline/promises');
+const readline = require('node:readline');
 const { Writable } = require('node:stream');
 const dotenv = require('dotenv');
-const { fingerprintRouter } = require('../src/wifi-home-observer');
+const { fingerprintRouter, normalizeRouterId } = require('../src/wifi-home-observer');
 
 const START = '# BEGIN GUARDIAN WIFI HOME OBSERVER';
 const END = '# END GUARDIAN WIFI HOME OBSERVER';
 const KEYS = ['WIFI_HOME_OBSERVE_ENABLED', 'WIFI_HOME_PILOT_IMEI',
   'WIFI_HOME_ROUTER_HASH', 'WIFI_HOME_HASH_KEY'];
+const IMEI_ERROR = 'Pilot watch IMEI must contain exactly 15 digits. Please try again.';
+
+function routerInputError(value) {
+  if (typeof value !== 'string' || !value.trim()) return 'No router identifier was received. Paste the complete BSSID, then press Enter.';
+  if (!normalizeRouterId(value)) {
+    return 'Paste only the complete BSSID: six pairs of hexadecimal characters separated by colons or hyphens. Leave out the BSSID label and quotation marks; use a valid unicast radio address.';
+  }
+  return null;
+}
 
 function removeManagedBlock(text) {
   const starts = text.split(START).length - 1;
@@ -37,7 +46,11 @@ function buildObserverEnv(text, { imei, routerId, hashKey, disable = false } = {
     throw new Error('Existing WIFI_HOME settings are outside the managed block; reconcile them privately first.');
   }
   if (disable) return remaining;
+  if (!/^\d{15}$/.test(imei || '')) throw new Error(IMEI_ERROR);
+  const routerError = routerInputError(routerId);
+  if (routerError) throw new Error(routerError);
   const key = hashKey || crypto.randomBytes(32).toString('hex');
+  if (!/^[0-9a-f]{64}$/i.test(key)) throw new Error('Wi-Fi fingerprint key must contain exactly 64 hexadecimal characters.');
   const routerHash = fingerprintRouter({ imei, routerId, hashKey: key });
   const newline = text.includes('\r\n') ? '\r\n' : '\n';
   const prefix = remaining && !remaining.endsWith('\n') ? remaining + newline : remaining;
@@ -82,27 +95,37 @@ async function main() {
   }
   const settings = dotenv.parse(original);
   let imei = settings.WIFI_HOME_PILOT_IMEI || settings.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '';
-  let hideInput = false;
+  // Never echo private typing or a buffered paste, including between retries.
   const privateOutput = new Writable({
-    write(chunk, encoding, callback) {
-      if (!hideInput) process.stdout.write(chunk, encoding);
-      callback();
-    },
+    write(_chunk, _encoding, callback) { callback(); },
   });
   const input = readline.createInterface({ input: process.stdin, output: privateOutput,
-    terminal: Boolean(process.stdin.isTTY && process.stdout.isTTY) });
-  async function askPrivate(prompt) {
-    process.stdout.write(prompt);
-    hideInput = true;
-    try { return await input.question(''); }
-    finally { hideInput = false; process.stdout.write('\n'); }
+    terminal: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    historySize: 0, crlfDelay: Infinity });
+  // Register before reading so pasted lines are not lost between questions.
+  const lines = input[Symbol.asyncIterator]();
+  input.once('SIGINT', () => input.close());
+  async function askPrivate(prompt, validate) {
+    while (true) {
+      process.stdout.write(prompt);
+      let value;
+      try {
+        const line = await lines.next();
+        if (line.done) throw new Error('Setup cancelled; gateway settings were not changed.');
+        value = line.value.trim();
+      } finally { process.stdout.write('\n'); }
+      const error = validate(value);
+      if (!error) return value;
+      console.log(error);
+    }
   }
   let routerId;
   try {
     console.log('Private, read-only router observation. This does not enable the Home map or send watch commands.');
-    if (!/^\d{15}$/.test(imei)) imei = (await askPrivate('Pilot watch IMEI (input hidden): ')).trim();
+    if (!/^\d{15}$/.test(imei)) imei = await askPrivate('Pilot watch IMEI (input hidden): ',
+      value => /^\d{15}$/.test(value) ? null : IMEI_ERROR);
     else console.log('Using the existing pilot watch configuration.');
-    routerId = await askPrivate('Your Home router\'s 2.4 GHz Wi-Fi BSSID / radio MAC (input hidden): ');
+    routerId = await askPrivate('Your Home router\'s 2.4 GHz Wi-Fi BSSID / radio MAC (input hidden): ', routerInputError);
   } finally {
     input.close();
   }
