@@ -76,7 +76,7 @@ void main() {
     expect(deviceHomeWifiFixLabel(device), 'Home Wi-Fi detected just now');
     expect(buildGuardianAiInterpretation(device), contains('at or near your saved Home location'));
     expect(buildGuardianAiInterpretation(device), contains('Last GPS fix'));
-    expect(device.lastHeartbeatAt, now);
+    expect(device.lastHeartbeatAt!.microsecondsSinceEpoch, now.microsecondsSinceEpoch);
     expect(device.displayLocationSource, 'gps');
     expect(device.lastSatelliteLocation!.recordedAt, DateTime.parse('2026-09-01T10:00:00Z'));
   });
