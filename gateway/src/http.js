@@ -47,6 +47,7 @@ const {
   validateReminderResponse,
 } = require('./response-validator');
 const { formatBatteryReply } = require('./battery-freshness');
+const { formatLocationReply } = require('./location-reply');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
@@ -388,6 +389,29 @@ async function handleChat({ from, text }) {
         fallbackReason,
       });
       return { ctx, reply, accessRestricted: true };
+    }
+
+    // A location answer must preserve the selected observation's source and
+    // timestamp. Render it before any provider call, including fallback models.
+    if (intent.type === 'LOCATION_REQUEST') {
+      let locationResult;
+      try {
+        locationResult = await runTool(db, ctx, 'get_last_location', {
+          imei: wearerResolution.wearer?.imei,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'location_query', error: err });
+        locationResult = { error: err.message };
+      }
+      const reply = formatLocationReply(locationResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: locationResult?.error ? 'location_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
     }
 
     // Journey history is a typed factual read. Query it directly and render it

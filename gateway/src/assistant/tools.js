@@ -7,7 +7,7 @@ const { analyzeJourney } = require('../journey-diagnostics');
 const { hasJourneyGpsEvidence, isJourneyGps } = require('../journey-source-evidence');
 const { journeyDistanceKm } = require('../journey-builder');
 const { decodePolyline } = require('../polyline');
-const { selectLocationForDisplay } = require('../location-provenance');
+const { buildLocationReplyData } = require('../location-reply');
 const {
   canonicalMedicationReminder,
   deviceCommandParams,
@@ -208,53 +208,15 @@ function findDevice(devices, query) {
   );
 }
 
-async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
+async function getLastLocation(ctx, { device_name: deviceName, imei } = {}, options = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
     return { error: 'No matching watch. Ask list_devices first.' };
   }
-  const selected = selectLocationForDisplay(device);
-  const loc = selected.location || {};
-  const latest = selected.latestObservation || {};
-  // Filter GPS noise & stale low speeds: walking speed (~5 km/h) threshold.
-  // Speeds under 5 km/h are too slow to be real movement (likely GPS noise or stale data).
-  // Real movement is typically faster (car ~30+ km/h, bike ~15+ km/h, jogging ~10+ km/h).
-  const speedKmh = device.speedKmh != null && device.speedKmh >= 5 ? device.speedKmh : 0;
-
-  // Consider online if recent heartbeat (within 15 min) — device connects periodically to send data
-  const lastHeartbeatTime = device.lastHeartbeatAt?.toDate?.() || device.lastHeartbeatAt;
-  const now = new Date();
-  const heartbeatAgeMs = lastHeartbeatTime ? now.getTime() - lastHeartbeatTime.getTime() : Infinity;
-  const isRecentlyActive = heartbeatAgeMs < 15 * 60 * 1000; // 15 minutes
-
   return {
     name: deviceLabel(device),
     imei: device.imei,
-    online: isRecentlyActive,
-    batteryPercent: device.batteryPercent ?? null,
-    lat: loc.lat ?? null,
-    lng: loc.lng ?? null,
-    placeLabel: loc.placeLabel || null,
-    accuracySource: selected.source || null,
-    accuracyMeters: loc.accuracyMeters ?? null,
-    recordedAt:
-      loc.recordedAt?.toDate?.()?.toISOString?.() || loc.recordedAt || null,
-    retainedSatellite: selected.retainedSatellite,
-    latestObservationSource:
-      latest.source || device.accuracySource || null,
-    latestObservationAt:
-      latest.recordedAt?.toDate?.()?.toISOString?.() || latest.recordedAt || null,
-    locationDisclosure: selected.retainedSatellite
-      ? 'Showing the last satellite fix because the newer indoor location is approximate.'
-      : selected.source === 'wifi' || selected.source === 'lbs'
-        ? 'This is an approximate network location, not satellite GPS.'
-        : 'This is the latest recorded satellite GPS fix.',
-    speedKmh: speedKmh,
-    updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
-    mapsUrl:
-      loc.lat != null && loc.lng != null
-        ? `https://maps.google.com/?q=${loc.lat},${loc.lng}`
-        : null,
+    ...buildLocationReplyData(device, options),
   };
 }
 
