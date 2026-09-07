@@ -78,6 +78,8 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
       consecutiveMatches: expired || clockInvalid ? 0 : streak,
       lastMatchAgeSeconds: lastMatchSourceMs == null || clockInvalid ? null :
         Math.max(0, Math.floor((nowMs - lastMatchSourceMs) / 1000)),
+      observedAt: lastMatchSourceMs == null || clockInvalid ? null : new Date(lastMatchSourceMs).toISOString(),
+      expiresAt: expiresAtMs == null || clockInvalid ? null : new Date(expiresAtMs).toISOString(),
       signalDbm: expired || clockInvalid ? null : signalDbm,
       counts: { ...counts },
     };

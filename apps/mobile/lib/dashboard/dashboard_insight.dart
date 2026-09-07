@@ -1,5 +1,6 @@
 import '../models/device.dart';
 import 'device_connectivity.dart';
+import 'device_formatters.dart';
 import 'linking_story.dart';
 
 enum DashboardInsightTone { safe, warning, danger, neutral }
@@ -198,6 +199,17 @@ DashboardInsight buildDashboardInsight(Device? device) {
   }
 
   final intelligence = device.intelligence;
+  if (device.hasHomeWifiDisplay &&
+      (device.batteryPercent ?? 100) > 20 &&
+      (intelligence?.topInsight == null ||
+          intelligence?.topInsight?.id == 'stale_gps')) {
+    return DashboardInsight(
+      title: 'Home Wi-Fi detected',
+      detail: '${deviceHomeWifiFixLabel(device)}. At or near your saved Home location. '
+          '${deviceRetainedGpsLabel(device)}.',
+      tone: DashboardInsightTone.neutral,
+    );
+  }
   if (intelligence != null && intelligence.insights.isNotEmpty) {
     return _fromIntelligence(intelligence, device);
   }

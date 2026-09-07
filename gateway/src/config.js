@@ -56,6 +56,8 @@ const config = {
   wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
   wifiHomeRouterHash: process.env.WIFI_HOME_ROUTER_HASH || '',
   wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
+  wifiHomeDisplayPilotEnabled:
+    String(process.env.WIFI_HOME_DISPLAY_PILOT_ENABLED || 'false').toLowerCase() === 'true',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

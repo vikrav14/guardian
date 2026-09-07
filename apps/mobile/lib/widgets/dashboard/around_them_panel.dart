@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/care_profile.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
+import '../../dashboard/device_formatters.dart';
 import '../../theme/app_theme.dart';
 
 class AroundThemPanel extends StatelessWidget {
@@ -34,7 +35,7 @@ class AroundThemPanel extends StatelessWidget {
         .where((zone) => zone.imei == d.imei && zone.active)
         .toList(growable: false);
 
-    final place = d.displayLocation?.placeLabel?.trim();
+    final place = d.mapDisplayLocation?.placeLabel?.trim();
     final locationValue = place != null && place.isNotEmpty
         ? place
         : d.isDisplayingRetainedSatelliteLocation
@@ -45,7 +46,9 @@ class AroundThemPanel extends StatelessWidget {
         ? 'Last known location'
         : 'Locating';
 
-    final locationDetail = d.isDisplayingRetainedSatelliteLocation
+    final locationDetail = d.hasHomeWifiDisplay
+        ? deviceHomeWifiFixLabel(d)
+        : d.isDisplayingRetainedSatelliteLocation
         ? 'Precise GPS unavailable indoors'
         : d.hasApproximateLocation
         ? 'Approximate network fix'

@@ -115,6 +115,7 @@ Live device state. Document ID = device IMEI (digits only).
 | lastLocationObservation | map | Self-contained copy of the latest persisted observation, including source, validity, radius and time. |
 | lastSatelliteLocation | map \| null | Most recent valid `gps=A` satellite fix. Retained when the watch later reports an indoor `gps=V` fallback. |
 | lastApproximateLocation | map \| null | Most recent WiFi/cell-derived observation and its estimated radius. Never overwrites `lastSatelliteLocation`. |
+| homeWifiPresence | map \| null | Backend-owned, expiring private Home display evidence. Linked readers only; clients cannot create, change or delete it. See below. |
 | lastAlarm | map \| null | `{ type, at, raw }` |
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
@@ -122,6 +123,29 @@ Live device state. Document ID = device IMEI (digits only).
 | locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
+
+### `homeWifiPresence` map — private display pilot
+
+Published only when the operator separately enables the display pilot and the
+gateway validates repeated router observations plus one active saved Home zone
+owned by a linked Family/Care service owner. This is presentation evidence, not
+GPS, a network association, an indoor guarantee or a movement event.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| version / policy | number / string | `1` / `enrolled_home_radio_v1`; other values fail closed. |
+| pilot / state / source | boolean / string / string | `true` / `matched` / `home_wifi`. |
+| observedAt | ISO timestamp string | Last qualifying radio observation's source time; never a heartbeat or display write time. |
+| expiresAt | ISO timestamp string | Earlier of the two-minute observation lifetime and the at-most-60-second verified Home/plan binding lease. Consumers reject future source time, expired or oversized leases without needing another database event. |
+| anchor | map | `{ geofenceId, label: 'Home', lat, lng }` from the validated saved Home zone. No raw BSSID, SSID, router fingerprint, key or password. |
+
+Only the independent pilot publisher updates this field, without refreshing
+`updatedAt` or altering raw location, satellite history, battery, connectivity,
+journeys, geofence transitions, intelligence or incident snapshots. It clears
+invalid evidence with `null`. A newer GPS fix overrides a cached Home record.
+Binding and ownership are rechecked every 30 seconds; changed/invalid bindings
+require new repeated observations. Existing device update allowlists prohibit
+client evidence forgery; no Firestore rules expansion is required.
 
 ### `location` map
 

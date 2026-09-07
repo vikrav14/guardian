@@ -51,7 +51,7 @@ const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { claimSosIncident } = require('./sos-incident-window');
-const { observeWifiHomeEvent } = require('./wifi-home-runtime');
+const { observeWifiHomeEvent, startWifiHomeDisplayPilot } = require('./wifi-home-runtime');
 
 const {
   incrementEvent,
@@ -117,6 +117,11 @@ const {
 
 
 initFirestore();
+
+if (config.wifiHomeDisplayPilotEnabled) {
+  try { startWifiHomeDisplayPilot(getDb()); }
+  catch { console.warn('[wifi-home-display] pilot unavailable; tracking continues'); }
+}
 
 startIntelligenceMonitor();
 

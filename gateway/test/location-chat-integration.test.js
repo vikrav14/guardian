@@ -93,6 +93,29 @@ test('actual location? route retains GPS and renders uncertainty without any mod
   assert.ok(run.calls.audit.some(event => event.method === 'recordResponse'));
 });
 
+test('actual authenticated location route uses fresh Home evidence and falls back on expiry', async () => {
+  const device = watch();
+  const now = Date.now();
+  device.homeWifiPresence = { version: 1, policy: 'enrolled_home_radio_v1', pilot: true,
+    state: 'matched', source: 'home_wifi', observedAt: new Date(now - 1000).toISOString(),
+    expiresAt: new Date(now + 60_000).toISOString(),
+    anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15 } };
+  const run = chatHarness({ devices: { A: device } });
+  const home = await run.chat('location?');
+  assert.equal(home.deterministic, true);
+  assert.match(home.reply, /Home Wi-Fi detected for Test wearer/);
+  assert.match(home.reply, /at or near your saved Home location/);
+  assert.match(home.reply, /Last GPS fix retained separately/);
+  assert.match(home.reply, /\?q=-20.15,57.15/);
+  assert.equal((home.reply.match(/https:/g) || []).length, 1);
+  device.homeWifiPresence.expiresAt = new Date(now - 1).toISOString();
+  const expired = await run.chat('location?');
+  assert.match(expired.reply, /Last known GPS location for Test wearer/);
+  assert.match(expired.reply, /\?q=-20.25,57.5/);
+  assert.doesNotMatch(expired.reply, /Home Wi-Fi detected/);
+  assert.equal(run.calls.provider + run.calls.fallback, 0);
+});
+
 test('multiple wearers require selection and the follow-up reads the selected linked watch', async () => {
   const run = chatHarness({ devices: { A: watch('Alex'), B: watch('Sam', -20.24) } });
   const question = await run.chat('location?');

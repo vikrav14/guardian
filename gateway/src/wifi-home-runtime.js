@@ -3,8 +3,9 @@
 const config = require('./config');
 const { createWifiHomeObserver } = require('./wifi-home-observer');
 
-// One explicitly configured pilot, in memory only. No database, network,
-// customer map, geofence, journey, alert or device-command dependencies.
+// Packet observation stays synchronous and in memory. An independently enabled
+// background publisher may expose expiring presentation evidence for this pilot;
+// its reads/writes are never awaited by the packet or SOS dispatcher.
 let observer;
 let lastLogMs = null;
 let lastState = null;
@@ -30,4 +31,13 @@ function observeWifiHomeEvent(event, receivedAt) {
   }
 }
 
-module.exports = { observeWifiHomeEvent };
+function startWifiHomeDisplayPilot(db) {
+  if (!config.wifiHomeObserveEnabled || !config.wifiHomeDisplayPilotEnabled) return null;
+  const { startHomeWifiPublisher } = require('./wifi-home-display');
+  return startHomeWifiPublisher({ db, imei: config.wifiHomePilotImei,
+    readObservation: nowMs => observer?.snapshot(nowMs),
+    resetObservation: () => { observer = undefined; },
+  });
+}
+
+module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot };

@@ -187,6 +187,15 @@ Status: near-router recognition passed on one configured V52 pilot and one
 owner-selected radio; wider Home-presence acceptance remains pending.
 Customer Home presence remains disabled. This adds no new SOS acceptance gate.
 
+After this checkpoint, the operator requested seeing the matched Home radio on
+the existing map and location reply while staying near the router. A separately
+opt-in private display pilot is implemented in this branch; see
+[setup and expiry behavior](services/wifi-home.md#enable-the-private-home-display).
+The map, hero and `location?` should agree on the saved Home pin and fresh Home
+Wi-Fi evidence, with retained GPS age shown separately. Actual display acceptance
+is pending. No nighttime outing is required for this step, and the earlier
+observe-only logs below must not be relabelled as display acceptance.
+
 Follow [the private router setup](services/wifi-home.md#run-the-private-check)
 with the owner-confirmed 2.4 GHz radio BSSID. No Wi-Fi password is required.
 Observe several ordinary report cycles near the router, then record the

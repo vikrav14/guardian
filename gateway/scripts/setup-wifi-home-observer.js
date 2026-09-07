@@ -11,7 +11,7 @@ const { fingerprintRouter, normalizeRouterId } = require('../src/wifi-home-obser
 const START = '# BEGIN GUARDIAN WIFI HOME OBSERVER';
 const END = '# END GUARDIAN WIFI HOME OBSERVER';
 const KEYS = ['WIFI_HOME_OBSERVE_ENABLED', 'WIFI_HOME_PILOT_IMEI',
-  'WIFI_HOME_ROUTER_HASH', 'WIFI_HOME_HASH_KEY'];
+  'WIFI_HOME_ROUTER_HASH', 'WIFI_HOME_HASH_KEY', 'WIFI_HOME_DISPLAY_PILOT_ENABLED'];
 const IMEI_ERROR = 'Pilot watch IMEI must contain exactly 15 digits. Please try again.';
 
 function routerInputError(value) {
@@ -56,7 +56,24 @@ function buildObserverEnv(text, { imei, routerId, hashKey, disable = false } = {
   const prefix = remaining && !remaining.endsWith('\n') ? remaining + newline : remaining;
   return prefix + [START, 'WIFI_HOME_OBSERVE_ENABLED=true',
     `WIFI_HOME_PILOT_IMEI=${imei}`, `WIFI_HOME_ROUTER_HASH=${routerHash}`,
-    `WIFI_HOME_HASH_KEY=${key}`, END, ''].join(newline);
+    `WIFI_HOME_HASH_KEY=${key}`, 'WIFI_HOME_DISPLAY_PILOT_ENABLED=false', END, ''].join(newline);
+}
+
+function enableDisplayPilot(text) {
+  const remaining = removeManagedBlock(text);
+  const settings = dotenv.parse(text);
+  if (remaining === text || KEYS.some(key => Object.hasOwn(dotenv.parse(remaining), key)) ||
+      settings.WIFI_HOME_OBSERVE_ENABLED !== 'true' ||
+      !/^\d{15}$/.test(settings.WIFI_HOME_PILOT_IMEI || '') ||
+      !/^[0-9a-f]{64}$/i.test(settings.WIFI_HOME_ROUTER_HASH || '') ||
+      !/^[0-9a-f]{64}$/i.test(settings.WIFI_HOME_HASH_KEY || '')) {
+    throw new Error('Complete private router setup before enabling its Home display pilot.');
+  }
+  const newline = text.includes('\r\n') ? '\r\n' : '\n';
+  const start = text.indexOf(START);
+  const end = text.indexOf(END);
+  const block = text.slice(start, end).replace(/^WIFI_HOME_DISPLAY_PILOT_ENABLED=.*\r?\n/gm, '');
+  return text.slice(0, start) + block + 'WIFI_HOME_DISPLAY_PILOT_ENABLED=true' + newline + text.slice(end);
 }
 
 function writeObserverEnv(envPath, text, expectedOriginal) {
@@ -85,12 +102,20 @@ async function main() {
     throw new Error('Shell WIFI_HOME overrides are present; reconcile them privately before using file setup.');
   }
   const original = fs.readFileSync(envPath, 'utf8');
-  if (process.argv.slice(2).some(arg => arg !== '--disable')) {
-    throw new Error('Use this interactive setup without identifier arguments, or pass --disable.');
+  const args = process.argv.slice(2);
+  if (args.length > 1 || args.some(arg => !['--disable', '--display-pilot'].includes(arg))) {
+    throw new Error('Use interactive setup without identifier arguments, --disable, or --display-pilot.');
   }
   if (process.argv.includes('--disable')) {
     writeObserverEnv(envPath, buildObserverEnv(original, { disable: true }), original);
     console.log('Wi-Fi observer configuration removed. Restart the gateway to stop observation.');
+    return;
+  }
+  if (args.includes('--display-pilot')) {
+    writeObserverEnv(envPath, enableDisplayPilot(original), original);
+    console.log('Home display pilot enabled for the configured watch. Restart the gateway and Flutter app.');
+    console.log('The pilot uses one active Home safe-zone pin owned by a linked Family/Care service owner.');
+    console.log('It displays fresh Home Wi-Fi evidence with expiry; GPS, journeys and SOS remain separate.');
     return;
   }
   const settings = dotenv.parse(original);
@@ -145,4 +170,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildObserverEnv, removeManagedBlock, writeObserverEnv };
+module.exports = { buildObserverEnv, enableDisplayPilot, removeManagedBlock, writeObserverEnv };

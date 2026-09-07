@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'home_wifi_presence.dart';
 
 class DeviceLocation {
   const DeviceLocation({
@@ -152,6 +153,7 @@ class Device {
     this.lastLocationObservation,
     this.lastSatelliteLocation,
     this.lastApproximateLocation,
+    this.homeWifiPresence,
     this.lastHeartbeatAt,
     this.disconnectedAt,
     this.connectionState,
@@ -197,6 +199,26 @@ class Device {
   final DeviceLocation? lastLocationObservation;
   final DeviceLocation? lastSatelliteLocation;
   final DeviceLocation? lastApproximateLocation;
+  final HomeWifiPresence? homeWifiPresence;
+
+  DeviceLocation? homeWifiLocationAt(DateTime now) {
+    final home = homeWifiPresence;
+    if (home == null || !home.isFreshAt(now)) return null;
+    final fixes = [lastSatelliteLocation, lastLocationObservation, location];
+    for (var index = 0; index < fixes.length; index++) {
+      final fix = fixes[index];
+      if (fix == null || fix.gpsValid == false) continue;
+      final gps = index == 0 || fix.source == 'gps' ||
+          (index == 2 && accuracySource == 'gps');
+      final at = fix.recordedAt;
+      if (gps && at != null && !at.isBefore(home.observedAt)) return null;
+    }
+    return DeviceLocation(lat: home.lat, lng: home.lng,
+      recordedAt: home.observedAt, source: 'home_wifi',
+      gpsValid: false, placeLabel: 'Home');
+  }
+
+  bool get hasHomeWifiDisplay => homeWifiLocationAt(DateTime.now()) != null;
   final DateTime? lastHeartbeatAt;
   final DateTime? disconnectedAt;
 
@@ -297,11 +319,15 @@ class Device {
   /// Conservative map position for a family-facing live view.
   ///
   /// WiFi/LBS observations can be useful evidence but are too broad to move a
-  /// person's primary avatar. When a satellite fix exists, the map keeps that
-  /// last reliable position until a new GPS fix arrives. Raw approximate
-  /// observations remain available for an uncertainty circle and never alter
-  /// stored telemetry, journeys, geofences, alerts, or SOS location selection.
-  DeviceLocation? get mapDisplayLocation {
+  /// person's primary avatar. A fresh, backend-validated Home radio match can
+  /// temporarily select the saved Home pin with its own source/time label.
+  /// Otherwise the accepted satellite/network fallback applies. This overlay
+  /// never changes stored telemetry, journeys, geofences or SOS selection.
+  DeviceLocation? get mapDisplayLocation => mapDisplayLocationAt(DateTime.now());
+
+  DeviceLocation? mapDisplayLocationAt(DateTime now) {
+    final home = homeWifiLocationAt(now);
+    if (home != null) return home;
     final source = latestLocationSource;
     final satellite = lastSatelliteLocation;
     if ((source == 'wifi' || source == 'lbs') && satellite?.isValid == true) {
@@ -311,6 +337,7 @@ class Device {
   }
 
   bool get isMapDisplayingLastSatelliteLocation {
+    if (hasHomeWifiDisplay) return false;
     final source = latestLocationSource;
     return (source == 'wifi' || source == 'lbs') &&
         lastSatelliteLocation?.isValid == true;
@@ -420,6 +447,11 @@ class Device {
       lastApproximateLocation: DeviceLocation.fromMap(
         data['lastApproximateLocation'] is Map
             ? Map<String, dynamic>.from(data['lastApproximateLocation'] as Map)
+            : null,
+      ),
+      homeWifiPresence: HomeWifiPresence.fromMap(
+        data['homeWifiPresence'] is Map
+            ? Map<String, dynamic>.from(data['homeWifiPresence'] as Map)
             : null,
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),

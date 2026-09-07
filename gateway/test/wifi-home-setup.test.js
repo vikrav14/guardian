@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const dotenv = require('dotenv');
 const { spawnSync } = require('node:child_process');
-const { buildObserverEnv, removeManagedBlock, writeObserverEnv } = require('../scripts/setup-wifi-home-observer');
+const { buildObserverEnv, enableDisplayPilot, removeManagedBlock, writeObserverEnv } = require('../scripts/setup-wifi-home-observer');
 const { fingerprintRouter } = require('../src/wifi-home-observer');
 
 const input = { imei: '359633100123456', routerId: '02:00:00:00:00:01', hashKey: 'ab'.repeat(32) };
@@ -21,6 +21,7 @@ test('private setup preserves existing settings and stores a scoped fingerprint,
   assert.equal(settings.META_WHATSAPP_ACCESS_TOKEN, 'fixture-token');
   assert.equal(settings.NOTE, 'first\nsecond');
   assert.equal(settings.WIFI_HOME_OBSERVE_ENABLED, 'true');
+  assert.equal(settings.WIFI_HOME_DISPLAY_PILOT_ENABLED, 'false');
   assert.equal(settings.WIFI_HOME_ROUTER_HASH, fingerprintRouter(input));
   assert.equal(settings.WIFI_HOME_HASH_KEY, input.hashKey);
   assert.ok(!Object.keys(settings).some(key => /CUSTOMER|WIFIFENCE/.test(key)));
@@ -80,11 +81,33 @@ function setupCliFixture(t, original = `META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI=${
   for (const key of Object.keys(env)) if (key.startsWith('WIFI_HOME_')) delete env[key];
   return {
     envPath, original,
-    run: privateInput => spawnSync(process.execPath, [path.join(dir, 'scripts/setup.js')], {
+    run: (privateInput, args = []) => spawnSync(process.execPath, [path.join(dir, 'scripts/setup.js'), ...args], {
       env, input: privateInput, encoding: 'utf8', timeout: 5000,
     }),
   };
 }
+
+test('display opt-in reuses private enrollment and disable/re-enrollment removes activation', t => {
+  const original = 'META_WHATSAPP_ACCESS_TOKEN=fixture-token\n';
+  const enrollment = buildObserverEnv(original, input);
+  const enabled = enableDisplayPilot(enrollment);
+  const before = dotenv.parse(enrollment);
+  const after = dotenv.parse(enabled);
+  assert.deepEqual(after, { ...before, WIFI_HOME_DISPLAY_PILOT_ENABLED: 'true' });
+  assert.equal(enableDisplayPilot(enabled), enabled);
+  assert.equal(buildObserverEnv(enabled, { disable: true }), original);
+  assert.equal(dotenv.parse(buildObserverEnv(enabled, input)).WIFI_HOME_DISPLAY_PILOT_ENABLED, 'false');
+  assert.throws(() => enableDisplayPilot(original));
+  assert.throws(() => enableDisplayPilot(enrollment.replace(input.hashKey, 'bad-key')));
+  const fixture = setupCliFixture(t, enrollment);
+  const result = fixture.run('', ['--display-pilot']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(dotenv.parse(fs.readFileSync(fixture.envPath, 'utf8')), after);
+  assert.match(result.stdout, /Home display pilot enabled/);
+  for (const secret of [input.imei, input.routerId, input.hashKey, before.WIFI_HOME_ROUTER_HASH]) {
+    assert.ok(!(result.stdout + result.stderr).includes(secret));
+  }
+});
 
 test('the actual setup CLI reuses the pilot, saves privately and prints no identifiers or keys', t => {
   const fixture = setupCliFixture(t);

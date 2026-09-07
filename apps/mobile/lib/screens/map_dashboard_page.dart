@@ -93,7 +93,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Set<Circle> _circles() {
     final selected = _selected;
     final approximate = selected?.latestLocationObservation;
-    final uncertaintyRadius = selected?.hasApproximateLocation == true
+    final uncertaintyRadius = selected?.hasHomeWifiDisplay != true &&
+            selected?.hasApproximateLocation == true
         ? approximate?.accuracyMeters
         : null;
     return {
@@ -124,20 +125,19 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Set<Marker> _nativeMarkers() {
     if (kIsWeb) return const {};
-    return {
-      for (final device in _devices)
-        if (device.mapDisplayLocation?.isValid == true)
-          Marker(
-            markerId: MarkerId(device.imei),
-            position: LatLng(
-              device.mapDisplayLocation!.lat,
-              device.mapDisplayLocation!.lng,
-            ),
-            zIndexInt: device.imei == _selectedImei ? 2 : 1,
-            alpha: device.isTrulyOffline ? 0.55 : 1,
-            onTap: () => _dashboard.select(device.imei),
-          ),
-    };
+    final markers = <Marker>{};
+    for (final device in _devices) {
+      final location = device.mapDisplayLocation;
+      if (location?.isValid != true) continue;
+      markers.add(Marker(
+        markerId: MarkerId(device.imei),
+        position: LatLng(location!.lat, location.lng),
+        zIndexInt: device.imei == _selectedImei ? 2 : 1,
+        alpha: device.isTrulyOffline ? 0.55 : 1,
+        onTap: () => _dashboard.select(device.imei),
+      ));
+    }
+    return markers;
   }
 
   LatLng get _mapCenter {
@@ -200,6 +200,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   String _mapStatus(Device device) {
+    if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
     if (device.isMapDisplayingLastSatelliteLocation) {
@@ -355,6 +356,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final label = place == null || place.isEmpty
         ? 'the position shown on the map'
         : place;
+    if (device.hasHomeWifiDisplay) {
+      _showQuickFact('${device.displayName}\'s location',
+        '${deviceHomeWifiFixLabel(device)}. The watch is at or near your saved Home pin. '
+        '${deviceRetainedGpsLabel(device)}; that satellite fix is retained separately.');
+      return;
+    }
     if (device.isMapDisplayingLastSatelliteLocation) {
       final approximate = device.latestLocationObservation;
       final radius = approximate?.accuracyMeters;
