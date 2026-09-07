@@ -183,7 +183,8 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
-Status: software observation path implemented; exact-device evidence pending.
+Status: near-router recognition passed on one configured V52 pilot and one
+owner-selected radio; wider Home-presence acceptance remains pending.
 Customer Home presence remains disabled. This adds no new SOS acceptance gate.
 
 Follow [the private router setup](services/wifi-home.md#run-the-private-check)
@@ -194,8 +195,43 @@ repeated-router policy passed; it does not establish indoor presence or change
 the map. Record weak/missing observations and expiry without describing a
 departure that was not verified.
 
-Before customer activation, validate the Home radio identity on this exact
-watch, true departure/return, router restart, stale-GPS return, revocation and
+### Recorded near-router result — 7 September 2026 UTC
+
+The operator selected the Home radio from a Windows scan explicitly showing
+the 2.4 GHz band, completed private setup, restarted the gateway and supplied
+the runtime diagnostics below. Software revision: `8f10265`. Identifiers, keys,
+network names and coordinates are omitted from this record.
+
+| UTC time | Match state | Consecutive qualifying reports | Selected-radio signal | Observation age | Total reports / router seen / qualified |
+| --- | --- | --- | --- | --- | --- |
+| 20:18:41.977 | `candidate` | 1 | -48 dBm | 1 s | 4 / 2 / 2 |
+| 20:19:23.945 | `matched` | 3 | -48 dBm | 1 s | 6 / 4 / 4 |
+| 20:20:03.039 | `matched` | 5 | -48 dBm | 0 s | 8 / 6 / 6 |
+| 20:20:44.924 | `matched` | 7 | -48 dBm | 0 s | 10 / 8 / 8 |
+
+All four snapshots report `configured: true`, `enabled: true`,
+`observeOnly: true`, `customerActive: false` and `homeClaim: false`, with zero
+ignored-time reports or duplicates. Earlier cellular-only reports interrupted
+the first candidate sequence; subsequent repeated Wi-Fi reports reached and
+maintained the provisional match. Provider geolocation continued to report an
+approximate 519 m radius separately; that radius is not evidence of the radio
+match's distance or indoor precision.
+
+**Passed for this sample:** the real pilot watch repeatedly reports the
+operator-selected radio with a qualifying signal, and the watch-scoped
+fingerprint matches it. No extra Home command or Wi-Fi password was needed for
+this passive recognition checkpoint. A radio sighting is not proof of Wi-Fi
+association, physical indoor presence, a departure or a return. This record
+does not enable the Home map or establish multi-router/firmware reliability.
+
+**Next physical gate:** during a normal outing, keep the gateway running and
+observe loss of the selected radio, then renewed evidence after returning.
+Record only redacted diagnostics. Missing radio evidence must not be described
+as a confirmed departure by itself. Expiry without new packets, router restart,
+unknown-router, revocation and stale-GPS return still need acceptance.
+
+Before customer activation, validate true departure/return, router restart,
+stale-GPS return, revocation and
 unknown-router cases. Actual identifier values, keys and coordinates must not
 appear in public evidence. If the passive report is insufficient, investigate
 the documented command route without guessing `WIFIFENCE` syntax.

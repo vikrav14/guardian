@@ -21,6 +21,14 @@ bounded to one explicitly configured pilot and at most 32 access points per
 report, and has no network, Firestore, alert, journey or command dependencies.
 An observer exception is isolated from both tracking and SOS delivery.
 
+**Real-device checkpoint, 7 September 2026 UTC:** one configured V52 pilot
+recognised the operator-selected 2.4 GHz Home radio. It advanced from
+`candidate` to `matched`, then maintained seven consecutive qualifying readings
+at -48 dBm, with displayed observation ages of 0–1 seconds. This passes the
+near-router recognition checkpoint for that watch/radio pair. Signal-loss and
+return, expiry and customer Home presence remain unaccepted. See the
+[redacted acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-near-router-result--7-september-2026-utc).
+
 `WIFI_HOME_OBSERVE_ENABLED` defaults to `false`. Enabling it collects only
 in-memory pilot evidence and redacted console diagnostics; customer Home
 presence remains disabled. Every result includes `observeOnly: true`,
@@ -161,9 +169,10 @@ device command is required, retain the exact-firmware command acceptance gate.
 
 ## Remaining implementation and physical acceptance
 
-1. Verify the exact watch's passive report contains a stable identifier for the
-   owner-confirmed Home router; keep identifiers and coordinates out of public
-   evidence and never request a Wi-Fi password.
+1. Near-router identity matching passed for one configured V52/radio pair on
+   7 September 2026 UTC. Validate loss/return, router restart and expiry before
+   accepting broader Home presence; keep identifiers and coordinates out of
+   public evidence and never request a Wi-Fi password.
 2. Add customer owner-scoped enrollment, identifier minimization, revocation and backend
    authorization. Linked caregivers may read accepted presence; a client must
    not forge backend-observed Home presence.
