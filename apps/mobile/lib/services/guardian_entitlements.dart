@@ -20,6 +20,7 @@ enum GuardianFeature {
   safeZones,
   batteryAlerts,
   familyCaregivers,
+  sosWhatsappAlerts,
   guardianAi,
   whatsappQuestionsAnswers,
   whatsappSafetyAlerts,
@@ -54,6 +55,7 @@ extension GuardianFeaturePresentation on GuardianFeature {
     GuardianFeature.safeZones => 'Safe zones',
     GuardianFeature.batteryAlerts => 'Battery alerts',
     GuardianFeature.familyCaregivers => 'Family caregivers',
+    GuardianFeature.sosWhatsappAlerts => 'SOS WhatsApp alerts',
     GuardianFeature.guardianAi => 'Guardian AI',
     GuardianFeature.whatsappQuestionsAnswers =>
       'WhatsApp questions and answers',
@@ -91,6 +93,7 @@ const _essentialFeatures = <GuardianFeature>{
   GuardianFeature.safeZones,
   GuardianFeature.batteryAlerts,
   GuardianFeature.familyCaregivers,
+  GuardianFeature.sosWhatsappAlerts,
 };
 
 const _familyFeatures = <GuardianFeature>{

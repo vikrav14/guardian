@@ -1,4 +1,5 @@
 import '../models/location_history_point.dart';
+import '../safe_zones/safe_zone_logic.dart' show haversineMeters;
 import 'journey_models.dart';
 import 'journey_utils.dart';
 
@@ -56,10 +57,7 @@ class JourneyV2Route {
 
 List<JourneyRecord> journeyV2SortedRecords(List<JourneyRecord> journeys) {
   final sorted = List<JourneyRecord>.from(journeys)
-    ..sort(
-      (a, b) =>
-          a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt),
-    );
+    ..sort((a, b) => a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt));
   return sorted;
 }
 
@@ -73,10 +71,41 @@ List<JourneyRecord> journeyV2MeaningfulRecords(
           (journey) =>
               journey.hasAuthoritativeEvidence &&
               (journey.hasConfirmedReturn ||
-                  journey.distanceKm >= minimumDistanceKm),
+                  journeyV2RecordedDistanceKm(journey) >= minimumDistanceKm),
         )
         .toList(),
   );
+}
+
+/// Recompute old mixed-source records as well as new records. Approximate
+/// observations remain in the route evidence but add no travelled kilometres.
+double journeyV2RecordedDistanceKm(JourneyRecord journey) {
+  if (!journey.hasAuthoritativeEvidence) return 0;
+  final coords = decodePolyline(journey.polyline);
+  if (coords.length != journey.pointEvidence.length) return 0;
+  var metres = 0.0;
+  for (var i = 1; i < coords.length; i++) {
+    final a = journey.pointEvidence[i - 1];
+    final b = journey.pointEvidence[i];
+    final elapsed = b.offsetMs - a.offsetMs;
+    if (!a.isSatelliteObservation ||
+        !b.isSatelliteObservation ||
+        elapsed <= 0 ||
+        elapsed > const Duration(minutes: 5).inMilliseconds) {
+      continue;
+    }
+    if (!isPlausibleCoord(coords[i - 1].lat, coords[i - 1].lng) ||
+        !isPlausibleCoord(coords[i].lat, coords[i].lng)) {
+      continue;
+    }
+    metres += haversineMeters(
+      coords[i - 1].lat,
+      coords[i - 1].lng,
+      coords[i].lat,
+      coords[i].lng,
+    );
+  }
+  return metres.round() / 1000;
 }
 
 JourneyRecord? journeyV2SelectRecord(

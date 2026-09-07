@@ -42,6 +42,13 @@ const config = {
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
+  // Pilot-only: both values must match a device before Guardian selects the
+  // SOS templates whose static Meta phone button calls that watch. Leave both
+  // empty until the templates are approved and the real-device test passes.
+  metaWhatsAppSosCallbackPilotImei:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppSosCallbackPilotNumber:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

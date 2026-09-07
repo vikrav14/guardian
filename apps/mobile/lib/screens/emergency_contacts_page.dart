@@ -40,44 +40,57 @@ class EmergencyContactsPage extends StatelessWidget {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController(text: '+230');
     final waCtrl = TextEditingController();
+    var makePrimary = existing.isEmpty;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add contact'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: 'Phone'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: waCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'WhatsApp (optional)',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Add contact'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Name'),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Phone'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: waCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'WhatsApp (optional)',
+                ),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: makePrimary,
+                title: const Text('Primary SOS contact'),
+                subtitle: const Text(
+                  'Guardian Essential sends SOS WhatsApp to this contact.',
+                ),
+                onChanged: (value) =>
+                    setDialogState(() => makePrimary = value == true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
 
@@ -87,12 +100,18 @@ class EmergencyContactsPage extends StatelessWidget {
           const SnackBar(content: Text('Name and phone are required')),
         );
       } else {
+        final nextExisting = makePrimary
+            ? existing
+                  .map((contact) => contact.copyWith(isPrimary: false))
+                  .toList()
+            : existing;
         await service.saveContacts([
-          ...existing,
+          ...nextExisting,
           EmergencyContact(
             name: nameCtrl.text.trim(),
             phone: phoneCtrl.text.trim(),
             whatsapp: waCtrl.text.trim().isEmpty ? null : waCtrl.text.trim(),
+            isPrimary: makePrimary,
           ),
         ]);
       }
@@ -171,6 +190,12 @@ class EmergencyContactsPage extends StatelessWidget {
                       _ContactRow(
                         contact: contacts[i],
                         showDivider: i < contacts.length - 1,
+                        onMakePrimary: () async {
+                          await service.saveContacts([
+                            for (var j = 0; j < contacts.length; j++)
+                              contacts[j].copyWith(isPrimary: i == j),
+                          ]);
+                        },
                         onRemove: () async {
                           final next = [...contacts]..removeAt(i);
                           await service.saveContacts(next);
@@ -256,12 +281,14 @@ class _ContactRow extends StatelessWidget {
   const _ContactRow({
     required this.contact,
     required this.showDivider,
+    required this.onMakePrimary,
     required this.onRemove,
   });
 
   final EmergencyContact contact;
   final bool showDivider;
-  final VoidCallback onRemove;
+  final Future<void> Function() onMakePrimary;
+  final Future<void> Function() onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -297,13 +324,34 @@ class _ContactRow extends StatelessWidget {
                   '${contact.phone}${contact.whatsapp != null ? ' · WhatsApp ${contact.whatsapp}' : ''}',
                   style: textTheme.labelSmall,
                 ),
+                if (contact.isPrimary)
+                  Text(
+                    'Primary SOS contact',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colors.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: onRemove,
-            style: TextButton.styleFrom(foregroundColor: GuardianColors.danger),
-            child: const Text('Remove'),
+          PopupMenuButton<String>(
+            tooltip: 'Contact actions',
+            onSelected: (value) async {
+              if (value == 'primary') await onMakePrimary();
+              if (value == 'remove') await onRemove();
+            },
+            itemBuilder: (context) => [
+              if (!contact.isPrimary)
+                const PopupMenuItem<String>(
+                  value: 'primary',
+                  child: Text('Make primary SOS contact'),
+                ),
+              const PopupMenuItem<String>(
+                value: 'remove',
+                child: Text('Remove'),
+              ),
+            ],
           ),
         ],
       ),
