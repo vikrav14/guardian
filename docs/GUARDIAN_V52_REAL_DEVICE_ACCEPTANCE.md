@@ -109,6 +109,45 @@ Keep PR #109 draft until this evidence is recorded. This test does not accept
 platform-only routing or guarantee delivery while the gateway is offline.
 See [SOS location details](services/sos-location.md) for the software contract.
 
+#### Recorded callback-SOS evidence — 7 September 2026
+
+Source: operator-supplied output from the read-only pilot inspector, correlated
+by alert ID and Meta message ID. Public evidence omits wearer identities, watch
+identifiers, phone numbers, message IDs and coordinates. The inspector did not
+send a message, issue a watch command or change Firestore.
+
+| SOS event (UTC, 6 September) | Gap from previous listed event | Valid frozen GPS / last known | Stored notification map matches | Notification logs / Meta outcomes | Log delivery and matching delivered/read receipt |
+| --- | --- | --- | --- | --- | --- |
+| 18:33:38.227 | First listed event | Yes | Yes | 1 / 1 | Yes |
+| 18:55:10.883 | 1292.656 seconds | Yes | Yes | 1 / 1 | Yes |
+| 19:07:02.569 | 711.686 seconds | Yes | Yes | 1 / 1 | Yes |
+
+All three incidents have a later device observation while their stored GPS map
+still agrees with the original notification log. Both later incidents are more
+than 90 seconds apart. The matching Meta delivery events are persisted by the
+signature-checked webhook path; these results establish more than API acceptance.
+There is one recorded notification attempt for each of these three incidents.
+This single read does not establish that repeated watch packets were received
+and suppressed inside a 90-second window.
+
+Previously accepted on the same private pilot, by the operator's 6 September
+handset evidence: app/push receipt, the correct Call watch destination, ringing,
+answering, two-way audio and opening the retained GPS map. Preserve those passes;
+do not repeat them merely to replace existing evidence.
+
+The fresh-process location check selected retained GPS with an age of 241
+minutes, with Wi-Fi recorded separately as the latest observation source. This
+verifies the tool's selection on real data. It does not identify the running
+gateway revision or prove the text currently received in WhatsApp.
+
+Still unrecorded for the current fixes: running WhatsApp/app presentation,
+stationary-indoor journey acceptance, and a gateway trace or controlled pilot
+showing repeated-packet suppression inside the 90-second incident window.
+The stock Calling-screen/carrier-SMS, callback timing, carrier charging and
+gateway-offline limitations remain subject to the existing activation gates.
+This checkpoint does not mark the PR ready for merge or the service ready for
+customer activation.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

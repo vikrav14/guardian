@@ -81,6 +81,14 @@ plus `flutter analyze` from `apps/mobile`.
 
 ## Physical acceptance still required
 
+The [7 September evidence checkpoint](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-callback-sos-evidence--7-september-2026)
+records three Meta-confirmed SOS deliveries, preserved GPS maps despite later
+observations, and separate incidents beyond 90 seconds, each with one log and
+one Meta outcome. Correct callback destination, ringing, two-way audio and
+handset map opening were already accepted by the operator on 6 September.
+Those results must not be reset to pending. Repeated-packet suppression during
+the incident window still needs its own recorded trace or controlled test.
+
 Keep PR #109 draft until the next controlled acceptance run. Automated tests do
 not prove handset delivery or a successful cellular callback.
 
@@ -133,4 +141,5 @@ alone is not handset delivery. Keep PR #109 draft until these results exist.
 
 Continue tracking the stock watch's prolonged Calling screen and inbound-call
 availability separately. This software location fix does not resolve that
-firmware behaviour or mark callback audio as accepted.
+firmware behaviour. Callback audio acceptance comes from the operator's recorded
+physical call, not the software tests.
