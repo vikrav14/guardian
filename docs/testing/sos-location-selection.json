@@ -1,0 +1,273 @@
+[
+  {
+    "name": "13 minute GPS followed by WiFi",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:47:00.000Z",
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      },
+      "accuracySource": "wifi"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.1,
+        "lng": 57.1
+      },
+      "state": "last_known"
+    }
+  },
+  {
+    "name": "13 minute GPS followed by cellular estimate",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "lbs",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "lbs",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:47:00.000Z",
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      },
+      "accuracySource": "lbs"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.1,
+        "lng": 57.1
+      },
+      "state": "last_known"
+    }
+  },
+  {
+    "name": "very old GPS remains explicitly historical",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": "2026-08-30T12:00:00.000Z",
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      },
+      "accuracySource": "wifi"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.1,
+        "lng": 57.1
+      },
+      "state": "last_known"
+    }
+  },
+  {
+    "name": "unknown GPS age is never current",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": null,
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      },
+      "accuracySource": "wifi"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.1,
+        "lng": 57.1
+      },
+      "state": "last_known"
+    }
+  },
+  {
+    "name": "new GPS replaces the retained primary",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.3,
+        "lng": 57.3,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:59:00.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.3,
+        "lng": 57.3,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:59:00.000Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:47:00.000Z",
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      },
+      "accuracySource": "gps"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.3,
+        "lng": 57.3
+      },
+      "state": "fresh"
+    }
+  },
+  {
+    "name": "approximate only keeps its radius and source",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "accuracySource": "wifi"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2
+      },
+      "state": "fresh"
+    }
+  },
+  {
+    "name": "cellular only is approximate",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "lbs",
+        "recordedAt": "2026-09-01T11:59:00.000Z",
+        "gpsValid": false,
+        "accuracyMeters": 600,
+        "placeLabel": "Network fixture"
+      },
+      "accuracySource": "lbs"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2
+      },
+      "state": "fresh"
+    }
+  },
+  {
+    "name": "missing location does not manufacture a pin",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {},
+    "expected": {
+      "location": null,
+      "state": "unavailable"
+    }
+  },
+  {
+    "name": "legacy GPS from outer source",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "location": {
+        "lat": -20.3,
+        "lng": 57.3,
+        "recordedAt": "2026-09-01T11:59:00.000Z"
+      },
+      "accuracySource": "gps"
+    },
+    "expected": {
+      "location": {
+        "lat": -20.3,
+        "lng": 57.3
+      },
+      "state": "fresh"
+    }
+  },
+  {
+    "name": "satellite retained without latest observation",
+    "now": "2026-09-01T12:00:00.000Z",
+    "device": {
+      "lastSatelliteLocation": {
+        "lat": -20.1,
+        "lng": 57.1,
+        "source": "gps",
+        "recordedAt": "2026-09-01T11:47:00.000Z",
+        "gpsValid": true,
+        "placeLabel": "GPS fixture"
+      }
+    },
+    "expected": {
+      "location": {
+        "lat": -20.1,
+        "lng": 57.1
+      },
+      "state": "last_known"
+    }
+  }
+]

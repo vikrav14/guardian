@@ -54,6 +54,13 @@ function classifyBoundaryObservation({ distance, radius, wifiMatch, location }) 
     return { classification: 'inside', uncertaintyMeters: 0 };
   }
 
+  const source = locationSource(location);
+  if (source === 'wifi' || source === 'lbs' || location?.gpsValid === false) {
+    // A provider radius is an estimate, not a hard bound or proof of travel.
+    // Enrolled Home Wi-Fi presence (above) remains a distinct observation.
+    return { classification: 'uncertain', uncertaintyMeters: null };
+  }
+
   const uncertaintyMeters = boundaryUncertaintyMeters(location);
   if (!Number.isFinite(uncertaintyMeters)) {
     return { classification: 'uncertain', uncertaintyMeters: null };

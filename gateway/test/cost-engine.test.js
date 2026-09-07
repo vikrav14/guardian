@@ -71,8 +71,13 @@ test('getPricing exposes MUR rates object', () => {
   assert.equal(pricing.currency, 'MUR');
   assert.ok(pricing.firestore.readPer100k > 0);
   assert.ok(pricing.claude.inputPer1kTokensMur > 0);
+  assert.equal(pricing.whatsapp.perMessageMur, 0.50);
   assert.equal(pricing.device.pendantSaleMur, 2500);
   assert.equal(pricing.subscription.annualMur, 1500);
+  assert.equal(pricing.subscription.essentialMonthlyMur, 199);
+  assert.equal(pricing.subscription.basicMonthlyMur, 199);
+  assert.equal(pricing.subscription.familyMonthlyMur, 399);
+  assert.equal(pricing.subscription.careMonthlyMur, 699);
 });
 
 test('estimateCostSensitivity returns baseline and scenario deltas', () => {

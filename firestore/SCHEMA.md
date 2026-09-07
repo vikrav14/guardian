@@ -18,7 +18,7 @@ Firebase Auth UID as document ID.
 | subscription | map \| null | **Deprecated and untrusted.** Legacy `{ tier: 'free'\|'premium', ... }` display data. It must never grant service access. |
 | serviceOwnerUid | string | UID whose authoritative Guardian plan this account inherits. Defaults to the same UID for the purchaser. A family relationship must also be verified on the owner's record. |
 | memberUids | string[] | Backend-managed normalized family membership used to verify plan inheritance. Keep a display copy in `familyMembers`, but never authorize from that legacy field. |
-| emergencyContacts | array | `{ name, phone, whatsapp? }` |
+| emergencyContacts | array | `{ name, phone, whatsapp?, isPrimary? }`; exactly one primary is preferred, with the first valid contact as the legacy fallback |
 | familyMembers | array | Backend-managed display list `{ uid, displayName, email? }`; never use it for authorization. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
@@ -189,15 +189,27 @@ A TCP disconnect is diagnostic evidence and does not split an outing.
 |-------|------|-------|
 | startAt | timestamp | Journey start |
 | endAt | timestamp | Journey end |
-| distanceKm | number | Path length along buffered GPS points |
+| distanceKm | number | Sum of consecutive valid GPS edges; excludes Wi-Fi/LBS edges and tracking gaps over five minutes. Older stored totals are recomputed on customer reads. |
 | polyline | string | Google encoded polyline (precision 5) |
 | events | array | Optional inline events, e.g. `{ type: 'geofence_exit', geofenceId, name, at }` |
-| pointCount | number | Raw GPS fixes in buffer before compression |
+| pointCount | number | Raw buffered observations before compression, including approximate observations retained during a GPS journey |
+| evidenceVersion | number | Version 3 stores aligned per-point source evidence and route-start anchoring |
+| pointEvidence | array | One entry per polyline point: source, gpsValid, offsetMs and optional quality metadata; a network estimate is never valid movement evidence |
+| routeStartAnchored | boolean | Whether a safe-zone departure has a retained inside-origin GPS anchor; required for customer-facing confirmed-return outings |
+| routeCoverage | map | GPS/approximate counts and tracking gaps; structureReliable is false for mixed-source routes |
 | compressed | boolean | Always `true` for gateway-written docs |
 | closeReason | string | Current reasons include `return_to_origin`, `idle`, and `daily_boundary`; `disconnect` may exist on legacy documents only |
 | observationAudit | map | Aggregate counts for approximate packets, resolution and acceptance outcomes |
 | diagnosticEvents | array | Bounded timestamp-offset timeline of connection, heartbeat, location, fallback, recovery-probe and reporting-policy evidence used by the read-only gap investigator |
 | createdAt | timestamp | Write time |
+
+Journey creation and boundary confirmation require valid satellite observations.
+Provider Wi-Fi/LBS estimates remain observations, even if their estimated radius
+lies outside a safe zone. Existing records without at least two valid GPS points
+and aligned version-3 source evidence are excluded from customer trip counts,
+distance totals and replay selection; raw documents are retained for diagnostics.
+The existing minimum-distance and anchored-return rules still apply. See
+[`journey-source-validation.md`](../docs/services/journey-source-validation.md).
 
 ### `devices/{imei}/journeys/{journeyId}/presentations/google_v1`
 
@@ -247,6 +259,7 @@ unaltered GPS evidence.
 | severity | string | `info` \| `warning` \| `critical` |
 | message | string | Human-readable |
 | payload | map | Raw / extra fields. V52 fall alerts include immutable `locationSnapshot`; see below. |
+| sosLocationSnapshot | map \| null | Backend-only frozen primary/secondary location evidence for physical V52 SOS; see below. |
 | resolved | boolean | Default false |
 | resolvedAt | timestamp \| null | |
 | notifyStatus | string \| null | `pending` \| `sending` \| `accepted` \| `partial` \| `sent` \| `delivered` \| `failed` \| `skipped`; `accepted` means provider acceptance, not handset delivery |
@@ -254,6 +267,46 @@ unaltered GPS evidence.
 | notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+
+### Physical SOS `sosLocationSnapshot`
+
+The gateway captures this top-level field at physical SOS receipt, before
+notification work. It is **not** stored in the client-writable `payload` map.
+The existing alerts create allowlist rejects this field from clients, and the
+update allowlist permits only resolution fields. Read access remains linked
+watch access. No rules relaxation or new index is required.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | `1` |
+| policy | string | `map_retained_satellite_v1` |
+| capturedAt | timestamp | Gateway receipt time, not a claim of the exact physical button-press time. |
+| state | string | `fresh`, `last_known`, or `unavailable`; retained GPS is always `last_known`. |
+| reason | string | Selection/freshness reason, including `retained_satellite` and `source_unconfirmed`. |
+| ageSeconds | number \| null | Primary observation age relative to receipt; readers recompute it from the frozen timestamps. |
+| retainedSatellite | boolean | The primary pin uses retained satellite evidence rather than the latest approximate observation. |
+| location | map \| null | Copied `{ lat, lng, source, gpsValid, accuracyMeters, recordedAt, placeLabel }`. GPS accuracy is null, never inherited from WiFi/LBS. |
+| latestObservation | map \| null | Separate copied observation with its own time, source and radius. Can be secondary network evidence. |
+
+The primary pin follows the existing Flutter map's retained-GPS policy, tested
+in both languages against `docs/testing/sos-location-selection.json`. Very old
+or unknown-age GPS remains historical and explicitly says the current position
+is unconfirmed; there is no promise that the wearer is still there. Newer
+approximate evidence is retained and disclosed separately. Freshness alone
+does not imply positional precision.
+
+Post-receipt coordinates and malformed/null/blank/out-of-range coordinates are
+excluded. A missing device observation timestamp stays unknown; completion of
+a network geolocation lookup does not invent a timestamp. Body, template state,
+map button and notification-log location text use this snapshot. Battery and
+connection status may still reflect the notification-time device record.
+
+Legacy/app-created SOS alerts without a valid backend snapshot still notify,
+but fail closed to the no-location template. Do not retroactively fill their
+location from a newer device document. Existing sent messages are not edited
+or resent. Fall snapshot semantics and raw tracking data are unchanged.
+
+See `docs/services/sos-location.md` for the physical QA checklist and limits.
 
 ### Fall `payload.locationSnapshot`
 
@@ -296,8 +349,8 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state |
-| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }`. Alarm modes: `0` platform only, `1` platform+SMS+call, `2` platform+call, `3` platform+SMS. |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |

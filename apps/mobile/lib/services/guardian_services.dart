@@ -692,16 +692,31 @@ class EmergencyContact {
     required this.name,
     required this.phone,
     this.whatsapp,
+    this.isPrimary = false,
   });
 
   final String name;
   final String phone;
   final String? whatsapp;
+  final bool isPrimary;
+
+  EmergencyContact copyWith({
+    String? name,
+    String? phone,
+    String? whatsapp,
+    bool? isPrimary,
+  }) => EmergencyContact(
+    name: name ?? this.name,
+    phone: phone ?? this.phone,
+    whatsapp: whatsapp ?? this.whatsapp,
+    isPrimary: isPrimary ?? this.isPrimary,
+  );
 
   Map<String, dynamic> toMap() => {
     'name': name,
     'phone': phone,
     if (whatsapp != null && whatsapp!.trim().isNotEmpty) 'whatsapp': whatsapp,
+    if (isPrimary) 'isPrimary': true,
   };
 
   factory EmergencyContact.fromMap(Map<String, dynamic> map) {
@@ -709,6 +724,7 @@ class EmergencyContact {
       name: (map['name'] as String?) ?? '',
       phone: (map['phone'] as String?) ?? '',
       whatsapp: map['whatsapp'] as String?,
+      isPrimary: map['isPrimary'] == true,
     );
   }
 }
@@ -802,18 +818,28 @@ class UserProfileService {
     return _db.collection('users').doc(uid).snapshots().map((snap) {
       final raw = snap.data()?['emergencyContacts'];
       if (raw is! List) return const <EmergencyContact>[];
-      return raw
+      final contacts = raw
           .whereType<Map>()
           .map((m) => EmergencyContact.fromMap(Map<String, dynamic>.from(m)))
           .toList();
+      if (contacts.isNotEmpty && !contacts.any((contact) => contact.isPrimary)) {
+        contacts[0] = contacts[0].copyWith(isPrimary: true);
+      }
+      return contacts;
     });
   }
 
   Future<void> saveContacts(List<EmergencyContact> contacts) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
+    final explicitPrimary = contacts.indexWhere((contact) => contact.isPrimary);
+    final primaryIndex = explicitPrimary >= 0 ? explicitPrimary : 0;
+    final normalized = <EmergencyContact>[
+      for (var i = 0; i < contacts.length; i++)
+        contacts[i].copyWith(isPrimary: i == primaryIndex),
+    ];
     await _db.collection('users').doc(uid).set({
-      'emergencyContacts': contacts.map((c) => c.toMap()).toList(),
+      'emergencyContacts': normalized.map((c) => c.toMap()).toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -845,6 +871,60 @@ class AlertService {
     await _db.collection('alerts').doc(alertId).update({
       'resolved': true,
       'resolvedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Resolve only the incidents captured by the user's bulk confirmation.
+  /// Reads precede writes so a failed/access-changed group cannot partly clear.
+  Future<int> resolveMany(Iterable<GuardianAlert> alerts) async {
+    final targets = <String, String>{};
+    for (final alert in alerts) {
+      if (alert.resolved) continue;
+      if (alert.id.isEmpty ||
+          alert.id.contains('/') ||
+          alert.imei.isEmpty ||
+          (targets.containsKey(alert.id) && targets[alert.id] != alert.imei)) {
+        throw ArgumentError('Invalid alert selection');
+      }
+      targets[alert.id] = alert.imei;
+    }
+    if (targets.isEmpty) return 0;
+    if (targets.length > 100) {
+      throw ArgumentError('Select at most 100 recent alerts');
+    }
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Not signed in');
+    return _db.runTransaction<int>((transaction) async {
+      final profile = await transaction.get(_db.collection('users').doc(uid));
+      final raw =
+          (profile.data()?['linkedImeis'] as List?)?.whereType<String>() ??
+          const <String>[];
+      final linked = normalizeLinkedImeis(raw).toSet();
+      if (!targets.values.every(linked.contains)) {
+        throw StateError('The linked watches changed. Refresh the alerts.');
+      }
+      final snapshots = await Future.wait([
+        for (final id in targets.keys)
+          transaction.get(_db.collection('alerts').doc(id)),
+      ]);
+      final unresolved = <DocumentReference<Map<String, dynamic>>>[];
+      for (final snapshot in snapshots) {
+        final data = snapshot.data();
+        if (data == null || data['imei'] != targets[snapshot.id]) {
+          throw StateError('An alert changed. Refresh the alerts.');
+        }
+        // Preserve another guardian's original resolution time on retries.
+        if (data['resolved'] != true) {
+          unresolved.add(snapshot.reference);
+        }
+      }
+      for (final ref in unresolved) {
+        transaction.update(ref, {
+          'resolved': true,
+          'resolvedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return unresolved.length;
     });
   }
 

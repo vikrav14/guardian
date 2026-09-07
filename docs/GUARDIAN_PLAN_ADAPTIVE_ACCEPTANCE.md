@@ -27,7 +27,9 @@
 - Journey calendar cannot select a day earlier than the last seven calendar days.
 - A direct attempt to read a location, segment or journey record older than seven rolling days is denied by Firestore.
 - First verified caregiver can join; a second concurrent acceptance is rejected.
-- Essential does not present WhatsApp questions/answers or WhatsApp safety alerts as included.
+- Essential presents physical-watch SOS delivery to one primary emergency
+  contact on WhatsApp. It does not present WhatsApp questions/answers, fall or
+  routine WhatsApp alerts, AI, reminders, or watch commands as included.
 
 ## Family acceptance
 

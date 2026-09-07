@@ -1,5 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { encodePolyline } = require('../src/polyline');
+const sourceCases = require('../../docs/testing/journey-source-evidence.json').cases;
+
+// Synthetic northbound GPS route: 0.002 latitude degrees is about 222 m.
+function gpsRouteEvidence() {
+  return {
+    evidenceVersion: 3,
+    pointCount: 3,
+    polyline: encodePolyline([0, 0.001, 0.002].map(offset => ({
+      lat: -20.25 + offset, lng: 57.5,
+    }))),
+    pointEvidence: [0, 60000, 120000].map(offsetMs => ({
+      offsetMs, source: 'gps', gpsValid: true,
+    })),
+  };
+}
 
 const {
   deviceLabel,
@@ -96,8 +112,9 @@ test('getLastLocation discloses a retained satellite fix and newer indoor observ
   assert.match(result.locationDisclosure, /last satellite fix/);
 });
 
-test('getRecentJourneys omits stationary drift and backfills genuine journeys', async () => {
+test('getRecentJourneys omits legacy drift and the reported network trip, then backfills GPS', async () => {
   const docs = [
+    { id: 'reported-network-trip', data: () => sourceCases[0].journey },
     {
       id: 'drift',
       data: () => ({
@@ -115,7 +132,7 @@ test('getRecentJourneys omits stationary drift and backfills genuine journeys', 
         startAt: new Date('2026-08-10T16:50:00Z'),
         endAt: new Date('2026-08-10T17:36:00Z'),
         distanceKm: 21.9,
-        pointCount: 30,
+        ...gpsRouteEvidence(),
         events: [],
         closeReason: 'idle',
       }),
@@ -142,8 +159,9 @@ test('getRecentJourneys omits stationary drift and backfills genuine journeys', 
     { devices: [{ imei: 'A', nickname: 'Jesh' }] },
     { limit: 1, imei: 'A' },
   );
-  assert.equal(result.omittedLowQualityCount, 1);
+  assert.equal(result.omittedLowQualityCount, 2);
   assert.deepEqual(result.journeys.map((journey) => journey.id), ['real']);
+  assert.equal(result.journeys[0].distanceKm, 0.222);
 });
 
 test('getRecentJourneys filters an explicitly requested Mauritius day', async () => {
@@ -154,7 +172,7 @@ test('getRecentJourneys filters an explicitly requested Mauritius day', async ()
         startAt: new Date('2026-08-18T05:00:00Z'),
         endAt: new Date('2026-08-18T05:30:00Z'),
         distanceKm: 4.2,
-        pointCount: 20,
+        ...gpsRouteEvidence(),
       }),
     },
     {
@@ -163,7 +181,7 @@ test('getRecentJourneys filters an explicitly requested Mauritius day', async ()
         startAt: new Date('2026-08-17T13:00:00Z'),
         endAt: new Date('2026-08-17T13:30:00Z'),
         distanceKm: 6.3,
-        pointCount: 20,
+        ...gpsRouteEvidence(),
       }),
     },
   ];
@@ -191,6 +209,32 @@ test('getRecentJourneys filters an explicitly requested Mauritius day', async ()
   assert.deepEqual(result.journeys.map((journey) => journey.id), ['today']);
 });
 
+test('assistant recomputes old mixed-source distance and suppresses approximate stops', async () => {
+  const raw = {
+    ...gpsRouteEvidence(),
+    startAt: new Date('2026-09-06T18:00:00Z'),
+    endAt: new Date('2026-09-06T18:03:00Z'),
+    pointCount: 4, distanceKm: 99, stopCount: 2,
+    polyline: encodePolyline([0, 0.001, 0.05, 0.08].map(offset => ({
+      lat: -20.25 + offset, lng: 57.5,
+    }))),
+    pointEvidence: ['gps', 'gps', 'wifi', 'lbs'].map((source, i) => ({
+      source, gpsValid: source === 'gps', offsetMs: i * 60000,
+    })),
+  };
+  const query = {
+    orderBy() { return this; }, limit() { return this; },
+    async get() { return { docs: [{ id: 'mixed', data: () => raw }] }; },
+  };
+  const db = { collection: () => ({ doc: () => ({ collection: () => query }) }) };
+  const result = await getRecentJourneys(db, { devices: [{ imei: 'A' }] }, { imei: 'A' });
+  assert.equal(result.journeys.length, 1);
+  assert.equal(result.journeys[0].distanceKm, 0.111);
+  assert.equal(result.journeys[0].stopCount, 0);
+  assert.equal(raw.distanceKm, 99);
+  assert.equal(raw.stopCount, 2);
+});
+
 test('getDailySummary aggregates only the requested authorised wearer and period', async () => {
   const chain = (docs) => ({
     where() { return this; },
@@ -204,7 +248,14 @@ test('getDailySummary aggregates only the requested authorised wearer and period
       startAt: new Date('2026-08-14T05:00:00Z'),
       endAt: new Date('2026-08-14T05:30:00Z'),
       distanceKm: 4.2,
-      pointCount: 20,
+      ...gpsRouteEvidence(),
+    }),
+  }, {
+    id: 'network-drift',
+    data: () => ({
+      ...sourceCases[0].journey,
+      startAt: new Date('2026-08-14T06:00:00Z'),
+      endAt: new Date('2026-08-14T06:25:00Z'),
     }),
   }];
   const alertDocs = [{
@@ -246,7 +297,8 @@ test('getDailySummary aggregates only the requested authorised wearer and period
   );
   assert.equal(result.name, 'Jesh');
   assert.equal(result.journeyCount, 1);
-  assert.equal(result.distanceKm, 4.2);
+  assert.equal(result.distanceKm, 0.222);
+  assert.equal(result.omittedLowQualityCount, 1);
   assert.equal(result.safeZoneEventCount, 1);
   assert.equal(result.criticalAlertCount, 0);
   assert.equal(result.batteryPercent, 70);

@@ -34,10 +34,12 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Request location | `CR` | Proven | Real V52 returned GPS and Wi-Fi/LBS observations. |
 | Voice monitor callback | `MONITOR,<phone>` | Documented | Confirm callback, audio, consent indication and carrier behaviour. |
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
+| SOS alarm delivery mode | `MOD,<0..3>` | Documented; `MOD,0` platform-only behavior rejected on pilot firmware | Vendor descriptions: `0` platform only; `1` platform+SMS+call; `2` platform+call; `3` platform+SMS. On 24 August 2026, the exact V52 acknowledged `MOD,0` but still displayed **Calling...** and sent a carrier SMS. No completed call was observed, but the pilot SIM already blocks outbound calls. The watch acknowledged restoration to `MOD,1`. Mode `3` remains unverified. Do not promote another mode combination or claim screen-text control without supplier evidence and separate acceptance. |
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
+| Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
 
 ## Alarm decoding guardrail
 

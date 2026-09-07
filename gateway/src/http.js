@@ -19,6 +19,7 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
+const { provisionPhonebookContact } = require('./phonebook-provisioning');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -46,6 +47,7 @@ const {
   validateReminderResponse,
 } = require('./response-validator');
 const { formatBatteryReply } = require('./battery-freshness');
+const { formatLocationReply } = require('./location-reply');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
@@ -389,6 +391,29 @@ async function handleChat({ from, text }) {
       return { ctx, reply, accessRestricted: true };
     }
 
+    // A location answer must preserve the selected observation's source and
+    // timestamp. Render it before any provider call, including fallback models.
+    if (intent.type === 'LOCATION_REQUEST') {
+      let locationResult;
+      try {
+        locationResult = await runTool(db, ctx, 'get_last_location', {
+          imei: wearerResolution.wearer?.imei,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'location_query', error: err });
+        locationResult = { error: err.message };
+      }
+      const reply = formatLocationReply(locationResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: locationResult?.error ? 'location_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
     // Journey history is a typed factual read. Query it directly and render it
     // deterministically so common journey questions incur no LLM call and can
     // never invent a route, destination, or purpose.
@@ -693,9 +718,9 @@ async function requireAdmin(req, res) {
 }
 
 /**
- * Device context includes a loved one's location and must never inherit the
- * ops API's convenient "dev-open" behavior. Local/ngrok testing therefore
- * requires either X-Admin-Key or an authorized Firebase bearer token.
+ * Sensitive reads and device-changing operations must never inherit the ops
+ * API's convenient "dev-open" behavior. Local/ngrok use therefore requires
+ * either X-Admin-Key or an authorized Firebase administrator bearer token.
  */
 async function requireStrictAdmin(req, res) {
   const auth = await checkAdminAuth(req);
@@ -705,7 +730,7 @@ async function requireStrictAdmin(req, res) {
   }
   if (auth.method === 'dev-open') {
     sendJson(res, 503, {
-      error: 'Device context endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
+      error: 'Strict admin endpoint disabled: configure ADMIN_API_KEY or use Firebase admin auth',
     });
     return false;
   }
@@ -966,9 +991,66 @@ function startHttpServer() {
       }
 
       if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-phonebook/contact'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionPhonebookContact(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'phonebook_contact',
+                slot: result.slot,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // The watch may already have received PHBX. Return the real handoff
+          // result so an operator does not retry blindly and duplicate work.
+          console.error('[phonebook-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 404, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
+        // This route can write arbitrary commands to a live watch. It must
+        // never inherit the ops API's convenient dev-open behavior, including
+        // when HTTP port 9001 is exposed through an ngrok webhook tunnel.
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
         const imei =
           url.searchParams.get('imei') ||
           url.searchParams.get('protocolId');

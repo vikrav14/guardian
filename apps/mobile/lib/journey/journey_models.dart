@@ -295,6 +295,9 @@ class JourneyPointEvidence {
   final double? speedKmh;
   final String? placeName;
 
+  bool get isSatelliteObservation =>
+      source?.trim().toLowerCase() == 'gps' && gpsValid;
+
   factory JourneyPointEvidence.fromMap(Map<String, dynamic> data) {
     return JourneyPointEvidence(
       offsetMs: (data['offsetMs'] as num?)?.toInt() ?? 0,
@@ -626,6 +629,7 @@ class JourneyRecord {
       evidenceVersion >= 3 &&
       pointCount >= 2 &&
       pointEvidence.length == pointCount &&
+      pointEvidence.where((point) => point.isSatelliteObservation).length >= 2 &&
       (!hasConfirmedReturn || routeStartAnchored);
 
   DateTime get confirmedDepartureAt => departureAt ?? startAt;

@@ -186,6 +186,19 @@ class AccountPage extends StatelessWidget {
     final whatsappAlertsDecision = entitlementScope.decision(
       GuardianFeature.whatsappSafetyAlerts,
     );
+    final sosWhatsappDecision = entitlementScope.decision(
+      GuardianFeature.sosWhatsappAlerts,
+    );
+    final alertDeliveryLabel = whatsappAlertsDecision.allowed
+        ? 'WhatsApp / SMS alerts'
+        : sosWhatsappDecision.allowed
+        ? 'SOS app & WhatsApp alerts'
+        : 'App / SMS alerts';
+    final alertDeliveryDescription = whatsappAlertsDecision.allowed
+        ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
+        : sosWhatsappDecision.allowed
+        ? 'Guardian Essential sends a physical watch SOS to the app and to one primary emergency contact on WhatsApp. WhatsApp questions, routine alerts, fall alerts, AI, and watch commands require Guardian Family or Guardian Care. Delivery still depends on notification permission, active provider configuration, and approved Meta templates.'
+        : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require an active eligible Guardian plan.';
     final accountRole = subscription?.serviceActive == true
         ? subscription!.ownerUid == user?.uid
               ? 'Family account owner'
@@ -400,19 +413,13 @@ class AccountPage extends StatelessWidget {
               children: [
                 GuardianSettingsRow(
                   icon: Icons.sms_rounded,
-                  label: whatsappAlertsDecision.allowed
-                      ? 'WhatsApp / SMS alerts'
-                      : 'App / SMS alerts',
+                  label: alertDeliveryLabel,
                   onTap: () {
                     showDialog<void>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Alert delivery'),
-                        content: Text(
-                          whatsappAlertsDecision.allowed
-                              ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
-                              : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require Guardian Family or Guardian Care.',
-                        ),
+                        content: Text(alertDeliveryDescription),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx),

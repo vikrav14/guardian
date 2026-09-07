@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:guardian/dashboard/dashboard_ai_interpretation.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
 import 'package:guardian/models/device.dart';
 
@@ -85,19 +86,20 @@ void main() {
     );
   });
 
-  test('approximate fix becomes display position after retention window', () {
+  test('broad network fix never displaces the last reliable satellite fix', () {
     final satelliteAt = DateTime.utc(2026, 8, 14, 19);
     final approximateAt = satelliteAt.add(const Duration(minutes: 31));
     final approximate = DeviceLocation(
       lat: -20.028,
       lng: 57.596,
       source: 'lbs',
-      accuracyMeters: 900,
+      accuracyMeters: 724685,
       recordedAt: approximateAt,
     );
     final device = Device(
       imei: '861397052547492',
       online: true,
+      connectionState: 'live',
       accuracySource: 'lbs',
       location: approximate,
       lastLocationObservation: approximate,
@@ -110,19 +112,23 @@ void main() {
       lastHeartbeatAt: approximateAt,
     );
 
-    expect(device.isDisplayingRetainedSatelliteLocation, false);
-    expect(device.displayLocation, same(approximate));
+    expect(device.isDisplayingRetainedSatelliteLocation, true);
+    expect(device.displayLocation, same(device.lastSatelliteLocation));
     expect(device.mapDisplayLocation, same(device.lastSatelliteLocation));
     expect(device.isMapDisplayingLastSatelliteLocation, true);
-    expect(deviceLocationStatusLabel(device), 'Approximate location');
+    expect(deviceLocationStatusLabel(device), 'Last satellite fix');
     expect(
       deviceLocationFixLabel(device, now: approximateAt),
-      'Approximate network location updated just now',
+      'Last satellite fix 31m ago',
     );
     expect(deviceMapLocationStatusLabel(device), 'Last reliable fix');
     expect(
       deviceMapLocationFixLabel(device, now: approximateAt),
       'Last reliable GPS fix 31m ago',
+    );
+    expect(
+      buildGuardianAiInterpretation(device),
+      contains('keeping the last satellite fix visible'),
     );
   });
 

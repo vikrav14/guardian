@@ -63,18 +63,146 @@ This is a controlled test, not an emergency-services test. Tell recipients first
 2. Confirm one backend `sos` alert appears with critical severity.
 3. Confirm the alert is persisted and its notification log contains a Meta `wamid`.
 4. Require a signed Meta webhook receipt with `deliveryStatus=delivered` or `read` for every configured WhatsApp recipient.
-5. Confirm no duplicate arrives during the suppression window.
+5. Confirm no duplicate arrives during the 90-second wearer-SOS incident
+   window. A new press after that window must still create a new incident.
 
-Pass: one real device event, Meta-confirmed WhatsApp delivery to every configured recipient, and no duplicate. API acceptance alone is Partial, not Passed. A plan-excluded WhatsApp channel may be skipped only when that plan does not advertise WhatsApp safety alerts.
+Pass: one real device event and no duplicate. Essential requires
+Meta-confirmed WhatsApp delivery to its one primary emergency contact. Family
+and Care require delivery to every configured WhatsApp recipient. API
+acceptance alone is Partial, not Passed. Essential does not inherit fall,
+routine, assistant, AI, or command WhatsApp capabilities from this SOS gate.
 
-## Test 3 — calls
+### Test 2B — callback notification and frozen location pilot
 
-1. From the Guardian app, call the watch and hold a short two-way conversation.
-2. From the watch, call the configured guardian/SOS number and hold a short two-way conversation.
-3. Repeat once with the gateway stopped. Voice should remain a carrier function when cellular voice coverage is available.
-4. Record date, direction, ring result, two-way audio and any carrier charge.
+**Recorded firmware result, 24 August 2026:** acknowledged `MOD,0` still
+produced the stock **Calling...** screen and a carrier SMS. No call completed,
+but the pilot SIM already blocks outbound calls. The watch was restored to
+`MOD,1` with acknowledgement. The intended platform-only/no-dialing behavior
+is rejected for this firmware; a bare command echo does not prove it.
 
-Pass: both directions work on the target SIM/carrier and failure copy is accurate. These calls do not use the watch's 500MB data allowance; normal carrier voice charges may apply.
+Do not repeat the old `MOD,0` experiment or try another mode combination as
+part of the location test. Custom screen wording/no dialing requires supplier
+confirmation and a separate firmware acceptance plan.
+
+The next test is limited to the Guardian notification and callback path:
+
+1. Run the verified callback-SOS PR head with existing watch settings. Confirm
+   the gateway and TCP/Meta webhook tunnels are healthy.
+2. Privately revalidate the Meta token, approved standard/callback templates,
+   intended primary contact and exact callback pilot IMEI/SIM guard. Tell the
+   wearer and recipient the test objective and known Calling/SMS limitation.
+3. With retained GPS followed by a newer WiFi/LBS observation, press SOS once.
+   Confirm one backend critical alert with a top-level `sosLocationSnapshot`.
+4. Confirm app receipt and signed Meta `delivered` or `read` evidence. API
+   acceptance alone does not prove handset receipt.
+5. Confirm the WhatsApp map matches the retained GPS, its wording states the
+   GPS age relative to SOS receipt, and the newer estimate is separate.
+   The standard map button uses index 0; the callback map button uses index 1.
+6. If callback templates are selected, verify **Call watch** reaches the same
+   watch. Record ring, answer, two-way audio, carrier charging and any delay
+   caused by the stock Calling screen.
+7. Obtain a later observation and confirm the prior incident's snapshot/link
+   stays unchanged. After the 90-second window, a separate SOS must capture a
+   new incident. Repeated packets inside that window must not create duplicates.
+
+Keep PR #109 draft until this evidence is recorded. This test does not accept
+platform-only routing or guarantee delivery while the gateway is offline.
+See [SOS location details](services/sos-location.md) for the software contract.
+
+#### Recorded callback-SOS evidence — 7 September 2026
+
+Source: operator-supplied output from the read-only pilot inspector, correlated
+by alert ID and Meta message ID. Public evidence omits wearer identities, watch
+identifiers, phone numbers, message IDs and coordinates. The inspector did not
+send a message, issue a watch command or change Firestore.
+
+| SOS event (UTC, 6 September) | Gap from previous listed event | Valid frozen GPS / last known | Stored notification map matches | Notification logs / Meta outcomes | Log delivery and matching delivered/read receipt |
+| --- | --- | --- | --- | --- | --- |
+| 18:33:38.227 | First listed event | Yes | Yes | 1 / 1 | Yes |
+| 18:55:10.883 | 1292.656 seconds | Yes | Yes | 1 / 1 | Yes |
+| 19:07:02.569 | 711.686 seconds | Yes | Yes | 1 / 1 | Yes |
+
+All three incidents have a later device observation while their stored GPS map
+still agrees with the original notification log. Both later incidents are more
+than 90 seconds apart. The matching Meta delivery events are persisted by the
+signature-checked webhook path; these results establish more than API acceptance.
+There is one recorded notification attempt for each of these three incidents.
+This single read does not establish that repeated watch packets were received
+and suppressed inside a 90-second window.
+
+Previously accepted on the same private pilot, by the operator's 6 September
+handset evidence: app/push receipt, the correct Call watch destination, ringing,
+answering, two-way audio and opening the retained GPS map. Preserve those passes;
+do not repeat them merely to replace existing evidence.
+
+The fresh-process location check selected retained GPS with an age of 241
+minutes, with Wi-Fi recorded separately as the latest observation source. This
+verifies the tool's selection on real data. It does not identify the running
+gateway revision or prove the text currently received in WhatsApp.
+
+Additional operator evidence supplied on 7 September:
+
+- The SOS screenshot with event time 22:34 shows last-known GPS recorded
+  4 hours 9 minutes before SOS receipt, current position unconfirmed, and a
+  separate approximate network observation aged one minute with a 519 m radius.
+  Call watch and View last known location are visible.
+- The ordinary WhatsApp location reply at 22:38 identifies last-known GPS with
+  its own recording time and four-hour age, explicitly leaves current position
+  unconfirmed, and shows the newer approximate cellular observation separately
+  with a one-minute age and 519 m radius. There is one GPS-labelled map link;
+  watch check-in and battery-report ages are separate. This accepts the received
+  text without claiming a new GPS fix or independently establishing pin accuracy.
+- The operator reports staying indoors today with no trip shown. This accepts
+  the observed stationary-indoor Journey result. It does not assert deletion of
+  the historical raw record or accept a new outdoor departure/return test.
+- The gateway excerpt contains two alarm notification blocks with distinct
+  outbound message IDs, each with matching delivered/read entries, and an
+  ordinary location-query reply between them. No `duplicate packet collapsed`
+  entry is present. Surrounding timestamped scheduler entries are at 18:34 and
+  18:39 UTC, but the alarm lines themselves have no timestamps. The excerpt does
+  not establish the exact interval between physical SOS presses or receipt of
+  two SOS packets inside the 90-second window.
+
+Final controlled-pilot follow-up: in response to the question about pressing
+SOS twice approximately ten seconds apart and receiving one or two WhatsApp
+messages, the operator confirmed **one**. Accept the observed notification-count
+result for that controlled test. No `duplicate packet collapsed` trace was
+supplied, so this is operator-observed acceptance, not a packet-level capture
+proving the number of packets received by the gateway. It does not prove
+suppression across gateway restarts or multiple gateway processes.
+
+The requested pilot acceptance checks are now recorded. Preserve the accepted
+presentation, indoor Journey, delivery, callback/audio and map results above.
+PR #109 can proceed through its final release gates under the operator's
+existing merge authorization. The suppression map remains process-local: a
+watch reconnect does not clear it, while a gateway restart does.
+The stock Calling-screen/carrier-SMS, callback timing, carrier charging and
+gateway-offline limitations remain subject to the existing activation gates.
+Merging these software changes does not complete customer activation or accept
+unrecorded hardware capabilities.
+
+## Test 3 — approved incoming family calls
+
+Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
+The supported direction is an approved guardian calling the watch; after the
+wearer answers, audio is two-way.
+
+1. Provision an approved number through `npm run phonebook:provision`.
+2. Confirm the entry appears, then reboot and confirm it persists.
+3. Call the watch from the approved number and hold a short conversation.
+4. Call from an unknown number and confirm the watch does not ring.
+5. Repeat the approved call with the gateway stopped. Voice should remain a
+   carrier function when cellular voice coverage is available.
+6. Record date, firmware, SIM package, ring result, two-way audio and carrier
+   charging without recording the contact number in GitHub.
+
+Pass: approved incoming call rings, unknown caller is blocked, and both sides
+can hear and speak clearly after answer. Outbound `CALL`, watch dial-pad calls
+and wearer-originated phonebook calls are not part of the Guardian promise.
+
+Pilot result, 22 August 2026: passed on one physical V52, including persistence
+after reboot. Repeat on a second production-equivalent watch/SIM before
+customer activation.
 
 ## Test 4 — safe zones
 
