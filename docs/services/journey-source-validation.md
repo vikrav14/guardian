@@ -73,9 +73,11 @@ of those gates; this change does not alter the approved SOS templates.
 
 After pulling the change, restart the gateway and Flutter app. The reported
 network-only record should disappear from customer trip totals without deleting
-it. Repeat a stationary indoor session and a genuine outdoor departure/return
-to verify the new code on the watch. Those physical checks remain pending until
-their results are recorded.
+it. On 7 September 2026, the operator reported staying indoors that day with no
+trip shown. This accepts the observed stationary-indoor result; it does not
+assert deletion of the raw historical record. A new genuine outdoor
+departure/return on this revision remains unrecorded. See the
+[recorded pilot evidence](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-callback-sos-evidence--7-september-2026).
 
 This fixes the demonstrated network-source error. Two GPS points are an
 eligibility condition, not a universal proof of travel: GPS drift and sparse

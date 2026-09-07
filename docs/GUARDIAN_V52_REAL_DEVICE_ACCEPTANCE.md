@@ -140,9 +140,34 @@ minutes, with Wi-Fi recorded separately as the latest observation source. This
 verifies the tool's selection on real data. It does not identify the running
 gateway revision or prove the text currently received in WhatsApp.
 
-Still unrecorded for the current fixes: running WhatsApp/app presentation,
-stationary-indoor journey acceptance, and a gateway trace or controlled pilot
-showing repeated-packet suppression inside the 90-second incident window.
+Additional operator evidence supplied on 7 September:
+
+- The SOS screenshot with event time 22:34 shows last-known GPS recorded
+  4 hours 9 minutes before SOS receipt, current position unconfirmed, and a
+  separate approximate network observation aged one minute with a 519 m radius.
+  Call watch and View last known location are visible.
+- The ordinary WhatsApp location reply at 22:38 identifies last-known GPS with
+  its own recording time and four-hour age, explicitly leaves current position
+  unconfirmed, and shows the newer approximate cellular observation separately
+  with a one-minute age and 519 m radius. There is one GPS-labelled map link;
+  watch check-in and battery-report ages are separate. This accepts the received
+  text without claiming a new GPS fix or independently establishing pin accuracy.
+- The operator reports staying indoors today with no trip shown. This accepts
+  the observed stationary-indoor Journey result. It does not assert deletion of
+  the historical raw record or accept a new outdoor departure/return test.
+- The gateway excerpt contains two alarm notification blocks with distinct
+  outbound message IDs, each with matching delivered/read entries, and an
+  ordinary location-query reply between them. No `duplicate packet collapsed`
+  entry is present. Surrounding timestamped scheduler entries are at 18:34 and
+  18:39 UTC, but the alarm lines themselves have no timestamps. The excerpt does
+  not establish the exact interval between physical SOS presses or receipt of
+  two SOS packets inside the 90-second window.
+
+Still unrecorded: a gateway trace or controlled pilot showing repeated-packet
+suppression inside the 90-second incident window. Keep the gateway process
+running for that check; reconnecting the watch does not clear the process-local
+window, but restarting the gateway does. Preserve the accepted presentation,
+indoor Journey, delivery, callback/audio and map results above.
 The stock Calling-screen/carrier-SMS, callback timing, carrier charging and
 gateway-offline limitations remain subject to the existing activation gates.
 This checkpoint does not mark the PR ready for merge or the service ready for
