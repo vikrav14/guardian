@@ -50,6 +50,13 @@ const config = {
   metaWhatsAppSosCallbackPilotNumber:
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
 
+  // Private, read-only router observation. Never enables customer Home presence.
+  wifiHomeObserveEnabled:
+    String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',
+  wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
+  wifiHomeRouterHash: process.env.WIFI_HOME_ROUTER_HASH || '',
+  wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
+
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
 

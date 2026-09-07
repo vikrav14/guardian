@@ -181,6 +181,25 @@ gateway-offline limitations remain subject to the existing activation gates.
 Merging these software changes does not complete customer activation or accept
 unrecorded hardware capabilities.
 
+## Private Home Wi-Fi observation — PR #116
+
+Status: software observation path implemented; exact-device evidence pending.
+Customer Home presence remains disabled. This adds no new SOS acceptance gate.
+
+Follow [the private router setup](services/wifi-home.md#run-the-private-check)
+with the owner-confirmed 2.4 GHz radio BSSID. No Wi-Fi password is required.
+Observe several ordinary report cycles near the router, then record the
+redacted `[wifi-home]` lines. A `matched` result means only that the provisional
+repeated-router policy passed; it does not establish indoor presence or change
+the map. Record weak/missing observations and expiry without describing a
+departure that was not verified.
+
+Before customer activation, validate the Home radio identity on this exact
+watch, true departure/return, router restart, stale-GPS return, revocation and
+unknown-router cases. Actual identifier values, keys and coordinates must not
+appear in public evidence. If the passive report is insufficient, investigate
+the documented command route without guessing `WIFIFENCE` syntax.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

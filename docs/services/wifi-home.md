@@ -4,11 +4,101 @@
 |---|---|
 | Service ID | `wifi-home` |
 | Minimum package | Family |
-| Current state | Backbone only; disabled |
+| Current state | Private router observer implemented; customer Home presence disabled |
 | Customer-visible | Only after acceptance |
-| Protocol surface | `WIFIFENCE` |
+| Protocol surface | Passive V52 Wi-Fi observations; `WIFIFENCE` remains unverified |
 
-This draft establishes matching gateway and Flutter contracts. It does not activate a device command, expose a menu item, or promise the service to customers.
+This draft contains gateway and Flutter service contracts and a private,
+read-only router observer. It does not activate a device command, expose a Home
+menu item or change the customer map. No Home-presence product is enabled.
+
+## Implemented private observation checkpoint
+
+The gateway observes the original decoded packet before provider geolocation,
+connection bookkeeping and write gating. It can therefore inspect a reported
+router even when approximate geolocation fails. The observer is synchronous,
+bounded to one explicitly configured pilot and at most 32 access points per
+report, and has no network, Firestore, alert, journey or command dependencies.
+An observer exception is isolated from both tracking and SOS delivery.
+
+`WIFI_HOME_OBSERVE_ENABLED` defaults to `false`. Enabling it collects only
+in-memory pilot evidence and redacted console diagnostics; customer Home
+presence remains disabled. Every result includes `observeOnly: true`,
+`customerActive: false` and `homeClaim: false`.
+
+Matching requires an explicitly selected router identifier, stored as an
+HMAC-SHA256 fingerprint with a random 32-byte private key and watch-specific
+scope. The setup never saves the raw router identifier, requests a Wi-Fi
+password, prints the key or changes any existing Meta, watch or admin settings.
+This operator-controlled pilot setup is not the future customer enrollment or
+linked-caregiver authorization flow.
+
+The provisional observation policy requires three distinct, strong reports
+(at least -75 dBm) spanning at least 20 seconds in both source time and gateway
+receipt time. Reports must be less than two minutes old; gaps over one minute
+restart the sequence. Evidence expires two minutes after the last qualifying
+observation, using the earlier of source and receipt time. Heartbeats and
+repeated/out-of-order timestamps cannot extend it. A fresh GPS report, unknown
+router, absent/weak signal or contradictory source ends the current match;
+missing Wi-Fi is not labelled as a departure. A gateway restart starts with no
+match. These are conservative pilot thresholds, not proof of indoor presence.
+
+The software verifies identifier syntax and matching, not radio band, network
+association or physical ownership. The operator must choose the actual Home
+router's 2.4 GHz radio BSSID, which may differ from its WAN/Ethernet MAC. Seeing
+that radio can extend beyond the home; `matched` does not yet move the avatar.
+
+### Run the private check
+
+From `gateway`, after pulling this branch:
+
+```powershell
+npm run wifi-home:setup
+```
+
+Enter the Home router's 2.4 GHz Wi-Fi BSSID privately when prompted. Setup uses
+the existing SOS pilot watch if configured, otherwise asks for the pilot IMEI.
+It changes only its managed `WIFI_HOME_*` block in the ignored private `.env`,
+preserving other configuration. It rejects conflicting shell overrides,
+unmanaged duplicate settings, malformed blocks and an environment file changed
+during setup. The temporary file is ignored and is removed on completion.
+
+Restart the gateway normally. Leave the watch near the selected router for a
+few report cycles and share only `[wifi-home]` diagnostic lines. They contain
+the match state, source age, signal, counts and observation time, without IMEI,
+router identifiers, fingerprints, keys or coordinates.
+
+| Diagnostic | Interpretation |
+| --- | --- |
+| `candidate` | A qualifying report arrived; repeated fresh evidence is still needed |
+| `matched` | The provisional repeated-router observation policy passed; no Home claim |
+| `router_not_seen` | Reports did not contain the specifically configured router |
+| `signal_weak` / `signal_unknown` | Router sighting does not meet the provisional signal requirement |
+| `expired` | The qualifying evidence is older than two minutes |
+| `satellite_observation` | A fresh GPS packet ended the Wi-Fi match |
+| `configuration_incomplete` | Observation is requested but its pilot configuration is invalid |
+
+Disabling/revoking this private observer requires removing its managed block
+and restarting the gateway:
+
+```powershell
+npm run wifi-home:setup -- --disable
+```
+
+No raw history, incident snapshot or customer configuration is deleted. A
+fresh-process script cannot inspect this runtime's in-memory observations;
+use the running gateway's diagnostic lines.
+
+### Software verification
+
+Tests cover canonical passive V52 packet decoding into the observer, strong
+and weak/unknown router observations, timestamp replay, stale/future readings,
+backlog bursts, heartbeat expiry, source contradictions, fresh GPS, restarts,
+watch-scoped fingerprints, redacted runtime logging and private setup/removal.
+The actual SOS dispatcher is also tested with observer failure and failed
+provider geolocation: alert creation and the frozen GPS snapshot are preserved.
+No live observation, new Home UI, customer enrollment, Firestore write or
+`WIFIFENCE` command is claimed by these tests.
 
 ## Starting point after SOS acceptance — 7 September 2026
 
@@ -50,12 +140,12 @@ device command is required, retain the exact-firmware command acceptance gate.
   location-selection contract. The accepted GPS/approximate SOS behavior is not
   changed by this disabled scaffold.
 
-## Next implementation checkpoint
+## Remaining implementation and physical acceptance
 
 1. Verify the exact watch's passive report contains a stable identifier for the
    owner-confirmed Home router; keep identifiers and coordinates out of public
    evidence and never request a Wi-Fi password.
-2. Add owner-scoped enrollment, identifier minimization, revocation and backend
+2. Add customer owner-scoped enrollment, identifier minimization, revocation and backend
    authorization. Linked caregivers may read accepted presence; a client must
    not forge backend-observed Home presence.
 3. Implement and test a deterministic presence policy using source, freshness,
@@ -95,4 +185,7 @@ device command is required, retain the exact-firmware command acceptance gate.
 - [ ] test enter leave and router-restart cases
 - [ ] test phones with split and combined Wi-Fi SSIDs
 
-The feature flag must remain off until every acceptance gate has evidence attached to this pull request.
+The customer feature must remain disabled until every applicable acceptance
+gate has evidence attached to this pull request. The private observe-only flag
+exists solely to collect the missing exact-device evidence; it cannot activate
+Home display or send commands.

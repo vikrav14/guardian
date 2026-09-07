@@ -51,6 +51,7 @@ const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { claimSosIncident } = require('./sos-incident-window');
+const { observeWifiHomeEvent } = require('./wifi-home-runtime');
 
 const {
   incrementEvent,
@@ -332,6 +333,13 @@ async function applyEvents(events, session) {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
       const eventReceivedAt = new Date();
+      // Observe the original packet before geolocation or write gating. This
+      // synchronous, in-memory pilot must never interrupt tracking or SOS.
+      try {
+        observeWifiHomeEvent(event, eventReceivedAt);
+      } catch {
+        console.warn('[wifi-home] observer unavailable; tracking continues');
+      }
       const telemetryValues = extractV52TelemetryValues(event);
       const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
