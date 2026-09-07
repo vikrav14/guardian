@@ -79,18 +79,24 @@ plus `flutter analyze` from `apps/mobile`.
 - Rules emulator tests prove client creation/mutation of the snapshot is denied,
   normal app SOS creation/resolution remains allowed and unrelated reads fail.
 
-## Physical acceptance still required
+## Recorded physical acceptance
 
 The [7 September evidence checkpoint](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-callback-sos-evidence--7-september-2026)
 records three Meta-confirmed SOS deliveries, preserved GPS maps despite later
 observations, and separate incidents beyond 90 seconds, each with one log and
 one Meta outcome. Correct callback destination, ringing, two-way audio and
 handset map opening were already accepted by the operator on 6 September.
-Those results must not be reset to pending. Repeated-packet suppression during
-the incident window still needs its own recorded trace or controlled test.
+Those results must not be reset to pending. The operator subsequently accepted
+the running SOS and ordinary-location WhatsApp presentations, reported no trip
+while staying indoors, and confirmed one WhatsApp alert in response to the
+controlled two-press/about-ten-second acceptance question. This accepts the
+observed notification count. No suppression trace was supplied; packet-level,
+multi-process and restart suppression are not claimed.
 
-Keep PR #109 draft until the next controlled acceptance run. Automated tests do
-not prove handset delivery or a successful cellular callback.
+The requested pilot checks are recorded; PR #109 may proceed through final
+release gates under the existing merge authorization. Automated tests alone do
+not prove handset delivery or a successful cellular callback. Customer
+activation remains subject to the documented firmware and carrier limitations.
 
 After pulling the verified commit and restarting only the gateway, preserve the
 existing ngrok tunnels, watch alarm settings and Meta template approvals. Check
@@ -116,7 +122,7 @@ the actual notification pipeline. The single primary recipient's Meta map button
 and notification-log text both retain the incident coordinates and age. A missing
 snapshot continues to select the no-location template.
 
-### Next controlled pilot
+### Protocol for future controlled pilots
 
 The 24 August test rejected `MOD,0` as a platform-only/no-call solution on the
 pilot firmware: the watch displayed **Calling...** and sent a carrier SMS. It was
@@ -137,7 +143,8 @@ Record app receipt, signed Meta `delivered`/`read` evidence, the exact map
 destination, and a completed guardian-initiated callback with two-way audio.
 Then verify later movement leaves the first snapshot unchanged. A later SOS,
 after the 90-second window, must create a separate incident. API `accepted`
-alone is not handset delivery. Keep PR #109 draft until these results exist.
+alone is not handset delivery. Preserve the pilot results recorded above when
+planning further acceptance runs.
 
 Continue tracking the stock watch's prolonged Calling screen and inbound-call
 availability separately. This software location fix does not resolve that

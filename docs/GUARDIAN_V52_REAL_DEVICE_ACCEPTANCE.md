@@ -163,15 +163,23 @@ Additional operator evidence supplied on 7 September:
   not establish the exact interval between physical SOS presses or receipt of
   two SOS packets inside the 90-second window.
 
-Still unrecorded: a gateway trace or controlled pilot showing repeated-packet
-suppression inside the 90-second incident window. Keep the gateway process
-running for that check; reconnecting the watch does not clear the process-local
-window, but restarting the gateway does. Preserve the accepted presentation,
-indoor Journey, delivery, callback/audio and map results above.
+Final controlled-pilot follow-up: in response to the question about pressing
+SOS twice approximately ten seconds apart and receiving one or two WhatsApp
+messages, the operator confirmed **one**. Accept the observed notification-count
+result for that controlled test. No `duplicate packet collapsed` trace was
+supplied, so this is operator-observed acceptance, not a packet-level capture
+proving the number of packets received by the gateway. It does not prove
+suppression across gateway restarts or multiple gateway processes.
+
+The requested pilot acceptance checks are now recorded. Preserve the accepted
+presentation, indoor Journey, delivery, callback/audio and map results above.
+PR #109 can proceed through its final release gates under the operator's
+existing merge authorization. The suppression map remains process-local: a
+watch reconnect does not clear it, while a gateway restart does.
 The stock Calling-screen/carrier-SMS, callback timing, carrier charging and
 gateway-offline limitations remain subject to the existing activation gates.
-This checkpoint does not mark the PR ready for merge or the service ready for
-customer activation.
+Merging these software changes does not complete customer activation or accept
+unrecorded hardware capabilities.
 
 ## Test 3 — approved incoming family calls
 
