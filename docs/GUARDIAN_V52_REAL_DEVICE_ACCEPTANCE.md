@@ -233,7 +233,33 @@ this passive recognition checkpoint. A radio sighting is not proof of Wi-Fi
 association, physical indoor presence, a departure or a return. This record
 does not enable the Home map or establish multi-router/firmware reliability.
 
-**Next physical gate:** during a normal outing, keep the gateway running and
+### Display diagnosis — 7 September 2026, 21:08–21:13 UTC
+
+The operator enabled the display pilot on revision `4815f5a`. Both the app and
+ordinary WhatsApp reply still showed retained GPS. Gateway diagnostics confirmed
+`displayEnabled: true` with the saved Home binding passing. One initial -48 dBm
+router observation expired during a three-minute packet gap, as intended.
+
+Subsequent -48 dBm Home sightings alternated with cellular-only packets. The
+observer reset the candidate on each `no_wifi_evidence` packet, so repeated
+positive sightings never reached the display threshold. This was a policy bug:
+an LBS-only frame carries no new router observation, not a conflicting scan.
+
+The correction preserves recent router evidence across canonical cellular-only
+frames without adding matches or refreshing radio time/expiry. A synthetic
+replay through the real decoder, observer, publisher and ordinary location
+formatter also exposed and corrected a brief display lease gap between valid
+reports. Verified Home/owner/plan leases may renew within the original radio
+lifetime; they cannot extend that lifetime. Unknown/weak Wi-Fi and newer GPS
+still clear Home, and old evidence still expires.
+
+This records the reproduced failure and software correction, not successful
+live Home display acceptance. The next check is the running pilot showing
+`displayingHome: true` and consistent Home labels in the app and `location?`.
+Existing enrollment and display settings can be reused after pulling and
+restarting only the gateway; this patch changes no Flutter code.
+
+**Later physical gate:** during a normal outing, keep the gateway running and
 observe loss of the selected radio, then renewed evidence after returning.
 Record only redacted diagnostics. Missing radio evidence must not be described
 as a confirmed departure by itself. Expiry without new packets, router restart,

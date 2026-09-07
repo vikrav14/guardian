@@ -112,12 +112,21 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
       clear('satellite_observation');
       return snapshot(nowMs);
     }
+    const accessPoints = event.wifiAccessPoints;
+    // V52 alternates Wi-Fi scans with cellular-only reports. A canonical LBS
+    // packet with no access points gives no new router evidence: preserve the
+    // existing sequence, source time and expiry without counting or renewing it.
+    // Malformed or contradictory scans still fail closed below.
+    if (event.gpsValid === false && event.location?.gpsValid === false &&
+        event.accuracySource === 'lbs' && event.location?.source === 'lbs' &&
+        Array.isArray(accessPoints) && accessPoints.length === 0) {
+      return snapshot(nowMs);
+    }
     if (event.gpsValid !== false || event.location?.gpsValid !== false ||
         event.accuracySource !== 'wifi' || event.location?.source !== 'wifi') {
       clear('no_wifi_evidence');
       return snapshot(nowMs);
     }
-    const accessPoints = event.wifiAccessPoints;
     if (!Array.isArray(accessPoints) || accessPoints.length > POLICY.maxAccessPoints) {
       clear('invalid_scan');
       return snapshot(nowMs);

@@ -50,8 +50,19 @@ restart the sequence. Evidence expires two minutes after the last qualifying
 observation, using the earlier of source and receipt time. Heartbeats and
 repeated/out-of-order timestamps cannot extend it. A fresh GPS report, unknown
 router, absent/weak signal or contradictory source ends the current match;
-missing Wi-Fi is not labelled as a departure. A gateway restart starts with no
-match. These are conservative pilot thresholds, not proof of indoor presence.
+a canonical cellular-only report with an empty access-point list carries no
+new Wi-Fi evidence. It preserves an existing candidate/match without adding a
+qualifying report or changing its source time/expiry. Gaps are measured between
+qualifying router observations, so cellular packets cannot bridge a gap over
+one minute. Missing Wi-Fi is not labelled as a departure. A gateway restart
+starts with no match. These are pilot thresholds, not proof of indoor presence.
+
+The `consecutiveMatches` diagnostic counts qualifying router observations with
+no intervening conflicting Wi-Fi/GPS evidence. Cellular-only packets do not
+count toward that number. Wi-Fi-labelled packets with missing/malformed scans,
+inconsistent source fields, a different router or insufficient signal still
+clear it. A run of cellular packets alone never establishes Home and cannot
+retain an old match beyond the original two-minute radio expiry.
 
 The software verifies identifier syntax and matching, not radio band, network
 association or physical ownership. The operator must choose the actual Home
@@ -159,7 +170,11 @@ cleared immediately on the next publisher tick. The saved Home binding is
 revalidated every 30 seconds and leased for at most 60 seconds, bounded further
 by subscription expiry. Each display record expires at the earlier of that
 lease or the observer's two-minute source/receipt lifetime. Heartbeats and
-binding revalidation alone never renew a radio observation. An expired record
+cellular packets never renew a radio observation. Successful Home/owner/plan
+revalidation can extend the binding lease only up to the unchanged radio
+expiry, preserving the original `observedAt`. This avoids a display gap between
+valid radio reports. Failed reads, revocation and subscription expiry still
+prevent extension. An expired record
 is ignored by both app and chat even if the gateway or Firestore stops; the
 dashboard checks expiry locally without needing another document event.
 
@@ -201,7 +216,11 @@ provider geolocation: alert creation and the frozen GPS snapshot are preserved.
 Shared `docs/testing/wifi-home-display.json` fixtures exercise app and WhatsApp
 selection for fresh, expired, invalid, future and conflicting GPS evidence.
 Publisher tests cover owner/plan binding, expiry, revocation, failed reads and
-writes, and bounded renewal. Flutter tests cover Firestore parsing, consistent
+writes, and bounded renewal. A canonical V52 decoder/observer/publisher/chat
+replay covers the reported long pause followed by alternating Wi-Fi/cellular
+frames. It verifies Home selection, uninterrupted bounded display, truthful
+source age and eventual fallback to retained GPS. Cellular-only sequences
+cannot establish or refresh Home. Flutter tests cover Firestore parsing, consistent
 labels and expiry without a document event. Emulator tests ensure linked users
 can read Home evidence but cannot forge, replace or erase it. SOS fixtures
 explicitly prove the presence field cannot alter a frozen incident selection.

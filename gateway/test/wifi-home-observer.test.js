@@ -87,7 +87,7 @@ for (const [name, overrides, reason] of [
   ['missing signal', { wifiAccessPoints: [{ macAddress: routerId }] }, 'signal_unknown'],
   ['string signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: '-40' }] }, 'signal_unknown'],
   ['impossible signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: 20 }] }, 'signal_unknown'],
-  ['cellular estimate', { accuracySource: 'lbs' }, 'no_wifi_evidence'],
+  ['cellular label contradicting a Wi-Fi scan', { accuracySource: 'lbs' }, 'no_wifi_evidence'],
   ['unknown GPS validity', { gpsValid: undefined }, 'no_wifi_evidence'],
   ['missing scan', { wifiAccessPoints: undefined }, 'invalid_scan'],
   ['oversized scan', { wifiAccessPoints: Array.from({ length: 33 }, () => ({ macAddress: routerId, signalStrength: -40 })) }, 'invalid_scan'],

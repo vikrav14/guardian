@@ -115,7 +115,7 @@ function publisherHarness() {
   return { state, ...publisher };
 }
 
-test('publisher expires a cached Home pin without packets or heartbeat renewal', async () => {
+test('publisher bounds verified binding renewals by the original radio time and expiry', async () => {
   const run = publisherHarness();
   await run.tick(); // Initial binding must require new radio observations.
   run.state.match();
@@ -124,13 +124,17 @@ test('publisher expires a cached Home pin without packets or heartbeat renewal',
   assert.equal(saved.state, 'matched');
   assert.equal(saved.expiresAt, new Date(clock + 60_000).toISOString());
   run.state.now += 30_000;
-  await run.tick(); // Revalidated binding alone cannot refresh the observed time.
-  assert.equal(run.state.writes.length, 2);
+  await run.tick(); // A verified binding may renew its lease, never the radio time.
+  assert.equal(run.state.writes.length, 3);
+  assert.equal(run.state.writes.at(-1).observedAt, saved.observedAt);
+  assert.equal(run.state.writes.at(-1).expiresAt, new Date(clock + 90_000).toISOString());
   assert.equal(readHomeWifiDisplay({ homeWifiPresence: saved },
     { now: new Date(clock + 60_000) }), null, 'app/chat cache must expire even if the publisher stops');
   run.state.now = clock + 60_000;
   await run.tick();
-  assert.equal(run.state.diagnostics.at(-1).displayingHome, false);
+  assert.equal(run.state.diagnostics.at(-1).displayingHome, true);
+  assert.equal(run.state.writes.at(-1).observedAt, saved.observedAt);
+  assert.equal(run.state.writes.at(-1).expiresAt, new Date(clock + 120_000).toISOString());
   run.state.now = clock + 120_000;
   await run.tick();
   assert.equal(run.state.writes.at(-1), null);

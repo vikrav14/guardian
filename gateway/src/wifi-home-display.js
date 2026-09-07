@@ -78,12 +78,14 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
       const observation = readObservation(clock);
       const value = buildHomeWifiDisplay(observation, binding, clock);
       const same = JSON.stringify(value) === JSON.stringify(lastValue);
-      // Clear invalid evidence immediately. Bound periodic renewal writes, and
-      // never let a heartbeat or a new binding lease refresh the radio time.
+      // Clear invalid evidence immediately and bound periodic renewal writes.
+      // A freshly verified binding can extend the display lease only as far as
+      // the ORIGINAL radio expiry (capped by buildHomeWifiDisplay). Its source
+      // time never changes. This avoids a gap between valid 40–60s radio reports
+      // without turning cellular packets or heartbeats into Home observations.
       const shorterLease = value && lastValue && value.expiresAt < lastValue.expiresAt;
-      const sameObservation = value && lastValue && value.observedAt === lastValue.observedAt && !shorterLease;
       const renewalThrottled = value && lastValue && !shorterLease && clock - lastWriteAt < 20_000;
-      if (!same && !sameObservation && !renewalThrottled) {
+      if (!same && !renewalThrottled) {
         await persist(value);
         lastValue = value;
         lastWriteAt = clock;
