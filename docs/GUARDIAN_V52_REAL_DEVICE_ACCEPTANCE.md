@@ -183,8 +183,11 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
-Status: near-router recognition passed on one configured V52 pilot and one
-owner-selected radio; wider Home-presence acceptance remains pending.
+Status: near-router recognition and a usable backend Home publication passed
+on one configured V52 pilot and one owner-selected radio. Subsequent app and
+WhatsApp screenshots show retained GPS after the reported radio evidence expired.
+Stationary report acquisition is an observed gap; fresh Home visual agreement
+and wider Home-presence acceptance remain pending.
 Customer Home presence remains disabled. This adds no new SOS acceptance gate.
 
 After this checkpoint, the operator requested seeing the matched Home radio on
@@ -307,6 +310,75 @@ retains the last confirmed usable Home publication in memory and exposes pending
 I/O through a strict-admin, read-only endpoint. Its optional one-CR check observes
 the publication window automatically. It adds no automatic polling of the watch,
 changes no matching/expiry policy and makes no new customer activation claim.
+
+### Backend Home publication passed — 8 September 2026 UTC
+
+After updating to `02fabb4` and restarting the gateway, the operator ran
+`npm run wifi-home:check -- --request-location`. Preflight showed an active
+publisher, a ready Home binding and a connected watch. The log records one `CR`
+handoff, its command echo, then fresh radio observations:
+
+| UTC time | Match state | Qualifying sequence | Signal | Source time / age |
+| --- | --- | --- | --- | --- |
+| 18:46:26.242 | `candidate` | 1 | -68 dBm | 18:46:26 / 0 s |
+| 18:47:11.023 | `matched` | 3 | -68 dBm | 18:47:08 / 3 s |
+| 18:47:52.965 | `matched` | 5 | -68 dBm | 18:47:50 / 2 s |
+| 18:48:34.926 | `matched` | 7 | -68 dBm | 18:48:32 / 2 s |
+| 18:49:13.854 | `matched` | 9 | -68 dBm | 18:49:14 / 0 s |
+
+After the third qualifying observation, the publisher explicitly logged
+`displayingHome: true` with `reason: home_wifi_detected`. Under this revision,
+that message follows acknowledgment of a usable Home write. The display log
+has no independent timestamp, so an exact write time is not asserted.
+
+**Passed:** repeated enrolled-radio recognition, continuity across the
+intervening canonical cellular-only packet, and at least one acknowledged,
+unexpired backend Home publication. The final observer sample has ten reports,
+nine router sightings/qualifying reports, and zero ignored-time reports or
+duplicates. The separate provider estimate remains approximately 517 m; its
+radius is not the Home match's precision. The final source time is 146 ms ahead
+of receipt, within the observer's existing skew allowance; the radio expiry is
+bounded by the earlier receipt time, at 18:51:13.854 UTC.
+
+The CLI's final `outcome` was not included, and continuous publication beyond
+this excerpt is not established. This checkpoint does not prove continuous
+report acquisition, a physical departure/return or router restart, and does not
+change the general rollout gate.
+
+### Post-expiry screenshots and stationary reporting gap — same run
+
+The operator then supplied an app/dashboard screenshot and an ordinary
+`location?` reply. Both show retained GPS rather than the saved Home pin:
+
+- The last enrolled-radio observation in the log expires at **18:51:13.854 UTC
+  / 22:51:13.854 MUT**. A Home display lease cannot extend beyond that time
+  without new qualifying radio evidence.
+- The WhatsApp reply at **22:52 MUT** labels the GPS fix as last known,
+  recorded at 22:26 MUT, with current position unconfirmed. It separately
+  reports an approximate Wi-Fi reading three minutes old (517 m radius),
+  while watch check-in and battery reports are less than a minute old.
+- The app screenshot also shows the last GPS fix, age 26 minutes, with a
+  connected watch and a recent check-in. It does not show a Home Wi-Fi label.
+
+The timing and separate ages are consistent with normal radio expiry despite
+continued heartbeats. They demonstrate a retained-GPS fallback on both customer
+surfaces, not fresh Home visual acceptance. No fresh status read at the screenshot
+time was supplied, so the exact clearing time and any intermediate publication
+are not asserted.
+
+The acquisition limitation is present in the code: packet activity postpones
+packet-silence recovery, while the separate location-freshness probe in
+`gateway/src/sessions.js` runs only during an outing. The Home observer and
+publisher do not request reports automatically; the operator checker sends
+at most one `CR`. Thus a connected stationary watch can outlast its Home radio
+evidence after a report burst. The raw evidence does not establish why the
+firmware stopped scanning or reporting.
+
+**Next implementation work:** bounded stationary report acquisition, with
+rate limits, battery-impact validation and unchanged evidence expiry. Repeating
+router enrollment, treating heartbeats as router sightings or lengthening a
+stale Home claim does not resolve this gap. Fresh Home map/hero/WhatsApp agreement
+still needs a live result after acquisition is addressed.
 
 ## Test 3 — approved incoming family calls
 

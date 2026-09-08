@@ -33,6 +33,16 @@ near-router recognition checkpoint for that watch/radio pair. Signal-loss and
 return, expiry and customer Home presence remain unaccepted. See the
 [redacted acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-near-router-result--7-september-2026-utc).
 
+**Backend publication checkpoint, 8 September 2026 UTC:** on `02fabb4`, an
+explicit one-CR check produced fresh -68 dBm enrolled-router readings. The
+third qualifying observation was followed by `displayingHome: true` /
+`home_wifi_detected`; the observer continued to nine qualifying sightings.
+This confirms a usable backend Home publication on the pilot. App/map/hero and
+WhatsApp screenshots taken after that radio evidence expired show retained GPS
+and recent watch check-ins. Stationary report acquisition is therefore an
+observed gap; fresh Home visual agreement and the broader physical gates still
+need evidence. See the [publication and fallback record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#backend-home-publication-passed--8-september-2026-utc).
+
 `WIFI_HOME_OBSERVE_ENABLED` defaults to `false`. Enabling it collects only
 in-memory pilot evidence and redacted console diagnostics; customer Home
 presence remains disabled. Every result includes `observeOnly: true`,
@@ -265,8 +275,17 @@ The stationary watch can send heartbeats while location reports remain absent:
 packet-silence recovery is postponed by those heartbeats, and the separate
 location-freshness timer currently runs only during an outing. The explicit
 check helps verify one publication window; continuous Home report acquisition
-and its battery impact remain unaccepted. A periodic automatic Home command
-loop or longer evidence lifetime is not introduced by this diagnostic.
+and its battery impact remain unaccepted. The 8 September live run now shows
+this gap: after a successful publication burst, the ordinary WhatsApp reply
+at 22:52 MUT reported a three-minute-old Wi-Fi reading and a sub-minute watch
+check-in; the final logged radio evidence had expired at 22:51:13.854 MUT.
+The app and WhatsApp both showed retained GPS. Backend publication is accepted,
+but fresh Home visual agreement and stationary continuity are not.
+
+The next implementation work is bounded stationary acquisition with rate
+limits and battery-impact validation. A periodic automatic Home command loop
+or longer evidence lifetime is not introduced by this diagnostic. Do not
+repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
 
 ### Software verification
 
