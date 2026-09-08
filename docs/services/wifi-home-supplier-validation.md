@@ -163,17 +163,35 @@ and [acceptance interpretation](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#comple
 
 This establishes the stationary reporting gap in the current integration. It
 does not prove a defective native fence, a particular sleep mode, or an ignored
-upload command. The report contains no current watch upload setting. Next read
-`ts#` from the authorised center phone and retain only upload interval and
-firmware version. The status request is live-proven and changes no setting.
+upload command. The capture contains no current watch upload setting. A later
+operator-supplied `ts#` response reports **300 seconds and 44% battery**, on
+firmware **C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29**. This matches
+Guardian's ordinary five-minute band at that battery level. Readback time was
+not supplied; it does not establish the setting throughout the earlier window
+or actual report delivery. The longer gateway log remained at zero observer
+reports for approximately 36 minutes 42 seconds.
+
+There is also a confirmed Guardian timing incompatibility: the passive observer
+requires three strong reports at gaps of at most 60 seconds, and evidence expires
+after 120 seconds. A synthetic replay reaches `matched` for ten-second gaps;
+300-second and 600-second gaps repeatedly restart at one-match `candidate`.
+Even regular five-minute reports therefore cannot establish or sustain this
+match without other fresh observations. Moving to ten minutes alone cannot fix
+either this mismatch or the separate absence of received reports. A successful
+short burst does not validate continuous Home availability.
+
 The following supplier details are still needed before native provisioning:
 
 1. Exact command for one 2.4 GHz radio, treatment of unused slots, and the
    supported number of zones (guide: two; protocol example: three).
 2. Readback, removal and restoration commands, including whether changing one
    entry affects other stored zones and whether settings persist after reboot.
-3. Whether `UPLOAD` continues during stationary/screen-off operation, and whether
-   Wi-Fi fence detection and alarms operate independently of that interval.
+3. On firmware `C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29`, does
+   `UPLOAD,300` require a location/radio report every five minutes while
+   stationary/screen-off, or are reports conditional? Explain the observed
+   heartbeats without decoded reports, any separately documented operating-mode
+   requirement, and whether Wi-Fi fence detection/alarms operate independently
+   of ordinary reporting.
 4. Exact departure/return payloads, distinction from GPS fences, handling of
    router loss, and how to obtain current fence state after a reconnect/restart.
 

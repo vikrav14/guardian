@@ -423,25 +423,56 @@ postponed by packet activity; the independent location-freshness probe remains
 outing-only. This is consistent with the observed no-`CR` window and explains
 why passive Home evidence can expire while check-ins remain recent.
 
-**Not established:** the watch's actual stored upload interval, whether firmware
+**Not established by this capture:** the watch's actual stored upload interval, whether firmware
 suppresses stationary reporting/scanning, commands before the window, or native
 fence behaviour. No `UPLOAD` during the window does not mean no interval was
 configured earlier. Native provisioning is unavailable in this pilot, so zero
 fence packets is inconclusive for that feature. `homeClaim: false` and
 `nativeFenceAccepted: false` are diagnostic safeguards, not watch measurements.
 
-The next discriminating check is the live-proven `ts#` status request from the
-authorised center phone. Record only the returned upload interval and firmware
-version; omit phone numbers, device identifiers, server details and unrelated
-status fields. Keep reporting/SOS/expiry settings unchanged pending that result
-and the supplier's native-fence configuration/removal instructions. No repeat
-30-minute baseline is required for the same unchanged setup.
+The subsequent `ts#` readback below supplies the current upload interval and
+firmware. Keep reporting/SOS/expiry settings unchanged pending the supplier's
+stationary-reporting and native-fence configuration/removal instructions. No
+repeat 30-minute baseline is required for the same unchanged setup.
 
 The [redacted capture](testing/wifi-home-stationary-2026-09-08.json) preserves
 counts and timestamps, omitting the random capture ID. Software release gates
 for `6528501` all passed in
 [run 34272126944](https://github.com/vikrav14/guardian/actions/runs/34272126944).
 This checkpoint does not accept native fencing or continuous Home display.
+
+### Subsequent watch status and Home timing mismatch
+
+After the baseline and its corroborating gateway log, the operator supplied a
+`ts#` response with `upload:300S`, `bat level:44` and firmware
+`C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29`. Exact read time was not supplied.
+The [redacted evidence](testing/wifi-home-stationary-2026-09-08.json) records only
+those relevant fields separately from the unchanged capture. Device identifiers,
+phone numbers and server configuration are omitted.
+
+**Accepted finding:** the watch reports a 300-second/five-minute upload setting
+at readback. This agrees with Guardian's ordinary 30-59% battery band at 44%.
+It does not prove automatic mode, the origin of the setting, that it held for
+the entire preceding capture, or that reports are delivered every five minutes.
+The longer supplied log still had `reports: 0` from 20:02:09.928 to 20:38:51.875
+UTC (36 minutes 41.947 seconds). The missing-report cause remains unconfirmed.
+
+**Separate software finding:** the passive Home observer requires three strong
+reports with gaps no greater than 60 seconds, spanning at least 20 seconds, and
+expires evidence after 120 seconds. A read-only synthetic replay against the
+current observer confirmed that three fresh strong reports at ten-second gaps
+reach `matched`; at 300-second or 600-second gaps each report remains a new
+one-match `candidate`. The burst match also expires 120 seconds after its last
+observation. These are software results, not additional watch observations.
+
+Consequently, even punctual single reports every five minutes cannot establish
+or sustain the present Home match. Moving the ordinary interval to ten minutes
+alone would not fix it. This incompatibility is independent of the observed
+absence of reports. Do not lengthen evidence expiry or use heartbeat freshness
+to conceal either gap. Native fence transitions and current-state recovery must
+be validated before selecting continuous Home acquisition or replacing the
+normal reporting policy. No runtime code, watch settings or hardware acceptance
+state changes with this record.
 
 ## Test 3 — approved incoming family calls
 

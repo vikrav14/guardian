@@ -3,6 +3,16 @@
   "redactions": ["captureId omitted"],
   "implementationReference": "6528501821a39b2e122161ce7d9acff05fbb9db9",
   "runtimeRevisionReported": null,
+  "subsequentStatusRead": {
+    "evidenceOrigin": "Operator-supplied ts# response after the stationary capture",
+    "readAt": null,
+    "firmwareVersion": "C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29",
+    "uploadIntervalSeconds": 300,
+    "batteryPercent": 44,
+    "guardianNormalPolicySecondsAtReportedBattery": 300,
+    "limitation": "Read time was not supplied. This reports the watch setting at readback, not proof of that setting throughout the earlier capture or of reports arriving on schedule.",
+    "redactions": "Device identifiers, phone numbers, server configuration and unrelated status fields omitted"
+  },
   "version": 1,
   "configured": true,
   "sessionConnected": true,

@@ -295,9 +295,15 @@ The first 30-minute stationary capture is now complete: nine `LK` packets about
 218 seconds apart plus one `TKQ`, with no captured location/radio reports,
 router sightings, fence packets or `CR`/`UPLOAD`/`WIFIFENCE` handoffs. This
 establishes the current stationary reporting gap; it does not test an unconfigured
-native fence or identify the watch's stored upload setting. The next check is
-the live-proven `ts#` status read for upload interval and firmware, followed by
-the supplier's single-router/removal and stationary-reporting clarification.
+native fence or identify the watch's stored upload setting during that window.
+A subsequent `ts#` response reports 300 seconds at 44% battery, matching Guardian's
+normal policy, on firmware `C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29`.
+The passive observer's three-report/60-second-gap qualification and 120-second
+expiry are incompatible with isolated five-minute reports even if delivered
+punctually. A synthetic replay confirmed this separately from the missing-report
+gap. Switching to a ten-minute interval alone cannot resolve either issue.
+Next obtain supplier single-router/removal, stationary-reporting and fence
+current-state recovery semantics before changing acquisition or normal policy.
 See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
 
 ### Software verification
