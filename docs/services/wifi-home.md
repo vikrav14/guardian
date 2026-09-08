@@ -11,8 +11,10 @@
 This draft contains the private router observer and a separate, opt-in Home
 display pilot requested after near-router recognition passed. The latter
 connects bounded, backend-owned evidence to the existing app map, dashboard and
-ordinary WhatsApp location reply. It sends no device command, adds no customer
-enrollment menu and does not enable a general Home-presence product.
+ordinary WhatsApp location reply. The observer/publisher sends no automatic
+device command and adds no customer enrollment menu. A separate operator check
+can explicitly request the existing proven `CR` once to obtain new reports;
+this does not enable a general Home-presence product.
 
 ## Implemented private observation checkpoint
 
@@ -201,6 +203,71 @@ Staying near the router is sufficient for this private display check. A special
 nighttime outing is not required. Real loss/return and router restart remain
 separate acceptance items before any general customer rollout.
 
+### Inspect the running publisher
+
+A fresh-process Firestore read showing a missing/null `homeWifiPresence` cannot
+distinguish normal expiry from a publisher that never published. It also cannot
+inspect the running process's router matches or pending SDK calls. A connection
+heartbeat alone supplies none of that evidence.
+
+After updating and restarting the gateway, use a second terminal in `gateway`:
+
+```powershell
+npm run wifi-home:check
+```
+
+This is read-only. It calls `GET /ops/wifi-home` on the local HTTP port with the
+existing private `ADMIN_API_KEY`. The route requires strict administrator auth,
+including when used locally or through an ngrok tunnel; development-open access
+is rejected. The checker compares its selected pilot with the running pilot
+without displaying either identifier. It returns no coordinates, radio ID,
+fingerprint, key, owner ID or command frame. No new Firestore reads/writes,
+watch commands or persistent history are triggered by a status read.
+
+The status includes the actual observer state, current binding eligibility,
+publisher phase and pending-operation age. A read or write pending for 15 seconds
+is reported; it is not proof that the SDK has permanently failed. At most one
+publisher operation remains in flight. The check does not cancel shared
+Firestore operations, create overlapping retries or renew Home evidence.
+If an operation remains stuck after connectivity returns, restart the gateway.
+
+`lastHomePublication` keeps only the most recent acknowledged Home write that
+still had a usable lease when acknowledged. Its source and expiry times remain
+unchanged after the current record is cleared. This small in-memory diagnostic
+is lost on gateway restart; it is not Home history or proof of the app rendering.
+`publishedHomeFresh` becomes false at the recorded expiry even without another
+packet or publisher tick. A pending or failed write never counts as publication.
+
+For one coordinated live check with the watch near its enrolled router:
+
+```powershell
+npm run wifi-home:check -- --request-location
+```
+
+This opt-in first checks the active pilot, saved Home/owner/plan binding and
+session. It sends at most one authenticated `CR` through the existing endpoint,
+then polls the read-only runtime status every five seconds for at most two
+minutes. An individual HTTP request times out within eight seconds. A lost
+handoff response is not retried automatically. It changes no watch reporting
+interval, enrollment, Home thresholds, SOS snapshots or journey policy.
+The [V52 command ledger](../GUARDIAN_V52_COMMAND_EVIDENCE.md) records `CR` as
+live-proven for GPS and Wi-Fi/LBS observations; `WIFIFENCE` remains unverified.
+
+| Check result | Meaning and next action |
+| --- | --- |
+| `home_ready` | Fresh radio evidence is eligible and the publisher acknowledged an unexpired Home record. Open the app and ask `location?` while it is fresh; actual UI agreement still needs acceptance. |
+| `home_published_then_unavailable` | Publication was captured, but the record is no longer usable. The check does not label it as a current Home position. |
+| `publisher_io_pending` | A Home binding read or presence write is taking at least 15 seconds. Inspect the reported phase and gateway connectivity. |
+| `publication_not_confirmed` | The bounded check ended without confirming a usable Home publication; inspect the returned observer and publisher states. |
+| `pilot_not_running` / `home_binding_unavailable` / `watch_not_connected` | The preflight did not pass; no location command is sent for that failed preflight. |
+
+The stationary watch can send heartbeats while location reports remain absent:
+packet-silence recovery is postponed by those heartbeats, and the separate
+location-freshness timer currently runs only during an outing. The explicit
+check helps verify one publication window; continuous Home report acquisition
+and its battery impact remain unaccepted. A periodic automatic Home command
+loop or longer evidence lifetime is not introduced by this diagnostic.
+
 ### Software verification
 
 Tests cover canonical passive V52 packet decoding into the observer, strong
@@ -226,6 +293,11 @@ can read Home evidence but cannot forge, replace or erase it. SOS fixtures
 explicitly prove the presence field cannot alter a frozen incident selection.
 These software checks do not claim a live Home display, customer enrollment or
 an accepted `WIFIFENCE` command.
+Runtime tests also cover publication followed by clearing, pending reads/writes,
+late expired writes and recovery requiring fresh radio evidence. Admin-route
+tests reject dev-open, missing/wrong credentials and a mismatched pilot. A real
+loopback CLI test verifies a single authenticated `CR`, redacted output and the
+separate publication check. A socket handoff or router match alone cannot pass it.
 
 ## Starting point after SOS acceptance — 7 September 2026
 

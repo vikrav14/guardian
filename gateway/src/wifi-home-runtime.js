@@ -9,6 +9,7 @@ const { createWifiHomeObserver } = require('./wifi-home-observer');
 let observer;
 let lastLogMs = null;
 let lastState = null;
+let displayPublisher = null;
 
 function observeWifiHomeEvent(event, receivedAt) {
   if (config.wifiHomeObserveEnabled !== true || event?.imei !== config.wifiHomePilotImei) return;
@@ -33,11 +34,29 @@ function observeWifiHomeEvent(event, receivedAt) {
 
 function startWifiHomeDisplayPilot(db) {
   if (!config.wifiHomeObserveEnabled || !config.wifiHomeDisplayPilotEnabled) return null;
+  displayPublisher?.();
   const { startHomeWifiPublisher } = require('./wifi-home-display');
-  return startHomeWifiPublisher({ db, imei: config.wifiHomePilotImei,
+  displayPublisher = startHomeWifiPublisher({ db, imei: config.wifiHomePilotImei,
     readObservation: nowMs => observer?.snapshot(nowMs),
     resetObservation: () => { observer = undefined; },
   });
+  return displayPublisher;
 }
 
-module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot };
+function getWifiHomeRuntimeStatus(nowMs = Date.now()) {
+  const { findSocketsForDevice } = require('./sessions');
+  return {
+    version: 1,
+    observerEnabled: config.wifiHomeObserveEnabled === true,
+    displayEnabled: config.wifiHomeDisplayPilotEnabled === true,
+    pilotConfigured: /^\d{15}$/.test(config.wifiHomePilotImei || '') &&
+      /^[0-9a-f]{64}$/i.test(config.wifiHomeRouterHash || '') &&
+      /^[0-9a-f]{64}$/i.test(config.wifiHomeHashKey || ''),
+    sessionConnected: /^\d{15}$/.test(config.wifiHomePilotImei || '') &&
+      findSocketsForDevice(config.wifiHomePilotImei).some(({ socket }) => !socket.destroyed),
+    observer: observer?.snapshot(nowMs) || null,
+    publisher: displayPublisher?.getStatus(nowMs) || null,
+  };
+}
+
+module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot, getWifiHomeRuntimeStatus };

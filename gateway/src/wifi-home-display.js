@@ -50,6 +50,36 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
   let queued = false;
   let stopped = false;
   let lastDiagnostic;
+  let phase = 'idle';
+  let operationStartedAt = null;
+  let lastHomePublication = null;
+  let lastClearedAt = null;
+
+  // Read the running publisher even while an SDK operation is pending. Keep
+  // only the last successful, still-usable Home write, so normal expiry can be
+  // distinguished from a publisher that never published. No persistent history
+  // or device/router identifiers are added for this operator diagnostic.
+  function getStatus(clock = now()) {
+    const bindingReady = binding?.ready === true && binding.validUntilMs > clock;
+    const eligible = Boolean(buildHomeWifiDisplay(readObservation(clock), binding, clock));
+    const pendingSeconds = operationStartedAt == null ? null :
+      Math.max(0, Math.floor((clock - operationStartedAt) / 1000));
+    const publishedHomeFresh = Boolean(lastValue &&
+      Date.parse(lastValue.observedAt) <= clock && Date.parse(lastValue.expiresAt) > clock);
+    return {
+      active: !stopped,
+      phase,
+      pendingSeconds,
+      operationSlow: pendingSeconds != null && pendingSeconds >= 15,
+      homeBindingReady: bindingReady,
+      bindingReason: bindingReady ? 'ready' : binding?.ready ? 'home_binding_expired' :
+        binding?.reason || 'awaiting_home_binding',
+      homeEvidenceEligible: !stopped && eligible,
+      publishedHomeFresh: !stopped && publishedHomeFresh,
+      lastHomePublication: lastHomePublication ? { ...lastHomePublication } : null,
+      lastClearedAt,
+    };
+  }
 
   function diagnose(reason, displaying) {
     const key = `${reason}|${displaying}`;
@@ -60,13 +90,22 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
 
   async function tick() {
     if (stopped) return;
-    if (working) { queued = true; return; }
+    if (working) {
+      queued = true;
+      const status = getStatus();
+      if (status.operationSlow) diagnose(`${phase}_pending`, status.publishedHomeFresh);
+      return;
+    }
     working = true;
     try {
       if (now() >= nextBindingAt) {
         nextBindingAt = now() + 30_000;
+        phase = 'home_binding_read';
+        operationStartedAt = now();
         try { binding = await readBinding(now()); }
         catch { binding = { ready: false, reason: 'home_binding_unavailable' }; }
+        phase = 'idle';
+        operationStartedAt = null;
         if (stopped) return;
         const key = binding?.ready ? binding.key : null;
         if (key !== bindingKey) {
@@ -86,9 +125,18 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
       const shorterLease = value && lastValue && value.expiresAt < lastValue.expiresAt;
       const renewalThrottled = value && lastValue && !shorterLease && clock - lastWriteAt < 20_000;
       if (!same && !renewalThrottled) {
+        phase = 'home_presence_write';
+        operationStartedAt = now();
         await persist(value);
+        if (stopped) return;
         lastValue = value;
-        lastWriteAt = clock;
+        lastWriteAt = now();
+        if (value && Date.parse(value.expiresAt) > lastWriteAt) {
+          lastHomePublication = { confirmedAt: new Date(lastWriteAt).toISOString(),
+            observedAt: value.observedAt, expiresAt: value.expiresAt };
+        } else if (!value) {
+          lastClearedAt = new Date(lastWriteAt).toISOString();
+        }
       }
       const displaying = Boolean(lastValue && Date.parse(lastValue.expiresAt) > now());
       diagnose(displaying ? 'home_wifi_detected' : value ? 'awaiting_new_router_observation' :
@@ -98,11 +146,13 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
     } catch {
       diagnose('home_display_write_unavailable', false);
     } finally {
+      phase = 'idle';
+      operationStartedAt = null;
       working = false;
       if (queued && !stopped) { queued = false; void tick(); }
     }
   }
-  return { tick, stop: () => { stopped = true; } };
+  return { tick, getStatus, stop: () => { stopped = true; } };
 }
 
 function startHomeWifiPublisher({ db, imei, readObservation, resetObservation }) {
@@ -118,7 +168,9 @@ function startHomeWifiPublisher({ db, imei, readObservation, resetObservation })
   void publisher.tick();
   const timer = setInterval(() => { void publisher.tick(); }, 1000);
   timer.unref?.();
-  return () => { clearInterval(timer); publisher.stop(); };
+  const stop = () => { clearInterval(timer); publisher.stop(); };
+  stop.getStatus = publisher.getStatus;
+  return stop;
 }
 
 module.exports = { loadHomeWifiBinding, createHomeWifiPublisher, startHomeWifiPublisher };

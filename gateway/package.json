@@ -15,6 +15,7 @@
     "phonebook:test": "node scripts/send-phonebook-contact.js",
     "journey:enrich": "node scripts/enrich-journey-presentation.js",
     "wifi-home:setup": "node scripts/setup-wifi-home-observer.js",
+    "wifi-home:check": "node scripts/inspect-wifi-home.js",
     "test": "node --test"
   },
   "engines": {

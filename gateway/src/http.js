@@ -20,6 +20,7 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { getWifiHomeRuntimeStatus } = require('./wifi-home-runtime');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -742,6 +743,20 @@ async function handleOpsHttpRequest(req, res, url) {
     return false;
   }
 
+  if (url.pathname === '/ops/wifi-home') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    // Compare without returning either identifier. The checker must not use a
+    // changed local .env to request a different watch from this running pilot.
+    if (url.searchParams.has('imei') &&
+        url.searchParams.get('imei') !== config.wifiHomePilotImei) {
+      sendJson(res, 409, { error: 'Running pilot differs from the local configuration' });
+      return true;
+    }
+    sendJson(res, 200, getWifiHomeRuntimeStatus());
+    return true;
+  }
+
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
@@ -1242,6 +1257,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/ai-stats');
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
+    console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
   });
 
   return server;
@@ -1252,4 +1268,5 @@ module.exports = {
   handleChat,
   normalizeE164,
   requireStrictAdmin,
+  handleOpsHttpRequest,
 };

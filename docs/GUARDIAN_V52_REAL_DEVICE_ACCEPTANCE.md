@@ -271,6 +271,43 @@ unknown-router cases. Actual identifier values, keys and coordinates must not
 appear in public evidence. If the passive report is insufficient, investigate
 the documented command route without guessing `WIFIFENCE` syntax.
 
+### Publication diagnosis — 8 September 2026 UTC
+
+The operator's gateway log contained earlier DNS/network failures and Firestore
+watcher errors. After reconnecting, the Home observer rejected 25 reports on its
+timestamp checks. Those reports' original timestamps are absent from the shared
+log, so the exact reason (old, future, missing or clock conflict) is not proven.
+This record does not accept any arrival/departure produced during that reconnect.
+
+An explicit authenticated `CR` request returned HTTP 200/socket handoff. Fresh
+radio observations then qualified on the already configured watch/radio:
+
+| UTC time | Match state | Consecutive qualifying reports | Signal | Observation time / age |
+| --- | --- | --- | --- | --- |
+| 18:07:22.075 | `candidate` | 1 | -68 dBm | 18:07:22 / 0 s |
+| 18:07:58.465 | `candidate` | 2 | -68 dBm | 18:07:55 / 3 s |
+| 18:09:43.434 | `matched` | 7 | -68 dBm | 18:09:40 / 3 s |
+| 18:11:22.531 | `matched` | 8 | -68 dBm | 18:10:01 / 81 s |
+
+Intervening canonical cellular-only packets did not reset the sequence. The last
+radio evidence expired at 18:12:01 UTC; later heartbeats do not renew it. Provider
+geolocation remained a separate approximate estimate of about 517 m.
+
+A subsequent fresh-process check returned `displayEnabled: true` and a ready
+saved Home/owner/Family-Care binding, but no current `homeWifiPresence` record.
+The supplied excerpts contain no display publication confirmation. A missing
+record after expiry does not prove a write failure; fresh-process settings also
+cannot establish the running publisher's state. Router recognition and the
+mixed-report correction pass for this sample. Live map/hero/WhatsApp publication
+acceptance is still pending; do not claim that a hung SDK operation caused this
+specific missing record without runtime evidence.
+
+The added [running-publisher check](services/wifi-home.md#inspect-the-running-publisher)
+retains the last confirmed usable Home publication in memory and exposes pending
+I/O through a strict-admin, read-only endpoint. Its optional one-CR check observes
+the publication window automatically. It adds no automatic polling of the watch,
+changes no matching/expiry policy and makes no new customer activation claim.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
