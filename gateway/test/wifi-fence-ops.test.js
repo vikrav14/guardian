@@ -18,7 +18,7 @@ function response() {
   };
 }
 
-test('capture endpoint requires strict admin, explicit pilot and a current capture ID; no provisioning path', async t => {
+test('capture endpoint requires strict admin, explicit pilot and a current capture ID; rejects provisioning actions', async t => {
   const keys = ['adminApiKey', 'wifiHomeObserveEnabled', 'wifiHomePilotImei', 'wifiHomeRouterHash', 'wifiHomeHashKey'];
   const saved = Object.fromEntries(keys.map(key => [key, config[key]]));
   const env = { ADMIN_API_KEY: process.env.ADMIN_API_KEY, NODE_ENV: process.env.NODE_ENV };
@@ -69,7 +69,8 @@ test('capture endpoint requires strict admin, explicit pilot and a current captu
   assert.equal(report.body.capture.counts.crHandoffs, 1);
   assert.equal(report.body.capture.timeline[0].kind, 'operator_marker');
   assert.equal(report.body.capture.homeClaim, false);
-  assert.equal(report.body.liveProvisioningAvailable, false);
+  assert.equal(report.body.liveProvisioningAvailable, true);
+  assert.equal(report.body.provisioningMode, 'experimental_single_router_only');
   for (const secret of [imei, hashKey, config.wifiHomeRouterHash, config.adminApiKey]) {
     assert.ok(!JSON.stringify(report.body).includes(secret));
   }
@@ -83,6 +84,9 @@ test('packet and downlink diagnostics isolate failures instead of interrupting s
   const sandbox = { module: { exports: {} }, require(name) {
     if (name === './config') return settings;
     if (name === './sessions') return { findSocketsForDevice: () => [] };
+    if (name === './wifi-fence-single-router-trial') return {
+      createSingleRouterTrial: () => ({ status: () => ({ supported: true, attempted: false }) }),
+    };
     if (name === './wifi-fence-validation') return { createWifiFenceCapture: () => ({
       snapshot: () => ({ captureId: 'synthetic', phase: 'recording' }),
       recordPacket: () => { throw new Error('diagnostic failure'); },

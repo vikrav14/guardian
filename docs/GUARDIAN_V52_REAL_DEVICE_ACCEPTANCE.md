@@ -388,11 +388,12 @@ privacy, bounded retention, auth and diagnostic failure isolation. No native
 setting, reporting interval or expiry is changed. See the
 [supplier sources, initial baseline and subsequent native trial](services/wifi-home-supplier-validation.md).
 
-No new real-device result is claimed by this software checkpoint. One-router
-provisioning and removal need supplier instructions before a live setting is
-sent. Repeating enrollment, treating heartbeats as sightings or lengthening a
-stale Home claim does not resolve the observed continuity gap. Fresh Home
-map/hero/WhatsApp agreement still needs a live result.
+No new real-device result is claimed by that software checkpoint. Its initial
+plan waited for supplier single-router/removal instructions before a setting.
+The subsequent operator-requested private experiment below supersedes that pause
+for the inferred one-entry form only. Repeating enrollment, treating heartbeats
+as sightings or lengthening a stale Home claim does not resolve continuity.
+Fresh Home map/hero/WhatsApp agreement still needs a live result.
 
 ### Completed stationary baseline — 8 September 2026 UTC
 
@@ -473,6 +474,34 @@ to conceal either gap. Native fence transitions and current-state recovery must
 be validated before selecting continuous Home acquisition or replacing the
 normal reporting policy. No runtime code, watch settings or hardware acceptance
 state changes with this record.
+
+### Operator-requested one-router experiment prepared
+
+Following the status readback and review of section II.35, the operator asked
+to test an anticipated interpretation. The separate `wifi-home:fence-trial`
+tool now offers an offline preview and explicit `--send` of
+`WIFIFENCE,1,<enrolled-radio>` (29-byte payload, `001D`). This is an experimental
+single-entry hypothesis, not a newly documented command or a hardware pass.
+
+The server checks strict admin authentication, the current pilot/router
+fingerprint, a fresh capture and exactly one writable, correctly bound session.
+One synchronous attempt guard survives new captures within the gateway process.
+Concurrent attempts and failures never retry. The ordinary device-command
+dispatcher still rejects `set_wifi_fence`. GPS selection, the Home observer,
+SOS classification/dispatch and reporting policy are not modified.
+
+The watch setting may persist or replace other fence settings; removal/readback
+are still unknown. Native fence alarms can use the existing alert/notification
+path. Neither capture stop nor gateway restart undoes the setting. The memory
+guard resets on gateway restart, so do not restart to repeat an uncertain send.
+
+Unit and real loopback HTTP/CLI tests cover framing, private input/output,
+authentication, enrollment/capture/session rejection, concurrent and uncertain
+sends, and capture-failure isolation. All 775 gateway tests passed locally; the
+18 targeted checks passed again after final request-size/capture-clock guards.
+No real watch command was sent from the
+development workspace. Follow the [Windows runbook](services/wifi-home-supplier-validation.md#run-the-experiment-on-windows)
+and record response, behaviour and limitations before accepting native Home.
 
 ## Test 3 — approved incoming family calls
 

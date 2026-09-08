@@ -286,9 +286,13 @@ The supplier review on 8 September supersedes the proposed automatic stationary
 acquisition direction: first validate native Wi-Fi fencing and the documented
 temporary `CR` burst, then reconsider the normal battery bands. A bounded,
 strict-admin capture and redacted command preview are implemented as
-`npm run wifi-home:fence`. Neither sends a watch command. One-router provisioning
-and removal remain undocumented, so no shortened or empty-slot command is
-invented. See [supplier validation and the first stationary baseline](wifi-home-supplier-validation.md).
+`npm run wifi-home:fence`. Neither sends a watch command. The operator then
+explicitly requested testing a one-entry interpretation. The separate
+`npm run wifi-home:fence-trial` previews it; only `--send` attempts the enrolled
+router in slot 1, with strict admin, capture and single-session checks. The form
+remains experimental, with no known undo and no production command-dispatcher
+support. No empty/duplicate padding or deletion command is inferred. See
+[the experiment, risks and Windows runbook](wifi-home-supplier-validation.md#operator-requested-single-router-experiment).
 Do not repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
 
 The first 30-minute stationary capture is now complete: nine `LK` packets about
@@ -302,8 +306,10 @@ The passive observer's three-report/60-second-gap qualification and 120-second
 expiry are incompatible with isolated five-minute reports even if delivered
 punctually. A synthetic replay confirmed this separately from the missing-report
 gap. Switching to a ten-minute interval alone cannot resolve either issue.
-Next obtain supplier single-router/removal, stationary-reporting and fence
-current-state recovery semantics before changing acquisition or normal policy.
+Next run the requested private native-fence experiment and obtain supplier
+removal, stationary-reporting and fence current-state recovery semantics before
+changing acquisition or normal policy. An acknowledgement alone cannot accept
+native fencing or continuous Home availability.
 See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
 
 ### Software verification

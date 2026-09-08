@@ -2,9 +2,13 @@
 
 const config = require('./config');
 const { createWifiFenceCapture } = require('./wifi-fence-validation');
+const { createSingleRouterTrial } = require('./wifi-fence-single-router-trial');
 
 let capture;
 let capturePilot;
+const singleRouterTrial = createSingleRouterTrial({ getConfig: () => config,
+  getCapture: () => capturePilot === config.wifiHomePilotImei ? capture : null,
+  findSessions: imei => require('./sessions').findSocketsForDevice(imei) });
 
 function configured() {
   return config.wifiHomeObserveEnabled === true && /^\d{15}$/.test(config.wifiHomePilotImei || '') &&
@@ -14,12 +18,22 @@ function configured() {
 
 function getWifiFenceValidation(nowMs = Date.now(), timeline = false) {
   const { findSocketsForDevice } = require('./sessions');
+  const trial = singleRouterTrial.status();
   return { version: 1, configured: configured(),
     sessionConnected: configured() && findSocketsForDevice(config.wifiHomePilotImei)
       .some(({ socket }) => !socket.destroyed),
-    liveProvisioningAvailable: false,
+    liveProvisioningAvailable: configured() && !trial.attempted,
+    provisioningMode: 'experimental_single_router_only',
+    singleRouterTrial: trial,
     capture: capturePilot === config.wifiHomePilotImei ? capture?.snapshot(nowMs, timeline) || null : null,
   };
+}
+
+function sendSingleRouterTrial(input, nowMs = Date.now()) {
+  const result = singleRouterTrial.send(input, nowMs);
+  console.log('[wifi-fence-trial]', JSON.stringify({ phase: result.phase,
+    captureRecorded: result.captureRecorded, settingsApplied: null, rollbackKnown: false }));
+  return result;
 }
 
 function controlWifiFenceValidation({ action, captureId, marker }, nowMs = Date.now()) {
@@ -61,4 +75,4 @@ function noteWifiFenceDownlink(command, sessions, nowMs = Date.now()) {
 }
 
 module.exports = { getWifiFenceValidation, controlWifiFenceValidation,
-  observeWifiFencePacket, noteWifiFenceDownlink };
+  observeWifiFencePacket, noteWifiFenceDownlink, sendSingleRouterTrial };

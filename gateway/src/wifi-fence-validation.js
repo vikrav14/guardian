@@ -15,7 +15,7 @@ const PACKETS = new Set(['LK', 'TKQ', 'UD', 'UD2', 'UD_LTE', 'UD_WCDMA',
 // This builder has NO transport and is not in the deviceCommands dispatcher.
 function documentedFenceCommand(routers) {
   if (!Array.isArray(routers) || routers.length !== 3) {
-    throw new Error('The documented example requires three router slots.');
+    throw new Error('This documented builder supports only the complete three-entry example.');
   }
   const ids = Array.from(routers, normalizeRouterId);
   if (ids.some(id => !id) || new Set(ids).size !== 3) {

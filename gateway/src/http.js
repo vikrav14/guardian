@@ -21,7 +21,7 @@ const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
 const { getWifiHomeRuntimeStatus } = require('./wifi-home-runtime');
-const { getWifiFenceValidation, controlWifiFenceValidation } = require('./wifi-fence-runtime');
+const { getWifiFenceValidation, controlWifiFenceValidation, sendSingleRouterTrial } = require('./wifi-fence-runtime');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -740,6 +740,37 @@ async function requireStrictAdmin(req, res) {
 }
 
 async function handleOpsHttpRequest(req, res, url) {
+  if (url.pathname === '/ops/wifi-fence-single-router-trial') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'POST required' });
+      return true;
+    }
+    if (url.searchParams.get('imei') !== config.wifiHomePilotImei ||
+        [...url.searchParams.keys()].some(key => key !== 'imei') ||
+        url.searchParams.getAll('imei').length !== 1) {
+      sendJson(res, 409, { error: 'Running pilot differs or unsupported parameters supplied' });
+      return true;
+    }
+    // Router input is confined to a small authenticated body, never a URL or
+    // log. Parse errors must not echo that input through the outer HTTP catch.
+    try {
+      let size = 0;
+      const chunks = [];
+      for await (const chunk of req) {
+        size += Buffer.byteLength(chunk);
+        if (size > 512) throw new Error('trial_body_too_large');
+        chunks.push(Buffer.from(chunk));
+      }
+      const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      sendJson(res, 200, sendSingleRouterTrial(input));
+    } catch {
+      sendJson(res, 409, { error: 'Trial rejected or handoff uncertain; inspect read-only capture before any further action' });
+    }
+    return true;
+  }
+
   if (url.pathname === '/ops/wifi-fence-validation') {
     res.setHeader('Cache-Control', 'no-store');
     if (!(await requireStrictAdmin(req, res))) return true;

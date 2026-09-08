@@ -12,6 +12,13 @@ or introducing recurring Home `CR` requests. The current battery policy,
 SOS/outing overrides, radio expiry, GPS selection, journeys and notifications
 are unchanged by this validation tool.
 
+The operator subsequently requested testing a reasonable interpretation of
+section II.35 before receiving supplier clarification. A separate private
+**single-router experiment** is now implemented. This supersedes the earlier
+supplier-first pause for that experiment only; the inferred form is not added to
+the production command dispatcher or represented as supplier-confirmed syntax.
+See [the exact trial and its limits](#operator-requested-single-router-experiment).
+
 ## Sources inspected
 
 These are operator-supplied originals, retained outside the repository. No live
@@ -71,10 +78,95 @@ three-distinct-radio form and is not connected to any transport. It rejects
 empty, shorter, duplicate-padded and malformed lists. No zero MAC, repeated
 router, guessed `WIFIFENCE,0`, or guessed SMS fallback is offered.
 
-Before the first native setting is sent, obtain the supplier's single-router
-and removal/restore instructions, then implement exactly those forms. The
-repository's `CLAUDE.md` prohibits fabricated hardware commands. This is the
-specific remaining provisioning blocker, not uncertainty about V52 support.
+The earlier plan waited for single-router and removal instructions before any
+native setting. The operator has now explicitly asked to anticipate the indexed
+entry meaning and test it. That authorises the private hypothesis below, while
+`CLAUDE.md`'s restriction on invented production commands remains intact. No
+repository instruction is changed. General provisioning/removal still requires
+documented or accepted behaviour. The three-entry example is not proof that
+three routers are mandatory.
+
+## Operator-requested single-router experiment
+
+**Hypothesis:** `WIFIFENCE,1,<enrolled-radio>` sets the first fence slot with a
+one-entry list. Section II.35 motivates this interpretation but does not confirm
+it. With a 17-character MAC, the payload is 29 bytes (`001D`). The dedicated
+experimental builder contains exactly that form: no duplicate/zero padding,
+arbitrary slots, raw command field, deletion guess or SMS fallback.
+
+`npm run wifi-home:fence-trial` (or `--preview`) is offline and sends nothing.
+Only explicit `--send` starts a fresh capture and attempts the native setting.
+The CLI reads the router privately because existing enrollment stores its hash,
+not the MAC required on the wire. It checks enrollment locally; the authenticated
+gateway independently checks the same watch-scoped fingerprint. Router input is
+in a bounded POST body, never a URL, routine log, response or persistent record.
+
+The dedicated `POST /ops/wifi-fence-single-router-trial` route requires strict
+administrator authentication, the configured pilot, explicit experimental mode,
+a matching active capture with at least a minute left, and exactly one writable
+socket with the pilot's actual IMEI/protocol ID binding. It refuses unknown fields
+and extra commands. Immediately before writing, a synchronous process-local
+guard records the attempt. Concurrent/repeated requests, write exceptions and
+diagnostic failures cannot cause a second trial send in that gateway process;
+starting a new capture does not reset the guard. CLI HTTP timeouts are eight
+seconds, redirects are rejected and uncertain POSTs are never retried.
+
+**Material limitations:** the setting may persist after reboot or replace other
+fence configuration. There is no proven readback, removal or rollback command.
+Stopping capture, restarting Guardian or disabling the Home display does not
+remove it. The one-attempt guard is in gateway memory; restart is not an undo
+operation and must not be used to retry an uncertain send. Native fence AL
+packets continue through existing alarm handling and may generate existing
+alerts/notifications. A software-only experiment cannot guarantee firmware
+behaviour; run on the operator's supervised pilot watch.
+
+The experiment itself sends no `CR` or `UPLOAD`. Existing reporting/SOS/outing
+policy can still run normally; the capture records their handoffs separately.
+The gateway's `queued` result only means a socket write was queued. A subsequent
+`command_response` with `packet: WIFIFENCE` means a response was observed, not
+that a router was stored or that a fence works. `settingsApplied` stays null,
+and `homeClaim`/`nativeFenceAccepted` remain false. Current normal APIs/UI gain no
+fence setup button. Live status labels the available route
+`provisioningMode: experimental_single_router_only`; it becomes unavailable for
+another send after an attempt. The older documented preview remains read-only.
+
+### Run the experiment on Windows
+
+Stop the gateway, keep ngrok running, then from `gateway`:
+
+```powershell
+git pull --ff-only origin feat/v52-wifi-home
+npm start
+```
+
+In a second terminal:
+
+```powershell
+Set-Location "C:\Users\MSI\repos\guardian\gateway"
+npm run wifi-home:fence-trial -- --preview
+npm run wifi-home:fence-trial -- --send
+```
+
+Enter the enrolled 2.4 GHz BSSID at the hidden prompt. A fresh 30-minute capture
+starts automatically; an existing recording must finish or be stopped first.
+There is no need to re-enroll the router, change battery policy or trigger SOS.
+After a short pause inspect the response, then again after 10-15 minutes with
+the watch still near the router:
+
+```powershell
+npm run wifi-home:fence -- --report
+```
+
+Share only that redacted report. A `queued` result followed by silence is
+inconclusive; do not send a different variant or repeat the setting. Router
+recognition/reports can be observed while indoors, but a stationary test without
+a transition cannot by itself prove a departure alarm works. Later controlled
+departure/return and router-loss tests need independent physical markers and a
+working gateway connection throughout. Router loss is not wearer departure.
+
+This trial first checks command response and real behaviour. It does not repair
+the app's continuous Home display or promote generic fence bits into confirmed
+Wi-Fi Home state. Supplier clarification remains useful even after a response.
 
 ## Implemented observation tool
 
@@ -180,7 +272,8 @@ match without other fresh observations. Moving to ten minutes alone cannot fix
 either this mismatch or the separate absence of received reports. A successful
 short burst does not validate continuous Home availability.
 
-The following supplier details are still needed before native provisioning:
+The following supplier details are still needed for general native provisioning
+and recovery; the separately requested experiment does not resolve them:
 
 1. Exact command for one 2.4 GHz radio, treatment of unused slots, and the
    supported number of zones (guide: two; protocol example: three).
@@ -196,8 +289,10 @@ The following supplier details are still needed before native provisioning:
    router loss, and how to obtain current fence state after a reconnect/restart.
 
 This question list is prepared for supplier clarification; no message has been
-sent. A ten-minute normal baseline remains a later acceptance step, rather than
-an assumed cure for the observed lack of stationary reports.
+sent. The operator-requested one-router experiment above may proceed separately;
+it does not establish an undo command or production readiness. A ten-minute
+normal baseline remains a later acceptance step, rather than an assumed cure
+for the observed lack of stationary reports.
 
 ### Remaining controlled trials
 
