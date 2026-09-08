@@ -1,0 +1,51 @@
+{
+  "evidenceOrigin": "Operator-supplied wifi-home:fence --report output",
+  "redactions": ["captureId omitted"],
+  "implementationReference": "6528501821a39b2e122161ce7d9acff05fbb9db9",
+  "runtimeRevisionReported": null,
+  "version": 1,
+  "configured": true,
+  "sessionConnected": true,
+  "liveProvisioningAvailable": false,
+  "capture": {
+    "observeOnly": true,
+    "homeClaim": false,
+    "nativeFenceAccepted": false,
+    "phase": "completed",
+    "startedAt": "2026-09-08T20:02:06.005Z",
+    "endsAt": "2026-09-08T20:32:06.005Z",
+    "elapsedSeconds": 1800,
+    "counts": {
+      "reports": 0,
+      "heartbeats": 10,
+      "freshRouterSightings": 0,
+      "staleOrInvalidReports": 0,
+      "repeatedReports": 0,
+      "fencePackets": 0,
+      "freshFencePackets": 0,
+      "crHandoffs": 0,
+      "uploadHandoffs": 0,
+      "fenceHandoffs": 0,
+      "commandResponses": 0,
+      "markers": 1
+    },
+    "maxReportGapSeconds": null,
+    "secondsSinceLastReport": null,
+    "secondsSinceLastRouterSighting": null,
+    "retainedEntries": 11,
+    "droppedEntries": 0,
+    "timeline": [
+      { "at": "2026-09-08T20:02:07.114Z", "kind": "operator_marker", "label": "at_home", "physicallyVerifiedByGateway": false },
+      { "at": "2026-09-08T20:02:09.927Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:02:10.106Z", "kind": "heartbeat", "packet": "TKQ" },
+      { "at": "2026-09-08T20:05:47.911Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:09:25.973Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:13:03.902Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:16:41.888Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:20:19.950Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:23:57.850Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:27:35.834Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-08T20:31:13.818Z", "kind": "heartbeat", "packet": "LK" }
+    ]
+  }
+}

@@ -152,6 +152,37 @@ shape offline. There is deliberately no `--send` or `--apply` option.
 
 ## Native trial and reporting-policy acceptance
 
+### Stationary baseline completed
+
+The operator's 8 September UTC capture completed all 30 minutes: nine `LK`
+heartbeats about 218 seconds apart, one `TKQ`, no location/radio reports, no
+router sightings, no fence packets and no captured `CR`/`UPLOAD`/`WIFIFENCE`
+handoffs. All 11 entries were retained. The session was connected at report
+retrieval. See the [redacted capture](../testing/wifi-home-stationary-2026-09-08.json)
+and [acceptance interpretation](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
+
+This establishes the stationary reporting gap in the current integration. It
+does not prove a defective native fence, a particular sleep mode, or an ignored
+upload command. The report contains no current watch upload setting. Next read
+`ts#` from the authorised center phone and retain only upload interval and
+firmware version. The status request is live-proven and changes no setting.
+The following supplier details are still needed before native provisioning:
+
+1. Exact command for one 2.4 GHz radio, treatment of unused slots, and the
+   supported number of zones (guide: two; protocol example: three).
+2. Readback, removal and restoration commands, including whether changing one
+   entry affects other stored zones and whether settings persist after reboot.
+3. Whether `UPLOAD` continues during stationary/screen-off operation, and whether
+   Wi-Fi fence detection and alarms operate independently of that interval.
+4. Exact departure/return payloads, distinction from GPS fences, handling of
+   router loss, and how to obtain current fence state after a reconnect/restart.
+
+This question list is prepared for supplier clarification; no message has been
+sent. A ten-minute normal baseline remains a later acceptance step, rather than
+an assumed cure for the observed lack of stationary reports.
+
+### Remaining controlled trials
+
 Once provisioning and removal are documented and implemented, test one change
 at a time with redacted captures:
 

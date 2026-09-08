@@ -394,6 +394,55 @@ sent. Repeating enrollment, treating heartbeats as sightings or lengthening a
 stale Home claim does not resolve the observed continuity gap. Fresh Home
 map/hero/WhatsApp agreement still needs a live result.
 
+### Completed stationary baseline — 8 September 2026 UTC
+
+The operator supplied a completed `wifi-home:fence --report` capture covering
+**20:02:06.005–20:32:06.005 UTC on 8 September**, or **00:02–00:32 MUT on
+9 September**. The gateway recorded the operator's `at_home` marker. This is
+reported ground truth, not a physical location independently verified by the
+capture. The capture implementation was introduced in `6528501`; the report
+itself does not include a running revision or firmware version.
+
+| Observation | Result |
+|---|---|
+| Window | Completed, 1,800 seconds |
+| Heartbeats | 9 `LK` + 1 `TKQ` |
+| Successive `LK` gaps | 217.900–218.062 seconds; mean 217.986 seconds |
+| Decoded location/alarm reports recorded | 0 |
+| Fresh router sightings / fence packets | 0 / 0 |
+| `CR` / `UPLOAD` / `WIFIFENCE` handoffs during capture | 0 / 0 / 0 |
+| Command responses | 0 |
+| Retention | All 11 entries retained; none dropped |
+| Session at report retrieval | Connected |
+
+**Accepted finding:** a complete stationary observation window contained
+heartbeats but no decoded location/radio reports. The packet-level hook runs
+before geolocation and Firestore/write gating. Those downstream stages cannot
+explain the zero captured reports. The current packet-silence recovery timer is
+postponed by packet activity; the independent location-freshness probe remains
+outing-only. This is consistent with the observed no-`CR` window and explains
+why passive Home evidence can expire while check-ins remain recent.
+
+**Not established:** the watch's actual stored upload interval, whether firmware
+suppresses stationary reporting/scanning, commands before the window, or native
+fence behaviour. No `UPLOAD` during the window does not mean no interval was
+configured earlier. Native provisioning is unavailable in this pilot, so zero
+fence packets is inconclusive for that feature. `homeClaim: false` and
+`nativeFenceAccepted: false` are diagnostic safeguards, not watch measurements.
+
+The next discriminating check is the live-proven `ts#` status request from the
+authorised center phone. Record only the returned upload interval and firmware
+version; omit phone numbers, device identifiers, server details and unrelated
+status fields. Keep reporting/SOS/expiry settings unchanged pending that result
+and the supplier's native-fence configuration/removal instructions. No repeat
+30-minute baseline is required for the same unchanged setup.
+
+The [redacted capture](testing/wifi-home-stationary-2026-09-08.json) preserves
+counts and timestamps, omitting the random capture ID. Software release gates
+for `6528501` all passed in
+[run 34272126944](https://github.com/vikrav14/guardian/actions/runs/34272126944).
+This checkpoint does not accept native fencing or continuous Home display.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

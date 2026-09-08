@@ -291,6 +291,15 @@ and removal remain undocumented, so no shortened or empty-slot command is
 invented. See [supplier validation and the first stationary baseline](wifi-home-supplier-validation.md).
 Do not repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
 
+The first 30-minute stationary capture is now complete: nine `LK` packets about
+218 seconds apart plus one `TKQ`, with no captured location/radio reports,
+router sightings, fence packets or `CR`/`UPLOAD`/`WIFIFENCE` handoffs. This
+establishes the current stationary reporting gap; it does not test an unconfigured
+native fence or identify the watch's stored upload setting. The next check is
+the live-proven `ts#` status read for upload interval and firmware, followed by
+the supplier's single-router/removal and stationary-reporting clarification.
+See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
+
 ### Software verification
 
 Tests cover canonical passive V52 packet decoding into the observer, strong
