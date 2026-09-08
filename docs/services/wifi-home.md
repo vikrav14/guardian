@@ -6,7 +6,7 @@
 | Minimum package | Family |
 | Current state | Private observer and separately opt-in Home display pilot; general customer activation disabled |
 | Customer-visible | One explicitly configured pilot watch after local display opt-in; broader rollout still gated |
-| Protocol surface | Passive V52 Wi-Fi observations; `WIFIFENCE` remains unverified |
+| Protocol surface | Passive V52 Wi-Fi observations; native `WIFIFENCE` documented, observation capture/preview implemented, provisioning and physical acceptance pending |
 
 This draft contains the private router observer and a separate, opt-in Home
 display pilot requested after near-router recognition passed. The latter
@@ -282,10 +282,14 @@ check-in; the final logged radio evidence had expired at 22:51:13.854 MUT.
 The app and WhatsApp both showed retained GPS. Backend publication is accepted,
 but fresh Home visual agreement and stationary continuity are not.
 
-The next implementation work is bounded stationary acquisition with rate
-limits and battery-impact validation. A periodic automatic Home command loop
-or longer evidence lifetime is not introduced by this diagnostic. Do not
-repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
+The supplier review on 8 September supersedes the proposed automatic stationary
+acquisition direction: first validate native Wi-Fi fencing and the documented
+temporary `CR` burst, then reconsider the normal battery bands. A bounded,
+strict-admin capture and redacted command preview are implemented as
+`npm run wifi-home:fence`. Neither sends a watch command. One-router provisioning
+and removal remain undocumented, so no shortened or empty-slot command is
+invented. See [supplier validation and the first stationary baseline](wifi-home-supplier-validation.md).
+Do not repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
 
 ### Software verification
 

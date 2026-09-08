@@ -374,11 +374,25 @@ at most one `CR`. Thus a connected stationary watch can outlast its Home radio
 evidence after a report burst. The raw evidence does not establish why the
 firmware stopped scanning or reporting.
 
-**Next implementation work:** bounded stationary report acquisition, with
-rate limits, battery-impact validation and unchanged evidence expiry. Repeating
-router enrollment, treating heartbeats as router sightings or lengthening a
-stale Home claim does not resolve this gap. Fresh Home map/hero/WhatsApp agreement
-still needs a live result after acquisition is addressed.
+**Revised direction after supplier review, 8 September 2026:** validate native
+Wi-Fi fencing before automatic stationary refresh or normal battery-policy
+changes. The shared V46/V48/V52 documents apply to this V52 per operator
+confirmation. II.2 documents a temporary `CR` GPS burst; II.35 documents native
+router fence provisioning, but not single-router/unused-slot or removal forms.
+The guide's two zones also differ from the three-slot command example.
+
+A 30-minute strict-admin, in-memory observation capture and redacted command
+preview are now implemented (`npm run wifi-home:fence`). Software tests verify
+fixed-position fence bits alongside SOS, unchanged ACK/events, freshness,
+privacy, bounded retention, auth and diagnostic failure isolation. No native
+setting, reporting interval or expiry is changed. See the
+[supplier sources, initial baseline and subsequent native trial](services/wifi-home-supplier-validation.md).
+
+No new real-device result is claimed by this software checkpoint. One-router
+provisioning and removal need supplier instructions before a live setting is
+sent. Repeating enrollment, treating heartbeats as sightings or lengthening a
+stale Home claim does not resolve the observed continuity gap. Fresh Home
+map/hero/WhatsApp agreement still needs a live result.
 
 ## Test 3 — approved incoming family calls
 

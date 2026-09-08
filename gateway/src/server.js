@@ -52,6 +52,7 @@ const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-repo
 const { sendContinuousReporting } = require('./downlink');
 const { claimSosIncident } = require('./sos-incident-window');
 const { observeWifiHomeEvent, startWifiHomeDisplayPilot } = require('./wifi-home-runtime');
+const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 
 const {
   incrementEvent,
@@ -1160,6 +1161,10 @@ const server = net.createServer((socket) => {
       const decoded = decodeFrame(frame);
 
       const { acks, events } = handlePacket(decoded, session);
+
+      // Bounded admin-started evidence capture. It never changes decoded events,
+      // ACKs or customer state, and isolates all diagnostic failures internally.
+      observeWifiFencePacket(decoded, events);
 
       for (const ack of acks) {
 

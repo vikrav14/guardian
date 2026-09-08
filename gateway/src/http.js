@@ -21,6 +21,7 @@ const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
 const { getWifiHomeRuntimeStatus } = require('./wifi-home-runtime');
+const { getWifiFenceValidation, controlWifiFenceValidation } = require('./wifi-fence-runtime');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -739,6 +740,43 @@ async function requireStrictAdmin(req, res) {
 }
 
 async function handleOpsHttpRequest(req, res, url) {
+  if (url.pathname === '/ops/wifi-fence-validation') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    if (!['GET', 'POST'].includes(req.method)) {
+      sendJson(res, 405, { error: 'GET or POST required' });
+      return true;
+    }
+    // Every operation must identify the locally configured pilot. No arbitrary
+    // watch selector, packet body or hardware command is accepted here.
+    if (url.searchParams.get('imei') !== config.wifiHomePilotImei) {
+      sendJson(res, 409, { error: 'Running pilot differs from the local configuration' });
+      return true;
+    }
+    const allowed = req.method === 'GET' ? ['imei', 'timeline'] : ['imei', 'action', 'capture', 'marker'];
+    if ([...url.searchParams.keys()].some(key => !allowed.includes(key) ||
+        url.searchParams.getAll(key).length !== 1)) {
+      sendJson(res, 400, { error: 'Unsupported capture parameters' });
+      return true;
+    }
+    if (req.method === 'GET') {
+      sendJson(res, 200, getWifiFenceValidation(Date.now(), url.searchParams.get('timeline') === '1'));
+    } else {
+      const action = url.searchParams.get('action');
+      if (!['start', 'stop', 'mark'].includes(action)) {
+        sendJson(res, 400, { error: 'Only start, stop and mark are available; no watch provisioning' });
+        return true;
+      }
+      try {
+        sendJson(res, 200, controlWifiFenceValidation({ action,
+          captureId: url.searchParams.get('capture'), marker: url.searchParams.get('marker') }));
+      } catch {
+        sendJson(res, 409, { error: 'Capture operation rejected; read the current status before retrying' });
+      }
+    }
+    return true;
+  }
+
   if (req.method !== 'GET' || !url.pathname.startsWith('/ops/')) {
     return false;
   }
@@ -1258,6 +1296,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
     console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
+    console.log('[guardian-http] GET/POST /ops/wifi-fence-validation  (strict admin; observation only)');
   });
 
   return server;

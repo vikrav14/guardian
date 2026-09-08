@@ -7,7 +7,7 @@ treated as interchangeable.
 ## Evidence levels
 
 - **Proven:** observed successfully on Guardian's real V52.
-- **Documented:** present in vendor V52/mixed-family protocol examples and
+- **Documented:** present in the supplied V52 / shared V46-V48-V52 protocol examples and
   regression-tested, but not yet accepted on the real V52.
 - **Blocked:** intentionally not automated because the exact production value
   or safe behaviour is not established.
@@ -31,7 +31,8 @@ and require an active V52 gateway session. There is no SMS fallback.
 
 | Action | Data payload | Evidence | Acceptance still required |
 |---|---|---|---|
-| Request location | `CR` | Proven | Real V52 returned GPS and Wi-Fi/LBS observations. |
+| Request location | `CR` | Proven for returned observations | Real V52 returned GPS and Wi-Fi/LBS observations. Supplier II.2 describes GPS wake-up and reports every 30 seconds for about three minutes; exact cadence and battery impact remain unaccepted. The helper name does not mean indefinite reporting. |
+| Native Wi-Fi fence | `WIFIFENCE,1,<radio-1>,2,<radio-2>,3,<radio-3>` | Documented; tested preview only, no provisioning route | Shared V46/V48/V52 II.35 applies to V52 per operator confirmation. Complete example uses three slots; guide says two zones. Single-router/unused-slot forms and readback/removal are unspecified. Do not pad or guess. Strict-admin passive capture records responses and fixed-position fence bits without accepting them as Home. See `services/wifi-home-supplier-validation.md`. |
 | Voice monitor callback | `MONITOR,<phone>` | Documented | Confirm callback, audio, consent indication and carrier behaviour. |
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
 | SOS alarm delivery mode | `MOD,<0..3>` | Documented; `MOD,0` platform-only behavior rejected on pilot firmware | Vendor descriptions: `0` platform only; `1` platform+SMS+call; `2` platform+call; `3` platform+SMS. On 24 August 2026, the exact V52 acknowledged `MOD,0` but still displayed **Calling...** and sent a carrier SMS. No completed call was observed, but the pilot SIM already blocks outbound calls. The watch acknowledged restoration to `MOD,1`. Mode `3` remains unverified. Do not promote another mode combination or claim screen-text control without supplier evidence and separate acceptance. |
