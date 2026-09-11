@@ -204,7 +204,9 @@ class Device {
   DeviceLocation? homeWifiLocationAt(DateTime now) {
     final home = homeWifiPresence;
     if (home == null || !home.isFreshAt(now) || home.conflictReason != null ||
-        _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home') return null;
+        _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home') {
+      return null;
+    }
     return DeviceLocation(lat: home.lat, lng: home.lng,
       recordedAt: home.observedAt, source: 'home_wifi',
       gpsValid: false, placeLabel: 'Home');

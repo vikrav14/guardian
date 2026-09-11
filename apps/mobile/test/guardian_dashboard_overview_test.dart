@@ -32,30 +32,66 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 
 void main() {
   for (final width in [320.0, 1280.0]) {
-    testWidgets('Home/GPS disagreement is visible at $width px with large text', (tester) async {
-      final now = DateTime.now().toUtc();
-      final gps = DeviceLocation(lat: -20.16, lng: 57.15, source: 'gps', gpsValid: true,
-        recordedAt: now.subtract(const Duration(seconds: 1)), placeLabel: 'Recorded GPS place');
-      final device = Device(imei: 'demo-watch-a', online: true,
-        nickname: 'Alex Morgan', connectionState: 'live', lastHeartbeatAt: now,
-        batteryPercent: 60, lastSatelliteLocation: gps,
-        homeWifiPresence: HomeWifiPresence(lat: -20.15, lng: 57.15,
-          policyVersion: 3, radiusMeters: 50, conflictReason: 'gps_outside_home',
-          observedAt: now.subtract(const Duration(seconds: 20)),
-          expiresAt: now.add(const Duration(seconds: 40))));
-      var calls = 0;
-      await _pump(tester, dashboardFixtureOverview(device: device, onCall: () => calls++),
-        width: width, textScale: 2);
-      expect(tester.takeException(), isNull);
-      expect(find.text('Location uncertain'), findsWidgets);
-      expect(find.text('Home Wi-Fi detected · location uncertain.'), findsOneWidget);
-      expect(find.textContaining('Current position unconfirmed.'), findsOneWidget);
-      expect(find.text('At or near saved Home.'), findsNothing);
-      expect(device.mapDisplayLocation, same(gps));
-      await _tap(tester, find.text('Call watch'));
-      expect(calls, 1);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'Home/GPS disagreement is visible at $width px with large text',
+      (tester) async {
+        final now = DateTime.now().toUtc();
+        final gps = DeviceLocation(
+          lat: -20.16,
+          lng: 57.15,
+          source: 'gps',
+          gpsValid: true,
+          recordedAt: now.subtract(const Duration(seconds: 1)),
+          placeLabel: 'Recorded GPS place',
+        );
+        final device = Device(
+          imei: 'demo-watch-a',
+          online: true,
+          nickname: 'Alex Morgan',
+          connectionState: 'live',
+          lastHeartbeatAt: now,
+          batteryPercent: 60,
+          lastSatelliteLocation: gps,
+          homeWifiPresence: HomeWifiPresence(
+            lat: -20.15,
+            lng: 57.15,
+            policyVersion: 3,
+            radiusMeters: 50,
+            conflictReason: 'gps_outside_home',
+            observedAt: now.subtract(const Duration(seconds: 20)),
+            expiresAt: now.add(const Duration(seconds: 40)),
+          ),
+        );
+        var calls = 0;
+        await _pump(
+          tester,
+          dashboardFixtureOverview(device: device, onCall: () => calls++),
+          width: width,
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('Location uncertain'), findsWidgets);
+        expect(
+          find.textContaining(
+            'Home Wi-Fi detected · location uncertain.',
+            findRichText: true,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Current position unconfirmed.',
+            findRichText: true,
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('At or near saved Home.'), findsNothing);
+        expect(device.mapDisplayLocation, same(gps));
+        await _tap(tester, find.text('Call watch'));
+        expect(calls, 1);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
   for (final width in [320.0, 390.0, 768.0, 1280.0]) {
     for (final dark in [false, true]) {

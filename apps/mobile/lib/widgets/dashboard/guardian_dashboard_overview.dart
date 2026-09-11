@@ -249,7 +249,13 @@ class _LocationPanel extends StatelessWidget {
         : retained || (satellite && stale)
         ? 'Last known location'
         : status;
-    final caution = homeConflict || stale || retained || approximate || homeWifi || !timeKnown;
+    final caution =
+        homeConflict ||
+        stale ||
+        retained ||
+        approximate ||
+        homeWifi ||
+        !timeKnown;
     final tone = caution
         ? Theme.of(context).brightness == Brightness.dark
               ? GuardianColors.warning
