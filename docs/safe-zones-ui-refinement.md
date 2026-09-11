@@ -9,7 +9,8 @@ unclear.
 
 - One real Google Maps view shows the selected zone's saved centre and exact
   radius over streets and landmarks. Only one preview map is mounted, rather
-  than a map per saved-place card. It reuses the existing Maps SDK and app setup;
+  than a map per saved-place card. The preview is not loaded while another
+  primary tab is active. It reuses the existing Maps SDK and app setup;
   no Static Maps API or new key/dependency is needed.
 - Expand map opens a read-only map with pan, zoom, recenter and satellite view.
   The compact preview leaves page scrolling intact. Controls have 48px targets.
@@ -33,6 +34,15 @@ unclear.
 The map is a saved-boundary view, not a wearer tracker. Changing or zooming its
 camera never writes a zone or moves the saved centre. Invalid coordinates and
 radii have a fallback view; delayed map initialization exposes retry.
+
+## Rendered layouts
+
+These captures use a labelled test map; the running app uses real Google Maps.
+
+![Wide Safe zones layout](images/safe-zones/wide.png)
+
+[Phone layout](images/safe-zones/mobile.png) ·
+[Dark phone layout](images/safe-zones/mobile_dark.png)
 
 ## Parallel service work
 

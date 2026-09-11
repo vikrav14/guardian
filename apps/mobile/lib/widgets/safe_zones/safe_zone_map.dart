@@ -18,8 +18,8 @@ class SafeZoneMapGeometry {
     required this.center,
     required this.radiusMeters,
     required this.bounds,
-    required double longitudeSpan,
-  }) : _longitudeSpan = longitudeSpan;
+    required this.longitudeSpan,
+  });
 
   static const _earthRadiusMeters = 6371008.8;
   static const _mercatorLimit = 85.05112878;
@@ -27,7 +27,7 @@ class SafeZoneMapGeometry {
   final LatLng center;
   final double radiusMeters;
   final LatLngBounds bounds;
-  final double _longitudeSpan;
+  final double longitudeSpan;
 
   /// Reject malformed data rather than letting LatLng silently clamp it to
   /// another place. The stored radius is never changed for presentation.
@@ -99,7 +99,7 @@ class SafeZoneMapGeometry {
     double zoomFor(double pixels, double fraction) =>
         math.log(pixels / (256 * math.max(fraction, 1e-12))) / math.ln2;
     final zoom = math.min(
-      zoomFor(availableWidth, _longitudeSpan / 360),
+      zoomFor(availableWidth, longitudeSpan / 360),
       zoomFor(availableHeight, verticalSpan),
     );
     return CameraPosition(target: center, zoom: zoom.clamp(0.0, 20.0));

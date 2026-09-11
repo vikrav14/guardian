@@ -299,10 +299,12 @@ class _ZoneDetails extends StatelessWidget {
       if (alert.imei != zone.imei ||
           alert.payload?['geofenceId'] != zone.id ||
           (alert.type != 'geofence_enter' && alert.type != 'geofence_exit') ||
-          alert.createdAt == null)
+          alert.createdAt == null) {
         continue;
-      if (event == null || alert.createdAt!.isAfter(event.createdAt!))
+      }
+      if (event == null || alert.createdAt!.isAfter(event.createdAt!)) {
         event = alert;
+      }
     }
     final latest = event;
     final radius = zone.radiusMeters;
@@ -443,8 +445,9 @@ class _ZoneDetails extends StatelessWidget {
 }
 
 String _eventTime(DateTime at) {
-  if (at.isAfter(DateTime.now().add(const Duration(minutes: 1))))
+  if (at.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
     return 'Time unavailable';
+  }
   return relativeTimeLabel(at);
 }
 
