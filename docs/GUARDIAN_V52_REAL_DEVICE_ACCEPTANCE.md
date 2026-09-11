@@ -530,6 +530,20 @@ reset its attempt guard: setting persistence and removal are still unknown.
 Use the [completed trial interpretation and supplier questions](services/wifi-home-supplier-validation.md#completed-first-native-attempt--11-september-2026)
 for the next step. This evidence update changes no runtime code or watch setting.
 
+### Further experiments planned — 11 September 2026 UTC
+
+The operator reaffirmed exploration after the inconclusive first trial. Supplier
+clarification can proceed in parallel with further controlled observations. The
+next planned test keeps the watch stationary and changes only the enrolled
+2.4 GHz radio on/off/on while preserving gateway connectivity. It uses the
+existing capture and `at_home`, `router_off`, `router_on` markers, without a new
+native setting or a deliberate reporting-policy change. Subsequent comparisons
+can examine a temporary CR burst and independently marked physical departure/
+return. An alternate command hypothesis requires a separately defined trial;
+the current sender does not expose arbitrary variants. These are plans only;
+no new hardware evidence or customer acceptance is claimed. See the
+[continuation sequence](services/wifi-home-supplier-validation.md#continue-controlled-experiments--operator-direction-11-september-2026).
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

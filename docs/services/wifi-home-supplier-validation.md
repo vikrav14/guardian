@@ -47,7 +47,9 @@ was not an observation window free of other commands. Preserve the existing
 expiry, SOS/GPS/Journey contracts and reporting policy. Do not select a new
 battery interval or recurring Home poll on this evidence.
 
-The next supplier check should include the exact firmware, the 29-byte/`001D`
+Supplier clarification can proceed alongside further controlled tests; it is
+not a prerequisite for the observation sequence below. The supplier check should
+include the exact firmware, the 29-byte/`001D`
 one-entry hypothesis, zero fence replies alongside two successful CR replies,
 and these questions: is the one-entry form supported; is its response expected;
 how can its current setting be read and removed; and how are Wi-Fi fence
@@ -55,6 +57,81 @@ transitions/current state recovered independently of location upload cadence?
 These questions are prepared, not sent. A later supervised departure/return
 capture can observe behaviour without re-provisioning, but must keep physical
 markers and treat generic fence bits as source-unconfirmed until correlated.
+
+## Continue controlled experiments — operator direction, 11 September 2026
+
+The operator reaffirmed that the work should explore different hypotheses.
+An inconclusive first capture does not end that work. The next sequence changes
+observable conditions while retaining the setting already attempted. These are
+planned tests, not additional hardware results.
+
+| Experiment | Variable to change | Evidence sought |
+|---|---|---|
+| Next: stationary radio loss/restoration | Enrolled 2.4 GHz radio on, off, then on; watch stays still | Reports or fence bits correlated with radio loss/restoration, without assuming the wearer departed |
+| Awake comparison if needed | Repeat the radio sequence with one protected CR attempt after restoring the baseline | Whether response/report behaviour differs during the temporary reporting burst; verify the CR handoff and reply before classifying this as an awake comparison |
+| Physical departure/return | Watch leaves radio range and returns while the router stays on | Independently marked physical movement and any corresponding fence evidence; generic GPS/geofence bits alone do not establish a Wi-Fi source |
+| Further command interpretation if still unresolved | One explicitly specified alternate payload, with its source and expected response recorded before use | A distinguishable response or behaviour; no automatic retry/fallback chain |
+
+The current single-router sender implements only the form already attempted;
+it does not implement an alternate-payload trial. A new command hypothesis needs
+its own bounded implementation and review of the existing uncertain setting.
+The completed send must not be repeated simply by restarting its attempt guard.
+Keep the battery policy unchanged for the next radio test so it is not a second
+deliberate variable. A later reporting-policy comparison remains a separate
+experiment and must preserve SOS and outing overrides.
+
+### Next test: radio on, off, on with the watch stationary
+
+Use the existing running gateway and ngrok. The computer must retain internet
+access through 5 GHz or Ethernet when the 2.4 GHz radio is disabled; verify that
+before starting. Do not power off the whole router. Keep the watch in the same
+place near the enrolled router throughout. The first completed report is already
+preserved in this repository; starting a new capture replaces the in-memory
+capture, not the watch setting. No pull or restart is needed for these commands.
+
+1. In the Checks PowerShell terminal, start a new capture and mark the baseline:
+
+   ```powershell
+   Set-Location "C:\Users\MSI\repos\guardian\gateway"
+   npm run wifi-home:fence -- --start
+   npm run wifi-home:fence -- --mark=at_home
+   ```
+
+   Leave the 2.4 GHz radio on for two minutes. Do not deliberately request CR,
+   change upload intervals or send another native setting in this first pass.
+
+2. Disable only the enrolled router's 2.4 GHz radio, then immediately mark it:
+
+   ```powershell
+   npm run wifi-home:fence -- --mark=router_off
+   ```
+
+   Leave it off for five minutes. Confirm the gateway still receives watch
+   traffic; interrupted gateway transport limits what the capture can establish.
+
+3. Re-enable the same 2.4 GHz radio, then mark restoration:
+
+   ```powershell
+   npm run wifi-home:fence -- --mark=router_on
+   ```
+
+   Leave it on for five minutes. Re-enabling must preserve the enrolled radio
+   identity; creating or renaming a different access point changes the test.
+
+4. Stop and collect the redacted report:
+
+   ```powershell
+   npm run wifi-home:fence -- --stop
+   npm run wifi-home:fence -- --report
+   ```
+
+These durations define observation windows, not supplier-guaranteed detection
+deadlines. Existing automatic CR/UPLOAD activity may occur; use the captured
+handoffs when interpreting the result. Compare source timestamps, radio
+sightings, response packet names and fence bits around the operator markers.
+Router loss is not physical departure, and fence bits remain source-unconfirmed.
+A quiet result leads to the next controlled comparison; it is not proof of
+unsupported firmware or a reason to promote a Home claim.
 
 ## Decision — 8 September 2026
 
