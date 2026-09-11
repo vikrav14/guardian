@@ -328,9 +328,12 @@ The subsequent 8m38s CR baseline recorded 14 fresh reports, four heartbeats and
 two CR handoffs/replies, but no enrolled-router or fence evidence. Only `at_home`
 was marked. Five GPS reports have unavailable radio data because the current
 GPS decoder omits the Wi-Fi tail; a synthetic check reproduced this limitation.
-Audit privacy-safe scan diagnostics before repeating the shorter radio cycle.
+The private capture now reads declared scan sections directly from GPS/non-GPS
+packet fields, with explicit missing/zero/invalid states and no production event
+changes. Its 780-test gateway run passed; the next stationary hardware capture
+must establish the actual scan layout and enrolled-radio evidence.
 The entered BSSID matches the earlier 2.4 GHz scan; the later PC adapter MAC is
-a different identifier. See the [latest protocol and provider audit](wifi-home-supplier-validation.md#cr-baseline-and-protocol-audit--11-september-2026-utc).
+a different identifier. See the [diagnostic update and next capture](wifi-home-supplier-validation.md#scan-diagnostics-implemented--11-september-2026-utc).
 
 ### Software verification
 

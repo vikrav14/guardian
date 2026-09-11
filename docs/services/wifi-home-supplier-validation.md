@@ -1,5 +1,89 @@
 # V52 native Wi-Fi fence validation
 
+## Scan diagnostics implemented — 11 September 2026 UTC
+
+The private capture now reads the Wi-Fi section directly from the packet fields
+for both GPS-valid `A` and non-GPS `V` reports. This resolves the diagnostic gap
+identified below without adding radio fields to production location/alarm events.
+The normal decoder, Home observer/publisher, geolocation adapter, SOS/Journey
+selection, battery intervals and native-command sender are unchanged.
+
+The extractor follows Appendix I's state/cell-count prefix, cell records, Wi-Fi
+count and up to five name/MAC/RSSI entries. It also recognises the already-tested
+nameless MAC/RSSI variant. It uses declared positions rather than searching SSIDs
+for MAC-like text. Truncated, excessive or unrecognised layouts remain unknown;
+they cannot create fresh router evidence. Null/multicast radio identifiers are
+rejected, and missing scans stay distinct from a validated zero-entry report.
+Raw fields are inspected only inside the existing bounded pilot capture; no
+SSID, BSSID, fingerprint, coordinate or raw packet is added to its output.
+
+New captures expose `scanDiagnosticsVersion: 1`. Each report adds:
+
+| Field | Interpretation |
+|---|---|
+| `radioScanSource: packet_fields` | Original packet fields were inspected, including on GPS reports |
+| `radioScanStatus: decoded` | The declared Wi-Fi section matched a supported layout |
+| `radioScanStatus: not_reported` | No Wi-Fi count was available at the expected position; not a zero scan |
+| Other `invalid_*` / `unsupported_*` status | Scan evidence unavailable; requires layout investigation |
+| `radioScanLayout` | `named`, `nameless`, `empty`, or null |
+| `declaredRadios` | Declared entry count when valid; independent of rejected radio identifiers |
+| `rejectedRadios` | Null/multicast identifiers excluded from an otherwise decoded section |
+| `radiosReported`, `homeRouterSeen`, `signalDbm` | Accepted radio count and redacted enrolled-router match/signal |
+
+`decoded_event` / `event_only` identifies the legacy event-only capture input,
+used when a caller supplies no original arguments. The running gateway passes
+the original fields. All existing freshness, duplicate, backlog, expiry and
+fixed alarm-bit rules still apply. A GPS packet can now have
+`homeRouterSeen: true` in diagnostics while GPS remains selected in the app.
+That observation does not enable the Home display or accept native fencing.
+
+Validation: **780/780 gateway tests passed locally**, including five new tests
+covering the live runtime hook, named/nameless layouts, absent/zero/invalid scans,
+MAC-shaped SSIDs, privacy, GPS precedence, source-time/replay handling and SOS
+events/ACKs. These are software results, not new physical-device acceptance.
+
+### Next capture: stationary scan evidence
+
+Keep the PC on Ethernet, both router bands enabled and the watch stationary near
+the enrolled router. Keep ngrok running. Finish/save any active capture before
+restarting the gateway. In its terminal, stop the gateway with Ctrl+C, then:
+
+```powershell
+Set-Location "C:\Users\MSI\repos\guardian"
+git switch feat/v52-wifi-home
+git pull --ff-only origin feat/v52-wifi-home
+Set-Location gateway
+npm start
+```
+
+In the Checks terminal:
+
+```powershell
+$Host.UI.RawUI.WindowTitle = "Guardian - Wi-Fi checks"
+Set-Location "C:\Users\MSI\repos\guardian\gateway"
+npm run wifi-home:fence -- --start
+npm run wifi-home:fence -- --mark=at_home
+npm run wifi-home:check -- --request-location
+```
+
+Confirm `scanDiagnosticsVersion: 1` in the started capture. The existing checker
+attempts at most one protected CR and can poll for two minutes. It may return
+`home_ready` without sending a request; record that distinction. About five
+minutes after a confirmed request, stop and collect the capture:
+
+```powershell
+npm run wifi-home:fence -- --stop
+npm run wifi-home:fence -- --report
+```
+
+Share the complete redacted report and request outcome. Keep the radio on for
+this diagnostic capture; no off/on comparison or repeat WIFIFENCE is needed.
+Automatic recovery CRs can still occur and must be accounted for in the timeline.
+If the checker is blocked by connectivity or publisher I/O, collect the status
+before attempting another request. A Home-publication failure can coexist with
+useful GPS scan diagnostics. Look for supported scan rows and fresh enrolled
+radio sightings before choosing the next physical experiment.
+
 ## CR baseline and protocol audit — 11 September 2026 UTC
 
 The [redacted CR baseline](../testing/wifi-home-cr-baseline-2026-09-11.json)
@@ -79,12 +163,11 @@ enabled by default. Consequently, `source=wifi` describes our input classificati
 not proof that Google used Wi-Fi. These facts may explain coarse coordinates;
 they do not explain why an enrolled-router match was absent in this capture.
 
-**Next work:** preserve and validate privacy-safe scan metadata from GPS-valid
-reports in diagnostics, maintaining GPS/SOS/Journey selection and expiry. Review
-provider eligibility and IP fallback separately. Verify the current enrolled
-2.4 GHz radio and compatible mode, then use fresh router evidence to decide
-whether a further marked comparison is informative. Keep the existing native
-setting and reporting policy; no further command was sent during this audit.
+The diagnostic extraction is now implemented as described above. Provider
+eligibility and IP fallback remain separate work. A new stationary capture will
+establish whether the watch supplies the enrolled radio in supported GPS/non-GPS
+scan sections, before choosing a further marked comparison. The existing native
+setting and reporting policy remain in place; no command was sent by the audit.
 
 ## Stationary radio cycle completed — 11 September 2026 UTC
 

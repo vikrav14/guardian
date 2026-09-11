@@ -602,6 +602,26 @@ China-only restriction on MAC fencing. See the [protocol and provider audit](ser
 for radio compatibility, decoder limitations and the next diagnostic work.
 This checkpoint changes documentation only; no hardware command or policy change.
 
+### GPS scan diagnostics implemented — 11 September 2026 UTC
+
+The private capture now inspects original GPS/non-GPS packet fields for a
+declared Wi-Fi section, preserving normal location/alarm events. New captures
+include `scanDiagnosticsVersion: 1` and report scan source/status/layout,
+declared/rejected radio counts and the redacted enrolled-radio match. Missing
+or malformed scan sections remain unavailable rather than becoming a zero scan.
+This does not change Home qualification, GPS selection, SOS or Journey behaviour.
+
+All **780 gateway tests passed locally**. New regressions exercise the runtime
+hook with real decoding of synthetic frames, unchanged GPS priority/SOS ACKs,
+privacy, malformed/empty scans and freshness/replay rules. No live request or
+native setting was sent by this implementation. The old captures are preserved
+with their original limitations; they are not retroactively reinterpreted as
+complete GPS scans. Native fencing and continuous Home remain unaccepted.
+
+Next, run the [stationary scan capture](services/wifi-home-supplier-validation.md#next-capture-stationary-scan-evidence)
+with the updated gateway and router on. A GPS report's diagnostic Home match
+alone does not change the app's location or prove native fence entry/exit.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

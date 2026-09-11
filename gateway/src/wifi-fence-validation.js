@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { POLICY, normalizeRouterId, fingerprintRouter } = require('./wifi-home-observer');
+const { inspectV52WifiScan } = require('./wifi-fence-scan');
 
 const CAPTURE_MS = 30 * 60_000;
 const MAX_ENTRIES = 256;
@@ -76,7 +77,7 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
     if (entries.length > MAX_ENTRIES) { entries.shift(); droppedEntries++; }
   }
 
-  function recordPacket(event, { command, trackerState = null } = {}, nowMs = Date.now()) {
+  function recordPacket(event, { command, trackerState = null, args } = {}, nowMs = Date.now()) {
     if (!active(nowMs) || event?.imei !== imei) return;
     const packet = PACKETS.has(command) ? command : 'other';
     if (event.type === 'heartbeat') {
@@ -116,7 +117,11 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
     if (repeated) counts.repeatedReports++;
     let homeRouterSeen = false;
     let signalDbm = null;
-    const aps = event.wifiAccessPoints;
+    // Raw scan extraction stays inside this private capture. Do not attach it to
+    // production events, where it could change GPS/Home or SOS/Journey selection.
+    // No raw argument, SSID, radio MAC or fingerprint is retained in a snapshot.
+    const scan = args === undefined ? null : inspectV52WifiScan(args);
+    const aps = scan ? scan.accessPoints : event.wifiAccessPoints;
     const validScan = Array.isArray(aps) && aps.length <= POLICY.maxAccessPoints;
     if (validScan) {
       for (const ap of aps) {
@@ -142,6 +147,11 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
       observationAgeSeconds: Number.isFinite(ageMs) ? Math.max(0, Math.floor(ageMs / 1000)) : null,
       reportGapSeconds: gapMs == null ? null : Math.round(gapMs / 1000),
       gpsValid: typeof event.gpsValid === 'boolean' ? event.gpsValid : null,
+      radioScanSource: scan ? 'packet_fields' : 'decoded_event',
+      radioScanStatus: scan?.status ?? (validScan ? 'event_only' : 'not_reported'),
+      radioScanLayout: scan?.layout ?? null,
+      declaredRadios: scan?.declaredRadios ?? null,
+      rejectedRadios: scan?.rejectedRadios ?? null,
       radiosReported: validScan ? aps.length : null, homeRouterSeen, signalDbm,
       fenceExitBit, fenceEnterBit,
       sosBit: state == null ? null : Boolean(state & (1 << 16)),
@@ -177,7 +187,8 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
   function snapshot(nowMs = Date.now(), includeTimeline = false) {
     const end = stoppedAtMs ?? Math.min(nowMs, expiresAtMs);
     return {
-      captureId, observeOnly: true, homeClaim: false, nativeFenceAccepted: false,
+      captureId, scanDiagnosticsVersion: 1,
+      observeOnly: true, homeClaim: false, nativeFenceAccepted: false,
       phase: stoppedAtMs != null ? 'stopped' : nowMs >= expiresAtMs ? 'completed' :
         nowMs < lastAtMs ? 'clock_unconfirmed' : 'recording',
       startedAt: new Date(startedAtMs).toISOString(),

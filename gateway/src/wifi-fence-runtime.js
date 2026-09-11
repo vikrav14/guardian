@@ -61,7 +61,7 @@ function observeWifiFencePacket(decoded, events, nowMs = Date.now()) {
     if (!configured() || capturePilot !== config.wifiHomePilotImei || !capture) return;
     for (const event of events) {
       capture.recordPacket(event, { command: decoded.command,
-        trackerState: decoded.args?.[15] ?? null }, nowMs);
+        trackerState: decoded.args?.[15] ?? null, args: decoded.args }, nowMs);
     }
   } catch { /* Diagnostics are never on the safety delivery path. */ }
 }
