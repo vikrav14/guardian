@@ -1,6 +1,85 @@
 # V52 native Wi-Fi fence validation
 
+## Early clearing explained: GPS priority — 11 September 2026 UTC
+
+The [redacted follow-up gateway log](../testing/wifi-home-gps-priority-2026-09-11.json)
+resolves the previously unknown clearing reason. It preserves 72 selected entries
+with original source line numbers and the attachment SHA-256, omitting identifiers,
+coordinates and endpoints. Untimestamped lines retain their order, not invented times.
+
+| Evidence | UTC | Mauritius |
+|---|---|---|
+| Observer clears with satellite_observation; GPS A follows | 11 Sep 19:51:48.868 | 11 Sep 23:51:48.868 |
+| Successful clear from the earlier checker | 11 Sep 19:51:49.719 | 11 Sep 23:51:49.719 |
+| Later normal radio expiry | 11 Sep 19:59:50.000 | 11 Sep 23:59:50.000 |
+| A second satellite_observation clear | 11 Sep 20:02:11.259 | 12 Sep 00:02:11.259 |
+
+The first observer clear precedes the recorded publisher clear by **0.851 seconds**.
+Both GPS sequences have matching `displayingHome: false` / `satellite_observation`
+diagnostics. Seven GPS summaries report `gps=A` with accuracy not supplied. Strong
+Home observations at reported -30 dBm precede both switches. These logs do not
+show the radio fields inside those GPS packets, nor establish the GPS error.
+
+The second switch also logs **geofence_enter: Entered safe zone: Home**. The code
+identifies this as server zone evaluation, not a native Wi-Fi-fence response. It
+shows that the server Home-zone decision can coexist with withdrawal of the Home
+Wi-Fi overlay. It does not prove a physical arrival or a previously false alert.
+
+The current Home observer clears its match as soon as a fresh GPS-valid report
+arrives, before inspecting its radio scan or considering GPS accuracy/distance
+from Home. The gateway display reader and Flutter's `homeWifiLocationAt` also
+reject Home evidence for a newer/equal GPS fix. Thus changing only the observer
+would leave the app and WhatsApp selection rules in disagreement with that change.
+
+`lastHomePublication` records the latest usable successful write, including a
+renewal. The log reports Home active before the 19:51:43.682 renewal, so the
+previous six-second renewal-to-clear gap is **not a measured total Home duration**.
+Home requalifies after the first GPS sequence, then normally expires at the
+19:57:50 source time plus 120 seconds. The excerpt has three CR handoffs/replies,
+with one packet_silence and two location_stale recovery reasons. This later expiry
+is a reporting-gap issue, separate from the GPS-triggered clears.
+
+**Integration direction:** keep fresh enrolled-router presence as evidence
+independent of coordinate source, then evaluate Home context and GPS together.
+A new GPS observation alone does not establish departure; contradictory position
+evidence or expired router evidence must be handled explicitly. Any future
+selection change needs aligned gateway/Flutter/WhatsApp contracts and departure,
+expiry, reconnect and SOS/Journey regressions. Neither unconditional Home priority
+nor a longer lease is established by this log. No such runtime change is made here.
+
+### Next capture: radio fields in GPS-valid packets
+
+Keep the watch near the enrolled router, its 2.4 GHz radio on, and the gateway and
+ngrok running. The existing version-1 scan diagnostics can inspect radio fields in
+GPS-valid packets; this ordinary log cannot. No software pull/restart is needed.
+
+```powershell
+Set-Location "C:\Users\MSI\repos\guardian\gateway"
+npm run wifi-home:fence -- --start
+npm run wifi-home:fence -- --mark=at_home
+npm run wifi-home:check -- --request-location
+```
+
+The checker attempts at most one protected CR; a current Home result may require
+none. Record that outcome and any automatic recovery requests. Keep this capture
+running through a new `satellite_observation` and its GPS packet, or for at most
+eight minutes if none arrives, then collect:
+
+```powershell
+npm run wifi-home:fence -- --stop
+npm run wifi-home:fence -- --report
+```
+
+Inspect fresh `gpsValid: true` rows for `radioScanStatus`, `homeRouterSeen`, signal
+and fence bits. No GPS packet means same-packet coexistence remains untested; no
+reported scan is not evidence that the router was absent. The planned radio-loss
+comparison follows this check. Do not repeat native provisioning or change upload
+intervals for it. Native acceptance, continuous Home and live UI agreement remain open.
+
 ## Home publication followed by an early clear — 11 September 2026 UTC
+
+This was the initial assessment from the checker alone. The follow-up log above
+now establishes `satellite_observation` as the clearing reason.
 
 The subsequent [read-only publisher status](../testing/wifi-home-publication-cleared-2026-09-11.json)
 confirms a successful backend Home publication in a later window than the capture

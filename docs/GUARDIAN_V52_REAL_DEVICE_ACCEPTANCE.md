@@ -666,6 +666,31 @@ GPS-path physical scan coverage and native fence acceptance remain open. No
 runtime, expiry, reporting-policy or hardware setting changes accompany this
 evidence checkpoint.
 
+### Early clear traced to GPS selection — 11 September 2026 UTC
+
+The [follow-up gateway log](testing/wifi-home-gps-priority-2026-09-11.json) establishes
+`satellite_observation` at 19:51:48.868 UTC, followed by a GPS A location and the
+same publisher clearing reason. It precedes the earlier checker's successful
+clear by 0.851 seconds. A second GPS-triggered clear occurs at 20:02:11.259 UTC.
+The same sequence includes a server `geofence_enter` for Home: this is distinct
+from native Wi-Fi fencing and does not verify physical movement.
+
+**Accepted observation:** the early clearing is caused by the existing GPS-priority
+rule. Recognition and backend publication both work in these reporting bursts.
+The prior six-second interval is from the latest publication renewal to clearing;
+the log shows Home was already active before that renewal. Total Home-active
+duration is not precisely timestamped in the ordinary display log.
+
+Between the two GPS switches Home requalifies and then expires normally at
+19:59:50 UTC from its 19:57:50 radio observation. Three CR handoffs/replies are
+accounted for by automatic recovery logs (one packet_silence, two location_stale).
+Seven GPS summaries have no reported accuracy. The ordinary log cannot tell
+whether the enrolled radio was also scanned in those GPS packets or whether
+their coordinates are physically wrong. The fresh GPS radio-field capture in
+the supplier validation runbook is next, before changing selection rules or
+performing the radio-loss comparison. Native acceptance and continuous Home
+remain open. This checkpoint preserves 72 redacted entries and changes no runtime.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

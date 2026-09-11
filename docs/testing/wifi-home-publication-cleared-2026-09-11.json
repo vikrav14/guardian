@@ -6,18 +6,19 @@
     "backendPublicationConfirmed": true,
     "publicationToClearSeconds": 6.037,
     "clearedBeforePublishedExpirySeconds": 36.702,
-    "clearReason": null,
-    "interpretation": "The running publisher reports a successful Home write followed by a clear before that write's expiry. The CLI summary omits the observer reason and the publisher retains no historical clear reason. The trigger is not established by this output.",
+    "clearReason": "satellite_observation",
+    "clearReasonEvidence": "wifi-home-gps-priority-2026-09-11.json",
+    "interpretation": "The running publisher reports a successful Home write followed by a clear before that write's expiry. This CLI summary alone did not identify the trigger; the later gateway log establishes satellite_observation at 19:51:48.868 UTC followed by the matching publisher reason.",
+    "publicationDurationLimitation": "The last publication can be a renewal. The follow-up log shows Home active before the latest renewal, so 6.037 seconds is not an established total Home-active duration.",
     "captureRelationship": "This publication is later than the stopped 19:38:31 UTC strong-router capture. It does not establish publication during that earlier capture.",
     "currentStateLimitation": "The current unknown state with no retained observation time is consistent with an observer clear/reset. Normal observer expiry retains the previous source timestamp and reports expired. Current binding readiness and session connectivity do not establish their state at the time of clearing.",
     "leaseLimitation": "The publisher caps the radio lease by the Home binding validity. An expiry shorter than 120 seconds from the source timestamp is therefore not independently a defect.",
     "notEstablished": [
-      "The cause of the early clearing",
       "App, map or WhatsApp agreement during the successful publication",
       "Continuous Home availability",
       "Native WIFIFENCE setting acceptance or an entry/exit transition"
     ],
-    "nextStep": "Preserve the running gateway's wifi-home and wifi-home-display lines around 19:51:43-19:51:50 UTC, especially the first displayingHome:false reason after home_wifi_detected. Resolve that reason before another hardware comparison.",
+    "nextStep": "The clearing-time log is now preserved. Capture the radio fields inside fresh GPS-valid packets before changing Home/GPS selection or proceeding to the marked radio comparison.",
     "runtimeOrHardwareChanged": false
   },
   "reportedStatus": {
