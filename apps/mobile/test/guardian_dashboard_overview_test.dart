@@ -132,8 +132,17 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         expect(find.text('Location uncertain'), findsNothing);
-        expect(find.textContaining('Current position unconfirmed.', findRichText: true), findsNothing);
-        expect(find.textContaining('At or near saved Home.', findRichText: true), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Current position unconfirmed.',
+            findRichText: true,
+          ),
+          findsNothing,
+        );
+        expect(
+          find.textContaining('At or near saved Home.', findRichText: true),
+          findsOneWidget,
+        );
         expect(device.mapDisplayLocation?.source, 'home_wifi');
         expect(device.mapDisplayLocation?.lat, -20.15);
         expect(device.lastSatelliteLocation, same(gps));

@@ -225,7 +225,8 @@ The current policy is `version: 4` / `enrolled_home_radio_v4`, `state: matched`:
 - On radio loss or expiry, map/chat resume normal GPS/network selection. Expiry
   alone creates no alert/trip. The movement path waits for a new, fresh valid
   GPS observation after the last Home sighting before resuming normal boundary
-  rules. A resulting GPS-proven outside observation can emit a Home exit. Reset
+  rules, allowing the existing V52 clock-skew tolerance of at most 15 seconds.
+  A resulting GPS-proven outside observation can emit a Home exit. Reset
   the journey reference so indoor GPS and pre-Home anchors cannot add a false
   segment to the new route.
 - Raw GPS/network telemetry, original observation times and history remain

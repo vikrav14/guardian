@@ -46,7 +46,9 @@ Record the fresh checker output and screenshots together. Release gates and
 software regression results are recorded on PR #116; v4 physical acceptance
 remains open. Do not resend WIFIFENCE or introduce a CR loop for this check.
 
-## Historical v3 router/GPS disagreement — 11 September 2026 UTC
+## Fresh router/GPS disagreement — 11 September 2026 UTC
+
+Historical v3 checkpoint, superseded by the v4 Home-radio priority above.
 
 The operator confirmed that the saved **Home pin is the actual house**, with a
 50 m radius; School is a separate 150 m zone. A synthetic binding replay confirms
