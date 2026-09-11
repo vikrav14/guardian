@@ -28,6 +28,7 @@ prompt and provenance are in [login-image-source.md](login-image-source.md).
 ![Desktop welcome](images/login-welcome/wide.png)
 
 [Phone](images/login-welcome/mobile.png) ·
+[400 × 730 viewport](images/login-welcome/mobile_viewport.png) ·
 [Dark phone](images/login-welcome/mobile_dark.png) ·
 [Create account](images/login-welcome/register.png)
 

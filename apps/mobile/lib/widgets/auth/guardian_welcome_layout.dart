@@ -55,7 +55,10 @@ class GuardianWelcomeLayout extends StatelessWidget {
                         const SizedBox(height: 20),
                         form,
                         const SizedBox(height: 32),
-                        const _FamilyStory(showHeadline: false, showPhoto: false),
+                        const _FamilyStory(
+                          showHeadline: false,
+                          showPhoto: false,
+                        ),
                       ],
                       const SizedBox(height: 32),
                       const _ServiceNotes(),
@@ -188,10 +191,7 @@ class _FamilyStory extends StatelessWidget {
           const _WelcomeHeadline(),
           const SizedBox(height: 28),
         ],
-        if (showPhoto) ...[
-          const _FamilyPhoto(),
-          const SizedBox(height: 22),
-        ],
+        if (showPhoto) ...[const _FamilyPhoto(), const SizedBox(height: 22)],
         LayoutBuilder(
           builder: (context, constraints) {
             final stacked =
