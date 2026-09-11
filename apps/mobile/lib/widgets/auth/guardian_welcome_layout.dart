@@ -41,7 +41,7 @@ class GuardianWelcomeLayout extends StatelessWidget {
                       SizedBox(height: wide ? 48 : 20),
                       if (wide)
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             const Expanded(child: _FamilyStory()),
                             const SizedBox(width: 64),

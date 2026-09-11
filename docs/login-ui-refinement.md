@@ -9,7 +9,8 @@ not a customer testimonial; its generation prompt and provenance are in
 ## Layout and behavior
 
 - Desktop: Guardian's existing pin and wordmark, headline and family photograph
-  beside a focused sign-in form.
+  beside a focused sign-in form. The photograph and form share a bottom edge,
+  with the layout adapting naturally to the form's height.
 - Narrow screens and enlarged text: a compact family photograph follows the
   headline, before the form. It is about 150–170px tall on typical phone widths.
   All content scrolls when the keyboard reduces usable space.
