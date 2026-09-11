@@ -622,6 +622,28 @@ Next, run the [stationary scan capture](services/wifi-home-supplier-validation.m
 with the updated gateway and router on. A GPS report's diagnostic Home match
 alone does not change the app's location or prove native fence entry/exit.
 
+### Fresh non-GPS router baseline — 11 September 2026 UTC
+
+The [reported capture](testing/wifi-home-strong-router-baseline-2026-09-11.json)
+has scan diagnostics version 1 and lasts 467 whole seconds from 19:38:31.204 UTC.
+All 16 entries were retained: ten fresh non-GPS reports, three heartbeats, one
+CR handoff/reply and one at_home marker. Nine named scan sections match the enrolled
+radio at reported -30 dBm; one section explicitly declares zero radios. There are
+no rejected entries, stale/repeated reports, fence events or native/UPLOAD handoffs.
+
+**Accepted observation:** the pilot watch reports its enrolled Home radio and
+the new diagnostic extractor decodes the named/empty non-GPS layout. No GPS-valid
+packet occurred, so physical coverage of that new path remains open. Native fence
+acceptance, publication/UI agreement and continuous Home remain unconfirmed.
+
+A replay of the reported timing/signals through the unchanged observer first
+matches at 19:42:17.393 UTC. Actual publisher writes are not included in this
+capture. The last source observation (19:44:18 UTC) expires at 19:46:18 UTC,
+slightly before the earliest stop time derived from elapsedSeconds. Thus an
+expired status after this run does not disprove recognition during the burst.
+Next read the running publisher's lastHomePublication before the next physical
+comparison. No new runtime or hardware change is made by recording this result.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

@@ -335,6 +335,14 @@ must establish the actual scan layout and enrolled-radio evidence.
 The entered BSSID matches the earlier 2.4 GHz scan; the later PC adapter MAC is
 a different identifier. See the [diagnostic update and next capture](wifi-home-supplier-validation.md#scan-diagnostics-implemented--11-september-2026-utc).
 
+The subsequent 7m47s capture establishes a fresh Home-radio baseline: one CR
+handoff/reply, ten fresh non-GPS reports and nine enrolled-router matches at
+reported -30 dBm. One report explicitly declares zero radios. All scan sections
+decode, but no GPS-valid packet or marked transition occurred. The last source
+observation expires just before capture stop; continuous Home remains open.
+Inspect lastHomePublication to confirm actual publication during the burst.
+See the [recorded result](wifi-home-supplier-validation.md#fresh-router-baseline-established--11-september-2026-utc).
+
 ### Software verification
 
 Tests cover canonical passive V52 packet decoding into the observer, strong

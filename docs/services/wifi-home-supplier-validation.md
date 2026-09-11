@@ -1,5 +1,51 @@
 # V52 native Wi-Fi fence validation
 
+## Fresh router baseline established — 11 September 2026 UTC
+
+The [redacted strong-router capture](../testing/wifi-home-strong-router-baseline-2026-09-11.json)
+began at 19:38:31.204 UTC and stopped after 467 whole seconds (7m47s). All 16
+entries were retained. The operator first received `watch_not_connected`, then
+verified a connected session/ready binding and received `locationRequestSent: true`.
+The report identifies `scanDiagnosticsVersion: 1`, not the running process SHA.
+
+| Evidence | Result |
+|---|---|
+| CR | One handoff, one reply 0.322 seconds later; first report after 3.553 seconds |
+| Reports | Ten fresh, non-repeated UD_LTE reports, all non-GPS |
+| Home radio | Nine enrolled-radio sightings, each at reported -30 dBm; one explicit zero-entry scan |
+| Scan extraction | All ten decoded from packet fields: nine named sections, one empty section; no rejected radios |
+| Timing | Reports span 170.741 seconds after the first arrival; maximum reported gap 24 seconds |
+| Other activity | Two LK and one TKQ; only at_home marked; no UPLOAD/WIFIFENCE handoff or fence/SOS bits |
+
+**This establishes a fresh enrolled-router baseline and validates the non-GPS
+scan layout on this pilot.** It does not exercise the GPS-valid scan path on
+hardware: every report has `gpsValid: false`. Improved reception cannot therefore
+be attributed to the GPS diagnostic fix. The observation proves neither native
+setting acceptance nor an entry/exit transition; the watch remained at the
+operator-marked Home baseline. The process-local `attempted: false` flag still
+does not establish removal of the earlier native setting.
+
+A synthetic replay using the reported source/receipt times, signal and one empty
+scan reaches the existing observer's match state at 19:42:17.393 UTC, after the
+third router sighting. It counts nine qualifying observations. This is evidence
+that the sequence fits the unchanged policy, not proof of actual publisher writes
+or UI state. The checker final outcome/publisher status was not supplied.
+
+The last router source time is 19:44:18 UTC (23:44:18 MUT); its existing 120-second
+lease expires at 19:46:18 UTC. The elapsed-time stop bound is
+19:46:18.204–19:46:19.204 UTC (upper bound exclusive), so the source evidence was
+already expired when stopped. `secondsSinceLastRouterSighting: 114` measures
+receipt age, which is younger than source age. This temporary CR burst still
+does not establish continuous Home availability or justify changing expiry.
+
+**Next:** read `npm run wifi-home:check` without requesting a new location and
+inspect `lastHomePublication`, its source/expiry timestamps and the final checker
+outcome. An expired current state can coexist with successful prior publication.
+After accounting for publication, the planned short marked radio-off/on comparison
+can now use an established router baseline. It requires fresh evidence in that
+new window; it does not require another native setting. This checkpoint preserves
+evidence only and changes no runtime or hardware configuration.
+
 ## Scan diagnostics implemented — 11 September 2026 UTC
 
 The private capture now reads the Wi-Fi section directly from the packet fields
@@ -43,6 +89,9 @@ MAC-shaped SSIDs, privacy, GPS precedence, source-time/replay handling and SOS
 events/ACKs. These are software results, not new physical-device acceptance.
 
 ### Next capture: stationary scan evidence
+
+The first run of this procedure is completed above. Preserve that result and
+read publisher status before starting a different physical comparison.
 
 Keep the PC on Ethernet, both router bands enabled and the watch stationary near
 the enrolled router. Keep ngrok running. Finish/save any active capture before
