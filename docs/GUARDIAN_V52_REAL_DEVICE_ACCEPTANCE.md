@@ -503,6 +503,33 @@ No real watch command was sent from the
 development workspace. Follow the [Windows runbook](services/wifi-home-supplier-validation.md#run-the-experiment-on-windows)
 and record response, behaviour and limitations before accepting native Home.
 
+### First native fence attempt completed — 11 September 2026 UTC
+
+The operator confirmed checkout `d59f4f9` and then performed one
+single-router trial. The [redacted report](testing/wifi-home-native-trial-2026-09-11.json)
+covers the full 30 minutes, 09:48:56.797–10:18:56.797 UTC / 13:48:56.797–14:18:56.797
+MUT, with all 39 timeline entries retained and no dropped entries. The capture
+does not report a runtime commit or independently verify physical presence.
+
+- One `WIFIFENCE` socket handoff was recorded; the attempt stayed `queued`.
+- Both recorded command responses were `CR`, not `WIFIFENCE`.
+- There were 21 heartbeats, 13 fresh reports (eight GPS-valid and five non-GPS),
+  one enrolled-router sighting at -57 dBm, zero fence-bit reports and no markers.
+- Two `CR` handoffs were followed by responses and reports after 3.609 and
+  3.664 seconds respectively. Ten reports followed the first request and three
+  followed the second. There were no `UPLOAD` handoffs during capture.
+- The initial wait for a report was about 21m23s; the largest gap between
+  subsequent reports was 312 seconds. CR caller identity was not captured.
+
+**Result:** CR response/report transport is demonstrated, but the native setting
+and continuous Home behaviour remain unconfirmed. Zero fence events without a
+marked departure/return does not prove an unsupported feature. Keep this
+experiment out of customer acceptance and preserve the existing source/expiry
+and safety policies. Do not repeat the native send or use a gateway restart to
+reset its attempt guard: setting persistence and removal are still unknown.
+Use the [completed trial interpretation and supplier questions](services/wifi-home-supplier-validation.md#completed-first-native-attempt--11-september-2026)
+for the next step. This evidence update changes no runtime code or watch setting.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

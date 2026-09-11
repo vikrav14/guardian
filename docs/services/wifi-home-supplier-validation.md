@@ -1,5 +1,61 @@
 # V52 native Wi-Fi fence validation
 
+## Completed first native attempt — 11 September 2026
+
+The operator has now attempted the one-router setting once on the connected
+pilot. **Do not repeat the initial send runbook on this watch:** acceptance and
+the stored setting remain unknown, and restarting the gateway does not undo it.
+
+The [redacted completed capture](../testing/wifi-home-native-trial-2026-09-11.json)
+covers 09:48:56.797–10:18:56.797 UTC (13:48:56.797–14:18:56.797 MUT). The
+operator confirmed checkout `d59f4f9` before testing; the capture itself does not
+report a running-process revision. All 39 entries were retained, with none
+dropped, and the session was connected when the completed report was read.
+
+| Evidence | Completed result |
+|---|---|
+| Native setting | One `WIFIFENCE` socket handoff; `queued` is not watch acceptance |
+| Responses | Two, both `CR`; zero `WIFIFENCE` responses |
+| Watch activity | 21 `LK` heartbeats and 13 fresh, non-repeated `UD_LTE` reports |
+| Router evidence | One enrolled-router sighting at -57 dBm, observed at 10:10:18 UTC |
+| Positioning | Eight GPS-valid reports and five non-GPS reports |
+| Fence evidence | Zero captured entry/exit bits; no physical markers |
+| Other commands | Two `CR` handoffs; zero `UPLOAD` handoffs in this window |
+
+No report arrived for approximately 21m23s after the fence handoff. The first
+`CR` at 10:10:15.826 UTC received a response and was followed by a report 3.609
+seconds later. Ten reports then spanned 168.407 seconds. The second `CR` at
+10:18:16.162 received a response and was followed by a report 3.664 seconds
+later; three reports arrived before capture ended. The largest gap between
+received reports was 312 seconds; that field excludes the initial wait for the
+first report. Both CR handoffs occurred about three minutes after the preceding
+heartbeat, consistent with packet-silence recovery, but this capture does not
+record their caller. Do not attribute them to the trial CLI.
+
+This demonstrates a functioning command-response/report path for `CR`, and
+continued ability to see the enrolled radio. It does not demonstrate native
+fence acceptance or continuous Home presence. The aggregate response count must
+not be presented as a fence acknowledgement. One router report cannot satisfy
+the existing three-report Home match. A local synthetic decode/capture check
+also recognises the documented bare `WIFIFENCE` response; that software result
+cannot exclude an undocumented response or establish physical receipt.
+
+**Assessment: inconclusive native-setting result, not a hardware pass or proof
+that the feature is unsupported.** No departure/return was marked, and no
+stored-setting readback or removal was verified. The two CR bursts mean this
+was not an observation window free of other commands. Preserve the existing
+expiry, SOS/GPS/Journey contracts and reporting policy. Do not select a new
+battery interval or recurring Home poll on this evidence.
+
+The next supplier check should include the exact firmware, the 29-byte/`001D`
+one-entry hypothesis, zero fence replies alongside two successful CR replies,
+and these questions: is the one-entry form supported; is its response expected;
+how can its current setting be read and removed; and how are Wi-Fi fence
+transitions/current state recovered independently of location upload cadence?
+These questions are prepared, not sent. A later supervised departure/return
+capture can observe behaviour without re-provisioning, but must keep physical
+markers and treat generic fence bits as source-unconfirmed until correlated.
+
 ## Decision — 8 September 2026
 
 Use the supplier's documented V52 operating model as the baseline. The operator
@@ -41,8 +97,8 @@ server values are examples, not Guardian/ngrok configuration changes.
 Wi-Fi positioning estimates coordinates from nearby networks. Native Wi-Fi
 fencing recognises configured radio identifiers and reports zone transitions.
 Guardian's existing passive pilot instead matches incoming router observations
-at the gateway and publishes an expiring saved Home anchor. It has not
-provisioned the watch's native fence.
+at the gateway and publishes an expiring saved Home anchor. The separate native
+setting was attempted on 11 September; whether the watch applied it is unknown.
 
 The documented temporary `CR` burst is consistent with the observed few minutes
 of reporting followed by silence. This is an inference, not accepted timing on
@@ -131,6 +187,10 @@ fence setup button. Live status labels the available route
 another send after an attempt. The older documented preview remains read-only.
 
 ### Run the experiment on Windows
+
+For a pilot that has never had a send attempt. The current operator's watch
+already had its first attempt on 11 September; use the completed result above
+and do not re-run this provisioning sequence to chase an acknowledgement.
 
 Stop the gateway, keep ngrok running, then from `gateway`:
 

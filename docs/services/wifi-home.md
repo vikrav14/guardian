@@ -306,10 +306,17 @@ The passive observer's three-report/60-second-gap qualification and 120-second
 expiry are incompatible with isolated five-minute reports even if delivered
 punctually. A synthetic replay confirmed this separately from the missing-report
 gap. Switching to a ten-minute interval alone cannot resolve either issue.
-Next run the requested private native-fence experiment and obtain supplier
-removal, stationary-reporting and fence current-state recovery semantics before
-changing acquisition or normal policy. An acknowledgement alone cannot accept
-native fencing or continuous Home availability.
+The first requested native-fence experiment is now complete (11 September UTC):
+one setting handoff, 21 heartbeats, 13 fresh reports, one enrolled-router sighting
+and no fence events. Both command responses were to the two `CR` requests;
+there was no `WIFIFENCE` response. All 39 entries were retained. Native-setting
+acceptance remains inconclusive, and the existing radio match cannot be
+sustained by one sighting. The setting may nevertheless persist: do not repeat
+the initial send runbook on this watch. Obtain supplier one-entry/response,
+readback/removal and current-state semantics before changing acquisition or
+normal policy. A later supervised transition observation needs no repeat
+provisioning. See the [completed capture interpretation](wifi-home-supplier-validation.md#completed-first-native-attempt--11-september-2026).
+An acknowledgement alone cannot accept native fencing or continuous Home availability.
 See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
 
 ### Software verification
