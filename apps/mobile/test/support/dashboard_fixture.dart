@@ -124,6 +124,7 @@ class DashboardFixtureMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
     return SizedBox(
       key: const ValueKey('dashboard-fixture-map'),
       // Match the real dashboard map viewport so layout checks use its budget.
@@ -131,13 +132,19 @@ class DashboardFixtureMap extends StatelessWidget {
       child: ColoredBox(
         color: colors.surfaceMuted,
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(largeText ? 12 : 24),
           child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.map_outlined, size: 40, color: colors.textSecondary),
-                const SizedBox(height: 12),
+                if (!largeText) ...[
+                  Icon(
+                    Icons.map_outlined,
+                    size: 40,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Text(
                   'Test map · no live location data',
                   textAlign: TextAlign.center,
