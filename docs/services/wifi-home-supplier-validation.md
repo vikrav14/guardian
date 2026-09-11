@@ -1,5 +1,91 @@
 # V52 native Wi-Fi fence validation
 
+## CR baseline and protocol audit — 11 September 2026 UTC
+
+The [redacted CR baseline](../testing/wifi-home-cr-baseline-2026-09-11.json)
+records 18:55:50.704 UTC through a manual stop after 518 whole seconds. All 23
+entries were retained. There were 14 fresh, non-repeated `UD_LTE` reports, four
+heartbeats (three `LK`, one `TKQ`), two CR handoffs and two CR replies. No enrolled
+router, fence event, `UPLOAD` or `WIFIFENCE` handoff was captured. Only `at_home`
+was marked; no radio-off/on comparison took place in this window.
+
+The CR replies arrived 0.402 and 0.373 seconds after their respective handoffs;
+the first reports followed after 3.564 and 3.624 seconds. The first burst had
+nine reports over 147.435 seconds; the second had five over 62.671 seconds before
+capture ended. The second CR handoff was 180.535 seconds after the preceding
+heartbeat, consistent with packet-silence recovery. Its caller is not recorded.
+Do not describe this as two operator requests or a test free of automatic CR.
+
+Five GPS-valid reports have `radiosReported: null`. Of nine non-GPS reports,
+one exposed one access point that did not match the enrolled Home radio, and
+eight exposed zero access points. Null is unavailable data, not a measured zero.
+The preceding checker was blocked by a Home binding read pending 4,527 seconds;
+it sent no CR. The operator restarted the gateway and verified an idle publisher
+with a ready binding before this capture. The restart also reset process-local
+trial history; `attempted: false` is not readback or removal of the watch setting.
+
+The supporting gateway log contains a TCP disconnect/reconnect. The operator
+reported a PC adapter change and later clarified that the PC uses Ethernet with
+both router bands enabled. Exact change times were not supplied. This does not
+establish the network configuration throughout the capture. Windows Wi-Fi
+`disconnected` is compatible with a working Ethernet connection.
+
+**Result:** the CR response/report path works, but no enrolled-router baseline
+was established. Native fence acceptance and continuous Home remain unconfirmed.
+Review scan observability before repeating the physical comparison.
+
+### Supplier protocol and Mauritius
+
+The supplier originals listed below were rechecked, including rendered pages.
+The operator confirms that their shared V46/V48/V52 protocol applies to this V52.
+
+| Supplier evidence | Meaning for this investigation |
+|---|---|
+| Protocol II.35, pages 9–10: router MAC slots, bare `WIFIFENCE` response, 2.4 GHz only | No country parameter or China-only restriction is stated. The one-slot form remains inferred and unacknowledged on the pilot. |
+| Protocol Appendix I, page 14: up to five Wi-Fi entries, ordered by signal intensity; name, MAC and signal for each | The watch supplies radio observations. The gateway PC's Wi-Fi adapter is not the watch's scanner. |
+| Protocol II.2, page 3: CR wakes GPS and requests a temporary reporting burst | This is not a documented Wi-Fi-only scan command or a promise of a scan in every report. |
+| Protocol Appendix I: China MCC/MNC examples | Decode the watch's actual network fields; do not configure China example values on a Mauritius device. |
+| V52 datasheet page 1: 802.11b/g/n, Wi-Fi accuracy 5–50 m based on Amap | Radio compatibility and location-database coverage are separate questions. Guardian uses Google for network geolocation, so that supplier accuracy range is not a local performance guarantee. |
+
+Earlier real Home-radio matches in Mauritius show recognition is possible here;
+they do not accept native fencing. The operator reconfirmed entering the same
+2.4 GHz BSSID shown by their earlier Windows scan. Their later Intel adapter
+properties screenshot shows the PC's own MAC, which is a different identifier.
+No new identifier is added to this record. The earlier router scan advertised
+802.11ax on 2.4 GHz; that does not establish ax-only mode. Check b/g/n compatibility
+in its existing settings before proposing a radio-mode experiment.
+
+### Decoder and provider findings
+
+At `07cb350`, `parseLteExtras` extracts MAC/RSSI pairs from named Wi-Fi triplets
+and accepts network MCC values beyond the China example. A synthetic local check
+with two supplier-format name/MAC/RSSI triplets and MCC 617 decoded both APs and
+their -61/-87 dBm signals in a `V` report. No hardware or provider request occurred.
+
+However, `parseLocationData` calls that extraction only for `V` reports. The
+same synthetic tail in a GPS-valid `A` report exposes no `wifiAccessPoints`, so
+the capture records a null scan. The passive observer also deliberately gives
+fresh GPS priority. Preserving scan metadata for diagnostics is a separate change
+from changing Home/GPS selection. This is a demonstrated observability gap, not
+proof that the five real GPS reports contained the enrolled radio. The parser's
+MAC search is heuristic rather than a full validation of declared scan counts.
+
+Google's [Geolocation request documentation](https://developers.google.com/maps/documentation/geolocation/requests-geolocation)
+requires two or more physically distinct stationary APs for Wi-Fi positioning,
+and excludes locally administered MAC addresses. The operator's enrolled BSSID
+has that local-address bit. It can still be matched directly by Guardian. The
+current provider adapter sends the scan and cell data and leaves IP fallback
+enabled by default. Consequently, `source=wifi` describes our input classification,
+not proof that Google used Wi-Fi. These facts may explain coarse coordinates;
+they do not explain why an enrolled-router match was absent in this capture.
+
+**Next work:** preserve and validate privacy-safe scan metadata from GPS-valid
+reports in diagnostics, maintaining GPS/SOS/Journey selection and expiry. Review
+provider eligibility and IP fallback separately. Verify the current enrolled
+2.4 GHz radio and compatible mode, then use fresh router evidence to decide
+whether a further marked comparison is informative. Keep the existing native
+setting and reporting policy; no further command was sent during this audit.
+
 ## Stationary radio cycle completed — 11 September 2026 UTC
 
 The [redacted radio-cycle evidence](../testing/wifi-home-radio-cycle-2026-09-11.json)
@@ -32,8 +118,8 @@ These packet-level counters precede geolocation and write gating, so discarded
 database writes do not explain the missing decoded reports. This observation
 does not justify a Home claim, a battery-band change or an extended radio expiry.
 
-The next test is the [bounded CR comparison](#next-test-one-cr-with-a-short-radio-cycle).
-Supplier questions continue in parallel. No repeat native provisioning is needed.
+The subsequent CR baseline and its limits are recorded above. Supplier questions
+continue in parallel. No repeat native provisioning is needed.
 
 ## Completed first native attempt — 11 September 2026
 
@@ -98,12 +184,13 @@ markers and treat generic fence bits as source-unconfirmed until correlated.
 The operator reaffirmed that the work should explore different hypotheses.
 An inconclusive first capture does not end that work. The next sequence changes
 observable conditions while retaining the setting already attempted. The first
-radio cycle is now recorded above; the later comparisons remain planned.
+radio cycle and the later CR baseline are now recorded above. The baseline did
+not establish enrolled-router evidence, so the short CR/radio cycle remains open.
 
 | Experiment | Variable to change | Evidence sought |
 |---|---|---|
 | Completed: stationary radio loss/restoration | Enrolled 2.4 GHz radio on, off, then on; watch stays still | 11 heartbeats, zero reports/fence events or command handoffs; native setting remains unconfirmed |
-| Next: CR comparison | One protected CR attempt, fresh-router baseline, then a short radio cycle during the reporting burst | Whether reporting and fence evidence change; verify the captured CR handoff/reply and fresh source times |
+| Completed: CR baseline; short radio cycle deferred | CR/report path observed, but no fresh enrolled-router baseline | Two CR handoffs/replies, 14 fresh reports, no router/fence evidence; audit scan visibility before repeating |
 | Physical departure/return | Watch leaves radio range and returns while the router stays on | Independently marked physical movement and any corresponding fence evidence; generic GPS/geofence bits alone do not establish a Wi-Fi source |
 | Further command interpretation if still unresolved | One explicitly specified alternate payload, with its source and expected response recorded before use | A distinguishable response or behaviour; no automatic retry/fallback chain |
 
@@ -172,6 +259,9 @@ A quiet result leads to the next controlled comparison; it is not proof of
 unsupported firmware or a reason to promote a Home claim.
 
 ### Next test: one CR with a short radio cycle
+
+The first baseline attempt is recorded above. Review the decoder's GPS-report
+scan limitation and verify the enrolled radio before repeating this runbook.
 
 Keep the enrolled 2.4 GHz radio on, the watch stationary near it, and gateway
 internet on 5 GHz or Ethernet. Keep the gateway and ngrok running. This test
@@ -272,7 +362,7 @@ identifiers, screenshots or supplier PDFs are added to Git history here.
 | Document | Relevant evidence | SHA-256 |
 |---|---|---|
 | `v52(1).pdf` / `v52.pdf`, page 2 | Two 2.4 GHz Wi-Fi zones; departure alert; recommended normal 10-minute location uploads, temporarily one minute when urgently locating, then 10 minutes or one hour | `0d2d4130ca97f7cf526de7412fb2591140ddf3c5c14d9db2153ca6a2b2e02590` |
-| `V52-DataSheet(2).pdf`, page 3 | Wi-Fi fence entry/exit; supplier Android-app feature | `503c0f4f8efebbb78893f28c654f29fcf7d7e3b6dbcc374b9ba54d8285a374fd` |
+| `V52-DataSheet(2).pdf`, pages 1 and 3 | 802.11b/g/n; Wi-Fi accuracy based on Amap; Wi-Fi fence entry/exit in supplier Android app | `503c0f4f8efebbb78893f28c654f29fcf7d7e3b6dbcc374b9ba54d8285a374fd` |
 | `2. V46-V48-V52 Communication Protocol(1).pdf`, II.1/II.2 page 3, II.35 pages 9-10, Appendix I pages 13-14 | `UPLOAD` seconds; `CR` wakes GPS and reports every 30 seconds for about three minutes; `WIFIFENCE` router slots and bare response; fence bits 18/19 and Wi-Fi observations | `8f01881b9773f9ee762ceb2cc4dff9aa037abfa7a5540d6a723e1f4dd9161dbf` |
 | `3. V46-V48-V52 Communication Example(1).pdf` | Reviewed companion examples; no additional native fence capture/removal recipe | `976b5721fbde52959a62d9f8975b9faf4bf6263e4b057d1eaa72950820e73e2b` |
 | `1. Switch-Server SMS-Commands.pdf`, page 1 | Server, APN, status and contact provisioning; vendor server examples use port 7720, unlike the older repository copy's 8888; no fence or reporting policy | `dd3132d753aa89d9e67a9cd84dfcff525a42c35c5e265cbdff74c8f1f4d9281d` |

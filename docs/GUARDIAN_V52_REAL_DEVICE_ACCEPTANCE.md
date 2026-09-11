@@ -566,12 +566,41 @@ Markers report operator observations, and no fresh router baseline was captured.
 internal scanning and continuous Home remain unconfirmed. This does not prove
 the firmware unsupported or justify a battery-policy/expiry change.
 
-Next, run [one CR with a short radio cycle](services/wifi-home-supplier-validation.md#next-test-one-cr-with-a-short-radio-cycle):
+The next planned comparison was [one CR with a short radio cycle](services/wifi-home-supplier-validation.md#next-test-one-cr-with-a-short-radio-cycle):
 establish a fresh enrolled-router baseline, then mark a one-minute radio loss and
 restoration within the observed reporting burst. Preserve the earlier setting;
 verify the actual command handoff/reply and account for any automatic commands.
 The shorter window is a diagnostic comparison, not a detection deadline or an
 equal-duration repeat. This record changes documentation only.
+
+### CR baseline and scan audit — 11 September 2026 UTC
+
+The [redacted baseline](testing/wifi-home-cr-baseline-2026-09-11.json) began at
+18:55:50.704 UTC and stopped after 518 whole seconds. All 23 entries were retained:
+14 fresh non-repeated reports, four heartbeats, two CR handoffs and two CR replies.
+There were no enrolled-router sightings, fence events or UPLOAD/WIFIFENCE handoffs.
+Only `at_home` was marked; the short radio cycle was not performed. The second CR
+was about three minutes after a heartbeat, consistent with recovery, but its
+caller is not recorded. No continuous-connection or native-setting pass is claimed.
+
+One non-GPS report exposed one AP that did not match Home; eight exposed none.
+Five GPS reports exposed no scan data. A synthetic decoder check confirms that
+the current GPS-valid path omits Wi-Fi fields even when the same supplied tail
+is decoded successfully by the non-GPS path. This is a diagnostic limitation;
+it does not establish which radios were present in the five real GPS packets.
+
+The preceding Home binding read had stalled for 4,527 seconds, blocking that
+checker request. After a gateway restart the binding was ready and publisher idle.
+The reset native-attempt flag does not prove hardware rollback. The operator's
+latest setup is PC Ethernet with both router bands on; exact change timing during
+the capture is unknown. Their entered BSSID matches the earlier 2.4 GHz scan, while
+the new Intel properties screenshot identifies the PC adapter.
+
+**Assessment:** CR/report path observed; enrolled-router baseline, native fence
+acceptance and continuous Home remain open. The supplier protocol states no
+China-only restriction on MAC fencing. See the [protocol and provider audit](services/wifi-home-supplier-validation.md#cr-baseline-and-protocol-audit--11-september-2026-utc)
+for radio compatibility, decoder limitations and the next diagnostic work.
+This checkpoint changes documentation only; no hardware command or policy change.
 
 ## Test 3 — approved incoming family calls
 

@@ -324,9 +324,13 @@ recorded 11 heartbeats, zero reports/fence events and zero command handoffs.
 The radio-off interval was 5m03s, followed by approximately 4m49s restored.
 No fresh router baseline was received; an initial disconnected status also
 limits continuous-transport claims. Native acceptance remains unconfirmed.
-Next, compare one protected CR reporting burst with a shorter radio cycle,
-preserving the current setting, reporting policy and evidence expiry. See the
-[result and next experiment](wifi-home-supplier-validation.md#stationary-radio-cycle-completed--11-september-2026-utc).
+The subsequent 8m38s CR baseline recorded 14 fresh reports, four heartbeats and
+two CR handoffs/replies, but no enrolled-router or fence evidence. Only `at_home`
+was marked. Five GPS reports have unavailable radio data because the current
+GPS decoder omits the Wi-Fi tail; a synthetic check reproduced this limitation.
+Audit privacy-safe scan diagnostics before repeating the shorter radio cycle.
+The entered BSSID matches the earlier 2.4 GHz scan; the later PC adapter MAC is
+a different identifier. See the [latest protocol and provider audit](wifi-home-supplier-validation.md#cr-baseline-and-protocol-audit--11-september-2026-utc).
 
 ### Software verification
 
