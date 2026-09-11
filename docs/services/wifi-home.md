@@ -126,7 +126,9 @@ router identifiers, fingerprints, keys or coordinates.
 | `router_not_seen` | Reports did not contain the specifically configured router |
 | `signal_weak` / `signal_unknown` | Router sighting does not meet the provisional signal requirement |
 | `expired` | The qualifying evidence is older than two minutes |
-| `satellite_observation` | A fresh GPS packet ended the Wi-Fi match |
+| `satellite_observation` | Historical v1 GPS-priority reset; v2 keeps radio and coordinates separate |
+| `gps_outside_home` / `gps_boundary_uncertain` | The publisher's current GPS/Home comparison prevents a Home pin, even if the observer still matches the router |
+| `gps_time_unconfirmed` / `gps_position_unconfirmed` / `gps_accuracy_unconfirmed` | GPS evidence is insufficient for Home/GPS agreement; no Home claim |
 | `configuration_incomplete` | Observation is requested but its pilot configuration is invalid |
 
 Disabling/revoking this private observer requires removing its managed block

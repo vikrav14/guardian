@@ -225,7 +225,9 @@ class Device {
           .reduce((a, b) => a.isAfter(b) ? a : b);
       for (final fix in recentGps) {
         if (fix.recordedAt == latest &&
-            !home.gpsAgreesWithHome(fix.lat, fix.lng, fix.accuracyMeters)) return null;
+            !home.gpsAgreesWithHome(fix.lat, fix.lng, fix.accuracyMeters)) {
+          return null;
+        }
       }
     }
     return DeviceLocation(lat: home.lat, lng: home.lng,
