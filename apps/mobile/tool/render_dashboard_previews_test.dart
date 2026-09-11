@@ -17,10 +17,28 @@ const _enabled = bool.fromEnvironment('DASHBOARD_PREVIEWS');
 
 void main() {
   for (final preview in [
-    (name: 'mobile', width: 390.0, height: 1800.0, dark: false, viewport: false),
+    (
+      name: 'mobile',
+      width: 390.0,
+      height: 1800.0,
+      dark: false,
+      viewport: false,
+    ),
     (name: 'wide', width: 1280.0, height: 1800.0, dark: false, viewport: false),
-    (name: 'mobile_dark', width: 390.0, height: 1800.0, dark: true, viewport: false),
-    (name: 'mobile_viewport', width: 390.0, height: 844.0, dark: false, viewport: true),
+    (
+      name: 'mobile_dark',
+      width: 390.0,
+      height: 1800.0,
+      dark: true,
+      viewport: false,
+    ),
+    (
+      name: 'mobile_viewport',
+      width: 390.0,
+      height: 844.0,
+      dark: false,
+      viewport: true,
+    ),
   ]) {
     testWidgets('render ${preview.name} dashboard preview', (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -50,13 +68,15 @@ void main() {
         dashboardFixtureHost(
           dashboardFixtureOverview(
             device: device,
-            devices: preview.viewport ? [device] : [
-              device,
-              dashboardFixtureDevice(
-                imei: 'demo-watch-b',
-                name: 'Robin Taylor',
-              ),
-            ],
+            devices: preview.viewport
+                ? [device]
+                : [
+                    device,
+                    dashboardFixtureDevice(
+                      imei: 'demo-watch-b',
+                      name: 'Robin Taylor',
+                    ),
+                  ],
             onCall: () {},
             onJourney: () {},
             onHelp: () {},

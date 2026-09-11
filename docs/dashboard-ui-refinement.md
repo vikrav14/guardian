@@ -73,7 +73,7 @@ no unfinished service branch is merged or enabled by this UI change.
 
 Only those three service PRs touch the dashboard page. None touches the new
 presentation widgets, shell or navigation. A three-way file check against the
-previous UI head `481df905` found no map-page conflict with #116; #119 and #120
+compact UI head `82f8c6cb` found no map-page conflict with #116; #119 and #120
 have import and old-composition conflicts requiring deliberate integration.
 A clean file merge is not runtime validation. Repeat against the actual merge
 heads, including #116's `home_wifi_display_test.dart` and expiry without a new

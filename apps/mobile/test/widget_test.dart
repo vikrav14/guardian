@@ -139,7 +139,6 @@ void main() {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('SOS')),
     );
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 2900));
     expect(sosTriggered, isFalse);
 

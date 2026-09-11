@@ -306,7 +306,10 @@ void main() {
     expect(find.text('Last known location'), findsOneWidget);
     expect(find.text('Sample network estimate'), findsNothing);
     expect(
-      find.textContaining('Showing the last reliable GPS position.', findRichText: true),
+      find.textContaining(
+        'Showing the last reliable GPS position.',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(device.mapDisplayLocation, same(device.lastSatelliteLocation));
@@ -319,10 +322,36 @@ void main() {
     (tester) async {
       final now = DateTime.now();
       for (final sample in [
-        (source: 'gps', age: const Duration(hours: 2), status: 'Satellite GPS', stale: true),
-        (source: 'gps', age: const Duration(seconds: 20), status: 'Satellite GPS', stale: false),
-        (source: 'wifi', age: const Duration(seconds: 20), status: 'Approximate area', stale: false),
-        (source: 'home_wifi', age: const Duration(seconds: 20), status: 'Home Wi-Fi detected', stale: false),
+        (
+          source: 'gps',
+          age: const Duration(hours: 2),
+          status: 'Satellite GPS',
+          stale: true,
+        ),
+        (
+          source: 'gps',
+          age: const Duration(seconds: 20),
+          status: 'Satellite GPS',
+          stale: false,
+        ),
+        (
+          source: 'wifi',
+          age: const Duration(seconds: 20),
+          status: 'Approximate area',
+          stale: false,
+        ),
+        (
+          source: 'home_wifi',
+          age: const Duration(seconds: 20),
+          status: 'Home Wi-Fi detected',
+          stale: false,
+        ),
+        (
+          source: 'unknown',
+          age: const Duration(hours: 2),
+          status: 'Last known',
+          stale: false,
+        ),
       ]) {
         final device = Device(
           imei: 'demo-watch-a',
@@ -336,20 +365,51 @@ void main() {
             recordedAt: now.subtract(sample.age),
           ),
         );
-        await _pump(tester, dashboardFixtureOverview(device: device, mapStatus: sample.status));
+        await _pump(
+          tester,
+          dashboardFixtureOverview(device: device, mapStatus: sample.status),
+        );
         expect(find.text('Watch connected'), findsOneWidget);
-        expect(find.text(sample.stale ? '2h ago' : 'Just now'), findsOneWidget);
+        expect(
+          find.text(sample.age.inHours >= 2 ? '2h ago' : 'Just now'),
+          findsOneWidget,
+        );
         expect(
           find.textContaining('No recent GPS update.', findRichText: true),
           sample.stale ? findsOneWidget : findsNothing,
         );
+        if (sample.source == 'unknown') {
+          expect(
+            find.textContaining(
+              'Showing the last GPS position.',
+              findRichText: true,
+            ),
+            findsNothing,
+          );
+          expect(
+            find.textContaining(
+              'Showing the last known location.',
+              findRichText: true,
+            ),
+            findsOneWidget,
+          );
+        }
         if (sample.source == 'wifi') {
           expect(find.text('Approximate area'), findsOneWidget);
-          expect(find.textContaining('This network estimate may cover a wider area.', findRichText: true), findsOneWidget);
+          expect(
+            find.textContaining(
+              'This network estimate may cover a wider area.',
+              findRichText: true,
+            ),
+            findsOneWidget,
+          );
         }
         if (sample.source == 'home_wifi') {
           expect(find.text('Home Wi-Fi detected'), findsOneWidget);
-          expect(find.textContaining('At or near saved Home.', findRichText: true), findsOneWidget);
+          expect(
+            find.textContaining('At or near saved Home.', findRichText: true),
+            findsOneWidget,
+          );
           expect(find.text('Last known location'), findsNothing);
         }
         expect(tester.takeException(), isNull);
@@ -357,28 +417,55 @@ void main() {
     },
   );
 
-  testWidgets('unknown or future map times never appear as a fresh fix', (tester) async {
-    for (final recordedAt in [null, DateTime.now().add(const Duration(hours: 2))]) {
-      await _pump(tester, dashboardFixtureOverview(device: Device(
-        imei: 'demo-watch-a',
-        location: DeviceLocation(lat: -20.1, lng: 57.5, source: 'gps', recordedAt: recordedAt),
-      )));
+  testWidgets('unknown or future map times never appear as a fresh fix', (
+    tester,
+  ) async {
+    for (final recordedAt in [
+      null,
+      DateTime.now().add(const Duration(hours: 2)),
+    ]) {
+      await _pump(
+        tester,
+        dashboardFixtureOverview(
+          device: Device(
+            imei: 'demo-watch-a',
+            online: false,
+            location: DeviceLocation(
+              lat: -20.1,
+              lng: 57.5,
+              source: 'gps',
+              recordedAt: recordedAt,
+            ),
+          ),
+        ),
+      );
       expect(find.text('Time unavailable'), findsOneWidget);
+      expect(find.byTooltip('Location time unavailable'), findsOneWidget);
+      expect(find.byTooltip('Satellite GPS updated just now'), findsNothing);
       expect(find.text('Just now'), findsNothing);
-      expect(find.textContaining('No recent GPS update.', findRichText: true), findsNothing);
+      expect(
+        find.textContaining('No recent GPS update.', findRichText: true),
+        findsNothing,
+      );
     }
   });
 
-  testWidgets('future service sections are optional and keep the Care summary independent', (tester) async {
-    await _pump(tester, dashboardFixtureOverview());
-    expect(find.text('Activity review sample'), findsNothing);
-    await _pump(tester, dashboardFixtureOverview(
-      serviceSections: const [Text('Activity review sample')],
-    ));
-    expect(find.text('Activity review sample'), findsOneWidget);
-    expect(find.text('Today'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'future service sections are optional and keep the Care summary independent',
+    (tester) async {
+      await _pump(tester, dashboardFixtureOverview());
+      expect(find.text('Activity review sample'), findsNothing);
+      await _pump(
+        tester,
+        dashboardFixtureOverview(
+          serviceSections: const [Text('Activity review sample')],
+        ),
+      );
+      expect(find.text('Activity review sample'), findsOneWidget);
+      expect(find.text('Today'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'safe zone count excludes another watch, inactive and unset zones',

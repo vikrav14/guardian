@@ -94,7 +94,9 @@ GuardianDashboardOverview dashboardFixtureOverview({
     devices: devices ?? (selected == null ? const [] : [selected]),
     geofences: geofences,
     map: const DashboardFixtureMap(),
-    mapStatus: mapStatus ?? (selected == null ? '' : deviceMapLocationStatusLabel(selected)),
+    mapStatus:
+        mapStatus ??
+        (selected == null ? '' : deviceMapLocationStatusLabel(selected)),
     insight: dashboardFixtureInsight,
     aiEnabled: aiEnabled,
     helpEnabled: helpEnabled,
@@ -193,19 +195,35 @@ Widget dashboardFixtureHost(
               appBar: AppBar(
                 toolbarHeight: 60,
                 backgroundColor: colors.surface,
-                title: const Row(children: [GuardianPinMark(size: 32), SizedBox(width: 8), GuardianWordmark(fontSize: 20)]),
-                actions: [IconButton(tooltip: 'Notifications', onPressed: () {}, icon: const Icon(Icons.notifications_none_rounded))],
+                title: const Row(
+                  children: [
+                    GuardianPinMark(size: 32),
+                    SizedBox(width: 8),
+                    GuardianWordmark(fontSize: 20),
+                  ],
+                ),
+                actions: [
+                  IconButton(
+                    tooltip: 'Notifications',
+                    onPressed: () {},
+                    icon: const Icon(Icons.notifications_none_rounded),
+                  ),
+                ],
               ),
-              bottomNavigationBar: MobileBottomBar(currentIndex: 0, onTap: (_) {}, onSos: () {}),
+              bottomNavigationBar: MobileBottomBar(
+                currentIndex: 0,
+                onTap: (_) {},
+                onSos: () {},
+              ),
               body: SingleChildScrollView(child: content),
             ),
           )
         : Scaffold(
-      body: SingleChildScrollView(
-        child: boundaryKey == null
-            ? content
-            : RepaintBoundary(key: boundaryKey, child: content),
-      ),
-    ),
+            body: SingleChildScrollView(
+              child: boundaryKey == null
+                  ? content
+                  : RepaintBoundary(key: boundaryKey, child: content),
+            ),
+          ),
   );
 }

@@ -28,9 +28,9 @@ Future<void> _pumpBar(
         extensions: [colors],
       ),
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(textScale),
-        ),
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
       home: Scaffold(
@@ -47,14 +47,12 @@ Future<void> _pumpBar(
 }
 
 void main() {
-  testWidgets('each destination keeps its existing shell index', (tester) async {
+  testWidgets('each destination keeps its existing shell index', (
+    tester,
+  ) async {
     final destinations = <int>[];
     var sosCount = 0;
-    await _pumpBar(
-      tester,
-      onTap: destinations.add,
-      onSos: () => sosCount++,
-    );
+    await _pumpBar(tester, onTap: destinations.add, onSos: () => sosCount++);
 
     for (final label in ['Home', 'Safe zones', 'Alerts', 'Account']) {
       await tester.tap(find.text(label));
@@ -80,14 +78,12 @@ void main() {
     var sent = 0;
     await _pumpBar(tester, onSos: () => sent++);
     var gesture = await tester.startGesture(tester.getCenter(find.text('SOS')));
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 2900));
     await gesture.up();
     await tester.pump(const Duration(seconds: 1));
     expect(sent, 0);
 
     gesture = await tester.startGesture(tester.getCenter(find.text('SOS')));
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 2900));
     expect(sent, 0);
     await tester.pump(const Duration(milliseconds: 100));
@@ -103,7 +99,6 @@ void main() {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('SOS')),
     );
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 2900));
     expect(sent, 0);
     await tester.pump(const Duration(milliseconds: 100));
@@ -119,7 +114,6 @@ void main() {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('SOS')),
     );
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 2));
     await gesture.cancel();
     await tester.pump(const Duration(seconds: 3));
@@ -136,7 +130,6 @@ void main() {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('SOS')),
     );
-    await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 3));
@@ -164,10 +157,13 @@ void main() {
         final nav = tester.getRect(find.byType(MobileBottomBar));
         final body = tester.getRect(find.byKey(const ValueKey('page-body')));
         expect(body.bottom, lessThanOrEqualTo(nav.top));
-        for (final target in find.descendant(
-          of: find.byType(MobileBottomBar),
-          matching: find.byType(InkWell),
-        ).evaluate()) {
+        for (final target
+            in find
+                .descendant(
+                  of: find.byType(MobileBottomBar),
+                  matching: find.byType(InkWell),
+                )
+                .evaluate()) {
           final size = target.size!;
           expect(size.width, greaterThanOrEqualTo(48));
           expect(size.height, greaterThanOrEqualTo(48));

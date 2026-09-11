@@ -42,10 +42,7 @@ class GuardianOverviewHeader extends StatelessWidget {
           onHelp: onHelp,
           onWatchStatus: onWatchStatus,
         );
-        final actions = _OverviewActions(
-          onCall: onCall,
-          onJourney: onJourney,
-        );
+        final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
 
         return Container(
           padding: EdgeInsets.all(desktop ? 20 : 14),
@@ -150,10 +147,7 @@ class _OverviewIdentity extends StatelessWidget {
               excludeFromSemantics: true,
               child: IconButton(
                 onPressed: onHelp,
-                constraints: const BoxConstraints(
-                  minWidth: 48,
-                  minHeight: 48,
-                ),
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                 color: colors.textPrimary,
                 icon: Icon(
                   helpEnabled
@@ -234,10 +228,9 @@ class _OverviewWatchState extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 26),
           child: Text(
-            deviceWatchCheckInLabel(device).replaceFirst(
-              'Watch checked in',
-              'Checked in',
-            ),
+            deviceWatchCheckInLabel(
+              device,
+            ).replaceFirst('Watch checked in', 'Checked in'),
             style: textTheme.bodyMedium?.copyWith(
               fontSize: 14,
               color: colors.textSecondary,
@@ -249,10 +242,7 @@ class _OverviewWatchState extends StatelessWidget {
     final status = onWatchStatus == null
         ? ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: statusContent,
-            ),
+            child: Align(alignment: Alignment.centerLeft, child: statusContent),
           )
         : Tooltip(
             message: 'View watch status',
@@ -356,10 +346,7 @@ class _OverviewBattery extends StatelessWidget {
 }
 
 class _OverviewActions extends StatelessWidget {
-  const _OverviewActions({
-    this.onCall,
-    this.onJourney,
-  });
+  const _OverviewActions({this.onCall, this.onJourney});
 
   final VoidCallback? onCall;
   final VoidCallback? onJourney;
@@ -410,10 +397,7 @@ class _OverviewActions extends StatelessWidget {
         textStyle: textStyle,
         tapTargetSize: MaterialTapTargetSize.padded,
       ),
-      child: const _ActionLabel(
-        icon: Icons.call_rounded,
-        label: 'Call watch',
-      ),
+      child: const _ActionLabel(icon: Icons.call_rounded, label: 'Call watch'),
     );
 
     return LayoutBuilder(

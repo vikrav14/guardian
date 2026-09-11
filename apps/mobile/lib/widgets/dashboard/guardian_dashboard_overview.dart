@@ -265,23 +265,35 @@ class _LocationPanel extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.location_on_rounded, size: 22, color: colors.accent),
+                    Icon(
+                      Icons.location_on_rounded,
+                      size: 22,
+                      color: colors.accent,
+                    ),
                     const SizedBox(width: 6),
                     Flexible(
-                      child: Text(heading, style: _bodyStyle(context, strong: true)),
+                      child: Text(
+                        heading,
+                        style: _bodyStyle(context, strong: true),
+                      ),
                     ),
                   ],
                 ),
               );
               final timestamp = Tooltip(
-                message: fixLabel,
+                message: timeKnown ? fixLabel : 'Location time unavailable',
                 child: Semantics(
                   label: timeKnown ? fixLabel : 'Location time unavailable',
                   excludeSemantics: true,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
-                      color: caution ? tone.withValues(alpha: 0.09) : colors.surfaceMuted,
+                      color: caution
+                          ? tone.withValues(alpha: 0.09)
+                          : colors.surfaceMuted,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -290,7 +302,10 @@ class _LocationPanel extends StatelessWidget {
                         Icon(Icons.schedule_rounded, size: 16, color: tone),
                         const SizedBox(width: 4),
                         Flexible(
-                          child: Text(ageLabel, style: TextStyle(fontSize: 12, color: tone)),
+                          child: Text(
+                            ageLabel,
+                            style: TextStyle(fontSize: 12, color: tone),
+                          ),
                         ),
                       ],
                     ),
@@ -298,14 +313,19 @@ class _LocationPanel extends StatelessWidget {
                 ),
               );
               if (!hasLocation) return title;
-              if (constraints.maxWidth < 310 || MediaQuery.textScalerOf(context).scale(14) > 18) {
+              if (constraints.maxWidth < 310 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 18) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [title, const SizedBox(height: 6), timestamp],
                 );
               }
               return Row(
-                children: [Expanded(child: title), const SizedBox(width: 8), timestamp],
+                children: [
+                  Expanded(child: title),
+                  const SizedBox(width: 8),
+                  timestamp,
+                ],
               );
             },
           ),
@@ -326,7 +346,10 @@ class _LocationPanel extends StatelessWidget {
           ),
           if (!hasLocation) ...[
             const SizedBox(height: 6),
-            Text('The watch has not shared a recorded position yet.', style: _bodyStyle(context)),
+            Text(
+              'The watch has not shared a recorded position yet.',
+              style: _bodyStyle(context),
+            ),
           ],
           const SizedBox(height: 10),
           ClipRRect(
@@ -339,7 +362,11 @@ class _LocationPanel extends StatelessWidget {
                     child: Container(
                       color: colors.surfaceMuted,
                       alignment: Alignment.center,
-                      child: Icon(Icons.location_searching_rounded, size: 40, color: colors.textSecondary),
+                      child: Icon(
+                        Icons.location_searching_rounded,
+                        size: 40,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -357,7 +384,9 @@ class _LocationPanel extends StatelessWidget {
                   ? 'No recent GPS update.'
                   : approximate
                   ? 'Approximate location.'
-                  : 'Showing the last GPS position.',
+                  : satellite
+                  ? 'Showing the last GPS position.'
+                  : 'Showing the last known location.',
               message: homeWifi
                   ? 'Home Wi-Fi evidence places the watch near your saved Home pin. Open location details for the retained GPS fix.'
                   : retained
@@ -377,7 +406,11 @@ class _LocationPanel extends StatelessWidget {
                 children: [
                   const Flexible(child: Text('Location details')),
                   const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 18, color: colors.accent),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: colors.accent,
+                  ),
                 ],
               ),
             ),
@@ -389,7 +422,11 @@ class _LocationPanel extends StatelessWidget {
 }
 
 class _LocationEvidenceNote extends StatelessWidget {
-  const _LocationEvidenceNote({required this.color, required this.title, required this.message});
+  const _LocationEvidenceNote({
+    required this.color,
+    required this.title,
+    required this.message,
+  });
 
   final Color color;
   final String title;
@@ -412,7 +449,10 @@ class _LocationEvidenceNote extends StatelessWidget {
             child: Text.rich(
               TextSpan(
                 children: [
-                  TextSpan(text: '$title\n', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(
+                    text: '$title\n',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   TextSpan(text: message),
                 ],
               ),
@@ -652,10 +692,7 @@ class _DashboardNotice extends StatelessWidget {
 }
 
 class _DashboardSurface extends StatelessWidget {
-  const _DashboardSurface({
-    required this.child,
-    this.padding,
-  });
+  const _DashboardSurface({required this.child, this.padding});
   final Widget child;
   final EdgeInsetsGeometry? padding;
 
@@ -664,7 +701,9 @@ class _DashboardSurface extends StatelessWidget {
     final colors = context.guardianColors;
     return Container(
       clipBehavior: Clip.antiAlias,
-      padding: padding ?? EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
+      padding:
+          padding ??
+          EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(16),
