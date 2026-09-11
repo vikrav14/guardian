@@ -42,7 +42,7 @@ labelled test map. Production continues to use the existing Google Maps view.
 
 Branch: `feat/dashboard-ui-refinement`, based on `main` at `0afd652`.
 
-The two new widgets are presentational. The dashboard page still owns calling,
+The overview widgets are presentational. The dashboard page still owns calling,
 help, entitlement checks, map controls and journey navigation. This change does
 not alter the gateway, Firestore, telemetry, SOS or location selection models.
 The platform map has a stable key across responsive rearrangements and camera
