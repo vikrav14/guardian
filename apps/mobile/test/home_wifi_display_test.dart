@@ -66,6 +66,33 @@ void main() {
     });
   }
 
+  test('equal GPS instants conflict even when local and UTC representations differ', () {
+    final now = DateTime.utc(2026, 9, 11, 12);
+    final at = now.subtract(const Duration(seconds: 1));
+    final outside = DeviceLocation.fromMap({
+      'lat': -20.16, 'lng': 57.15, 'source': 'gps', 'gpsValid': true,
+      'recordedAt': at.toIso8601String(),
+    });
+    final inside = DeviceLocation.fromMap({
+      'lat': -20.15, 'lng': 57.15, 'source': 'gps', 'gpsValid': true,
+      'recordedAt': at.toLocal(),
+    });
+    expect(outside.recordedAt!.isAtSameMomentAs(inside.recordedAt!), true);
+    for (final reverse in [false, true]) {
+      final device = Device(
+        imei: 'fixture-watch', online: true,
+        lastSatelliteLocation: reverse ? inside : outside,
+        lastLocationObservation: reverse ? outside : inside,
+        homeWifiPresence: HomeWifiPresence(
+          lat: -20.15, lng: 57.15, policyVersion: 2, radiusMeters: 150,
+          observedAt: now.subtract(const Duration(seconds: 20)),
+          expiresAt: now.add(const Duration(seconds: 40)),
+        ),
+      );
+      expect(device.homeWifiLocationAt(now), isNull);
+    }
+  });
+
   test('Firestore reader keeps Home, GPS and heartbeat times separate across dashboard labels', () async {
     final now = DateTime.now().toUtc();
     final db = FakeFirebaseFirestore();

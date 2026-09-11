@@ -224,7 +224,7 @@ class Device {
       final latest = recentGps.map((fix) => fix.recordedAt!)
           .reduce((a, b) => a.isAfter(b) ? a : b);
       for (final fix in recentGps) {
-        if (fix.recordedAt == latest &&
+        if (fix.recordedAt!.isAtSameMomentAs(latest) &&
             !home.gpsAgreesWithHome(fix.lat, fix.lng, fix.accuracyMeters)) {
           return null;
         }
