@@ -118,7 +118,8 @@ class DashboardFixtureMap extends StatelessWidget {
     final colors = context.guardianColors;
     return SizedBox(
       key: const ValueKey('dashboard-fixture-map'),
-      height: 280,
+      // Match the real dashboard map viewport so layout checks use its budget.
+      height: MediaQuery.sizeOf(context).width < 600 ? 300 : 380,
       child: ColoredBox(
         color: colors.surfaceMuted,
         child: Padding(
@@ -171,9 +172,9 @@ Widget dashboardFixtureHost(
       ),
     ),
     builder: (context, app) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(textScale),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(textScale)),
       child: app!,
     ),
     home: Scaffold(

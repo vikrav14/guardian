@@ -138,7 +138,8 @@ class GuardianDashboardOverview extends StatelessWidget {
                   ],
                 ],
               );
-              final wide = constraints.maxWidth >= 960 &&
+              final wide =
+                  constraints.maxWidth >= 960 &&
                   MediaQuery.textScalerOf(context).scale(14) <= 20;
               if (!wide) {
                 return Column(
@@ -218,8 +219,8 @@ class _LocationPanel extends StatelessWidget {
                   !hasLocation
                       ? 'Waiting for a location'
                       : place?.isNotEmpty == true
-                          ? place!
-                          : 'Recorded position',
+                      ? place!
+                      : 'Recorded position',
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontSize: 22,
@@ -301,10 +302,14 @@ class _SafeZonesPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final zones = geofences.where(
-      (zone) => zone.imei == device.imei && zone.active &&
-          !(zone.lat == 0 && zone.lng == 0),
-    ).toList(growable: false);
+    final zones = geofences
+        .where(
+          (zone) =>
+              zone.imei == device.imei &&
+              zone.active &&
+              !(zone.lat == 0 && zone.lng == 0),
+        )
+        .toList(growable: false);
     return _DashboardSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,9 +342,18 @@ class _SafeZonesPanel extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.place_outlined, size: 20, color: colors.textSecondary),
+                    Icon(
+                      Icons.place_outlined,
+                      size: 20,
+                      color: colors.textSecondary,
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(zone.name, style: _bodyStyle(context, strong: true))),
+                    Expanded(
+                      child: Text(
+                        zone.name,
+                        style: _bodyStyle(context, strong: true),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -419,7 +433,11 @@ class _FamilySelector extends StatelessWidget {
 }
 
 class _EmptyOverview extends StatelessWidget {
-  const _EmptyOverview({required this.loading, required this.hasError, this.onLinkWatch});
+  const _EmptyOverview({
+    required this.loading,
+    required this.hasError,
+    this.onLinkWatch,
+  });
   final bool loading;
   final bool hasError;
   final VoidCallback? onLinkWatch;
@@ -432,9 +450,17 @@ class _EmptyOverview extends StatelessWidget {
         children: [
           const SizedBox(height: 20),
           if (loading)
-            const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
           else
-            Icon(Icons.watch_outlined, color: context.guardianColors.textSecondary, size: 40),
+            Icon(
+              Icons.watch_outlined,
+              color: context.guardianColors.textSecondary,
+              size: 40,
+            ),
           const SizedBox(height: 20),
           Text(
             loading ? 'Loading your watches' : 'Bring your family into view',
@@ -443,8 +469,11 @@ class _EmptyOverview extends StatelessWidget {
           ),
           if (!loading) ...[
             const SizedBox(height: 8),
-            Text('Link a Guardian watch to see its location and status.',
-                textAlign: TextAlign.center, style: _bodyStyle(context)),
+            Text(
+              'Link a Guardian watch to see its location and status.',
+              textAlign: TextAlign.center,
+              style: _bodyStyle(context),
+            ),
             const SizedBox(height: 16),
             TextButton.icon(
               onPressed: onLinkWatch,
@@ -461,7 +490,11 @@ class _EmptyOverview extends StatelessWidget {
 }
 
 class _DashboardNotice extends StatelessWidget {
-  const _DashboardNotice({required this.icon, required this.title, required this.message});
+  const _DashboardNotice({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
   final IconData icon;
   final String title;
   final String message;
@@ -482,7 +515,10 @@ class _DashboardNotice extends StatelessWidget {
 }
 
 class _DashboardSurface extends StatelessWidget {
-  const _DashboardSurface({required this.child, this.padding = const EdgeInsets.all(24)});
+  const _DashboardSurface({
+    required this.child,
+    this.padding = const EdgeInsets.all(24),
+  });
   final Widget child;
   final EdgeInsetsGeometry padding;
 
@@ -516,7 +552,9 @@ class _SectionTitle extends StatelessWidget {
         children: [
           Icon(icon, color: colors.textSecondary, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(title, style: _bodyStyle(context, strong: true))),
+          Expanded(
+            child: Text(title, style: _bodyStyle(context, strong: true)),
+          ),
         ],
       ),
     );
@@ -524,7 +562,9 @@ class _SectionTitle extends StatelessWidget {
 }
 
 TextStyle _bodyStyle(BuildContext context, {bool strong = false}) => TextStyle(
-  color: strong ? context.guardianColors.textPrimary : context.guardianColors.textSecondary,
+  color: strong
+      ? context.guardianColors.textPrimary
+      : context.guardianColors.textSecondary,
   fontSize: 14,
   fontWeight: strong ? FontWeight.w600 : FontWeight.w400,
   height: 1.5,
@@ -534,5 +574,8 @@ ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
   foregroundColor: context.guardianColors.textPrimary,
   minimumSize: const Size(48, 48),
   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-  textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+  textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+  ),
 );

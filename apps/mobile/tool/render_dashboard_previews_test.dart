@@ -4,7 +4,6 @@
 // placeholder map. It is intentionally outside the normal test directory.
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -29,13 +28,19 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       await tester.runAsync(() async {
-        final fontPath = Platform.environment['DASHBOARD_PREVIEW_FONT'] ??
+        final fontPath =
+            Platform.environment['DASHBOARD_PREVIEW_FONT'] ??
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
         final font = FontLoader('DashboardPreview');
-        font.addFont(Future.value(
-          ByteData.sublistView(await File(fontPath).readAsBytes()),
-        ));
+        font.addFont(
+          Future.value(
+            ByteData.sublistView(await File(fontPath).readAsBytes()),
+          ),
+        );
         await font.load();
+        final icons = FontLoader('MaterialIcons');
+        icons.addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+        await icons.load();
       });
 
       final boundaryKey = GlobalKey();
@@ -66,8 +71,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      final boundary = boundaryKey.currentContext!.findRenderObject()!
-          as RenderRepaintBoundary;
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
       await tester.runAsync(() async {
         final image = await boundary.toImage(pixelRatio: 1);
         final data = await image.toByteData(format: ui.ImageByteFormat.png);

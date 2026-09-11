@@ -64,11 +64,7 @@ class GuardianOverviewHeader extends StatelessWidget {
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    identity,
-                    const SizedBox(height: 20),
-                    actions,
-                  ],
+                  children: [identity, const SizedBox(height: 20), actions],
                 ),
         );
       },
@@ -127,7 +123,11 @@ class _OverviewIdentity extends StatelessWidget {
         ),
         if (onWatchStatus != null) ...[
           const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded, size: 18, color: colors.textSecondary),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: colors.textSecondary,
+          ),
         ],
       ],
     );
@@ -222,7 +222,8 @@ class _OverviewBattery extends StatelessWidget {
     final battery = device.batteryPercent;
     final batteryAt = device.batteryUpdatedAt;
     final age = batteryAt == null ? null : DateTime.now().difference(batteryAt);
-    final lastKnown = phase != DeviceConnectivityPhase.live ||
+    final lastKnown =
+        phase != DeviceConnectivityPhase.live ||
         age == null ||
         age > deviceTelemetryFreshness ||
         age < const Duration(minutes: -1);
@@ -283,7 +284,9 @@ class _OverviewActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    );
     final textStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontSize: 14,
       fontWeight: FontWeight.w700,
@@ -301,15 +304,22 @@ class _OverviewActions extends StatelessWidget {
     final journey = OutlinedButton(
       onPressed: onJourney,
       style: secondaryStyle,
-      child: const _ActionLabel(icon: Icons.route_rounded, label: 'View journey'),
+      child: const _ActionLabel(
+        icon: Icons.route_rounded,
+        label: 'View journey',
+      ),
     );
     final help = Tooltip(
-      message: helpEnabled ? 'Open Guardian help' : 'Guardian help requires a Family plan',
+      message: helpEnabled
+          ? 'Open Guardian help'
+          : 'Guardian help requires a Family plan',
       child: OutlinedButton(
         onPressed: onHelp,
         style: secondaryStyle,
         child: _ActionLabel(
-          icon: helpEnabled ? Icons.chat_bubble_outline_rounded : Icons.lock_outline_rounded,
+          icon: helpEnabled
+              ? Icons.chat_bubble_outline_rounded
+              : Icons.lock_outline_rounded,
           label: 'Guardian help',
         ),
       ),
@@ -331,7 +341,10 @@ class _OverviewActions extends StatelessWidget {
             textStyle: textStyle,
             tapTargetSize: MaterialTapTargetSize.padded,
           ),
-          child: const _ActionLabel(icon: Icons.call_rounded, label: 'Call watch'),
+          child: const _ActionLabel(
+            icon: Icons.call_rounded,
+            label: 'Call watch',
+          ),
         ),
         const SizedBox(height: 10),
         if (textScale > 1.25)

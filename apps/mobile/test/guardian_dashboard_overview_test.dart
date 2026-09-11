@@ -143,7 +143,10 @@ void main() {
     await _pump(tester, dashboardFixtureOverview());
 
     final call = tester.widget<FilledButton>(
-      find.ancestor(of: find.text('Call watch'), matching: find.byType(FilledButton)),
+      find.ancestor(
+        of: find.text('Call watch'),
+        matching: find.byType(FilledButton),
+      ),
     );
     final journey = tester.widget<OutlinedButton>(
       find.ancestor(
@@ -231,10 +234,7 @@ void main() {
     await _tap(tester, find.text('Link a watch'));
     expect(linked, 1);
 
-    await _pump(
-      tester,
-      dashboardFixtureOverview(empty: true, loading: true),
-    );
+    await _pump(tester, dashboardFixtureOverview(empty: true, loading: true));
     expect(find.text('Loading your watches'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Link a watch'), findsNothing);
@@ -244,10 +244,7 @@ void main() {
   testWidgets('read failure is visible with and without cached watch data', (
     tester,
   ) async {
-    await _pump(
-      tester,
-      dashboardFixtureOverview(empty: true, hasError: true),
-    );
+    await _pump(tester, dashboardFixtureOverview(empty: true, hasError: true));
     expect(find.text('Watch updates are unavailable'), findsOneWidget);
     expect(find.text('Bring your family into view'), findsNothing);
     expect(find.text('Link a watch'), findsNothing);
@@ -255,7 +252,9 @@ void main() {
     await _pump(tester, dashboardFixtureOverview(hasError: true));
     expect(find.text('Watch updates are unavailable'), findsOneWidget);
     expect(
-      find.text('Showing the last information received. Check your connection.'),
+      find.text(
+        'Showing the last information received. Check your connection.',
+      ),
       findsOneWidget,
     );
     expect(find.text('Alex Morgan'), findsOneWidget);
@@ -313,34 +312,50 @@ void main() {
     expect(find.text('Sample garden'), findsNWidgets(2));
   });
 
-  testWidgets('safe zone count excludes another watch, inactive and unset zones', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      dashboardFixtureOverview(
-        geofences: const [
-          dashboardFixtureZone,
-          Geofence(
-            id: 'other', imei: 'demo-watch-b', name: 'Other family member zone',
-            active: true, lat: -20.2, lng: 57.6, radiusMeters: 100,
-          ),
-          Geofence(
-            id: 'inactive', imei: 'demo-watch-a', name: 'Inactive zone',
-            active: false, lat: -20.2, lng: 57.6, radiusMeters: 100,
-          ),
-          Geofence(
-            id: 'unset', imei: 'demo-watch-a', name: 'Unset zone',
-            active: true, lat: 0, lng: 0, radiusMeters: 100,
-          ),
-        ],
-      ),
-    );
+  testWidgets(
+    'safe zone count excludes another watch, inactive and unset zones',
+    (tester) async {
+      await _pump(
+        tester,
+        dashboardFixtureOverview(
+          geofences: const [
+            dashboardFixtureZone,
+            Geofence(
+              id: 'other',
+              imei: 'demo-watch-b',
+              name: 'Other family member zone',
+              active: true,
+              lat: -20.2,
+              lng: 57.6,
+              radiusMeters: 100,
+            ),
+            Geofence(
+              id: 'inactive',
+              imei: 'demo-watch-a',
+              name: 'Inactive zone',
+              active: false,
+              lat: -20.2,
+              lng: 57.6,
+              radiusMeters: 100,
+            ),
+            Geofence(
+              id: 'unset',
+              imei: 'demo-watch-a',
+              name: 'Unset zone',
+              active: true,
+              lat: 0,
+              lng: 0,
+              radiusMeters: 100,
+            ),
+          ],
+        ),
+      );
 
-    expect(find.text('1 active zone'), findsOneWidget);
-    expect(find.text('Other family member zone'), findsNothing);
-    expect(find.text('Inactive zone'), findsNothing);
-    expect(find.text('Unset zone'), findsNothing);
-    expect(find.text('Protection active'), findsNothing);
-  });
+      expect(find.text('1 active zone'), findsOneWidget);
+      expect(find.text('Other family member zone'), findsNothing);
+      expect(find.text('Inactive zone'), findsNothing);
+      expect(find.text('Unset zone'), findsNothing);
+      expect(find.text('Protection active'), findsNothing);
+    },
+  );
 }

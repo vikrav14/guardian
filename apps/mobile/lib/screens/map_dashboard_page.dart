@@ -163,14 +163,20 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   void _followSelected() {
     final location = _selected?.mapDisplayLocation;
     final controller = _mapController;
-    if (controller == null || location?.isValid != true) return;
+    if (controller == null ||
+        _mapKey.currentContext == null ||
+        location?.isValid != true) {
+      return;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final currentLocation = _selected?.mapDisplayLocation;
       if (!mounted ||
           _mapKey.currentContext == null ||
           !identical(controller, _mapController) ||
-          currentLocation?.isValid != true) return;
+          currentLocation?.isValid != true) {
+        return;
+      }
       unawaited(
         _animateTo(
           LatLng(currentLocation!.lat, currentLocation.lng),
@@ -568,52 +574,52 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-            GoogleMap(
-              key: _mapKey,
-              initialCameraPosition: CameraPosition(target: center, zoom: 15),
-              mapType: _mapType,
-              markers: _nativeMarkers(),
-              circles: _circles(),
-              zoomControlsEnabled: false,
-              myLocationButtonEnabled: false,
-              myLocationEnabled: false,
-              mapToolbarEnabled: false,
-              compassEnabled: false,
-              onMapCreated: (controller) {
-                _mapController = controller;
-                _mapCameraGeneration.value++;
-                _didInitialFit = false;
-                _followSelected();
-              },
-              onCameraMove: (position) {
-                _zoom = position.zoom;
-                _mapCameraGeneration.value++;
-              },
-              onCameraIdle: () => _mapCameraGeneration.value++,
-            ),
-            if (kIsWeb)
-              ValueListenableBuilder<int>(
-                valueListenable: _mapCameraGeneration,
-                builder: (context, generation, _) => MapAvatarOverlay(
-                  controller: _mapController,
-                  devices: _devices,
-                  selectedImei: _selectedImei,
-                  cameraGeneration: generation,
-                  onSelect: _dashboard.select,
-                ),
-              ),
-            Positioned(
-              top: 18,
-              right: 18,
-              child: GuardianMapControlRail(
-                trackedName: selected.displayName,
-                onZoomIn: () => unawaited(_changeMapZoom(1)),
-                onZoomOut: () => unawaited(_changeMapZoom(-1)),
-                onCenterTrackedPerson: _centerSelectedAction(),
-                isSatelliteView: _mapType != MapType.normal,
-                onToggleSatelliteView: _toggleMapType,
+          GoogleMap(
+            key: _mapKey,
+            initialCameraPosition: CameraPosition(target: center, zoom: 15),
+            mapType: _mapType,
+            markers: _nativeMarkers(),
+            circles: _circles(),
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            myLocationEnabled: false,
+            mapToolbarEnabled: false,
+            compassEnabled: false,
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _mapCameraGeneration.value++;
+              _didInitialFit = false;
+              _followSelected();
+            },
+            onCameraMove: (position) {
+              _zoom = position.zoom;
+              _mapCameraGeneration.value++;
+            },
+            onCameraIdle: () => _mapCameraGeneration.value++,
+          ),
+          if (kIsWeb)
+            ValueListenableBuilder<int>(
+              valueListenable: _mapCameraGeneration,
+              builder: (context, generation, _) => MapAvatarOverlay(
+                controller: _mapController,
+                devices: _devices,
+                selectedImei: _selectedImei,
+                cameraGeneration: generation,
+                onSelect: _dashboard.select,
               ),
             ),
+          Positioned(
+            top: 18,
+            right: 18,
+            child: GuardianMapControlRail(
+              trackedName: selected.displayName,
+              onZoomIn: () => unawaited(_changeMapZoom(1)),
+              onZoomOut: () => unawaited(_changeMapZoom(-1)),
+              onCenterTrackedPerson: _centerSelectedAction(),
+              isSatelliteView: _mapType != MapType.normal,
+              onToggleSatelliteView: _toggleMapType,
+            ),
+          ),
         ],
       ),
     );
@@ -659,14 +665,18 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       onHelp: selected == null
           ? null
           : whatsappDecision.allowed
-              ? () => _showGuardianHelp(
-                  selected,
-                  subscription: entitlementScope.subscription,
-                  historyDecision: historyDecision,
-                )
-              : () => _showEntitlementDecision(whatsappDecision),
-      onWatchStatus: selected == null ? null : () => _showWatchStatusFact(selected),
-      onLocationDetails: selected == null ? null : () => _showLocationFact(selected),
+          ? () => _showGuardianHelp(
+              selected,
+              subscription: entitlementScope.subscription,
+              historyDecision: historyDecision,
+            )
+          : () => _showEntitlementDecision(whatsappDecision),
+      onWatchStatus: selected == null
+          ? null
+          : () => _showWatchStatusFact(selected),
+      onLocationDetails: selected == null
+          ? null
+          : () => _showLocationFact(selected),
       onSafeZones: home == null ? null : () => home.goToTab(1),
       onLinkWatch: home == null ? null : () => home.goToTab(3),
     );
