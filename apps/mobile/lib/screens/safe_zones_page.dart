@@ -7,9 +7,9 @@ import '../models/geofence.dart';
 import '../safe_zones/safe_zone_logic.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
-import '../widgets/safe_zones/safe_zone_card.dart';
-import '../widgets/safe_zones/zone_mini_map.dart';
-import '../widgets/safe_zones/zone_status_chip.dart';
+import '../widgets/safe_zones/safe_zone_map.dart';
+import '../widgets/safe_zones/safe_zones_overview.dart';
+import '../navigation/home_shell_scope.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import 'location_picker_page.dart';
 
@@ -72,8 +72,7 @@ class SafeZonesPage extends StatelessWidget {
                       controller: wifiCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Home WiFi name (optional)',
-                        hintText:
-                            'Also counts as "inside" if the watch supports it',
+                        hintText: 'Optional network name for this place',
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -221,214 +220,107 @@ class _SafeZonesBody extends StatefulWidget {
 }
 
 class _SafeZonesBodyState extends State<_SafeZonesBody> {
+  late final _devices = DeviceService().watchLinkedDevices();
+  late final _zones = GeofenceService().watchAll();
+  late final _alerts = AlertService().watchLinkedAlerts();
+  final _busyZoneIds = <String>{};
+
+  Future<void> _changeZone(Geofence zone, {bool delete = false}) async {
+    if (_busyZoneIds.contains(zone.id)) return;
+    setState(() => _busyZoneIds.add(zone.id));
+    try {
+      if (delete) {
+        final confirmed = await confirmSafeZoneDeletion(context, zone);
+        if (!confirmed || !mounted) return;
+        await GeofenceService().delete(zone.id);
+      } else {
+        await GeofenceService().setActive(zone.id, !zone.active);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(delete ? 'Safe zone deleted' : zone.active ? 'Safe zone paused' : 'Safe zone activated'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not update this zone. Please try again.'),
+      ));
+    } finally {
+      if (mounted) setState(() => _busyZoneIds.remove(zone.id));
+    }
+  }
+
+  void _expandMap(Geofence zone) {
+    Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (context) => Scaffold(
+        appBar: AppBar(title: Text(zone.name)),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Expanded(child: SafeZoneMap(zone: zone, expanded: true)),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Saved zone boundary · ${zone.radiusMeters.round()} m radius', style: TextStyle(color: context.guardianColors.textSecondary, fontSize: 14)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ));
+  }
+
+  Widget _readError() => const Center(
+    child: Padding(
+      padding: EdgeInsets.all(24),
+      child: Text('Safe zones are unavailable. Check your connection and reopen this page.'),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Device>>(
-      stream: DeviceService().watchLinkedDevices(),
+      stream: _devices,
       builder: (context, deviceSnap) {
+        if (deviceSnap.hasError) return _readError();
         final devices = deviceSnap.data ?? const <Device>[];
-
         return StreamBuilder<List<Geofence>>(
-          stream: GeofenceService().watchAll(),
+          stream: _zones,
           builder: (context, zoneSnap) {
-            if (zoneSnap.hasError) {
-              return Center(child: Text('${zoneSnap.error}'));
-            }
+            if (zoneSnap.hasError) return _readError();
             if (!zoneSnap.hasData || !deviceSnap.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-
-            final zones = zoneSnap.data!;
-
             return StreamBuilder<List<GuardianAlert>>(
-              stream: AlertService().watchLinkedAlerts(),
+              stream: _alerts,
               builder: (context, alertSnap) {
-                final alerts = alertSnap.data ?? const <GuardianAlert>[];
-                final hero = buildSafeZonesHeroSummary(
-                  zones: zones,
-                  devices: devices,
-                  alerts: alerts,
-                );
-                final displayZones = <Geofence>[];
-                final visibleKeys = <String>{};
-                for (final zone in zones) {
-                  final key = '${zone.imei}|${zone.name.trim().toLowerCase()}';
-                  if (visibleKeys.add(key)) displayZones.add(zone);
-                }
-
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(18, 24, 18, 118),
-                  children: [
-                    GuardianPageHeader(
-                      eyebrow: 'PLACES THAT MATTER',
-                      title: 'Safe zones',
-                      subtitle:
-                          'Get a gentle alert when someone arrives or leaves.',
-                      action: FilledButton.icon(
-                        onPressed: () => widget.onCreateZone(context, devices),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('Add zone'),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    if (displayZones.isEmpty)
-                      GuardianEmptyState(
-                        icon: Icons.shield_outlined,
-                        title: 'Create your first safe zone',
-                        message:
-                            'Add home, school, or another familiar place. Guardian will gently tell you when someone arrives or leaves.',
-                        action: FilledButton.icon(
-                          onPressed: () =>
-                              widget.onCreateZone(context, devices),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add a safe zone'),
-                        ),
-                      )
-                    else ...[
-                      _PrototypeSafeZoneFeature(
-                        zone: displayZones.first,
-                        device: deviceForZone(displayZones.first, devices),
-                        summary: hero,
-                      ),
-                      const SizedBox(height: 18),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final columns = constraints.maxWidth >= 900 ? 3 : 1;
-                          final gap = 16.0;
-                          final width = columns == 1
-                              ? constraints.maxWidth
-                              : (constraints.maxWidth - gap * (columns - 1)) /
-                                    columns;
-                          return Wrap(
-                            spacing: gap,
-                            runSpacing: gap,
-                            children: [
-                              for (final zone in displayZones)
-                                SizedBox(
-                                  width: width,
-                                  child: SafeZoneCard(
-                                    zone: zone,
-                                    devices: devices,
-                                    alerts: alerts,
-                                    onToggle: () => GeofenceService().setActive(
-                                      zone.id,
-                                      !zone.active,
-                                    ),
-                                    onDelete: () =>
-                                        GeofenceService().delete(zone.id),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  ],
+                final home = HomeShellScope.maybeOf(context);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                  child: SafeZonesOverview(
+                    zones: zoneSnap.data!,
+                    devices: devices,
+                    alerts: alertSnap.data ?? const [],
+                    alertsLoading: !alertSnap.hasData && !alertSnap.hasError,
+                    alertsUnavailable: alertSnap.hasError,
+                    busyZoneIds: _busyZoneIds,
+                    // IndexedStack retains pages. Avoid loading an off-screen
+                    // Maps platform view while another primary tab is active.
+                    mapBuilder: home != null && home.currentIndex != 1
+                        ? (_, _) => const SizedBox.shrink()
+                        : null,
+                    onAdd: () => widget.onCreateZone(context, devices),
+                    onToggle: (zone) => _changeZone(zone),
+                    onDelete: (zone) => _changeZone(zone, delete: true),
+                    onExpand: _expandMap,
+                    onAlerts: home == null ? null : () => home.goToTab(2),
+                  ),
                 );
               },
             );
           },
         );
       },
-    );
-  }
-}
-
-class _PrototypeSafeZoneFeature extends StatelessWidget {
-  const _PrototypeSafeZoneFeature({
-    required this.zone,
-    required this.device,
-    required this.summary,
-  });
-
-  final Geofence zone;
-  final Device? device;
-  final SafeZonesHeroSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final copy = Container(
-      padding: const EdgeInsets.fromLTRB(32, 30, 32, 28),
-      color: colors.surface.withValues(alpha: 0.97),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ZoneStatusChip(status: summary.tone),
-          const SizedBox(height: 14),
-          Text(
-            zone.name,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.8,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            '${zone.radiusMeters.round()} m radius',
-            style: TextStyle(color: colors.textSecondary, fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            summary.detail,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: colors.textMuted,
-              fontSize: 11,
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: GuardianColors.forest.withValues(alpha: 0.09),
-            blurRadius: 38,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 680) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ZoneMiniMapPreview(zone: zone, device: device, height: 250),
-                copy,
-              ],
-            );
-          }
-          return SizedBox(
-            height: 300,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: ZoneMiniMapPreview(
-                    zone: zone,
-                    device: device,
-                    height: 300,
-                  ),
-                ),
-                Expanded(flex: 2, child: copy),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 }
