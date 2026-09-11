@@ -4,6 +4,7 @@ import '../../dashboard/device_formatters.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
 import '../../theme/app_theme.dart';
+import 'dashboard_section_icon.dart';
 import 'guardian_overview_header.dart';
 
 /// Presentation only. Watch actions, entitlements and map evidence are supplied
@@ -200,6 +201,7 @@ class _LocationPanel extends StatelessWidget {
     final location = device.mapDisplayLocation;
     final hasLocation = location?.isValid == true;
     final place = location?.placeLabel?.trim();
+    final fixLabel = deviceMapLocationFixLabel(device);
     return _DashboardSurface(
       padding: EdgeInsets.zero,
       child: Column(
@@ -230,14 +232,14 @@ class _LocationPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (hasLocation) ...[
-                  Text(status, style: _bodyStyle(context, strong: true)),
-                  const SizedBox(height: 4),
+                if (hasLocation)
                   Text(
-                    deviceMapLocationFixLabel(device),
+                    fixLabel.contains('time unavailable')
+                        ? '$status · Time unavailable'
+                        : fixLabel,
                     style: _bodyStyle(context),
-                  ),
-                ] else
+                  )
+                else
                   Text(
                     'The watch has not shared a recorded position yet.',
                     style: _bodyStyle(context),
@@ -545,15 +547,17 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
     return Semantics(
       header: true,
       child: Row(
         children: [
-          Icon(icon, color: colors.textSecondary, size: 20),
-          const SizedBox(width: 10),
+          DashboardSectionIcon(icon: icon),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(title, style: _bodyStyle(context, strong: true)),
+            child: Text(
+              title,
+              style: _bodyStyle(context, strong: true).copyWith(fontSize: 15),
+            ),
           ),
         ],
       ),

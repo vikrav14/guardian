@@ -12,7 +12,10 @@ spacing.
   battery reading and actions. Call watch is the primary action. Connection status
   opens the existing watch-status dialog.
 - Location is the main content area. Place, positioning source and fix age sit
-  above the map. Location details opens the existing evidence explanation.
+  above the map. A single source-and-age line avoids repeating "last reliable
+  fix". Location details opens the existing evidence explanation.
+- Section headings use a matching set of duotone vector icons in softly tinted
+  badges. The shield represents saved zones without implying confirmed safety.
 - Safe zones list configured places. A saved zone never implies the wearer is
   currently inside it. Manage safe zones opens the existing Safe zones tab.
 - Family plans have one Guardian insight. The existing Care summary remains

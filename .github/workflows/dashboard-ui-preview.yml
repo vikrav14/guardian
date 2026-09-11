@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/dashboard-ui-preview.yml'
+      - 'apps/mobile/lib/widgets/dashboard/dashboard_section_icon.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
@@ -52,6 +53,7 @@ jobs:
       - name: Check dashboard formatting
         run: |
           dart format \
+            lib/widgets/dashboard/dashboard_section_icon.dart \
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
             lib/screens/map_dashboard_page.dart \

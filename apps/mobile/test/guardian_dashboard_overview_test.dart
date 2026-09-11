@@ -300,7 +300,7 @@ void main() {
 
     expect(find.text('Watch connected'), findsOneWidget);
     expect(find.text('Watch checked in 1m ago'), findsOneWidget);
-    expect(find.text('Last reliable fix'), findsOneWidget);
+    expect(find.text('Last reliable fix'), findsNothing);
     expect(find.text('Last reliable GPS fix 13m ago'), findsOneWidget);
     expect(find.text('Sample network estimate'), findsNothing);
     expect(
