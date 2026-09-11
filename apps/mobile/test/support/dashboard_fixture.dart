@@ -146,7 +146,9 @@ class DashboardFixtureMap extends StatelessWidget {
                   const SizedBox(height: 12),
                 ],
                 Text(
-                  'Test map · no live location data',
+                  largeText
+                      ? 'Test map\nNo live data'
+                      : 'Test map · no live location data',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: colors.textSecondary, fontSize: 14),
                 ),
