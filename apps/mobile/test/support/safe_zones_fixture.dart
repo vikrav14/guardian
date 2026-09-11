@@ -42,7 +42,8 @@ GuardianAlert safeZoneAlertFixture({
     severity: type == 'sos' ? 'critical' : 'info',
     message: 'Synthetic preview event',
     resolved: resolved,
-    createdAt: createdAt ?? DateTime.now().subtract(const Duration(minutes: 12)),
+    createdAt:
+        createdAt ?? DateTime.now().subtract(const Duration(minutes: 12)),
     payload: geofenceId == null ? null : {'geofenceId': geofenceId},
   );
 }

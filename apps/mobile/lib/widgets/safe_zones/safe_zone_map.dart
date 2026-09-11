@@ -77,11 +77,9 @@ class SafeZoneMapGeometry {
   }
 
   static double _mercatorY(double latitude) {
-    final radians = latitude.clamp(-_mercatorLimit, _mercatorLimit) *
-        math.pi /
-        180;
-    return (1 - math.log(math.tan(math.pi / 4 + radians / 2)) / math.pi) /
-        2;
+    final radians =
+        latitude.clamp(-_mercatorLimit, _mercatorLimit) * math.pi / 180;
+    return (1 - math.log(math.tan(math.pi / 4 + radians / 2)) / math.pi) / 2;
   }
 
   /// Fits the complete boundary with space around it, even in a narrow card.
@@ -92,10 +90,12 @@ class SafeZoneMapGeometry {
     final availableWidth = math.max(1.0, width - 80);
     final availableHeight = math.max(1.0, height - 80);
     final centerY = _mercatorY(center.latitude);
-    final verticalSpan = 2 * math.max(
-      (centerY - _mercatorY(bounds.northeast.latitude)).abs(),
-      (centerY - _mercatorY(bounds.southwest.latitude)).abs(),
-    );
+    final verticalSpan =
+        2.0 *
+        math.max(
+          (centerY - _mercatorY(bounds.northeast.latitude)).abs(),
+          (centerY - _mercatorY(bounds.southwest.latitude)).abs(),
+        );
     double zoomFor(double pixels, double fraction) =>
         math.log(pixels / (256 * math.max(fraction, 1e-12))) / math.ln2;
     final zoom = math.min(
@@ -111,11 +111,7 @@ class SafeZoneMapGeometry {
 /// The parent supplies finite bounds and opens the expanded page. The small
 /// preview leaves scrolling to the page; expanded mode permits pan and zoom.
 class SafeZoneMap extends StatefulWidget {
-  const SafeZoneMap({
-    super.key,
-    required this.zone,
-    this.expanded = false,
-  });
+  const SafeZoneMap({super.key, required this.zone, this.expanded = false});
 
   final Geofence zone;
   final bool expanded;
@@ -335,7 +331,8 @@ class _SafeZoneMapState extends State<SafeZoneMap> {
                 Marker(
                   markerId: const MarkerId('saved-zone-centre'),
                   position: geometry.center,
-                  icon: (widget.zone.active ? _activePin : _pausedPin) ??
+                  icon:
+                      (widget.zone.active ? _activePin : _pausedPin) ??
                       BitmapDescriptor.defaultMarkerWithHue(
                         BitmapDescriptor.hueGreen,
                       ),
@@ -459,11 +456,7 @@ class _MapControls extends StatelessWidget {
 }
 
 class _MapMessage extends StatelessWidget {
-  const _MapMessage({
-    required this.title,
-    required this.detail,
-    this.onRetry,
-  });
+  const _MapMessage({required this.title, required this.detail, this.onRetry});
 
   final String title;
   final String detail;

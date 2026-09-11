@@ -34,7 +34,9 @@ void main() {
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
         final font = FontLoader('SafeZonesPreview');
         font.addFont(
-          Future.value(ByteData.sublistView(await File(fontPath).readAsBytes())),
+          Future.value(
+            ByteData.sublistView(await File(fontPath).readAsBytes()),
+          ),
         );
         await font.load();
         final icons = FontLoader('MaterialIcons');
@@ -58,7 +60,10 @@ void main() {
             ],
             devices: [
               dashboardFixtureDevice(),
-              dashboardFixtureDevice(imei: 'demo-watch-b', name: 'Robin Taylor'),
+              dashboardFixtureDevice(
+                imei: 'demo-watch-b',
+                name: 'Robin Taylor',
+              ),
             ],
             alerts: [safeZoneAlertFixture()],
           ),

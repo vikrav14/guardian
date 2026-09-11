@@ -237,43 +237,63 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
         await GeofenceService().setActive(zone.id, !zone.active);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(delete ? 'Safe zone deleted' : zone.active ? 'Safe zone paused' : 'Safe zone activated'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            delete
+                ? 'Safe zone deleted'
+                : zone.active
+                ? 'Safe zone paused'
+                : 'Safe zone activated',
+          ),
+        ),
+      );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not update this zone. Please try again.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not update this zone. Please try again.'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _busyZoneIds.remove(zone.id));
     }
   }
 
   void _expandMap(Geofence zone) {
-    Navigator.of(context).push<void>(MaterialPageRoute(
-      builder: (context) => Scaffold(
-        appBar: AppBar(title: Text(zone.name)),
-        body: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              Expanded(child: SafeZoneMap(zone: zone, expanded: true)),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('Saved zone boundary · ${zone.radiusMeters.round()} m radius', style: TextStyle(color: context.guardianColors.textSecondary, fontSize: 14)),
-              ),
-            ],
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: Text(zone.name)),
+          body: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Expanded(child: SafeZoneMap(zone: zone, expanded: true)),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Saved zone boundary · ${zone.radiusMeters.round()} m radius',
+                    style: TextStyle(
+                      color: context.guardianColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 
   Widget _readError() => const Center(
     child: Padding(
       padding: EdgeInsets.all(24),
-      child: Text('Safe zones are unavailable. Check your connection and reopen this page.'),
+      child: Text(
+        'Safe zones are unavailable. Check your connection and reopen this page.',
+      ),
     ),
   );
 

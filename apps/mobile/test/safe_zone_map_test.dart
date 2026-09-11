@@ -33,7 +33,8 @@ double _distance(LatLng a, LatLng b) {
   final lat2 = b.latitude * math.pi / 180;
   final latDelta = lat2 - lat1;
   final lngDelta = (b.longitude - a.longitude) * math.pi / 180;
-  final h = math.pow(math.sin(latDelta / 2), 2) +
+  final h =
+      math.pow(math.sin(latDelta / 2), 2) +
       math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(lngDelta / 2), 2);
   return 2 * earthRadius * math.asin(math.sqrt(h));
 }
@@ -77,6 +78,16 @@ class _FakeMapPlatform extends MethodChannelGoogleMapsFlutter {
   }
 
   @override
+  Future<void> updateGroundOverlays(
+    GroundOverlayUpdates updates, {
+    required int mapId,
+  }) async {}
+
+  @override
+  Stream<GroundOverlayTapEvent> onGroundOverlayTap({required int mapId}) =>
+      const Stream.empty();
+
+  @override
   void dispose({required int mapId}) {
     disposed.add(mapId);
     super.dispose(mapId: mapId);
@@ -108,10 +119,7 @@ void main() {
 
     expect(geometry.center, LatLng(zone.lat, zone.lng));
     expect(geometry.radiusMeters, 187.5);
-    expect(
-      geometry.cameraFor(const Size(320, 240)).target,
-      geometry.center,
-    );
+    expect(geometry.cameraFor(const Size(320, 240)).target, geometry.center);
   });
 
   test('unset centre is not rendered at the model zero-coordinate default', () {
@@ -160,8 +168,12 @@ void main() {
     for (final radius in [50.0, 150.0, 5000.0]) {
       final geometry = SafeZoneMapGeometry.fromZone(_zone(radius: radius))!;
       final camera = geometry.cameraFor(const Size(288, 220));
-      final metresPerPixel = math.cos(geometry.center.latitude * math.pi / 180) *
-          2 * math.pi * 6371008.8 / (256 * math.pow(2, camera.zoom));
+      final metresPerPixel =
+          math.cos(geometry.center.latitude * math.pi / 180) *
+          2 *
+          math.pi *
+          6371008.8 /
+          (256 * math.pow(2, camera.zoom));
 
       expect(camera.zoom.isFinite, isTrue);
       expect(2 * radius / metresPerPixel, lessThanOrEqualTo(140.1));
@@ -198,17 +210,20 @@ void main() {
     expect(paused.bounds, active.bounds);
   });
 
-  test('polar and degenerate viewport values still produce a finite camera', () {
-    for (final latitude in [-90.0, 90.0]) {
-      final geometry = SafeZoneMapGeometry.fromZone(_zone(lat: latitude))!;
-      for (final size in [Size.zero, const Size(double.infinity, 240)]) {
-        final camera = geometry.cameraFor(size);
-        expect(camera.target, LatLng(latitude, 57.591));
-        expect(camera.zoom.isFinite, isTrue);
-        expect(camera.zoom, inInclusiveRange(0, 20));
+  test(
+    'polar and degenerate viewport values still produce a finite camera',
+    () {
+      for (final latitude in [-90.0, 90.0]) {
+        final geometry = SafeZoneMapGeometry.fromZone(_zone(lat: latitude))!;
+        for (final size in [Size.zero, const Size(double.infinity, 240)]) {
+          final camera = geometry.cameraFor(size);
+          expect(camera.target, LatLng(latitude, 57.591));
+          expect(camera.zoom.isFinite, isTrue);
+          expect(camera.zoom, inInclusiveRange(0, 20));
+        }
       }
-    }
-  });
+    },
+  );
 
   testWidgets('invalid data shows a readable fallback without a platform map', (
     tester,
@@ -251,32 +266,33 @@ void main() {
       GoogleMapsFlutterPlatform.instance = previousPlatform;
     });
 
-    testWidgets('preview shows only saved geometry and leaves page gestures free', (
-      tester,
-    ) async {
-      final zone = _zone(radius: 275);
-      await tester.pumpWidget(_mapHost(zone));
-      await _settleMap(tester);
-      final map = tester.widget<GoogleMap>(find.byType(GoogleMap));
+    testWidgets(
+      'preview shows only saved geometry and leaves page gestures free',
+      (tester) async {
+        final zone = _zone(radius: 275);
+        await tester.pumpWidget(_mapHost(zone));
+        await _settleMap(tester);
+        final map = tester.widget<GoogleMap>(find.byType(GoogleMap));
 
-      expect(map.circles.single.center, LatLng(zone.lat, zone.lng));
-      expect(map.circles.single.radius, 275);
-      expect(map.markers.single.position, LatLng(zone.lat, zone.lng));
-      expect(map.markers.single.draggable, isFalse);
-      expect(map.myLocationEnabled, isFalse);
-      expect(map.myLocationButtonEnabled, isFalse);
-      expect(map.scrollGesturesEnabled, isFalse);
-      expect(map.zoomGesturesEnabled, isFalse);
-      expect(map.webGestureHandling, WebGestureHandling.none);
-      expect(map.onTap, isNull);
-      expect(map.onLongPress, isNull);
-      expect(find.text('Loading map…'), findsNothing);
-      expect(platform.created, hasLength(1));
-      await tester.pumpWidget(const SizedBox.shrink());
-      await _settleMap(tester);
-      expect(platform.disposed, hasLength(1));
-      expect(tester.takeException(), isNull);
-    });
+        expect(map.circles.single.center, LatLng(zone.lat, zone.lng));
+        expect(map.circles.single.radius, 275);
+        expect(map.markers.single.position, LatLng(zone.lat, zone.lng));
+        expect(map.markers.single.draggable, isFalse);
+        expect(map.myLocationEnabled, isFalse);
+        expect(map.myLocationButtonEnabled, isFalse);
+        expect(map.scrollGesturesEnabled, isFalse);
+        expect(map.zoomGesturesEnabled, isFalse);
+        expect(map.webGestureHandling, WebGestureHandling.none);
+        expect(map.onTap, isNull);
+        expect(map.onLongPress, isNull);
+        expect(find.text('Loading map…'), findsNothing);
+        expect(platform.created, hasLength(1));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _settleMap(tester);
+        expect(platform.disposed, hasLength(1));
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets('selection and radius updates refit the existing map', (
       tester,
@@ -284,12 +300,7 @@ void main() {
       await tester.pumpWidget(_mapHost(_zone()));
       await _settleMap(tester);
       final initialUpdates = platform.cameraUpdates.length;
-      final school = _zone(
-        id: 'school',
-        lat: -20.03,
-        lng: 57.61,
-        radius: 500,
-      );
+      final school = _zone(id: 'school', lat: -20.03, lng: 57.61, radius: 500);
       await tester.pumpWidget(_mapHost(school));
       await _settleMap(tester);
 
@@ -369,7 +380,9 @@ void main() {
       await _settleMap(tester);
       expect(platform.cameraUpdates, isNotEmpty);
       await tester.pumpWidget(const SizedBox.shrink());
-      platform.pendingCamera!.completeError(StateError('Platform view removed'));
+      platform.pendingCamera!.completeError(
+        StateError('Platform view removed'),
+      );
       await _settleMap(tester);
       expect(platform.disposed, hasLength(1));
       expect(tester.takeException(), isNull);

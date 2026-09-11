@@ -109,9 +109,11 @@ void main() {
     expect(find.text('300 m radius'), findsOneWidget);
     expect(find.text('150 m radius'), findsNothing);
     expect(
-      tester.widget<ChoiceChip>(
-        find.byKey(const ValueKey('select-zone-second-home')),
-      ).selected,
+      tester
+          .widget<ChoiceChip>(
+            find.byKey(const ValueKey('select-zone-second-home')),
+          )
+          .selected,
       isTrue,
     );
   });
@@ -160,39 +162,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('zone actions reach their supplied callbacks with the selection', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    final zone = safeZoneFixture();
-    await _pump(
-      tester,
-      safeZonesFixtureOverview(
-        zones: [zone],
-        alerts: [safeZoneAlertFixture(type: 'sos')],
-        onAdd: () => calls.add('add'),
-        onExpand: (value) => calls.add('expand:${value.id}'),
-        onToggle: (value) => calls.add('toggle:${value.id}'),
-        onDelete: (value) => calls.add('delete:${value.id}'),
-        onAlerts: () => calls.add('alerts'),
-      ),
-    );
+  testWidgets(
+    'zone actions reach their supplied callbacks with the selection',
+    (tester) async {
+      final calls = <String>[];
+      final zone = safeZoneFixture();
+      await _pump(
+        tester,
+        safeZonesFixtureOverview(
+          zones: [zone],
+          alerts: [safeZoneAlertFixture(type: 'sos')],
+          onAdd: () => calls.add('add'),
+          onExpand: (value) => calls.add('expand:${value.id}'),
+          onToggle: (value) => calls.add('toggle:${value.id}'),
+          onDelete: (value) => calls.add('delete:${value.id}'),
+          onAlerts: () => calls.add('alerts'),
+        ),
+      );
 
-    await _tap(tester, find.text('Add zone'));
-    await _tap(tester, find.text('Expand map'));
-    await _tap(tester, find.text('Review alerts'));
-    await _tap(tester, find.text('Pause zone'));
-    await _tap(tester, find.text('Delete zone'));
+      await _tap(tester, find.text('Add zone'));
+      await _tap(tester, find.text('Expand map'));
+      await _tap(tester, find.text('Review alerts'));
+      await _tap(tester, find.text('Pause zone'));
+      await _tap(tester, find.text('Delete zone'));
 
-    expect(calls, [
-      'add',
-      'expand:${zone.id}',
-      'alerts',
-      'toggle:${zone.id}',
-      'delete:${zone.id}',
-    ]);
-    expect(tester.takeException(), isNull);
-  });
+      expect(calls, [
+        'add',
+        'expand:${zone.id}',
+        'alerts',
+        'toggle:${zone.id}',
+        'delete:${zone.id}',
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('a pending write disables further toggle and delete actions', (
     tester,
@@ -240,54 +243,58 @@ void main() {
     expect(find.text('OUTSIDE'), findsNothing);
   });
 
-  testWidgets('recorded events require both the exact zone and assigned watch', (
-    tester,
-  ) async {
-    final now = DateTime.now();
-    await _pump(
-      tester,
-      safeZonesFixtureOverview(
-        alerts: [
-          safeZoneAlertFixture(
-            id: 'correct-arrival',
-            createdAt: now.subtract(const Duration(minutes: 20)),
-          ),
-          safeZoneAlertFixture(
-            id: 'different-zone',
-            type: 'geofence_exit',
-            geofenceId: 'another-zone',
-            createdAt: now.subtract(const Duration(minutes: 2)),
-          ),
-          safeZoneAlertFixture(
-            id: 'different-watch',
-            type: 'geofence_exit',
-            imei: 'another-watch',
-            createdAt: now.subtract(const Duration(minutes: 1)),
-          ),
-        ],
-      ),
-    );
+  testWidgets(
+    'recorded events require both the exact zone and assigned watch',
+    (tester) async {
+      final now = DateTime.now();
+      await _pump(
+        tester,
+        safeZonesFixtureOverview(
+          alerts: [
+            safeZoneAlertFixture(
+              id: 'correct-arrival',
+              createdAt: now.subtract(const Duration(minutes: 20)),
+            ),
+            safeZoneAlertFixture(
+              id: 'different-zone',
+              type: 'geofence_exit',
+              geofenceId: 'another-zone',
+              createdAt: now.subtract(const Duration(minutes: 2)),
+            ),
+            safeZoneAlertFixture(
+              id: 'different-watch',
+              type: 'geofence_exit',
+              imei: 'another-watch',
+              createdAt: now.subtract(const Duration(minutes: 1)),
+            ),
+          ],
+        ),
+      );
 
-    expect(find.textContaining('Arrival recorded ·'), findsOneWidget);
-    expect(find.textContaining('Departure recorded ·'), findsNothing);
-  });
+      expect(find.textContaining('Arrival recorded ·'), findsOneWidget);
+      expect(find.textContaining('Departure recorded ·'), findsNothing);
+    },
+  );
 
-  testWidgets('an event without a zone ID is not claimed as this zone history', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      safeZonesFixtureOverview(
-        alerts: [safeZoneAlertFixture(geofenceId: null)],
-      ),
-    );
+  testWidgets(
+    'an event without a zone ID is not claimed as this zone history',
+    (tester) async {
+      await _pump(
+        tester,
+        safeZonesFixtureOverview(
+          alerts: [safeZoneAlertFixture(geofenceId: null)],
+        ),
+      );
 
-    expect(find.textContaining('Arrival recorded ·'), findsNothing);
-    expect(
-      find.text('No arrival or departure in the available history for this zone.'),
-      findsOneWidget,
-    );
-  });
+      expect(find.textContaining('Arrival recorded ·'), findsNothing);
+      expect(
+        find.text(
+          'No arrival or departure in the available history for this zone.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('empty zones offer the existing add flow', (tester) async {
     var adds = 0;
@@ -317,7 +324,10 @@ void main() {
   ) async {
     await _pump(tester, safeZonesFixtureOverview(alertsUnavailable: true));
 
-    expect(find.textContaining('Alert history is unavailable.'), findsOneWidget);
+    expect(
+      find.textContaining('Alert history is unavailable.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('No arrival or departure'), findsNothing);
     expect(find.text('Pause zone'), findsOneWidget);
     expect(find.text('Expand map'), findsOneWidget);
@@ -333,11 +343,16 @@ void main() {
         Builder(
           builder: (context) => FilledButton(
             onPressed: () async {
-              result = await confirmSafeZoneDeletion(context, safeZoneFixture());
+              result = await confirmSafeZoneDeletion(
+                context,
+                safeZoneFixture(),
+              );
             },
             child: const Text('Open deletion confirmation'),
           ),
         ),
+        width: outcome == 'Delete zone' ? 320 : 390,
+        textScale: outcome == 'Delete zone' ? 2 : 1,
       );
       await _tap(tester, find.text('Open deletion confirmation'));
       expect(find.text('Delete safe zone?'), findsOneWidget);
