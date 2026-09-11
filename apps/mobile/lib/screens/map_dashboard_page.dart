@@ -91,7 +91,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Set<Circle> _circles() {
     final selected = _selected;
     final approximate = selected?.latestLocationObservation;
-    final uncertaintyRadius = selected?.hasHomeWifiDisplay != true &&
+    final uncertaintyRadius =
+        selected?.hasHomeWifiDisplay != true &&
             selected?.hasApproximateLocation == true
         ? approximate?.accuracyMeters
         : null;
@@ -127,13 +128,15 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     for (final device in _devices) {
       final location = device.mapDisplayLocation;
       if (location?.isValid != true) continue;
-      markers.add(Marker(
-        markerId: MarkerId(device.imei),
-        position: LatLng(location!.lat, location.lng),
-        zIndexInt: device.imei == _selectedImei ? 2 : 1,
-        alpha: device.isTrulyOffline ? 0.55 : 1,
-        onTap: () => _dashboard.select(device.imei),
-      ));
+      markers.add(
+        Marker(
+          markerId: MarkerId(device.imei),
+          position: LatLng(location!.lat, location.lng),
+          zIndexInt: device.imei == _selectedImei ? 2 : 1,
+          alpha: device.isTrulyOffline ? 0.55 : 1,
+          onTap: () => _dashboard.select(device.imei),
+        ),
+      );
     }
     return markers;
   }
@@ -370,9 +373,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         ? 'the position shown on the map'
         : place;
     if (device.hasHomeWifiDisplay) {
-      _showQuickFact('${device.displayName}\'s location',
+      _showQuickFact(
+        '${device.displayName}\'s location',
         '${deviceHomeWifiFixLabel(device)}. The watch is at or near your saved Home pin. '
-        '${deviceRetainedGpsLabel(device)}; that satellite fix is retained separately.');
+            '${deviceRetainedGpsLabel(device)}; that satellite fix is retained separately.',
+      );
       return;
     }
     if (device.isMapDisplayingLastSatelliteLocation) {
