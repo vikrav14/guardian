@@ -133,28 +133,33 @@ GPS, a network association, an indoor guarantee or a movement event.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| version / policy | number / string | New writes: `3` / `enrolled_home_radio_v3`. Readers also accept cached v1/v2 policy pairs using their original GPS precedence/spatial checks. Other pairs fail closed. |
-| pilot / state / source | boolean / string / string | `true` / (`matched` or v3 `conflict`) / `home_wifi`. |
-| conflictReason | string, conflict only | `gps_outside_home` or `gps_boundary_uncertain`. No arbitrary strings. A conflict preserves fresh router evidence but cannot select the Home pin. |
+| version / policy | number / string | New writes: `4` / `enrolled_home_radio_v4`, with Home-radio priority over GPS A/V. Readers accept cached v1/v2/v3 pairs using their original contracts. Other pairs fail closed. |
+| pilot / state / source | boolean / string / string | `true` / `matched` / `home_wifi` for v4. Only cached v3 permits `conflict`. |
+| conflictReason | string, legacy v3 conflict only | `gps_outside_home` or `gps_boundary_uncertain`. No arbitrary strings. A conflict preserves fresh router evidence but cannot select the Home pin. |
 | observedAt | ISO timestamp string | Last qualifying radio observation's source time; never a heartbeat or display write time. |
 | expiresAt | ISO timestamp string | Earlier of the two-minute observation lifetime and the at-most-60-second verified Home/plan binding lease. Consumers reject future source time, expired or oversized leases without needing another database event. |
-| anchor | map | `{ geofenceId, label: 'Home', lat, lng, radiusMeters }` from the validated saved Home zone. Positive finite radius is required in v2/v3; absent legacy zone radius defaults to 150 m. No raw BSSID, SSID, router fingerprint, key or password. |
+| anchor | map | `{ geofenceId, label: 'Home', lat, lng, radiusMeters }` from the validated saved Home zone. Positive finite radius is required in v2/v3/v4; absent legacy zone radius defaults to 150 m. No raw BSSID, SSID, router fingerprint, key or password. |
 
-Only the independent pilot publisher updates this field, without refreshing
-`updatedAt` or altering raw location, satellite history, battery, connectivity,
-journeys, geofence transitions, intelligence or incident snapshots. It clears
-invalid radio/binding evidence with `null`. In v2/v3 the latest fresh GPS position must fit within
-the saved Home radius (capped at 150 m), including a margin of at least 30 m or
-supplied GPS accuracy, whichever is larger. This margin is not measured accuracy.
-Outside/uncertain or invalid/future-time GPS blocks Home; GPS at Home does not
-erase or renew radio evidence. GPS older than two minutes cannot indefinitely
-override a new qualified radio match. V1 retains its newer/equal-GPS precedence.
-V3 preserves spatial disagreements as a bounded conflict record: app and ordinary
-WhatsApp name the fresh Home radio observation while labelling the current
-position unconfirmed. They retain the normal recorded map reference without
-selecting the Home anchor. A stored conflict cannot silently become matched if
-GPS ages out or has not reached Firestore; the publisher must resolve it.
-Gateway and Flutter enforce the same versioned contract even for cached records.
+Only the independent pilot publisher writes this field, without refreshing
+`updatedAt`, raw location, satellite history, battery, connectivity or incident
+snapshots. Invalid radio/binding evidence clears it to `null`.
+
+V4 selects the verified saved Home pin regardless of GPS A/V. The runtime uses
+the same fresh, bound evidence to hold GPS-derived dwell, journey and geofence
+calculations. It seeds a Home baseline without manufacturing arrival alerts.
+An open route is preserved at its last measured endpoint with
+`closeReason: home_wifi_detected`; no Home coordinate is inserted. After Home
+loss/expiry, a fresh GPS fix newer than the last radio observation is required
+to resume movement evaluation. Source switching/expiry alone is not departure.
+The first resumed route cannot bridge indoor GPS or a pre-Home anchor.
+GPS-based intelligence uses the same priority; ordinary app/WhatsApp source
+selection agrees. SOS/fall snapshots keep their independent accepted contract.
+
+Cached v1 keeps newer/equal-GPS precedence; v2 retains spatial agreement. V3
+conflicts remain unconfirmed references and cannot silently turn into Home.
+Those legacy records never activate v4 tracking priority. Only a new validated
+v4 publication changes the policy. GPS/heartbeats cannot renew Home timestamps.
+The map anchor denotes saved Home proximity, not measured indoor GPS accuracy.
 Binding and ownership are rechecked every 30 seconds; changed/invalid bindings
 require new repeated observations. Existing device update allowlists prohibit
 client evidence forgery; no Firestore rules expansion is required.

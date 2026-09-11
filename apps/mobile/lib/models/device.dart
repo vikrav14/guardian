@@ -204,7 +204,8 @@ class Device {
   DeviceLocation? homeWifiLocationAt(DateTime now) {
     final home = homeWifiPresence;
     if (home == null || !home.isFreshAt(now) || home.conflictReason != null ||
-        _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home') {
+        (home.policyVersion != 4 &&
+            _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home')) {
       return null;
     }
     return DeviceLocation(lat: home.lat, lng: home.lng,
@@ -216,7 +217,7 @@ class Device {
   /// A publisher conflict cannot be promoted by older/missing cached GPS.
   bool homeWifiConflictAt(DateTime now) {
     final home = homeWifiPresence;
-    if (home == null || home.policyVersion < 2 || !home.isFreshAt(now)) return false;
+    if (home == null || home.policyVersion < 2 || home.policyVersion == 4 || !home.isFreshAt(now)) return false;
     return HomeWifiPresence.isConflictReason(home.conflictReason) ||
         HomeWifiPresence.isConflictReason(_homeGpsAgreementAt(home, now));
   }

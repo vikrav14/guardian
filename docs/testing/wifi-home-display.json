@@ -2280,5 +2280,847 @@
     },
     "expectedHome": false,
     "expectedConflict": false
+  },
+  {
+    "name": "v4: outside GPS A cannot veto fresh Home radio",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.16,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: same-packet GPS and radio select Home",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: GPS boundary overlap cannot veto Home",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.1512,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: GPS accuracy does not control Home proximity",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z",
+        "accuracyMeters": 500
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: invalid GPS coordinates do not invalidate independent radio",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": 91,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: missing GPS timestamp does not invalidate radio",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: future GPS timestamp cannot veto fresh radio",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T12:00:01Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: conflicting GPS copies do not change Home priority",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.16,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: radio evidence alone can select Home",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": true,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: expired Home falls back to ordinary GPS",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:58:00Z",
+        "expiresAt": "2026-09-01T12:00:00Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: future radio evidence fails closed",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T12:00:01Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: disabled pilot fails closed",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": false,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: a radio candidate is not Home",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "candidate",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: oversized radio lease fails closed",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:05:00Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 150
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: invalid Home radius fails closed",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 0
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: missing Home radius fails closed",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.15,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home"
+        }
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
+  },
+  {
+    "name": "v4: conflict state is not a radio-priority record",
+    "now": "2026-09-01T12:00:00Z",
+    "device": {
+      "online": true,
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-01T12:00:00Z",
+      "location": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.2,
+        "lng": 57.2,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 519,
+        "recordedAt": "2026-09-01T11:59:50Z"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.149190610554673,
+        "lng": 57.15,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-01T11:59:55Z"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "conflict",
+        "source": "home_wifi",
+        "observedAt": "2026-09-01T11:59:50Z",
+        "expiresAt": "2026-09-01T12:01:50Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "label": "Home",
+          "radiusMeters": 50
+        },
+        "conflictReason": "gps_outside_home"
+      }
+    },
+    "expectedHome": false,
+    "expectedConflict": false
   }
 ]

@@ -199,23 +199,31 @@ DashboardInsight buildDashboardInsight(Device? device) {
   }
 
   final intelligence = device.intelligence;
+  final locationOnlyInsight = const {
+    'stale_gps', 'geofence_exit_urgent', 'low_battery_moving',
+  }.contains(intelligence?.topInsight?.id);
+  if (device.hasHomeWifiDisplay &&
+      (intelligence?.topInsight == null || locationOnlyInsight)) {
+    if ((device.batteryPercent ?? 100) <= 20) {
+      return DashboardInsight(
+        title: 'Battery needs attention',
+        detail: '${device.displayName} has ${device.batteryPercent}% battery remaining.',
+        tone: DashboardInsightTone.warning,
+      );
+    }
+    return DashboardInsight(
+      title: 'Home Wi-Fi detected',
+      detail: '${deviceHomeWifiFixLabel(device)}. At or near your saved Home location. '
+          '${deviceRetainedGpsLabel(device)}.',
+      tone: DashboardInsightTone.neutral,
+    );
+  }
   if (device.hasHomeWifiConflict &&
       (device.batteryPercent ?? 100) > 20 &&
       (intelligence?.topInsight == null || intelligence?.topInsight?.id == 'stale_gps')) {
     return DashboardInsight(
       title: 'Location uncertain',
       detail: deviceHomeWifiConflictLabel(device),
-      tone: DashboardInsightTone.neutral,
-    );
-  }
-  if (device.hasHomeWifiDisplay &&
-      (device.batteryPercent ?? 100) > 20 &&
-      (intelligence?.topInsight == null ||
-          intelligence?.topInsight?.id == 'stale_gps')) {
-    return DashboardInsight(
-      title: 'Home Wi-Fi detected',
-      detail: '${deviceHomeWifiFixLabel(device)}. At or near your saved Home location. '
-          '${deviceRetainedGpsLabel(device)}.',
       tone: DashboardInsightTone.neutral,
     );
   }

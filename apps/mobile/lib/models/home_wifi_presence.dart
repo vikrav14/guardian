@@ -60,9 +60,10 @@ class HomeWifiPresence {
     final legacy = map['version'] == 1 && map['policy'] == 'enrolled_home_radio_v1';
     final spatial = map['version'] == 2 && map['policy'] == 'enrolled_home_radio_v2';
     final current = map['version'] == 3 && map['policy'] == 'enrolled_home_radio_v3';
+    final priority = map['version'] == 4 && map['policy'] == 'enrolled_home_radio_v4';
     final reason = map['conflictReason'] is String ? map['conflictReason'] as String : null;
     final conflict = current && map['state'] == 'conflict' && isConflictReason(reason);
-    if ((!legacy && !spatial && !current) ||
+    if ((!legacy && !spatial && !current && !priority) ||
         map['pilot'] != true ||
         (map['state'] != 'matched' && !conflict) ||
         (map['state'] == 'matched' && map['conflictReason'] != null) ||
@@ -89,7 +90,7 @@ class HomeWifiPresence {
       return null;
     }
     return HomeWifiPresence(lat: lat, lng: lng, observedAt: observed, expiresAt: expiry,
-      policyVersion: current ? 3 : spatial ? 2 : 1,
+      policyVersion: priority ? 4 : current ? 3 : spatial ? 2 : 1,
       radiusMeters: legacy ? null : radius, conflictReason: conflict ? reason : null);
   }
 

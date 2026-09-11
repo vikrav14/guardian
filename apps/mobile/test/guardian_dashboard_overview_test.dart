@@ -93,6 +93,56 @@ void main() {
       },
     );
   }
+  for (final width in [320.0, 1280.0]) {
+    testWidgets(
+      'Home Wi-Fi has priority over outside GPS at $width px with large text',
+      (tester) async {
+        final now = DateTime.now().toUtc();
+        final gps = DeviceLocation(
+          lat: -20.16,
+          lng: 57.15,
+          source: 'gps',
+          gpsValid: true,
+          recordedAt: now.subtract(const Duration(seconds: 1)),
+          placeLabel: 'Recorded GPS place',
+        );
+        final device = Device(
+          imei: 'demo-watch-a',
+          online: true,
+          nickname: 'Alex Morgan',
+          connectionState: 'live',
+          lastHeartbeatAt: now,
+          batteryPercent: 60,
+          lastSatelliteLocation: gps,
+          homeWifiPresence: HomeWifiPresence(
+            lat: -20.15,
+            lng: 57.15,
+            policyVersion: 4,
+            radiusMeters: 50,
+            observedAt: now.subtract(const Duration(seconds: 20)),
+            expiresAt: now.add(const Duration(seconds: 40)),
+          ),
+        );
+        var calls = 0;
+        await _pump(
+          tester,
+          dashboardFixtureOverview(device: device, onCall: () => calls++),
+          width: width,
+          textScale: 2,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('Location uncertain'), findsNothing);
+        expect(find.textContaining('Current position unconfirmed.', findRichText: true), findsNothing);
+        expect(find.textContaining('At or near saved Home.', findRichText: true), findsOneWidget);
+        expect(device.mapDisplayLocation?.source, 'home_wifi');
+        expect(device.mapDisplayLocation?.lat, -20.15);
+        expect(device.lastSatelliteLocation, same(gps));
+        await _tap(tester, find.text('Call watch'));
+        expect(calls, 1);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   for (final width in [320.0, 390.0, 768.0, 1280.0]) {
     for (final dark in [false, true]) {
       for (final textScale in [1.0, 2.0]) {

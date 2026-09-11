@@ -9,7 +9,7 @@ const { createWifiHomeObserver, fingerprintRouter } = require('../src/wifi-home-
 const { createHomeWifiPublisher } = require('../src/wifi-home-display');
 const { inspectV52WifiScan } = require('../src/wifi-fence-scan');
 const { buildAckFrame, decodeFrame, handlePacket } = require('../src/protocol/gt06');
-const { readHomeWifiDisplay } = require('../src/wifi-home-display-policy');
+const { readHomeWifiDisplay, evaluateHomeWifiDisplay } = require('../src/wifi-home-display-policy');
 const { buildLocationReplyData } = require('../src/location-reply');
 const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
 
@@ -71,7 +71,7 @@ function harness() {
     radio: () => observer.snapshot(state.now) };
 }
 
-test('GPS at Home preserves radio time; outside GPS shows uncertainty without selecting Home', async () => {
+test('fresh Home radio overrides GPS A inside or outside the saved zone', async () => {
   const run = harness(); await run.publisher.tick();
   for (const at of [0, 10, 20]) await run.receive(at);
   assert.equal(run.selected().source, 'home_wifi');
@@ -83,16 +83,16 @@ test('GPS at Home preserves radio time; outside GPS shows uncertainty without se
   assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiDetected, true);
   await run.receive(40, { gps: true, outside: true, scan: 'home' });
   assert.equal(run.radio().matchState, 'matched', 'radio evidence is independent of coordinates');
-  assert.equal(run.state.saved.state, 'conflict');
-  assert.equal(run.selected(), null);
-  assert.equal(run.publisher.getStatus().selectionReason, 'gps_outside_home');
-  assert.equal(run.publisher.getStatus().publishedHomeFresh, false);
-  assert.equal(run.publisher.getStatus().publishedConflictFresh, true);
-  assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiDetected, false);
-  assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiConflict, true);
-  await run.receive(50); // A newer radio alone cannot hide a still-fresh outside GPS fix.
-  assert.equal(run.selected(), null);
-  assert.equal(run.publisher.getStatus().selectionReason, 'gps_outside_home');
+  assert.equal(run.state.saved.state, 'matched');
+  assert.equal(run.selected().source, 'home_wifi');
+  assert.equal(run.publisher.getStatus().selectionReason, 'home_wifi_detected');
+  assert.equal(run.publisher.getStatus().publishedHomeFresh, true);
+  assert.equal(run.publisher.getStatus().publishedConflictFresh, false);
+  assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiDetected, true);
+  assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiConflict, false);
+  await run.receive(50);
+  assert.equal(run.selected().source, 'home_wifi');
+  assert.equal(run.publisher.getStatus().selectionReason, 'home_wifi_detected');
 });
 
 test('fresh declared Home scans in GPS packets can qualify without changing their coordinate source', async () => {
@@ -104,7 +104,7 @@ test('fresh declared Home scans in GPS packets can qualify without changing thei
   }
   assert.equal(run.radio().counts.qualified, 3);
   assert.equal(run.selected().source, 'home_wifi');
-  assert.equal(run.state.saved.version, 3);
+  assert.equal(run.state.saved.version, 4);
   assert.equal(run.state.saved.anchor.radiusMeters, 150);
   for (const privateValue of [imei, radio, hashKey, 'Private network']) {
     assert.ok(!JSON.stringify(run.state.saved).includes(privateValue));
@@ -173,6 +173,8 @@ test('live runtime passes GPS packet radio scans privately to the observer and p
       publisherOptions = options;
       const stop = () => {};
       stop.getStatus = () => ({ active: true });
+      stop.getEvidence = clock => evaluateHomeWifiDisplay(options.readObservation(clock),
+        { ready: true, anchor, validUntilMs: clock + 60_000 }, clock).value;
       return stop;
     } };
     throw new Error('Unexpected runtime dependency');
@@ -189,6 +191,11 @@ test('live runtime passes GPS packet radio scans privately to the observer and p
   const status = api.getWifiHomeRuntimeStatus(start + 20_000);
   assert.equal(status.observer.matchState, 'matched');
   assert.equal(status.observer.counts.qualified, 3);
+  assert.equal(api.getHomeWifiPriority(imei, start + 20_000).version, 4);
+  assert.equal(api.getHomeWifiPriority('359633100999999', start + 20_000), null);
+  settings.wifiHomeDisplayPilotEnabled = false;
+  assert.equal(api.getHomeWifiPriority(imei, start + 20_000), null);
+  settings.wifiHomeDisplayPilotEnabled = true;
   assert.equal(publisherOptions.readGpsObservation().lat, anchor.lat);
   assert.equal(publisherOptions.readObservation(start + 20_000).matchState, 'matched');
   const publicText = JSON.stringify({ status, logs });

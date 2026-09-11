@@ -183,7 +183,23 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
-**Latest correction:** the operator confirmed the saved Home pin is correct
+**Current v4 correction:** the operator rejected the v3 conflict screenshot and
+requested Home-router priority over GPS A/V. Fresh qualified radio plus the
+verified saved Home binding now selects Home across the app and ordinary chat.
+The same decision holds GPS-derived dwell, journeys and Home/School transitions.
+An open route stops at its last measured endpoint without an invented GPS return;
+Home seeds a quiet baseline. Expiry alone creates no departure; new fresh GPS
+resumes normal movement evaluation without an indoor-to-outdoor route bridge.
+The Home/School pins and radii, raw history, incident snapshots, reporting
+intervals and hardware settings retain their existing contracts.
+
+Home remains bounded by radio freshness and the verified owner/plan lease.
+Stationary reporting gaps and native WIFIFENCE acceptance are still open.
+Software gates do not establish physical presence or fence acceptance. Follow
+the [v4 device check](services/wifi-home-supplier-validation.md#next-device-check-for-v4)
+with both gateway and Flutter updated. PR #116 remains a private draft pilot.
+
+**Historical v3 correction (superseded by v4):** the operator confirmed the saved Home pin is correct
 (Home 50 m; School 150 m). A usable Home renewal at 20:56:44.931 UTC on 11 September
 was cleared at 20:56:47.979 with `gps_outside_home`, before its 20:57:26.672 expiry.
 The later radio expiry is separate. V3 preserves fresh router evidence as a
@@ -194,7 +210,7 @@ not provided. See the [current evidence and next check](services/wifi-home-suppl
 Live conflict display, expiry, departure/return and continuous Home remain open.
 
 
-**Latest software checkpoint, 11 September 2026 UTC:** the operator-authorized
+**Historical v2 software checkpoint, 11 September 2026 UTC:** the operator-authorized
 v2 Home/GPS integration is implemented. GPS at the saved Home area no longer
 erases fresh radio evidence; conflicting/uncertain fresh GPS prevents the Home
 pin. GPS/heartbeats/empty scans cannot renew radio expiry. Both gateway/chat and

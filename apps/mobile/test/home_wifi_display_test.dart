@@ -6,6 +6,7 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/dashboard/dashboard_ai_interpretation.dart';
 import 'package:guardian/dashboard/dashboard_controller.dart';
+import 'package:guardian/dashboard/dashboard_insight.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/models/home_wifi_presence.dart';
@@ -66,6 +67,27 @@ void main() {
       expect(device.lastSatelliteLocation, same(gps));
     });
   }
+
+  test('v4 Home priority overrides cached GPS warnings while preserving a low-battery warning', () {
+    final now = DateTime.now();
+    final gps = DeviceLocation(lat: -20.16, lng: 57.15, source: 'gps', gpsValid: true,
+      recordedAt: now, placeLabel: 'Recorded GPS place');
+    const outside = DeviceIntelligenceInsight(id: 'geofence_exit_urgent',
+      inference: 'Outside Home', confidence: 90, level: 'urgent');
+    Device device(int battery) => Device(imei: 'fixture-watch', online: true,
+      connectionState: 'live', lastHeartbeatAt: now, batteryPercent: battery,
+      location: gps, lastSatelliteLocation: gps,
+      intelligence: const DeviceIntelligence(insights: [outside], topInsight: outside),
+      homeWifiPresence: HomeWifiPresence(lat: -20.15, lng: 57.15,
+        policyVersion: 4, radiusMeters: 50, observedAt: now.subtract(const Duration(seconds: 20)),
+        expiresAt: now.add(const Duration(seconds: 40))));
+    expect(buildDashboardInsight(device(60)).title, 'Home Wi-Fi detected');
+    expect(buildGuardianAiInterpretation(device(60)), contains('at or near your saved Home'));
+    expect(device(60).hasHomeWifiConflict, false);
+    expect(buildDashboardInsight(device(5)).title, 'Battery needs attention');
+    expect(buildGuardianAiInterpretation(device(5)), contains('Battery critically low'));
+    expect(device(60).mapDisplayLocationAt(now.add(const Duration(seconds: 40))), same(gps));
+  });
 
   test('equal GPS instants conflict even when local and UTC representations differ', () {
     final now = DateTime.utc(2026, 9, 11, 12);

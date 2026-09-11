@@ -10,8 +10,9 @@
 
 This draft contains the private router observer and a separate, opt-in Home
 display pilot requested after near-router recognition passed. The latter
-connects bounded, backend-owned evidence to the existing app map, dashboard and
-ordinary WhatsApp location reply. The observer/publisher sends no automatic
+connects bounded, backend-owned evidence to the app map, dashboard and ordinary
+WhatsApp reply. Version 4 also prevents GPS-derived movement and boundary decisions
+while that Home evidence is active. The observer/publisher sends no automatic
 device command and adds no customer enrollment menu. A separate operator check
 can explicitly request the existing proven `CR` once to obtain new reports;
 this does not enable a general Home-presence product.
@@ -127,8 +128,8 @@ router identifiers, fingerprints, keys or coordinates.
 | `signal_weak` / `signal_unknown` | Router sighting does not meet the provisional signal requirement |
 | `expired` | The qualifying evidence is older than two minutes |
 | `satellite_observation` | Historical v1 GPS-priority reset; v2 keeps radio and coordinates separate |
-| `gps_outside_home` / `gps_boundary_uncertain` | The publisher's current GPS/Home comparison prevents a Home pin, even if the observer still matches the router |
-| `gps_time_unconfirmed` / `gps_position_unconfirmed` / `gps_accuracy_unconfirmed` | GPS evidence is insufficient for Home/GPS agreement; no Home claim |
+| `gps_outside_home` / `gps_boundary_uncertain` | Historical v2/v3 comparison; v4 qualified Home radio has priority over GPS |
+| `gps_time_unconfirmed` / `gps_position_unconfirmed` / `gps_accuracy_unconfirmed` | Historical v2/v3 GPS guards; v4 validates the independent Home radio and binding |
 | `configuration_incomplete` | Observation is requested but its pilot configuration is invalid |
 
 Disabling/revoking this private observer requires removing its managed block
@@ -149,7 +150,8 @@ saved Home pin. The [ordinary location reply spec](whatsapp-location.md) records
 the same source distinction and “at or near Home” wording. PR #122's dashboard
 contract requires the hero and map to agree; PR #109's accepted SOS and journey
 contracts preserve satellite evidence. This pilot implements that display
-contract without changing those emergency or movement contracts.
+contract with Home priority in the ordinary location/movement paths; emergency
+incident snapshots retain their separate accepted selection contract.
 
 After updating `feat/v52-wifi-home`, use the existing private enrollment:
 
@@ -170,7 +172,8 @@ Missing/ambiguous Home zones, unverifiable ownership, inactive access and read
 errors fail closed. The existing linked-watch rules protect reads and prevent
 clients from forging or changing `devices/{imei}.homeWifiPresence`.
 
-After three fresh qualifying reports, when GPS allows Home selection, the map avatar uses the saved Home pin;
+After three fresh qualifying reports and a valid binding, the map avatar uses the
+saved Home pin regardless of GPS A/V;
 the hero, location tile and map show **Home Wi-Fi detected** with its own
 detection age. Guardian's interpretation says **at or near your saved Home
 location**, and shows the retained GPS age separately. The provider uncertainty
@@ -181,8 +184,7 @@ pin, with the same Home source and separate GPS age.
 The background publisher is independent of packet/SOS dispatch and updates
 only `homeWifiPresence`. It never writes `updatedAt`, a watch heartbeat, raw
 location, history, geofence transitions, intelligence, alerts or commands.
-Valid renewals are limited to one write per 20 seconds; a change between Home
-and a GPS conflict bypasses that renewal throttle. Invalid radio/binding evidence
+Valid renewals are limited to one write per 20 seconds. Invalid radio/binding evidence
 is cleared immediately on the next publisher tick. The saved Home binding is
 revalidated every 30 seconds and leased for at most 60 seconds, bounded further
 by subscription expiry. Each display record expires at the earlier of that
@@ -195,61 +197,60 @@ prevent extension. An expired record
 is ignored by both app and chat even if the gateway or Firestore stops; the
 dashboard checks expiry locally without needing another document event.
 
-Versions 2 and 3 keep radio presence independent of GPS coordinates. A fresh GPS
-report alone neither erases nor renews radio evidence. The publisher, ordinary
-WhatsApp reader and Flutter selector use the same Home/GPS agreement contract:
+### Version 4: Home radio takes priority
 
-- Fresh, qualified radio evidence and a verified saved Home binding are always
-  required; GPS alone cannot establish Home Wi-Fi.
-- The latest GPS timestamp less than 120 seconds old must agree with Home.
-  Conflicting copies at that same time all have to agree. An older outside fix
-  cannot override a newer inside fix, but a newer radio sighting cannot hide a
-  still-fresh outside GPS position.
-- Agreement requires distance from the saved pin plus a margin to fit inside
-  `min(saved Home radius, 150 m)`. The margin is the greater of supplied positive
-  GPS accuracy and 30 m. The 30 m minimum is a presentation guard, **not a measured
-  accuracy claim**. Large saved zones cannot enlarge this Home vicinity cap.
-- Outside/boundary-uncertain GPS, invalid coordinates/accuracy or missing/future
-  GPS timestamps prevent Home selection. With no recent GPS, fresh qualified
-  radio evidence can select Home. Old GPS cannot block a return indefinitely.
-- Radio source time and the original two-minute expiry remain unchanged by GPS,
-  heartbeats or empty scans. No extended lease or automatic refresh is added.
+The operator rejected the v3 conflict presentation on 11 September 2026 UTC.
+The current policy is `version: 4` / `enrolled_home_radio_v4`, `state: matched`:
 
-New records use `version: 3` / `enrolled_home_radio_v3` and include the saved
-`anchor.radiusMeters`. A missing legacy zone radius uses the existing 150 m
-default; an invalid supplied radius fails closed. Cached v1 records retain their
-old newer/equal-GPS precedence; v2 keeps its spatial agreement checks. Unknown
-versions fail closed. Update both the gateway and Flutter app from this branch;
-an older app rejects v3 instead of guessing its meaning.
+- A fresh, qualified enrolled-router match plus a verified Home binding selects
+  **Home · Home Wi-Fi detected**. GPS A or V, GPS age, GPS position and supplied
+  GPS accuracy cannot veto it. This is Home-radio proximity, not measured GPS.
+- The app, ordinary WhatsApp location reply and assistant Home-zone check agree
+  on that source. A fresh Home match does not simultaneously claim School from
+  GPS. GPS-based cached AI warnings cannot override Home; battery/offline facts
+  remain independently applicable.
+- Three qualifying reports, signal/freshness rules, owner/plan verification,
+  binding rechecks and original radio/lease expiry still apply. GPS alone,
+  heartbeats and missing/empty scans cannot renew the radio timestamp.
+- The existing pilot flag enables this policy for the configured watch only.
+  The synchronous tracking reader uses the same current decision as the
+  background publisher without waiting on Firestore or sending any commands.
+- While Home is active, GPS/network coordinates do not feed dwell, journeys or
+  any saved-zone transition. Home proximity seeds the Home baseline without
+  generating an arrival alert; School does not compete with it. A pending
+  geofence query rechecks Home after its database read to avoid a late GPS exit.
+- If a journey is already open, preserve it at its last recorded route endpoint
+  with `closeReason: home_wifi_detected`. Do not add the Home pin as a GPS point,
+  draw the missing final segment, or label this a measured return crossing.
+- On radio loss or expiry, map/chat resume normal GPS/network selection. Expiry
+  alone creates no alert/trip. The movement path waits for a new, fresh valid
+  GPS observation after the last Home sighting before resuming normal boundary
+  rules. A resulting GPS-proven outside observation can emit a Home exit. Reset
+  the journey reference so indoor GPS and pre-Home anchors cannot add a false
+  segment to the new route.
+- Raw GPS/network telemetry, original observation times and history remain
+  available. SOS/fall packets, ACKs, frozen incident location and escalation
+  retain their accepted independent contract. Home is never rewritten as GPS.
 
-**V3 disagreement state:** a fresh, qualified Home radio match with outside or
-boundary-uncertain GPS publishes `state: conflict` and a whitelisted
-`conflictReason`. It preserves the router observation with its existing lease,
-but cannot select the Home pin. The app/map/details and ordinary WhatsApp reply
-show **Location uncertain**, Home Wi-Fi detection age, **GPS does not confirm the
-saved Home location**, and **Current position unconfirmed**. The normal recorded
-position remains a reference; the Home anchor is not a measured watch position.
-Invalid GPS coordinates/accuracy or missing/future GPS time still fails closed.
-A stored conflict cannot become Home because persisted GPS is absent, older or
-later expires: only a newly evaluated publisher record can resolve that state.
-Readers also detect a new spatial disagreement against a cached matched record.
-Both the conflict and Home displays expire locally without a Firestore event.
+Home and School remain separate saved zones. Home uses its verified pin; the
+50 m Home and 150 m School boundaries are not enlarged or moved. Radio coverage
+can extend beyond the Home boundary: current Home means detected near the saved
+router, not a guarantee of being inside the building or a measured 50 m circle.
+The operator must keep the enrolled router and saved Home pin aligned.
 
-**Home and School coexist:** the publisher filters for exactly one active zone
-named Home. List/tab order and the School radius have no effect. A 50 m Home
-zone uses that 50 m radius, not the 150 m upper cap. With the minimum 30 m software
-margin, GPS at most 20 m from its center agrees, 20–80 m is boundary-uncertain,
-and beyond 80 m is outside. Larger supplied accuracy widens that margin.
-The operator confirmed the saved Home pin is correct on 11 September UTC.
-Do not enlarge the arrival/departure boundary just to hide a disagreement.
-The new state neither creates nor suppresses GPS geofence alerts or journeys;
-those raw-GPS behaviors retain their existing rules and need physical validation.
+Cached v1/v2/v3 records retain their original contracts for their short remaining
+lease. V3 conflict states are historical and cannot acquire v4 tracking priority.
+Unknown versions fail closed. Update **both gateway and Flutter from this branch**;
+an older app rejects v4 instead of guessing. Newly published v4 records never
+produce the old Home/GPS conflict warning. The old GPS policy remains solely for
+cached legacy records and their regression tests.
 
-`wifi-home:check` separates `publishedHomeFresh` from `publishedConflictFresh` and
-keeps `lastHomePublication` separate from `lastConflictPublication`. A conflict
-cannot pass `home_ready`; the bounded check returns `home_gps_conflict` without
-sending another CR. No new automatic polling, native fence provisioning, battery
-policy or radio expiry change is introduced. Stationary acquisition gaps remain.
+`wifi-home:check` continues to require an acknowledged, unexpired publication
+for `home_ready`. `publishedConflictFresh` and `lastConflictPublication` remain
+compatible diagnostic fields but new v4 publications do not use a conflict state.
+Native WIFIFENCE is still unaccepted; there is no proven native `fence=false`
+boolean here. No WIFIFENCE retry, automatic CR loop, report-interval change or
+longer Home lifetime is included. The known stationary scan/report gap remains.
 
 Weak/unknown router reports, revocation, a changed Home pin/radius/owner or
 subscription loss clear the display.
@@ -306,11 +307,12 @@ still had a usable lease when acknowledged. Its source and expiry times remain
 unchanged after the current record is cleared. This small in-memory diagnostic
 is lost on gateway restart; it is not Home history or proof of the app rendering.
 `publishedHomeFresh` becomes false at the recorded expiry even without another
-packet or publisher tick, and becomes false when current GPS conflicts with Home.
+packet or publisher tick, or when radio/binding evidence becomes ineligible.
+GPS A/V cannot turn a fresh qualified v4 Home publication into a conflict.
 A pending or failed write never counts as publication. A delayed write is
 rechecked against current eligibility before being reported as usable.
 `matchReason`, `selectionReason` and `lastClearedReason` distinguish the radio
-state from a GPS, binding or expiry decision without exposing coordinates.
+state from binding, radio loss or expiry without exposing coordinates.
 
 For one coordinated live check with the watch near its enrolled router:
 
@@ -421,10 +423,10 @@ The actual SOS dispatcher is also tested with observer failure and failed
 provider geolocation: alert creation and the frozen GPS snapshot are preserved.
 Shared `docs/testing/wifi-home-display.json` fixtures exercise app and WhatsApp
 selection for fresh, expired, invalid, future and conflicting GPS evidence.
-They cover legacy v1 and v2 inside/outside/boundary GPS, equal-time conflicts,
-stale GPS, large Home zones, invalid accuracy and independent radio expiry.
+They cover legacy v1/v2/v3 behavior and v4 radio priority over inside/outside,
+boundary, invalid and differently timed GPS, plus independent radio expiry.
 The GPS integration replay covers real V52 decoding and the runtime scan hook,
-GPS packets with declared/empty/missing/malformed scans, clearing on outside GPS,
+GPS packets with declared/empty/missing/malformed scans, Home priority over outside GPS,
 and unchanged GPS events, ACKs, SOS snapshots and private diagnostic redaction.
 Publisher tests cover owner/plan binding, expiry, revocation, failed reads and
 writes, and bounded renewal. A canonical V52 decoder/observer/publisher/chat
@@ -438,7 +440,10 @@ explicitly prove the presence field cannot alter a frozen incident selection.
 These software checks do not claim a live Home display, customer enrollment or
 an accepted `WIFIFENCE` command.
 Runtime tests also cover publication followed by clearing, pending reads/writes,
-late expired/conflicting writes and recovery requiring fresh radio evidence. Admin-route
+late expired writes, GPS arriving during writes, radio loss and recovery requiring
+fresh evidence. Tracking replays cover indoor drift, Home/School coexistence,
+expiry without a departure, buffered fixes, GPS resumption, route preservation
+and the actual event dispatcher. Admin-route
 tests reject dev-open, missing/wrong credentials and a mismatched pilot. A real
 loopback CLI test verifies a single authenticated `CR`, redacted output and the
 separate publication check. A socket handoff or router match alone cannot pass it.
@@ -477,7 +482,7 @@ device command is required, retain the exact-firmware command acceptance gate.
   policy before implementation is enabled; missing Wi-Fi alone is not proof
   that the wearer left Home.
 - Fall back to the accepted location presentation when Home confidence expires
-  or conflicts with stronger evidence. Do not overwrite stored GPS, add trip
+  or is revoked/lost; GPS A/V does not veto qualified Home radio. Do not overwrite stored GPS, add trip
   distance, invent departures/returns, or modify an existing SOS snapshot.
 - Any use of Home evidence in a new SOS must have an explicit, separately tested
   location-selection contract. The accepted GPS/approximate SOS behavior is not

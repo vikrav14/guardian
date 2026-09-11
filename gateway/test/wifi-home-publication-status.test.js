@@ -119,70 +119,62 @@ test('a failed binding read clears Home and recovery still requires new radio ev
   assert.equal(run.getStatus().homeEvidenceEligible, false);
 });
 
-test('outside GPS received during a pending Home write prevents a late Home success', async () => {
+test('outside GPS during a pending write cannot veto Home; only acknowledged writes count', async () => {
   let release;
-  const run = harness({ persist: value => value?.state === 'matched' && new Promise(resolve => { release = resolve; }) });
+  const run = harness({ persist: value => value && new Promise(resolve => { release = resolve; }) });
   await run.tick(); run.match();
   const pending = run.tick();
   run.state.now += 1_000;
   run.state.gps = { source: 'gps', gpsValid: true, lat: -20.16, lng: 57.15,
     recordedAt: new Date(run.state.now).toISOString() };
-  assert.equal(run.getStatus().selectionReason, 'gps_outside_home');
+  assert.equal(run.getStatus().selectionReason, 'home_wifi_detected');
   assert.equal(run.getStatus().publishedHomeFresh, false);
+  assert.equal(run.getEvidence().state, 'matched', 'tracking can read qualified evidence without awaiting Firestore');
   release(); await pending;
-  assert.equal(run.getStatus().lastHomePublication, null);
-  assert.equal(run.getStatus().publishedHomeFresh, false);
+  assert.ok(run.getStatus().lastHomePublication);
+  assert.equal(run.getStatus().publishedHomeFresh, true);
   assert.equal(readHomeWifiDisplay({ homeWifiPresence: run.state.saved, lastSatelliteLocation: run.state.gps },
-    { now: new Date(run.state.now) }), null, 'a reader also rejects the conflicting pending value');
-  await run.tick();
-  assert.equal(run.state.saved.state, 'conflict');
-  assert.equal(run.getStatus().publishedConflictFresh, true);
-  assert.equal(run.getStatus().publishedHomeFresh, false);
+    { now: new Date(run.state.now) }).source, 'home_wifi');
+  assert.equal(run.getStatus().publishedConflictFresh, false);
 });
 
-test('conflict changes bypass renewal throttling and expire without promoting Home', async () => {
+test('changing GPS does not add writes, renew radio time or prevent expiry', async () => {
   const run = harness();
   await run.tick(); run.match(); await run.tick();
   const original = run.getStatus().lastHomePublication;
-  run.state.now += 1000;
-  run.state.gps = { lat: -20.16, lng: 57.15, gpsValid: true,
-    recordedAt: new Date(run.state.now).toISOString() };
-  await run.tick();
-  assert.equal(run.state.saved.state, 'conflict', 'do not wait for the 20-second renewal throttle');
-  assert.equal(run.getStatus().publishedHomeFresh, false);
-  assert.equal(run.getStatus().publishedConflictFresh, true);
-  assert.deepEqual(run.getStatus().lastHomePublication, original);
-  assert.ok(run.getStatus().lastConflictPublication);
-  assert.equal(run.state.logs.at(-1).displayingConflict, true);
-  run.state.now += 1000;
-  run.state.gps = { ...run.state.gps, lat: -20.15, recordedAt: new Date(run.state.now).toISOString() };
-  await run.tick();
-  assert.equal(run.state.saved.state, 'matched', 'fresh agreement resolves the conflict explicitly');
-  assert.equal(run.getStatus().publishedConflictFresh, false);
-  assert.equal(run.getStatus().publishedHomeFresh, true);
-  run.state.now += 1000;
-  run.state.gps = { ...run.state.gps, lat: -20.16, recordedAt: new Date(run.state.now).toISOString() };
-  await run.tick();
-  assert.equal(run.state.saved.state, 'conflict');
+  const writes = run.state.writes;
+  for (const lat of [-20.16, -20.15, -20.17]) {
+    run.state.now += 1000;
+    run.state.gps = { lat, lng: 57.15, gpsValid: true,
+      recordedAt: new Date(run.state.now).toISOString() };
+    await run.tick();
+    assert.equal(run.state.saved.state, 'matched');
+    assert.equal(run.getStatus().publishedHomeFresh, true);
+    assert.equal(run.getStatus().publishedConflictFresh, false);
+    assert.deepEqual(run.getStatus().lastHomePublication, original);
+  }
+  assert.equal(run.state.writes, writes);
   run.state.now = start + 120_000;
   assert.equal(run.getStatus().publishedHomeFresh, false);
-  assert.equal(run.getStatus().publishedConflictFresh, false);
+  assert.equal(run.getEvidence(), null);
   await run.tick();
   assert.equal(run.state.saved, null);
 });
 
-test('a pending or failed conflict write cannot count as a published conflict', async () => {
-  let rejectWrite;
-  const run = harness({ persist: value => value?.state === 'conflict' &&
-    new Promise((resolve, reject) => { rejectWrite = reject; }) });
-  await run.tick(); run.match();
-  run.state.gps = { lat: -20.16, lng: 57.15, gpsValid: true, recordedAt: new Date(start).toISOString() };
-  const pending = run.tick();
-  assert.equal(run.getStatus().wifiConflictEligible, true);
-  assert.equal(run.getStatus().publishedConflictFresh, false);
-  rejectWrite(new Error('Synthetic write failure'));
-  await pending;
-  assert.equal(run.getStatus().lastConflictPublication, null);
-  assert.equal(run.getStatus().publishedHomeFresh, false);
-  assert.equal(run.getStatus().publishedConflictFresh, false);
+test('radio loss clears immediately despite renewal throttling; a failed write is not publication', async () => {
+  const run = harness();
+  await run.tick(); run.match(); await run.tick();
+  run.state.now += 1000;
+  run.state.observation = { ...run.state.observation, matchState: 'unknown', reason: 'router_not_seen' };
+  assert.equal(run.getEvidence(), null);
+  await run.tick();
+  assert.equal(run.state.saved, null);
+  assert.equal(run.getStatus().lastClearedReason, 'router_not_seen');
+
+  const failed = harness({ persist: value => { if (value) throw new Error('Synthetic failure'); } });
+  await failed.tick(); failed.match(); await failed.tick();
+  assert.equal(failed.getStatus().lastHomePublication, null);
+  assert.equal(failed.getStatus().publishedHomeFresh, false);
+  failed.stop();
+  assert.equal(failed.getEvidence(), null);
 });

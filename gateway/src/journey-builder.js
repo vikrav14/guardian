@@ -305,6 +305,7 @@ function departureAnchorForExit(state, geofenceId, outsidePoint, now) {
 }
 
 function startJourney(state, point, now, { routeAnchor = null } = {}) {
+  state.journeyResumeReference = null;
   const normalized = normalizePoint(point);
   const points = [];
   let routeStartEvidence = null;
@@ -531,6 +532,17 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
   const pointAt = recordedAtOrNow(point, now);
   const satelliteObservation = isJourneyGps(point);
 
+  // First GPS after Home starts a new movement baseline. Never compare it with
+  // indoor GPS retained for diagnostics or join it to a pre-Home route anchor.
+  if (state.journeyResumePending && satelliteObservation) {
+    state.journeyResumePending = false;
+    state.journeyResumeReference = normalizePoint(point);
+  }
+  const idleReference = state.journeyResumeReference || state.lastPersistedLocation;
+  if (!state.currentJourney && state.journeyResumeReference && satelliteObservation) {
+    state.journeyResumeReference = normalizePoint(point);
+  }
+
   if (!state.currentJourney && !satelliteObservation) {
     return { flushes, started: false };
   }
@@ -586,7 +598,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
 
     // A safe-zone exit is a departure, not the end of an outing.
     if (!state.currentJourney) {
-      const reference = state.lastPersistedLocation;
+      const reference = idleReference;
       if (shouldAcceptJourneyPoint(point, reference)) {
         const routeAnchor = departureAnchorForExit(
           state,
@@ -686,7 +698,7 @@ function trackJourneyPoint(state, point, now = new Date(), options = {}) {
 
   const reference = state.currentJourney
     ? state.currentJourney.points[state.currentJourney.points.length - 1]
-    : state.lastPersistedLocation;
+    : idleReference;
 
   const moving = isMoving(point, reference);
 

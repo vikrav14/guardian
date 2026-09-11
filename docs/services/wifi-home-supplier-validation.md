@@ -1,6 +1,52 @@
 # V52 native Wi-Fi fence validation
 
-## Fresh router/GPS disagreement — 11 September 2026 UTC
+## Current v4 Home-radio priority — 11 September 2026 UTC
+
+The operator supplied the v3 conflict screenshot and rejected its behavior.
+The requested rule is now implemented: **fresh qualified Home Wi-Fi selects Home
+regardless of GPS A/V**. This supersedes the GPS-agreement/conflict policies below.
+It uses the watch's already demonstrated enrolled-router scans, not an assumed
+native WIFIFENCE true/false state. The native command remains unaccepted.
+
+The gateway publisher, Flutter map/dashboard, ordinary WhatsApp location and
+assistant Home checks use the v4 contract. Tracking reads the same qualified,
+bound decision synchronously; GPS/network coordinates cannot create dwell,
+journeys or Home/School boundary transitions while Home has priority. A route
+already in progress is preserved at its last recorded endpoint, tagged
+`home_wifi_detected`; no missing segment or GPS arrival at Home is invented.
+Home proximity quietly seeds the Home baseline. After radio loss/expiry, new
+fresh GPS is required for subsequent movement and boundary decisions. A normal
+GPS-based Home exit remains possible; expiry alone is not an exit. The journey
+baseline is reset so indoor coordinates cannot create a jump on resumption.
+Raw telemetry/history, SOS/fall packets and frozen incident handling remain intact.
+
+Three qualifying scans, ownership/plan verification, the saved pin and original
+lease/expiry rules remain required. GPS A/V, heartbeats and empty scans cannot
+renew Home. No report interval, Home radius or native watch setting is changed.
+Router coverage can extend outside the house: the source label is Home Wi-Fi
+proximity, not a measured indoor fix. The known stationary reporting gap remains.
+
+### Next device check for v4
+
+1. Update `feat/v52-wifi-home` and restart both the gateway and Flutter app from
+   that branch. Reuse enrollment; Home 50 m and School 150 m can both stay active.
+2. With the watch near the enrolled radio, run `npm run wifi-home:check`. If fresh
+   reports are needed and the session is connected, use
+   `npm run wifi-home:check -- --request-location` once.
+3. While `publishedHomeFresh: true` / `home_ready`, verify the saved Home pin and
+   **Home Wi-Fi detected** in app and ordinary `location?`. A GPS A report elsewhere
+   must not restore the v3 conflict warning or create a trip/zone alert.
+4. Let the radio evidence expire without another request. Check normal fallback
+   and no departure/trip caused by the timer alone. Later, with stable gateway
+   Internet, verify actual radio loss, a fresh outdoor GPS departure and return.
+   The first resumed route must not connect to an indoor GPS point. Do not switch
+   off the gateway's own Internet while testing router loss.
+
+Record the fresh checker output and screenshots together. Release gates and
+software regression results are recorded on PR #116; v4 physical acceptance
+remains open. Do not resend WIFIFENCE or introduce a CR loop for this check.
+
+## Historical v3 router/GPS disagreement — 11 September 2026 UTC
 
 The operator confirmed that the saved **Home pin is the actual house**, with a
 50 m radius; School is a separate 150 m zone. A synthetic binding replay confirms

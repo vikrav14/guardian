@@ -117,11 +117,24 @@ function getGeofencePresence(imei) {
   };
 }
 
+// The running pilot supplies a verified Home binding and fresh radio match.
+// Establish a Home baseline without inventing a measured boundary crossing.
+// Other zones cannot use contradictory GPS while Home has priority.
+function seedHomeWifiGeofencePresence(imei, home) {
+  const prefix = `${imei}:`;
+  for (const key of insideState.keys()) {
+    if (key.startsWith(prefix)) insideState.delete(key);
+  }
+  insideState.set(`${prefix}${home.anchor.geofenceId}`, true);
+  devicePresenceState.set(imei, { hasActiveZones: true, insideAny: true,
+    insideZoneIds: [home.anchor.geofenceId], uncertainZoneIds: [] });
+}
+
 /**
  * Load active geofences for an IMEI and emit enter/exit transitions.
  * @returns {Promise<Array<{ type: string, severity: string, message: string, payload: object }>>}
  */
-async function evaluateGeofenceTransitions(db, imei, location) {
+async function evaluateGeofenceTransitions(db, imei, location, { readHomeEvidence } = {}) {
   if (!db || !location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
     return [];
   }
@@ -134,6 +147,14 @@ async function evaluateGeofenceTransitions(db, imei, location) {
 
   const events = [];
   const now = Date.now();
+  // Recheck after the database await: Home may qualify while an older GPS
+  // evaluation is waiting on I/O. Such a result must not produce a late exit.
+  const home = readHomeEvidence && require('./wifi-home-display-policy').readHomeWifiPriority(
+    { homeWifiPresence: readHomeEvidence() }, { now: new Date(now) });
+  if (home) {
+    seedHomeWifiGeofencePresence(imei, home);
+    return events;
+  }
   const activeKeys = new Set();
   const insideZoneIds = [];
   const uncertainZoneIds = [];
@@ -277,6 +298,7 @@ function resetGeofenceStateForTests() {
 module.exports = {
   evaluateGeofenceTransitions,
   getGeofencePresence,
+  seedHomeWifiGeofencePresence,
   resetGeofenceStateForTests,
   haversineMeters,
   boundaryUncertaintyMeters,

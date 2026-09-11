@@ -8,6 +8,7 @@ const { hasJourneyGpsEvidence, isJourneyGps } = require('../journey-source-evide
 const { journeyDistanceKm } = require('../journey-builder');
 const { decodePolyline } = require('../polyline');
 const { buildLocationReplyData } = require('../location-reply');
+const { readHomeWifiPriority } = require('../wifi-home-display-policy');
 const {
   canonicalMedicationReminder,
   deviceCommandParams,
@@ -447,7 +448,12 @@ async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}
   }
 
   const intelligence = device.intelligence || {};
-  const topInsight = intelligence.topInsight || null;
+  const home = readHomeWifiPriority(device);
+  const ignored = new Set(['stale_gps', 'geofence_exit_urgent', 'low_battery_moving']);
+  const insights = Array.isArray(intelligence.insights) ? intelligence.insights : [];
+  const available = home ? insights.filter(insight => !ignored.has(insight.id)) : insights;
+  const topInsight = home && ignored.has(intelligence.topInsight?.id)
+    ? available[0] || null : intelligence.topInsight || null;
 
   return {
     name: deviceLabel(device),
@@ -464,7 +470,9 @@ async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}
           level: topInsight.level || null,
         }
       : null,
-    insightCount: Array.isArray(intelligence.insights) ? intelligence.insights.length : 0,
+    insightCount: available.length,
+    ...(home ? { homeWifiDetected: true, homeWifiObservedAt: home.observedAt,
+      locationDisclosure: 'At or near the saved Home location; Home Wi-Fi detected.' } : {}),
   };
 }
 
@@ -474,8 +482,9 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
     return { error: 'No matching watch.' };
   }
 
+  const home = readHomeWifiPriority(device);
   const loc = device.location || {};
-  if (loc.lat == null || loc.lng == null) {
+  if (!home && (loc.lat == null || loc.lng == null)) {
     return {
       name: deviceLabel(device),
       imei: device.imei,
@@ -520,6 +529,18 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
   }
 
   const center = matched.center || {};
+  if (home) {
+    const isHome = matched.id === home.anchor.geofenceId &&
+      center.lat === home.anchor.lat && center.lng === home.anchor.lng &&
+      (matched.radiusMeters ?? 150) === home.anchor.radiusMeters;
+    return { name: deviceLabel(device), imei: device.imei,
+      geofenceName: matched.name || geofenceName, geofenceId: matched.id,
+      atGeofence: isHome ? true : null,
+      source: 'home_wifi', observedAt: home.observedAt, expiresAt: home.expiresAt,
+      reason: isHome ? 'home_wifi_detected' : 'home_wifi_priority',
+      disclosure: isHome ? 'At or near the saved Home location; Home Wi-Fi detected.' :
+        'Home Wi-Fi is currently detected. GPS is not being used to evaluate this other zone.' };
+  }
   const lat = Number(center.lat);
   const lng = Number(center.lng);
   const radius = Number(matched.radiusMeters) || 150;

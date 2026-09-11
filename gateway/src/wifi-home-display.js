@@ -176,7 +176,10 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
       if (queued && !stopped) { queued = false; void tick(); }
     }
   }
-  return { tick, getStatus, stop: () => { stopped = true; } };
+  // Packet tracking reads the same current decision synchronously. No database
+  // access, writes, hardware commands or dependency on publication latency.
+  const getEvidence = (clock = now()) => stopped ? null : selection(clock).value;
+  return { tick, getStatus, getEvidence, stop: () => { stopped = true; } };
 }
 
 function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation, resetObservation }) {
@@ -194,6 +197,7 @@ function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation,
   timer.unref?.();
   const stop = () => { clearInterval(timer); publisher.stop(); };
   stop.getStatus = publisher.getStatus;
+  stop.getEvidence = publisher.getEvidence;
   return stop;
 }
 

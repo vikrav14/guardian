@@ -64,4 +64,11 @@ function getWifiHomeRuntimeStatus(nowMs = Date.now()) {
   };
 }
 
-module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot, getWifiHomeRuntimeStatus };
+function getHomeWifiPriority(imei, nowMs = Date.now()) {
+  if (config.wifiHomeObserveEnabled !== true || config.wifiHomeDisplayPilotEnabled !== true ||
+      imei !== config.wifiHomePilotImei) return null;
+  return displayPublisher?.getEvidence?.(nowMs) || null;
+}
+
+module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot, getWifiHomeRuntimeStatus,
+  getHomeWifiPriority };

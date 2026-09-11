@@ -1,4 +1,5 @@
 const { haversineMeters } = require('../geofence');
+const { readHomeWifiPriority } = require('../wifi-home-display-policy');
 
 const LEVEL_PRIORITY = { urgent: 0, warning: 1, info: 2 };
 
@@ -394,12 +395,13 @@ function evaluateDeviceIntelligence(input) {
 
   const config = { ...DEFAULT_CONFIG, ...userConfig };
   if (imei) recordBatterySample(imei, device, now);
+  const homePriority = readHomeWifiPriority(device, { now }) !== null;
 
   const raw = [
     ruleOffline(device, config, now),
-    ruleLowBatteryMoving(device, geofences, config),
-    ruleStaleGps(device, config, now),
-    ruleGeofenceExitUrgent(device, geofences),
+    !homePriority && ruleLowBatteryMoving(device, geofences, config),
+    !homePriority && ruleStaleGps(device, config, now),
+    !homePriority && ruleGeofenceExitUrgent(device, geofences),
     imei ? ruleBatteryForecast(imei, device, config) : null,
   ].filter(Boolean);
 
