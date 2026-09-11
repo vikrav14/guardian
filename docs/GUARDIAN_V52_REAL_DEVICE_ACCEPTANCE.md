@@ -544,6 +544,35 @@ the current sender does not expose arbitrary variants. These are plans only;
 no new hardware evidence or customer acceptance is claimed. See the
 [continuation sequence](services/wifi-home-supplier-validation.md#continue-controlled-experiments--operator-direction-11-september-2026).
 
+### Stationary radio off/on capture completed — 11 September 2026 UTC
+
+The operator supplied the start, three physical-marker statuses and the stopped
+[radio-cycle report](testing/wifi-home-radio-cycle-2026-09-11.json). Capture began
+at 18:18:01.469 UTC / 22:18:01.469 MUT and lasted 734 whole seconds. All 14
+entries were retained; none were dropped. `endsAt` is the scheduled ceiling,
+not the stop time, and no runtime commit was reported.
+
+The `at_home` → `router_off` baseline was 2m09s. The radio-off markers were
+5m02.875s apart, followed by approximately 4m49s restored. These phases contained
+3, 4 and 4 heartbeats respectively (ten `LK`, one `TKQ` overall), with zero
+decoded reports, enrolled-router sightings or fence events throughout. There
+were no CR/UPLOAD/WIFIFENCE handoffs or command responses. The morning native
+trial remained separately recorded as `queued` / `settingsApplied: null`.
+
+The at_home snapshot was disconnected; the subsequent marker/final snapshots
+were connected. Heartbeats in all phases do not establish continuous transport.
+Markers report operator observations, and no fresh router baseline was captured.
+**Result:** no reported fence transition in this cycle; native setting acceptance,
+internal scanning and continuous Home remain unconfirmed. This does not prove
+the firmware unsupported or justify a battery-policy/expiry change.
+
+Next, run [one CR with a short radio cycle](services/wifi-home-supplier-validation.md#next-test-one-cr-with-a-short-radio-cycle):
+establish a fresh enrolled-router baseline, then mark a one-minute radio loss and
+restoration within the observed reporting burst. Preserve the earlier setting;
+verify the actual command handoff/reply and account for any automatic commands.
+The shorter window is a diagnostic comparison, not a detection deadline or an
+equal-duration repeat. This record changes documentation only.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.

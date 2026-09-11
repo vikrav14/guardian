@@ -1,5 +1,40 @@
 # V52 native Wi-Fi fence validation
 
+## Stationary radio cycle completed — 11 September 2026 UTC
+
+The [redacted radio-cycle evidence](../testing/wifi-home-radio-cycle-2026-09-11.json)
+records a stopped capture starting at 18:18:01.469 UTC (22:18:01.469 MUT),
+lasting 734 whole seconds, with all 14 entries retained and none dropped.
+The `endsAt` value is the scheduled 30-minute ceiling, not the manual stop time.
+No running-process revision was supplied.
+
+| Operator-marked phase | Duration | Heartbeats | Location/radio reports | Fence events |
+|---|---|---|---|---|
+| Initial radio on | 2m22s from capture start; 2m09s after `at_home` | 3 | 0 | 0 |
+| Radio off | 5m02.875s | 4 | 0 | 0 |
+| Radio restored | Approximately 4m49s before stop | 4 | 0 | 0 |
+
+There were ten `LK` packets about 73 seconds apart and one `TKQ`. No `CR`,
+`UPLOAD` or `WIFIFENCE` handoff, command response or fresh enrolled-router
+sighting occurred. The original morning trial remains recorded separately:
+`queued`, `settingsApplied: null`, with no new native send in this window.
+
+The `at_home` status briefly reported `sessionConnected: false`; subsequent
+marker/final snapshots were connected. Heartbeats occurred in every phase,
+including four while the radio was off, but the snapshots do not prove an
+uninterrupted session. Physical switching and stationary placement are operator
+observations, not verified by the gateway. No fresh router baseline was received.
+
+**Result: no reported native fence transition during this marked cycle.** This
+extends the earlier stationary reporting-gap evidence; it does not show whether
+the watch scanned internally, applied the inferred setting, or supports it.
+These packet-level counters precede geolocation and write gating, so discarded
+database writes do not explain the missing decoded reports. This observation
+does not justify a Home claim, a battery-band change or an extended radio expiry.
+
+The next test is the [bounded CR comparison](#next-test-one-cr-with-a-short-radio-cycle).
+Supplier questions continue in parallel. No repeat native provisioning is needed.
+
 ## Completed first native attempt — 11 September 2026
 
 The operator has now attempted the one-router setting once on the connected
@@ -62,13 +97,13 @@ markers and treat generic fence bits as source-unconfirmed until correlated.
 
 The operator reaffirmed that the work should explore different hypotheses.
 An inconclusive first capture does not end that work. The next sequence changes
-observable conditions while retaining the setting already attempted. These are
-planned tests, not additional hardware results.
+observable conditions while retaining the setting already attempted. The first
+radio cycle is now recorded above; the later comparisons remain planned.
 
 | Experiment | Variable to change | Evidence sought |
 |---|---|---|
-| Next: stationary radio loss/restoration | Enrolled 2.4 GHz radio on, off, then on; watch stays still | Reports or fence bits correlated with radio loss/restoration, without assuming the wearer departed |
-| Awake comparison if needed | Repeat the radio sequence with one protected CR attempt after restoring the baseline | Whether response/report behaviour differs during the temporary reporting burst; verify the CR handoff and reply before classifying this as an awake comparison |
+| Completed: stationary radio loss/restoration | Enrolled 2.4 GHz radio on, off, then on; watch stays still | 11 heartbeats, zero reports/fence events or command handoffs; native setting remains unconfirmed |
+| Next: CR comparison | One protected CR attempt, fresh-router baseline, then a short radio cycle during the reporting burst | Whether reporting and fence evidence change; verify the captured CR handoff/reply and fresh source times |
 | Physical departure/return | Watch leaves radio range and returns while the router stays on | Independently marked physical movement and any corresponding fence evidence; generic GPS/geofence bits alone do not establish a Wi-Fi source |
 | Further command interpretation if still unresolved | One explicitly specified alternate payload, with its source and expected response recorded before use | A distinguishable response or behaviour; no automatic retry/fallback chain |
 
@@ -81,6 +116,9 @@ deliberate variable. A later reporting-policy comparison remains a separate
 experiment and must preserve SOS and outing overrides.
 
 ### Next test: radio on, off, on with the watch stationary
+
+This first-pass runbook is retained for reproducibility. Its completed result is
+recorded above; proceed to the CR comparison rather than repeating it unchanged.
 
 Use the existing running gateway and ngrok. The computer must retain internet
 access through 5 GHz or Ethernet when the 2.4 GHz radio is disabled; verify that
@@ -132,6 +170,80 @@ sightings, response packet names and fence bits around the operator markers.
 Router loss is not physical departure, and fence bits remain source-unconfirmed.
 A quiet result leads to the next controlled comparison; it is not proof of
 unsupported firmware or a reason to promote a Home claim.
+
+### Next test: one CR with a short radio cycle
+
+Keep the enrolled 2.4 GHz radio on, the watch stationary near it, and gateway
+internet on 5 GHz or Ethernet. Keep the gateway and ngrok running. This test
+uses one existing protected `CR` request, not another `WIFIFENCE` setting or an
+`UPLOAD` change. No software pull or restart is needed.
+
+The supplier describes a roughly three-minute CR reporting burst. A five-minute
+radio-off period would run beyond it, so this comparison deliberately uses a
+shorter off interval. It tests reporting during that burst, not an equal-duration
+repeat or a guaranteed native-fence detection deadline.
+
+1. In the Checks terminal, start a fresh capture and mark placement:
+
+   ```powershell
+   Set-Location "C:\Users\MSI\repos\guardian\gateway"
+   npm run wifi-home:fence -- --start
+   npm run wifi-home:fence -- --mark=at_home
+   ```
+
+2. Open a second Checks PowerShell tab for the request:
+
+   ```powershell
+   $Host.UI.RawUI.WindowTitle = "Guardian - Wi-Fi request"
+   Set-Location "C:\Users\MSI\repos\guardian\gateway"
+   npm run wifi-home:check -- --request-location
+   ```
+
+   Leave this command running; it can poll for two minutes. Once it prints
+   `locationRequestSent: true`, begin a 60-second baseline window. Watch the
+   gateway for a new `[wifi-home]` candidate/matched reading with a current
+   `observedAt` and observation age of a few seconds. A current capture report
+   with `timeStatus: fresh` and `homeRouterSeen: true` is stronger packet evidence.
+   Generic `[location] source=wifi` is not proof of the enrolled router.
+
+   If the checker reports `home_ready` without `locationRequestSent: true`, it
+   did not deliberately send a CR. If there is no fresh enrolled-router baseline
+   within 60 seconds, keep the radio on and collect the capture after five
+   minutes. In either case, inspect the timeline before another request; do not
+   blindly retry a failed or uncertain handoff or label this an awake comparison.
+
+3. As soon as fresh enrolled-router evidence arrives within that first minute,
+   disable only the 2.4 GHz radio and mark it in the original Checks terminal:
+
+   ```powershell
+   npm run wifi-home:fence -- --mark=router_off
+   ```
+
+   Restore the same radio after **60 seconds**, then mark it:
+
+   ```powershell
+   npm run wifi-home:fence -- --mark=router_on
+   ```
+
+   This targets restoration within two minutes of the CR handoff. Do not wait
+   for the request checker to finish before switching the radio. Keep it on for
+   five minutes after restoration to capture the burst and any later behaviour.
+
+4. Stop and collect the report in the original Checks terminal:
+
+   ```powershell
+   npm run wifi-home:fence -- --stop
+   npm run wifi-home:fence -- --report
+   ```
+
+Share the complete redacted report and checker output. Verify the actual CR
+handoff, response and fresh report timestamps against both radio markers;
+additional automatic CR/UPLOAD handoffs are possible and must be accounted for.
+Router sightings disappearing/returning validate observation changes only.
+Generic fence bits require correlation and remain source-unconfirmed. Zero
+events during this short interval cannot prove the inferred setting unsupported.
+The battery percentage, internal scan state and applied upload setting are not
+measured by this capture; record that limit rather than infer them from heartbeats.
 
 ## Decision — 8 September 2026
 

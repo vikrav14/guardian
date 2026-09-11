@@ -319,6 +319,15 @@ provisioning. See the [completed capture interpretation](wifi-home-supplier-vali
 An acknowledgement alone cannot accept native fencing or continuous Home availability.
 See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
 
+The later marked radio on/off/on capture on 11 September lasted 12m14s and
+recorded 11 heartbeats, zero reports/fence events and zero command handoffs.
+The radio-off interval was 5m03s, followed by approximately 4m49s restored.
+No fresh router baseline was received; an initial disconnected status also
+limits continuous-transport claims. Native acceptance remains unconfirmed.
+Next, compare one protected CR reporting burst with a shorter radio cycle,
+preserving the current setting, reporting policy and evidence expiry. See the
+[result and next experiment](wifi-home-supplier-validation.md#stationary-radio-cycle-completed--11-september-2026-utc).
+
 ### Software verification
 
 Tests cover canonical passive V52 packet decoding into the observer, strong
