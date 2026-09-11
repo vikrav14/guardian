@@ -1,19 +1,18 @@
 # Guardian welcome and sign-in
 
 The public welcome screen now introduces Guardian through family connection:
-“Their independence. Your peace of mind.” The original family photograph and
-short messages for parents and children make the service's purpose clear before
-sign-in. The image is illustrative, not a customer testimonial; its generation
-prompt and provenance are in [login-image-source.md](login-image-source.md).
+“Their independence. Your peace of mind.” The original family photograph gives
+the screen a welcoming introduction before sign-in. The image is illustrative,
+not a customer testimonial; its generation prompt and provenance are in
+[login-image-source.md](login-image-source.md).
 
 ## Layout and behavior
 
-- Desktop: Guardian's existing pin and wordmark, a family story beside a focused
-  sign-in form, and a short list of location, calling and SOS capabilities.
+- Desktop: Guardian's existing pin and wordmark, headline and family photograph
+  beside a focused sign-in form.
 - Narrow screens and enlarged text: a compact family photograph follows the
-  headline, before the form. It is about 150–170px tall on typical phone widths;
-  supporting family messages stay below the form. All content scrolls when the
-  keyboard reduces usable space.
+  headline, before the form. It is about 150–170px tall on typical phone widths.
+  All content scrolls when the keyboard reduces usable space.
 - The form follows the selected app theme, with readable field labels, autofill,
   keyboard submission, password visibility controls and 48px minimum actions.
 - Registration and password reset use the existing authentication service. New

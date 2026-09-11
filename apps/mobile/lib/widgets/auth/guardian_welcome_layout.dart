@@ -54,14 +54,7 @@ class GuardianWelcomeLayout extends StatelessWidget {
                         const _FamilyPhoto(compact: true),
                         const SizedBox(height: 20),
                         form,
-                        const SizedBox(height: 32),
-                        const _FamilyStory(
-                          showHeadline: false,
-                          showPhoto: false,
-                        ),
                       ],
-                      const SizedBox(height: 32),
-                      const _ServiceNotes(),
                     ],
                   ),
                 ),
@@ -177,52 +170,13 @@ class _WelcomeHeadline extends StatelessWidget {
 }
 
 class _FamilyStory extends StatelessWidget {
-  const _FamilyStory({this.showHeadline = true, this.showPhoto = true});
-
-  final bool showHeadline;
-  final bool showPhoto;
+  const _FamilyStory();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (showHeadline) ...[
-          const _WelcomeHeadline(),
-          const SizedBox(height: 28),
-        ],
-        if (showPhoto) ...[const _FamilyPhoto(), const SizedBox(height: 22)],
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final stacked =
-                constraints.maxWidth < 460 ||
-                MediaQuery.textScalerOf(context).scale(16) > 20;
-            const parents = _FamilyMessage(
-              icon: Icons.favorite_border_rounded,
-              title: 'For your parents',
-              message: 'Support the independence they value.',
-            );
-            const children = _FamilyMessage(
-              icon: Icons.wb_sunny_outlined,
-              title: 'For your child',
-              message: 'Stay close as their world gets bigger.',
-            );
-            if (stacked) {
-              return const Column(
-                children: [parents, SizedBox(height: 20), children],
-              );
-            }
-            return const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: parents),
-                SizedBox(width: 24),
-                Expanded(child: children),
-              ],
-            );
-          },
-        ),
-      ],
+      children: [_WelcomeHeadline(), SizedBox(height: 28), _FamilyPhoto()],
     );
   }
 }
@@ -262,103 +216,6 @@ class _FamilyPhoto extends StatelessWidget {
               ),
             )
           : AspectRatio(aspectRatio: 1.75, child: photo),
-    );
-  }
-}
-
-class _FamilyMessage extends StatelessWidget {
-  const _FamilyMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: ExcludeSemantics(
-            child: Icon(icon, size: 21, color: colors.textSecondary),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                message,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 14,
-                  height: 1.5,
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ServiceNotes extends StatelessWidget {
-  const _ServiceNotes();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      padding: const EdgeInsets.only(top: 22),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: Wrap(
-        spacing: 28,
-        runSpacing: 12,
-        children: [
-          for (final item in const [
-            (Icons.location_on_outlined, 'Location updates'),
-            (Icons.call_outlined, 'Family calling'),
-            (Icons.notifications_active_outlined, 'SOS alerts'),
-          ])
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ExcludeSemantics(
-                  child: Icon(item.$1, size: 17, color: colors.textSecondary),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    item.$2,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 14,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
     );
   }
 }
