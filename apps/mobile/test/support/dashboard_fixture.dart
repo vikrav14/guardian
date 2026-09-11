@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
 import 'package:guardian/models/device.dart';
+import 'package:guardian/l10n/app_localizations.dart';
+import 'package:guardian/widgets/brand/guardian_pin_logo.dart';
+import 'package:guardian/widgets/navigation/guardian_navigation.dart';
 import 'package:guardian/models/geofence.dart';
 import 'package:guardian/theme/colors.dart';
 import 'package:guardian/widgets/dashboard/guardian_dashboard_overview.dart';
@@ -82,6 +85,8 @@ GuardianDashboardOverview dashboardFixtureOverview({
   VoidCallback? onLocationDetails,
   VoidCallback? onSafeZones,
   VoidCallback? onLinkWatch,
+  List<Widget> serviceSections = const [],
+  String? mapStatus,
 }) {
   final selected = empty ? null : device ?? dashboardFixtureDevice();
   return GuardianDashboardOverview(
@@ -89,7 +94,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
     devices: devices ?? (selected == null ? const [] : [selected]),
     geofences: geofences,
     map: const DashboardFixtureMap(),
-    mapStatus: selected == null ? '' : deviceMapLocationStatusLabel(selected),
+    mapStatus: mapStatus ?? (selected == null ? '' : deviceMapLocationStatusLabel(selected)),
     insight: dashboardFixtureInsight,
     aiEnabled: aiEnabled,
     helpEnabled: helpEnabled,
@@ -106,6 +111,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
     onLocationDetails: onLocationDetails,
     onSafeZones: onSafeZones,
     onLinkWatch: onLinkWatch,
+    serviceSections: serviceSections,
   );
 }
 
@@ -119,7 +125,7 @@ class DashboardFixtureMap extends StatelessWidget {
     return SizedBox(
       key: const ValueKey('dashboard-fixture-map'),
       // Match the real dashboard map viewport so layout checks use its budget.
-      height: MediaQuery.sizeOf(context).width < 600 ? 300 : 380,
+      height: MediaQuery.sizeOf(context).width < 600 ? 210 : 380,
       child: ColoredBox(
         color: colors.surfaceMuted,
         child: Padding(
@@ -150,6 +156,7 @@ Widget dashboardFixtureHost(
   double textScale = 1,
   String? fontFamily,
   GlobalKey? boundaryKey,
+  bool viewport = false,
 }) {
   final colors = dark ? GuardianThemeColors.dark : GuardianThemeColors.light;
   final brightness = dark ? Brightness.dark : Brightness.light;
@@ -159,6 +166,8 @@ Widget dashboardFixtureHost(
   );
   return MaterialApp(
     debugShowCheckedModeBanner: false,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     theme: ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -177,7 +186,21 @@ Widget dashboardFixtureHost(
       ).copyWith(textScaler: TextScaler.linear(textScale)),
       child: app!,
     ),
-    home: Scaffold(
+    home: viewport
+        ? RepaintBoundary(
+            key: boundaryKey,
+            child: Scaffold(
+              appBar: AppBar(
+                toolbarHeight: 60,
+                backgroundColor: colors.surface,
+                title: const Row(children: [GuardianPinMark(size: 32), SizedBox(width: 8), GuardianWordmark(fontSize: 20)]),
+                actions: [IconButton(tooltip: 'Notifications', onPressed: () {}, icon: const Icon(Icons.notifications_none_rounded))],
+              ),
+              bottomNavigationBar: MobileBottomBar(currentIndex: 0, onTap: (_) {}, onSos: () {}),
+              body: SingleChildScrollView(child: content),
+            ),
+          )
+        : Scaffold(
       body: SingleChildScrollView(
         child: boundaryKey == null
             ? content

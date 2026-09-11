@@ -33,6 +33,7 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.onLocationDetails,
     this.onSafeZones,
     this.onLinkWatch,
+    this.serviceSections = const [],
   });
 
   final Device? device;
@@ -57,10 +58,15 @@ class GuardianDashboardOverview extends StatelessWidget {
   final VoidCallback? onSafeZones;
   final VoidCallback? onLinkWatch;
 
+  /// Optional activity/Care panels, already authorized by the owning page.
+  /// An empty list keeps unfinished service features absent from the dashboard.
+  final List<Widget> serviceSections;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final selected = device;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -70,19 +76,21 @@ class GuardianDashboardOverview extends StatelessWidget {
             'Family overview',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 28,
+              fontSize: compact ? 24 : 28,
               height: 1.2,
               fontWeight: FontWeight.w700,
               letterSpacing: -0.7,
             ),
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          'The people who matter, in one place.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 15),
-        ),
-        const SizedBox(height: 24),
+        if (!compact) ...[
+          const SizedBox(height: 6),
+          Text(
+            'The people who matter, in one place.',
+            style: TextStyle(color: colors.textSecondary, fontSize: 15),
+          ),
+        ],
+        SizedBox(height: compact ? 12 : 24),
         if (hasError) ...[
           _DashboardNotice(
             icon: Icons.cloud_off_outlined,
@@ -116,7 +124,7 @@ class GuardianDashboardOverview extends StatelessWidget {
             onHelp: onHelp,
             onWatchStatus: onWatchStatus,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
             builder: (context, constraints) {
               final location = _LocationPanel(
@@ -145,7 +153,11 @@ class GuardianDashboardOverview extends StatelessWidget {
               if (!wide) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [location, const SizedBox(height: 20), details],
+                  children: [
+                    location,
+                    SizedBox(height: compact ? 12 : 20),
+                    details,
+                  ],
                 );
               }
               return Row(
@@ -158,6 +170,10 @@ class GuardianDashboardOverview extends StatelessWidget {
               );
             },
           ),
+          for (final section in serviceSections) ...[
+            SizedBox(height: compact ? 12 : 20),
+            section,
+          ],
           if (careEnabled) ...[
             const SizedBox(height: 20),
             _DashboardSurface(
@@ -198,90 +214,209 @@ class _LocationPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final inset = compact ? 12.0 : 24.0;
     final location = device.mapDisplayLocation;
     final hasLocation = location?.isValid == true;
     final place = location?.placeLabel?.trim();
     final fixLabel = deviceMapLocationFixLabel(device);
+    final recorded = location?.recordedAt;
+    final age = recorded == null ? null : DateTime.now().difference(recorded);
+    final timeKnown = age != null && age >= const Duration(minutes: -1);
+    // Presentation only: age describes the displayed map fix, never heartbeat
+    // freshness, and does not change the selected location or safety policy.
+    final stale = timeKnown && age > deviceLocationFreshnessSlack;
+    final retained = device.isMapDisplayingLastSatelliteLocation;
+    final source = location?.source ?? device.displayLocationSource;
+    final satellite = retained || source == 'gps';
+    final approximate = !retained && (source == 'wifi' || source == 'lbs');
+    // PR #116 supplies this source only after validating Home radio evidence.
+    final homeWifi = source == 'home_wifi';
+    final ageLabel = !timeKnown
+        ? 'Time unavailable'
+        : age.inMinutes < 1
+        ? 'Just now'
+        : age.inMinutes < 60
+        ? '${age.inMinutes}m ago'
+        : age.inHours < 24
+        ? '${age.inHours}h ago'
+        : '${age.inDays}d ago';
+    final heading = !hasLocation
+        ? 'Location'
+        : retained || (satellite && stale)
+        ? 'Last known location'
+        : status;
+    final caution = stale || retained || approximate || homeWifi || !timeKnown;
+    final tone = caution
+        ? Theme.of(context).brightness == Brightness.dark
+              ? GuardianColors.warning
+              : GuardianColors.warningText
+        : colors.textSecondary;
+
     return _DashboardSurface(
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.all(inset),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SectionTitle(
-                  icon: Icons.location_on_outlined,
-                  title: 'Location',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final title = Semantics(
+                header: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on_rounded, size: 22, color: colors.accent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(heading, style: _bodyStyle(context, strong: true)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  !hasLocation
-                      ? 'Waiting for a location'
-                      : place?.isNotEmpty == true
-                      ? place!
-                      : 'Recorded position',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
-                    letterSpacing: -0.4,
+              );
+              final timestamp = Tooltip(
+                message: fixLabel,
+                child: Semantics(
+                  label: timeKnown ? fixLabel : 'Location time unavailable',
+                  excludeSemantics: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: caution ? tone.withValues(alpha: 0.09) : colors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.schedule_rounded, size: 16, color: tone),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(ageLabel, style: TextStyle(fontSize: 12, color: tone)),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (hasLocation)
-                  Text(
-                    fixLabel.contains('time unavailable')
-                        ? '$status · Time unavailable'
-                        : fixLabel,
-                    style: _bodyStyle(context),
-                  )
-                else
-                  Text(
-                    'The watch has not shared a recorded position yet.',
-                    style: _bodyStyle(context),
+              );
+              if (!hasLocation) return title;
+              if (constraints.maxWidth < 310 || MediaQuery.textScalerOf(context).scale(14) > 18) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [title, const SizedBox(height: 6), timestamp],
+                );
+              }
+              return Row(
+                children: [Expanded(child: title), const SizedBox(width: 8), timestamp],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            !hasLocation
+                ? 'Waiting for a location'
+                : place?.isNotEmpty == true
+                ? place!
+                : 'Recorded position',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: compact ? 20 : 24,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+              letterSpacing: -0.4,
+            ),
+          ),
+          if (!hasLocation) ...[
+            const SizedBox(height: 6),
+            Text('The watch has not shared a recorded position yet.', style: _bodyStyle(context)),
+          ],
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Stack(
+              children: [
+                ExcludeSemantics(excluding: !hasLocation, child: map),
+                if (!hasLocation)
+                  Positioned.fill(
+                    child: Container(
+                      color: colors.surfaceMuted,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.location_searching_rounded, size: 40, color: colors.textSecondary),
+                    ),
                   ),
               ],
             ),
           ),
-          Stack(
-            children: [
-              ExcludeSemantics(excluding: !hasLocation, child: map),
-              if (!hasLocation)
-                Positioned.fill(
-                  child: Container(
-                    color: colors.surfaceMuted,
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.location_searching_rounded,
-                      size: 40,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-            ],
+          if (hasLocation && caution) ...[
+            const SizedBox(height: 8),
+            _LocationEvidenceNote(
+              color: tone,
+              title: !timeKnown
+                  ? 'Location time unavailable.'
+                  : homeWifi
+                  ? 'At or near saved Home.'
+                  : satellite && stale
+                  ? 'No recent GPS update.'
+                  : approximate
+                  ? 'Approximate location.'
+                  : 'Showing the last GPS position.',
+              message: homeWifi
+                  ? 'Home Wi-Fi evidence places the watch near your saved Home pin. Open location details for the retained GPS fix.'
+                  : retained
+                  ? 'Showing the last reliable GPS position. A newer network estimate is approximate.'
+                  : approximate
+                  ? 'This network estimate may cover a wider area.'
+                  : 'Showing the last known location.',
+            ),
+          ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onDetails,
+              style: _textButtonStyle(context),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Flexible(child: Text('Location details')),
+                  const SizedBox(width: 8),
+                  Icon(Icons.arrow_forward_rounded, size: 18, color: colors.accent),
+                ],
+              ),
+            ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (hasLocation && device.isMapDisplayingLastSatelliteLocation)
-                  Text(
-                    'The pin stays at the last reliable GPS position. '
-                    'A newer network estimate is approximate.',
-                    style: _bodyStyle(context),
-                  ),
-                TextButton.icon(
-                  onPressed: onDetails,
-                  icon: const Icon(Icons.info_outline_rounded, size: 18),
-                  label: const Text('Location details'),
-                  style: _textButtonStyle(context),
-                ),
-              ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationEvidenceNote extends StatelessWidget {
+  const _LocationEvidenceNote({required this.color, required this.title, required this.message});
+
+  final Color color;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '$title\n', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(text: message),
+                ],
+              ),
+              style: TextStyle(color: color, fontSize: 13, height: 1.35),
             ),
           ),
         ],
@@ -519,20 +654,20 @@ class _DashboardNotice extends StatelessWidget {
 class _DashboardSurface extends StatelessWidget {
   const _DashboardSurface({
     required this.child,
-    this.padding = const EdgeInsets.all(24),
+    this.padding,
   });
   final Widget child;
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? padding;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     return Container(
       clipBehavior: Clip.antiAlias,
-      padding: padding,
+      padding: padding ?? EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colors.border),
       ),
       child: child,

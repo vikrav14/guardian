@@ -17,13 +17,14 @@ const _enabled = bool.fromEnvironment('DASHBOARD_PREVIEWS');
 
 void main() {
   for (final preview in [
-    (name: 'mobile', width: 390.0, dark: false),
-    (name: 'wide', width: 1280.0, dark: false),
-    (name: 'mobile_dark', width: 390.0, dark: true),
+    (name: 'mobile', width: 390.0, height: 1800.0, dark: false, viewport: false),
+    (name: 'wide', width: 1280.0, height: 1800.0, dark: false, viewport: false),
+    (name: 'mobile_dark', width: 390.0, height: 1800.0, dark: true, viewport: false),
+    (name: 'mobile_viewport', width: 390.0, height: 844.0, dark: false, viewport: true),
   ]) {
     testWidgets('render ${preview.name} dashboard preview', (tester) async {
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = Size(preview.width, 1800);
+      tester.view.physicalSize = Size(preview.width, preview.height);
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
@@ -49,7 +50,7 @@ void main() {
         dashboardFixtureHost(
           dashboardFixtureOverview(
             device: device,
-            devices: [
+            devices: preview.viewport ? [device] : [
               device,
               dashboardFixtureDevice(
                 imei: 'demo-watch-b',
@@ -66,6 +67,7 @@ void main() {
           dark: preview.dark,
           fontFamily: 'DashboardPreview',
           boundaryKey: boundaryKey,
+          viewport: preview.viewport,
         ),
       );
       await tester.pumpAndSettle();

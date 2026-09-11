@@ -27,78 +27,73 @@ class GuardianAppHeader extends StatelessWidget {
     final compact = MediaQuery.sizeOf(context).width < 520;
 
     return Material(
-      color: GuardianColors.ivory.withValues(alpha: 0.94),
+      color: colors.surface,
       child: SafeArea(
         bottom: false,
         child: Container(
-          height: compact ? 68 : 78,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 30),
+          height: compact ? 60 : 72,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 30),
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
           child: Row(
             children: [
-              Semantics(
-                button: true,
-                label: 'Guardian home',
-                child: InkWell(
-                  onTap: onHome,
-                  borderRadius: BorderRadius.circular(16),
-                  child: GuardianHeaderBrandMark(
-                    iconSize: compact ? 39 : 44,
-                    wordmarkSize: compact ? 20 : 24,
-                    caption: compact
-                        ? null
-                        : Text.rich(
-                            TextSpan(
-                              text: 'Know they ',
-                              children: const [
-                                TextSpan(
-                                  text: 'are safe',
-                                  style: TextStyle(color: GuardianColors.safe),
-                                ),
-                              ],
-                            ),
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: 11,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Semantics(
+                    button: true,
+                    label: 'Guardian home',
+                    onTap: onHome,
+                    child: ExcludeSemantics(
+                      child: InkWell(
+                        onTap: onHome,
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          height: 48,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: GuardianHeaderBrandMark(
+                              iconSize: compact ? 34 : 40,
+                              wordmarkSize: compact ? 20 : 24,
                             ),
                           ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               _HeaderButton(
                 tooltip: 'Notifications',
                 icon: Icons.notifications_none_rounded,
                 onTap: onAlerts,
               ),
-              const SizedBox(width: 12),
-              InkWell(
-                onTap: onAccount,
-                customBorder: const CircleBorder(),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    GuardianHeaderAvatar(
-                      initials: initialsFor(name),
-                      color: GuardianColors.safe,
-                      size: compact ? 38 : 42,
-                    ),
-                    Positioned(
-                      right: -1,
-                      bottom: 1,
-                      child: Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF36C477),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Account',
+                child: Semantics(
+                  button: true,
+                  label: 'Account',
+                  onTap: onAccount,
+                  child: ExcludeSemantics(
+                    child: InkWell(
+                      onTap: onAccount,
+                      customBorder: const CircleBorder(),
+                      child: SizedBox.square(
+                        dimension: 48,
+                        child: Center(
+                          child: GuardianHeaderAvatar(
+                            initials: initialsFor(name),
+                            color: GuardianColors.safe,
+                            size: compact ? 34 : 38,
+                          ),
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -126,19 +121,14 @@ class _HeaderButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
+        color: colors.surfaceMuted,
+        shape: const CircleBorder(),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              border: Border.all(color: colors.border),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, size: 20, color: colors.textPrimary),
+          customBorder: const CircleBorder(),
+          child: SizedBox.square(
+            dimension: 48,
+            child: Icon(icon, size: 24, color: colors.textPrimary),
           ),
         ),
       ),

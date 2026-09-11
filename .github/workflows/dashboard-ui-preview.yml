@@ -9,11 +9,16 @@ on:
       - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
+      - 'apps/mobile/lib/screens/home_shell.dart'
+      - 'apps/mobile/lib/widgets/navigation/guardian_navigation.dart'
+      - 'apps/mobile/lib/widgets/layout/guardian_app_header.dart'
       - 'apps/mobile/lib/screens/login_page.dart'
       - 'apps/mobile/lib/widgets/auth/**'
       - 'apps/mobile/assets/images/guardian_family_welcome.webp'
       - 'apps/mobile/pubspec.yaml'
       - 'apps/mobile/test/guardian_dashboard_overview_test.dart'
+      - 'apps/mobile/test/guardian_navigation_test.dart'
+      - 'apps/mobile/test/widget_test.dart'
       - 'apps/mobile/test/login_page_test.dart'
       - 'apps/mobile/test/support/dashboard_fixture.dart'
       - 'apps/mobile/tool/render_dashboard_previews_test.dart'
@@ -63,9 +68,14 @@ jobs:
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
             lib/screens/map_dashboard_page.dart \
+            lib/screens/home_shell.dart \
+            lib/widgets/navigation/guardian_navigation.dart \
+            lib/widgets/layout/guardian_app_header.dart \
             lib/screens/login_page.dart \
             lib/widgets/auth/guardian_welcome_layout.dart \
             test/guardian_dashboard_overview_test.dart \
+            test/guardian_navigation_test.dart \
+            test/widget_test.dart \
             test/login_page_test.dart \
             test/support/dashboard_fixture.dart \
             tool/render_dashboard_previews_test.dart \
@@ -74,7 +84,7 @@ jobs:
 
       - name: Test dashboard and login layouts and actions
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_dashboard_overview_test.dart test/login_page_test.dart
+        run: flutter test test/guardian_dashboard_overview_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}

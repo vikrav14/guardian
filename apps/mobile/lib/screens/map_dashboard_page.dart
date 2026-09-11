@@ -570,7 +570,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final center = _mapCenter;
 
     return SizedBox(
-      height: MediaQuery.sizeOf(context).width < 600 ? 300 : 380,
+      height: MediaQuery.sizeOf(context).width < 600 ? 210 : 380,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -698,10 +698,10 @@ class MapDashboardPageState extends State<MapDashboardPage> {
                   SliverPadding(
                     padding: EdgeInsets.fromLTRB(
                       constraints.maxWidth < 600 ? 16 : 32,
-                      28,
+                      constraints.maxWidth < 600 ? 12 : 28,
                       constraints.maxWidth < 600 ? 16 : 32,
-                      // HomeShell overlays a 76px navigation bar and safe area.
-                      118 + MediaQuery.paddingOf(context).bottom,
+                      // HomeShell reserves space for navigation and safe area.
+                      24,
                     ),
                     sliver: SliverList.list(
                       children: [_buildDashboardContent(_selected)],
