@@ -30,6 +30,13 @@ void main() {
       register: false,
     ),
     (
+      name: 'mobile_viewport',
+      width: 400.0,
+      height: 730.0,
+      dark: false,
+      register: false,
+    ),
+    (
       name: 'mobile_dark',
       width: 390.0,
       height: 1500.0,

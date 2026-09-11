@@ -38,7 +38,7 @@ class GuardianWelcomeLayout extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _WelcomeBrand(wide: wide),
-                      SizedBox(height: wide ? 48 : 28),
+                      SizedBox(height: wide ? 48 : 20),
                       if (wide)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
@@ -50,10 +50,12 @@ class GuardianWelcomeLayout extends StatelessWidget {
                         )
                       else ...[
                         const _WelcomeHeadline(compact: true),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+                        const _FamilyPhoto(compact: true),
+                        const SizedBox(height: 20),
                         form,
                         const SizedBox(height: 32),
-                        const _FamilyStory(showHeadline: false),
+                        const _FamilyStory(showHeadline: false, showPhoto: false),
                       ],
                       const SizedBox(height: 32),
                       const _ServiceNotes(),
@@ -172,9 +174,10 @@ class _WelcomeHeadline extends StatelessWidget {
 }
 
 class _FamilyStory extends StatelessWidget {
-  const _FamilyStory({this.showHeadline = true});
+  const _FamilyStory({this.showHeadline = true, this.showPhoto = true});
 
   final bool showHeadline;
+  final bool showPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -185,30 +188,10 @@ class _FamilyStory extends StatelessWidget {
           const _WelcomeHeadline(),
           const SizedBox(height: 28),
         ],
-        ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: AspectRatio(
-            aspectRatio: 1.75,
-            child: Image.asset(
-              GuardianWelcomeLayout.familyImage,
-              fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.7),
-              excludeFromSemantics: true,
-              // The form and copy remain usable if an asset cannot be decoded.
-              errorBuilder: (context, error, stackTrace) => ColoredBox(
-                color: context.guardianColors.surfaceMuted,
-                child: Center(
-                  child: Icon(
-                    Icons.favorite_outline_rounded,
-                    size: 48,
-                    color: context.guardianColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 22),
+        if (showPhoto) ...[
+          const _FamilyPhoto(),
+          const SizedBox(height: 22),
+        ],
         LayoutBuilder(
           builder: (context, constraints) {
             final stacked =
@@ -240,6 +223,45 @@ class _FamilyStory extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _FamilyPhoto extends StatelessWidget {
+  const _FamilyPhoto({this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = Image.asset(
+      GuardianWelcomeLayout.familyImage,
+      fit: BoxFit.cover,
+      alignment: const Alignment(0, -0.7),
+      excludeFromSemantics: true,
+      // The form and copy remain usable if an asset cannot be decoded.
+      errorBuilder: (context, error, stackTrace) => ColoredBox(
+        color: context.guardianColors.surfaceMuted,
+        child: Center(
+          child: Icon(
+            Icons.favorite_outline_rounded,
+            size: 48,
+            color: context.guardianColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(compact ? 20 : 24),
+      child: compact
+          ? LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                width: double.infinity,
+                height: (constraints.maxWidth / 2.2).clamp(150.0, 240.0),
+                child: photo,
+              ),
+            )
+          : AspectRatio(aspectRatio: 1.75, child: photo),
     );
   }
 }

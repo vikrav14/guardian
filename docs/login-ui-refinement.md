@@ -10,8 +10,10 @@ prompt and provenance are in [login-image-source.md](login-image-source.md).
 
 - Desktop: Guardian's existing pin and wordmark, a family story beside a focused
   sign-in form, and a short list of location, calling and SOS capabilities.
-- Narrow screens and enlarged text: the form comes before the photograph and
-  supporting story. All content scrolls when the keyboard reduces usable space.
+- Narrow screens and enlarged text: a compact family photograph follows the
+  headline, before the form. It is about 150–170px tall on typical phone widths;
+  supporting family messages stay below the form. All content scrolls when the
+  keyboard reduces usable space.
 - The form follows the selected app theme, with readable field labels, autofill,
   keyboard submission, password visibility controls and 48px minimum actions.
 - Registration and password reset use the existing authentication service. New
