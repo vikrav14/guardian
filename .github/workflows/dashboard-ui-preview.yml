@@ -9,9 +9,15 @@ on:
       - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
+      - 'apps/mobile/lib/screens/login_page.dart'
+      - 'apps/mobile/lib/widgets/auth/**'
+      - 'apps/mobile/assets/images/guardian_family_welcome.webp'
+      - 'apps/mobile/pubspec.yaml'
       - 'apps/mobile/test/guardian_dashboard_overview_test.dart'
+      - 'apps/mobile/test/login_page_test.dart'
       - 'apps/mobile/test/support/dashboard_fixture.dart'
       - 'apps/mobile/tool/render_dashboard_previews_test.dart'
+      - 'apps/mobile/tool/render_login_previews_test.dart'
   workflow_dispatch:
 
 permissions:
@@ -50,25 +56,33 @@ jobs:
           flutter config --no-analytics
           flutter pub get --enforce-lockfile
 
-      - name: Check dashboard formatting
+      - name: Check dashboard and login formatting
         run: |
           dart format \
             lib/widgets/dashboard/dashboard_section_icon.dart \
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
             lib/screens/map_dashboard_page.dart \
+            lib/screens/login_page.dart \
+            lib/widgets/auth/guardian_welcome_layout.dart \
             test/guardian_dashboard_overview_test.dart \
+            test/login_page_test.dart \
             test/support/dashboard_fixture.dart \
-            tool/render_dashboard_previews_test.dart
+            tool/render_dashboard_previews_test.dart \
+            tool/render_login_previews_test.dart
           git diff --exit-code
 
-      - name: Test dashboard layouts and actions
+      - name: Test dashboard and login layouts and actions
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_dashboard_overview_test.dart
+        run: flutter test test/guardian_dashboard_overview_test.dart test/login_page_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}
         run: flutter test tool/render_dashboard_previews_test.dart --dart-define=DASHBOARD_PREVIEWS=true
+
+      - name: Render login and registration previews
+        if: ${{ !cancelled() }}
+        run: flutter test tool/render_login_previews_test.dart --dart-define=LOGIN_PREVIEWS=true
 
       - name: Save review images
         if: ${{ !cancelled() }}
@@ -76,4 +90,12 @@ jobs:
         with:
           name: guardian-dashboard-previews
           path: apps/mobile/build/dashboard-previews/*.png
+          if-no-files-found: warn
+
+      - name: Save login review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-login-previews
+          path: apps/mobile/build/login-previews/*.png
           if-no-files-found: warn
