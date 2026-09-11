@@ -24,7 +24,8 @@ class GuardianWelcomeLayout extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 1080 &&
+            final wide =
+                constraints.maxWidth >= 1080 &&
                 MediaQuery.textScalerOf(context).scale(16) <= 20;
             final gutter = constraints.maxWidth < 600 ? 20.0 : 40.0;
             return SingleChildScrollView(
@@ -191,7 +192,7 @@ class _FamilyStory extends StatelessWidget {
             child: Image.asset(
               GuardianWelcomeLayout.familyImage,
               fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.2),
+              alignment: const Alignment(0, -0.7),
               excludeFromSemantics: true,
               // The form and copy remain usable if an asset cannot be decoded.
               errorBuilder: (context, error, stackTrace) => ColoredBox(
@@ -210,7 +211,8 @@ class _FamilyStory extends StatelessWidget {
         const SizedBox(height: 22),
         LayoutBuilder(
           builder: (context, constraints) {
-            final stacked = constraints.maxWidth < 460 ||
+            final stacked =
+                constraints.maxWidth < 460 ||
                 MediaQuery.textScalerOf(context).scale(16) > 20;
             const parents = _FamilyMessage(
               icon: Icons.favorite_border_rounded,

@@ -21,13 +21,7 @@ const _enabled = bool.fromEnvironment('LOGIN_PREVIEWS');
 
 void main() {
   for (final preview in [
-    (
-      name: 'wide',
-      width: 1440.0,
-      height: 1200.0,
-      dark: false,
-      register: false,
-    ),
+    (name: 'wide', width: 1440.0, height: 1200.0, dark: false, register: false),
     (
       name: 'mobile',
       width: 390.0,

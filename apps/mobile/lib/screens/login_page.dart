@@ -15,6 +15,9 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  static const _resetConfirmation =
+      'If an account uses this email, you will receive a password reset link. Check your inbox.';
+
   late final AuthService _auth = widget.authService ?? AuthService();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -77,16 +80,22 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await _auth.sendPasswordResetEmail(email);
       if (!mounted) return;
-      setState(() {
-        _resetSent =
-            'If an account uses this email, you will receive a password reset link. Check your inbox.';
-      });
+      setState(() => _resetSent = _resetConfirmation);
     } on FirebaseAuthException catch (error) {
-      if (mounted) setState(() => _error = _friendlyAuthError(error));
+      if (mounted) {
+        setState(() {
+          if (error.code == 'user-not-found') {
+            _resetSent = _resetConfirmation;
+          } else {
+            _error = _friendlyAuthError(error);
+          }
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _error = 'We could not send the reset email. Please try again shortly.';
+          _error =
+              'We could not send the reset email. Please try again shortly.';
         });
       }
     } finally {
@@ -128,7 +137,8 @@ class _LoginPageState extends State<LoginPage> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _error = 'We could not complete that request. Please try again shortly.';
+          _error =
+              'We could not complete that request. Please try again shortly.';
         });
       }
     } finally {
@@ -240,7 +250,9 @@ class _LoginPageState extends State<LoginPage> {
                       fieldKey: const ValueKey('login-password'),
                       controller: _password,
                       icon: Icons.lock_outline_rounded,
-                      hint: _registerMode ? 'At least 6 characters' : 'Your password',
+                      hint: _registerMode
+                          ? 'At least 6 characters'
+                          : 'Your password',
                       autofillHints: [
                         _registerMode
                             ? AutofillHints.newPassword
@@ -329,7 +341,9 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 18),
                     Center(
                       child: Text(
-                        _registerMode ? 'Already part of Guardian?' : 'New to Guardian?',
+                        _registerMode
+                            ? 'Already part of Guardian?'
+                            : 'New to Guardian?',
                         textAlign: TextAlign.center,
                         style: textStyle,
                       ),
@@ -346,7 +360,9 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         child: Text(
-                          _registerMode ? 'Sign in to your account' : 'Create an account',
+                          _registerMode
+                              ? 'Sign in to your account'
+                              : 'Create an account',
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -406,7 +422,9 @@ class _LoginPageState extends State<LoginPage> {
             autocorrect: false,
             enableSuggestions: !password,
             autofillHints: autofillHints,
-            textInputAction: password ? TextInputAction.done : TextInputAction.next,
+            textInputAction: password
+                ? TextInputAction.done
+                : TextInputAction.next,
             onFieldSubmitted: password ? (_) => _submit() : null,
             style: theme.textTheme.bodyLarge!.copyWith(
               color: colors.textPrimary,
@@ -421,7 +439,10 @@ class _LoginPageState extends State<LoginPage> {
                 colors.surface,
               ),
               constraints: const BoxConstraints(minHeight: 56),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
               border: border,
               enabledBorder: border,
               focusedBorder: border.copyWith(
@@ -431,7 +452,10 @@ class _LoginPageState extends State<LoginPage> {
                 borderSide: BorderSide(color: theme.colorScheme.error),
               ),
               focusedErrorBorder: border.copyWith(
-                borderSide: BorderSide(color: theme.colorScheme.error, width: 1.5),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.error,
+                  width: 1.5,
+                ),
               ),
               errorMaxLines: 3,
               prefixIcon: ExcludeSemantics(
@@ -447,9 +471,13 @@ class _LoginPageState extends State<LoginPage> {
                         side: BorderSide.none,
                         shape: const CircleBorder(),
                       ),
-                      onPressed: _busy ? null : () => setState(() => _obscure = !_obscure),
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _obscure = !_obscure),
                       icon: Icon(
-                        _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
                         size: 20,
                       ),
                     )

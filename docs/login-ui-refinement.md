@@ -23,6 +23,12 @@ prompt and provenance are in [login-image-source.md](login-image-source.md).
 
 ## Review
 
+![Desktop welcome](images/login-welcome/wide.png)
+
+[Phone](images/login-welcome/mobile.png) ·
+[Dark phone](images/login-welcome/mobile_dark.png) ·
+[Create account](images/login-welcome/register.png)
+
 The UI workflow runs login behavior/layout tests and captures the real login and
 registration widgets with fake authentication. The captures use local fonts for
 offline reproducibility; production keeps Guardian's existing typography.

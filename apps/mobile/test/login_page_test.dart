@@ -24,6 +24,7 @@ class _TestAuthService extends AuthService {
   Completer<void>? signInGate;
   Completer<void>? resetGate;
   Object? signInError;
+  Object? resetError;
   int signInCalls = 0;
   int registerCalls = 0;
   int resetCalls = 0;
@@ -64,6 +65,8 @@ class _TestAuthService extends AuthService {
     resetCalls++;
     submittedEmail = email;
     if (resetGate != null) await resetGate!.future;
+    final error = resetError;
+    if (error != null) throw error;
     await super.sendPasswordResetEmail(email);
   }
 }
@@ -100,9 +103,9 @@ Future<void> _pump(
         ),
       ),
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          textScaler: TextScaler.linear(textScale),
-        ),
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
       home: LoginPage(key: ObjectKey(auth), authService: auth),
@@ -139,24 +142,28 @@ void main() {
     expect(auth.registerCalls, 0);
   });
 
-  testWidgets('sign in trims email and preserves the empty-family profile flow', (
-    tester,
-  ) async {
-    final database = FakeFirebaseFirestore();
-    final auth = _TestAuthService(database);
-    await _pump(tester, auth);
-    await _credentials(tester);
-    await _tap(tester, _submit);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'sign in trims email and preserves the empty-family profile flow',
+    (tester) async {
+      final database = FakeFirebaseFirestore();
+      final auth = _TestAuthService(database);
+      await _pump(tester, auth);
+      await _credentials(tester);
+      await _tap(tester, _submit);
+      await tester.pumpAndSettle();
 
-    expect(auth.signInCalls, 1);
-    expect(auth.submittedEmail, 'family@example.com');
-    final profile = await database.collection('users').doc('family-user').get();
-    expect(profile.exists, isTrue);
-    expect(profile.data()!['linkedImeis'], isEmpty);
-    expect(profile.data()!['role'], 'guardian');
-    expect(tester.takeException(), isNull);
-  });
+      expect(auth.signInCalls, 1);
+      expect(auth.submittedEmail, 'family@example.com');
+      final profile = await database
+          .collection('users')
+          .doc('family-user')
+          .get();
+      expect(profile.exists, isTrue);
+      expect(profile.data()!['linkedImeis'], isEmpty);
+      expect(profile.data()!['role'], 'guardian');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('registration keeps email and creates a named family profile', (
     tester,
@@ -191,38 +198,71 @@ void main() {
     expect(profile.data()!['linkedImeis'], isEmpty);
   });
 
-  testWidgets('password reset validates email and clears feedback on mode change', (
-    tester,
-  ) async {
-    final auth = _TestAuthService(FakeFirebaseFirestore());
-    await _pump(tester, auth);
-    await _tap(tester, find.text('Forgot password?'));
-    expect(auth.resetCalls, 0);
-    expect(find.textContaining('Enter your email address above'), findsOneWidget);
+  testWidgets(
+    'password reset validates email and clears feedback on mode change',
+    (tester) async {
+      final auth = _TestAuthService(FakeFirebaseFirestore());
+      await _pump(tester, auth);
+      await _tap(tester, find.text('Forgot password?'));
+      expect(auth.resetCalls, 0);
+      expect(
+        find.textContaining('Enter your email address above'),
+        findsOneWidget,
+      );
 
-    await tester.ensureVisible(_email);
-    await tester.enterText(_email, '  family@example.com  ');
-    await _tap(tester, find.text('Forgot password?'));
-    await tester.pumpAndSettle();
-    expect(auth.resetCalls, 1);
-    expect(auth.submittedEmail, 'family@example.com');
-    expect(find.textContaining('you will receive a password reset link'), findsOneWidget);
-    expect(find.textContaining('Enter your email address above'), findsNothing);
+      await tester.ensureVisible(_email);
+      await tester.enterText(_email, '  family@example.com  ');
+      await _tap(tester, find.text('Forgot password?'));
+      await tester.pumpAndSettle();
+      expect(auth.resetCalls, 1);
+      expect(auth.submittedEmail, 'family@example.com');
+      expect(
+        find.textContaining('you will receive a password reset link'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Enter your email address above'),
+        findsNothing,
+      );
 
-    await _tap(tester, _mode);
-    await tester.pumpAndSettle();
-    expect(find.textContaining('you will receive a password reset link'), findsNothing);
-  });
+      await _tap(tester, _mode);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('you will receive a password reset link'),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('show and hide password keeps the entered value', (tester) async {
     await _pump(tester, _TestAuthService(FakeFirebaseFirestore()));
     await _credentials(tester);
     await _tap(tester, find.byTooltip('Show password'));
-    final input = find.descendant(of: _password, matching: find.byType(TextField));
+    final input = find.descendant(
+      of: _password,
+      matching: find.byType(TextField),
+    );
     expect(tester.widget<TextField>(input).obscureText, isFalse);
     expect(tester.widget<TextFormField>(_password).controller!.text, 'secret1');
     await _tap(tester, find.byTooltip('Hide password'));
     expect(tester.widget<TextField>(input).obscureText, isTrue);
+  });
+
+  testWidgets('unknown email gets a neutral reset message', (tester) async {
+    final auth = _TestAuthService(FakeFirebaseFirestore());
+    auth.resetError = FirebaseAuthException(code: 'user-not-found');
+    await _pump(tester, auth);
+    await _credentials(tester);
+    await _tap(tester, find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    expect(auth.resetCalls, 1);
+    expect(
+      find.textContaining('you will receive a password reset link'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('did not match'), findsNothing);
+    expect(tester.widget<FilledButton>(_submit).onPressed, isNotNull);
   });
 
   testWidgets('repeated keyboard submission starts only one sign-in request', (
@@ -232,9 +272,11 @@ void main() {
     auth.signInGate = Completer<void>();
     await _pump(tester, auth);
     await _credentials(tester);
-    final submitFromKeyboard = tester.widget<TextField>(
-      find.descendant(of: _password, matching: find.byType(TextField)),
-    ).onSubmitted!;
+    final submitFromKeyboard = tester
+        .widget<TextField>(
+          find.descendant(of: _password, matching: find.byType(TextField)),
+        )
+        .onSubmitted!;
     submitFromKeyboard('secret1');
     submitFromKeyboard('secret1');
     await tester.pump();
@@ -243,7 +285,11 @@ void main() {
     expect(tester.widget<FilledButton>(_submit).onPressed, isNull);
     expect(tester.widget<TextButton>(_mode).onPressed, isNull);
     expect(
-      tester.widget<TextButton>(find.widgetWithText(TextButton, 'Forgot password?')).onPressed,
+      tester
+          .widget<TextButton>(
+            find.widgetWithText(TextButton, 'Forgot password?'),
+          )
+          .onPressed,
       isNull,
     );
     auth.signInGate!.complete();
@@ -259,9 +305,11 @@ void main() {
     auth.resetGate = Completer<void>();
     await _pump(tester, auth);
     await _credentials(tester);
-    final submitFromKeyboard = tester.widget<TextField>(
-      find.descendant(of: _password, matching: find.byType(TextField)),
-    ).onSubmitted!;
+    final submitFromKeyboard = tester
+        .widget<TextField>(
+          find.descendant(of: _password, matching: find.byType(TextField)),
+        )
+        .onSubmitted!;
     await _tap(tester, find.text('Forgot password?'));
     submitFromKeyboard('secret1');
     await tester.pump();
@@ -290,7 +338,9 @@ void main() {
       await _tap(tester, _submit);
       await tester.pumpAndSettle();
       expect(
-        find.text('We could not complete that request. Please try again shortly.'),
+        find.text(
+          'We could not complete that request. Please try again shortly.',
+        ),
         findsOneWidget,
       );
       expect(find.textContaining('Internal project'), findsNothing);
