@@ -1,5 +1,41 @@
 # V52 native Wi-Fi fence validation
 
+## Home publication followed by an early clear — 11 September 2026 UTC
+
+The subsequent [read-only publisher status](../testing/wifi-home-publication-cleared-2026-09-11.json)
+confirms a successful backend Home publication in a later window than the capture
+below. It does not establish publisher/UI state during that earlier capture.
+
+| Publisher evidence | UTC | Mauritius (UTC+4) |
+|---|---|---|
+| Radio source observation | 19:51:22.000 | 23:51:22.000 |
+| Successful Home publication | 19:51:43.682 | 23:51:43.682 |
+| Successful clear | 19:51:49.719 | 23:51:49.719 |
+| Published expiry | 19:52:26.421 | 23:52:26.421 |
+
+Home was cleared **6.037 seconds after publication and 36.702 seconds before its
+published expiry**. This is not the normal expiry of that published value.
+The present state is unknown with no retained match timestamp; the current
+publisher is idle, its Home binding ready and the session connected. These
+current fields do not identify which event caused the earlier clearing.
+
+The source audit confirms that a fresh GPS observation, a nonmatching/weak or
+invalid scan, or a binding change/failure can withdraw Home evidence. Canonical
+cellular-only reports preserve the existing evidence without extending it.
+Normal observer expiry retains the prior source time and reports expired.
+The CLI omits the observer reason, and publisher status does not retain a
+historical clear reason. **Do not attribute this clear to GPS, radio loss or a
+binding failure without the corresponding log evidence.** The shorter published
+lease alone is expected when capped by the Home binding's validity.
+
+Next preserve the running gateway's `[wifi-home]` and `[wifi-home-display]` lines
+around 19:51:43–19:51:50 UTC, especially the first `displayingHome: false` reason
+after `home_wifi_detected`. Resolve that withdrawal before another hardware
+comparison; no restart, new CR or repeated native setting is needed to read the
+existing logs. Backend publication is demonstrated; app/map/WhatsApp agreement,
+continuous Home and native fencing remain unconfirmed. This checkpoint changes
+documentation only.
+
 ## Fresh router baseline established — 11 September 2026 UTC
 
 The [redacted strong-router capture](../testing/wifi-home-strong-router-baseline-2026-09-11.json)
@@ -41,6 +77,8 @@ does not establish continuous Home availability or justify changing expiry.
 **Next:** read `npm run wifi-home:check` without requesting a new location and
 inspect `lastHomePublication`, its source/expiry timestamps and the final checker
 outcome. An expired current state can coexist with successful prior publication.
+The subsequent result is recorded in the early-clear checkpoint above and takes
+priority over the next hardware comparison.
 After accounting for publication, the planned short marked radio-off/on comparison
 can now use an established router baseline. It requires fresh evidence in that
 new window; it does not require another native setting. This checkpoint preserves

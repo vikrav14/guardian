@@ -644,6 +644,28 @@ expired status after this run does not disprove recognition during the burst.
 Next read the running publisher's lastHomePublication before the next physical
 comparison. No new runtime or hardware change is made by recording this result.
 
+### Home published then cleared early — 11 September 2026 UTC
+
+The [subsequent read-only status](testing/wifi-home-publication-cleared-2026-09-11.json)
+confirms backend publication at 19:51:43.682 UTC from a 19:51:22 source observation.
+The publisher cleared it at 19:51:49.719 UTC, **6.037 seconds after confirmation**
+and **36.702 seconds before its published expiry** of 19:52:26.421 UTC. This is a
+later observation window; it does not prove publication during the earlier capture.
+
+**Accepted observation:** the backend published Home evidence. The early clearing
+trigger remains unknown because this CLI summary omits the observer reason and
+does not expose a historical clear reason. Current binding readiness/connectivity
+cannot rule out a transient problem at the earlier time. The shorter published
+lease can be explained by the binding-validity cap; it does not explain a clear
+before that lease expires.
+
+Preserve the `[wifi-home]` and `[wifi-home-display]` reasons at 19:51:43–19:51:50 UTC
+before another comparison. Do not infer GPS priority, radio loss or a binding
+change from this summary alone. App/map/WhatsApp agreement, continuous Home,
+GPS-path physical scan coverage and native fence acceptance remain open. No
+runtime, expiry, reporting-policy or hardware setting changes accompany this
+evidence checkpoint.
+
 ## Test 3 — approved incoming family calls
 
 Guardian's current Machine 500 MB SIM does not permit outbound carrier calls.
