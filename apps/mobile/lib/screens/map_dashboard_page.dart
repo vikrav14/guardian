@@ -17,12 +17,8 @@ import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
-import '../widgets/dashboard/around_them_panel.dart';
-import '../widgets/dashboard/family_device_strip.dart';
-import '../widgets/dashboard/guardian_intelligence_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
-import '../widgets/dashboard/guardian_now_hero.dart';
-import '../widgets/dashboard/today_summary_panel.dart';
+import '../widgets/dashboard/guardian_dashboard_overview.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
@@ -37,6 +33,8 @@ class MapDashboardPage extends StatefulWidget {
 class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
   GoogleMapController? _mapController;
+  // Keep the platform map mounted when the responsive columns rearrange.
+  final GlobalKey _mapKey = GlobalKey(debugLabel: 'dashboard-map');
   final ValueNotifier<int> _mapCameraGeneration = ValueNotifier(0);
 
   double _zoom = 14;
@@ -150,25 +148,38 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Future<void> _animateTo(LatLng target, {double? zoom}) async {
     final controller = _mapController;
-    if (controller == null) return;
+    if (controller == null || _mapKey.currentContext == null) return;
     final nextZoom = zoom ?? _zoom;
     _mapCameraGeneration.value++;
     await controller.animateCamera(
       CameraUpdate.newLatLngZoom(target, nextZoom),
     );
-    _zoom = nextZoom;
-    _mapCameraGeneration.value++;
+    if (mounted && identical(controller, _mapController)) {
+      _zoom = nextZoom;
+      _mapCameraGeneration.value++;
+    }
   }
 
   void _followSelected() {
     final location = _selected?.mapDisplayLocation;
-    if (_mapController == null || location?.isValid != true) return;
+    final controller = _mapController;
+    if (controller == null ||
+        _mapKey.currentContext == null ||
+        location?.isValid != true) {
+      return;
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      final currentLocation = _selected?.mapDisplayLocation;
+      if (!mounted ||
+          _mapKey.currentContext == null ||
+          !identical(controller, _mapController) ||
+          currentLocation?.isValid != true) {
+        return;
+      }
       unawaited(
         _animateTo(
-          LatLng(location!.lat, location.lng),
+          LatLng(currentLocation!.lat, currentLocation.lng),
           zoom: _didInitialFit ? _zoom : 15,
         ),
       );
@@ -185,12 +196,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Future<void> _changeMapZoom(double delta) async {
     final controller = _mapController;
-    if (controller == null) return;
+    if (controller == null || _mapKey.currentContext == null) return;
     final next = (_zoom + delta).clamp(3.0, 20.0).toDouble();
     _zoom = next;
     _mapCameraGeneration.value++;
     await controller.animateCamera(CameraUpdate.zoomTo(next));
-    _mapCameraGeneration.value++;
+    if (mounted && identical(controller, _mapController)) {
+      _mapCameraGeneration.value++;
+    }
   }
 
   void _toggleMapType() {
@@ -561,146 +574,67 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   Widget _buildMapCard(Device selected) {
-    final colors = context.guardianColors;
     final center = _mapCenter;
 
-    return Container(
-      height: 292,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: GuardianColors.forest.withValues(alpha: 0.10),
-            blurRadius: 34,
-            offset: const Offset(0, 14),
+    return SizedBox(
+      height: MediaQuery.sizeOf(context).width < 600 ? 210 : 380,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          GoogleMap(
+            key: _mapKey,
+            initialCameraPosition: CameraPosition(target: center, zoom: 15),
+            mapType: _mapType,
+            markers: _nativeMarkers(),
+            circles: _circles(),
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            myLocationEnabled: false,
+            mapToolbarEnabled: false,
+            compassEnabled: false,
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _mapCameraGeneration.value++;
+              _didInitialFit = false;
+              _followSelected();
+            },
+            onCameraMove: (position) {
+              _zoom = position.zoom;
+              _mapCameraGeneration.value++;
+            },
+            onCameraIdle: () => _mapCameraGeneration.value++,
+          ),
+          if (kIsWeb)
+            ValueListenableBuilder<int>(
+              valueListenable: _mapCameraGeneration,
+              builder: (context, generation, _) => MapAvatarOverlay(
+                controller: _mapController,
+                devices: _devices,
+                selectedImei: _selectedImei,
+                cameraGeneration: generation,
+                onSelect: _dashboard.select,
+              ),
+            ),
+          Positioned(
+            top: 18,
+            right: 18,
+            child: GuardianMapControlRail(
+              trackedName: selected.displayName,
+              onZoomIn: () => unawaited(_changeMapZoom(1)),
+              onZoomOut: () => unawaited(_changeMapZoom(-1)),
+              onCenterTrackedPerson: _centerSelectedAction(),
+              isSatelliteView: _mapType != MapType.normal,
+              onToggleSatelliteView: _toggleMapType,
+            ),
           ),
         ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(27),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            GoogleMap(
-              initialCameraPosition: CameraPosition(target: center, zoom: 15),
-              mapType: _mapType,
-              markers: _nativeMarkers(),
-              circles: _circles(),
-              zoomControlsEnabled: false,
-              myLocationButtonEnabled: false,
-              myLocationEnabled: false,
-              mapToolbarEnabled: false,
-              compassEnabled: false,
-              onMapCreated: (controller) {
-                _mapController = controller;
-                _mapCameraGeneration.value++;
-                _didInitialFit = false;
-                _followSelected();
-              },
-              onCameraMove: (position) {
-                _zoom = position.zoom;
-                _mapCameraGeneration.value++;
-              },
-              onCameraIdle: () => _mapCameraGeneration.value++,
-            ),
-            if (kIsWeb)
-              ValueListenableBuilder<int>(
-                valueListenable: _mapCameraGeneration,
-                builder: (context, generation, _) => MapAvatarOverlay(
-                  controller: _mapController,
-                  devices: _devices,
-                  selectedImei: _selectedImei,
-                  cameraGeneration: generation,
-                  onSelect: _dashboard.select,
-                ),
-              ),
-            Positioned(
-              top: 18,
-              left: 18,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 280),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: colors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: GuardianColors.forest.withValues(alpha: 0.08),
-                      blurRadius: 22,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: selected.isTrulyOffline
-                            ? GuardianColors.warning
-                            : GuardianColors.safe,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${selected.displayName} · ${_mapStatus(selected)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            deviceMapLocationFixLabel(selected),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.textSecondary,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: 18,
-              right: 18,
-              child: GuardianMapControlRail(
-                trackedName: selected.displayName,
-                onZoomIn: () => unawaited(_changeMapZoom(1)),
-                onZoomOut: () => unawaited(_changeMapZoom(-1)),
-                onCenterTrackedPerson: _centerSelectedAction(),
-                isSatelliteView: _mapType != MapType.normal,
-                onToggleSatelliteView: _toggleMapType,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildDashboardContent(Device? selected) {
     final entitlementScope = GuardianEntitlementsScope.of(context);
+    final home = HomeShellScope.maybeOf(context);
     final aiDecision = entitlementScope.decision(GuardianFeature.guardianAi);
     final whatsappDecision = entitlementScope.decision(
       GuardianFeature.whatsappQuestionsAnswers,
@@ -708,110 +642,50 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final careSummaryDecision = entitlementScope.decision(
       GuardianFeature.wellbeingActivitySummaries,
     );
-    final medicationDecision = entitlementScope.decision(
-      GuardianFeature.medicationReminders,
-    );
     final historyDecision = entitlementScope.decision(
       GuardianFeature.locationHistory,
     );
-    final aiInterpretation = buildGuardianAiInterpretation(selected);
-    final todayText = buildTodaySummary(selected);
-    final activityStatus = buildTodayActivityStatus(selected);
-    final activities = buildGuardianActivities(selected);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        GuardianNowHero(
-          device: selected,
-          aiInterpretation: aiInterpretation,
-          guardianAiEnabled: aiDecision.allowed,
-          askGuardianEnabled: whatsappDecision.allowed,
-          onCall: selected == null ? null : () => _callDevice(selected),
-          onViewLocation: selected == null
-              ? null
-              : () => _openHistory(
-                  selected,
-                  subscription: entitlementScope.subscription,
-                  decision: historyDecision,
-                ),
-          onAskGuardian: selected == null
-              ? null
-              : whatsappDecision.allowed
-              ? () => _showGuardianHelp(
-                  selected,
-                  subscription: entitlementScope.subscription,
-                  historyDecision: historyDecision,
-                )
-              : () => _showEntitlementDecision(whatsappDecision),
-        ),
-        if (_devices.length > 1) ...[
-          const SizedBox(height: 18),
-          FamilyDeviceStrip(
-            devices: _devices,
-            selectedImei: _selectedImei,
-            onSelect: _dashboard.select,
-          ),
-        ],
-        if (selected != null) ...[
-          const SizedBox(height: 18),
-          _buildMapCard(selected),
-        ],
-        const SizedBox(height: 18),
-        AroundThemPanel(
-          device: selected,
-          geofences: _geofences,
-          guardianIntelligence: aiInterpretation,
-          guardianAiEnabled: aiDecision.allowed,
-          careEnabled: careSummaryDecision.allowed,
-          medicationEnabled: medicationDecision.allowed,
-        ),
-        if (aiDecision.allowed || careSummaryDecision.allowed) ...[
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final today = TodaySummaryPanel(
-                device: selected,
-                dailySummary: todayText,
-                activityStatus: activityStatus,
-                onViewJourney: selected == null
-                    ? null
-                    : () => _openHistory(
-                        selected,
-                        subscription: entitlementScope.subscription,
-                        decision: historyDecision,
-                      ),
-              );
-              final intelligence = GuardianIntelligencePanel(
-                device: selected,
-                activities: activities,
-              );
-
-              if (aiDecision.allowed && !careSummaryDecision.allowed) {
-                return intelligence;
-              }
-              if (!aiDecision.allowed && careSummaryDecision.allowed) {
-                return today;
-              }
-              if (constraints.maxWidth < 820) {
-                return Column(
-                  children: [today, const SizedBox(height: 18), intelligence],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 9, child: today),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 13, child: intelligence),
-                ],
-              );
-            },
-          ),
-        ],
-        const SizedBox(height: 24),
-      ],
+    return GuardianDashboardOverview(
+      device: selected,
+      devices: _devices,
+      geofences: _geofences,
+      loading: _dashboard.loading,
+      hasError: _dashboard.error != null,
+      map: selected == null ? const SizedBox.shrink() : _buildMapCard(selected),
+      mapStatus: selected == null ? '' : _mapStatus(selected),
+      insight: buildGuardianAiInterpretation(selected),
+      aiEnabled: aiDecision.allowed,
+      helpEnabled: whatsappDecision.allowed,
+      careEnabled: careSummaryDecision.allowed,
+      todaySummary: buildTodaySummary(selected),
+      activityStatus: buildTodayActivityStatus(selected),
+      onSelect: _dashboard.select,
+      onCall: selected == null ? null : () => _callDevice(selected),
+      onJourney: selected == null
+          ? null
+          : () => _openHistory(
+              selected,
+              subscription: entitlementScope.subscription,
+              decision: historyDecision,
+            ),
+      onHelp: selected == null
+          ? null
+          : whatsappDecision.allowed
+          ? () => _showGuardianHelp(
+              selected,
+              subscription: entitlementScope.subscription,
+              historyDecision: historyDecision,
+            )
+          : () => _showEntitlementDecision(whatsappDecision),
+      onWatchStatus: selected == null
+          ? null
+          : () => _showWatchStatusFact(selected),
+      onLocationDetails: selected == null
+          ? null
+          : () => _showLocationFact(selected),
+      onSafeZones: home == null ? null : () => home.goToTab(1),
+      onLinkWatch: home == null ? null : () => home.goToTab(3),
     );
   }
 
@@ -819,25 +693,23 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: Stack(
-        children: [
-          const Positioned(
-            top: -90,
-            right: -70,
-            child: _AmbientGlow(size: 300, color: Color(0x2E4AC99B)),
-          ),
-          const Positioned(
-            top: 310,
-            left: -100,
-            child: _AmbientGlow(size: 260, color: Color(0x1FE8B765)),
-          ),
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1180),
-              child: CustomScrollView(
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: LayoutBuilder(
+              builder: (context, constraints) => CustomScrollView(
                 slivers: [
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(18, 24, 18, 190),
+                    padding: EdgeInsets.fromLTRB(
+                      constraints.maxWidth < 600 ? 16 : 32,
+                      constraints.maxWidth < 600 ? 12 : 28,
+                      constraints.maxWidth < 600 ? 16 : 32,
+                      // HomeShell reserves space for navigation and safe area.
+                      24,
+                    ),
                     sliver: SliverList.list(
                       children: [_buildDashboardContent(_selected)],
                     ),
@@ -846,27 +718,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AmbientGlow extends StatelessWidget {
-  const _AmbientGlow({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       ),
     );
