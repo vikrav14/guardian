@@ -25,6 +25,16 @@ spacing.
 The dashboard does not render the dodo. Existing mascot assets and older shared
 widgets remain available to other screens and in-flight branches.
 
+## Rendered review images
+
+These are the actual Flutter overview widgets using synthetic people and a
+labelled test map. Production continues to use the existing Google Maps view.
+
+![Desktop overview](images/dashboard-overview/wide.png)
+
+[Phone overview](images/dashboard-overview/mobile.png) ·
+[Dark phone overview](images/dashboard-overview/mobile_dark.png)
+
 ## Scope and parallel work
 
 Branch: `feat/dashboard-ui-refinement`, based on `main` at `0afd652`.
