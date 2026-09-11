@@ -1,0 +1,137 @@
+name: Dashboard UI review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dashboard-ui-preview.yml'
+      - 'apps/mobile/lib/widgets/dashboard/dashboard_section_icon.dart'
+      - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
+      - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
+      - 'apps/mobile/lib/screens/map_dashboard_page.dart'
+      - 'apps/mobile/lib/screens/home_shell.dart'
+      - 'apps/mobile/lib/widgets/navigation/guardian_navigation.dart'
+      - 'apps/mobile/lib/widgets/layout/guardian_app_header.dart'
+      - 'apps/mobile/lib/screens/login_page.dart'
+      - 'apps/mobile/lib/screens/safe_zones_page.dart'
+      - 'apps/mobile/lib/widgets/safe_zones/**'
+      - 'apps/mobile/test/safe_zone_map_test.dart'
+      - 'apps/mobile/test/safe_zones_overview_test.dart'
+      - 'apps/mobile/test/safe_zone_logic_test.dart'
+      - 'apps/mobile/test/support/safe_zones_fixture.dart'
+      - 'apps/mobile/tool/render_safe_zones_previews_test.dart'
+      - 'apps/mobile/lib/widgets/auth/**'
+      - 'apps/mobile/assets/images/guardian_family_welcome.webp'
+      - 'apps/mobile/pubspec.yaml'
+      - 'apps/mobile/test/guardian_dashboard_overview_test.dart'
+      - 'apps/mobile/test/guardian_navigation_test.dart'
+      - 'apps/mobile/test/widget_test.dart'
+      - 'apps/mobile/test/login_page_test.dart'
+      - 'apps/mobile/test/support/dashboard_fixture.dart'
+      - 'apps/mobile/tool/render_dashboard_previews_test.dart'
+      - 'apps/mobile/tool/render_login_previews_test.dart'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-ui-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Dashboard layouts and review images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Flutter SDK
+        shell: bash
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth 1 origin refs/tags/3.44.6:refs/tags/3.44.6
+          git -C "$RUNNER_TEMP/flutter" checkout --detach refs/tags/3.44.6
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)" = "ee80f08bbf97172ec030b8751ceab557177a34a6"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Restore locked dependencies
+        run: |
+          flutter config --no-analytics
+          flutter pub get --enforce-lockfile
+
+      - name: Check app UI formatting
+        run: |
+          dart format \
+            lib/widgets/dashboard/dashboard_section_icon.dart \
+            lib/widgets/dashboard/guardian_dashboard_overview.dart \
+            lib/widgets/dashboard/guardian_overview_header.dart \
+            lib/screens/map_dashboard_page.dart \
+            lib/screens/home_shell.dart \
+            lib/widgets/navigation/guardian_navigation.dart \
+            lib/widgets/layout/guardian_app_header.dart \
+            lib/screens/login_page.dart \
+            lib/screens/safe_zones_page.dart \
+            lib/widgets/safe_zones/safe_zone_map.dart \
+            lib/widgets/safe_zones/safe_zones_overview.dart \
+            test/safe_zone_map_test.dart \
+            test/safe_zones_overview_test.dart \
+            test/support/safe_zones_fixture.dart \
+            tool/render_safe_zones_previews_test.dart \
+            lib/widgets/auth/guardian_welcome_layout.dart \
+            test/guardian_dashboard_overview_test.dart \
+            test/guardian_navigation_test.dart \
+            test/widget_test.dart \
+            test/login_page_test.dart \
+            test/support/dashboard_fixture.dart \
+            tool/render_dashboard_previews_test.dart \
+            tool/render_login_previews_test.dart
+          git diff --exit-code
+
+      - name: Test app layouts, actions and safe-zone rules
+        if: ${{ !cancelled() }}
+        run: flutter test test/guardian_dashboard_overview_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart
+
+      - name: Render synthetic dashboard previews
+        if: ${{ !cancelled() }}
+        run: flutter test tool/render_dashboard_previews_test.dart --dart-define=DASHBOARD_PREVIEWS=true
+
+      - name: Render login and registration previews
+        if: ${{ !cancelled() }}
+        run: flutter test tool/render_login_previews_test.dart --dart-define=LOGIN_PREVIEWS=true
+
+      - name: Render safe zones previews
+        if: ${{ !cancelled() }}
+        run: flutter test tool/render_safe_zones_previews_test.dart --dart-define=SAFE_ZONES_PREVIEWS=true
+
+      - name: Save safe zones review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-safe-zones-previews
+          path: apps/mobile/build/safe-zones-previews/*.png
+          if-no-files-found: warn
+
+      - name: Save review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-dashboard-previews
+          path: apps/mobile/build/dashboard-previews/*.png
+          if-no-files-found: warn
+
+      - name: Save login review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-login-previews
+          path: apps/mobile/build/login-previews/*.png
+          if-no-files-found: warn

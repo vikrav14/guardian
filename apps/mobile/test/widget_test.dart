@@ -117,7 +117,7 @@ void main() {
       expect(find.text('Safe zones'), findsOneWidget);
       expect(find.text('Alerts'), findsOneWidget);
       expect(find.text('Account'), findsOneWidget);
-      expect(find.text('3 SEC'), findsOneWidget);
+      expect(find.text('Hold 3 sec'), findsOneWidget);
 
       await tester.tap(find.text('Alerts'));
       expect(tapped, 2);

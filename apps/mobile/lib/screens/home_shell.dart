@@ -59,7 +59,11 @@ class _HomeShellState extends State<HomeShell> {
             sidebarCollapsed: true,
             child: Scaffold(
               backgroundColor: context.guardianColors.canvas,
-              extendBody: true,
+              bottomNavigationBar: MobileBottomBar(
+                currentIndex: _index,
+                onTap: _goToTab,
+                onSos: _sendSos,
+              ),
               body: Column(
                 children: [
                   GuardianAppHeader(
@@ -68,21 +72,7 @@ class _HomeShellState extends State<HomeShell> {
                     onAccount: () => _goToTab(3),
                   ),
                   Expanded(
-                    child: Stack(
-                      children: [
-                        IndexedStack(index: _index, children: pages),
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 10,
-                          child: MobileBottomBar(
-                            currentIndex: _index,
-                            onTap: _goToTab,
-                            onSos: _sendSos,
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: IndexedStack(index: _index, children: pages),
                   ),
                 ],
               ),
