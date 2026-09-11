@@ -67,9 +67,9 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
       failIf('geolocation'); clock = after.getTime(); return geoResult;
     } },
     './sos-incident-window': { claimSosIncident: () => ({ accepted: true }) },
-    './wifi-home-runtime': { observeWifiHomeEvent: (event, at) => {
+    './wifi-home-runtime': { observeWifiHomeEvent: (event, at, packetArgs) => {
       failIf('wifi-observer');
-      wifiObservations.push({ event: structuredClone(event), at });
+      wifiObservations.push({ event: structuredClone(event), at, packetArgs });
     } },
   };
   const sandbox = {
@@ -96,10 +96,14 @@ test('router observer sees original SOS evidence even when geolocation fails', a
   const event = alarm({ needsGeolocation: true, wifiAccessPoints: [
     { macAddress: '02:00:00:00:00:01', signalStrength: -60 },
   ] });
-  await run.apply([event], {});
+  const packetArgs = ['private packet fields'];
+  await run.apply([event], {}, packetArgs);
   assert.equal(run.wifiObservations.length, 1);
   assert.deepEqual(run.wifiObservations[0].event, event);
   assert.equal(run.wifiObservations[0].at.getTime(), receipt.getTime());
+  assert.equal(run.wifiObservations[0].packetArgs, packetArgs);
+  assert.ok(!JSON.stringify(run.alerts).includes('private packet fields'));
+  assert.ok(!JSON.stringify(run.writes).includes('private packet fields'));
   assert.equal(run.alerts.length, 1);
   assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
 });

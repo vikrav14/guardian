@@ -183,6 +183,21 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
+**Latest software checkpoint, 11 September 2026 UTC:** the operator-authorized
+v2 Home/GPS integration is implemented. GPS at the saved Home area no longer
+erases fresh radio evidence; conflicting/uncertain fresh GPS prevents the Home
+pin. GPS/heartbeats/empty scans cannot renew radio expiry. Both gateway/chat and
+Flutter use the versioned contract with shared fixtures. The local gateway suite
+passes **810/810**, including decoder/runtime, delayed-write, SOS and journey
+regressions. Release gates on the published commit and physical app/map/chat,
+departure/return and expiry acceptance remain required. Follow the
+[updated physical check](services/wifi-home-supplier-validation.md#next-physical-check-after-the-update)
+after updating both gateway and app from PR #116. This software result does not
+upgrade native fencing or continuous Home to accepted.
+
+The entries below preserve the earlier hardware and software checkpoints; their
+old GPS-priority behavior and next-step instructions are historical.
+
 Status: near-router recognition and a usable backend Home publication passed
 on one configured V52 pilot and one owner-selected radio. Subsequent app and
 WhatsApp screenshots show retained GPS after the reported radio evidence expired.

@@ -74,7 +74,7 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
     now: () => now,
     readBinding: async at => ({ ready: true, key: 'synthetic-home-owner',
       validUntilMs: at + 60_000,
-      anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15 } }),
+      anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15, radiusMeters: 150 } }),
     readObservation: at => observer.snapshot(at),
     resetObservation: () => { observer = createWifiHomeObserver(options); },
     persist: async value => { homeWifiPresence = value; writes.push(value); },

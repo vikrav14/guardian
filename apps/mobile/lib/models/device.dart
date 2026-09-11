@@ -205,13 +205,28 @@ class Device {
     final home = homeWifiPresence;
     if (home == null || !home.isFreshAt(now)) return null;
     final fixes = [lastSatelliteLocation, lastLocationObservation, location];
+    final recentGps = <DeviceLocation>[];
     for (var index = 0; index < fixes.length; index++) {
       final fix = fixes[index];
       if (fix == null || fix.gpsValid == false) continue;
       final gps = index == 0 || fix.source == 'gps' ||
           (index == 2 && accuracySource == 'gps');
       final at = fix.recordedAt;
-      if (gps && at != null && !at.isBefore(home.observedAt)) return null;
+      if (!gps) continue;
+      if (home.policyVersion == 1) {
+        if (at != null && !at.isBefore(home.observedAt)) return null;
+      } else {
+        if (at == null || at.isAfter(now)) return null;
+        if (now.difference(at) < const Duration(minutes: 2)) recentGps.add(fix);
+      }
+    }
+    if (recentGps.isNotEmpty) {
+      final latest = recentGps.map((fix) => fix.recordedAt!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      for (final fix in recentGps) {
+        if (fix.recordedAt == latest &&
+            !home.gpsAgreesWithHome(fix.lat, fix.lng, fix.accuracyMeters)) return null;
+      }
     }
     return DeviceLocation(lat: home.lat, lng: home.lng,
       recordedAt: home.observedAt, source: 'home_wifi',

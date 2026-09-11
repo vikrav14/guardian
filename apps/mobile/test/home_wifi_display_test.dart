@@ -50,8 +50,16 @@ void main() {
         expect(pin.accuracyMeters, isNull);
         expect(deviceMapLocationFixLabel(device, now: now), contains('Home Wi-Fi detected'));
       } else {
-        expect(pin.lat, (gps ?? network)!.lat);
-        expect(pin.source, (gps ?? network)!.source);
+        final fallback = Device(
+          imei: 'fixture-watch', online: true,
+          accuracySource: evidence['accuracySource'] as String?,
+          location: network,
+          lastLocationObservation: location(evidence['lastLocationObservation']),
+          lastSatelliteLocation: gps,
+        ).mapDisplayLocationAt(now)!;
+        expect(pin.lat, fallback.lat);
+        expect(pin.lng, fallback.lng);
+        expect(pin.source, fallback.source);
       }
       expect(device.location, same(network));
       expect(device.lastSatelliteLocation, same(gps));

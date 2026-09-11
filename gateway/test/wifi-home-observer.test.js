@@ -162,13 +162,22 @@ test('long gaps and process restarts require a new observation sequence', () => 
   assert.equal(restarted.observe(packet(81_000), start + 81_000).matchState, 'candidate');
 });
 
-test('fresh satellite evidence ends a match; stale satellite evidence does not overwrite it', () => {
+test('GPS coordinates are retained separately and never erase or renew a radio match', () => {
   const observer = matched();
   const gps = packet(30_000, { gpsValid: true, accuracySource: 'gps' });
   gps.location.gpsValid = true; gps.location.source = 'gps';
   const staleGps = structuredClone(gps); staleGps.location.recordedAt = new Date(start - 7_200_000);
   assert.equal(observer.observe(staleGps, start + 30_000).matchState, 'matched');
-  assert.equal(observer.observe(gps, start + 30_000).reason, 'satellite_observation');
+  const before = observer.snapshot(start + 30_000);
+  const after = observer.observe(gps, start + 30_000);
+  assert.equal(after.matchState, 'matched');
+  assert.equal(after.observedAt, before.observedAt);
+  assert.equal(after.expiresAt, before.expiresAt);
+  assert.equal(after.counts.qualified, before.counts.qualified);
+  assert.equal(observer.readGpsObservation().recordedAt, new Date(start + 30_000).toISOString());
+  const copy = observer.readGpsObservation(); copy.lat = 80;
+  assert.notEqual(observer.readGpsObservation().lat, 80);
+  assert.equal(observer.snapshot(start + 140_000).matchState, 'expired');
 });
 
 test('clock rollback removes any current match from diagnostic presentation', () => {

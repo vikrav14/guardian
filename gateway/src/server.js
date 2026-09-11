@@ -319,7 +319,7 @@ async function runTrackingSideEffect(event, stage, operation) {
   }
 }
 
-async function applyEvents(events, session) {
+async function applyEvents(events, session, packetArgs) {
 
   for (const event of events) {
 
@@ -342,7 +342,7 @@ async function applyEvents(events, session) {
       // Observe the original packet before geolocation or write gating. This
       // synchronous, in-memory pilot must never interrupt tracking or SOS.
       try {
-        observeWifiHomeEvent(event, eventReceivedAt);
+        observeWifiHomeEvent(event, eventReceivedAt, packetArgs);
       } catch {
         console.warn('[wifi-home] observer unavailable; tracking continues');
       }
@@ -1172,7 +1172,7 @@ const server = net.createServer((socket) => {
 
       }
 
-      applyEvents(events, session).catch((err) => {
+      applyEvents(events, session, decoded.args).catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 

@@ -60,17 +60,19 @@ The provisional observation policy requires three distinct, strong reports
 receipt time. Reports must be less than two minutes old; gaps over one minute
 restart the sequence. Evidence expires two minutes after the last qualifying
 observation, using the earlier of source and receipt time. Heartbeats and
-repeated/out-of-order timestamps cannot extend it. A fresh GPS report, unknown
-router, absent/weak signal or contradictory source ends the current match;
-a canonical cellular-only report with an empty access-point list carries no
-new Wi-Fi evidence. It preserves an existing candidate/match without adding a
+repeated/out-of-order timestamps cannot extend it. Unknown routers, absent/weak
+signal in a declared scan, malformed scans or contradictory sources end the match.
+The private pipeline inspects declared radio fields in both GPS and non-GPS
+packets without modifying their production events. A missing scan or a canonical
+GPS/cellular report with zero access points carries no new Wi-Fi evidence.
+It preserves an existing candidate/match without adding a
 qualifying report or changing its source time/expiry. Gaps are measured between
 qualifying router observations, so cellular packets cannot bridge a gap over
 one minute. Missing Wi-Fi is not labelled as a departure. A gateway restart
 starts with no match. These are pilot thresholds, not proof of indoor presence.
 
 The `consecutiveMatches` diagnostic counts qualifying router observations with
-no intervening conflicting Wi-Fi/GPS evidence. Cellular-only packets do not
+no intervening conflicting radio evidence. Cellular-only packets do not
 count toward that number. Wi-Fi-labelled packets with missing/malformed scans,
 inconsistent source fields, a different router or insufficient signal still
 clear it. A run of cellular packets alone never establishes Home and cannot
@@ -190,9 +192,35 @@ prevent extension. An expired record
 is ignored by both app and chat even if the gateway or Firestore stops; the
 dashboard checks expiry locally without needing another document event.
 
-A fresh GPS report ends the match; a newer stored GPS fix also takes precedence
-when the app/chat reads an older cached Home record. Weak/unknown router reports,
-revocation, a changed Home pin/owner or subscription loss clear the display.
+Version 2 keeps radio presence independent of GPS coordinates. A fresh GPS
+report alone neither erases nor renews radio evidence. The publisher, ordinary
+WhatsApp reader and Flutter selector use the same Home/GPS agreement contract:
+
+- Fresh, qualified radio evidence and a verified saved Home binding are always
+  required; GPS alone cannot establish Home Wi-Fi.
+- The latest GPS timestamp less than 120 seconds old must agree with Home.
+  Conflicting copies at that same time all have to agree. An older outside fix
+  cannot override a newer inside fix, but a newer radio sighting cannot hide a
+  still-fresh outside GPS position.
+- Agreement requires distance from the saved pin plus a margin to fit inside
+  `min(saved Home radius, 150 m)`. The margin is the greater of supplied positive
+  GPS accuracy and 30 m. The 30 m minimum is a presentation guard, **not a measured
+  accuracy claim**. Large saved zones cannot enlarge this Home vicinity cap.
+- Outside/boundary-uncertain GPS, invalid coordinates/accuracy or missing/future
+  GPS timestamps prevent Home selection. With no recent GPS, fresh qualified
+  radio evidence can select Home. Old GPS cannot block a return indefinitely.
+- Radio source time and the original two-minute expiry remain unchanged by GPS,
+  heartbeats or empty scans. No extended lease or automatic refresh is added.
+
+New records use `version: 2` / `enrolled_home_radio_v2` and include the saved
+`anchor.radiusMeters`. A missing legacy zone radius uses the existing 150 m
+default; an invalid supplied radius fails closed. Cached v1 records retain their
+old newer/equal-GPS precedence until expiry. Unknown versions fail closed.
+Update both the gateway and Flutter app from this branch; an older app correctly
+rejects v2 instead of guessing its meaning.
+
+Weak/unknown router reports, revocation, a changed Home pin/radius/owner or
+subscription loss clear the display.
 After a changed binding, fresh repeated router evidence is required again.
 Falling back to GPS does not generate a departure or a trip. A failed write can
 leave the previous display visible only until its already-issued expiry.
@@ -246,7 +274,11 @@ still had a usable lease when acknowledged. Its source and expiry times remain
 unchanged after the current record is cleared. This small in-memory diagnostic
 is lost on gateway restart; it is not Home history or proof of the app rendering.
 `publishedHomeFresh` becomes false at the recorded expiry even without another
-packet or publisher tick. A pending or failed write never counts as publication.
+packet or publisher tick, and becomes false when current GPS conflicts with Home.
+A pending or failed write never counts as publication. A delayed write is
+rechecked against current eligibility before being reported as usable.
+`matchReason`, `selectionReason` and `lastClearedReason` distinguish the radio
+state from a GPS, binding or expiry decision without exposing coordinates.
 
 For one coordinated live check with the watch near its enrolled router:
 
@@ -357,6 +389,11 @@ The actual SOS dispatcher is also tested with observer failure and failed
 provider geolocation: alert creation and the frozen GPS snapshot are preserved.
 Shared `docs/testing/wifi-home-display.json` fixtures exercise app and WhatsApp
 selection for fresh, expired, invalid, future and conflicting GPS evidence.
+They cover legacy v1 and v2 inside/outside/boundary GPS, equal-time conflicts,
+stale GPS, large Home zones, invalid accuracy and independent radio expiry.
+The GPS integration replay covers real V52 decoding and the runtime scan hook,
+GPS packets with declared/empty/missing/malformed scans, clearing on outside GPS,
+and unchanged GPS events, ACKs, SOS snapshots and private diagnostic redaction.
 Publisher tests cover owner/plan binding, expiry, revocation, failed reads and
 writes, and bounded renewal. A canonical V52 decoder/observer/publisher/chat
 replay covers the reported long pause followed by alternating Wi-Fi/cellular
@@ -369,7 +406,7 @@ explicitly prove the presence field cannot alter a frozen incident selection.
 These software checks do not claim a live Home display, customer enrollment or
 an accepted `WIFIFENCE` command.
 Runtime tests also cover publication followed by clearing, pending reads/writes,
-late expired writes and recovery requiring fresh radio evidence. Admin-route
+late expired/conflicting writes and recovery requiring fresh radio evidence. Admin-route
 tests reject dev-open, missing/wrong credentials and a mismatched pilot. A real
 loopback CLI test verifies a single authenticated `CR`, redacted output and the
 separate publication check. A socket handoff or router match alone cannot pass it.

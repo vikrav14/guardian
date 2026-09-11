@@ -1,7 +1,8 @@
 'use strict';
 
 const { evaluateSubscription } = require('./entitlements');
-const { validAnchor, buildHomeWifiDisplay } = require('./wifi-home-display-policy');
+const { validAnchor, evaluateHomeWifiDisplay } = require('./wifi-home-display-policy');
+const { validHomeRadius } = require('./wifi-home-gps-policy');
 
 // Private pilot binding only. A single active Home zone must belong to a linked
 // service owner with an active Family/Care subscription. Never guess a pin from
@@ -15,8 +16,11 @@ async function loadHomeWifiBinding(db, imei, nowMs) {
   if (homes.length !== 1) return { ready: false,
     reason: homes.length ? 'home_zone_ambiguous' : 'home_zone_missing' };
   const home = homes[0];
-  const anchor = { geofenceId: home.id, lat: home.center?.lat, lng: home.center?.lng };
+  // Match the existing legacy-zone default; malformed supplied radii fail closed.
+  const anchor = { geofenceId: home.id, lat: home.center?.lat, lng: home.center?.lng,
+    radiusMeters: home.radiusMeters ?? 150 };
   if (!validAnchor(anchor)) return { ready: false, reason: 'home_pin_invalid' };
+  if (!validHomeRadius(anchor.radiusMeters)) return { ready: false, reason: 'home_radius_invalid' };
   const ownerUid = home.createdBy;
   if (typeof ownerUid !== 'string' || !ownerUid || ownerUid.includes('/')) {
     return { ready: false, reason: 'home_owner_unverified' };
@@ -34,12 +38,12 @@ async function loadHomeWifiBinding(db, imei, nowMs) {
     return { ready: false, reason: 'home_family_plan_required' };
   }
   return { ready: true, anchor,
-    key: JSON.stringify([home.id, anchor.lat, anchor.lng, ownerUid]),
+    key: JSON.stringify([home.id, anchor.lat, anchor.lng, anchor.radiusMeters, ownerUid]),
     // Binding is rechecked every 30 seconds; a failed/hung read cannot renew it.
     validUntilMs: Math.min(nowMs + 60_000, access.accessUntil?.getTime() ?? Infinity) };
 }
 
-function createHomeWifiPublisher({ readBinding, readObservation, resetObservation,
+function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservation = () => null, resetObservation,
   persist, now = Date.now, report = () => {} }) {
   let binding = null;
   let bindingKey;
@@ -54,6 +58,11 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
   let operationStartedAt = null;
   let lastHomePublication = null;
   let lastClearedAt = null;
+  let lastClearedReason = null;
+
+  function selection(clock = now()) {
+    return evaluateHomeWifiDisplay(readObservation(clock), binding, clock, readGpsObservation());
+  }
 
   // Read the running publisher even while an SDK operation is pending. Keep
   // only the last successful, still-usable Home write, so normal expiry can be
@@ -61,10 +70,11 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
   // or device/router identifiers are added for this operator diagnostic.
   function getStatus(clock = now()) {
     const bindingReady = binding?.ready === true && binding.validUntilMs > clock;
-    const eligible = Boolean(buildHomeWifiDisplay(readObservation(clock), binding, clock));
+    const decision = selection(clock);
+    const eligible = Boolean(decision.value);
     const pendingSeconds = operationStartedAt == null ? null :
       Math.max(0, Math.floor((clock - operationStartedAt) / 1000));
-    const publishedHomeFresh = Boolean(lastValue &&
+    const publishedHomeFresh = Boolean(eligible && lastValue &&
       Date.parse(lastValue.observedAt) <= clock && Date.parse(lastValue.expiresAt) > clock);
     return {
       active: !stopped,
@@ -75,9 +85,11 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
       bindingReason: bindingReady ? 'ready' : binding?.ready ? 'home_binding_expired' :
         binding?.reason || 'awaiting_home_binding',
       homeEvidenceEligible: !stopped && eligible,
+      selectionReason: decision.reason,
       publishedHomeFresh: !stopped && publishedHomeFresh,
       lastHomePublication: lastHomePublication ? { ...lastHomePublication } : null,
       lastClearedAt,
+      lastClearedReason,
     };
   }
 
@@ -114,8 +126,8 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
         }
       }
       const clock = now();
-      const observation = readObservation(clock);
-      const value = buildHomeWifiDisplay(observation, binding, clock);
+      const decision = selection(clock);
+      const value = decision.value;
       const same = JSON.stringify(value) === JSON.stringify(lastValue);
       // Clear invalid evidence immediately and bound periodic renewal writes.
       // A freshly verified binding can extend the display lease only as far as
@@ -131,18 +143,17 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
         if (stopped) return;
         lastValue = value;
         lastWriteAt = now();
-        if (value && Date.parse(value.expiresAt) > lastWriteAt) {
+        if (value && Date.parse(value.expiresAt) > lastWriteAt && selection(lastWriteAt).value) {
           lastHomePublication = { confirmedAt: new Date(lastWriteAt).toISOString(),
             observedAt: value.observedAt, expiresAt: value.expiresAt };
         } else if (!value) {
           lastClearedAt = new Date(lastWriteAt).toISOString();
+          lastClearedReason = decision.reason;
         }
       }
-      const displaying = Boolean(lastValue && Date.parse(lastValue.expiresAt) > now());
-      diagnose(displaying ? 'home_wifi_detected' : value ? 'awaiting_new_router_observation' :
-        binding?.ready ? binding.validUntilMs <= clock ? 'home_binding_expired' :
-          observation?.reason || 'awaiting_router_evidence' :
-          binding?.reason || 'awaiting_home_binding', displaying);
+      const current = getStatus();
+      diagnose(current.publishedHomeFresh ? 'home_wifi_detected' : current.selectionReason,
+        current.publishedHomeFresh);
     } catch {
       diagnose('home_display_write_unavailable', false);
     } finally {
@@ -155,11 +166,11 @@ function createHomeWifiPublisher({ readBinding, readObservation, resetObservatio
   return { tick, getStatus, stop: () => { stopped = true; } };
 }
 
-function startHomeWifiPublisher({ db, imei, readObservation, resetObservation }) {
+function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation, resetObservation }) {
   if (!db || !/^\d{15}$/.test(imei || '')) return null;
   const publisher = createHomeWifiPublisher({
     readBinding: nowMs => loadHomeWifiBinding(db, imei, nowMs),
-    readObservation, resetObservation,
+    readObservation, readGpsObservation, resetObservation,
     // A separate backend-owned field: no updatedAt, location, history, presence
     // heartbeat, geofence, intelligence or notification writes are triggered.
     persist: value => db.collection('devices').doc(imei).update({ homeWifiPresence: value }),

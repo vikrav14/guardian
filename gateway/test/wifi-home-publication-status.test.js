@@ -8,13 +8,14 @@ const { readHomeWifiDisplay } = require('../src/wifi-home-display-policy');
 const start = Date.parse('2026-09-01T12:00:00Z');
 const drain = () => new Promise(resolve => setImmediate(resolve));
 function harness({ readBinding, persist } = {}) {
-  const state = { now: start, observation: null, saved: null, reads: 0, writes: 0, logs: [] };
+  const state = { now: start, observation: null, gps: null, saved: null, reads: 0, writes: 0, logs: [] };
   const binding = at => ({ ready: true, key: 'synthetic-owner-home', validUntilMs: at + 60_000,
-    anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15 } });
+    anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15, radiusMeters: 150 } });
   const run = createHomeWifiPublisher({
     now: () => state.now,
     readBinding: at => { state.reads++; return readBinding ? readBinding(at, binding) : binding(at); },
     readObservation: () => state.observation,
+    readGpsObservation: () => state.gps,
     resetObservation: () => { state.observation = null; },
     persist: async value => { state.writes++; if (persist) await persist(value); state.saved = value; },
     report: value => state.logs.push(value),
@@ -116,4 +117,24 @@ test('a failed binding read clears Home and recovery still requires new radio ev
   run.stop();
   assert.equal(run.getStatus().active, false);
   assert.equal(run.getStatus().homeEvidenceEligible, false);
+});
+
+test('outside GPS received during a pending Home write prevents a late Home success', async () => {
+  let release;
+  const run = harness({ persist: value => value && new Promise(resolve => { release = resolve; }) });
+  await run.tick(); run.match();
+  const pending = run.tick();
+  run.state.now += 1_000;
+  run.state.gps = { source: 'gps', gpsValid: true, lat: -20.16, lng: 57.15,
+    recordedAt: new Date(run.state.now).toISOString() };
+  assert.equal(run.getStatus().selectionReason, 'gps_outside_home');
+  assert.equal(run.getStatus().publishedHomeFresh, false);
+  release(); await pending;
+  assert.equal(run.getStatus().lastHomePublication, null);
+  assert.equal(run.getStatus().publishedHomeFresh, false);
+  assert.equal(readHomeWifiDisplay({ homeWifiPresence: run.state.saved, lastSatelliteLocation: run.state.gps },
+    { now: new Date(run.state.now) }), null, 'a reader also rejects the conflicting pending value');
+  await run.tick();
+  assert.equal(run.state.saved, null);
+  assert.equal(run.getStatus().lastClearedReason, 'gps_outside_home');
 });

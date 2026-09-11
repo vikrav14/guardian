@@ -1,6 +1,64 @@
 # V52 native Wi-Fi fence validation
 
+## Home/GPS integration fix — 11 September 2026 UTC
+
+The operator authorized fixing the reproduced GPS-triggered Home clearing across
+the existing app and WhatsApp paths. The v2 implementation keeps the enrolled
+radio observation separate from coordinate source, checks the latest fresh GPS
+against the saved Home area, and uses the same versioned selection contract in
+the publisher, backend reader and Flutter. See [the service contract](wifi-home.md)
+and [schema](../../firestore/SCHEMA.md#homewifipresence-map--private-display-pilot).
+
+GPS at Home no longer clears a fresh radio match merely because it is GPS.
+Outside, boundary-uncertain or invalid fresh GPS prevents Home selection. GPS
+alone, heartbeats and missing/zero-radio scans cannot create or renew Home.
+Declared different/weak/malformed radio evidence still clears it. The original
+120-second radio lifetime, Home ownership/plan checks and pilot opt-in remain.
+Raw location, journeys, geofence transitions and SOS incident selection retain
+their existing sources and timestamps. No hardware command, upload/battery policy
+change, native provisioning retry or longer Home lease is part of this fix.
+
+**Software validation:** 810 gateway tests pass locally, including the real
+decoder/runtime scan hook, radio/GPS coexistence, inside/outside positions,
+expiry, late database writes, SOS isolation and existing journey regressions.
+The shared app/chat fixtures cover legacy v1 and v2. Flutter and authorization
+release gates must pass on the published commit before physical acceptance.
+These results do not establish continuous Home, radio coverage or native fencing.
+
+### Next physical check after the update
+
+1. Stop the gateway, pull `feat/v52-wifi-home`, then restart it. Restart/rebuild
+   the Flutter app **from that same branch**; a separate main/UI worktree may
+   still run the old selector. Existing private enrollment can be reused.
+2. Keep the watch near the enrolled router with its 2.4 GHz radio on. Keep the
+   gateway's Ethernet or other Internet link stable. Run `npm run wifi-home:check`
+   from `gateway`; check `selectionReason` as well as the radio `matchReason`.
+3. If fresh reports are needed, start the existing redacted capture, mark
+   `at_home`, and use `npm run wifi-home:check -- --request-location` once. This
+   remains at most one protected CR burst, not continuous polling of the watch.
+4. While `home_ready` is current, compare app hero/map/location tile and the
+   ordinary `location?` reply. They must name Home Wi-Fi and use the saved Home
+   pin, with radio detection age separate from GPS age. Record the time.
+5. A GPS-valid report whose position agrees with Home must no longer cause a
+   `satellite_observation` reset. Inspect its declared scan in the capture: an
+   actual Home sighting may renew radio time; an empty/missing scan may not.
+   A `gps_outside_home` or `gps_boundary_uncertain` selection reason means the
+   position evidence still prevents the Home pin, even if the radio is matched.
+6. Let the burst end without extra requests. If no new qualifying radio report
+   arrives, Home must expire at its existing source/lease deadline on both
+   surfaces, even with heartbeats. Save `wifi-home:fence -- --stop` / `--report`
+   and the read-only checker output. This tests truthful expiry, not continuity.
+
+Actual departure/return and a router restart remain separate daytime checks.
+During radio-loss tests keep the gateway connected to the Internet; otherwise
+the experiment mixes loss of the watch's radio evidence with a backend outage.
+Do not run `wifi-home:fence-trial -- --send` again: a gateway restart resetting
+`attempted` does not prove that the old watch setting was removed. No native
+acknowledgement, reliable enter/exit semantics or rollback has been established.
+
 ## Early clearing explained: GPS priority — 11 September 2026 UTC
+
+Historical diagnosis before the integration fix above:
 
 The [redacted follow-up gateway log](../testing/wifi-home-gps-priority-2026-09-11.json)
 resolves the previously unknown clearing reason. It preserves 72 selected entries
@@ -25,7 +83,7 @@ identifies this as server zone evaluation, not a native Wi-Fi-fence response. It
 shows that the server Home-zone decision can coexist with withdrawal of the Home
 Wi-Fi overlay. It does not prove a physical arrival or a previously false alert.
 
-The current Home observer clears its match as soon as a fresh GPS-valid report
+The then-current Home observer cleared its match as soon as a fresh GPS-valid report
 arrives, before inspecting its radio scan or considering GPS accuracy/distance
 from Home. The gateway display reader and Flutter's `homeWifiLocationAt` also
 reject Home evidence for a newer/equal GPS fix. Thus changing only the observer
@@ -39,15 +97,18 @@ Home requalifies after the first GPS sequence, then normally expires at the
 with one packet_silence and two location_stale recovery reasons. This later expiry
 is a reporting-gap issue, separate from the GPS-triggered clears.
 
-**Integration direction:** keep fresh enrolled-router presence as evidence
+**Integration direction at this checkpoint:** keep fresh enrolled-router presence as evidence
 independent of coordinate source, then evaluate Home context and GPS together.
 A new GPS observation alone does not establish departure; contradictory position
 evidence or expired router evidence must be handled explicitly. Any future
 selection change needs aligned gateway/Flutter/WhatsApp contracts and departure,
 expiry, reconnect and SOS/Journey regressions. Neither unconditional Home priority
-nor a longer lease is established by this log. No such runtime change is made here.
+nor a longer lease is established by this log. This evidence-only checkpoint
+preceded the authorized v2 implementation above.
 
 ### Next capture: radio fields in GPS-valid packets
+
+This was the pre-fix capture plan. Use the updated physical check above now.
 
 Keep the watch near the enrolled router, its 2.4 GHz radio on, and the gateway and
 ngrok running. The existing version-1 scan diagnostics can inspect radio fields in
@@ -98,7 +159,7 @@ The present state is unknown with no retained match timestamp; the current
 publisher is idle, its Home binding ready and the session connected. These
 current fields do not identify which event caused the earlier clearing.
 
-The source audit confirms that a fresh GPS observation, a nonmatching/weak or
+The source audit at that checkpoint confirmed that a fresh GPS observation, a nonmatching/weak or
 invalid scan, or a binding change/failure can withdraw Home evidence. Canonical
 cellular-only reports preserve the existing evidence without extending it.
 Normal observer expiry retains the prior source time and reports expired.

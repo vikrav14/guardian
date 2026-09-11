@@ -133,16 +133,22 @@ GPS, a network association, an indoor guarantee or a movement event.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| version / policy | number / string | `1` / `enrolled_home_radio_v1`; other values fail closed. |
+| version / policy | number / string | New writes: `2` / `enrolled_home_radio_v2`. Readers also accept cached `1` / `enrolled_home_radio_v1` using its original GPS precedence. Other pairs fail closed. |
 | pilot / state / source | boolean / string / string | `true` / `matched` / `home_wifi`. |
 | observedAt | ISO timestamp string | Last qualifying radio observation's source time; never a heartbeat or display write time. |
 | expiresAt | ISO timestamp string | Earlier of the two-minute observation lifetime and the at-most-60-second verified Home/plan binding lease. Consumers reject future source time, expired or oversized leases without needing another database event. |
-| anchor | map | `{ geofenceId, label: 'Home', lat, lng }` from the validated saved Home zone. No raw BSSID, SSID, router fingerprint, key or password. |
+| anchor | map | `{ geofenceId, label: 'Home', lat, lng, radiusMeters }` from the validated saved Home zone. Positive finite radius is required in v2; absent legacy zone radius defaults to 150 m. No raw BSSID, SSID, router fingerprint, key or password. |
 
 Only the independent pilot publisher updates this field, without refreshing
 `updatedAt` or altering raw location, satellite history, battery, connectivity,
 journeys, geofence transitions, intelligence or incident snapshots. It clears
-invalid evidence with `null`. A newer GPS fix overrides a cached Home record.
+invalid evidence with `null`. In v2 the latest fresh GPS position must fit within
+the saved Home radius (capped at 150 m), including a margin of at least 30 m or
+supplied GPS accuracy, whichever is larger. This margin is not measured accuracy.
+Outside/uncertain or invalid/future-time GPS blocks Home; GPS at Home does not
+erase or renew radio evidence. GPS older than two minutes cannot indefinitely
+override a new qualified radio match. V1 retains its newer/equal-GPS precedence.
+Gateway and Flutter enforce the same versioned contract even for cached records.
 Binding and ownership are rechecked every 30 seconds; changed/invalid bindings
 require new repeated observations. Existing device update allowlists prohibit
 client evidence forgery; no Firestore rules expansion is required.

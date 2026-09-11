@@ -44,7 +44,7 @@ const clock = Date.parse('2026-09-01T12:00:00Z');
 function bindingDb(edit = () => {}) {
   const data = {
     geofences: { home: { imei, name: 'Home', active: true, createdBy: 'owner',
-      center: { lat: -20.15, lng: 57.15 } } },
+      center: { lat: -20.15, lng: 57.15, radiusMeters: 150 } } },
     users: { owner: { linkedImeis: [imei] } },
     serviceSubscriptions: { owner: { version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active' } },
   };
@@ -70,6 +70,7 @@ function bindingDb(edit = () => {}) {
 test('Home binding requires exactly one valid saved pin and a linked Family/Care owner', async () => {
   const good = await loadHomeWifiBinding(bindingDb(), imei, clock);
   assert.equal(good.ready, true);
+  assert.equal(good.anchor.radiusMeters, 150);
   assert.equal(good.validUntilMs, clock + 60_000);
   for (const edit of [
     d => { d.geofences = {}; },
@@ -77,6 +78,9 @@ test('Home binding requires exactly one valid saved pin and a linked Family/Care
     d => { d.geofences.home.active = false; },
     d => { d.geofences.home.imei = 'another-watch'; },
     d => { d.geofences.home.center.lat = 91; },
+    d => { d.geofences.home.radiusMeters = 0; },
+    d => { d.geofences.home.radiusMeters = '150'; },
+    d => { d.geofences.home.radiusMeters = -1; },
     d => { d.users.owner.linkedImeis = []; },
     d => { d.users.owner.serviceOwnerUid = 'unverified-owner'; },
     d => { d.serviceSubscriptions.owner.plan = 'essential'; },
@@ -102,7 +106,7 @@ function publisherHarness() {
     async readBinding(at) {
       if (state.failRead) throw new Error('Synthetic read failure');
       return { ready: state.home, reason: 'home_zone_missing', key: state.key,
-        anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15 }, validUntilMs: at + 60_000 };
+        anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15, radiusMeters: 150 }, validUntilMs: at + 60_000 };
     },
     readObservation: () => state.observation,
     resetObservation: () => { state.resets++; state.observation = null; },
@@ -174,11 +178,11 @@ test('renewals are bounded, failed writes retry, and stopping prevents new write
 
 test('display publication rejects candidates and never extends beyond the source lifetime', () => {
   const run = publisherHarness(); run.state.match();
-  const binding = { ready: true, anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15 },
+  const binding = { ready: true, anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15, radiusMeters: 150 },
     validUntilMs: clock + 300_000 };
   assert.equal(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 2 }, binding, clock), null);
   const value = buildHomeWifiDisplay(run.state.observation, binding, clock);
   assert.equal(value.expiresAt, run.state.observation.expiresAt);
-  assert.deepEqual(Object.keys(value.anchor).sort(), ['geofenceId', 'label', 'lat', 'lng']);
+  assert.deepEqual(Object.keys(value.anchor).sort(), ['geofenceId', 'label', 'lat', 'lng', 'radiusMeters']);
   assert.doesNotMatch(JSON.stringify(value), /hash|routerId|imei|signal|password/i);
 });

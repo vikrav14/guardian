@@ -18,6 +18,9 @@ function status() {
 
 test('default inspection is read-only and preserves evidence of an expired publication', async () => {
   const value = status();
+  value.observer.reason = 'repeated_router_observations';
+  value.publisher.selectionReason = 'gps_outside_home';
+  value.publisher.lastClearedReason = 'gps_outside_home';
   value.publisher.lastHomePublication = { confirmedAt: new Date(start).toISOString(),
     observedAt: new Date(start).toISOString(), expiresAt: new Date(start + 60_000).toISOString() };
   const output = [];
@@ -29,6 +32,9 @@ test('default inspection is read-only and preserves evidence of an expired publi
   });
   assert.equal(result.outcome, 'read_only');
   assert.equal(output[0].publishedHomeFresh, false);
+  assert.equal(output[0].matchReason, 'repeated_router_observations');
+  assert.equal(output[0].selectionReason, 'gps_outside_home');
+  assert.equal(output[0].lastClearedReason, 'gps_outside_home');
   assert.deepEqual(output[0].lastHomePublication, value.publisher.lastHomePublication);
 });
 

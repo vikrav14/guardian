@@ -40,7 +40,7 @@ function record(capture, data, now = start) {
   }, now);
 }
 
-test('raw A and V scans reach the runtime capture without changing production events or GPS precedence', t => {
+test('raw A and V scans reach capture without changing production events or renewing radio time from GPS alone', t => {
   const keys = ['wifiHomeObserveEnabled', 'wifiHomePilotImei', 'wifiHomeRouterHash', 'wifiHomeHashKey'];
   const saved = Object.fromEntries(keys.map(k => [k, config[k]]));
   Object.assign(config, { wifiHomeObserveEnabled: true, wifiHomePilotImei: imei,
@@ -65,8 +65,9 @@ test('raw A and V scans reach the runtime capture without changing production ev
   const acks = gps.acks.map(x => x.toString());
   observeWifiFencePacket(gps.decoded, gps.events, start + 30_000);
   observer.observe(gps.events[0], start + 30_000);
-  assert.equal(observer.snapshot(start + 30_000).reason, 'satellite_observation');
-  assert.equal(observer.snapshot(start + 30_000).consecutiveMatches, 0);
+  assert.equal(observer.snapshot(start + 30_000).matchState, 'matched');
+  assert.equal(observer.snapshot(start + 30_000).consecutiveMatches, 3);
+  assert.equal(observer.snapshot(start + 30_000).observedAt, new Date(start + 20_000).toISOString());
   assert.deepEqual({ decoded: gps.decoded, events: gps.events }, before);
   assert.deepEqual(gps.acks.map(x => x.toString()), acks);
   const out = getWifiFenceValidation(start + 30_000, true).capture;

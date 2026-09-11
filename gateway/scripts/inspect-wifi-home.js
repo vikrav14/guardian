@@ -14,12 +14,15 @@ function summary(status) {
     pendingSeconds: p?.pendingSeconds ?? null,
     sessionConnected: status.sessionConnected === true,
     matchState: status.observer?.matchState || 'no_observation',
+    matchReason: status.observer?.reason || 'no_observation',
     consecutiveMatches: status.observer?.consecutiveMatches || 0,
     observationAgeSeconds: status.observer?.lastMatchAgeSeconds ?? null,
     homeEvidenceEligible: p?.homeEvidenceEligible === true,
+    selectionReason: p?.selectionReason || null,
     publishedHomeFresh: p?.publishedHomeFresh === true,
     lastHomePublication: p?.lastHomePublication || null,
     lastClearedAt: p?.lastClearedAt || null,
+    lastClearedReason: p?.lastClearedReason || null,
   };
 }
 

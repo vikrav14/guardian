@@ -2,7 +2,7 @@
 
 const { normalizeRouterId } = require('./wifi-home-observer');
 
-// Diagnostic use only: Appendix I has a fixed state/cell-count prefix, variable
+// Private radio evidence: Appendix I has a fixed state/cell-count prefix, variable
 // cell records, then a Wi-Fi count and up to five name/MAC/RSSI triplets.
 // The already-tested nameless MAC/RSSI variant is also recognised explicitly.
 // Never search arbitrary fields for a MAC: an SSID can itself look like one.

@@ -52,6 +52,7 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
   let lastMatchReceiptMs = null;
   let streak = 0;
   let signalDbm = null;
+  let gpsObservation = null;
 
   function clear(nextReason) {
     state = 'unknown'; reason = nextReason; streak = 0;
@@ -85,7 +86,7 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
     };
   }
 
-  function observe(event, nowMs = Date.now()) {
+  function observe(event, nowMs = Date.now(), radioScan) {
     // Heartbeats, echoes, other watches and disabled mode cannot refresh evidence.
     if (!active || event?.imei !== imei || !['location', 'alarm'].includes(event.type)) {
       return snapshot(nowMs);
@@ -106,24 +107,48 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
     lastSourceMs = sourceMs;
     lastReceiptMs = nowMs;
 
-    // A fresh satellite observation takes precedence over a previous Wi-Fi match.
-    // No saved Home coordinates are needed or inferred by this observer.
-    if (event.gpsValid === true || event.location?.gpsValid === true) {
-      clear('satellite_observation');
+    const gps = event.gpsValid === true && event.location?.gpsValid === true &&
+      event.accuracySource === 'gps' && event.location?.source === 'gps';
+    const wifi = event.gpsValid === false && event.location?.gpsValid === false &&
+      event.accuracySource === 'wifi' && event.location?.source === 'wifi';
+    const cellular = event.gpsValid === false && event.location?.gpsValid === false &&
+      event.accuracySource === 'lbs' && event.location?.source === 'lbs';
+    if (!gps && !wifi && !cellular) {
+      clear('no_wifi_evidence');
       return snapshot(nowMs);
     }
-    const accessPoints = event.wifiAccessPoints;
+    if (gps) {
+      // Keep coordinate evidence separately. It never counts as a router sighting
+      // or renews radio time. The presentation policy compares it with Home.
+      gpsObservation = { lat: event.location.lat, lng: event.location.lng,
+        recordedAt: new Date(sourceMs).toISOString(), source: 'gps', gpsValid: true,
+        accuracyMeters: event.location.accuracyMeters ?? null };
+    }
+    let accessPoints = event.wifiAccessPoints;
+    if (radioScan !== undefined) {
+      if (radioScan?.status === 'not_reported') return snapshot(nowMs);
+      if (radioScan?.status !== 'decoded') {
+        clear('invalid_scan');
+        return snapshot(nowMs);
+      }
+      accessPoints = radioScan.accessPoints;
+      if (radioScan.declaredRadios > 0 && Array.isArray(accessPoints) && accessPoints.length === 0) {
+        clear('invalid_scan');
+        return snapshot(nowMs);
+      }
+    } else if (gps) {
+      // Legacy GPS events omit their scan. Missing scan evidence cannot erase
+      // or extend an already qualified radio observation.
+      return snapshot(nowMs);
+    }
     // V52 alternates Wi-Fi scans with cellular-only reports. A canonical LBS
     // packet with no access points gives no new router evidence: preserve the
     // existing sequence, source time and expiry without counting or renewing it.
     // Malformed or contradictory scans still fail closed below.
-    if (event.gpsValid === false && event.location?.gpsValid === false &&
-        event.accuracySource === 'lbs' && event.location?.source === 'lbs' &&
-        Array.isArray(accessPoints) && accessPoints.length === 0) {
+    if ((gps || cellular) && Array.isArray(accessPoints) && accessPoints.length === 0) {
       return snapshot(nowMs);
     }
-    if (event.gpsValid !== false || event.location?.gpsValid !== false ||
-        event.accuracySource !== 'wifi' || event.location?.source !== 'wifi') {
+    if (!gps && !wifi) {
       clear('no_wifi_evidence');
       return snapshot(nowMs);
     }
@@ -166,7 +191,9 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
     return snapshot(nowMs);
   }
 
-  return Object.freeze({ observe, snapshot });
+  return Object.freeze({ observe, snapshot,
+    // Internal reader only; snapshot/ops diagnostics contain no coordinates.
+    readGpsObservation: () => gpsObservation ? { ...gpsObservation } : null });
 }
 
 module.exports = { POLICY, normalizeRouterId, fingerprintRouter, createWifiHomeObserver };
