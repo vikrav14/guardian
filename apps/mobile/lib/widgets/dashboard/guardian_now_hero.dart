@@ -72,7 +72,8 @@ class GuardianNowHero extends StatelessWidget {
     final live = d.isLiveConnected;
     final battery = d.batteryPercent;
     final locationLabel = _locationLabel(d);
-    final updateLabel = deviceWatchCheckInLabel(d);
+    final updateLabel = d.hasHomeWifiDisplay
+        ? deviceHomeWifiFixLabel(d) : deviceWatchCheckInLabel(d);
     final gpsLabel = deviceGpsChipLabel(d);
     final signalLabel = deviceCellularSignalLabel(d);
     final signal = d.cellularSignalPercent;
@@ -122,9 +123,9 @@ class GuardianNowHero extends StatelessWidget {
                 color: live ? GuardianColors.safe : GuardianColors.warning,
               ),
               _StatusChip(
-                icon: Icons.location_on_rounded,
+                icon: d.hasHomeWifiDisplay ? Icons.home_rounded : Icons.location_on_rounded,
                 label: gpsLabel,
-                color: GuardianColors.accent,
+                color: d.hasHomeWifiDisplay ? GuardianColors.safe : GuardianColors.accent,
               ),
               _StatusChip(
                 icon: Icons.battery_5_bar_rounded,
@@ -235,6 +236,7 @@ class GuardianNowHero extends StatelessWidget {
   }
 
   static String _locationLabel(Device device) {
+    if (device.hasHomeWifiDisplay) return 'Home';
     final place = device.displayLocation?.placeLabel?.trim();
     if (place != null && place.isNotEmpty) return place;
     if (device.isDisplayingRetainedSatelliteLocation) {
@@ -466,6 +468,10 @@ class _WatchStatusCard extends StatelessWidget {
     final battery = device.batteryPercent;
     if (battery != null && battery < 15) {
       return 'Battery is critically low. Charge the watch soon.';
+    }
+    if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
+    if (device.hasHomeWifiDisplay) {
+      return 'Home Wi-Fi detected. The map shows your saved Home pin. ${deviceRetainedGpsLabel(device)}.';
     }
     if (device.isTrulyOffline) {
       return 'Watch offline. The map is showing the last known location.';

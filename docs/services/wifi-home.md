@@ -1,0 +1,543 @@
+# Wi-Fi home-presence detection
+
+| Field | Value |
+|---|---|
+| Service ID | `wifi-home` |
+| Minimum package | Family |
+| Current state | Private observer and separately opt-in Home display pilot; general customer activation disabled |
+| Customer-visible | One explicitly configured pilot watch after local display opt-in; broader rollout still gated |
+| Protocol surface | Passive V52 Wi-Fi observations; native `WIFIFENCE` documented, observation capture/preview implemented, provisioning and physical acceptance pending |
+
+This draft contains the private router observer and a separate, opt-in Home
+display pilot requested after near-router recognition passed. The latter
+connects bounded, backend-owned evidence to the app map, dashboard and ordinary
+WhatsApp reply. Version 4 also prevents GPS-derived movement and boundary decisions
+while that Home evidence is active. The observer/publisher sends no automatic
+device command and adds no customer enrollment menu. A separate operator check
+can explicitly request the existing proven `CR` once to obtain new reports;
+this does not enable a general Home-presence product.
+
+## Implemented private observation checkpoint
+
+The gateway observes the original decoded packet before provider geolocation,
+connection bookkeeping and write gating. It can therefore inspect a reported
+router even when approximate geolocation fails. The observer is synchronous,
+bounded to one explicitly configured pilot and at most 32 access points per
+report, and has no network, Firestore, alert, journey or command dependencies.
+An observer exception is isolated from both tracking and SOS delivery.
+
+**Real-device checkpoint, 7 September 2026 UTC:** one configured V52 pilot
+recognised the operator-selected 2.4 GHz Home radio. It advanced from
+`candidate` to `matched`, then maintained seven consecutive qualifying readings
+at -48 dBm, with displayed observation ages of 0–1 seconds. This passes the
+near-router recognition checkpoint for that watch/radio pair. Signal-loss and
+return, expiry and customer Home presence remain unaccepted. See the
+[redacted acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-near-router-result--7-september-2026-utc).
+
+**Backend publication checkpoint, 8 September 2026 UTC:** on `02fabb4`, an
+explicit one-CR check produced fresh -68 dBm enrolled-router readings. The
+third qualifying observation was followed by `displayingHome: true` /
+`home_wifi_detected`; the observer continued to nine qualifying sightings.
+This confirms a usable backend Home publication on the pilot. App/map/hero and
+WhatsApp screenshots taken after that radio evidence expired show retained GPS
+and recent watch check-ins. Stationary report acquisition is therefore an
+observed gap; fresh Home visual agreement and the broader physical gates still
+need evidence. See the [publication and fallback record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#backend-home-publication-passed--8-september-2026-utc).
+
+`WIFI_HOME_OBSERVE_ENABLED` defaults to `false`. Enabling it collects only
+in-memory pilot evidence and redacted console diagnostics; customer Home
+presence remains disabled. Every result includes `observeOnly: true`,
+`customerActive: false` and `homeClaim: false`.
+
+Matching requires an explicitly selected router identifier, stored as an
+HMAC-SHA256 fingerprint with a random 32-byte private key and watch-specific
+scope. The setup never saves the raw router identifier, requests a Wi-Fi
+password, prints the key or changes any existing Meta, watch or admin settings.
+This operator-controlled pilot setup is not the future customer enrollment or
+linked-caregiver authorization flow.
+
+The provisional observation policy requires three distinct, strong reports
+(at least -75 dBm) spanning at least 20 seconds in both source time and gateway
+receipt time. Reports must be less than two minutes old; gaps over one minute
+restart the sequence. Evidence expires two minutes after the last qualifying
+observation, using the earlier of source and receipt time. Heartbeats and
+repeated/out-of-order timestamps cannot extend it. Unknown routers, absent/weak
+signal in a declared scan, malformed scans or contradictory sources end the match.
+The private pipeline inspects declared radio fields in both GPS and non-GPS
+packets without modifying their production events. A missing scan or a canonical
+GPS/cellular report with zero access points carries no new Wi-Fi evidence.
+It preserves an existing candidate/match without adding a
+qualifying report or changing its source time/expiry. Gaps are measured between
+qualifying router observations, so cellular packets cannot bridge a gap over
+one minute. Missing Wi-Fi is not labelled as a departure. A gateway restart
+starts with no match. These are pilot thresholds, not proof of indoor presence.
+
+The `consecutiveMatches` diagnostic counts qualifying router observations with
+no intervening conflicting radio evidence. Cellular-only packets do not
+count toward that number. Wi-Fi-labelled packets with missing/malformed scans,
+inconsistent source fields, a different router or insufficient signal still
+clear it. A run of cellular packets alone never establishes Home and cannot
+retain an old match beyond the original two-minute radio expiry.
+
+The software verifies identifier syntax and matching, not radio band, network
+association or physical ownership. The operator must choose the actual Home
+router's 2.4 GHz radio BSSID, which may differ from its WAN/Ethernet MAC. Seeing
+that radio can extend beyond the home. `matched` alone does not move the avatar;
+the separate display flag and verified saved Home binding are also required.
+
+### Run the private check
+
+From `gateway`, after pulling this branch:
+
+```powershell
+npm run wifi-home:setup
+```
+
+Enter the Home router's 2.4 GHz Wi-Fi BSSID privately when prompted. Setup uses
+the existing SOS pilot watch if configured, otherwise asks for the pilot IMEI.
+On Windows, `netsh wlan show networks mode=bssid` can list nearby radios. Under
+the owner's Home network, select the entry explicitly labelled `Band: 2.4 GHz`.
+Paste only that entry's complete BSSID value (six hexadecimal pairs with colons
+or hyphens), without its `BSSID 1` label or quotation marks. Input stays hidden;
+press Enter after pasting. The software still cannot verify that this radio is
+the owner's Home router or that it uses the chosen band.
+
+Blank or malformed input now gives a field-specific explanation and another
+private prompt. A valid locally administered unicast BSSID is accepted. Setup
+does not write configuration until all inputs pass. Ctrl+C or ending input
+before a valid answer exits without changing the environment. The earlier
+generic "Valid pilot watch, router identifier and hash key are required" error
+could be caused by router input alone; it did not mean the existing SOS pilot
+or automatically generated key needed replacement.
+
+It changes only its managed `WIFI_HOME_*` block in the ignored private `.env`,
+preserving other configuration. It rejects conflicting shell overrides,
+unmanaged duplicate settings, malformed blocks and an environment file changed
+during setup. The temporary file is ignored and is removed on completion.
+
+Restart the gateway normally. Leave the watch near the selected router for a
+few report cycles and share only `[wifi-home]` diagnostic lines. They contain
+the match state, source age, signal, counts and observation time, without IMEI,
+router identifiers, fingerprints, keys or coordinates.
+
+| Diagnostic | Interpretation |
+| --- | --- |
+| `candidate` | A qualifying report arrived; repeated fresh evidence is still needed |
+| `matched` | The provisional repeated-router observation policy passed; display requires its separate opt-in and saved Home binding |
+| `router_not_seen` | Reports did not contain the specifically configured router |
+| `signal_weak` / `signal_unknown` | Router sighting does not meet the provisional signal requirement |
+| `expired` | The qualifying evidence is older than two minutes |
+| `satellite_observation` | Historical v1 GPS-priority reset; v2 keeps radio and coordinates separate |
+| `gps_outside_home` / `gps_boundary_uncertain` | Historical v2/v3 comparison; v4 qualified Home radio has priority over GPS |
+| `gps_time_unconfirmed` / `gps_position_unconfirmed` / `gps_accuracy_unconfirmed` | Historical v2/v3 GPS guards; v4 validates the independent Home radio and binding |
+| `configuration_incomplete` | Observation is requested but its pilot configuration is invalid |
+
+Disabling/revoking this private observer requires removing its managed block
+and restarting the gateway:
+
+```powershell
+npm run wifi-home:setup -- --disable
+```
+
+No raw history, incident snapshot or customer configuration is deleted. A
+fresh-process script cannot inspect this runtime's in-memory observations;
+use the running gateway's diagnostic lines.
+
+### Enable the private Home display
+
+The existing specification calls for **Home · Home Wi-Fi detected** at the
+saved Home pin. The [ordinary location reply spec](whatsapp-location.md) records
+the same source distinction and “at or near Home” wording. PR #122's dashboard
+contract requires the hero and map to agree; PR #109's accepted SOS and journey
+contracts preserve satellite evidence. This pilot implements that display
+contract with Home priority in the ordinary location/movement paths; emergency
+incident snapshots retain their separate accepted selection contract.
+
+After updating `feat/v52-wifi-home`, use the existing private enrollment:
+
+```powershell
+npm run wifi-home:setup -- --display-pilot
+```
+
+This sets `WIFI_HOME_DISPLAY_PILOT_ENABLED=true` only inside the managed private
+block. It preserves the selected watch, fingerprint, key and all other gateway
+settings. No second BSSID entry or Wi-Fi password is needed. Restart the gateway
+and restart/rebuild the Flutter app so the new model and dashboard are loaded.
+The ordinary WhatsApp reply needs no Meta template change.
+
+The publisher requires exactly one active safe zone named `Home`, with a valid
+saved pin, created by a linked service owner with an active Family/Care plan.
+It does not select a provider network estimate, SSID or arbitrary first zone.
+Missing/ambiguous Home zones, unverifiable ownership, inactive access and read
+errors fail closed. The existing linked-watch rules protect reads and prevent
+clients from forging or changing `devices/{imei}.homeWifiPresence`.
+
+After three fresh qualifying reports and a valid binding, the map avatar uses the
+saved Home pin regardless of GPS A/V;
+the hero, location tile and map show **Home Wi-Fi detected** with its own
+detection age. Guardian's interpretation says **at or near your saved Home
+location**, and shows the retained GPS age separately. The provider uncertainty
+circle is hidden while this Home pin is selected so it cannot imply GPS-like
+precision for the radio match. `location?` returns one link to the saved Home
+pin, with the same Home source and separate GPS age.
+
+The background publisher is independent of packet/SOS dispatch and updates
+only `homeWifiPresence`. It never writes `updatedAt`, a watch heartbeat, raw
+location, history, geofence transitions, intelligence, alerts or commands.
+Valid renewals are limited to one write per 20 seconds. Invalid radio/binding evidence
+is cleared immediately on the next publisher tick. The saved Home binding is
+revalidated every 30 seconds and leased for at most 60 seconds, bounded further
+by subscription expiry. Each display record expires at the earlier of that
+lease or the observer's two-minute source/receipt lifetime. Heartbeats and
+cellular packets never renew a radio observation. Successful Home/owner/plan
+revalidation can extend the binding lease only up to the unchanged radio
+expiry, preserving the original `observedAt`. This avoids a display gap between
+valid radio reports. Failed reads, revocation and subscription expiry still
+prevent extension. An expired record
+is ignored by both app and chat even if the gateway or Firestore stops; the
+dashboard checks expiry locally without needing another document event.
+
+### Version 4: Home radio takes priority
+
+The operator rejected the v3 conflict presentation on 11 September 2026 UTC.
+The current policy is `version: 4` / `enrolled_home_radio_v4`, `state: matched`:
+
+- A fresh, qualified enrolled-router match plus a verified Home binding selects
+  **Home · Home Wi-Fi detected**. GPS A or V, GPS age, GPS position and supplied
+  GPS accuracy cannot veto it. This is Home-radio proximity, not measured GPS.
+- The app, ordinary WhatsApp location reply and assistant Home-zone check agree
+  on that source. A fresh Home match does not simultaneously claim School from
+  GPS. GPS-based cached AI warnings cannot override Home; battery/offline facts
+  remain independently applicable.
+- Three qualifying reports, signal/freshness rules, owner/plan verification,
+  binding rechecks and original radio/lease expiry still apply. GPS alone,
+  heartbeats and missing/empty scans cannot renew the radio timestamp.
+- The existing pilot flag enables this policy for the configured watch only.
+  The synchronous tracking reader uses the same current decision as the
+  background publisher without waiting on Firestore or sending any commands.
+- While Home is active, GPS/network coordinates do not feed dwell, journeys or
+  any saved-zone transition. Home proximity seeds the Home baseline without
+  generating an arrival alert; School does not compete with it. A pending
+  geofence query rechecks Home after its database read to avoid a late GPS exit.
+- If a journey is already open, preserve it at its last recorded route endpoint
+  with `closeReason: home_wifi_detected`. Do not add the Home pin as a GPS point,
+  draw the missing final segment, or label this a measured return crossing.
+- On radio loss or expiry, map/chat resume normal GPS/network selection. Expiry
+  alone creates no alert/trip. The movement path waits for a new, fresh valid
+  GPS observation after the last Home sighting before resuming normal boundary
+  rules, allowing the existing V52 clock-skew tolerance of at most 15 seconds.
+  A resulting GPS-proven outside observation can emit a Home exit. Reset
+  the journey reference so indoor GPS and pre-Home anchors cannot add a false
+  segment to the new route.
+- Raw GPS/network telemetry, original observation times and history remain
+  available. SOS/fall packets, ACKs, frozen incident location and escalation
+  retain their accepted independent contract. Home is never rewritten as GPS.
+
+Home and School remain separate saved zones. Home uses its verified pin; the
+50 m Home and 150 m School boundaries are not enlarged or moved. Radio coverage
+can extend beyond the Home boundary: current Home means detected near the saved
+router, not a guarantee of being inside the building or a measured 50 m circle.
+The operator must keep the enrolled router and saved Home pin aligned.
+
+Cached v1/v2/v3 records retain their original contracts for their short remaining
+lease. V3 conflict states are historical and cannot acquire v4 tracking priority.
+Unknown versions fail closed. Update **both gateway and Flutter from this branch**;
+an older app rejects v4 instead of guessing. Newly published v4 records never
+produce the old Home/GPS conflict warning. The old GPS policy remains solely for
+cached legacy records and their regression tests.
+
+`wifi-home:check` continues to require an acknowledged, unexpired publication
+for `home_ready`. `publishedConflictFresh` and `lastConflictPublication` remain
+compatible diagnostic fields but new v4 publications do not use a conflict state.
+Native WIFIFENCE is still unaccepted; there is no proven native `fence=false`
+boolean here. No WIFIFENCE retry, automatic CR loop, report-interval change or
+longer Home lifetime is included. The known stationary scan/report gap remains.
+
+Weak/unknown router reports, revocation, a changed Home pin/radius/owner or
+subscription loss clear the display.
+After a changed binding, fresh repeated router evidence is required again.
+Falling back to GPS does not generate a departure or a trip. A failed write can
+leave the previous display visible only until its already-issued expiry.
+
+Redacted `[wifi-home-display]` diagnostics report `displayingHome: true` after a
+successful usable publication, or a reason such as `home_zone_missing`,
+`home_zone_ambiguous`, `home_owner_unverified`, `home_family_plan_required` or
+`awaiting_router_evidence`. The `[wifi-home]` observer diagnostics still describe
+the in-memory observer and retain `observeOnly: true` / `homeClaim: false`;
+they are not the display publisher's activation status.
+
+To revoke, run the existing `--disable` command and restart the gateway. No
+new record is published, and a cached record expires within its bounded lease.
+Normal router re-enrollment also resets display activation to `false`.
+The saved Home safe zone itself is retained.
+
+Staying near the router is sufficient for this private display check. A special
+nighttime outing is not required. Real loss/return and router restart remain
+separate acceptance items before any general customer rollout.
+
+### Inspect the running publisher
+
+A fresh-process Firestore read showing a missing/null `homeWifiPresence` cannot
+distinguish normal expiry from a publisher that never published. It also cannot
+inspect the running process's router matches or pending SDK calls. A connection
+heartbeat alone supplies none of that evidence.
+
+After updating and restarting the gateway, use a second terminal in `gateway`:
+
+```powershell
+npm run wifi-home:check
+```
+
+This is read-only. It calls `GET /ops/wifi-home` on the local HTTP port with the
+existing private `ADMIN_API_KEY`. The route requires strict administrator auth,
+including when used locally or through an ngrok tunnel; development-open access
+is rejected. The checker compares its selected pilot with the running pilot
+without displaying either identifier. It returns no coordinates, radio ID,
+fingerprint, key, owner ID or command frame. No new Firestore reads/writes,
+watch commands or persistent history are triggered by a status read.
+
+The status includes the actual observer state, current binding eligibility,
+publisher phase and pending-operation age. A read or write pending for 15 seconds
+is reported; it is not proof that the SDK has permanently failed. At most one
+publisher operation remains in flight. The check does not cancel shared
+Firestore operations, create overlapping retries or renew Home evidence.
+If an operation remains stuck after connectivity returns, restart the gateway.
+
+`lastHomePublication` keeps only the most recent acknowledged Home write that
+still had a usable lease when acknowledged. Its source and expiry times remain
+unchanged after the current record is cleared. This small in-memory diagnostic
+is lost on gateway restart; it is not Home history or proof of the app rendering.
+`publishedHomeFresh` becomes false at the recorded expiry even without another
+packet or publisher tick, or when radio/binding evidence becomes ineligible.
+GPS A/V cannot turn a fresh qualified v4 Home publication into a conflict.
+A pending or failed write never counts as publication. A delayed write is
+rechecked against current eligibility before being reported as usable.
+`matchReason`, `selectionReason` and `lastClearedReason` distinguish the radio
+state from binding, radio loss or expiry without exposing coordinates.
+
+For one coordinated live check with the watch near its enrolled router:
+
+```powershell
+npm run wifi-home:check -- --request-location
+```
+
+This opt-in first checks the active pilot, saved Home/owner/plan binding and
+session. It sends at most one authenticated `CR` through the existing endpoint,
+then polls the read-only runtime status every five seconds for at most two
+minutes. An individual HTTP request times out within eight seconds. A lost
+handoff response is not retried automatically. It changes no watch reporting
+interval, enrollment, Home thresholds, SOS snapshots or journey policy.
+The [V52 command ledger](../GUARDIAN_V52_COMMAND_EVIDENCE.md) records `CR` as
+live-proven for GPS and Wi-Fi/LBS observations; `WIFIFENCE` remains unverified.
+
+| Check result | Meaning and next action |
+| --- | --- |
+| `home_ready` | Fresh radio evidence is eligible and the publisher acknowledged an unexpired Home record. Open the app and ask `location?` while it is fresh; actual UI agreement still needs acceptance. |
+| `home_published_then_unavailable` | Publication was captured, but the record is no longer usable. The check does not label it as a current Home position. |
+| `publisher_io_pending` | A Home binding read or presence write is taking at least 15 seconds. Inspect the reported phase and gateway connectivity. |
+| `publication_not_confirmed` | The bounded check ended without confirming a usable Home publication; inspect the returned observer and publisher states. |
+| `pilot_not_running` / `home_binding_unavailable` / `watch_not_connected` | The preflight did not pass; no location command is sent for that failed preflight. |
+
+The stationary watch can send heartbeats while location reports remain absent:
+packet-silence recovery is postponed by those heartbeats, and the separate
+location-freshness timer currently runs only during an outing. The explicit
+check helps verify one publication window; continuous Home report acquisition
+and its battery impact remain unaccepted. The 8 September live run now shows
+this gap: after a successful publication burst, the ordinary WhatsApp reply
+at 22:52 MUT reported a three-minute-old Wi-Fi reading and a sub-minute watch
+check-in; the final logged radio evidence had expired at 22:51:13.854 MUT.
+The app and WhatsApp both showed retained GPS. Backend publication is accepted,
+but fresh Home visual agreement and stationary continuity are not.
+
+The supplier review on 8 September supersedes the proposed automatic stationary
+acquisition direction: first validate native Wi-Fi fencing and the documented
+temporary `CR` burst, then reconsider the normal battery bands. A bounded,
+strict-admin capture and redacted command preview are implemented as
+`npm run wifi-home:fence`. Neither sends a watch command. The operator then
+explicitly requested testing a one-entry interpretation. The separate
+`npm run wifi-home:fence-trial` previews it; only `--send` attempts the enrolled
+router in slot 1, with strict admin, capture and single-session checks. The form
+remains experimental, with no known undo and no production command-dispatcher
+support. No empty/duplicate padding or deletion command is inferred. See
+[the experiment, risks and Windows runbook](wifi-home-supplier-validation.md#operator-requested-single-router-experiment).
+Do not repeat enrollment or interpret heartbeat timestamps as renewed Home evidence.
+
+The first 30-minute stationary capture is now complete: nine `LK` packets about
+218 seconds apart plus one `TKQ`, with no captured location/radio reports,
+router sightings, fence packets or `CR`/`UPLOAD`/`WIFIFENCE` handoffs. This
+establishes the current stationary reporting gap; it does not test an unconfigured
+native fence or identify the watch's stored upload setting during that window.
+A subsequent `ts#` response reports 300 seconds at 44% battery, matching Guardian's
+normal policy, on firmware `C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29`.
+The passive observer's three-report/60-second-gap qualification and 120-second
+expiry are incompatible with isolated five-minute reports even if delivered
+punctually. A synthetic replay confirmed this separately from the missing-report
+gap. Switching to a ten-minute interval alone cannot resolve either issue.
+The first requested native-fence experiment is now complete (11 September UTC):
+one setting handoff, 21 heartbeats, 13 fresh reports, one enrolled-router sighting
+and no fence events. Both command responses were to the two `CR` requests;
+there was no `WIFIFENCE` response. All 39 entries were retained. Native-setting
+acceptance remains inconclusive, and the existing radio match cannot be
+sustained by one sighting. The setting may nevertheless persist: do not repeat
+the initial send runbook on this watch. Obtain supplier one-entry/response,
+readback/removal and current-state semantics before changing acquisition or
+normal policy. A later supervised transition observation needs no repeat
+provisioning. See the [completed capture interpretation](wifi-home-supplier-validation.md#completed-first-native-attempt--11-september-2026).
+An acknowledgement alone cannot accept native fencing or continuous Home availability.
+See the [acceptance record](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#completed-stationary-baseline--8-september-2026-utc).
+
+The later marked radio on/off/on capture on 11 September lasted 12m14s and
+recorded 11 heartbeats, zero reports/fence events and zero command handoffs.
+The radio-off interval was 5m03s, followed by approximately 4m49s restored.
+No fresh router baseline was received; an initial disconnected status also
+limits continuous-transport claims. Native acceptance remains unconfirmed.
+The subsequent 8m38s CR baseline recorded 14 fresh reports, four heartbeats and
+two CR handoffs/replies, but no enrolled-router or fence evidence. Only `at_home`
+was marked. Five GPS reports have unavailable radio data because the current
+GPS decoder omits the Wi-Fi tail; a synthetic check reproduced this limitation.
+The private capture now reads declared scan sections directly from GPS/non-GPS
+packet fields, with explicit missing/zero/invalid states and no production event
+changes. Its 780-test gateway run passed; the next stationary hardware capture
+must establish the actual scan layout and enrolled-radio evidence.
+The entered BSSID matches the earlier 2.4 GHz scan; the later PC adapter MAC is
+a different identifier. See the [diagnostic update and next capture](wifi-home-supplier-validation.md#scan-diagnostics-implemented--11-september-2026-utc).
+
+The subsequent 7m47s capture establishes a fresh Home-radio baseline: one CR
+handoff/reply, ten fresh non-GPS reports and nine enrolled-router matches at
+reported -30 dBm. One report explicitly declares zero radios. All scan sections
+decode, but no GPS-valid packet or marked transition occurred. The last source
+observation expires just before capture stop; continuous Home remains open.
+Inspect lastHomePublication to confirm actual publication during the burst.
+See the [recorded result](wifi-home-supplier-validation.md#fresh-router-baseline-established--11-september-2026-utc).
+
+### Software verification
+
+Tests cover canonical passive V52 packet decoding into the observer, strong
+and weak/unknown router observations, timestamp replay, stale/future readings,
+backlog bursts, heartbeat expiry, source contradictions, fresh GPS, restarts,
+watch-scoped fingerprints, redacted runtime logging and private setup/removal.
+Setup CLI regressions cover hidden retries, blank/labelled pastes, Windows CRLF
+input, locally administered BSSIDs, buffered answers and cancellation without
+environment changes. These are software checks, not a real Windows terminal or
+router acceptance result.
+The actual SOS dispatcher is also tested with observer failure and failed
+provider geolocation: alert creation and the frozen GPS snapshot are preserved.
+Shared `docs/testing/wifi-home-display.json` fixtures exercise app and WhatsApp
+selection for fresh, expired, invalid, future and conflicting GPS evidence.
+They cover legacy v1/v2/v3 behavior and v4 radio priority over inside/outside,
+boundary, invalid and differently timed GPS, plus independent radio expiry.
+The GPS integration replay covers real V52 decoding and the runtime scan hook,
+GPS packets with declared/empty/missing/malformed scans, Home priority over outside GPS,
+and unchanged GPS events, ACKs, SOS snapshots and private diagnostic redaction.
+Publisher tests cover owner/plan binding, expiry, revocation, failed reads and
+writes, and bounded renewal. A canonical V52 decoder/observer/publisher/chat
+replay covers the reported long pause followed by alternating Wi-Fi/cellular
+frames. It verifies Home selection, uninterrupted bounded display, truthful
+source age and eventual fallback to retained GPS. Cellular-only sequences
+cannot establish or refresh Home. Flutter tests cover Firestore parsing, consistent
+labels and expiry without a document event. Emulator tests ensure linked users
+can read Home evidence but cannot forge, replace or erase it. SOS fixtures
+explicitly prove the presence field cannot alter a frozen incident selection.
+These software checks do not claim a live Home display, customer enrollment or
+an accepted `WIFIFENCE` command.
+Runtime tests also cover publication followed by clearing, pending reads/writes,
+late expired writes, GPS arriving during writes, radio loss and recovery requiring
+fresh evidence. Tracking replays cover indoor drift, Home/School coexistence,
+expiry without a departure, buffered fixes, GPS resumption, route preservation
+and the actual event dispatcher. Admin-route
+tests reject dev-open, missing/wrong credentials and a mismatched pilot. A real
+loopback CLI test verifies a single authenticated `CR`, redacted output and the
+separate publication check. A socket handoff or router match alone cannot pass it.
+
+## Starting point after SOS acceptance — 7 September 2026
+
+PR #109 merged into `main` as `0afd652`. This branch now carries its accepted
+SOS/callback flow, frozen incident locations, ordinary WhatsApp location reply,
+Alerts/Clear all screen and journey source validation. Home Wi-Fi is the next
+work item; general customer activation remains disabled.
+
+The inspected V52 decoder already extracts nearby access-point identifiers and
+signal strength into `wifiAccessPoints` for approximate geolocation. A log such
+as `wifi=1` says only that one access point was reported. It does not establish
+that the identifier belongs to the enrolled Home router, that the watch joined
+that network, or that the wearer is indoors. The existing SSID geofence path
+does not receive an SSID from the decoder.
+
+`WIFIFENCE` currently appears in the decoder's server-command echo inventory;
+that is not an implemented Home-presence event or proof of an accepted command
+on this firmware. Do not invent a command or infer Home from provider Wi-Fi/LBS
+coordinates. First validate whether the existing passive access-point reports
+provide sufficient fresh evidence for matching an owner-enrolled router. If a
+device command is required, retain the exact-firmware command acceptance gate.
+
+## Required Home display and evidence separation
+
+- When sufficiently fresh, validated observations match an explicitly enrolled
+  Home network, the avatar may use the family's saved Home pin and say
+  **Home · Home Wi-Fi detected**. This must not be labelled as a new GPS fix or
+  a confirmed network connection.
+- Keep the satellite fix, source and original timestamp separately. When useful,
+  show its age alongside the Home evidence's own last-observed time.
+- Unknown/public networks, SSID-name matches alone, revoked enrollment and
+  stale observations must not move the avatar Home. Define and test an expiry
+  policy before implementation is enabled; missing Wi-Fi alone is not proof
+  that the wearer left Home.
+- Fall back to the accepted location presentation when Home confidence expires
+  or is revoked/lost; GPS A/V does not veto qualified Home radio. Do not overwrite stored GPS, add trip
+  distance, invent departures/returns, or modify an existing SOS snapshot.
+- Any use of Home evidence in a new SOS must have an explicit, separately tested
+  location-selection contract. The accepted GPS/approximate SOS behavior is not
+  changed by the private display pilot.
+
+## Remaining implementation and physical acceptance
+
+1. Near-router identity matching passed for one configured V52/radio pair on
+   7 September 2026 UTC. Validate loss/return, router restart and expiry before
+   accepting broader Home presence; keep identifiers and coordinates out of
+   public evidence and never request a Wi-Fi password.
+2. Add customer owner-scoped enrollment, identifier minimization, revocation and backend
+   authorization. Linked caregivers may read accepted presence; a client must
+   not forge backend-observed Home presence.
+3. Validate the provisional deterministic policy on further physical cases.
+   Software checks now enforce source, freshness, repeated observations and
+   conflicting evidence. A provider radius or heartbeat cannot establish Home.
+4. Accept the opt-in Home map/avatar and ordinary WhatsApp presentation on the
+   configured watch. Clear source/time labels and expiry are implemented;
+   real-device display acceptance is still pending.
+5. Attach real-device enter/leave, stale-GPS return, unknown-router,
+   router-restart and genuine-outing results before enabling the feature.
+
+## Safety controls
+
+- store no Wi-Fi password
+- hash or minimize network identifiers
+- owner-controlled enrollment
+- location fallback when confidence is low
+- home-status access limited to linked caregivers
+
+## Backend completion
+
+- [ ] enroll supported 2.4 GHz identifiers
+- [ ] normalize WIFIFENCE events
+- [ ] combine Wi-Fi and location confidence
+- [ ] persist bounded home-presence history
+
+## App completion
+
+- [ ] guide 2.4 GHz home enrollment
+- [x] show pilot Home source and last detection age
+- [x] explain and implement expiring pilot location fallback
+- [ ] allow immediate network removal
+
+## Real-device acceptance
+
+- [ ] confirm WIFIFENCE syntax and event format on exact V52 firmware
+- [ ] verify identifier privacy at rest
+- [ ] test enter leave and router-restart cases
+- [ ] test phones with split and combined Wi-Fi SSIDs
+
+The general customer feature must remain disabled until every applicable
+acceptance gate has evidence attached to this pull request. The private
+observe-only flag cannot activate Home display or send commands. The separate
+display opt-in is limited to the configured pilot for the requested map/reply
+check; it is not evidence that broader physical acceptance passed.

@@ -14,6 +14,8 @@ String deviceMovementLabel(Device device) {
 }
 
 String deviceLocationStatusLabel(Device device) {
+  if (device.hasHomeWifiConflict) return 'Location uncertain';
+  if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
   // Location provenance is independent of watch connectivity. Keep the source
   // label truthful even when the watch is reconnecting or offline; connection
   // state is already shown separately by the watch status controls.
@@ -39,6 +41,8 @@ String deviceLocationStatusLabel(Device device) {
 }
 
 String deviceGpsChipLabel(Device device) {
+  if (device.hasHomeWifiConflict) return 'Location uncertain';
+  if (device.hasHomeWifiDisplay) return 'Home Wi-Fi';
   final base = device.isDisplayingRetainedSatelliteLocation
       ? 'Last GPS fix'
       : device.hasApproximateLocation
@@ -79,6 +83,9 @@ String deviceCellularSignalLabel(Device device, {DateTime? now}) {
 }
 
 String deviceUpdatedLabel(Device device, {DateTime? now}) {
+  if (device.homeWifiLocationAt(now ?? DateTime.now()) != null) {
+    return deviceHomeWifiFixLabel(device, now: now);
+  }
   final timestamp =
       device.displayLocation?.recordedAt ??
       device.updatedAt ??
@@ -103,6 +110,9 @@ String deviceWatchCheckInLabel(Device device, {DateTime? now}) {
 }
 
 String deviceLocationFixLabel(Device device, {DateTime? now}) {
+  if (device.homeWifiLocationAt(now ?? DateTime.now()) != null) {
+    return deviceHomeWifiFixLabel(device, now: now);
+  }
   final timestamp = device.displayLocation?.recordedAt;
   if (timestamp == null) return 'Location time unavailable';
   if (device.isDisplayingRetainedSatelliteLocation) {
@@ -139,11 +149,22 @@ String deviceLocationFixLabel(Device device, {DateTime? now}) {
 }
 
 String deviceMapLocationStatusLabel(Device device) {
+  if (device.hasHomeWifiConflict) return 'Location uncertain';
+  if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
   if (device.isMapDisplayingLastSatelliteLocation) return 'Last reliable fix';
   return deviceLocationStatusLabel(device);
 }
 
 String deviceMapLocationFixLabel(Device device, {DateTime? now}) {
+  if (device.homeWifiConflictAt(now ?? DateTime.now())) {
+    final at = device.mapDisplayLocationAt(now ?? DateTime.now())?.recordedAt;
+    if (at == null) return 'Recorded position time unavailable';
+    return _freshnessLabel(at, now: now,
+      justNow: 'Position recorded just now · unconfirmed', prefix: 'Unconfirmed position recorded');
+  }
+  if (device.homeWifiLocationAt(now ?? DateTime.now()) != null) {
+    return deviceHomeWifiFixLabel(device, now: now);
+  }
   if (!device.isMapDisplayingLastSatelliteLocation) {
     return deviceLocationFixLabel(device, now: now);
   }
@@ -155,6 +176,28 @@ String deviceMapLocationFixLabel(Device device, {DateTime? now}) {
     justNow: 'Last reliable GPS fix was just now',
     prefix: 'Last reliable GPS fix',
   );
+}
+
+String deviceHomeWifiFixLabel(Device device, {DateTime? now}) {
+  final current = now ?? DateTime.now();
+  final home = device.homeWifiPresence;
+  if (home == null || !home.isFreshAt(current) ||
+      (device.homeWifiLocationAt(current) == null && !device.homeWifiConflictAt(current))) {
+    return 'Home Wi-Fi evidence expired';
+  }
+  return _freshnessLabel(home.observedAt, now: current,
+    justNow: 'Home Wi-Fi detected just now', prefix: 'Home Wi-Fi detected');
+}
+
+String deviceHomeWifiConflictLabel(Device device, {DateTime? now}) =>
+    '${deviceHomeWifiFixLabel(device, now: now)}. GPS does not confirm the saved Home location. '
+    'Current position unconfirmed.';
+
+String deviceRetainedGpsLabel(Device device, {DateTime? now}) {
+  final at = device.lastSatelliteLocation?.recordedAt;
+  if (at == null) return 'No retained GPS fix';
+  return _freshnessLabel(at, now: now,
+    justNow: 'Last GPS fix recorded just now', prefix: 'Last GPS fix');
 }
 
 String _freshnessLabel(

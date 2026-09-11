@@ -11,11 +11,21 @@ class DashboardController extends ChangeNotifier {
   DashboardController({
     DeviceService? deviceService,
     GeofenceService? geofenceService,
+    DateTime Function()? now,
   }) : _deviceService = deviceService ?? DeviceService(),
-       _geofenceService = geofenceService ?? GeofenceService();
+       _geofenceService = geofenceService ?? GeofenceService(),
+       _now = now ?? DateTime.now;
 
   final DeviceService _deviceService;
   final GeofenceService _geofenceService;
+  final DateTime Function() _now;
+  Timer? _homeExpiryTimer;
+  String _homeState = '';
+
+  String _homeFingerprint() => devices
+      .map((device) => '${device.imei}:${device.homeWifiLocationAt(_now()) != null}:'
+          '${device.homeWifiConflictAt(_now())}')
+      .join('|');
 
   StreamSubscription<List<Device>>? _deviceSubscription;
   StreamSubscription<List<Geofence>>? _geofenceSubscription;
@@ -45,9 +55,18 @@ class DashboardController extends ChangeNotifier {
       connectivityPhase(device, now: now) == DeviceConnectivityPhase.live;
 
   void start() {
+    // Expire the presentation even if the gateway stops and Firestore is quiet.
+    // Only a Home validity change notifies the map; no per-second camera moves.
+    _homeExpiryTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      final state = _homeFingerprint();
+      if (state == _homeState) return;
+      _homeState = state;
+      notifyListeners();
+    });
     _deviceSubscription ??= _deviceService.watchLinkedDevices().listen(
       (nextDevices) {
         devices = nextDevices;
+        _homeState = _homeFingerprint();
         loading = false;
         error = null;
         if (selectedImei == null && nextDevices.isNotEmpty) {
@@ -84,6 +103,7 @@ class DashboardController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _homeExpiryTimer?.cancel();
     _deviceSubscription?.cancel();
     _geofenceSubscription?.cancel();
     super.dispose();

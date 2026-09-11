@@ -19,3 +19,8 @@ test('downlink logging redacts call destinations without changing safe commands'
   assert.equal(redactDownlinkCommand('SOS1,+23057123456'), 'SOS1,***3456');
   assert.equal(redactDownlinkCommand('FIND'), 'FIND');
 });
+
+test('native Wi-Fi fence logging never exposes radio identifiers or full frames', () => {
+  assert.equal(redactDownlinkCommand('WIFIFENCE,1,02:00:00:00:00:01'), 'WIFIFENCE,<radios-redacted>');
+  assert.equal(redactDownlinkCommand('wififence,1,02:00:00:00:00:01'), 'WIFIFENCE,<radios-redacted>');
+});

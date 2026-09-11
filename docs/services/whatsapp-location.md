@@ -17,6 +17,7 @@ gateway or replacing the Meta access token did not change either rule.
 
 | Available evidence | WhatsApp reply and map |
 | --- | --- |
+| Explicit private Home display pilot with a fresh validated router match and saved Home pin | Show **Home Wi-Fi detected — at or near Home**, its detection age, and one saved-Home map link. Keep the retained GPS age separate. Expired/revoked radio evidence returns to the rules below. V4 qualified Home radio takes priority over GPS A/V without renewing its timestamp. Cached v1/v2/v3 retain their original rules. See the shared contract in `wifi-home.md`. |
 | GPS followed by Wi-Fi or cellular observations | Keep the GPS pin as **last known**, with its own recording time and age. State that the current position is unconfirmed. Describe the approximate observation separately, including its age and radius when available. |
 | Latest observation is GPS | Show the latest recorded GPS fix. Fixes older than ten minutes, or without a recording time, are explicitly last known. |
 | Wi-Fi or cellular estimate only | Label the location and map **approximate**, name the source and show its recording age and estimated radius when available. Do not claim a confirmed current position. |
@@ -40,6 +41,30 @@ selector remains unchanged for its other consumers, including weather and
 fall handling. Approved SOS templates and the incident delivery flow are
 unchanged, as are journey generation and raw observations.
 
+## Home radio priority (v4)
+
+The operator rejected the v3 disagreement screen. With fresh qualified Home
+radio evidence, ordinary replies now select the saved Home pin regardless of
+GPS A/V. They say **Home Wi-Fi detected — at or near Home**, include radio age
+and keep recorded GPS age separate. Expiry/loss resumes the ordinary fallback;
+GPS/heartbeats cannot renew the radio lease. Assistant Home checks use the same
+source and never use competing GPS to claim School while Home is active.
+This is software priority for detected radio proximity; native WIFIFENCE
+acceptance and continuous stationary observation remain unproven.
+
+## Historical v3 Home radio and GPS disagreement
+
+V3 preserves fresh router sightings when GPS falls outside or overlaps the Home
+boundary. Ordinary replies lead with **Location uncertain**, report Home Wi-Fi
+detection age, and say **GPS does not confirm the saved Home location. Current
+position unconfirmed.** The one map link remains the normal recorded position,
+labelled for reference, not a Home anchor or a confirmed current location.
+`homeWifiConflict` is separate from `homeWifiDetected` (the latter retains its
+existing meaning: Home pin selected). `locationDisclosure` carries the same
+uncertainty for other authorized consumers. Stale/invalid/revoked radio evidence
+cannot create that warning; a stored conflict cannot promote itself to Home.
+Emergency/SOS snapshots and templates retain their independent incident contract.
+
 ## Home Wi-Fi is a separate source of evidence
 
 Wi-Fi geolocation estimates coordinates from visible access points. It is not
@@ -48,14 +73,14 @@ must not be relabelled `Home` because GPS is unavailable or because it is near
 the saved Home pin.
 
 At review on 7 September 2026, [PR #116](https://github.com/vikrav14/guardian/pull/116)
-is still a draft, unmerged Home Wi-Fi backbone with real-device acceptance
-pending. This change does not enable it or invent WIFIFENCE command syntax.
-
-After that service is validated, a fresh enrolled-router observation could
-support wording such as “Home Wi-Fi detected — at or near Home”, with the
-detection time and saved Home location identified separately from GPS. This is
-a proposed future behavior, not a current capability or an exact indoor fix.
-Loss of a router signal alone must not become evidence of a trip or departure.
+remains draft and unmerged. Near-router recognition passed for one V52/radio
+pair; a separately opt-in private display pilot now implements the previously
+specified “Home Wi-Fi detected — at or near Home” behavior. See
+[the Home display setup and expiry contract](wifi-home.md#enable-the-private-home-display).
+General customer activation and wider physical acceptance remain pending.
+The display uses a saved pin and its own detection time, not an exact indoor
+GPS fix. Loss of router evidence never creates a trip or departure, and this
+ordinary reply overlay never changes accepted SOS template/snapshot selection.
 
 ## Verification and QA acceptance
 
@@ -72,8 +97,9 @@ The full gateway suite includes SOS, journey, weather and fall regressions.
 Release gates also run Flutter analysis/tests/Web build and Firestore
 authorization checks.
 
-After pulling the branch, restart the gateway. A Flutter restart and Meta
-template approval are not required for this ordinary text-reply change.
+After pulling the branch, restart the gateway. Meta template approval is not
+required for an ordinary text reply. The separate Home display pilot also
+requires a Flutter restart/rebuild to load its new app model and map labels.
 
 1. While indoors with retained GPS and a newer network estimate, ask
    `location?`. Confirm the reply names the GPS fix as last known, gives its

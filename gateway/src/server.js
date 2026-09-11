@@ -51,6 +51,9 @@ const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { claimSosIncident } = require('./sos-incident-window');
+const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority } = require('./wifi-home-runtime');
+const { selectHomeWifiTracking } = require('./wifi-home-tracking');
+const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 
 const {
   incrementEvent,
@@ -116,6 +119,11 @@ const {
 
 
 initFirestore();
+
+if (config.wifiHomeDisplayPilotEnabled) {
+  try { startWifiHomeDisplayPilot(getDb()); }
+  catch { console.warn('[wifi-home-display] pilot unavailable; tracking continues'); }
+}
 
 startIntelligenceMonitor();
 
@@ -312,7 +320,7 @@ async function runTrackingSideEffect(event, stage, operation) {
   }
 }
 
-async function applyEvents(events, session) {
+async function applyEvents(events, session, packetArgs) {
 
   for (const event of events) {
 
@@ -332,6 +340,13 @@ async function applyEvents(events, session) {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
       const eventReceivedAt = new Date();
+      // Observe the original packet before geolocation or write gating. This
+      // synchronous, in-memory pilot must never interrupt tracking or SOS.
+      try {
+        observeWifiHomeEvent(event, eventReceivedAt, packetArgs);
+      } catch {
+        console.warn('[wifi-home] observer unavailable; tracking continues');
+      }
       const telemetryValues = extractV52TelemetryValues(event);
       const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
@@ -409,6 +424,11 @@ async function applyEvents(events, session) {
 
 
         const db = getDb();
+        let trackingDecision = selectHomeWifiTracking(locEvent.imei, locEvent.location,
+          getHomeWifiPriority(locEvent.imei), new Date());
+        if (trackingDecision.flushes.length) {
+          await flushJourneys(locEvent.imei, trackingDecision.flushes);
+        }
 
         let geofenceTransition = false;
 
@@ -422,7 +442,7 @@ async function applyEvents(events, session) {
           insideZoneIds: [],
         };
 
-        if (db && locEvent.location) {
+        if (db && locEvent.location && !trackingDecision.hold) {
 
           const transitions = await evaluateGeofenceTransitions(
 
@@ -430,14 +450,18 @@ async function applyEvents(events, session) {
 
             locEvent.imei,
 
-            locEvent.location
+            locEvent.location,
+            { readHomeEvidence: () => getHomeWifiPriority(locEvent.imei) }
 
           );
 
-          geofenceTransition = transitions.length > 0;
+          trackingDecision = selectHomeWifiTracking(locEvent.imei, locEvent.location,
+            getHomeWifiPriority(locEvent.imei), new Date());
+          if (trackingDecision.flushes.length) await flushJourneys(locEvent.imei, trackingDecision.flushes);
+          geofenceTransition = !trackingDecision.hold && transitions.length > 0;
           geofencePresence = getGeofencePresence(locEvent.imei);
 
-          for (const t of transitions) {
+          for (const t of trackingDecision.hold ? [] : transitions) {
 
             console.log(`[geofence] ${locEvent.imei} ${t.type}: ${t.message}`);
 
@@ -461,7 +485,7 @@ async function applyEvents(events, session) {
 
 
 
-        trackPointForDwell(locEvent.imei, {
+        if (!trackingDecision.hold) trackPointForDwell(locEvent.imei, {
 
           lat: locEvent.location.lat,
 
@@ -485,7 +509,7 @@ async function applyEvents(events, session) {
           ? (enterTransition || exitTransition)
           : (exitTransition || enterTransition);
 
-        const journeyResult = trackPointForJourney(
+        const journeyResult = trackingDecision.hold ? { flushes: [], started: false } : trackPointForJourney(
 
           locEvent.imei,
 
@@ -659,7 +683,7 @@ async function applyEvents(events, session) {
 
 
 
-        await maybeFlushDwell(locEvent.imei);
+        if (!trackingDecision.hold) await maybeFlushDwell(locEvent.imei);
         const adaptiveDb = getDb();
         const outingActive = isJourneyActive(locEvent.imei);
         const journeyReturned =
@@ -1148,13 +1172,17 @@ const server = net.createServer((socket) => {
 
       const { acks, events } = handlePacket(decoded, session);
 
+      // Bounded admin-started evidence capture. It never changes decoded events,
+      // ACKs or customer state, and isolates all diagnostic failures internally.
+      observeWifiFencePacket(decoded, events);
+
       for (const ack of acks) {
 
         socket.write(ack);
 
       }
 
-      applyEvents(events, session).catch((err) => {
+      applyEvents(events, session, decoded.args).catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 
