@@ -40,6 +40,7 @@ void main() {
       final now = DateTime.parse(fixture['now'] as String);
       final expectedHome = fixture['expectedHome'] == true;
       expect(device.homeWifiLocationAt(now) != null, expectedHome);
+      expect(device.homeWifiConflictAt(now), fixture['expectedConflict'] == true);
       final pin = device.mapDisplayLocationAt(now)!;
       if (expectedHome) {
         final anchor = (homeMap as Map)['anchor'] as Map;
@@ -91,6 +92,55 @@ void main() {
       );
       expect(device.homeWifiLocationAt(now), isNull);
     }
+  });
+
+  test('fresh Home conflict is visible across labels and AI without relocating GPS', () {
+    final now = DateTime.now().toUtc();
+    final gps = DeviceLocation(lat: -20.16, lng: 57.15, source: 'gps', gpsValid: true,
+      recordedAt: now.subtract(const Duration(seconds: 1)));
+    final device = Device(imei: 'fixture-watch', online: true, connectionState: 'live',
+      lastHeartbeatAt: now, lastSatelliteLocation: gps,
+      homeWifiPresence: HomeWifiPresence(lat: -20.15, lng: 57.15,
+        policyVersion: 3, radiusMeters: 50, conflictReason: 'gps_outside_home',
+        observedAt: now.subtract(const Duration(seconds: 20)),
+        expiresAt: now.add(const Duration(seconds: 40))));
+    expect(device.mapDisplayLocationAt(now), same(gps));
+    expect(deviceLocationStatusLabel(device), 'Location uncertain');
+    expect(deviceMapLocationStatusLabel(device), 'Location uncertain');
+    expect(deviceGpsChipLabel(device), 'Location uncertain');
+    expect(buildGuardianAiInterpretation(device), contains('Home Wi-Fi detected'));
+    expect(buildGuardianAiInterpretation(device), contains('Current position unconfirmed'));
+    expect(buildGuardianAiInterpretation(device), isNot(contains('at or near')));
+    expect(device.homeWifiConflictAt(now.add(const Duration(seconds: 40))), false);
+    expect(device.homeWifiLocationAt(now.add(const Duration(seconds: 40))), isNull);
+  });
+
+  testWidgets('dashboard expires a conflict without a Firestore event or a Home promotion', (tester) async {
+    final db = FakeFirebaseFirestore();
+    final auth = MockFirebaseAuth(signedIn: false);
+    var now = DateTime.utc(2026, 9, 11, 21);
+    final controller = DashboardController(
+      deviceService: DeviceService(db: db, auth: auth),
+      geofenceService: GeofenceService(db: db, auth: auth), now: () => now);
+    controller.start(); await tester.pump();
+    final gps = DeviceLocation(lat: -20.16, lng: 57.15, source: 'gps', gpsValid: true,
+      recordedAt: now);
+    controller.devices = [Device(imei: 'fixture-watch', online: true,
+      lastSatelliteLocation: gps,
+      homeWifiPresence: HomeWifiPresence(lat: -20.15, lng: 57.15,
+        policyVersion: 3, radiusMeters: 50, conflictReason: 'gps_outside_home',
+        observedAt: now, expiresAt: now.add(const Duration(seconds: 30))))];
+    var changes = 0; controller.addListener(() => changes++);
+    await tester.pump(const Duration(seconds: 1));
+    expect(changes, 1);
+    expect(controller.selected!.homeWifiConflictAt(now), true);
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 1));
+    expect(changes, 2);
+    expect(controller.selected!.homeWifiConflictAt(now), false);
+    expect(controller.selected!.homeWifiLocationAt(now), isNull);
+    expect(controller.selected!.mapDisplayLocationAt(now), same(gps));
+    controller.dispose(); await tester.pump();
   });
 
   test('Firestore reader keeps Home, GPS and heartbeat times separate across dashboard labels', () async {

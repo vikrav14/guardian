@@ -183,6 +183,17 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
+**Latest correction:** the operator confirmed the saved Home pin is correct
+(Home 50 m; School 150 m). A usable Home renewal at 20:56:44.931 UTC on 11 September
+was cleared at 20:56:47.979 with `gps_outside_home`, before its 20:57:26.672 expiry.
+The later radio expiry is separate. V3 preserves fresh router evidence as a
+bounded conflict with **Location uncertain** across app and ordinary WhatsApp;
+it cannot select Home or create a geofence/Journey event. Both zones coexist;
+no boundary or hardware setting is changed. The actual GPS error/distance was
+not provided. See the [current evidence and next check](services/wifi-home-supplier-validation.md#fresh-routergps-disagreement--11-september-2026-utc).
+Live conflict display, expiry, departure/return and continuous Home remain open.
+
+
 **Latest software checkpoint, 11 September 2026 UTC:** the operator-authorized
 v2 Home/GPS integration is implemented. GPS at the saved Home area no longer
 erases fresh radio evidence; conflicting/uncertain fresh GPS prevents the Home

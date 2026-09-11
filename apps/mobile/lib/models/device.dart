@@ -203,7 +203,25 @@ class Device {
 
   DeviceLocation? homeWifiLocationAt(DateTime now) {
     final home = homeWifiPresence;
-    if (home == null || !home.isFreshAt(now)) return null;
+    if (home == null || !home.isFreshAt(now) || home.conflictReason != null ||
+        _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home') return null;
+    return DeviceLocation(lat: home.lat, lng: home.lng,
+      recordedAt: home.observedAt, source: 'home_wifi',
+      gpsValid: false, placeLabel: 'Home');
+  }
+
+  /// Conflicting positions preserve a fresh router fact, never a Home pin.
+  /// A publisher conflict cannot be promoted by older/missing cached GPS.
+  bool homeWifiConflictAt(DateTime now) {
+    final home = homeWifiPresence;
+    if (home == null || home.policyVersion < 2 || !home.isFreshAt(now)) return false;
+    return HomeWifiPresence.isConflictReason(home.conflictReason) ||
+        HomeWifiPresence.isConflictReason(_homeGpsAgreementAt(home, now));
+  }
+
+  bool get hasHomeWifiConflict => homeWifiConflictAt(DateTime.now());
+
+  String _homeGpsAgreementAt(HomeWifiPresence home, DateTime now) {
     final fixes = [lastSatelliteLocation, lastLocationObservation, location];
     final recentGps = <DeviceLocation>[];
     for (var index = 0; index < fixes.length; index++) {
@@ -214,9 +232,9 @@ class Device {
       final at = fix.recordedAt;
       if (!gps) continue;
       if (home.policyVersion == 1) {
-        if (at != null && !at.isBefore(home.observedAt)) return null;
+        if (at != null && !at.isBefore(home.observedAt)) return 'legacy_gps_priority';
       } else {
-        if (at == null || at.isAfter(now)) return null;
+        if (at == null || at.isAfter(now)) return 'gps_time_unconfirmed';
         if (now.difference(at) < const Duration(minutes: 2)) recentGps.add(fix);
       }
     }
@@ -224,15 +242,13 @@ class Device {
       final latest = recentGps.map((fix) => fix.recordedAt!)
           .reduce((a, b) => a.isAfter(b) ? a : b);
       for (final fix in recentGps) {
-        if (fix.recordedAt!.isAtSameMomentAs(latest) &&
-            !home.gpsAgreesWithHome(fix.lat, fix.lng, fix.accuracyMeters)) {
-          return null;
+        if (fix.recordedAt!.isAtSameMomentAs(latest)) {
+          final reason = home.gpsAgreementReason(fix.lat, fix.lng, fix.accuracyMeters);
+          if (reason != 'gps_agrees_with_home') return reason;
         }
       }
     }
-    return DeviceLocation(lat: home.lat, lng: home.lng,
-      recordedAt: home.observedAt, source: 'home_wifi',
-      gpsValid: false, placeLabel: 'Home');
+    return 'gps_agrees_with_home';
   }
 
   bool get hasHomeWifiDisplay => homeWifiLocationAt(DateTime.now()) != null;

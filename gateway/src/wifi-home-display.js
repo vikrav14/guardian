@@ -57,6 +57,7 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   let phase = 'idle';
   let operationStartedAt = null;
   let lastHomePublication = null;
+  let lastConflictPublication = null;
   let lastClearedAt = null;
   let lastClearedReason = null;
 
@@ -71,10 +72,13 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   function getStatus(clock = now()) {
     const bindingReady = binding?.ready === true && binding.validUntilMs > clock;
     const decision = selection(clock);
-    const eligible = Boolean(decision.value);
+    const eligible = decision.value?.state === 'matched';
+    const conflictEligible = decision.value?.state === 'conflict';
     const pendingSeconds = operationStartedAt == null ? null :
       Math.max(0, Math.floor((clock - operationStartedAt) / 1000));
-    const publishedHomeFresh = Boolean(eligible && lastValue &&
+    const publishedHomeFresh = Boolean(eligible && lastValue?.state === 'matched' &&
+      Date.parse(lastValue.observedAt) <= clock && Date.parse(lastValue.expiresAt) > clock);
+    const publishedConflictFresh = Boolean(conflictEligible && lastValue?.state === 'conflict' &&
       Date.parse(lastValue.observedAt) <= clock && Date.parse(lastValue.expiresAt) > clock);
     return {
       active: !stopped,
@@ -87,17 +91,22 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
       homeEvidenceEligible: !stopped && eligible,
       selectionReason: decision.reason,
       publishedHomeFresh: !stopped && publishedHomeFresh,
+      wifiConflictEligible: !stopped && conflictEligible,
+      publishedConflictFresh: !stopped && publishedConflictFresh,
       lastHomePublication: lastHomePublication ? { ...lastHomePublication } : null,
+      lastConflictPublication: lastConflictPublication ? { ...lastConflictPublication } : null,
       lastClearedAt,
       lastClearedReason,
     };
   }
 
   function diagnose(reason, displaying) {
-    const key = `${reason}|${displaying}`;
+    const displayingConflict = getStatus().publishedConflictFresh;
+    const key = `${reason}|${displaying}|${displayingConflict}`;
     if (key === lastDiagnostic) return;
     lastDiagnostic = key;
-    report({ pilot: true, displayEnabled: true, displayingHome: displaying, reason });
+    report({ pilot: true, displayEnabled: true, displayingHome: displaying,
+      displayingConflict, reason });
   }
 
   async function tick() {
@@ -135,7 +144,8 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
       // time never changes. This avoids a gap between valid 40–60s radio reports
       // without turning cellular packets or heartbeats into Home observations.
       const shorterLease = value && lastValue && value.expiresAt < lastValue.expiresAt;
-      const renewalThrottled = value && lastValue && !shorterLease && clock - lastWriteAt < 20_000;
+      const stateChanged = value?.state !== lastValue?.state || value?.conflictReason !== lastValue?.conflictReason;
+      const renewalThrottled = value && lastValue && !shorterLease && !stateChanged && clock - lastWriteAt < 20_000;
       if (!same && !renewalThrottled) {
         phase = 'home_presence_write';
         operationStartedAt = now();
@@ -143,9 +153,12 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
         if (stopped) return;
         lastValue = value;
         lastWriteAt = now();
-        if (value && Date.parse(value.expiresAt) > lastWriteAt && selection(lastWriteAt).value) {
-          lastHomePublication = { confirmedAt: new Date(lastWriteAt).toISOString(),
+        const currentValue = selection(lastWriteAt).value;
+        if (value && Date.parse(value.expiresAt) > lastWriteAt && currentValue?.state === value.state) {
+          const publication = { confirmedAt: new Date(lastWriteAt).toISOString(),
             observedAt: value.observedAt, expiresAt: value.expiresAt };
+          if (value.state === 'matched') lastHomePublication = publication;
+          else lastConflictPublication = publication;
         } else if (!value) {
           lastClearedAt = new Date(lastWriteAt).toISOString();
           lastClearedReason = decision.reason;

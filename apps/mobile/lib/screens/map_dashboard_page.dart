@@ -216,6 +216,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   String _mapStatus(Device device) {
+    if (device.hasHomeWifiConflict) return 'Location uncertain';
     if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
@@ -361,6 +362,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   void _showLocationFact(Device device) {
     final location = device.mapDisplayLocation;
+    if (device.hasHomeWifiConflict) {
+      _showQuickFact(
+        '${device.displayName}\'s location',
+        '${deviceHomeWifiConflictLabel(device)} '
+            'Any map position is a recorded observation, not confirmed current whereabouts.',
+      );
+      return;
+    }
     if (location?.isValid != true) {
       _showQuickFact(
         '${device.displayName}\'s location',

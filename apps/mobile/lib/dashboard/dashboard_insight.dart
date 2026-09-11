@@ -199,6 +199,15 @@ DashboardInsight buildDashboardInsight(Device? device) {
   }
 
   final intelligence = device.intelligence;
+  if (device.hasHomeWifiConflict &&
+      (device.batteryPercent ?? 100) > 20 &&
+      (intelligence?.topInsight == null || intelligence?.topInsight?.id == 'stale_gps')) {
+    return DashboardInsight(
+      title: 'Location uncertain',
+      detail: deviceHomeWifiConflictLabel(device),
+      tone: DashboardInsightTone.neutral,
+    );
+  }
   if (device.hasHomeWifiDisplay &&
       (device.batteryPercent ?? 100) > 20 &&
       (intelligence?.topInsight == null ||

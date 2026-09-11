@@ -58,6 +58,18 @@ test('one requested CR waits for published Home, not a candidate or socket hando
   assert.equal(requests, 1);
 });
 
+test('a published conflict is reported without claiming Home or requesting another CR', async () => {
+  const value = status();
+  value.publisher.wifiConflictEligible = true;
+  value.publisher.publishedConflictFresh = true;
+  value.publisher.selectionReason = 'gps_outside_home';
+  const result = await inspectWifiHome({ requestFresh: true,
+    readStatus: async () => value, emit: () => {},
+    requestLocation: () => assert.fail('a published conflict needs no extra command'),
+  });
+  assert.equal(result.outcome, 'home_gps_conflict');
+});
+
 test('a candidate-only stream stops at two minutes without retrying the command', async () => {
   let clock = start; let requests = 0;
   const result = await inspectWifiHome({ requestFresh: true, now: () => clock,

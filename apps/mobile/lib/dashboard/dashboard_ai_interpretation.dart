@@ -16,6 +16,7 @@ String buildGuardianAiInterpretation(Device? device) {
     return 'Battery critically low. Charging the watch soon is recommended.';
   }
 
+  if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
   if (device.hasHomeWifiDisplay) {
     return '${deviceHomeWifiFixLabel(device)}. The watch is at or near your saved Home location. '
         '${deviceRetainedGpsLabel(device)}; satellite evidence stays separate.';
@@ -56,7 +57,11 @@ List<String> buildGuardianActivities(Device? device) {
 
   final activities = <String>['Watch signal monitored'];
 
-  if (device.hasHomeWifiDisplay) activities.add('Home Wi-Fi detected');
+  if (device.hasHomeWifiConflict) {
+    activities.add('Home Wi-Fi detected · location uncertain');
+  } else if (device.hasHomeWifiDisplay) {
+    activities.add('Home Wi-Fi detected');
+  }
 
   if (device.displayLocation?.isValid == true) {
     activities.add('Location received');
@@ -70,6 +75,7 @@ List<String> buildGuardianActivities(Device? device) {
 
 String buildTodaySummary(Device? device) {
   if (device == null) return 'No watch linked yet.';
+  if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
   if (device.hasHomeWifiDisplay) return deviceHomeWifiFixLabel(device);
   if (device.isTrulyOffline) return 'Watch offline';
   if (device.hasFreshLocation || device.hasApproximateLocation) {

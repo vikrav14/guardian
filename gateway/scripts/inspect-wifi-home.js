@@ -20,7 +20,10 @@ function summary(status) {
     homeEvidenceEligible: p?.homeEvidenceEligible === true,
     selectionReason: p?.selectionReason || null,
     publishedHomeFresh: p?.publishedHomeFresh === true,
+    wifiConflictEligible: p?.wifiConflictEligible === true,
+    publishedConflictFresh: p?.publishedConflictFresh === true,
     lastHomePublication: p?.lastHomePublication || null,
+    lastConflictPublication: p?.lastConflictPublication || null,
     lastClearedAt: p?.lastClearedAt || null,
     lastClearedReason: p?.lastClearedReason || null,
   };
@@ -45,6 +48,7 @@ async function inspectWifiHome({ readStatus, requestLocation, requestFresh = fal
         !status.publisher?.active) return { outcome: 'pilot_not_running' };
     if (status.publisher.operationSlow) return { outcome: 'publisher_io_pending' };
     if (safe.homeEvidenceEligible && safe.publishedHomeFresh) return { outcome: 'home_ready' };
+    if (safe.wifiConflictEligible && safe.publishedConflictFresh) return { outcome: 'home_gps_conflict' };
     if (!status.sessionConnected) return { outcome: 'watch_not_connected' };
     if (now() >= deadline) return { outcome: 'publication_not_confirmed' };
 
@@ -107,6 +111,8 @@ async function main() {
   console.log(JSON.stringify(result));
   if (result.outcome === 'home_ready') {
     console.log('Home publication confirmed. Open the app and ask location? in WhatsApp now.');
+  } else if (result.outcome === 'home_gps_conflict') {
+    console.log('Fresh Home Wi-Fi and GPS disagree. Open the app and ask location? to verify the uncertainty message. No Home position was confirmed.');
   } else if (result.outcome === 'publisher_io_pending') {
     console.log('A gateway Home read/write has been pending for at least 15 seconds. Check its network connection and restart the gateway after connectivity returns.');
   } else if (result.outcome !== 'read_only') {

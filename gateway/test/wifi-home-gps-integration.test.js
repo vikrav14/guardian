@@ -71,7 +71,7 @@ function harness() {
     radio: () => observer.snapshot(state.now) };
 }
 
-test('GPS at Home preserves radio time; outside GPS withdraws Home and chat together', async () => {
+test('GPS at Home preserves radio time; outside GPS shows uncertainty without selecting Home', async () => {
   const run = harness(); await run.publisher.tick();
   for (const at of [0, 10, 20]) await run.receive(at);
   assert.equal(run.selected().source, 'home_wifi');
@@ -83,10 +83,13 @@ test('GPS at Home preserves radio time; outside GPS withdraws Home and chat toge
   assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiDetected, true);
   await run.receive(40, { gps: true, outside: true, scan: 'home' });
   assert.equal(run.radio().matchState, 'matched', 'radio evidence is independent of coordinates');
-  assert.equal(run.state.saved, null);
+  assert.equal(run.state.saved.state, 'conflict');
   assert.equal(run.selected(), null);
-  assert.equal(run.publisher.getStatus().lastClearedReason, 'gps_outside_home');
+  assert.equal(run.publisher.getStatus().selectionReason, 'gps_outside_home');
+  assert.equal(run.publisher.getStatus().publishedHomeFresh, false);
+  assert.equal(run.publisher.getStatus().publishedConflictFresh, true);
   assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiDetected, false);
+  assert.equal(buildLocationReplyData(run.device(), { now: new Date(run.state.now) }).homeWifiConflict, true);
   await run.receive(50); // A newer radio alone cannot hide a still-fresh outside GPS fix.
   assert.equal(run.selected(), null);
   assert.equal(run.publisher.getStatus().selectionReason, 'gps_outside_home');
@@ -101,7 +104,7 @@ test('fresh declared Home scans in GPS packets can qualify without changing thei
   }
   assert.equal(run.radio().counts.qualified, 3);
   assert.equal(run.selected().source, 'home_wifi');
-  assert.equal(run.state.saved.version, 2);
+  assert.equal(run.state.saved.version, 3);
   assert.equal(run.state.saved.anchor.radiusMeters, 150);
   for (const privateValue of [imei, radio, hashKey, 'Private network']) {
     assert.ok(!JSON.stringify(run.state.saved).includes(privateValue));

@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fixtures = require('../../docs/testing/wifi-home-display.json');
-const { readHomeWifiDisplay, buildHomeWifiDisplay } = require('../src/wifi-home-display-policy');
+const { readHomeWifiDisplay, buildHomeWifiDisplay, readHomeWifiConflict } = require('../src/wifi-home-display-policy');
 const { loadHomeWifiBinding, createHomeWifiPublisher } = require('../src/wifi-home-display');
 const { buildLocationReplyData, formatLocationReply } = require('../src/location-reply');
 const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
@@ -14,8 +14,20 @@ for (const fixture of fixtures) {
     const options = { now: new Date(fixture.now) };
     const home = readHomeWifiDisplay(fixture.device, options);
     assert.equal(Boolean(home), fixture.expectedHome);
+    const conflict = readHomeWifiConflict(fixture.device, options);
+    assert.equal(Boolean(conflict), fixture.expectedConflict === true);
     const result = buildLocationReplyData(fixture.device, options);
     assert.equal(result.homeWifiDetected, fixture.expectedHome);
+    assert.equal(result.homeWifiConflict, fixture.expectedConflict === true);
+    if (conflict) {
+      const reply = formatLocationReply({ name: 'Test wearer', ...result });
+      assert.match(reply, /Location uncertain/);
+      assert.match(reply, /Home Wi-Fi detected/);
+      assert.match(reply, /Current position unconfirmed/);
+      assert.doesNotMatch(reply, /at or near your saved Home|View saved Home|has left|has arrived/);
+      assert.equal((reply.match(/https:/g) || []).length, result.mapsUrl ? 1 : 0);
+      assert.equal(result.homeWifiObservedAt, new Date(fixture.device.homeWifiPresence.observedAt).toISOString());
+    }
     const withoutHome = { ...fixture.device, homeWifiPresence: null };
     assert.deepEqual(buildSosLocationSnapshot(fixture.device, options),
       buildSosLocationSnapshot(withoutHome, options), 'Home display must not change a frozen SOS');
@@ -92,6 +104,22 @@ test('Home binding requires exactly one valid saved pin and a linked Family/Care
     d.serviceSubscriptions.owner.currentPeriodEnd = new Date(clock + 10_000);
   }), imei, clock);
   assert.equal(expiring.validUntilMs, clock + 10_000);
+});
+
+test('School 150 m and Home 50 m bind only Home regardless of zone ordering', async () => {
+  for (const schoolFirst of [true, false]) {
+    const db = bindingDb(d => {
+      const home = { ...d.geofences.home, radiusMeters: 50 };
+      const school = { ...home, name: 'School', radiusMeters: 150,
+        center: { lat: -20.2, lng: 57.2 } };
+      d.geofences = schoolFirst ? { school, home } : { home, school };
+    });
+    const bound = await loadHomeWifiBinding(db, imei, clock);
+    assert.equal(bound.ready, true);
+    assert.equal(bound.anchor.geofenceId, 'home');
+    assert.equal(bound.anchor.radiusMeters, 50);
+    assert.equal(bound.anchor.lat, -20.15);
+  }
 });
 
 function publisherHarness() {

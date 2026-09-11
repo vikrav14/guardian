@@ -1,6 +1,57 @@
 # V52 native Wi-Fi fence validation
 
-## Home/GPS integration fix — 11 September 2026 UTC
+## Fresh router/GPS disagreement — 11 September 2026 UTC
+
+The operator confirmed that the saved **Home pin is the actual house**, with a
+50 m radius; School is a separate 150 m zone. A synthetic binding replay confirms
+School/order cannot replace Home. The actual GPS-to-Home distance was not supplied.
+The following times are from the operator's redacted running-publisher status:
+
+| Event | UTC on 11 September | Interpretation |
+| --- | --- | --- |
+| Last qualifying radio observation | 20:56:20.000 | Source time, not GPS time |
+| Latest usable Home renewal acknowledged | 20:56:44.931 | Backend publication |
+| Home cleared with `gps_outside_home` | 20:56:47.979 | 3.048 seconds after renewal, before expiry |
+| That publication's scheduled expiry | 20:57:26.672 | Clear was 38.693 seconds earlier |
+
+The later `matchState: expired` is a separate subsequent radio-expiry result.
+These facts establish why the display cleared, not an actual departure or measured
+GPS error. The 50 m saved Home radius plus the minimum 30 m software margin would
+classify a GPS position beyond 80 m as outside; the actual margin/distance was not
+captured. Keep the saved boundaries unchanged.
+
+The v3 correction publishes a bounded **conflict** state instead of erasing fresh
+router evidence for a spatial GPS disagreement. App and ordinary WhatsApp show
+**Location uncertain** and the fresh Home Wi-Fi observation, with the recorded
+map position explicitly unconfirmed. No conflict can pass `home_ready` or select
+the Home pin. Clear/resolution state changes bypass the renewal throttle; pending
+or failed writes are never reported as successful publications. Missing/older
+persisted GPS cannot promote a stored conflict. GPS invalidity and expired,
+revoked, malformed or wrong-router evidence retain their existing fail-closed rules.
+
+The shared app/chat contract includes legacy v1/v2 and v3 conflict/expiry cases.
+Software checks are recorded on PR #116; hardware acceptance is still open.
+This correction does not change actual GPS telemetry, SOS snapshots, geofence or
+Journey decisions, the 50 m/150 m boundaries, report intervals or native fencing.
+It does not establish continuous Home or eliminate all possible GPS false alerts.
+
+### Next check for this correction
+
+Pull `feat/v52-wifi-home` and restart the gateway and Flutter app from that branch.
+Reuse the current enrollment. Run `npm run wifi-home:check` from `gateway`.
+If fresh reports are needed, use `npm run wifi-home:check -- --request-location`
+once. With `publishedConflictFresh: true` / `home_gps_conflict`, verify **Location
+uncertain** on the app and ordinary `location?` reply, including Home radio age.
+With `home_ready`, verify **Home Wi-Fi detected** at the saved Home pin. Let radio
+evidence expire without more requests and verify the warning/Home claim clears
+on both surfaces. Neither state transition is an arrival, departure or trip.
+Save the read-only result and screenshot while the corresponding state is fresh.
+
+No zone deletion, radius increase, Wi-Fi password, BSSID re-entry or repeat
+`wifi-home:fence-trial -- --send` is needed. The earlier single-router native
+setting still has no proven acknowledgement or rollback.
+
+## Earlier Home/GPS integration fix — 11 September 2026 UTC
 
 The operator authorized fixing the reproduced GPS-triggered Home clearing across
 the existing app and WhatsApp paths. The v2 implementation keeps the enrolled

@@ -23,8 +23,9 @@ class DashboardController extends ChangeNotifier {
   String _homeState = '';
 
   String _homeFingerprint() => devices
-      .where((device) => device.homeWifiLocationAt(_now()) != null)
-      .map((device) => device.imei).join('|');
+      .map((device) => '${device.imei}:${device.homeWifiLocationAt(_now()) != null}:'
+          '${device.homeWifiConflictAt(_now())}')
+      .join('|');
 
   StreamSubscription<List<Device>>? _deviceSubscription;
   StreamSubscription<List<Geofence>>? _geofenceSubscription;

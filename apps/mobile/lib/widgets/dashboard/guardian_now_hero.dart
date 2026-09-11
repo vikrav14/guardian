@@ -469,6 +469,7 @@ class _WatchStatusCard extends StatelessWidget {
     if (battery != null && battery < 15) {
       return 'Battery is critically low. Charge the watch soon.';
     }
+    if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
     if (device.hasHomeWifiDisplay) {
       return 'Home Wi-Fi detected. The map shows your saved Home pin. ${deviceRetainedGpsLabel(device)}.';
     }

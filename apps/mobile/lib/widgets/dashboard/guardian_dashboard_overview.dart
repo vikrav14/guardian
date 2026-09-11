@@ -232,6 +232,7 @@ class _LocationPanel extends StatelessWidget {
     final approximate = !retained && (source == 'wifi' || source == 'lbs');
     // PR #116 supplies this source only after validating Home radio evidence.
     final homeWifi = source == 'home_wifi';
+    final homeConflict = device.hasHomeWifiConflict;
     final ageLabel = !timeKnown
         ? 'Time unavailable'
         : age.inMinutes < 1
@@ -241,12 +242,14 @@ class _LocationPanel extends StatelessWidget {
         : age.inHours < 24
         ? '${age.inHours}h ago'
         : '${age.inDays}d ago';
-    final heading = !hasLocation
+    final heading = homeConflict
+        ? 'Location uncertain'
+        : !hasLocation
         ? 'Location'
         : retained || (satellite && stale)
         ? 'Last known location'
         : status;
-    final caution = stale || retained || approximate || homeWifi || !timeKnown;
+    final caution = homeConflict || stale || retained || approximate || homeWifi || !timeKnown;
     final tone = caution
         ? Theme.of(context).brightness == Brightness.dark
               ? GuardianColors.warning
@@ -372,11 +375,13 @@ class _LocationPanel extends StatelessWidget {
               ],
             ),
           ),
-          if (hasLocation && caution) ...[
+          if (homeConflict || (hasLocation && caution)) ...[
             const SizedBox(height: 8),
             _LocationEvidenceNote(
               color: tone,
-              title: !timeKnown
+              title: homeConflict
+                  ? 'Home Wi-Fi detected · location uncertain.'
+                  : !timeKnown
                   ? 'Location time unavailable.'
                   : homeWifi
                   ? 'At or near saved Home.'
@@ -387,7 +392,9 @@ class _LocationPanel extends StatelessWidget {
                   : satellite
                   ? 'Showing the last GPS position.'
                   : 'Showing the last known location.',
-              message: homeWifi
+              message: homeConflict
+                  ? '${deviceHomeWifiConflictLabel(device)} The map shows a recorded position for reference.'
+                  : homeWifi
                   ? 'Home Wi-Fi evidence places the watch near your saved Home pin. Open location details for the retained GPS fix.'
                   : retained
                   ? 'Showing the last reliable GPS position. A newer network estimate is approximate.'

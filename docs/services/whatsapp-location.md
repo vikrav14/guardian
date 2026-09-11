@@ -17,7 +17,7 @@ gateway or replacing the Meta access token did not change either rule.
 
 | Available evidence | WhatsApp reply and map |
 | --- | --- |
-| Explicit private Home display pilot with a fresh validated router match and saved Home pin | Show **Home Wi-Fi detected — at or near Home**, its detection age, and one saved-Home map link. Keep the retained GPS age separate. Expired/revoked radio evidence or conflicting/uncertain fresh GPS returns to the rules below. V2 GPS at Home preserves the radio overlay without renewing its timestamp; legacy v1 keeps newer/equal-GPS precedence. See the shared Home/GPS contract in `wifi-home.md`. |
+| Explicit private Home display pilot with a fresh validated router match and saved Home pin | Show **Home Wi-Fi detected — at or near Home**, its detection age, and one saved-Home map link. Keep the retained GPS age separate. Expired/revoked radio evidence returns to the rules below. V2/v3 GPS at Home preserves the radio overlay without renewing its timestamp; legacy v1 keeps newer/equal-GPS precedence. See the shared Home/GPS contract in `wifi-home.md`. |
 | GPS followed by Wi-Fi or cellular observations | Keep the GPS pin as **last known**, with its own recording time and age. State that the current position is unconfirmed. Describe the approximate observation separately, including its age and radius when available. |
 | Latest observation is GPS | Show the latest recorded GPS fix. Fixes older than ten minutes, or without a recording time, are explicitly last known. |
 | Wi-Fi or cellular estimate only | Label the location and map **approximate**, name the source and show its recording age and estimated radius when available. Do not claim a confirmed current position. |
@@ -40,6 +40,19 @@ app and SOS. It creates no alert or persisted snapshot. The generic 30-minute
 selector remains unchanged for its other consumers, including weather and
 fall handling. Approved SOS templates and the incident delivery flow are
 unchanged, as are journey generation and raw observations.
+
+## Fresh Home radio and GPS disagreement
+
+V3 preserves fresh router sightings when GPS falls outside or overlaps the Home
+boundary. Ordinary replies lead with **Location uncertain**, report Home Wi-Fi
+detection age, and say **GPS does not confirm the saved Home location. Current
+position unconfirmed.** The one map link remains the normal recorded position,
+labelled for reference, not a Home anchor or a confirmed current location.
+`homeWifiConflict` is separate from `homeWifiDetected` (the latter retains its
+existing meaning: Home pin selected). `locationDisclosure` carries the same
+uncertainty for other authorized consumers. Stale/invalid/revoked radio evidence
+cannot create that warning; a stored conflict cannot promote itself to Home.
+Emergency/SOS snapshots and templates retain their independent incident contract.
 
 ## Home Wi-Fi is a separate source of evidence
 

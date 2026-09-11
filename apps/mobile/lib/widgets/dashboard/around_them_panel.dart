@@ -36,7 +36,9 @@ class AroundThemPanel extends StatelessWidget {
         .toList(growable: false);
 
     final place = d.mapDisplayLocation?.placeLabel?.trim();
-    final locationValue = place != null && place.isNotEmpty
+    final locationValue = d.hasHomeWifiConflict
+        ? 'Location uncertain'
+        : place != null && place.isNotEmpty
         ? place
         : d.isDisplayingRetainedSatelliteLocation
         ? 'Last satellite location'
@@ -46,7 +48,9 @@ class AroundThemPanel extends StatelessWidget {
         ? 'Last known location'
         : 'Locating';
 
-    final locationDetail = d.hasHomeWifiDisplay
+    final locationDetail = d.hasHomeWifiConflict
+        ? 'Home Wi-Fi detected · GPS does not confirm Home'
+        : d.hasHomeWifiDisplay
         ? deviceHomeWifiFixLabel(d)
         : d.isDisplayingRetainedSatelliteLocation
         ? 'Precise GPS unavailable indoors'
