@@ -32,8 +32,9 @@ class LastHomeWifiDetection {
         map['policy'] != 'last_detected_home_v1' ||
         map['source'] != 'home_wifi' ||
         map['bindingHash'] is! String ||
-        !RegExp(r'^[a-f0-9]{64}$').hasMatch(map['bindingHash'] as String))
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(map['bindingHash'] as String)) {
       return null;
+    }
     final parsed = HomeWifiPresence.fromMap({
       ...map,
       'version': 4,
