@@ -1,11 +1,14 @@
 # Guardian V52 command evidence
 
-**Home pilot, 13 September 2026 UTC:** a requested location burst supported fresh
-Home recognition and app display; later radio expiry removed Home in the old
-implementation. Historical Home presentation and cancellable binding reads are
-server/app changes. They add no device command, polling loop, native-fence claim
-or reporting-interval change. Physical history/recovery and departure acceptance
-remain open. [Current runbook](services/wifi-home.md#next-device-check-for-remembered-home).
+**Home pilot, 13 September 2026 UTC:** after the update, a requested location
+burst supported fresh Home recognition and app display. Radio expiry retained
+**Last detected at Home · 4m ago** with current presence unconfirmed; a gateway
+restart restored the original historical timestamp without fresh Home authority.
+These are server/app changes with no new command, polling loop, native-fence claim
+or reporting-interval change. Actual departure/return and real binding-timeout
+recovery remain open; the operator paused outdoor testing for the night.
+[Checkpoint evidence](testing/wifi-home-retention-2026-09-13.json) ·
+[Current runbook](services/wifi-home.md#next-device-check-for-remembered-home).
 
 Guardian supports one production watch model: **ReachFar V52**. This ledger
 prevents older-model syntax, generic examples and live V52 results from being

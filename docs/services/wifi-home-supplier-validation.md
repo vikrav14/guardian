@@ -43,28 +43,45 @@ reported by its existing `home_presence_write` diagnostic.
 
 No watch reporting interval, radio qualification threshold, native command,
 Home radius, subscription entitlement or customer enrollment flow changes.
-Physical acceptance of history/recovery and departure/return remains open.
+The stationary retention and gateway restart checkpoint below has passed;
+physical departure/return and failure recovery remain open.
+
+### Physical retention checkpoint — 13 September UTC / 14 September Mauritius
+
+The post-update pilot passed the following limited checks on one watch/router:
+
+| Check | Observed result |
+| --- | --- |
+| Fresh Home | Repeated router observations selected `home_wifi_detected`; the app showed **Home Wi-Fi detected · Just now**. |
+| Radio expiry | `publishedHomeFresh: false` and `homeEvidenceEligible: false`; the last source time remained `2026-09-13T21:15:08.000Z`. The scheduled lease expired at 21:17:08 UTC and the checker recorded clearing at 21:17:09.132 UTC. |
+| Historical app display | Screenshot showed **Last detected at Home · 4m ago**, retained the Home pin and explicitly said **Current presence at Home is unconfirmed**. |
+| Gateway restart | Binding returned ready and restored the same historical timestamp, with no fresh publication or observation. `sessionConnected: false` at that check; reconnection and post-restart app presentation were not supplied. |
+
+The run followed the update instructions for `e9cad97`; the new diagnostics were
+present, but this capture contains no fresh `git HEAD` output. See the
+[redacted retention evidence](../testing/wifi-home-retention-2026-09-13.json).
+Zero binding timeouts were observed, so this is not physical acceptance of timeout
+recovery. Actual departure/return, ordinary WhatsApp/location-details agreement,
+continuous reporting, native fencing and battery impact remain open. The operator
+paused for the night; PR #116 remains draft.
 
 ### Next device check for remembered Home
 
-1. Update `feat/v52-wifi-home`; restart both gateway and Flutter from that checkout.
-   Reuse the existing enrollment and saved Home/School zones.
-2. With the watch near the router, use the existing protected
-   `npm run wifi-home:check -- --request-location` once if fresh evidence is absent.
-   Verify fresh Home in the app and ordinary WhatsApp `location?`.
-3. Let reports become quiet without another request. The fresh state must expire,
-   while app/map/details/chat show **Last detected at Home** with increasing age
-   and unconfirmed current presence. Run the read-only checker; fresh flags must
-   be false and `lastHomeDetection.observedAt` must remain unchanged.
-4. Restart only the gateway. After a successful binding read, history should
-   restore without another location request and without current Home priority.
-5. Separately verify an actual outdoor departure and return, with stable gateway
-   Internet. New accepted GPS must replace the historical pin and normal tracking
-   must proceed; expiry/restart alone must not generate an exit or synthetic trip.
+Resume when convenient; no nighttime outing or repeated location request is needed
+to preserve this checkpoint. First let the watch reconnect and confirm the app
+still presents the restored historical Home with its original age. Then perform a
+separately planned departure/return with stable gateway Internet, recording the
+physical departure time, first usable GPS report, displayed location and actual
+journey/zone behavior. New accepted GPS must replace remembered Home. Expiry or
+restart alone must not be treated as departure.
 
-Do not repeat native fencing or create a CR loop. Software regression coverage is
-in the shared `wifi-home-remembered.json` fixtures, publisher recovery tests,
-Firestore authorization tests and responsive app tests. CI is tracked on PR #116.
+The stationary fresh-to-historical transition and gateway restoration above are
+already recorded; do not restart the same acceptance sequence solely to save work.
+Ordinary WhatsApp and location-details historical wording, and a real binding
+connection failure/recovery, still need separate evidence. Do not repeat native
+fencing or create a CR loop. Existing shared fixtures, publisher recovery tests,
+Firestore authorization and responsive app tests remain the software evidence.
+CI and the remaining physical checks are tracked on PR #116.
 
 ## Current v4 Home-radio priority — 11 September 2026 UTC
 

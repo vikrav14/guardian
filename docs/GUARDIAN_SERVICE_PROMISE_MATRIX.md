@@ -1,11 +1,13 @@
 # Guardian service promise and entitlement contract
 
-**Private Home pilot update (13 September 2026 UTC):** fresh Home recognition and
-app display were observed, followed by the reproduced two-minute expiry fallback.
-The new `lastHomeWifiDetection` record supports aged, explicitly unconfirmed Home
-presentation; it has no tracking/SOS powers. Home binding reads now have cancellable
-15-second deadlines and retry on their existing 30-second schedule. Software and
-physical acceptance remain distinct; see the [current Home runbook](services/wifi-home.md#next-device-check-for-remembered-home).
+**Private Home pilot update (13 September 2026 UTC):** one pilot passed fresh
+Home app display, retention with age and unconfirmed presence after radio expiry,
+and restoration of the same historical timestamp after gateway restart. Historical
+Home has no tracking/SOS authority. Departure/return, real binding failure recovery,
+ordinary WhatsApp/location-details agreement, continuous reporting, native fencing
+and battery impact remain open. The feature stays a private pilot and PR #116 stays
+draft. [Checkpoint evidence](testing/wifi-home-retention-2026-09-13.json) ·
+[Current Home runbook](services/wifi-home.md#next-device-check-for-remembered-home).
 
 **Status:** Release contract — evidence reviewed 22 August 2026
 **Applies to:** Guardian Essential, Guardian Family, Guardian Care
@@ -59,7 +61,7 @@ that exception into the Family/Care WhatsApp contract.
 | Advertised promise | Current proof | State | Required release evidence |
 |---|---|---|---|
 | Everything in Essential | Inherited by the versioned plan catalogue. | Partial | Every Essential gate above must pass. |
-| Home Wi-Fi presence | Private radio recognition and publication passed on one V52. V4 makes fresh qualified Home radio authoritative over GPS A/V in app/map/ordinary WhatsApp and holds GPS-derived dwell, journeys and zone transitions. Existing routes stop at their last measured endpoint; expiry alone creates no departure. Normal movement resumes on a new fresh GPS fix. Home/School coexist with their saved boundaries. General activation remains disabled. | Partial — private pilot | Pass release gates and test v4 on both gateway and app from PR #116: fresh Home display, expiry, router loss/return and genuine departure without a false route bridge. Stationary reporting gaps and native WIFIFENCE acceptance remain open; no reporting interval, hardware setting or longer Home lease is introduced. See `services/wifi-home-supplier-validation.md`. |
+| Home Wi-Fi presence | Private radio recognition, fresh app display, historical Home display after expiry and gateway restoration of the same source time passed on one V52. V4 fresh Home retains its bounded GPS/tracking priority; historical Home has no current-presence or tracking/SOS authority. General activation remains disabled. | Partial — private pilot | Validate actual departure/return, new accepted GPS precedence and journey/zone behavior, ordinary WhatsApp/location-details agreement, post-restart app/reconnection and real binding failure recovery. Stationary reporting gaps, native WIFIFENCE acceptance and battery impact remain open. No report interval, hardware setting or longer Home lease is introduced. See `services/wifi-home.md`. |
 | Guardian AI | Deterministic intent, language and factual reply engines exist; an LLM is bounded to eligible functional paths. | Partial | Remove or qualify unsupported inferences; evaluation corpus and cost/error budgets. |
 | WhatsApp questions and answers | Registered-caller authorization, deterministic controller, journey/location/battery/alert replies and safe actions exist. Ordinary location replies retain the app's GPS pin with its own age and label network evidence separately; see `services/whatsapp-location.md`. The app first offers deterministic quick checks and makes WhatsApp an explicit continuation. | Partial | Approved business-number build configuration, Meta production token/template test, expiry handling, idempotency, cost limits and full acceptance corpus, including indoor last-known versus approximate location wording. |
 | Proactive smart notifications | Push/WhatsApp policy and deterministic escalation rules exist. | Partial | Scenario matrix, quiet-hour policy, rate limits and real delivery tests. |

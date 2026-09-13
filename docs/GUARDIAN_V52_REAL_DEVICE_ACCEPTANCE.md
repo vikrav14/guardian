@@ -183,6 +183,28 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
+### Retained Home and gateway restart passed on one pilot — 13 September 2026 UTC
+
+- [x] Fresh repeated Home-router observations selected Home in the actual app.
+- [x] Fresh evidence expired while `lastHomeDetection.observedAt` remained
+  `2026-09-13T21:15:08.000Z`.
+- [x] The app showed **Last detected at Home · 4m ago**, retained the Home pin
+  and explicitly marked current presence unconfirmed.
+- [x] After a gateway restart, a ready binding restored the same historical
+  timestamp with `publishedHomeFresh: false` and no new observation.
+- [ ] Confirm watch reconnection and app presentation after restart; the supplied
+  checker still had `sessionConnected: false` and no post-restart screenshot.
+- [ ] Perform actual departure/return and measure the first usable GPS report,
+  displayed GPS precedence, and journey/zone behavior.
+- [ ] Verify ordinary WhatsApp and location-details historical presentation.
+- [ ] Exercise a real binding-read timeout/recovery; this run had zero timeouts.
+
+Evidence is operator-supplied from the post-update run instructed against `e9cad97`;
+new diagnostics are present, but a new `git HEAD` output was not supplied.
+[Redacted checker and screenshot record](testing/wifi-home-retention-2026-09-13.json).
+The operator deferred outdoor testing because it was late. PR #116 remains draft;
+continuous reporting, native fencing and battery impact are not accepted.
+
 ### Stationary Home display and expiry reproduced — 13 September 2026 UTC
 
 The operator remained at Home on checkout `1453738`. A pending Home binding read
@@ -193,8 +215,9 @@ The subsequent untimestamped clear reports `observation_expired`, and the app
 returned to a day-old GPS label. This passes fresh Home recognition/display for
 one watch/router window and reproduces the stationary continuity defect.
 
-The new historical Home record and cancellable binding-read recovery are software
-changes awaiting real-device acceptance. Follow the [current check](services/wifi-home.md#next-device-check-for-remembered-home).
+This earlier capture predates the historical Home update. The later checkpoint
+above accepts stationary historical display and gateway restoration only; real
+binding failure recovery remains open. Follow the [current check](services/wifi-home.md#next-device-check-for-remembered-home).
 Continuous fresh Home, actual departure/return, native fence semantics and battery
 impact remain unaccepted. [Redacted evidence](testing/wifi-home-expiry-2026-09-13.json).
 
