@@ -50,6 +50,8 @@ class AroundThemPanel extends StatelessWidget {
 
     final locationDetail = d.hasHomeWifiConflict
         ? 'Home Wi-Fi detected · GPS does not confirm Home'
+        : d.hasRememberedHomeWifiDisplay
+        ? '${deviceLastHomeWifiFixLabel(d)}. Current presence unconfirmed.'
         : d.hasHomeWifiDisplay
         ? deviceHomeWifiFixLabel(d)
         : d.isDisplayingRetainedSatelliteLocation

@@ -9,13 +9,14 @@ const { doc, setDoc, updateDoc, getDoc, deleteField } = require('firebase/firest
 const imei = '359633100123456';
 let env;
 const homeWifiPresence = require('../../docs/testing/wifi-home-display.json')[0].device.homeWifiPresence;
+const lastHomeWifiDetection = require('../../docs/testing/wifi-home-remembered.json')[0].device.lastHomeWifiDetection;
 before(async () => {
   env = await initializeTestEnvironment({ projectId: 'guardian-home-wifi-rules-test',
     firestore: { rules: fs.readFileSync(path.join(__dirname, '..', 'rules.example'), 'utf8') } });
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
     await setDoc(doc(db, 'users', 'linked'), { linkedImeis: [imei] });
-    await setDoc(doc(db, 'devices', imei), { imei, nickname: 'Test wearer', homeWifiPresence });
+    await setDoc(doc(db, 'devices', imei), { imei, nickname: 'Test wearer', homeWifiPresence, lastHomeWifiDetection });
   });
 });
 after(async () => { await env.cleanup(); });
@@ -33,5 +34,9 @@ test('clients cannot forge, replace or erase backend Home evidence while profile
   await assertFails(updateDoc(ref, { 'homeWifiPresence.anchor.lat': -21 }));
   await assertFails(updateDoc(ref, { homeWifiPresence: deleteField() }));
   await assertFails(setDoc(doc(db, 'devices', 'another-watch'), { homeWifiPresence }));
+  await assertFails(updateDoc(ref, { lastHomeWifiDetection: { ...lastHomeWifiDetection, observedAt: '2099-01-01T00:00:00Z' } }));
+  await assertFails(updateDoc(ref, { 'lastHomeWifiDetection.anchor.lat': -21 }));
+  await assertFails(updateDoc(ref, { lastHomeWifiDetection: deleteField() }));
+  await assertFails(setDoc(doc(db, 'devices', 'another-watch'), { lastHomeWifiDetection }));
   await assertSucceeds(updateDoc(ref, { nickname: 'Test name' }));
 });

@@ -183,6 +183,24 @@ unrecorded hardware capabilities.
 
 ## Private Home Wi-Fi observation — PR #116
 
+### Stationary Home display and expiry reproduced — 13 September 2026 UTC
+
+The operator remained at Home on checkout `1453738`. A pending Home binding read
+lasted 70,431 seconds. Restart plus one requested reporting burst restored the
+Home label in the actual app. Seven qualified router sightings (latest -48 dBm)
+were recorded; the last source time was 20:11:49 UTC with radio expiry 20:13:49 UTC.
+The subsequent untimestamped clear reports `observation_expired`, and the app
+returned to a day-old GPS label. This passes fresh Home recognition/display for
+one watch/router window and reproduces the stationary continuity defect.
+
+The new historical Home record and cancellable binding-read recovery are software
+changes awaiting real-device acceptance. Follow the [current check](services/wifi-home.md#next-device-check-for-remembered-home).
+Continuous fresh Home, actual departure/return, native fence semantics and battery
+impact remain unaccepted. [Redacted evidence](testing/wifi-home-expiry-2026-09-13.json).
+
+Earlier checkpoints below retain their original scope.
+
+
 **Current v4 correction:** the operator rejected the v3 conflict screenshot and
 requested Home-router priority over GPS A/V. Fresh qualified radio plus the
 verified saved Home binding now selects Home across the app and ordinary chat.

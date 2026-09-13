@@ -126,7 +126,7 @@ test('GPS and empty scans cannot extend Home beyond the last actual radio sighti
   assert.equal(run.publisher.getStatus().lastClearedReason, 'observation_expired');
 });
 
-test('contradictory and malformed GPS scans clear radio evidence; revocation requires requalification', async () => {
+test('contradictory scans clear Home; network read failures cannot renew the lease and require requalification', async () => {
   for (const [scan, expected] of [['other', 'router_not_seen'], ['weak', 'signal_weak'], ['invalid', 'invalid_scan']]) {
     const run = harness(); await run.publisher.tick();
     for (const at of [0, 10, 20]) await run.receive(at);
@@ -138,8 +138,11 @@ test('contradictory and malformed GPS scans clear radio evidence; revocation req
   for (const at of [0, 10, 20]) await run.receive(at);
   run.state.failBinding = true;
   await run.receive(30, { gps: true });
-  assert.equal(run.selected(), null);
-  assert.equal(run.publisher.getStatus().lastClearedReason, 'home_binding_unavailable');
+  assert.equal(run.publisher.getStatus().bindingReason, 'home_binding_unavailable');
+  assert.equal(run.publisher.getEvidence(), null, 'failed verification immediately ends runtime tracking priority');
+  assert.equal(run.state.saved.expiresAt, new Date(start + 60_000).toISOString(), 'cached display lease cannot renew');
+  run.state.now = start + 60_000;
+  assert.equal(run.selected(), null, 'cached fresh Home expires without an offline write');
   run.state.failBinding = false;
   await run.receive(60);
   assert.equal(run.selected(), null, 'binding recovery requires new sustained router evidence');

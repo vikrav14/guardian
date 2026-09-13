@@ -124,6 +124,30 @@ Live device state. Document ID = device IMEI (digits only).
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
+### `lastHomeWifiDetection` (map) — historical Home display
+
+Backend-owned qualified Home detection, stored atomically alongside a fresh v4
+`homeWifiPresence`. Linked readers can read it; the existing client update allowlist
+prevents creating, changing or deleting it. It grants no current presence,
+tracking priority, geofence transition, alert suppression or SOS location authority.
+
+- `version: 1`, `policy: "last_detected_home_v1"`, `source: "home_wifi"`.
+- `observedAt`: original qualified radio source timestamp; never refreshed by heartbeats.
+- `qualifiedUntil`: the original valid publication deadline, greater than `observedAt`
+  and at most two minutes later. This documents qualification, not ongoing presence.
+- `anchor`: verified saved Home `geofenceId`, `label`, `lat`, `lng`, `radiusMeters`.
+- `bindingHash`: SHA-256 of the verified Home/owner binding key. It contains no
+  router identifier and is not an authorization token. Startup compares it and
+  the exact anchor against the current verified binding before restoring history.
+
+A newer accepted GPS fix takes presentation precedence permanently until another
+qualified Home detection occurs. Invalid/future GPS and approximate network
+observations cannot renew or supersede history. Ordinary radio expiry retains
+history; verified binding changes clear incompatible history. Transient binding
+read failures cannot renew fresh presence and do not erase the earlier detection.
+The app/chat label is **Last detected at Home · age; current presence unconfirmed**.
+Older records lacking this field keep their previous fallback behavior.
+
 ### `homeWifiPresence` map — private display pilot
 
 Published only when the operator separately enables the display pilot and the

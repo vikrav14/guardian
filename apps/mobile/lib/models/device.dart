@@ -154,6 +154,7 @@ class Device {
     this.lastSatelliteLocation,
     this.lastApproximateLocation,
     this.homeWifiPresence,
+    this.lastHomeWifiDetection,
     this.lastHeartbeatAt,
     this.disconnectedAt,
     this.connectionState,
@@ -200,24 +201,79 @@ class Device {
   final DeviceLocation? lastSatelliteLocation;
   final DeviceLocation? lastApproximateLocation;
   final HomeWifiPresence? homeWifiPresence;
+  final LastHomeWifiDetection? lastHomeWifiDetection;
+
+  DeviceLocation? rememberedHomeWifiLocationAt(DateTime now) {
+    final last = lastHomeWifiDetection;
+    if (last == null ||
+        !last.isValidAt(now) ||
+        homeWifiLocationAt(now) != null ||
+        homeWifiConflictAt(now)) {
+      return null;
+    }
+    final fixes = [lastSatelliteLocation, lastLocationObservation, location];
+    for (var index = 0; index < fixes.length; index++) {
+      final fix = fixes[index];
+      if (fix == null || fix.gpsValid == false) continue;
+      final gps =
+          index == 0 ||
+          fix.source == 'gps' ||
+          (index == 2 && accuracySource == 'gps');
+      final at = fix.recordedAt;
+      if (gps &&
+          fix.lat.isFinite &&
+          fix.lng.isFinite &&
+          fix.lat.abs() <= 90 &&
+          fix.lng.abs() <= 180 &&
+          fix.isValid &&
+          at != null &&
+          at.isAfter(last.observedAt) &&
+          !at.isAfter(now)) {
+        return null;
+      }
+    }
+    return DeviceLocation(
+      lat: last.lat,
+      lng: last.lng,
+      recordedAt: last.observedAt,
+      source: 'home_wifi_last_detected',
+      gpsValid: false,
+      placeLabel: 'Home',
+    );
+  }
+
+  bool get hasRememberedHomeWifiDisplay =>
+      rememberedHomeWifiLocationAt(DateTime.now()) != null;
 
   DeviceLocation? homeWifiLocationAt(DateTime now) {
     final home = homeWifiPresence;
-    if (home == null || !home.isFreshAt(now) || home.conflictReason != null ||
+    if (home == null ||
+        !home.isFreshAt(now) ||
+        home.conflictReason != null ||
         (home.policyVersion != 4 &&
             _homeGpsAgreementAt(home, now) != 'gps_agrees_with_home')) {
       return null;
     }
-    return DeviceLocation(lat: home.lat, lng: home.lng,
-      recordedAt: home.observedAt, source: 'home_wifi',
-      gpsValid: false, placeLabel: 'Home');
+    return DeviceLocation(
+      lat: home.lat,
+      lng: home.lng,
+      recordedAt: home.observedAt,
+      source: 'home_wifi',
+      gpsValid: false,
+      placeLabel: 'Home',
+    );
   }
 
   /// Conflicting positions preserve a fresh router fact, never a Home pin.
   /// A publisher conflict cannot be promoted by older/missing cached GPS.
   bool homeWifiConflictAt(DateTime now) {
     final home = homeWifiPresence;
-    if (home == null || home.policyVersion < 2 || home.policyVersion == 4 || !home.isFreshAt(now)) return false;
+    if (home == null ||
+        home.policyVersion < 2 ||
+        home.policyVersion == 4 ||
+        !home.isFreshAt(now)) {
+      return false;
+    }
     return HomeWifiPresence.isConflictReason(home.conflictReason) ||
         HomeWifiPresence.isConflictReason(_homeGpsAgreementAt(home, now));
   }
@@ -230,23 +286,32 @@ class Device {
     for (var index = 0; index < fixes.length; index++) {
       final fix = fixes[index];
       if (fix == null || fix.gpsValid == false) continue;
-      final gps = index == 0 || fix.source == 'gps' ||
+      final gps =
+          index == 0 ||
+          fix.source == 'gps' ||
           (index == 2 && accuracySource == 'gps');
       final at = fix.recordedAt;
       if (!gps) continue;
       if (home.policyVersion == 1) {
-        if (at != null && !at.isBefore(home.observedAt)) return 'legacy_gps_priority';
+        if (at != null && !at.isBefore(home.observedAt)) {
+          return 'legacy_gps_priority';
+        }
       } else {
         if (at == null || at.isAfter(now)) return 'gps_time_unconfirmed';
         if (now.difference(at) < const Duration(minutes: 2)) recentGps.add(fix);
       }
     }
     if (recentGps.isNotEmpty) {
-      final latest = recentGps.map((fix) => fix.recordedAt!)
+      final latest = recentGps
+          .map((fix) => fix.recordedAt!)
           .reduce((a, b) => a.isAfter(b) ? a : b);
       for (final fix in recentGps) {
         if (fix.recordedAt!.isAtSameMomentAs(latest)) {
-          final reason = home.gpsAgreementReason(fix.lat, fix.lng, fix.accuracyMeters);
+          final reason = home.gpsAgreementReason(
+            fix.lat,
+            fix.lng,
+            fix.accuracyMeters,
+          );
           if (reason != 'gps_agrees_with_home') return reason;
         }
       }
@@ -359,11 +424,14 @@ class Device {
   /// temporarily select the saved Home pin with its own source/time label.
   /// Otherwise the accepted satellite/network fallback applies. This overlay
   /// never changes stored telemetry, journeys, geofences or SOS selection.
-  DeviceLocation? get mapDisplayLocation => mapDisplayLocationAt(DateTime.now());
+  DeviceLocation? get mapDisplayLocation =>
+      mapDisplayLocationAt(DateTime.now());
 
   DeviceLocation? mapDisplayLocationAt(DateTime now) {
     final home = homeWifiLocationAt(now);
     if (home != null) return home;
+    final remembered = rememberedHomeWifiLocationAt(now);
+    if (remembered != null) return remembered;
     final source = latestLocationSource;
     final satellite = lastSatelliteLocation;
     if ((source == 'wifi' || source == 'lbs') && satellite?.isValid == true) {
@@ -373,7 +441,7 @@ class Device {
   }
 
   bool get isMapDisplayingLastSatelliteLocation {
-    if (hasHomeWifiDisplay) return false;
+    if (hasHomeWifiDisplay || hasRememberedHomeWifiDisplay) return false;
     final source = latestLocationSource;
     return (source == 'wifi' || source == 'lbs') &&
         lastSatelliteLocation?.isValid == true;
@@ -488,6 +556,11 @@ class Device {
       homeWifiPresence: HomeWifiPresence.fromMap(
         data['homeWifiPresence'] is Map
             ? Map<String, dynamic>.from(data['homeWifiPresence'] as Map)
+            : null,
+      ),
+      lastHomeWifiDetection: LastHomeWifiDetection.fromMap(
+        data['lastHomeWifiDetection'] is Map
+            ? Map<String, dynamic>.from(data['lastHomeWifiDetection'] as Map)
             : null,
       ),
       lastHeartbeatAt: _asDateTime(data['lastHeartbeatAt']),

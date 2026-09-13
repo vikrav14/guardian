@@ -232,6 +232,7 @@ class _LocationPanel extends StatelessWidget {
     final approximate = !retained && (source == 'wifi' || source == 'lbs');
     // PR #116 supplies this source only after validating Home radio evidence.
     final homeWifi = source == 'home_wifi';
+    final rememberedHome = source == 'home_wifi_last_detected';
     final homeConflict = device.hasHomeWifiConflict;
     final ageLabel = !timeKnown
         ? 'Time unavailable'
@@ -255,6 +256,7 @@ class _LocationPanel extends StatelessWidget {
         retained ||
         approximate ||
         homeWifi ||
+        rememberedHome ||
         !timeKnown;
     final tone = caution
         ? Theme.of(context).brightness == Brightness.dark
@@ -389,6 +391,8 @@ class _LocationPanel extends StatelessWidget {
                   ? 'Home Wi-Fi detected · location uncertain.'
                   : !timeKnown
                   ? 'Location time unavailable.'
+                  : rememberedHome
+                  ? 'Current presence at Home is unconfirmed.'
                   : homeWifi
                   ? 'At or near saved Home.'
                   : satellite && stale
@@ -400,6 +404,8 @@ class _LocationPanel extends StatelessWidget {
                   : 'Showing the last known location.',
               message: homeConflict
                   ? '${deviceHomeWifiConflictLabel(device)} The map shows a recorded position for reference.'
+                  : rememberedHome
+                  ? '${deviceLastHomeWifiFixLabel(device)}. The map keeps your saved Home pin as the last detected place.'
                   : homeWifi
                   ? 'Home Wi-Fi evidence places the watch near your saved Home pin. Open location details for the retained GPS fix.'
                   : retained

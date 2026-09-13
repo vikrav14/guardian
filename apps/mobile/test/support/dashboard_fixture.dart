@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:guardian/dashboard/device_formatters.dart';
 import 'package:guardian/models/device.dart';
+import 'package:guardian/models/home_wifi_presence.dart';
+import 'package:guardian/dashboard/dashboard_ai_interpretation.dart';
 import 'package:guardian/l10n/app_localizations.dart';
 import 'package:guardian/widgets/brand/guardian_pin_logo.dart';
 import 'package:guardian/widgets/navigation/guardian_navigation.dart';
@@ -14,6 +16,7 @@ Device dashboardFixtureDevice({
   String imei = 'demo-watch-a',
   String name = 'Alex Morgan',
   bool retainedGps = true,
+  bool rememberedHome = false,
 }) {
   final current = now ?? DateTime.now();
   final satellite = DeviceLocation(
@@ -50,6 +53,14 @@ Device dashboardFixtureDevice({
     lastLocationObservation: retainedGps ? network : satellite,
     lastSatelliteLocation: satellite,
     lastApproximateLocation: retainedGps ? network : null,
+    lastHomeWifiDetection: rememberedHome
+        ? LastHomeWifiDetection(
+            lat: -20.15,
+            lng: 57.55,
+            observedAt: current.subtract(const Duration(minutes: 10)),
+            qualifiedUntil: current.subtract(const Duration(minutes: 8)),
+          )
+        : null,
   );
 }
 
@@ -97,7 +108,9 @@ GuardianDashboardOverview dashboardFixtureOverview({
     mapStatus:
         mapStatus ??
         (selected == null ? '' : deviceMapLocationStatusLabel(selected)),
-    insight: dashboardFixtureInsight,
+    insight: selected?.hasRememberedHomeWifiDisplay == true
+        ? buildGuardianAiInterpretation(selected)
+        : dashboardFixtureInsight,
     aiEnabled: aiEnabled,
     helpEnabled: helpEnabled,
     careEnabled: careEnabled,

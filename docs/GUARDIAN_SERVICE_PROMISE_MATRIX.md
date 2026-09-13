@@ -1,5 +1,12 @@
 # Guardian service promise and entitlement contract
 
+**Private Home pilot update (13 September 2026 UTC):** fresh Home recognition and
+app display were observed, followed by the reproduced two-minute expiry fallback.
+The new `lastHomeWifiDetection` record supports aged, explicitly unconfirmed Home
+presentation; it has no tracking/SOS powers. Home binding reads now have cancellable
+15-second deadlines and retry on their existing 30-second schedule. Software and
+physical acceptance remain distinct; see the [current Home runbook](services/wifi-home.md#next-device-check-for-remembered-home).
+
 **Status:** Release contract — evidence reviewed 22 August 2026
 **Applies to:** Guardian Essential, Guardian Family, Guardian Care
 **Release rule:** A feature is not launch-ready merely because a screen or code path exists.

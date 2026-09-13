@@ -93,6 +93,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     final approximate = selected?.latestLocationObservation;
     final uncertaintyRadius =
         selected?.hasHomeWifiDisplay != true &&
+            selected?.hasRememberedHomeWifiDisplay != true &&
             selected?.hasApproximateLocation == true
         ? approximate?.accuracyMeters
         : null;
@@ -218,6 +219,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   String _mapStatus(Device device) {
     if (device.hasHomeWifiConflict) return 'Location uncertain';
     if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
+    if (device.hasRememberedHomeWifiDisplay) return 'Last detected at Home';
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
     if (device.isMapDisplayingLastSatelliteLocation) {
@@ -386,6 +388,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
         '${device.displayName}\'s location',
         '${deviceHomeWifiFixLabel(device)}. The watch is at or near your saved Home pin. '
             '${deviceRetainedGpsLabel(device)}; that satellite fix is retained separately.',
+      );
+      return;
+    }
+    if (device.hasRememberedHomeWifiDisplay) {
+      _showQuickFact(
+        '${device.displayName}\'s location',
+        '${deviceLastHomeWifiFixLabel(device)}. Current presence at Home is unconfirmed. '
+            'The map shows the saved Home pin. ${deviceRetainedGpsLabel(device)}.',
       );
       return;
     }

@@ -32,6 +32,41 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 
 void main() {
   for (final width in [320.0, 1280.0]) {
+    for (final dark in [false, true]) {
+      testWidgets(
+        'remembered Home stays honest and usable at $width px, dark $dark, doubled text',
+        (tester) async {
+          final device = dashboardFixtureDevice(rememberedHome: true);
+          var calls = 0;
+          await _pump(
+            tester,
+            dashboardFixtureOverview(device: device, onCall: () => calls++),
+            width: width,
+            dark: dark,
+            textScale: 2,
+          );
+          expect(find.text('Last detected at Home'), findsWidgets);
+          expect(
+            find.textContaining(
+              'Current presence at Home is unconfirmed.',
+              findRichText: true,
+            ),
+            findsWidgets,
+          );
+          expect(find.text('At or near saved Home.'), findsNothing);
+          expect(find.text('Home Wi-Fi detected'), findsNothing);
+          expect(device.mapDisplayLocation?.source, 'home_wifi_last_detected');
+          expect(device.hasHomeWifiDisplay, false);
+          expect(tester.takeException(), isNull);
+          await _tap(tester, find.text('Call watch'));
+          expect(calls, 1);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  for (final width in [320.0, 1280.0]) {
     testWidgets(
       'Home/GPS disagreement is visible at $width px with large text',
       (tester) async {

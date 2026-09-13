@@ -2,6 +2,57 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// A past qualified detection. This never establishes current Home presence.
+class LastHomeWifiDetection {
+  const LastHomeWifiDetection({
+    required this.lat,
+    required this.lng,
+    required this.observedAt,
+    required this.qualifiedUntil,
+  });
+
+  final double lat;
+  final double lng;
+  final DateTime observedAt;
+  final DateTime qualifiedUntil;
+
+  bool isValidAt(DateTime now) =>
+      lat.isFinite &&
+      lng.isFinite &&
+      lat.abs() <= 90 &&
+      lng.abs() <= 180 &&
+      (lat != 0 || lng != 0) &&
+      !observedAt.isAfter(now) &&
+      qualifiedUntil.isAfter(observedAt) &&
+      qualifiedUntil.difference(observedAt) <= const Duration(minutes: 2);
+
+  static LastHomeWifiDetection? fromMap(Map<String, dynamic>? map) {
+    if (map == null ||
+        map['version'] != 1 ||
+        map['policy'] != 'last_detected_home_v1' ||
+        map['source'] != 'home_wifi' ||
+        map['bindingHash'] is! String ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(map['bindingHash'] as String))
+      return null;
+    final parsed = HomeWifiPresence.fromMap({
+      ...map,
+      'version': 4,
+      'policy': 'enrolled_home_radio_v4',
+      'pilot': true,
+      'state': 'matched',
+      'expiresAt': map['qualifiedUntil'],
+    });
+    return parsed == null
+        ? null
+        : LastHomeWifiDetection(
+            lat: parsed.lat,
+            lng: parsed.lng,
+            observedAt: parsed.observedAt,
+            qualifiedUntil: parsed.expiresAt,
+          );
+  }
+}
+
 /// Backend-owned presentation evidence, separate from satellite/network fixes.
 class HomeWifiPresence {
   const HomeWifiPresence({
@@ -24,27 +75,46 @@ class HomeWifiPresence {
 
   /// Presentation guard, not a measured accuracy claim. Keep in contract with
   /// gateway/src/wifi-home-gps-policy.js and the shared display fixtures.
-  String gpsAgreementReason(double gpsLat, double gpsLng, double? accuracyMeters) {
+  String gpsAgreementReason(
+    double gpsLat,
+    double gpsLng,
+    double? accuracyMeters,
+  ) {
     final radius = radiusMeters;
-    if (radius == null || !radius.isFinite || radius <= 0 ||
-        !gpsLat.isFinite || !gpsLng.isFinite || gpsLat.abs() > 90 ||
-        gpsLng.abs() > 180 || (gpsLat == 0 && gpsLng == 0) ||
-        (accuracyMeters != null && (!accuracyMeters.isFinite || accuracyMeters <= 0))) {
+    if (radius == null ||
+        !radius.isFinite ||
+        radius <= 0 ||
+        !gpsLat.isFinite ||
+        !gpsLng.isFinite ||
+        gpsLat.abs() > 90 ||
+        gpsLng.abs() > 180 ||
+        (gpsLat == 0 && gpsLng == 0) ||
+        (accuracyMeters != null &&
+            (!accuracyMeters.isFinite || accuracyMeters <= 0))) {
       return 'gps_evidence_unconfirmed';
     }
     double radians(double degrees) => degrees * math.pi / 180;
-    final term = math.pow(math.sin(radians(gpsLat - lat) / 2), 2) +
-        math.cos(radians(lat)) * math.cos(radians(gpsLat)) *
-        math.pow(math.sin(radians(gpsLng - lng) / 2), 2);
+    final term =
+        math.pow(math.sin(radians(gpsLat - lat) / 2), 2) +
+        math.cos(radians(lat)) *
+            math.cos(radians(gpsLat)) *
+            math.pow(math.sin(radians(gpsLng - lng) / 2), 2);
     final distance = 6371000 * 2 * math.asin(math.sqrt(term.clamp(0, 1)));
     final margin = math.max(30.0, accuracyMeters ?? 30.0);
     final boundary = math.min(radius, 150.0);
     if (distance + margin <= boundary) return 'gps_agrees_with_home';
-    return distance - margin > boundary ? 'gps_outside_home' : 'gps_boundary_uncertain';
+    return distance - margin > boundary
+        ? 'gps_outside_home'
+        : 'gps_boundary_uncertain';
   }
 
-  bool gpsAgreesWithHome(double gpsLat, double gpsLng, double? accuracyMeters) =>
-      gpsAgreementReason(gpsLat, gpsLng, accuracyMeters) == 'gps_agrees_with_home';
+  bool gpsAgreesWithHome(
+    double gpsLat,
+    double gpsLng,
+    double? accuracyMeters,
+  ) =>
+      gpsAgreementReason(gpsLat, gpsLng, accuracyMeters) ==
+      'gps_agrees_with_home';
 
   static bool isConflictReason(String? reason) =>
       reason == 'gps_outside_home' || reason == 'gps_boundary_uncertain';
@@ -57,12 +127,19 @@ class HomeWifiPresence {
 
   static HomeWifiPresence? fromMap(Map<String, dynamic>? map) {
     if (map == null) return null;
-    final legacy = map['version'] == 1 && map['policy'] == 'enrolled_home_radio_v1';
-    final spatial = map['version'] == 2 && map['policy'] == 'enrolled_home_radio_v2';
-    final current = map['version'] == 3 && map['policy'] == 'enrolled_home_radio_v3';
-    final priority = map['version'] == 4 && map['policy'] == 'enrolled_home_radio_v4';
-    final reason = map['conflictReason'] is String ? map['conflictReason'] as String : null;
-    final conflict = current && map['state'] == 'conflict' && isConflictReason(reason);
+    final legacy =
+        map['version'] == 1 && map['policy'] == 'enrolled_home_radio_v1';
+    final spatial =
+        map['version'] == 2 && map['policy'] == 'enrolled_home_radio_v2';
+    final current =
+        map['version'] == 3 && map['policy'] == 'enrolled_home_radio_v3';
+    final priority =
+        map['version'] == 4 && map['policy'] == 'enrolled_home_radio_v4';
+    final reason = map['conflictReason'] is String
+        ? map['conflictReason'] as String
+        : null;
+    final conflict =
+        current && map['state'] == 'conflict' && isConflictReason(reason);
     if ((!legacy && !spatial && !current && !priority) ||
         map['pilot'] != true ||
         (map['state'] != 'matched' && !conflict) ||
@@ -84,14 +161,31 @@ class HomeWifiPresence {
     final expiry = _date(map['expiresAt']);
     final rawRadius = anchor['radiusMeters'];
     final radius = rawRadius is num ? rawRadius.toDouble() : null;
-    if (!lat.isFinite || !lng.isFinite || lat.abs() > 90 || lng.abs() > 180 ||
-        (lat == 0 && lng == 0) || observed == null || expiry == null ||
+    if (!lat.isFinite ||
+        !lng.isFinite ||
+        lat.abs() > 90 ||
+        lng.abs() > 180 ||
+        (lat == 0 && lng == 0) ||
+        observed == null ||
+        expiry == null ||
         (!legacy && (radius == null || !radius.isFinite || radius <= 0))) {
       return null;
     }
-    return HomeWifiPresence(lat: lat, lng: lng, observedAt: observed, expiresAt: expiry,
-      policyVersion: priority ? 4 : current ? 3 : spatial ? 2 : 1,
-      radiusMeters: legacy ? null : radius, conflictReason: conflict ? reason : null);
+    return HomeWifiPresence(
+      lat: lat,
+      lng: lng,
+      observedAt: observed,
+      expiresAt: expiry,
+      policyVersion: priority
+          ? 4
+          : current
+          ? 3
+          : spatial
+          ? 2
+          : 1,
+      radiusMeters: legacy ? null : radius,
+      conflictReason: conflict ? reason : null,
+    );
   }
 
   static DateTime? _date(dynamic value) {

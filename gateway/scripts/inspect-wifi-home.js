@@ -12,6 +12,7 @@ function summary(status) {
     bindingReason: p?.bindingReason || 'publisher_not_started',
     phase: p?.phase || 'not_started',
     pendingSeconds: p?.pendingSeconds ?? null,
+    bindingTimeouts: p?.bindingTimeouts ?? 0,
     sessionConnected: status.sessionConnected === true,
     matchState: status.observer?.matchState || 'no_observation',
     matchReason: status.observer?.reason || 'no_observation',
@@ -26,6 +27,7 @@ function summary(status) {
     lastConflictPublication: p?.lastConflictPublication || null,
     lastClearedAt: p?.lastClearedAt || null,
     lastClearedReason: p?.lastClearedReason || null,
+    lastHomeDetection: p?.lastHomeDetection ? { observedAt: p.lastHomeDetection.observedAt } : null,
   };
 }
 

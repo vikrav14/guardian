@@ -9,6 +9,7 @@ const { journeyDistanceKm } = require('../journey-builder');
 const { decodePolyline } = require('../polyline');
 const { buildLocationReplyData } = require('../location-reply');
 const { readHomeWifiPriority } = require('../wifi-home-display-policy');
+const { readLastHomeWifiDetection } = require('../last-home-wifi-detection');
 const {
   canonicalMedicationReminder,
   deviceCommandParams,
@@ -483,8 +484,9 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
   }
 
   const home = readHomeWifiPriority(device);
+  const rememberedHome = readLastHomeWifiDetection(device);
   const loc = device.location || {};
-  if (!home && (loc.lat == null || loc.lng == null)) {
+  if (!home && !rememberedHome && (loc.lat == null || loc.lng == null)) {
     return {
       name: deviceLabel(device),
       imei: device.imei,
@@ -529,6 +531,14 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
   }
 
   const center = matched.center || {};
+  if (rememberedHome) {
+    return { name: deviceLabel(device), imei: device.imei,
+      geofenceName: matched.name || geofenceName, geofenceId: matched.id,
+      atGeofence: null, source: rememberedHome.source,
+      observedAt: rememberedHome.recordedAt.toISOString(),
+      ageSeconds: rememberedHome.ageSeconds, reason: 'last_detected_home_only',
+      disclosure: 'Last detected at Home. Current presence in this safe zone is unconfirmed.' };
+  }
   if (home) {
     const isHome = matched.id === home.anchor.geofenceId &&
       center.lat === home.anchor.lat && center.lng === home.anchor.lng &&

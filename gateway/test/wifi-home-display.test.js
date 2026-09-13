@@ -172,12 +172,11 @@ test('publisher bounds verified binding renewals by the original radio time and 
   assert.equal(run.state.writes.at(-1), null);
 });
 
-test('publisher clears on GPS/weak evidence, revocation and failed binding reads', async () => {
+test('publisher clears on GPS/weak evidence and verified revocation', async () => {
   for (const invalidate of [
     s => { s.observation = { reason: 'satellite_observation' }; },
     s => { s.observation = { reason: 'signal_weak' }; },
     s => { s.home = false; },
-    s => { s.failRead = true; },
     s => { s.key = 'edited-home-pin'; },
   ]) {
     const run = publisherHarness();

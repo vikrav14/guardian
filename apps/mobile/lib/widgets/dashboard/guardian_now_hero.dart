@@ -73,7 +73,10 @@ class GuardianNowHero extends StatelessWidget {
     final battery = d.batteryPercent;
     final locationLabel = _locationLabel(d);
     final updateLabel = d.hasHomeWifiDisplay
-        ? deviceHomeWifiFixLabel(d) : deviceWatchCheckInLabel(d);
+        ? deviceHomeWifiFixLabel(d)
+        : d.hasRememberedHomeWifiDisplay
+        ? deviceLastHomeWifiFixLabel(d)
+        : deviceWatchCheckInLabel(d);
     final gpsLabel = deviceGpsChipLabel(d);
     final signalLabel = deviceCellularSignalLabel(d);
     final signal = d.cellularSignalPercent;
@@ -123,9 +126,13 @@ class GuardianNowHero extends StatelessWidget {
                 color: live ? GuardianColors.safe : GuardianColors.warning,
               ),
               _StatusChip(
-                icon: d.hasHomeWifiDisplay ? Icons.home_rounded : Icons.location_on_rounded,
+                icon: d.hasHomeWifiDisplay
+                    ? Icons.home_rounded
+                    : Icons.location_on_rounded,
                 label: gpsLabel,
-                color: d.hasHomeWifiDisplay ? GuardianColors.safe : GuardianColors.accent,
+                color: d.hasHomeWifiDisplay
+                    ? GuardianColors.safe
+                    : GuardianColors.accent,
               ),
               _StatusChip(
                 icon: Icons.battery_5_bar_rounded,
@@ -236,7 +243,9 @@ class GuardianNowHero extends StatelessWidget {
   }
 
   static String _locationLabel(Device device) {
-    if (device.hasHomeWifiDisplay) return 'Home';
+    if (device.hasHomeWifiDisplay || device.hasRememberedHomeWifiDisplay) {
+      return 'Home';
+    }
     final place = device.displayLocation?.placeLabel?.trim();
     if (place != null && place.isNotEmpty) return place;
     if (device.isDisplayingRetainedSatelliteLocation) {
@@ -470,6 +479,9 @@ class _WatchStatusCard extends StatelessWidget {
       return 'Battery is critically low. Charge the watch soon.';
     }
     if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
+    if (device.hasRememberedHomeWifiDisplay) {
+      return '${deviceLastHomeWifiFixLabel(device)}. Current presence at Home is unconfirmed.';
+    }
     if (device.hasHomeWifiDisplay) {
       return 'Home Wi-Fi detected. The map shows your saved Home pin. ${deviceRetainedGpsLabel(device)}.';
     }

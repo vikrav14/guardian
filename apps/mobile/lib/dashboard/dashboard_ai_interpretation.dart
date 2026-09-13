@@ -22,6 +22,11 @@ String buildGuardianAiInterpretation(Device? device) {
         '${deviceRetainedGpsLabel(device)}; satellite evidence stays separate.';
   }
 
+  if (device.hasRememberedHomeWifiDisplay) {
+    return '${deviceLastHomeWifiFixLabel(device)}. Current presence at Home is unconfirmed. '
+        'The map keeps the saved Home pin as the last detected place.';
+  }
+
   if (!isLive && !isReconnecting && device.displayLocation?.isValid == true) {
     return 'Watch offline. Guardian is keeping the last known location visible.';
   }
@@ -61,6 +66,8 @@ List<String> buildGuardianActivities(Device? device) {
     activities.add('Home Wi-Fi detected · location uncertain');
   } else if (device.hasHomeWifiDisplay) {
     activities.add('Home Wi-Fi detected');
+  } else if (device.hasRememberedHomeWifiDisplay) {
+    activities.add(deviceLastHomeWifiFixLabel(device));
   }
 
   if (device.displayLocation?.isValid == true) {
@@ -77,6 +84,9 @@ String buildTodaySummary(Device? device) {
   if (device == null) return 'No watch linked yet.';
   if (device.hasHomeWifiConflict) return deviceHomeWifiConflictLabel(device);
   if (device.hasHomeWifiDisplay) return deviceHomeWifiFixLabel(device);
+  if (device.hasRememberedHomeWifiDisplay) {
+    return '${deviceLastHomeWifiFixLabel(device)}. Current presence unconfirmed.';
+  }
   if (device.isTrulyOffline) return 'Watch offline';
   if (device.hasFreshLocation || device.hasApproximateLocation) {
     return 'Watch connected with a recent location update';

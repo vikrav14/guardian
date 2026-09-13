@@ -3,13 +3,17 @@
 const { evaluateSubscription } = require('./entitlements');
 const { validAnchor, evaluateHomeWifiDisplay } = require('./wifi-home-display-policy');
 const { validHomeRadius } = require('./wifi-home-gps-policy');
+const { readFirstSnapshot } = require('./firestore-first-snapshot');
+const { buildLastHomeWifiDetection, matchesHomeBinding } = require('./last-home-wifi-detection');
+
+const BINDING_TIMEOUT_MS = 15_000;
 
 // Private pilot binding only. A single active Home zone must belong to a linked
 // service owner with an active Family/Care subscription. Never guess a pin from
 // the provider's network estimate, an SSID or an arbitrary first safe zone.
-async function loadHomeWifiBinding(db, imei, nowMs) {
-  const zones = await db.collection('geofences').where('imei', '==', imei)
-    .where('active', '==', true).get();
+async function loadHomeWifiBinding(db, imei, nowMs, { read = ref => ref.get(), restorePresence = false } = {}) {
+  const zones = await read(db.collection('geofences').where('imei', '==', imei)
+    .where('active', '==', true));
   const homes = zones.docs.map(doc => ({ ...doc.data(), id: doc.id }))
     .filter(zone => zone.imei === imei && zone.active === true &&
       typeof zone.name === 'string' && zone.name.trim().toLowerCase() === 'home');
@@ -25,26 +29,29 @@ async function loadHomeWifiBinding(db, imei, nowMs) {
   if (typeof ownerUid !== 'string' || !ownerUid || ownerUid.includes('/')) {
     return { ready: false, reason: 'home_owner_unverified' };
   }
-  const ownerDoc = await db.collection('users').doc(ownerUid).get();
+  const ownerDoc = await read(db.collection('users').doc(ownerUid));
   const owner = ownerDoc.exists ? ownerDoc.data() : null;
   if (!owner || !Array.isArray(owner.linkedImeis) || !owner.linkedImeis.includes(imei) ||
       (owner.serviceOwnerUid && owner.serviceOwnerUid !== ownerUid)) {
     return { ready: false, reason: 'home_owner_unverified' };
   }
-  const subDoc = await db.collection('serviceSubscriptions').doc(ownerUid).get();
+  const subDoc = await read(db.collection('serviceSubscriptions').doc(ownerUid));
   const access = evaluateSubscription(subDoc.exists ? subDoc.data() : null,
     { ownerUid, now: new Date(nowMs) });
   if (!access.serviceActive || !['family', 'care'].includes(access.plan)) {
     return { ready: false, reason: 'home_family_plan_required' };
   }
+  const stored = restorePresence ? await read(db.collection('devices').doc(imei)) : null;
   return { ready: true, anchor,
+    ...(restorePresence ? { storedLastDetection: stored?.data()?.lastHomeWifiDetection || null } : {}),
     key: JSON.stringify([home.id, anchor.lat, anchor.lng, anchor.radiusMeters, ownerUid]),
     // Binding is rechecked every 30 seconds; a failed/hung read cannot renew it.
     validUntilMs: Math.min(nowMs + 60_000, access.accessUntil?.getTime() ?? Infinity) };
 }
 
 function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservation = () => null, resetObservation,
-  persist, now = Date.now, report = () => {} }) {
+  persist, now = Date.now, report = () => {}, bindingTimeoutMs = BINDING_TIMEOUT_MS,
+  setTimer = setTimeout, clearTimer = clearTimeout }) {
   let binding = null;
   let bindingKey;
   let nextBindingAt = 0;
@@ -60,6 +67,33 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   let lastConflictPublication = null;
   let lastClearedAt = null;
   let lastClearedReason = null;
+  let lastDetection = null;
+  let restorePresence = true;
+  let bindingAbort = null;
+  let bindingTimeouts = 0;
+
+  async function boundedBindingRead(at) {
+    const controller = new AbortController();
+    bindingAbort = controller;
+    let timer;
+    let onAbort;
+    try {
+      const cancelled = new Promise((_, reject) => {
+        onAbort = () => reject(controller.signal.reason);
+        controller.signal.addEventListener('abort', onAbort, { once: true });
+        timer = setTimer(() => controller.abort(new Error('home_binding_timeout')), bindingTimeoutMs);
+        timer.unref?.();
+      });
+      return await Promise.race([
+        Promise.resolve().then(() => readBinding(at, { signal: controller.signal, restorePresence })),
+        cancelled,
+      ]);
+    } finally {
+      clearTimer(timer);
+      controller.signal.removeEventListener('abort', onAbort);
+      if (bindingAbort === controller) bindingAbort = null;
+    }
+  }
 
   function selection(clock = now()) {
     return evaluateHomeWifiDisplay(readObservation(clock), binding, clock, readGpsObservation());
@@ -97,6 +131,8 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
       lastConflictPublication: lastConflictPublication ? { ...lastConflictPublication } : null,
       lastClearedAt,
       lastClearedReason,
+      bindingTimeouts,
+      lastHomeDetection: lastDetection ? { observedAt: lastDetection.observedAt } : null,
     };
   }
 
@@ -123,8 +159,12 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
         nextBindingAt = now() + 30_000;
         phase = 'home_binding_read';
         operationStartedAt = now();
-        try { binding = await readBinding(now()); }
-        catch { binding = { ready: false, reason: 'home_binding_unavailable' }; }
+        try { binding = await boundedBindingRead(now()); }
+        catch (error) {
+          const timedOut = error?.message === 'home_binding_timeout';
+          if (timedOut) bindingTimeouts++;
+          binding = { ready: false, reason: timedOut ? 'home_binding_timeout' : 'home_binding_unavailable' };
+        }
         phase = 'idle';
         operationStartedAt = null;
         if (stopped) return;
@@ -133,11 +173,27 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
           bindingKey = key;
           resetObservation(); // Reconfirm after enrollment/anchor/owner changes.
         }
+        if (binding?.ready && restorePresence) {
+          lastDetection = matchesHomeBinding(binding.storedLastDetection, binding, new Date(now()))
+            ? binding.storedLastDetection : null;
+          restorePresence = false;
+        }
+      }
+      // Network failures cannot renew fresh Home. Let its bounded published
+      // lease expire locally; do not replace the cancelled read with a blocking
+      // SDK write on the same unavailable connection. Retry the binding read on
+      // its normal schedule. Historical evidence retains its original age.
+      if (['home_binding_timeout', 'home_binding_unavailable'].includes(binding?.reason)) {
+        diagnose(binding.reason, false);
+        return;
       }
       const clock = now();
       const decision = selection(clock);
       const value = decision.value;
-      const same = JSON.stringify(value) === JSON.stringify(lastValue);
+      const detection = value?.state === 'matched' ? buildLastHomeWifiDetection(value, binding) :
+        matchesHomeBinding(lastDetection, binding, new Date(clock)) ? lastDetection : null;
+      const same = JSON.stringify(value) === JSON.stringify(lastValue) &&
+        JSON.stringify(detection) === JSON.stringify(lastDetection);
       // Clear invalid evidence immediately and bound periodic renewal writes.
       // A freshly verified binding can extend the display lease only as far as
       // the ORIGINAL radio expiry (capped by buildHomeWifiDisplay). Its source
@@ -149,9 +205,10 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
       if (!same && !renewalThrottled) {
         phase = 'home_presence_write';
         operationStartedAt = now();
-        await persist(value);
+        await persist(value, detection);
         if (stopped) return;
         lastValue = value;
+        lastDetection = detection;
         lastWriteAt = now();
         const currentValue = selection(lastWriteAt).value;
         if (value && Date.parse(value.expiresAt) > lastWriteAt && currentValue?.state === value.state) {
@@ -179,17 +236,23 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   // Packet tracking reads the same current decision synchronously. No database
   // access, writes, hardware commands or dependency on publication latency.
   const getEvidence = (clock = now()) => stopped ? null : selection(clock).value;
-  return { tick, getStatus, getEvidence, stop: () => { stopped = true; } };
+  return { tick, getStatus, getEvidence, stop: () => {
+    stopped = true;
+    bindingAbort?.abort(new Error('home_binding_cancelled'));
+  } };
 }
 
 function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation, resetObservation }) {
   if (!db || !/^\d{15}$/.test(imei || '')) return null;
   const publisher = createHomeWifiPublisher({
-    readBinding: nowMs => loadHomeWifiBinding(db, imei, nowMs),
+    readBinding: (nowMs, { signal, restorePresence }) => loadHomeWifiBinding(db, imei, nowMs,
+      { restorePresence, read: reference => readFirstSnapshot(reference, signal) }),
     readObservation, readGpsObservation, resetObservation,
     // A separate backend-owned field: no updatedAt, location, history, presence
     // heartbeat, geofence, intelligence or notification writes are triggered.
-    persist: value => db.collection('devices').doc(imei).update({ homeWifiPresence: value }),
+    persist: (value, lastDetection) => db.collection('devices').doc(imei).update({
+      homeWifiPresence: value, lastHomeWifiDetection: lastDetection,
+    }),
     report: data => console.log(`[wifi-home-display] ${JSON.stringify(data)}`),
   });
   void publisher.tick();
@@ -201,4 +264,4 @@ function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation,
   return stop;
 }
 
-module.exports = { loadHomeWifiBinding, createHomeWifiPublisher, startHomeWifiPublisher };
+module.exports = { BINDING_TIMEOUT_MS, loadHomeWifiBinding, createHomeWifiPublisher, startHomeWifiPublisher };

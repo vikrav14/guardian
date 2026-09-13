@@ -1,5 +1,71 @@
 # V52 native Wi-Fi fence validation
 
+## Remembered Home and read recovery — 13 September 2026 UTC
+
+The stationary pilot reproduced two independent problems: a Home binding read
+pending for 70,431 seconds, and fresh Home disappearing after its radio evidence
+expired. After a restart and one explicit location request, the app displayed
+**Home · Home Wi-Fi detected**. The last qualifying sighting was 20:11:49 UTC;
+its radio expiry was 20:13:49 UTC. The subsequent clear reason was
+`observation_expired` (the clear line itself has no timestamp). The operator
+remained at Home. See the [redacted record](../testing/wifi-home-expiry-2026-09-13.json).
+
+The implementation now keeps two independent records:
+
+| Record | Meaning and consumers |
+| --- | --- |
+| `homeWifiPresence` | Existing v4 fresh Home priority, with its original radio/owner/plan expiry. Only this record can affect tracking priority. |
+| `lastHomeWifiDetection` | Earlier qualified Home-router detection and saved Home pin, with its original time. App/map/details and ordinary WhatsApp may show **Last detected at Home · age**, always with current presence unconfirmed. |
+
+The historical record is written atomically with a qualified fresh publication.
+It survives ordinary radio expiry and gateway restart; it never renews source
+age, creates a current Home claim, suppresses movement, changes raw telemetry,
+creates a route/zone transition, or changes frozen SOS selection. A newer accepted
+GPS fix replaces it in presentation even after that GPS fix ages. Broad network
+estimates and heartbeats neither erase nor renew it. Legacy presence-only records
+are not converted into history: a new qualifying detection must populate the field.
+
+Startup restores history only after verifying the current Home pin, linked owner
+and plan against its binding fingerprint. Verified pin/owner/plan changes clear
+incompatible history. A transient read failure preserves the previous historical
+detection, while the bounded fresh record expires normally. Stopping the publisher
+is not a new detection and does not refresh either timestamp.
+
+Home binding reads use cancellable first-snapshot listeners with a **15-second
+operation deadline**. Timeout unsubscribes the active read, rejects late callbacks,
+ends runtime Home priority and retries on the existing **30-second schedule**.
+The failure path sends no offline clearing write that could itself block retry;
+already-published fresh Home remains bounded by its original lease. Genuine
+revocation still clears the fields after a successful binding read. The read-only
+checker exposes `bindingTimeouts` and the redacted historical source timestamp.
+This change targets binding reads; a separately stalled presence write is still
+reported by its existing `home_presence_write` diagnostic.
+
+No watch reporting interval, radio qualification threshold, native command,
+Home radius, subscription entitlement or customer enrollment flow changes.
+Physical acceptance of history/recovery and departure/return remains open.
+
+### Next device check for remembered Home
+
+1. Update `feat/v52-wifi-home`; restart both gateway and Flutter from that checkout.
+   Reuse the existing enrollment and saved Home/School zones.
+2. With the watch near the router, use the existing protected
+   `npm run wifi-home:check -- --request-location` once if fresh evidence is absent.
+   Verify fresh Home in the app and ordinary WhatsApp `location?`.
+3. Let reports become quiet without another request. The fresh state must expire,
+   while app/map/details/chat show **Last detected at Home** with increasing age
+   and unconfirmed current presence. Run the read-only checker; fresh flags must
+   be false and `lastHomeDetection.observedAt` must remain unchanged.
+4. Restart only the gateway. After a successful binding read, history should
+   restore without another location request and without current Home priority.
+5. Separately verify an actual outdoor departure and return, with stable gateway
+   Internet. New accepted GPS must replace the historical pin and normal tracking
+   must proceed; expiry/restart alone must not generate an exit or synthetic trip.
+
+Do not repeat native fencing or create a CR loop. Software regression coverage is
+in the shared `wifi-home-remembered.json` fixtures, publisher recovery tests,
+Firestore authorization tests and responsive app tests. CI is tracked on PR #116.
+
 ## Current v4 Home-radio priority — 11 September 2026 UTC
 
 The operator supplied the v3 conflict screenshot and rejected its behavior.

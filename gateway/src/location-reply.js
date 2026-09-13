@@ -4,6 +4,7 @@ const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
 const { toDate } = require('./sos-location-policy');
 const { batteryFreshness, formatAge } = require('./battery-freshness');
 const { readHomeWifiDisplay, readHomeWifiConflict } = require('./wifi-home-display-policy');
+const { readLastHomeWifiDetection } = require('./last-home-wifi-detection');
 
 function recordedDate(value, now) {
   try {
@@ -30,7 +31,8 @@ function buildLocationReplyData(device = {}, { now = new Date() } = {}) {
   const clock = selection.capturedAt;
   const home = readHomeWifiDisplay(device, { now: selection.capturedAt });
   const conflict = readHomeWifiConflict(device, { now: selection.capturedAt });
-  const loc = home || selection.location;
+  const rememberedHome = readLastHomeWifiDetection(device, { now: selection.capturedAt });
+  const loc = home || rememberedHome || selection.location;
   const latest = selection.latestObservation;
   const heartbeatAt = recordedDate(device.lastHeartbeatAt, clock);
   const updatedAt = recordedDate(device.updatedAt, clock);
@@ -49,17 +51,18 @@ function buildLocationReplyData(device = {}, { now = new Date() } = {}) {
     accuracySource: loc?.source || null,
     accuracyMeters: loc?.accuracyMeters ?? null,
     recordedAt: loc?.recordedAt?.toISOString() || null,
-    ageSeconds: home?.ageSeconds ?? selection.ageSeconds,
-    stalenessSeconds: home?.ageSeconds ?? selection.ageSeconds,
-    locationState: home ? 'fresh' : selection.state,
-    retainedSatellite: home ? false : selection.retainedSatellite,
+    ageSeconds: home?.ageSeconds ?? rememberedHome?.ageSeconds ?? selection.ageSeconds,
+    stalenessSeconds: home?.ageSeconds ?? rememberedHome?.ageSeconds ?? selection.ageSeconds,
+    locationState: home ? 'fresh' : rememberedHome ? 'last_known' : selection.state,
+    retainedSatellite: home || rememberedHome ? false : selection.retainedSatellite,
     homeWifiDetected: Boolean(home),
+    lastDetectedAtHome: Boolean(rememberedHome),
     homeWifiConflict: Boolean(conflict),
     homeWifiObservedAt: conflict?.observedAt.toISOString() || null,
     homeWifiAgeSeconds: conflict?.ageSeconds ?? null,
-    retainedGpsRecordedAt: home && selection.location?.source === 'gps'
+    retainedGpsRecordedAt: (home || rememberedHome) && selection.location?.source === 'gps'
       ? selection.location.recordedAt?.toISOString() || null : null,
-    retainedGpsAgeSeconds: home && selection.location?.source === 'gps' ? selection.ageSeconds : null,
+    retainedGpsAgeSeconds: (home || rememberedHome) && selection.location?.source === 'gps' ? selection.ageSeconds : null,
     latestObservationSource: latest?.source || null,
     latestObservationAt: latest?.recordedAt?.toISOString() || null,
     latestObservationAgeSeconds: ageSeconds(latest?.recordedAt, clock),
@@ -70,6 +73,8 @@ function buildLocationReplyData(device = {}, { now = new Date() } = {}) {
       ? 'Home Wi-Fi detected, but GPS does not confirm the saved Home location. Current position unconfirmed. The map shows a recorded position, not confirmed current whereabouts.'
       : home
       ? 'Home Wi-Fi detected. The watch is at or near the saved Home pin; this is not a GPS fix.'
+      : rememberedHome
+      ? 'Last detected at Home. Current presence at Home is unconfirmed. The map shows the saved Home pin from that earlier Wi-Fi detection.'
       : !loc
       ? 'No usable recorded location is available.'
       : selection.retainedSatellite
@@ -138,7 +143,15 @@ function formatLocationReply(result) {
       'The recorded position below is shown for reference.', '');
   }
 
-  if (result.homeWifiDetected === true && result.accuracySource === 'home_wifi' && result.mapsUrl) {
+  if (result.lastDetectedAtHome === true && result.accuracySource === 'home_wifi_last_detected' && result.mapsUrl) {
+    lines.push(`*Last detected at Home for ${name}*`,
+      recordedTime(result), 'Current presence at Home is unconfirmed.',
+      'The map shows your saved Home pin from that earlier Wi-Fi detection.');
+    if (result.retainedGpsRecordedAt) {
+      lines.push('', `Last GPS fix retained separately: ${formatAge(result.retainedGpsAgeSeconds) || 'time unavailable'}.`);
+    }
+    lines.push('', 'View last detected Home location:', result.mapsUrl);
+  } else if (result.homeWifiDetected === true && result.accuracySource === 'home_wifi' && result.mapsUrl) {
     lines.push(`*Home Wi-Fi detected for ${name}*`,
       'The watch is at or near your saved Home location.',
       `Detected ${formatAge(result.ageSeconds) || 'recently'}.`,
