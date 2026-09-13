@@ -101,31 +101,37 @@ void main() {
         deviceService: DeviceService(db: db, auth: auth),
         geofenceService: GeofenceService(db: db, auth: auth),
       );
-      addTearDown(controller.dispose);
-      var changes = 0;
-      controller.addListener(() => changes++);
-      controller.start();
-      await tester.pump();
-      await tester.pump();
-      expect(controller.selected!.homeWifiLocationAt(now), isNotNull);
-      final initial = changes;
-      now = start.add(const Duration(minutes: 3));
-      await tester.pump(const Duration(seconds: 1));
-      expect(changes, greaterThan(initial));
-      expect(controller.selected!.homeWifiLocationAt(now), isNull);
-      expect(controller.selected!.rememberedHomeWifiLocationAt(now), isNotNull);
-      expect(
-        deviceMapLocationFixLabel(controller.selected!, now: now),
-        'Last detected at Home 3m ago',
-      );
-      final aged = changes;
-      now = start.add(const Duration(minutes: 4));
-      await tester.pump(const Duration(seconds: 1));
-      expect(changes, greaterThan(aged));
-      expect(
-        deviceMapLocationFixLabel(controller.selected!, now: now),
-        'Last detected at Home 4m ago',
-      );
+      try {
+        var changes = 0;
+        controller.addListener(() => changes++);
+        controller.start();
+        await tester.pump();
+        await tester.pump();
+        expect(controller.selected!.homeWifiLocationAt(now), isNotNull);
+        final initial = changes;
+        now = start.add(const Duration(minutes: 3));
+        await tester.pump(const Duration(seconds: 1));
+        expect(changes, greaterThan(initial));
+        expect(controller.selected!.homeWifiLocationAt(now), isNull);
+        expect(
+          controller.selected!.rememberedHomeWifiLocationAt(now),
+          isNotNull,
+        );
+        expect(
+          deviceMapLocationFixLabel(controller.selected!, now: now),
+          'Last detected at Home 3m ago',
+        );
+        final aged = changes;
+        now = start.add(const Duration(minutes: 4));
+        await tester.pump(const Duration(seconds: 1));
+        expect(changes, greaterThan(aged));
+        expect(
+          deviceMapLocationFixLabel(controller.selected!, now: now),
+          'Last detected at Home 4m ago',
+        );
+      } finally {
+        controller.dispose();
+      }
     },
   );
 
