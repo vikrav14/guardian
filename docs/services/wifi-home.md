@@ -302,16 +302,22 @@ The current policy is `version: 4` / `enrolled_home_radio_v4`, `state: matched`:
   any saved-zone transition. Home proximity seeds the Home baseline without
   generating an arrival alert; School does not compete with it. A pending
   geofence query rechecks Home after its database read to avoid a late GPS exit.
+  A bounded private buffer can retain fresh GPS candidates without changing
+  Home presentation or creating movement while radio priority remains active.
 - If a journey is already open, preserve it at its last recorded route endpoint
   with `closeReason: home_wifi_detected`. Do not add the Home pin as a GPS point,
   draw the missing final segment, or label this a measured return crossing.
 - On radio loss or expiry, map/chat resume normal GPS/network selection. Expiry
-  alone creates no alert/trip. The movement path waits for a new, fresh valid
-  GPS observation after the last Home sighting before resuming normal boundary
-  rules, allowing the existing V52 clock-skew tolerance of at most 15 seconds.
+  alone creates no alert/trip. On radio expiry, a bounded, corroborated GPS walk
+  retained during Home priority may resume the journey under the existing
+  boundary rules, using its original GPS timestamps. Otherwise the movement
+  path waits for a new fresh valid GPS observation after the last Home sighting,
+  allowing the existing V52 clock-skew tolerance of at most 15 seconds.
   A resulting GPS-proven outside observation can emit a Home exit. Reset
   the journey reference so indoor GPS and pre-Home anchors cannot add a false
   segment to the new route.
+  See [short-walk recovery rules and timeline](../testing/home-wifi-short-walk-recovery-2026-09-14.md)
+  for the stricter provisional checks, cancellation and acceptance limits.
 - Raw GPS/network telemetry, original observation times and history remain
   available. SOS/fall packets, ACKs, frozen incident location and escalation
   retain their accepted independent contract. Home is never rewritten as GPS.

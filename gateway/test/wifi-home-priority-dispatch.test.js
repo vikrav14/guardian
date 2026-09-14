@@ -21,7 +21,7 @@ test('real dispatcher retains raw telemetry but blocks GPS tracking while Home h
     imei, active: true, name: 'Home', center: { lat: -20.25, lng: 57.5 }, radiusMeters: 50,
   }) }] }) };
   const db = { collection: () => query };
-  const writes = [], history = [], alerts = [], journeys = [], errors = [];
+  const writes = [], history = [], alerts = [], journeys = [], errors = [], retained = [];
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
     net: { createServer: () => ({ on: noop, listen: noop }) },
@@ -46,7 +46,8 @@ test('real dispatcher retains raw telemetry but blocks GPS tracking while Home h
     './geofence': { ...geofence, evaluateGeofenceTransitions: (...args) => {
       boundaryEvaluations++; return geofence.evaluateGeofenceTransitions(...args);
     } },
-    './wifi-home-runtime': { observeWifiHomeEvent: noop, getHomeWifiPriority: () => home },
+    './wifi-home-runtime': { observeWifiHomeEvent: noop, getHomeWifiPriority: () => home,
+      observeHomeWifiWalk: (device, location) => retained.push({ device, location }) },
     './wifi-home-tracking': { selectHomeWifiTracking: createHomeWifiTrackingPolicy() },
   };
   const sandbox = { require: name => modules[name] || {}, module: { exports: {} },
@@ -66,6 +67,11 @@ test('real dispatcher retains raw telemetry but blocks GPS tracking while Home h
   assert.equal(writes.at(-1).location.source, 'gps');
   assert.equal(history.at(-1).lat, point.lat);
   assert.equal(history.at(-1).recordedAt, point.recordedAt);
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0].device, imei);
+  assert.equal(retained[0].location.source, 'gps');
+  assert.equal(retained[0].location.recordedAt, point.recordedAt);
+  assert.equal(retained[0].location.speedKmh, 20);
 
   home = null;
   await sandbox.module.exports.applyEvents([{ ...event,

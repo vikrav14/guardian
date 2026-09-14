@@ -51,7 +51,8 @@ const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { claimSosIncident } = require('./sos-incident-window');
-const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority } = require('./wifi-home-runtime');
+const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, observeHomeWifiWalk } = require('./wifi-home-runtime');
+const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
 const { selectHomeWifiTracking } = require('./wifi-home-tracking');
 const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 
@@ -121,7 +122,12 @@ const {
 initFirestore();
 
 if (config.wifiHomeDisplayPilotEnabled) {
-  try { startWifiHomeDisplayPilot(getDb()); }
+  try { startWifiHomeDisplayPilot(getDb(), {
+    recoverWalk: (points, batch, current, signal) => recoverHomeWifiWalk({
+      db: getDb(), imei: config.wifiHomePilotImei, points, batch, current, signal,
+      createAlert, flushJourneys,
+    }),
+  }); }
   catch { console.warn('[wifi-home-display] pilot unavailable; tracking continues'); }
 }
 
@@ -423,6 +429,8 @@ async function applyEvents(events, session, packetArgs) {
 
 
 
+        observeHomeWifiWalk?.(locEvent.imei,
+          { ...locEvent.location, speedKmh: locEvent.speedKmh }, new Date());
         const db = getDb();
         let trackingDecision = selectHomeWifiTracking(locEvent.imei, locEvent.location,
           getHomeWifiPriority(locEvent.imei), new Date());

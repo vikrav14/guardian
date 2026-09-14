@@ -2,6 +2,15 @@
 
 Review of PR #116 runtime e9cad97 / documentation head ebb4739, following two physical pilot walks. No private coordinates, device identifiers or Home binding IDs are included.
 
+**Implementation update:** the original review below is historical. The browser
+fix was confirmed by the operator at `19ed4ec`. Subsequent gateway logs put the
+second walk's four samples 21–34m from the shared Home pin (no proven exit), and
+the third walk's first GPS 107m away while Home priority was still active.
+Bounded recovery of corroborated GPS retained during Home priority is now
+implemented on this branch. See [the current rules, timeline and acceptance
+limits](home-wifi-short-walk-recovery-2026-09-14.md). Other proposals below remain
+unimplemented, including within-Home movement and report-frequency changes.
+
 ## Finding: the saved first walk is already eligible
 
 The supplied read-only record contains four aligned satellite observations (evidence version 3), 138 seconds of recorded movement, connected GPS distance 0.122 km, a GPS Home exit, a GPS Home entry, and closure by `home_wifi_detected`. Its point intervals are 12, 72 and 54 seconds. Its missing route-start anchor does not disqualify this close reason.

@@ -10,6 +10,7 @@ let observer;
 let lastLogMs = null;
 let lastState = null;
 let displayPublisher = null;
+let walkBuffer = null;
 
 function observeWifiHomeEvent(event, receivedAt, packetArgs) {
   if (config.wifiHomeObserveEnabled !== true || event?.imei !== config.wifiHomePilotImei) return;
@@ -36,16 +37,33 @@ function observeWifiHomeEvent(event, receivedAt, packetArgs) {
   }
 }
 
-function startWifiHomeDisplayPilot(db) {
+function startWifiHomeDisplayPilot(db, { recoverWalk } = {}) {
   if (!config.wifiHomeObserveEnabled || !config.wifiHomeDisplayPilotEnabled) return null;
   displayPublisher?.();
   const { startHomeWifiPublisher } = require('./wifi-home-display');
-  displayPublisher = startHomeWifiPublisher({ db, imei: config.wifiHomePilotImei,
+  const publisher = startHomeWifiPublisher({ db, imei: config.wifiHomePilotImei,
     readObservation: nowMs => observer?.snapshot(nowMs),
     readGpsObservation: () => observer?.readGpsObservation() || null,
     resetObservation: () => { observer = undefined; },
   });
+  if (!publisher) { displayPublisher = null; return null; }
+  walkBuffer = typeof recoverWalk === 'function' ? require('./home-wifi-walk-buffer').createHomeWifiWalkBuffer({
+    readContext: clock => publisher.getTrackingContext(clock), recover: recoverWalk,
+    report: data => console.log(`[wifi-home-walk] ${JSON.stringify(data)}`),
+  }) : null;
+  const buffer = walkBuffer;
+  const timer = buffer && setInterval(() => { void buffer.tick(); }, 1000);
+  timer?.unref?.();
+  displayPublisher = Object.assign(() => {
+    if (timer) clearInterval(timer);
+    buffer?.stop(); publisher();
+    if (walkBuffer === buffer) walkBuffer = null;
+  }, { getStatus: publisher.getStatus, getEvidence: publisher.getEvidence });
   return displayPublisher;
+}
+
+function observeHomeWifiWalk(imei, point, receivedAt = new Date()) {
+  if (imei === config.wifiHomePilotImei) walkBuffer?.observe(point, receivedAt.getTime());
 }
 
 function getWifiHomeRuntimeStatus(nowMs = Date.now()) {
@@ -71,4 +89,4 @@ function getHomeWifiPriority(imei, nowMs = Date.now()) {
 }
 
 module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot, getWifiHomeRuntimeStatus,
-  getHomeWifiPriority };
+  getHomeWifiPriority, observeHomeWifiWalk };

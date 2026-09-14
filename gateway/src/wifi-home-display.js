@@ -236,7 +236,15 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   // Packet tracking reads the same current decision synchronously. No database
   // access, writes, hardware commands or dependency on publication latency.
   const getEvidence = (clock = now()) => stopped ? null : selection(clock).value;
-  return { tick, getStatus, getEvidence, stop: () => {
+  // Private in-memory context; never expose the binding key in operator output.
+  const getTrackingContext = (clock = now()) => ({
+    ready: !stopped && binding?.ready === true && binding.validUntilMs > clock,
+    key: binding?.key,
+    anchor: binding?.anchor ? { ...binding.anchor } : null,
+    home: getEvidence(clock),
+    observation: readObservation(clock),
+  });
+  return { tick, getStatus, getEvidence, getTrackingContext, stop: () => {
     stopped = true;
     bindingAbort?.abort(new Error('home_binding_cancelled'));
   } };
@@ -261,6 +269,7 @@ function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation,
   const stop = () => { clearInterval(timer); publisher.stop(); };
   stop.getStatus = publisher.getStatus;
   stop.getEvidence = publisher.getEvidence;
+  stop.getTrackingContext = publisher.getTrackingContext;
   return stop;
 }
 

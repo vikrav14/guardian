@@ -145,8 +145,14 @@ async function evaluateGeofenceTransitions(db, imei, location, { readHomeEvidenc
     .where('active', '==', true)
     .get();
 
-  const events = [];
   const now = Date.now();
+  return evaluateGeofenceSnapshot(snap, imei, location, { readHomeEvidence, now });
+}
+
+// A preloaded snapshot lets a deferred GPS batch update tracking atomically:
+// no database await can interleave a new Home observation between its points.
+function evaluateGeofenceSnapshot(snap, imei, location, { readHomeEvidence, now = Date.now() } = {}) {
+  const events = [];
   // Recheck after the database await: Home may qualify while an older GPS
   // evaluation is waiting on I/O. Such a result must not produce a late exit.
   const home = readHomeEvidence && require('./wifi-home-display-policy').readHomeWifiPriority(
@@ -297,6 +303,7 @@ function resetGeofenceStateForTests() {
 
 module.exports = {
   evaluateGeofenceTransitions,
+  evaluateGeofenceSnapshot,
   getGeofencePresence,
   seedHomeWifiGeofencePresence,
   resetGeofenceStateForTests,
