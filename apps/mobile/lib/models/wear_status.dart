@@ -18,7 +18,9 @@ class WearStatus {
     if (!deviceAccepted || observedAt == null || expiresAt == null ||
         observedAt!.isAfter(now) || !expiresAt!.isAfter(now) ||
         expiresAt!.difference(observedAt!) > const Duration(seconds: 120) ||
-        !['worn', 'removed'].contains(state)) return 'unknown';
+        !['worn', 'removed'].contains(state)) {
+      return 'unknown';
+    }
     return state;
   }
 
