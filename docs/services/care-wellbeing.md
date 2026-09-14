@@ -90,4 +90,7 @@ npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --schedule-seconds 300
 npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --stop
 ```
 
-The app remains customer-hidden. When enabled after acceptance, Guardian Care shows a **Latest wellbeing** card with exact watch estimates, receipt freshness, an explicit stale/missing state, and non-medical wording.
+The app remains customer-hidden. When enabled after acceptance, all active editions share the **Wellness** dashboard with individual reading freshness, explicit stale/missing states and non-medical wording. Essential includes today; Family includes today and six preceding Mauritius calendar days; Care can browse available retained history. Skin temperature remains unavailable until its exact-device packet is validated.
+
+For the current read-only pilot check and remaining physical tests, see
+[the resumed acceptance handoff](../testing/wellness-resume-2026-09-14.md).

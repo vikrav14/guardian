@@ -21,6 +21,8 @@ const {
  */
 
 const cache = new Map();
+let journeyPersistence = null;
+function configureJourneyPersistence(value) { journeyPersistence = value; }
 
 const ALARM_PERSIST_TYPES = new Set([
   'sos',
@@ -69,9 +71,24 @@ function emptyState() {
 
 function getState(imei) {
   if (!cache.has(imei)) {
-    cache.set(imei, emptyState());
+    try {
+      const restored = journeyPersistence?.read(imei).checkpoint;
+      cache.set(imei, { ...emptyState(), ...(restored || {}) });
+    } catch (error) {
+      // A damaged journey journal must not prevent alarm telemetry/SOS delivery.
+      // Only journey mutation is blocked until the evidence can be restored.
+      cache.set(imei, { ...emptyState(), journeyRestoreError: error.message });
+      console.error(`[journey-durability] restore required: ${error.message}`);
+    }
   }
   return cache.get(imei);
+}
+
+function requireRestoredJourney(imei, state) {
+  if (state.journeyRestoreError) {
+    Object.assign(state, journeyPersistence.read(imei).checkpoint || {});
+    delete state.journeyRestoreError;
+  }
 }
 
 function onDeviceConnect(imei) {
@@ -263,11 +280,22 @@ function flushDwellIfNeeded(imei, now = new Date(), force = false) {
 
 function trackPointForJourney(imei, point, now = new Date(), options = {}) {
   const state = getState(imei);
-  return trackJourneyPoint(state, point, now, options);
+  requireRestoredJourney(imei, state);
+  const before = journeyPersistence ? JSON.parse(JSON.stringify(state)) : null;
+  try {
+    const result = trackJourneyPoint(state, point, now, options);
+    journeyPersistence?.checkpoint(imei, state, result.flushes);
+    return result;
+  } catch (error) {
+    if (before) cache.set(imei, before);
+    throw error;
+  }
 }
 
 function suspendTrackingForHome(imei, now = new Date()) {
   const state = getState(imei);
+  requireRestoredJourney(imei, state);
+  const before = journeyPersistence ? JSON.parse(JSON.stringify(state)) : null;
   const lastPoint = state.currentJourney?.points.at(-1);
   // Preserve a route at its last recorded endpoint. Home is not an invented
   // GPS point or a proven return across the saved zone boundary.
@@ -276,6 +304,8 @@ function suspendTrackingForHome(imei, now = new Date()) {
   state.lastConfirmedSafeZonePoint = null;
   state.journeyResumeReference = null;
   state.journeyResumePending = true;
+  try { journeyPersistence?.checkpoint(imei, state, closed ? [closed] : []); }
+  catch (error) { if (before) cache.set(imei, before); throw error; }
   return closed ? [closed] : [];
 }
 
@@ -311,10 +341,12 @@ function getWriteGateStats() {
 
 function resetCacheForTests() {
   cache.clear();
+  journeyPersistence = null;
   resetWriteGateStats();
 }
 
 module.exports = {
+  configureJourneyPersistence,
   onDeviceConnect,
   onDeviceDisconnect,
   seedLastKnownLocation,

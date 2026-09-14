@@ -161,6 +161,20 @@ if (config.activityStepsIngestEnabled && getDb()) {
   timer.unref?.();
 }
 
+let journeyReliability = null;
+if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
+  const { createJourneyReliability } = require('./journey-reliability');
+  journeyReliability = createJourneyReliability({ directory: config.journeyJournalDirectory, getDb, appendJourney,
+    readHomeEvidence: getHomeWifiPriority,
+    closeAtHome: (imei, home) => selectHomeWifiTracking(imei, null, home, new Date()).flushes });
+  journeyReliability.journal.acquire();
+  process.once('exit', () => journeyReliability.journal.release());
+  require('./live-cache').configureJourneyPersistence(journeyReliability.journal);
+  const retry = setInterval(() => { void journeyReliability.flush(); }, 30000);
+  retry.unref?.();
+  void journeyReliability.flush();
+}
+
 if (config.wifiHomeDisplayPilotEnabled) {
   try { startWifiHomeDisplayPilot(getDb(), {
     recoverWalk: (points, batch, current, signal) => recoverHomeWifiWalk({
@@ -261,6 +275,12 @@ async function maybeFlushDwell(imei, force = false) {
 
 
 async function flushJourneys(imei, flushes) {
+
+  if (journeyReliability) {
+    for (const journey of flushes) journeyReliability.journal.queue(imei, journey);
+    void journeyReliability.flush();
+    return;
+  }
 
   for (const journey of flushes) {
 
@@ -377,7 +397,7 @@ async function runTrackingSideEffect(event, stage, operation) {
   }
 }
 
-async function applyEvents(events, session, packetArgs) {
+async function applyEvents(events, session, packetArgs, receivedAt) {
 
   for (const event of events) {
 
@@ -396,7 +416,15 @@ async function applyEvents(events, session, packetArgs) {
     try {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
-      const eventReceivedAt = new Date();
+      const eventReceivedAt = receivedAt || new Date();
+      // Record before remote awaits. Old location reports belong to history,
+      // never the current map, geofence alerts or adaptive reporting.
+      const journeyRoute = event.type === 'location'
+        ? journeyReliability?.route(event, eventReceivedAt, getHomeWifiPriority(event.imei)) : null;
+      if (journeyRoute && !journeyRoute.live) {
+        console.log(`[journey-ingress] ${JSON.stringify(journeyRoute)}`);
+        continue;
+      }
       // Observe the original packet before geolocation or write gating. This
       // synchronous, in-memory pilot must never interrupt tracking or SOS.
       try {
@@ -430,16 +458,21 @@ async function applyEvents(events, session, packetArgs) {
 
       if (activityStepsStore && event.imei && event.stepsRaw != null) {
         try {
-          const activityResult = await activityStepsStore.ingest(
+          // A slow supplementary write must not delay location or SOS. The
+          // store serializes counters per watch and handles receipt ordering.
+          void activityStepsStore.ingest(
             event,
             eventReceivedAt,
-          );
-          if (activityResult.status === 'stored') {
-            console.log(
-              `[activity] ${event.imei} ${activityResult.day.localDate} ` +
-                `quality=${activityResult.day.quality}`
-            );
-          }
+          ).then(activityResult => {
+            if (activityResult.status === 'stored') {
+              console.log(
+                `[activity] ${event.imei} ${activityResult.day.localDate} ` +
+                  `quality=${activityResult.day.quality}`
+              );
+            }
+          }).catch(err => {
+            console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
+          });
         } catch (err) {
           // Activity is supplementary. A malformed counter or Firestore issue
           // must never interrupt heartbeat, location or SOS processing.
@@ -480,7 +513,8 @@ async function applyEvents(events, session, packetArgs) {
         console.log(
           `[location] ${locEvent.imei} source=${locEvent.accuracySource} ` +
             `gps=${locEvent.gpsValid ? 'A' : 'V'} ` +
-            `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel}`
+            `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel} ` +
+            `observedAt=${new Date(locEvent.location.recordedAt).toISOString()} receivedAt=${eventReceivedAt.toISOString()}`
         );
 
         noteDeviceLocation(locEvent.imei, eventReceivedAt.getTime());
@@ -645,6 +679,8 @@ async function applyEvents(events, session, packetArgs) {
           await flushJourneys(locEvent.imei, journeyResult.flushes);
 
         }
+
+        journeyReliability?.processed(locEvent.imei, journeyRoute?.id, trackingDecision.hold);
 
 
 
@@ -1260,6 +1296,19 @@ const server = net.createServer((socket) => {
 
       const { acks, events } = handlePacket(decoded, session);
 
+      const receivedAt = new Date();
+      if (journeyReliability) {
+        try {
+          for (const event of events) if (event.type === 'location') {
+            journeyReliability.capture(event, receivedAt, getHomeWifiPriority(event.imei));
+          }
+        } catch (error) {
+          console.error(`[journey-durability] GPS evidence not committed: ${error.message}`);
+          // Alarms bypass history persistence and remain acknowledged/delivered.
+          if (!events.some(e => e.type === 'alarm')) continue;
+        }
+      }
+
       // Bounded admin-started evidence capture. It never changes decoded events,
       // ACKs or customer state, and isolates all diagnostic failures internally.
       observeWifiFencePacket(decoded, events);
@@ -1270,7 +1319,11 @@ const server = net.createServer((socket) => {
 
       }
 
-      applyEvents(events, session, decoded.args).catch((err) => {
+      const apply = () => applyEvents(events, session, decoded.args, receivedAt);
+      const pending = journeyReliability && events.some(e => e.type === 'location') &&
+          !events.some(e => e.type === 'alarm')
+        ? journeyReliability.enqueue(events.find(e => e.imei)?.imei, apply) : apply();
+      pending.catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 

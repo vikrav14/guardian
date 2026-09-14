@@ -186,6 +186,7 @@ class ActivityStepsStore {
     ) * 60_000;
     this.maxStepsPerMinute = finiteAtLeast(options.maxStepsPerMinute, 300, 30);
     this.states = new Map();
+    this.pending = new Map();
   }
 
   async loadState(observation) {
@@ -215,6 +216,19 @@ class ActivityStepsStore {
     });
     if (!observation) return { status: 'ignored_invalid' };
 
+    // Heartbeats and positions can arrive while an earlier write is pending.
+    // Preserve receipt order per watch, without blocking the live dispatcher.
+    const prior = this.pending.get(observation.imei) || Promise.resolve();
+    const task = prior.catch(() => {}).then(() => this.ingestObservation(observation));
+    this.pending.set(observation.imei, task);
+    try {
+      return await task;
+    } finally {
+      if (this.pending.get(observation.imei) === task) this.pending.delete(observation.imei);
+    }
+  }
+
+  async ingestObservation(observation) {
     const state = await this.loadState(observation);
     const previous = state.day;
     const previousObservedAt = asTimestamp(previous?.lastObservedAt);
@@ -228,14 +242,13 @@ class ActivityStepsStore {
       counterMode: this.counterMode,
       maxStepsPerMinute: this.maxStepsPerMinute,
     });
-    state.day = day;
-
     const rawChanged = !previous || previous.lastRaw !== day.lastRaw;
     const resetChanged = Number(previous?.resetCount || 0) !== day.resetCount;
     const anomalyChanged = Number(previous?.anomalyCount || 0) !== day.anomalyCount;
     const intervalDue = !state.lastPersistedAt ||
       observation.receivedAt.getTime() - state.lastPersistedAt.getTime() >= this.writeIntervalMs;
     if (!rawChanged && !resetChanged && !anomalyChanged && !intervalDue) {
+      state.day = day;
       return { status: 'deduplicated', day };
     }
 
