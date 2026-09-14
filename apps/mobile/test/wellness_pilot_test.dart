@@ -116,6 +116,7 @@ void main() {
     tester,
   ) async {
     final grants = StreamController<List<WellnessPilotGrant>>();
+    addTearDown(grants.close);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -132,6 +133,7 @@ void main() {
       WellnessPilotGrant(at, at.add(const Duration(seconds: 2)), true),
     ]);
     await tester.pump();
+    await tester.pump();
     expect(find.text('private reading'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
     expect(find.text('private reading'), findsNothing);
@@ -143,11 +145,12 @@ void main() {
       ),
     ]);
     await tester.pump();
+    await tester.pump();
     expect(find.text('private reading'), findsOneWidget);
     grants.add([]);
     await tester.pump();
+    await tester.pump();
     expect(find.text('private reading'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
-    await grants.close();
   });
 }
