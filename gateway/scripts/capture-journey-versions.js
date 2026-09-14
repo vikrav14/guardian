@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 'use strict';
 
 // Read only: preserve source timestamps from recent device document versions.
@@ -9,6 +8,7 @@ const admin = require('firebase-admin');
 const config = require('../src/config');
 
 function iso(value) {
+  if (value == null) return null;
   const date = value?.toDate ? value.toDate() : new Date(value);
   return Number.isFinite(+date) ? date.toISOString() : null;
 }

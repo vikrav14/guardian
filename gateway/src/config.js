@@ -10,6 +10,8 @@ const config = {
     ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
+  journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
+  journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
 
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),
