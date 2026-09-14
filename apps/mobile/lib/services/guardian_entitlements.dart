@@ -27,6 +27,7 @@ enum GuardianFeature {
   proactiveSmartNotifications,
   voiceAssistant,
   whatsappWatchCommands,
+  activitySteps,
   medicationReminders,
   reminderAcknowledgements,
   wellbeingActivitySummaries,
@@ -64,6 +65,7 @@ extension GuardianFeaturePresentation on GuardianFeature {
       'Proactive smart notifications',
     GuardianFeature.voiceAssistant => 'Voice assistant',
     GuardianFeature.whatsappWatchCommands => 'WhatsApp watch commands',
+    GuardianFeature.activitySteps => 'Steps and daily activity',
     GuardianFeature.medicationReminders => 'Medication reminders',
     GuardianFeature.reminderAcknowledgements => 'Reminder acknowledgements',
     GuardianFeature.wellbeingActivitySummaries =>
@@ -93,6 +95,7 @@ const _essentialFeatures = <GuardianFeature>{
   GuardianFeature.safeZones,
   GuardianFeature.batteryAlerts,
   GuardianFeature.familyCaregivers,
+  GuardianFeature.activitySteps,
   GuardianFeature.sosWhatsappAlerts,
 };
 
@@ -161,6 +164,14 @@ class GuardianSubscription {
       : serviceActive
       ? null
       : 0;
+
+  int? get wellnessHistoryDays => !serviceActive
+      ? 0
+      : plan == GuardianPlan.essential
+      ? 1
+      : plan == GuardianPlan.family
+      ? 7
+      : null;
 
   bool has(GuardianFeature feature) =>
       serviceActive && features.contains(feature);

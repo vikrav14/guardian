@@ -97,6 +97,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
   VoidCallback? onSafeZones,
   VoidCallback? onLinkWatch,
   List<Widget> serviceSections = const [],
+  Widget? wellness,
   String? mapStatus,
 }) {
   final selected = empty ? null : device ?? dashboardFixtureDevice();
@@ -127,6 +128,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
     onSafeZones: onSafeZones,
     onLinkWatch: onLinkWatch,
     serviceSections: serviceSections,
+    wellness: wellness,
   );
 }
 

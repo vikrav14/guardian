@@ -65,6 +65,18 @@ service cloud.firestore {
         );
     }
 
+    // Edition windows are Mauritius calendar days, including today.
+    function wellnessHistoryAllowed(recordedAt) {
+      let today = (request.time + duration.value(4, 'h')).date()
+        - duration.value(4, 'h');
+      let plan = serviceSubscription().get('plan', '');
+      return activePlanAtLeast('essential')
+        && recordedAt < today + duration.value(1, 'd')
+        && (plan == 'care'
+          || (plan == 'family' && recordedAt >= today - duration.value(6, 'd'))
+          || (plan == 'essential' && recordedAt >= today));
+    }
+
     function caregiverLimit() {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
@@ -182,6 +194,25 @@ service cloud.firestore {
             && resource.data.expiresAt > request.time;
           allow write: if false;
         }
+      }
+
+      // Gateway-owned V52 daily activity. A client must be linked, hold an
+      // active edition entitlement, and query only physically accepted
+      // displayable records. Unverified raw counters remain backend-only.
+      // Wearing data quality is available on every active edition. Raw
+      // tracker bits and diagnostic captures remain backend-only.
+      match /wearStatus/{statusId} {
+        allow read: if statusId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow write: if false;
+      }
+      match /wearDiagnostics/{captureId} {
+        allow read, write: if false;
+      }
+      match /activityDays/{localDate} {
+        allow read: if linkedTo(imei)
+          && wellnessHistoryAllowed(resource.data.lastObservedAt)
+          && resource.data.displayable == true;
+        allow create, update, delete: if false;
       }
     }
 

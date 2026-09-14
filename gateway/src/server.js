@@ -44,6 +44,10 @@ const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
 } = require('./v52-telemetry');
+const {
+  ActivityStepsStore,
+  deleteExpiredActivityDays,
+} = require('./activity-steps');
 
 const { startHttpServer } = require('./http');
 
@@ -120,6 +124,41 @@ const {
 
 
 initFirestore();
+
+const { createWearEvidence } = require('./wear-evidence');
+const wearEvidence = createWearEvidence({ db: getDb(),
+  enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
+  deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
+  onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
+});
+
+const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
+  enabled: config.activityStepsIngestEnabled,
+  customerEnabled: config.activityStepsCustomerEnabled,
+  counterMode: config.activityStepsCounterMode,
+  timeZone: config.activityStepsTimeZone,
+  retentionDays: config.activityStepsRetentionDays,
+  writeIntervalMinutes: config.activityStepsWriteMinutes,
+  maxStepsPerMinute: config.activityStepsMaxPerMinute,
+}) : null;
+
+if (config.activityStepsIngestEnabled && getDb()) {
+  const cleanupActivityDays = async () => {
+    try {
+      const deleted = await deleteExpiredActivityDays(getDb());
+      if (deleted > 0) {
+        console.log(`[activity] deleted ${deleted} expired daily record(s)`);
+      }
+    } catch (err) {
+      console.warn(`[activity] expiry cleanup failed: ${err.message}`);
+    }
+  };
+  const timer = setInterval(
+    cleanupActivityDays,
+    config.activityStepsCleanupMinutes * 60_000,
+  );
+  timer.unref?.();
+}
 
 let journeyReliability = null;
 if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
@@ -402,6 +441,30 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             eventReceivedAt,
             { protocolId: event.protocolId || null }
           );
+        }
+      }
+
+      if (activityStepsStore && event.imei && event.stepsRaw != null) {
+        try {
+          // A slow supplementary write must not delay location or SOS. The
+          // store serializes counters per watch and handles receipt ordering.
+          void activityStepsStore.ingest(
+            event,
+            eventReceivedAt,
+          ).then(activityResult => {
+            if (activityResult.status === 'stored') {
+              console.log(
+                `[activity] ${event.imei} ${activityResult.day.localDate} ` +
+                  `quality=${activityResult.day.quality}`
+              );
+            }
+          }).catch(err => {
+            console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
+          });
+        } catch (err) {
+          // Activity is supplementary. A malformed counter or Firestore issue
+          // must never interrupt heartbeat, location or SOS processing.
+          console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
         }
       }
 
@@ -1212,6 +1275,8 @@ const server = net.createServer((socket) => {
       const { acks, events } = handlePacket(decoded, session);
 
       const receivedAt = new Date();
+      try { wearEvidence.capture(decoded, events, session, receivedAt); }
+      catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
         try {
           for (const event of events) if (event.type === 'location') {
@@ -1265,6 +1330,7 @@ const server = net.createServer((socket) => {
     console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
 
     if (session?.imei) {
+      wearEvidence.disconnect(session.imei, session);
 
       noteDiagnosticEventForJourney(
         session.imei,
