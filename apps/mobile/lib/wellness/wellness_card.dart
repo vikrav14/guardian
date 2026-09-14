@@ -55,6 +55,7 @@ class WellnessCard extends StatelessWidget {
 
     final heart = latest(WellnessMetric.heartRate);
     final oxygen = latest(WellnessMetric.bloodOxygen);
+    final pressure = latest(WellnessMetric.bloodPressure);
     String status(bool available, bool error, DateTime? at) => !available
         ? 'Not available yet'
         : error
@@ -171,6 +172,17 @@ class WellnessCard extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
+          _BloodPressureRow(
+            value: readingsAvailable && !readingsError
+                ? pressure?.value ?? '—/— mmHg'
+                : '—/— mmHg',
+            status: status(
+              readingsAvailable,
+              readingsError,
+              pressure?.recordedAt,
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
             'Watch estimates · each reading has its own update time.',
             style: TextStyle(
@@ -186,6 +198,70 @@ class WellnessCard extends StatelessWidget {
               label: const Text('View wellness'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BloodPressureRow extends StatelessWidget {
+  const _BloodPressureRow({required this.value, required this.status});
+  final String value, status;
+
+  @override
+  Widget build(BuildContext context) {
+    const tint = Color(0xFFAA7845);
+    final colors = context.guardianColors;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.speed_outlined, color: tint, size: 25),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Blood pressure',
+                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Watch estimate',
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

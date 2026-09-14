@@ -7,11 +7,14 @@ and history differences by edition, and authorized implementation in this conver
 | Edition | Shared dashboard | Wellness detail | History access |
 | --- | --- | --- | --- |
 | Essential | Today's steps and available watch readings, with each update time | Dashboard only | Current Mauritius calendar day |
-| Family | Same four-tile Wellness card | Activity and watch-reading history | Today plus six preceding Mauritius calendar days |
-| Care | Same four-tile Wellness card | Same detail layout, date selection and earlier weeks | Available retained history during active service |
+| Family | Same Wellness card | Activity and watch-reading history | Today plus six preceding Mauritius calendar days |
+| Care | Same Wellness card | Same detail layout, date selection and earlier weeks | Available retained history during active service |
 
 The four dashboard tiles are steps, heart rate, blood oxygen and skin temperature.
-Blood-pressure estimates belong in details. Temperature remains `Not available yet`;
+At Rav's request on 15 September, a full-width blood-pressure row sits beneath
+these tiles, with systolic/diastolic values in mmHg, its own reading age and a
+`Watch estimate` label. It uses the latest eligible reading from today; older
+readings remain in dated details. Temperature remains `Not available yet`;
 no unverified temperature packet or request is introduced. Unsupported readings have
 no invented values. Old readings do not become today's readings. Missing days are
 gaps, not zeros. Connectivity is separate from measurement freshness.

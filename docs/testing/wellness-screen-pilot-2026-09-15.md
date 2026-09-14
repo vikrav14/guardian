@@ -9,7 +9,9 @@ It is not evidence of sensor accuracy, confirmed wearing, or unattended reliabil
 ## What appears
 
 - Home shows today's `recordedSteps`, marked Partial day, and today's received
-  heart-rate and oxygen readings with their original receipt times.
+  heart-rate, oxygen and blood-pressure readings with their original receipt times.
+  Blood pressure has a full-width row beneath the four tiles, with mmHg units,
+  its own reading age and a `Watch estimate` label.
 - Family/Care View wellness includes dated activity and heart/BP/oxygen history
   within the existing edition windows. Essential remains today-only.
 - The screen visibly identifies private, unverified readings and unconfirmed
