@@ -15,7 +15,7 @@ const epoch = Date.parse('2026-09-14T08:00:00Z');
 const at = seconds => new Date(epoch + seconds * 1000);
 const origin = { lat: -20.25, lng: 57.5 };
 let sequence = 0;
-function harness({ delayed = false } = {}) {
+function harness({ delayed = false, pendingAlert = false } = {}) {
   cache.resetCacheForTests(); resetGeofenceStateForTests();
   const imei = `synthetic-walk-${++sequence}`;
   let clock = +at(0), ready = true, source = 0, owner = 'owner';
@@ -30,7 +30,7 @@ function harness({ delayed = false } = {}) {
       observedAt: at(source).toISOString() } });
   const doc = { id: 'home', data: () => ({ imei, name: 'Home', active: true,
     center: origin, radiusMeters: 50, createdBy: owner }) };
-  let release, activeReads = 0, reads = 0, timeout;
+  let release, rejectAlert, activeReads = 0, reads = 0, timeout;
   const query = { where: () => query, onSnapshot(next) {
     reads++; activeReads++;
     release = () => next({ docs: [doc] });
@@ -43,7 +43,10 @@ function harness({ delayed = false } = {}) {
     setTimer: callback => { timeout = callback; return { unref() {} }; }, clearTimer: () => {},
     recover: (points, batch, current, signal) => recoverHomeWifiWalk({
       db: { collection: () => query }, imei, points, batch, current, signal, now: () => clock,
-      createAlert: async (_imei, alert) => alerts.push(alert),
+      createAlert: async (_imei, alert) => {
+        alerts.push(alert);
+        if (pendingAlert) await new Promise((_resolve, reject) => { rejectAlert = reject; });
+      },
       flushJourneys: async (_imei, values) => journeys.push(...values),
     }),
   });
@@ -60,7 +63,8 @@ function harness({ delayed = false } = {}) {
   return { imei, buffer, point, observe, alerts, journeys, reports, context, doc,
     setClock: seconds => { clock = +at(seconds); }, renew: seconds => { source = seconds; },
     revoke: () => { ready = false; }, changeOwner: () => { owner = 'other-owner'; },
-    release: () => release(), timeout: () => timeout(), reads: () => reads,
+    release: () => release(), failAlert: () => rejectAlert(new Error('synthetic write failure')),
+    timeout: () => timeout(), reads: () => reads,
     activeReads: () => activeReads, stop: () => buffer.stop() };
 }
 
@@ -168,6 +172,16 @@ test('read timeout cancels its listener without retrying another departure', asy
   const pending = run.buffer.tick(); run.timeout(); await pending;
   assert.equal(run.activeReads(), 0); run.release(); await run.buffer.tick();
   assert.equal(run.reads(), 1); assert.deepEqual(run.alerts, []); run.stop();
+});
+
+test('pending alert writes do not hold recovery open and delivery failures remain visible', { timeout: 1000 }, async () => {
+  const run = harness({ pendingAlert: true }); capturedWalk(run); run.setClock(120.001);
+  await run.buffer.tick();
+  assert.equal(cache.isJourneyActive(run.imei), true);
+  assert.equal(run.reports[0].outcome, 'recovered');
+  await run.buffer.tick(); assert.equal(run.reads(), 1);
+  run.failAlert(); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(run.reports.at(-1), { outcome: 'delivery_failed', failedWrites: 1 }); run.stop();
 });
 
 test('fresh zone snapshot rejects a deleted, edited or reassigned Home', async () => {

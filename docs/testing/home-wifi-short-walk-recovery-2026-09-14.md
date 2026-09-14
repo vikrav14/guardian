@@ -91,3 +91,7 @@ The redacted `[wifi-home-walk]` log records `outcome: recovered`, sample count,
 original first/last GPS timestamps and any failed alert/flush writes. A recovered
 active journey is saved by the existing later closure; the log does not claim
 that the app rendered it. No new enrollment or watch setting is required.
+
+Alert/flush delivery runs independently after the in-memory route is recovered.
+Slow writes cannot hold the next candidate behind an old batch; failures emit a
+separate `delivery_failed` diagnostic without retrying a historical departure.

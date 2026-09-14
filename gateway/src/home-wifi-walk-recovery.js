@@ -42,11 +42,13 @@ async function recoverHomeWifiWalk({ db, imei, points, batch, current, signal,
   // Preserve original event/source times. Do not replay raw writes, heartbeats,
   // dwell, intelligence, SOS dispatch or reporting commands for old packets.
   const recovered = isJourneyActive(imei) || flushes.length > 0;
-  const writes = await Promise.allSettled([
+  const delivery = Promise.allSettled([
     flushJourneys(imei, flushes),
     ...alerts.map(alert => createAlert(imei, alert)),
   ]);
-  return { recovered, failedWrites: writes.filter(result => result.status === 'rejected').length };
+  // Firestore writes can remain pending while offline. Tracking is committed;
+  // delivery must not keep the pilot's next candidate behind this old batch.
+  return { recovered, delivery };
 }
 
 module.exports = { recoverHomeWifiWalk };

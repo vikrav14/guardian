@@ -110,7 +110,11 @@ function createHomeWifiWalkBuffer({ readContext, recover, now = Date.now,
       const result = await recover(batch.points, batch, current, controller.signal);
       if (result?.recovered) report({ outcome: 'recovered', gpsPoints: batch.points.length,
         startedAt: batch.points[0].recordedAt.toISOString(),
-        lastGpsAt: batch.points.at(-1).recordedAt.toISOString(), failedWrites: result.failedWrites || 0 });
+        lastGpsAt: batch.points.at(-1).recordedAt.toISOString() });
+      if (result?.delivery) void result.delivery.then(writes => {
+        const failedWrites = writes.filter(write => write.status === 'rejected').length;
+        if (failedWrites) report({ outcome: 'delivery_failed', failedWrites });
+      });
     } catch {
       report({ outcome: 'recovery_unavailable' });
     } finally {
