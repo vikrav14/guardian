@@ -37,12 +37,12 @@ async function capture(db, imei, from, to, output) {
         for (const field of ['lastSatelliteLocation', 'lastLocationObservation', 'location']) {
           const p = data[field];
           if (!p || p.source !== 'gps' || p.gpsValid !== true || !iso(p.recordedAt)) continue;
-          if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) continue;
-          const key = [iso(p.recordedAt), p.latitude, p.longitude].join(':');
+          if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+          const key = [iso(p.recordedAt), p.lat, p.lng].join(':');
           if (seen.has(key)) continue;
           seen.add(key);
-          result.points.push({ source: 'gps', gpsValid: true, latitude: p.latitude,
-            longitude: p.longitude, recordedAt: iso(p.recordedAt),
+          result.points.push({ source: 'gps', gpsValid: true, lat: p.lat,
+            lng: p.lng, recordedAt: iso(p.recordedAt),
             accuracyMeters: p.accuracyMeters ?? null,
             readTime: new Date(at).toISOString(), documentUpdateTime: iso(snapshot.updateTime), field });
         }
