@@ -572,20 +572,26 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | First GPS fix after TCP connect | Always upsert location |
 | Dwell ≥ `DWELL_MIN_MINUTES` (default 10 min) stationary | Write `devices/{imei}/segments/{id}` |
 | Active journey closes (idle / geofence exit / day boundary / disconnect) | Write `devices/{imei}/journeys/{id}` (compressed polyline) |
-| Login / disconnect | Upsert `online` status; flush dwell + open journey on disconnect |
+| Login / disconnect | Upsert `online` status; flush dwell; preserve the active outing checkpoint |
 
-Geofence evaluation and safety alerts run on **every** valid in-memory GPS fix, even when Firestore writes are skipped. `intelligence` refreshes only on persist or alarm (not every GPS tick).
+Geofence evaluation and safety alerts run on fresh live GPS fixes even when Firestore writes are skipped. Delayed and out-of-order fixes are retained for historical journey recovery and do not create retrospective alerts. `intelligence` refreshes only on persist or alarm (not every GPS tick).
 
 | GT06 event | Firestore action |
 |------------|------------------|
 | Login | Upsert `devices/{imei}` (`online: true`) |
 | Heartbeat / status | Write gate: battery change or heartbeat cap → update device + refresh `intelligence` |
-| GPS / location | Write gate on device doc; journey buffer in memory; location history only on alarm / geofence / first fix / history interval; refresh `intelligence` only on persist |
+| GPS / location | Durable local GPS evidence and journey checkpoint; write gate on live device doc; optional location-history writes; delayed GPS recovered into journeys using original timestamps |
 | Periodic check | Refresh `intelligence` for online devices; create `offline` alert when heartbeat gap exceeds threshold (cooldown applies) |
 | SOS / fall / alarm | Always persist + create `alerts/{id}` + notify contacts |
 | Disconnect | Flush dwell segment; set `online: false` |
 
 ## Security (summary)
+
+`journeyRecoveryLocks/{deviceDayHash}` stores a transaction revision and update
+timestamp for idempotent history recovery. It is backend-only; no client rule
+grants read or write access. Recovered journeys use the existing caregiver
+authorization and history entitlements. Runtime journals are private local files,
+not a client-accessible Firestore collection.
 
 - Clients authenticate with Firebase Auth.
 - Guardians may **read** `devices` / `alerts` / `geofences` / `medicationReminders` only when `imei` is in `users/{uid}.linkedImeis`.

@@ -15,8 +15,8 @@
 | Customer-visible | Only after acceptance |
 | Protocol surface | passive `LK`/position step field; optional `PEDO`, `WALKTIME` configuration |
 
-The backend and app surfaces are implemented, but both release gates default to
-off. The gateway sends no pedometer command, the app compiles without the card,
+The backend and app surfaces are implemented, but ingestion, counter acceptance
+and customer display remain gated by default. The gateway sends no pedometer command, the app compiles without the card,
 and WhatsApp does not advertise or expose this feature until acceptance is
 recorded.
 
@@ -64,15 +64,15 @@ stored time sheet.
 - [x] aggregate steps by Mauritius local day
 - [x] reject stale packets and detect resets and implausible jumps
 - [x] persist bounded `activityDays` records without per-packet history writes
-- [x] enforce linked-watch and Family/Care reads in Firestore rules
+- [x] enforce linked-watch, consent and edition date windows in Firestore rules
 - [x] serve deterministic today/seven-day WhatsApp summaries without an LLM
 - [x] provide strict-admin, audited new-watch pedometer provisioning
 
 ## Completed app
 
-- [x] show the accepted daily total and seven-day bars
+- [x] show today's accepted total, Family seven-day bars and Care retained history
 - [x] show last-sync and unavailable states
-- [x] lock Essential to a Family upgrade boundary
+- [x] include today's Wellness dashboard in Essential and gate older dates by edition
 - [x] explain estimate and non-medical status
 
 Active minutes, calories, distance and clinical interpretations are not present
@@ -80,13 +80,13 @@ in the documented V52 counter and are deliberately not derived or advertised.
 
 ## Release gates
 
-Three independent gates prevent accidental exposure:
+Backend and app gates prevent accidental exposure:
 
 1. `ACTIVITY_STEPS_INGEST_ENABLED=false` prevents daily aggregation.
 2. `ACTIVITY_STEPS_COUNTER_MODE=unverified` makes every stored day
    non-displayable even if shadow ingestion is enabled.
-3. `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` blocks WhatsApp reads, while the
-   Flutter build flag `GUARDIAN_ACTIVITY_STEPS_ENABLED=false` omits the app card.
+3. `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` prevents publishing displayable days and blocks WhatsApp reads.
+4. The Flutter build flag `GUARDIAN_ACTIVITY_STEPS_ENABLED=false` omits the app card.
 
 Shadow collection may begin by enabling ingestion while keeping the other
 three values unchanged. After acceptance, set the counter mode to

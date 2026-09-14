@@ -17,7 +17,7 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
@@ -33,7 +33,8 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
   }
   const modules = {
     net: { createServer: () => ({ on: noop, listen: noop }) },
-    './config': { firestoreDisabled: true },
+    './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null },
+    './activity-steps': { ActivityStepsStore: function () { return activity; } },
     './firestore': {
       initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => ({}),
       getDeviceDocument: async () => {
@@ -74,12 +75,23 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
   };
   const sandbox = {
     require: name => modules[name] || {},
-    module: { exports: {} }, Date: Clock, setInterval: noop,
+    module: { exports: {} }, Date: Clock, setInterval: () => ({ unref: noop }),
     console: { log: noop, warn: (...args) => warnings.push(args), error: (...args) => errors.push(args) },
   };
-  vm.runInNewContext(`${source}\nmodule.exports = { applyEvents };`, sandbox);
+  vm.runInNewContext(`${source}\nmodule.exports = { applyEvents, setReliability: value => journeyReliability = value };`, sandbox);
+  sandbox.module.exports.setReliability(reliability);
   return { apply: sandbox.module.exports.applyEvents, alerts, writes, errors, wifiObservations, warnings };
 }
+
+test('SOS dispatcher does not depend on GPS journal availability or the location queue', async () => {
+  const run = dispatcher(fixtures[0].device, { reliability: {
+    route: () => { throw new Error('journal unavailable'); },
+    enqueue: () => new Promise(() => {}),
+  } });
+  await run.apply([alarm()], {});
+  assert.equal(run.alerts.length, 1);
+  assert.deepEqual(run.errors, []);
+});
 
 function alarm(overrides = {}) {
   return {
@@ -90,6 +102,32 @@ function alarm(overrides = {}) {
     ...overrides,
   };
 }
+
+test('a stalled step write cannot delay SOS or change its frozen location', { timeout: 1000 }, async () => {
+  const observed = [];
+  const run = dispatcher(fixtures[0].device, { activity: {
+    ingest: (event, at) => {
+      observed.push({ steps: event.stepsRaw, at });
+      return new Promise(() => {});
+    },
+  } });
+  await run.apply([alarm({ stepsRaw: 100 })], {});
+  assert.equal(observed.length, 1);
+  assert.equal(observed[0].at.getTime(), receipt.getTime());
+  assert.equal(run.alerts.length, 1);
+  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+  assert.deepEqual(run.errors, []);
+});
+
+test('a rejected step write stays observable without suppressing SOS', async () => {
+  const run = dispatcher(fixtures[0].device, { activity: {
+    ingest: async () => { throw new Error('step write unavailable'); },
+  } });
+  await run.apply([alarm({ stepsRaw: 100 })], {});
+  assert.equal(run.alerts.length, 1);
+  assert.match(run.warnings.flat().join(' '), /ingest failed: step write unavailable/);
+  assert.deepEqual(run.errors, []);
+});
 
 test('router observer sees original SOS evidence even when geolocation fails', async () => {
   const run = dispatcher(fixtures[0].device);

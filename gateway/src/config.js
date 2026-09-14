@@ -15,6 +15,8 @@ const config = {
     ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
+  journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
+  journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
 
   // V52 activity is passive and fail-closed. Raw counters continue to be
   // retained on devices/{imei}; daily aggregation stays off until the exact

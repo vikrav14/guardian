@@ -116,5 +116,8 @@ jobs:
       - name: Install Firestore test dependencies
         run: npm ci
 
+      - name: Install gateway dependencies for recovery transaction tests
+        run: npm ci --prefix ../gateway
+
       - name: Run Firestore emulator authorization tests
         run: npm test

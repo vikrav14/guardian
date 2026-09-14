@@ -113,7 +113,7 @@ test('a counter decrease that does not look like a reset fails closed', () => {
   assert.equal(decrease.reportedSteps, null);
 });
 
-function fakeDb() {
+function fakeDb({ beforeCommit = async () => {} } = {}) {
   const docs = new Map();
   const writes = [];
   const ref = (path) => ({
@@ -141,6 +141,7 @@ function fakeDb() {
       return {
         set(target, data) { pending.push({ target, data }); },
         async commit() {
+          await beforeCommit(pending);
           for (const item of pending) {
             docs.set(item.target.path, { ...(docs.get(item.target.path) || {}), ...item.data });
             writes.push(item);
@@ -232,4 +233,40 @@ test('accepted counter mode still requires explicit customer display opt-in', as
     assert.equal(db.docs.get('devices/999999999999999/activityDays/2026-09-14').displayable,
       customerEnabled);
   }
+});
+
+test('concurrent counter reports preserve same-day resets and increments', async () => {
+  const db = fakeDb();
+  const store = new ActivityStepsStore(db, { enabled: true,
+    counterMode: COUNTER_MODE_DAILY_RESET });
+  const results = await Promise.all([100, 40, 60].map((stepsRaw, index) =>
+    store.ingest({ imei: '999999999999999', stepsRaw },
+      new Date(`2026-09-14T10:0${index}:00Z`))));
+  assert.deepEqual(results.map(result => result.day.reportedSteps), [100, 140, 160]);
+  const day = db.docs.get('devices/999999999999999/activityDays/2026-09-14');
+  assert.equal(day.reportedSteps, 160);
+  assert.equal(day.resetCount, 1);
+  assert.equal(store.pending.size, 0);
+});
+
+test('a failed reset write does not consume the counter or poison its queued retry', async () => {
+  let commits = 0;
+  const db = fakeDb({ beforeCommit: async () => {
+    if (++commits === 2) throw new Error('fixture write failed');
+  } });
+  const store = new ActivityStepsStore(db, { enabled: true,
+    counterMode: COUNTER_MODE_DAILY_RESET });
+  await store.ingest({ imei: '999999999999999', stepsRaw: 100 },
+    new Date('2026-09-14T10:00:00Z'));
+  const failed = store.ingest({ imei: '999999999999999', stepsRaw: 10 },
+    new Date('2026-09-14T10:01:00Z'));
+  const retry = store.ingest({ imei: '999999999999999', stepsRaw: 10 },
+    new Date('2026-09-14T10:02:00Z'));
+  await assert.rejects(failed, /fixture write failed/);
+  const result = await retry;
+  assert.equal(result.status, 'stored');
+  assert.equal(result.day.reportedSteps, 110);
+  assert.equal(result.day.resetCount, 1);
+  assert.equal(db.writes.length, 2);
+  assert.equal(store.pending.size, 0);
 });
