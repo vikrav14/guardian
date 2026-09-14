@@ -63,7 +63,7 @@ stored time sheet.
 - [x] normalize raw counters from existing V52 events
 - [x] aggregate steps by Mauritius local day
 - [x] reject stale packets and detect resets and implausible jumps
-- [x] persist bounded `activityDays` records without per-packet history writes
+- [x] persist daily records, a durable counter baseline and at most 256 recent diagnostic intervals per watch
 - [x] enforce linked-watch, consent and edition date windows in Firestore rules
 - [x] serve deterministic today/seven-day WhatsApp summaries without an LLM
 - [x] provide strict-admin, audited new-watch pedometer provisioning
@@ -89,9 +89,15 @@ Backend and app gates prevent accidental exposure:
 4. The Flutter build flag `GUARDIAN_ACTIVITY_STEPS_ENABLED=false` omits the app card.
 
 Shadow collection may begin by enabling ingestion while keeping the other
-three values unchanged. After acceptance, set the counter mode to
-`daily_reset`, validate stored days, and only then enable the two customer
-surfaces.
+three values unchanged. In `unverified` mode, schema-v2 daily `recordedSteps`
+now sums observed increases using a persistent cross-day baseline. Customer
+`reportedSteps` stays null. After exact-device acceptance, `observed_delta`
+supports customer totals labelled **Partial day**, with separate customer flags.
+The legacy `daily_reset` mode remains available only for firmware whose daily
+reset behaviour has independently been proven; do not select it for this pilot.
+
+See [the counter ledger and midnight test](../testing/activity-counter-midnight-2026-09-14.md)
+for reset handling, boundary uncertainty, migration and the read-only capture command.
 
 ## Real-device acceptance
 
@@ -107,7 +113,12 @@ attached to this pull request. A backend write, command acknowledgement or unit
 test is not physical counter acceptance.
 
 
-## QA handoff — counter accuracy and merge block
+## Historical QA handoff — counter accuracy and merge block
+
+The 14 September operator-confirmed 98-step walk supersedes the repeat-walk
+request below for this checkpoint. Actual count, watch increase and uploaded
+increase all matched 98. Do not request the declined repeat walks again.
+Midnight and reboot semantics remain separate checks.
 
 The first pilot observations are useful but not a controlled accuracy result:
 

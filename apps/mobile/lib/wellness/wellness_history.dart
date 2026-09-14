@@ -188,7 +188,7 @@ class _DayRow extends StatelessWidget {
             Text(
               day == null
                   ? 'No reading'
-                  : '${NumberFormat.decimalPattern().format(day!.steps)} steps',
+                  : '${NumberFormat.decimalPattern().format(day!.steps)} steps${day!.partialCoverage ? ' · Partial day' : ''}',
             ),
           ],
         ),

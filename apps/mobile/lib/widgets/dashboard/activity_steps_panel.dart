@@ -147,7 +147,7 @@ class ActivityStepsCard extends StatelessWidget {
               ),
             ),
             Text(
-              'steps · ${_freshness(today.lastObservedAt)}',
+              'steps${today.partialCoverage ? ' · Partial day' : ''} · ${_freshness(today.lastObservedAt)}',
               style: textTheme.bodySmall?.copyWith(
                 color: colors.textSecondary,
               ),
@@ -217,6 +217,11 @@ class _WeekBars extends StatelessWidget {
               ),
             ],
           ),
+          if (day.partialCoverage)
+            Text(
+              'Partial day',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           const SizedBox(height: 7),
         ],
       ],

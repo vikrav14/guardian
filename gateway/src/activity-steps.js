@@ -1,9 +1,11 @@
 'use strict';
 const { cleanupWellnessRecords } = require('./wellness-retention');
+const { ingestCounterLedger, deleteExpiredActivityIntervals } = require('./activity-counter-ledger');
 
 const DEFAULT_TIME_ZONE = 'Indian/Mauritius';
 const COUNTER_MODE_UNVERIFIED = 'unverified';
 const COUNTER_MODE_DAILY_RESET = 'daily_reset';
+const COUNTER_MODE_OBSERVED_DELTA = 'observed_delta';
 const MAX_RAW_STEPS = 10_000_000;
 
 function finiteAtLeast(value, fallback, minimum) {
@@ -34,9 +36,15 @@ function normalizeActivityObservation(event = {}, options = {}) {
   const timeZone = String(options.timeZone || DEFAULT_TIME_ZONE).trim();
   const imei = String(event.imei || '').trim();
   const stepsRaw = event.stepsRaw;
+  const deviceTime = event.location?.recordedAt;
+  const deviceObservedAt = deviceTime == null ? null : asTimestamp(deviceTime);
 
   if (!imei) return null;
   if (!receivedAt || !timeZone) return null;
+  // Timestamped old uploads must not be folded into today's activity, even
+  // when this store is invoked independently of journey ingress.
+  if (deviceTime != null && (!deviceObservedAt ||
+      receivedAt - deviceObservedAt > 120_000 || deviceObservedAt - receivedAt > 30_000)) return null;
   if (!Number.isInteger(stepsRaw) || stepsRaw < 0 || stepsRaw > MAX_RAW_STEPS) {
     return null;
   }
@@ -47,7 +55,8 @@ function normalizeActivityObservation(event = {}, options = {}) {
     receivedAt,
     localDate: localDateKey(receivedAt, timeZone),
     timeZone,
-    source: String(event.source || event.command || 'v52_counter').toLowerCase(),
+    deviceObservedAt,
+    source: String(event.source || event.command || event.type || 'v52_counter').toLowerCase(),
   });
 }
 
@@ -175,8 +184,8 @@ class ActivityStepsStore {
     this.enabled = options.enabled === true;
     this.customerEnabled = options.customerEnabled === true;
     this.timeZone = String(options.timeZone || DEFAULT_TIME_ZONE);
-    this.counterMode = options.counterMode === COUNTER_MODE_DAILY_RESET
-      ? COUNTER_MODE_DAILY_RESET
+    this.counterMode = [COUNTER_MODE_DAILY_RESET, COUNTER_MODE_OBSERVED_DELTA].includes(options.counterMode)
+      ? options.counterMode
       : COUNTER_MODE_UNVERIFIED;
     this.retentionDays = finiteAtLeast(options.retentionDays, 90, 7);
     this.writeIntervalMs = finiteAtLeast(
@@ -229,6 +238,9 @@ class ActivityStepsStore {
   }
 
   async ingestObservation(observation) {
+    if (this.counterMode !== COUNTER_MODE_DAILY_RESET) {
+      return ingestCounterLedger(this.db, observation, this);
+    }
     const state = await this.loadState(observation);
     const previous = state.day;
     const previousObservedAt = asTimestamp(previous?.lastObservedAt);
@@ -277,14 +289,15 @@ async function deleteExpiredActivityDays(db, options = {}) {
     .where('expiresAt', '<=', now)
     .limit(limit)
     .get();
-  if (!snap.docs.length) return 0;
-  return (await cleanupWellnessRecords(db, snap.docs, { now })).deleted;
+  const daysDeleted = snap.docs.length ? (await cleanupWellnessRecords(db, snap.docs, { now })).deleted : 0;
+  return daysDeleted + await deleteExpiredActivityIntervals(db, now, limit);
 }
 
 module.exports = {
   DEFAULT_TIME_ZONE,
   COUNTER_MODE_UNVERIFIED,
   COUNTER_MODE_DAILY_RESET,
+  COUNTER_MODE_OBSERVED_DELTA,
   MAX_RAW_STEPS,
   localDateKey,
   normalizeActivityObservation,

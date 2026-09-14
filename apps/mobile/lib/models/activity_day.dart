@@ -7,6 +7,7 @@ class ActivityDay {
     required this.lastObservedAt,
     required this.quality,
     this.resetCount = 0,
+    this.partialCoverage = false,
   });
 
   final String localDate;
@@ -14,6 +15,7 @@ class ActivityDay {
   final DateTime lastObservedAt;
   final String quality;
   final int resetCount;
+  final bool partialCoverage;
 
   factory ActivityDay.fromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -43,6 +45,7 @@ class ActivityDay {
       lastObservedAt: observedAt,
       quality: (data['quality'] as String?)?.trim() ?? 'partial',
       resetCount: (data['resetCount'] as num?)?.toInt() ?? 0,
+      partialCoverage: data['coverage'] == 'partial',
     );
   }
 
