@@ -351,7 +351,8 @@ test('linked Family users can query journeys for a bounded day', async () => {
   await assertSucceeds(getDocs(journeys));
 });
 
-test('daily activity requires Family and hides unverified counters', async () => {
+test('daily activity permits Essential today and hides unverified counters', async () => {
+  const now = Date.now();
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
       plan: 'essential',
@@ -363,7 +364,7 @@ test('daily activity requires Family and hides unverified counters', async () =>
     'activityDays',
     '2026-08-23',
   ];
-  await assertFails(getDoc(doc(authedDb('owner'), ...path)));
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...path)));
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
@@ -379,7 +380,9 @@ test('daily activity requires Family and hides unverified counters', async () =>
       'activityDays',
     ),
     where('displayable', '==', true),
-    orderBy('localDate', 'desc'),
+    where('lastObservedAt', '>=', new Date(now - 24 * 60 * 60 * 1000)),
+    where('lastObservedAt', '<', new Date(now)),
+    orderBy('lastObservedAt', 'desc'),
   );
   await assertSucceeds(getDocs(acceptedDays));
   await assertFails(

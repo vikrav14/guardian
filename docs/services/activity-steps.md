@@ -1,9 +1,16 @@
 # Steps and daily activity
 
+> **14 September 2026 implementation update:** the shared Wellness edition design
+> supersedes older Care-only/Family-only reading access described below. Essential
+> gets today, Family seven days, and Care retained history. All device/customer
+> acceptance gates remain off by default. See
+> [the current edition contract](../design/wellness-editions-2026-09-14.md).
+
+
 | Field | Value |
 |---|---|
 | Service ID | `activity-steps` |
-| Minimum package | Family |
+| Minimum package | Essential (today); Family (7 days); Care (retained history) |
 | Current state | Implementation complete; disabled pending physical acceptance |
 | Customer-visible | Only after acceptance |
 | Protocol surface | passive `LK`/position step field; optional `PEDO`, `WALKTIME` configuration |
@@ -48,7 +55,7 @@ stored time sheet.
 - timezone-aware day boundaries
 - counter-reset detection
 - no medical claims
-- fixed, configurable retention
+- bounded retention with active-Care review for accepted history
 - stale and implausible counters fail closed
 
 ## Completed backend

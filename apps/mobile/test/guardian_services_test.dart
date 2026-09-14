@@ -737,6 +737,40 @@ void main() {
 
       expect(contacts.single.name, 'Dad');
       expect(contacts.single.phone, '+23057123456');
+      expect(contacts.single.isPrimary, true);
+    });
+
+    test('saveContacts persists exactly one selected primary SOS contact', () async {
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      final service = UserProfileService(db: db, auth: auth);
+
+      await service.saveContacts(const [
+        EmergencyContact(name: 'First', phone: '+23057111111'),
+        EmergencyContact(
+          name: 'Primary',
+          phone: '+23057222222',
+          whatsapp: '+23057222222',
+          isPrimary: true,
+        ),
+        EmergencyContact(
+          name: 'Duplicate primary',
+          phone: '+23057333333',
+          isPrimary: true,
+        ),
+      ]);
+
+      final contacts = await service.watchContacts().first;
+      expect(contacts.where((contact) => contact.isPrimary), hasLength(1));
+      expect(contacts[1].name, 'Primary');
+      expect(contacts[1].isPrimary, true);
+
+      final stored = await db.collection('users').doc('u1').get();
+      final raw = stored.data()!['emergencyContacts'] as List<dynamic>;
+      expect(raw.where((entry) => entry['isPrimary'] == true), hasLength(1));
     });
   });
 

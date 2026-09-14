@@ -98,125 +98,149 @@ class _MobileBottomBarState extends State<MobileBottomBar> {
     final progress = (_sosHoldTenths / 30).clamp(0.0, 1.0).toDouble();
     final remainingSeconds = (3 - progress * 3).ceil().clamp(1, 3);
     final holdLabel = _sosCompleted
-        ? 'SENT'
+        ? 'Release'
         : _sosHoldTenths > 0
-        ? '$remainingSeconds SEC'
-        : '3 SEC';
+        ? 'Hold $remainingSeconds sec'
+        : 'Hold 3 sec';
 
-    return SafeArea(
-      top: false,
-      child: Center(
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Container(
-            height: 76,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: colors.glass,
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: Colors.white),
-              boxShadow: [
-                BoxShadow(
-                  color: GuardianColors.forest.withValues(alpha: 0.18),
-                  blurRadius: 34,
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                _DestinationButton(
-                  item: items[0],
-                  active: widget.currentIndex == 0,
-                  onTap: () => widget.onTap(0),
-                ),
-                _DestinationButton(
-                  item: items[1],
-                  active: widget.currentIndex == 1,
-                  onTap: () => widget.onTap(1),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Semantics(
-                      button: true,
-                      label: 'SOS emergency. Hold for 3 seconds.',
-                      child: Material(
-                        color: GuardianColors.danger,
-                        shape: const CircleBorder(),
-                        elevation: 8,
-                        shadowColor: GuardianColors.danger.withValues(
-                          alpha: 0.45,
-                        ),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: () {},
-                          onTapDown: (_) => _startSosHold(),
-                          onTapUp: (_) => _cancelSosHold(),
-                          onTapCancel: _cancelSosHold,
-                          child: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (_sosHoldTenths > 0)
-                                  Positioned.fill(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(3),
-                                      child: CircularProgressIndicator(
-                                        value: progress,
-                                        strokeWidth: 2.5,
-                                        color: Colors.white,
-                                        backgroundColor: Colors.white24,
-                                      ),
-                                    ),
-                                  ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      'SOS',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        height: 1,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      holdLabel,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 7,
-                                        height: 1,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 0.35,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+    return Material(
+      color: colors.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _DestinationButton(
+                        item: items[0],
+                        active: widget.currentIndex == 0,
+                        onTap: () => widget.onTap(0),
+                      ),
+                      _DestinationButton(
+                        item: items[1],
+                        active: widget.currentIndex == 1,
+                        onTap: () => widget.onTap(1),
+                      ),
+                      Expanded(
+                        child: _SosHoldButton(
+                          holdLabel: holdLabel,
+                          progress: progress,
+                          holding: _sosHoldTenths > 0,
+                          onStart: _startSosHold,
+                          onCancel: _cancelSosHold,
                         ),
                       ),
-                    ),
+                      _DestinationButton(
+                        item: items[2],
+                        active: widget.currentIndex == 2,
+                        onTap: () => widget.onTap(2),
+                      ),
+                      _DestinationButton(
+                        item: items[3],
+                        active: widget.currentIndex == 3,
+                        onTap: () => widget.onTap(3),
+                      ),
+                    ],
                   ),
                 ),
-                _DestinationButton(
-                  item: items[2],
-                  active: widget.currentIndex == 2,
-                  onTap: () => widget.onTap(2),
-                ),
-                _DestinationButton(
-                  item: items[3],
-                  active: widget.currentIndex == 3,
-                  onTap: () => widget.onTap(3),
-                ),
-              ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SosHoldButton extends StatelessWidget {
+  const _SosHoldButton({
+    required this.holdLabel,
+    required this.progress,
+    required this.holding,
+    required this.onStart,
+    required this.onCancel,
+  });
+
+  final String holdLabel;
+  final double progress;
+  final bool holding;
+  final VoidCallback onStart;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    return Semantics(
+      button: true,
+      label: 'SOS emergency. Hold for 3 seconds.',
+      child: ExcludeSemantics(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {},
+          onTapDown: (_) => onStart(),
+          onTapUp: (_) => onCancel(),
+          onTapCancel: onCancel,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 72),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 26,
+                          color: GuardianColors.danger,
+                        ),
+                        if (holding)
+                          CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 2,
+                            color: GuardianColors.danger,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'SOS',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: GuardianColors.danger,
+                      fontSize: 11.5,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    holdLabel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 10,
+                      height: 1.2,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -244,29 +268,39 @@ class _DestinationButton extends StatelessWidget {
         selected: active,
         button: true,
         label: item.label,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                active ? item.activeIcon : item.icon,
-                size: 21,
-                color: active ? GuardianColors.safe : colors.textMuted,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 9,
-                  color: active ? GuardianColors.safe : colors.textMuted,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 72),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      active ? item.activeIcon : item.icon,
+                      size: 26,
+                      color: active ? colors.accent : colors.textSecondary,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.2,
+                        color: active ? colors.accent : colors.textSecondary,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

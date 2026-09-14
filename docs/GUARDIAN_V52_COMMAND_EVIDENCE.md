@@ -1,5 +1,15 @@
 # Guardian V52 command evidence
 
+**Home pilot, 13 September 2026 UTC:** after the update, a requested location
+burst supported fresh Home recognition and app display. Radio expiry retained
+**Last detected at Home · 4m ago** with current presence unconfirmed; a gateway
+restart restored the original historical timestamp without fresh Home authority.
+These are server/app changes with no new command, polling loop, native-fence claim
+or reporting-interval change. Actual departure/return and real binding-timeout
+recovery remain open; the operator paused outdoor testing for the night.
+[Checkpoint evidence](testing/wifi-home-retention-2026-09-13.json) ·
+[Current runbook](services/wifi-home.md#next-device-check-for-remembered-home).
+
 Guardian supports one production watch model: **ReachFar V52**. This ledger
 prevents older-model syntax, generic examples and live V52 results from being
 treated as interchangeable.
@@ -7,10 +17,12 @@ treated as interchangeable.
 ## Evidence levels
 
 - **Proven:** observed successfully on Guardian's real V52.
-- **Documented:** present in vendor V52/mixed-family protocol examples and
+- **Documented:** present in the supplied V52 / shared V46-V48-V52 protocol examples and
   regression-tested, but not yet accepted on the real V52.
 - **Blocked:** intentionally not automated because the exact production value
   or safe behaviour is not established.
+- **Experimental:** an explicitly operator-requested private hypothesis, kept
+  outside the production command dispatcher; neither documented nor proven.
 
 ## SMS provisioning
 
@@ -31,9 +43,12 @@ and require an active V52 gateway session. There is no SMS fallback.
 
 | Action | Data payload | Evidence | Acceptance still required |
 |---|---|---|---|
-| Request location | `CR` | Proven | Real V52 returned GPS and Wi-Fi/LBS observations. |
+| Request location | `CR` | Proven for returned observations | Real V52 returned GPS and Wi-Fi/LBS observations. Supplier II.2 describes GPS wake-up and reports every 30 seconds for about three minutes; exact cadence and battery impact remain unaccepted. The helper name does not mean indefinite reporting. |
+| Native Wi-Fi fence | `WIFIFENCE,1,<radio-1>,2,<radio-2>,3,<radio-3>` | Documented; full-form builder is preview-only | Shared V46/V48/V52 II.35 applies to V52 per operator confirmation. Example uses three entries; guide says two zones. This does not establish a three-router minimum. Unused slots and readback/removal are unspecified. Strict-admin capture records responses and fence bits without accepting them as Home. |
+| One-router fence trial | `WIFIFENCE,1,<enrolled-radio>` | Experimental; first attempt inconclusive | 11 September 2026: one socket handoff, no `WIFIFENCE` reply or fence bits in a complete 30-minute capture. Both responses were `CR`; 13 fresh reports included one enrolled-router sighting. Not proof of acceptance or lack of support. Dedicated private CLI, strict admin and one attempt per process; not in `commands.js`, no SMS/padding/deletion/fallback. Setting may persist; readback/removal are unknown. Do not repeat the send after restart. See `services/wifi-home-supplier-validation.md`. |
 | Voice monitor callback | `MONITOR,<phone>` | Documented | Confirm callback, audio, consent indication and carrier behaviour. |
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
+| SOS alarm delivery mode | `MOD,<0..3>` | Documented; `MOD,0` platform-only behavior rejected on pilot firmware | Vendor descriptions: `0` platform only; `1` platform+SMS+call; `2` platform+call; `3` platform+SMS. On 24 August 2026, the exact V52 acknowledged `MOD,0` but still displayed **Calling...** and sent a carrier SMS. No completed call was observed, but the pilot SIM already blocks outbound calls. The watch acknowledged restoration to `MOD,1`. Mode `3` remains unverified. Do not promote another mode combination or claim screen-text control without supplier evidence and separate acceptance. |
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |

@@ -3,7 +3,7 @@
 const SERVICE_CONTRACT = Object.freeze({
   serviceId: 'activity-steps',
   displayName: 'Steps and daily activity',
-  minimumPlan: 'family',
+  minimumPlan: 'essential',
   lifecycle: 'implementation_complete_disabled',
   enabledByDefault: false,
   customerVisible: false,

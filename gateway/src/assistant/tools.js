@@ -1,10 +1,17 @@
+const config = require('../config');
+const { wellnessWindow, wellnessRecordInWindow } = require('../wellness-access');
 const { normalizeE164 } = require('../notify');
 const { haversineMeters } = require('../geofence');
 const { sendDeviceCommand: sendDeviceCommandImpl } = require('../commands');
 const { ACTION_STATUS, getPendingAction, storePendingAction } = require('../pending-actions');
 const { batteryFreshness } = require('../battery-freshness');
 const { analyzeJourney } = require('../journey-diagnostics');
-const { selectLocationForDisplay } = require('../location-provenance');
+const { hasJourneyGpsEvidence, isJourneyGps } = require('../journey-source-evidence');
+const { journeyDistanceKm } = require('../journey-builder');
+const { decodePolyline } = require('../polyline');
+const { buildLocationReplyData } = require('../location-reply');
+const { readHomeWifiPriority } = require('../wifi-home-display-policy');
+const { readLastHomeWifiDetection } = require('../last-home-wifi-detection');
 const {
   canonicalMedicationReminder,
   deviceCommandParams,
@@ -205,53 +212,15 @@ function findDevice(devices, query) {
   );
 }
 
-async function getLastLocation(ctx, { device_name: deviceName, imei } = {}) {
+async function getLastLocation(ctx, { device_name: deviceName, imei } = {}, options = {}) {
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) {
     return { error: 'No matching watch. Ask list_devices first.' };
   }
-  const selected = selectLocationForDisplay(device);
-  const loc = selected.location || {};
-  const latest = selected.latestObservation || {};
-  // Filter GPS noise & stale low speeds: walking speed (~5 km/h) threshold.
-  // Speeds under 5 km/h are too slow to be real movement (likely GPS noise or stale data).
-  // Real movement is typically faster (car ~30+ km/h, bike ~15+ km/h, jogging ~10+ km/h).
-  const speedKmh = device.speedKmh != null && device.speedKmh >= 5 ? device.speedKmh : 0;
-
-  // Consider online if recent heartbeat (within 15 min) — device connects periodically to send data
-  const lastHeartbeatTime = device.lastHeartbeatAt?.toDate?.() || device.lastHeartbeatAt;
-  const now = new Date();
-  const heartbeatAgeMs = lastHeartbeatTime ? now.getTime() - lastHeartbeatTime.getTime() : Infinity;
-  const isRecentlyActive = heartbeatAgeMs < 15 * 60 * 1000; // 15 minutes
-
   return {
     name: deviceLabel(device),
     imei: device.imei,
-    online: isRecentlyActive,
-    batteryPercent: device.batteryPercent ?? null,
-    lat: loc.lat ?? null,
-    lng: loc.lng ?? null,
-    placeLabel: loc.placeLabel || null,
-    accuracySource: selected.source || null,
-    accuracyMeters: loc.accuracyMeters ?? null,
-    recordedAt:
-      loc.recordedAt?.toDate?.()?.toISOString?.() || loc.recordedAt || null,
-    retainedSatellite: selected.retainedSatellite,
-    latestObservationSource:
-      latest.source || device.accuracySource || null,
-    latestObservationAt:
-      latest.recordedAt?.toDate?.()?.toISOString?.() || latest.recordedAt || null,
-    locationDisclosure: selected.retainedSatellite
-      ? 'Showing the last satellite fix because the newer indoor location is approximate.'
-      : selected.source === 'wifi' || selected.source === 'lbs'
-        ? 'This is an approximate network location, not satellite GPS.'
-        : 'This is the latest recorded satellite GPS fix.',
-    speedKmh: speedKmh,
-    updatedAt: device.updatedAt?.toDate?.()?.toISOString?.() || device.updatedAt || null,
-    mapsUrl:
-      loc.lat != null && loc.lng != null
-        ? `https://maps.google.com/?q=${loc.lat},${loc.lng}`
-        : null,
+    ...buildLocationReplyData(device, options),
   };
 }
 
@@ -360,7 +329,29 @@ async function getRecentJourneys(
     if (startMs != null && (journeyTime == null || journeyTime < startMs)) continue;
     if (endMs != null && (journeyTime == null || journeyTime >= endMs)) continue;
     const analysis = analyzeJourney({ id: doc.id, ...journey });
-    if (analysis.assessment === 'likely_stationary_drift') {
+    if (!hasJourneyGpsEvidence(journey) || analysis.assessment === 'likely_stationary_drift') {
+      omittedLowQualityCount += 1;
+      continue;
+    }
+    const coords = decodePolyline(journey.polyline);
+    const journeyStartMs = timestampMs(journey.startAt);
+    if (coords.length !== journey.pointCount || journeyStartMs == null ||
+        journey.pointEvidence.some(point => !Number.isFinite(point.offsetMs) || point.offsetMs < 0)) {
+      omittedLowQualityCount += 1;
+      continue;
+    }
+    const route = coords.map((coord, index) => ({
+      ...journey.pointEvidence[index], ...coord,
+      recordedAt: new Date(journeyStartMs + journey.pointEvidence[index].offsetMs),
+    }));
+    const distanceKm = Math.round(journeyDistanceKm(route, {
+      excludeTrackingGaps: true, gpsOnly: true,
+    }) * 1000) / 1000;
+    const confirmedReturn = journey.closeReason === 'return_to_origin' &&
+      Boolean(String(journey.originGeofenceName || '').trim());
+    // Match the app's existing minimum-distance and anchored-return policy.
+    if ((confirmedReturn && journey.routeStartAnchored !== true) ||
+        (!confirmedReturn && distanceKm < 0.02)) {
       omittedLowQualityCount += 1;
       continue;
     }
@@ -368,12 +359,10 @@ async function getRecentJourneys(
       id: doc.id,
       startAt: journey.startAt?.toDate?.()?.toISOString?.() || journey.startAt || null,
       endAt: journey.endAt?.toDate?.()?.toISOString?.() || journey.endAt || null,
-      distanceKm: Number.isFinite(Number(journey.distanceKm))
-        ? Number(journey.distanceKm)
-        : null,
+      distanceKm,
       closeReason: journey.closeReason || null,
       originGeofenceName: journey.originGeofenceName || null,
-      stopCount: Number.isFinite(Number(journey.stopCount))
+      stopCount: !journey.pointEvidence.every(isJourneyGps) ? 0 : Number.isFinite(Number(journey.stopCount))
         ? Number(journey.stopCount)
         : Array.isArray(journey.stops) ? journey.stops.length : 0,
     });
@@ -452,19 +441,26 @@ async function getActivitySummary(
   const device = findDevice(ctx.devices, imei || deviceName);
   if (!device) return { error: 'No matching watch.' };
   if (!db) return { error: 'Activity storage is unavailable.' };
-  const safeDays = Math.floor(Math.min(7, Math.max(1, Number(days) || 1)));
+  const now = new Date();
+  const window = wellnessWindow(ctx.entitlements, { now, days });
+  if (!window) return { error: 'Active service required.' };
+  const safeDays = window.days;
   const snap = await db
     .collection('devices')
     .doc(device.imei)
     .collection('activityDays')
-    .orderBy('localDate', 'desc')
-    .limit(7)
+    .where('displayable', '==', true)
+    .where('lastObservedAt', '>=', window.start)
+    .where('lastObservedAt', '<', window.end)
+    .orderBy('lastObservedAt', 'desc')
+    .limit(safeDays)
     .get();
   const records = snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
     .filter(
       (day) =>
         day.displayable === true &&
+        wellnessRecordInWindow(day.lastObservedAt, window, now) &&
         Number.isInteger(day.reportedSteps) &&
         day.reportedSteps >= 0,
     )
@@ -505,7 +501,12 @@ async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}
   }
 
   const intelligence = device.intelligence || {};
-  const topInsight = intelligence.topInsight || null;
+  const home = readHomeWifiPriority(device);
+  const ignored = new Set(['stale_gps', 'geofence_exit_urgent', 'low_battery_moving']);
+  const insights = Array.isArray(intelligence.insights) ? intelligence.insights : [];
+  const available = home ? insights.filter(insight => !ignored.has(insight.id)) : insights;
+  const topInsight = home && ignored.has(intelligence.topInsight?.id)
+    ? available[0] || null : intelligence.topInsight || null;
 
   return {
     name: deviceLabel(device),
@@ -522,7 +523,9 @@ async function getDeviceIntelligence(ctx, { device_name: deviceName, imei } = {}
           level: topInsight.level || null,
         }
       : null,
-    insightCount: Array.isArray(intelligence.insights) ? intelligence.insights.length : 0,
+    insightCount: available.length,
+    ...(home ? { homeWifiDetected: true, homeWifiObservedAt: home.observedAt,
+      locationDisclosure: 'At or near the saved Home location; Home Wi-Fi detected.' } : {}),
   };
 }
 
@@ -532,8 +535,10 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
     return { error: 'No matching watch.' };
   }
 
+  const home = readHomeWifiPriority(device);
+  const rememberedHome = readLastHomeWifiDetection(device);
   const loc = device.location || {};
-  if (loc.lat == null || loc.lng == null) {
+  if (!home && !rememberedHome && (loc.lat == null || loc.lng == null)) {
     return {
       name: deviceLabel(device),
       imei: device.imei,
@@ -578,6 +583,26 @@ async function isAtGeofence(db, ctx, { geofence_name: geofenceName, device_name:
   }
 
   const center = matched.center || {};
+  if (rememberedHome) {
+    return { name: deviceLabel(device), imei: device.imei,
+      geofenceName: matched.name || geofenceName, geofenceId: matched.id,
+      atGeofence: null, source: rememberedHome.source,
+      observedAt: rememberedHome.recordedAt.toISOString(),
+      ageSeconds: rememberedHome.ageSeconds, reason: 'last_detected_home_only',
+      disclosure: 'Last detected at Home. Current presence in this safe zone is unconfirmed.' };
+  }
+  if (home) {
+    const isHome = matched.id === home.anchor.geofenceId &&
+      center.lat === home.anchor.lat && center.lng === home.anchor.lng &&
+      (matched.radiusMeters ?? 150) === home.anchor.radiusMeters;
+    return { name: deviceLabel(device), imei: device.imei,
+      geofenceName: matched.name || geofenceName, geofenceId: matched.id,
+      atGeofence: isHome ? true : null,
+      source: 'home_wifi', observedAt: home.observedAt, expiresAt: home.expiresAt,
+      reason: isHome ? 'home_wifi_detected' : 'home_wifi_priority',
+      disclosure: isHome ? 'At or near the saved Home location; Home Wi-Fi detected.' :
+        'Home Wi-Fi is currently detected. GPS is not being used to evaluate this other zone.' };
+  }
   const lat = Number(center.lat);
   const lng = Number(center.lng);
   const radius = Number(matched.radiusMeters) || 150;
@@ -997,7 +1022,7 @@ async function runTool(db, ctx, name, input) {
     send_device_command: FEATURE.WHATSAPP_WATCH_COMMANDS,
     schedule_reminder: FEATURE.MEDICATION_REMINDERS,
     get_daily_summary: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
-    get_activity_summary: FEATURE.ACTIVITY_STEPS,
+    get_activity_summary: FEATURE.WHATSAPP_QA,
   }[name];
   if (requiredFeature && !hasEntitlement(ctx?.entitlements, requiredFeature)) {
     return { error: planBoundaryReply(ctx?.entitlements, requiredFeature), code: 'plan_required' };
@@ -1016,6 +1041,7 @@ async function runTool(db, ctx, name, input) {
     case 'get_daily_summary':
       return getDailySummary(db, ctx, input || {});
     case 'get_activity_summary':
+      if (config.activityStepsCustomerEnabled !== true) return { error: 'Activity is not customer-enabled.', code: 'feature_disabled' };
       return getActivitySummary(db, ctx, input || {});
     case 'get_device_intelligence':
       return getDeviceIntelligence(ctx, input || {});

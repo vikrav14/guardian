@@ -1,4 +1,5 @@
 'use strict';
+const { cleanupWellnessRecords } = require('./wellness-retention');
 
 const DEFAULT_TIME_ZONE = 'Indian/Mauritius';
 const COUNTER_MODE_UNVERIFIED = 'unverified';
@@ -172,6 +173,7 @@ class ActivityStepsStore {
   constructor(db, options = {}) {
     this.db = db;
     this.enabled = options.enabled === true;
+    this.customerEnabled = options.customerEnabled === true;
     this.timeZone = String(options.timeZone || DEFAULT_TIME_ZONE);
     this.counterMode = options.counterMode === COUNTER_MODE_DAILY_RESET
       ? COUNTER_MODE_DAILY_RESET
@@ -240,7 +242,7 @@ class ActivityStepsStore {
     const expiresAt = new Date(
       observation.receivedAt.getTime() + this.retentionDays * 24 * 60 * 60 * 1000,
     );
-    const stored = { ...day, expiresAt, updatedAt: observation.receivedAt };
+    const stored = { ...day, displayable: day.displayable && this.customerEnabled, expiresAt, updatedAt: observation.receivedAt };
     const deviceRef = this.db.collection('devices').doc(observation.imei);
     const dayRef = deviceRef.collection('activityDays').doc(observation.localDate);
     const batch = this.db.batch();
@@ -263,10 +265,7 @@ async function deleteExpiredActivityDays(db, options = {}) {
     .limit(limit)
     .get();
   if (!snap.docs.length) return 0;
-  const batch = db.batch();
-  for (const doc of snap.docs) batch.delete(doc.ref);
-  await batch.commit();
-  return snap.docs.length;
+  return (await cleanupWellnessRecords(db, snap.docs, { now })).deleted;
 }
 
 module.exports = {

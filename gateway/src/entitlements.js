@@ -12,6 +12,7 @@ const FEATURE = Object.freeze({
   SAFE_ZONES: 'safe_zones',
   BATTERY_ALERTS: 'battery_alerts',
   FAMILY_CAREGIVERS: 'family_caregivers',
+  SOS_WHATSAPP_ALERTS: 'sos_whatsapp_alerts',
   GUARDIAN_AI: 'guardian_ai',
   WHATSAPP_QA: 'whatsapp_questions_answers',
   WHATSAPP_SAFETY_ALERTS: 'whatsapp_safety_alerts',
@@ -36,6 +37,8 @@ const ESSENTIAL_FEATURES = Object.freeze([
   FEATURE.SAFE_ZONES,
   FEATURE.BATTERY_ALERTS,
   FEATURE.FAMILY_CAREGIVERS,
+  FEATURE.ACTIVITY_STEPS,
+  FEATURE.SOS_WHATSAPP_ALERTS,
 ]);
 
 const FAMILY_FEATURES = Object.freeze([
@@ -46,7 +49,6 @@ const FAMILY_FEATURES = Object.freeze([
   FEATURE.PROACTIVE_SMART_NOTIFICATIONS,
   FEATURE.VOICE_ASSISTANT,
   FEATURE.WHATSAPP_WATCH_COMMANDS,
-  FEATURE.ACTIVITY_STEPS,
 ]);
 
 const CARE_FEATURES = Object.freeze([
@@ -64,17 +66,17 @@ const PLAN_POLICY = Object.freeze({
   [PLAN.ESSENTIAL]: Object.freeze({
     label: 'Guardian Essential',
     features: ESSENTIAL_FEATURES,
-    limits: Object.freeze({ caregivers: 1, locationHistoryDays: 7 }),
+    limits: Object.freeze({ caregivers: 1, locationHistoryDays: 7, wellnessHistoryDays: 1 }),
   }),
   [PLAN.FAMILY]: Object.freeze({
     label: 'Guardian Family',
     features: FAMILY_FEATURES,
-    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null }),
+    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null, wellnessHistoryDays: 7 }),
   }),
   [PLAN.CARE]: Object.freeze({
     label: 'Guardian Care',
     features: CARE_FEATURES,
-    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null }),
+    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null, wellnessHistoryDays: null }),
   }),
 });
 

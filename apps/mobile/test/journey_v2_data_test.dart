@@ -50,8 +50,10 @@ void main() {
         record(
           id: 'first-real',
           start: base.add(const Duration(hours: 1)),
-          end: base.add(const Duration(hours: 1, minutes: 20)),
-          polyline: '',
+          end: base.add(const Duration(hours: 1, minutes: 4)),
+          polyline: _encodePolyline([
+            for (var i = 0; i < 3; i++) (lat: -20.25 + i * 0.001, lng: 57.5),
+          ]),
           km: 2.1,
           pointCount: 3,
         ),
@@ -59,7 +61,9 @@ void main() {
           id: 'latest-real',
           start: base.add(const Duration(hours: 2)),
           end: base.add(const Duration(hours: 2, minutes: 45)),
-          polyline: '',
+          polyline: _encodePolyline([
+            for (var i = 0; i < 28; i++) (lat: -20.25 + i * 0.001, lng: 57.5),
+          ]),
           km: 21.9,
           pointCount: 28,
         ),
@@ -114,6 +118,7 @@ void main() {
 
       expect(journeyV2MeaningfulRecords([outing]), hasLength(1));
       expect(journeyV2SelectRecord([outing])?.id, outing.id);
+      expect(journeyV2RecordedDistanceKm(outing), 0);
     });
 
     test('excludes a confirmed outing whose stored route starts outside Home', () {
@@ -142,6 +147,39 @@ void main() {
       expect(journeyV2MeaningfulRecords([outsideStart]), isEmpty);
     });
   });
+
+  test(
+    'old mixed-source distance excludes network edges and tracking gaps',
+    () {
+      final start = DateTime(2026, 9, 6, 18);
+      final offsets = [0, 60, 120, 180, 240, 900];
+      final journey = JourneyRecord(
+        id: 'mixed-source-history',
+        startAt: start,
+        endAt: start.add(const Duration(minutes: 15)),
+        distanceKm: 99,
+        pointCount: 6,
+        evidenceVersion: 3,
+        polyline: _encodePolyline([
+          for (final offset in [0, 0.001, 0.05, 0.002, 0.003, 0.08])
+            (lat: -20.25 + offset, lng: 57.5),
+        ]),
+        pointEvidence: [
+          for (var i = 0; i < offsets.length; i++)
+            JourneyPointEvidence(
+              offsetMs: offsets[i] * 1000,
+              source: i == 2 ? 'wifi' : 'gps',
+              gpsValid: i != 2,
+            ),
+        ],
+      );
+
+      expect(journeyV2RecordedDistanceKm(journey), 0.222);
+      expect(journeyV2MeaningfulRecords([journey]), hasLength(1));
+      expect(journey.distanceKm, 99); // Raw stored history is unchanged.
+      expect(journeyV2DecodeRecord(journey).rawPoints, hasLength(6));
+    },
+  );
 
   group('Journey V2 polyline decoding', () {
     test('decodes the canonical Google sample exactly', () {

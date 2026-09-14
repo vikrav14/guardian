@@ -220,3 +220,16 @@ test('out-of-order observations cannot inflate or reset an accepted day', async 
   assert.equal(stale.day.resetCount, 0);
   assert.equal(db.writes.length, 1);
 });
+
+
+test('accepted counter mode still requires explicit customer display opt-in', async () => {
+  for (const customerEnabled of [false, true]) {
+    const db = fakeDb();
+    const store = new ActivityStepsStore(db, { enabled: true, customerEnabled,
+      counterMode: COUNTER_MODE_DAILY_RESET });
+    await store.ingest({ imei: '999999999999999', stepsRaw: 100 },
+      new Date('2026-09-14T10:00:00Z'));
+    assert.equal(db.docs.get('devices/999999999999999/activityDays/2026-09-14').displayable,
+      customerEnabled);
+  }
+});

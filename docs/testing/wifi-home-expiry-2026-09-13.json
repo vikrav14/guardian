@@ -1,0 +1,38 @@
+{
+  "source": "Operator-provided checker output, gateway excerpt and app screenshots on 13 September 2026 UTC",
+  "runningCheckout": "145373811b9e0ad4cf6bb57be265e6000d92e28c",
+  "physicalContext": "Operator reported remaining at Home; no departure test performed.",
+  "beforeRestart": {
+    "homeBindingReady": false,
+    "bindingReason": "home_binding_expired",
+    "phase": "home_binding_read",
+    "pendingSeconds": 70431,
+    "observationAgeSeconds": 163548,
+    "lastClearedReason": "observation_expired"
+  },
+  "afterRestart": {
+    "homeBindingReady": true,
+    "phase": "idle",
+    "sessionConnected": true,
+    "locationRequestSent": true
+  },
+  "freshHome": {
+    "appScreenshot": "Home / Home Wi-Fi detected / Just now; retained GPS age disclosed separately",
+    "consecutiveMatches": 7,
+    "signalDbm": -48,
+    "lastObservedAt": "2026-09-13T20:11:49.000Z",
+    "scheduledRadioExpiry": "2026-09-13T20:13:49.000Z"
+  },
+  "laterClear": {
+    "displayingHome": false,
+    "reason": "observation_expired",
+    "actualClearTimestamp": null,
+    "appScreenshot": "Last known location / 1d ago"
+  },
+  "limitations": [
+    "The clear line has no timestamp; the scheduled expiry is not an independently timed clear.",
+    "The excerpt does not establish permanent reporting cadence or all automatic command callers.",
+    "This validates the existing fresh Home display and reproduces its stationary expiry fallback.",
+    "It does not validate the new history/recovery implementation, departure/return, native fencing or battery cost."
+  ]
+}

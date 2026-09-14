@@ -1,9 +1,9 @@
 # Guardian WhatsApp Conversation Architecture
 
 **Status:** Engineering contract — Phases 1–3 implemented
-**Last updated:** 14 August 2026
-**Applies to:** Guardian Family and Guardian Care WhatsApp features
-**Does not apply to:** Guardian Essential (Rs 199/month renewal), which has no WhatsApp capability
+**Last updated:** 22 August 2026
+**Applies to:** Guardian Family and Guardian Care conversational WhatsApp features
+**Essential boundary:** Guardian Essential (Rs 199/month renewal) receives only a deterministic physical-watch SOS template to one primary emergency contact; it has no WhatsApp conversation capability
 
 Plan names, inherited services, subscription states and launch evidence are governed by [`GUARDIAN_SERVICE_PROMISE_MATRIX.md`](GUARDIAN_SERVICE_PROMISE_MATRIX.md). WhatsApp policy must never grant a capability that the effective family plan excludes.
 
@@ -208,7 +208,13 @@ Cost controls:
 - record model calls, input/output tokens, tool rounds, latency, and fallback reason;
 - define a per-plan fair-use policy separately from safety behaviour—cost limits must never weaken privacy checks.
 
-WhatsApp capability is included only in plans that advertise it. Current commercial boundary: Guardian Essential renewal at Rs 199/month has no WhatsApp; Guardian Family at Rs 399/month and Guardian Care at Rs 699/month include the applicable WhatsApp/AI features. First-year watch-inclusive prices are commercial terms and must not be used as backend authorisation flags.
+WhatsApp capability is included only in plans that advertise it. Current
+commercial boundary: Guardian Essential renewal at Rs 199/month includes one
+deterministic physical-watch SOS template to its primary emergency contact,
+but no WhatsApp chat, AI, commands, reminders, fall alerts, or routine alerts.
+Guardian Family at Rs 399/month and Guardian Care at Rs 699/month include the
+applicable broader WhatsApp/AI features. First-year watch-inclusive prices are
+commercial terms and must not be used as backend authorisation flags.
 
 ## 12. Error and fallback behaviour
 

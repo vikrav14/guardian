@@ -3,7 +3,7 @@ class ActivityStepsBackbone {
 
   static const String serviceId = 'activity-steps';
   static const String displayName = 'Steps and daily activity';
-  static const String minimumPlan = 'family';
+  static const String minimumPlan = 'essential';
   static const String lifecycle = 'implementation_complete_disabled';
   static const bool enabledByDefault = false;
   static const bool customerVisible = false;

@@ -20,6 +20,7 @@ enum GuardianFeature {
   safeZones,
   batteryAlerts,
   familyCaregivers,
+  sosWhatsappAlerts,
   guardianAi,
   whatsappQuestionsAnswers,
   whatsappSafetyAlerts,
@@ -55,6 +56,7 @@ extension GuardianFeaturePresentation on GuardianFeature {
     GuardianFeature.safeZones => 'Safe zones',
     GuardianFeature.batteryAlerts => 'Battery alerts',
     GuardianFeature.familyCaregivers => 'Family caregivers',
+    GuardianFeature.sosWhatsappAlerts => 'SOS WhatsApp alerts',
     GuardianFeature.guardianAi => 'Guardian AI',
     GuardianFeature.whatsappQuestionsAnswers =>
       'WhatsApp questions and answers',
@@ -93,6 +95,8 @@ const _essentialFeatures = <GuardianFeature>{
   GuardianFeature.safeZones,
   GuardianFeature.batteryAlerts,
   GuardianFeature.familyCaregivers,
+  GuardianFeature.activitySteps,
+  GuardianFeature.sosWhatsappAlerts,
 };
 
 const _familyFeatures = <GuardianFeature>{
@@ -103,7 +107,6 @@ const _familyFeatures = <GuardianFeature>{
   GuardianFeature.proactiveSmartNotifications,
   GuardianFeature.voiceAssistant,
   GuardianFeature.whatsappWatchCommands,
-  GuardianFeature.activitySteps,
 };
 
 const _careFeatures = <GuardianFeature>{
@@ -161,6 +164,14 @@ class GuardianSubscription {
       : serviceActive
       ? null
       : 0;
+
+  int? get wellnessHistoryDays => !serviceActive
+      ? 0
+      : plan == GuardianPlan.essential
+      ? 1
+      : plan == GuardianPlan.family
+      ? 7
+      : null;
 
   bool has(GuardianFeature feature) =>
       serviceActive && features.contains(feature);

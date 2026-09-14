@@ -9,7 +9,7 @@ void main() {
     );
     expect(ActivityStepsBackbone.enabledByDefault, isFalse);
     expect(ActivityStepsBackbone.customerVisible, isFalse);
-    expect(ActivityStepsBackbone.minimumPlan, 'family');
+    expect(ActivityStepsBackbone.minimumPlan, 'essential');
     expect(ActivityStepsBackbone.protocolCommands, isNotEmpty);
     expect(ActivityStepsBackbone.completedFrontendCapabilities, isNotEmpty);
     expect(ActivityStepsBackbone.acceptanceGates, isNotEmpty);

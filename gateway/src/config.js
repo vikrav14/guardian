@@ -81,6 +81,25 @@ const config = {
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
+  // Pilot-only: both values must match a device before Guardian selects the
+  // SOS templates whose static Meta phone button calls that watch. Leave both
+  // empty until the templates are approved and the real-device test passes.
+  metaWhatsAppSosCallbackPilotImei:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppSosCallbackPilotNumber:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
+
+  // Private, read-only router observation. Never enables customer Home presence.
+  wifiHomeObserveEnabled:
+    String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',
+  wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
+  wifiHomeRouterHash: process.env.WIFI_HOME_ROUTER_HASH || '',
+  wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
+  wifiHomeDisplayPilotEnabled:
+    String(process.env.WIFI_HOME_DISPLAY_PILOT_ENABLED || 'false').toLowerCase() === 'true',
+  // Separate, unaccepted walk-recovery experiment; Home display never opts in.
+  wifiHomeWalkRecoveryExperimentEnabled:
+    String(process.env.WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED || 'false').toLowerCase() === 'true',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
