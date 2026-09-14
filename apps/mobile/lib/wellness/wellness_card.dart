@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/activity_day.dart';
+import '../models/wear_status.dart';
 import '../theme/app_theme.dart';
 import 'wellness_sample.dart';
 import 'wellness_window.dart';
@@ -17,6 +18,7 @@ class WellnessCard extends StatelessWidget {
     this.readingsError = false,
     this.loading = false,
     this.onOpen,
+    this.wearStatus = const WearStatus(),
   });
   final List<ActivityDay> days;
   final List<WellnessSample> samples;
@@ -27,6 +29,7 @@ class WellnessCard extends StatelessWidget {
       readingsError,
       loading;
   final VoidCallback? onOpen;
+  final WearStatus wearStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +68,9 @@ class WellnessCard extends StatelessWidget {
             title: 'Wellness',
             subtitle: 'Today’s watch readings',
           ),
+          const SizedBox(height: 8),
+          Text(wearStatus.labelAt(now),
+            style: TextStyle(fontSize: 12, color: context.guardianColors.textSecondary)),
           if (loading) ...[
             const SizedBox(height: 12),
             const LinearProgressIndicator(minHeight: 2),

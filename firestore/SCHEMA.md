@@ -664,3 +664,21 @@ not a client-accessible Firestore collection.
 - Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences and medication reminders, and resolve alerts for linked devices.
 - Wearer photos live in Firebase Storage at `deviceAvatars/{imei}/avatar`; Storage rules restrict access to signed-in guardians linked to that IMEI and enforce image content under 5 MB.
 - Gateway uses **Admin SDK** (bypasses rules). See [rules.example](rules.example).
+
+
+### Wearing quality alongside activity and Wellness
+
+- `devices/{imei}/wearStatus/current`: backend-only writes; safe versioned state,
+  reason, exact-device acceptance, observation/expiry and gateway update times.
+  Linked members on any active edition may read. Clients must expire status.
+- `devices/{imei}/wearDiagnostics/current`: backend-only, at most 120 raw status
+  samples, running gateway mode. Never expose raw bits through customer rules.
+- Activity v2 keeps diagnostic `recordedSteps` and separately aggregates
+  `wearQualifiedSteps`, `wearExcludedSteps`, `lastWearQualifiedAt` and
+  `wearQualityVersion: 1`. Customer `reportedSteps` is qualified partial coverage;
+  raw-counter receipt times do not refresh the accepted total's age.
+- New wellbeing records include `wearQualityVersion: 1`, receipt-time
+  `wearEvidence`, `wearQualified`, `wearReason`, and
+  `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
+  requires eligible wearing proof. Missing evidence stays private. Historical
+  diagnostic records are not retroactively made qualified.

@@ -223,7 +223,7 @@ test('out-of-order observations cannot inflate or reset an accepted day', async 
 });
 
 
-test('accepted counter mode still requires explicit customer display opt-in', async () => {
+test('legacy daily totals remain private even with customer opt-in', async () => {
   for (const customerEnabled of [false, true]) {
     const db = fakeDb();
     const store = new ActivityStepsStore(db, { enabled: true, customerEnabled,
@@ -231,7 +231,7 @@ test('accepted counter mode still requires explicit customer display opt-in', as
     await store.ingest({ imei: '999999999999999', stepsRaw: 100 },
       new Date('2026-09-14T10:00:00Z'));
     assert.equal(db.docs.get('devices/999999999999999/activityDays/2026-09-14').displayable,
-      customerEnabled);
+      false);
   }
 });
 

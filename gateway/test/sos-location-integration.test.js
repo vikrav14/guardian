@@ -17,7 +17,7 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
@@ -32,11 +32,12 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     static now() { return clock; }
   }
   const modules = {
+    './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
-    './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null },
+    './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null, removalAlertsIngestEnabled: wearDb !== null },
     './activity-steps': { ActivityStepsStore: function () { return activity; } },
     './firestore': {
-      initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => ({}),
+      initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => wearDb || ({}),
       getDeviceDocument: async () => {
         if (lookupFails) throw new Error('fixture lookup unavailable');
         return structuredClone(evidence);
@@ -78,9 +79,9 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     module: { exports: {} }, Date: Clock, setInterval: () => ({ unref: noop }),
     console: { log: noop, warn: (...args) => warnings.push(args), error: (...args) => errors.push(args) },
   };
-  vm.runInNewContext(`${source}\nmodule.exports = { applyEvents, setReliability: value => journeyReliability = value };`, sandbox);
+  vm.runInNewContext(`${source}\nmodule.exports = { applyEvents, wearEvidence, setReliability: value => journeyReliability = value };`, sandbox);
   sandbox.module.exports.setReliability(reliability);
-  return { apply: sandbox.module.exports.applyEvents, alerts, writes, errors, wifiObservations, warnings };
+  return { apply: sandbox.module.exports.applyEvents, wear: sandbox.module.exports.wearEvidence, alerts, writes, errors, wifiObservations, warnings };
 }
 
 test('SOS dispatcher does not depend on GPS journal availability or the location queue', async () => {
@@ -230,4 +231,23 @@ test('actual notification text builder uses the same frozen SOS point, not live 
   assert.match(message, /q=-20\.1,57\.1/);
   assert.doesNotMatch(message, /q=-21,58/);
   assert.match(message, /13 mins before SOS receipt/);
+});
+
+
+test('stalled or failed passive wear persistence cannot delay the real SOS dispatcher', { timeout: 1000 }, async () => {
+  for (const fail of [false, true]) {
+    const run = dispatcher(fixtures[0].device, { wearDb: {
+      collection: () => ({ doc: () => ({ collection: () => ({ doc: () => ({}) }) }) }),
+      runTransaction: () => fail ? Promise.reject(new Error('wear write unavailable')) : new Promise(() => {}),
+    } });
+    const events = [alarm()];
+    run.wear.capture({ command: 'AL_LTE', args: ['010926', '120000', 'V', '20', 'S', '57', 'E',
+      '0', '0', '0', '0', '90', '70', '1000', '0', '00110000'] }, events, {}, receipt);
+    assert.equal(events[0].wearEvidence.eligible, false);
+    await run.apply(events, {});
+    assert.equal(run.alerts.length, 1);
+    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+    assert.deepEqual(run.errors, []);
+    if (fail) assert.match(run.warnings.flat().join(' '), /wear write unavailable/);
+  }
 });

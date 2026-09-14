@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { wearAt } = require('./wear-evidence');
 const { cleanupWellnessRecords } = require('./wellness-retention');
 
 const METRIC_SET = Object.freeze({
@@ -109,7 +110,7 @@ function readingIdFor(reading, bucketMs = 120_000) {
     .join('|');
   return crypto
     .createHash('sha256')
-    .update(`${reading.imei}|${reading.metricSet}|${valueText}|${bucket}`)
+    .update(`${reading.imei}|${reading.metricSet}|${valueText}|${bucket}|${reading.wearEvidence?.continuityId || reading.wearEvidence?.state || 'unknown'}`)
     .digest('hex')
     .slice(0, 32);
 }
@@ -155,6 +156,9 @@ function createWellbeingStore({
       return { ok: false, status: 'invalid', reason: normalized.reason };
     }
 
+    // Capture qualification at receipt, before any consent/database await.
+    const wearEvidence = wearAt(event.wearEvidence, normalized.observedAt);
+    normalized.wearEvidence = wearEvidence;
     const consentSnap = await db.collection('wellbeingConsents').doc(normalized.imei).get();
     if (!consentSnap.exists || !validConsent(consentSnap.data(), now())) {
       return {
@@ -164,7 +168,7 @@ function createWellbeingStore({
       };
     }
 
-    const displayable = deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true;
+    const displayable = deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true && wearEvidence.eligible;
     const id = readingIdFor(normalized);
     const ref = db
       .collection('devices')
@@ -183,6 +187,10 @@ function createWellbeingStore({
       receivedAt: normalized.observedAt,
       quality: displayable ? 'device_accepted' : 'transport_valid_unverified',
       deviceMode,
+      wearQualityVersion: 1, wearEvidence,
+      wearQualified: wearEvidence.eligible,
+      wearReason: wearEvidence.reason,
+      timeBasis: 'gateway_receipt_not_measurement_time',
       displayable,
       expiresAt: new Date(
         normalized.observedAt.getTime() + safeRetentionDays * 24 * 60 * 60 * 1000

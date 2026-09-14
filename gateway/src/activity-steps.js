@@ -1,4 +1,5 @@
 'use strict';
+const { wearAt } = require('./wear-evidence');
 const { cleanupWellnessRecords } = require('./wellness-retention');
 const { ingestCounterLedger, deleteExpiredActivityIntervals } = require('./activity-counter-ledger');
 
@@ -56,6 +57,7 @@ function normalizeActivityObservation(event = {}, options = {}) {
     localDate: localDateKey(receivedAt, timeZone),
     timeZone,
     deviceObservedAt,
+    wearEvidence: wearAt(event.wearEvidence, receivedAt),
     source: String(event.source || event.command || event.type || 'v52_counter').toLowerCase(),
   });
 }
@@ -267,7 +269,11 @@ class ActivityStepsStore {
     const expiresAt = new Date(
       observation.receivedAt.getTime() + this.retentionDays * 24 * 60 * 60 * 1000,
     );
-    const stored = { ...day, displayable: day.displayable && this.customerEnabled, expiresAt, updatedAt: observation.receivedAt };
+    // A hardware daily total cannot identify which increments happened while
+    // worn. Keep this legacy mode diagnostic; observed_delta supplies that proof.
+    const stored = { ...day, displayable: false,
+      wearQualityVersion: 1, wearReason: 'legacy_total_not_wear_qualified',
+      expiresAt, updatedAt: observation.receivedAt };
     const deviceRef = this.db.collection('devices').doc(observation.imei);
     const dayRef = deviceRef.collection('activityDays').doc(observation.localDate);
     const batch = this.db.batch();

@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/activity_day.dart';
+import '../models/wear_status.dart';
+import '../services/wear_status_service.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import 'wellness_card.dart';
@@ -142,6 +144,7 @@ class _WellnessDataState extends State<_WellnessData>
   late WellnessWindow _window;
   Stream<List<ActivityDay>>? _days;
   Stream<List<WellnessSample>>? _readings;
+  Stream<WearStatus>? _wearStatus;
   Timer? _timer;
   @override
   void initState() {
@@ -154,6 +157,7 @@ class _WellnessDataState extends State<_WellnessData>
 
   void _connect() {
     if (!_active) return;
+    _wearStatus = WearStatusService().watch(widget.imei);
     _window = WellnessWindow.forSubscription(
       widget.subscription,
       now: _now,
@@ -239,6 +243,14 @@ class _WellnessDataState extends State<_WellnessData>
         child: Text('Guardian service access has ended.'),
       );
     }
+    return StreamBuilder<WearStatus>(
+      key: ObjectKey(_wearStatus), stream: _wearStatus,
+      builder: (context, status) => _buildReadings(context,
+        status.hasError ? const WearStatus() : status.data ?? const WearStatus()),
+    );
+  }
+
+  Widget _buildReadings(BuildContext context, WearStatus wearStatus) {
     // Keys clear cached StreamBuilder data when day, plan, source or window changes.
     return StreamBuilder<List<ActivityDay>>(
       key: ObjectKey(_days),
@@ -255,6 +267,7 @@ class _WellnessDataState extends State<_WellnessData>
               : readings.data ?? <WellnessSample>[];
           if (!widget.detail) {
             return WellnessCard(
+              wearStatus: wearStatus,
               days: days,
               samples: samples,
               now: _now,

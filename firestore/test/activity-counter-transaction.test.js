@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { before, after, test } = require('node:test');
 const assert = require('node:assert/strict');
-const { initializeTestEnvironment, assertFails } = require('@firebase/rules-unit-testing');
+const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const { doc, getDoc, setDoc } = require('firebase/firestore');
 const admin = require('../../gateway/node_modules/firebase-admin');
 const { ActivityStepsStore } = require('../../gateway/src/activity-steps');
@@ -41,4 +41,22 @@ test('Firestore contention, restart and midnight preserve one daily increase and
   }
   assert.equal((await db.doc(prefix).get()).exists, false);
   assert.equal((await db.collection(`${prefix}/journeys`).get()).size, 0);
+});
+
+
+test('wearing quality is readable on every active edition; raw status and client writes stay private', async () => {
+  const prefix = `devices/${imei}`;
+  await db.doc(`${prefix}/wearStatus/current`).set({ version: 1, state: 'unknown', updatedAt: new Date() });
+  await db.doc(`${prefix}/wearDiagnostics/current`).set({ trackerState: '00000008' });
+  for (const plan of ['essential', 'family', 'care']) {
+    await db.doc('serviceSubscriptions/linked').update({ plan });
+    const linked = env.authenticatedContext('linked').firestore();
+    await assertSucceeds(getDoc(doc(linked, `${prefix}/wearStatus/current`)));
+    await assertFails(getDoc(doc(linked, `${prefix}/wearDiagnostics/current`)));
+    await assertFails(setDoc(doc(linked, `${prefix}/wearStatus/current`), { state: 'worn' }));
+  }
+  const stranger = env.authenticatedContext('stranger').firestore();
+  await assertFails(getDoc(doc(stranger, `${prefix}/wearStatus/current`)));
+  await db.doc('serviceSubscriptions/linked').update({ status: 'expired' });
+  await assertFails(getDoc(doc(env.authenticatedContext('linked').firestore(), `${prefix}/wearStatus/current`)));
 });

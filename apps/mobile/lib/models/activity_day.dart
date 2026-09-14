@@ -30,7 +30,8 @@ class ActivityDay {
   }) {
     final localDate = (data['localDate'] as String?)?.trim();
     final steps = (data['reportedSteps'] as num?)?.toInt();
-    final observedAt = _asDateTime(data['lastObservedAt']);
+    final observedAt = _asDateTime(data[data['wearQualityVersion'] == 1
+        ? 'lastWearQualifiedAt' : 'lastObservedAt']);
     if (data['displayable'] != true ||
         ((localDate?.isNotEmpty != true) &&
             (fallbackDate?.isNotEmpty != true)) ||

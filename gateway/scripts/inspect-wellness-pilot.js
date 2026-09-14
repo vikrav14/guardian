@@ -94,12 +94,14 @@ function buildReport(evidence, config, now = new Date(), { includeReadingValues 
           ? ['spo2Percent'] : ['heartRateBpm', 'systolicMmHg', 'diastolicMmHg'];
         return { metricSet, uploads: samples.length,
           displayableUploads: samples.filter(reading => reading.displayable === true).length,
+          wearQualifiedUploads: samples.filter(reading => reading.wearQualified === true).length,
           firstUploadAt: iso(samples[0]?.observedAt), lastUploadAt: iso(samples.at(-1)?.observedAt),
           lastUploadAgeSeconds: age(samples.at(-1)?.observedAt, now),
           maximumGapSeconds: gaps.length ? Math.max(...gaps) : null,
           ...(includeReadingValues ? { latestReadings: samples.slice(-3).reverse().map(reading => ({
             observedAt: iso(reading.observedAt), quality: reading.quality || 'unverified',
             displayable: reading.displayable === true,
+            wearQualified: reading.wearQualified === true, wearReason: reading.wearReason || 'not_recorded',
             values: Object.fromEntries(valueKeys.filter(key => Number.isFinite(reading.values?.[key]))
               .map(key => [key, reading.values[key]])),
           })) } : {}),

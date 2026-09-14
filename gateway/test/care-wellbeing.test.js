@@ -7,7 +7,6 @@ const {
   METRIC_SET,
   normalizeWellbeingEvent,
   validConsent,
-  readingIdFor,
   buildWellbeingRequestCommand,
   buildWellbeingScheduleCommand,
   createWellbeingStore,
@@ -177,19 +176,39 @@ test('unverified readings persist as protected and non-displayable', async () =>
   assert.equal(payload.expiresAt.toISOString(), '2026-09-22T14:00:00.000Z');
 });
 
-test('accepted customer-enabled readings display and duplicate packets dedupe', async () => {
-  const normalized = normalizeWellbeingEvent({
-    type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98,
-  }, NOW);
-  const id = readingIdFor(normalized);
-  const db = fakeDb({ existingIds: [id] });
-  const store = createWellbeingStore({
-    db, enabled: true, deviceMode: 'accepted', customerEnabled: true, now: () => NOW,
-  });
+const worn = { version: 1, state: 'worn', deviceAccepted: true,
+  continuityId: 'fixture-worn-period', observedAt: NOW, expiresAt: new Date(+NOW + 120_000) };
 
-  const result = await store.ingest({
-    type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98,
-  }, NOW);
-  assert.equal(result.status, 'duplicate');
-  assert.equal(result.displayable, true);
+test('accepted customer-enabled readings also require fresh wearing evidence', async () => {
+  const event = { type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98 };
+  for (const wearEvidence of [undefined, { ...worn, state: 'removed' },
+    { ...worn, expiresAt: NOW }, { ...worn, deviceAccepted: false }]) {
+    const db = fakeDb();
+    const store = createWellbeingStore({ db, enabled: true, deviceMode: 'accepted', customerEnabled: true, now: () => NOW });
+    const result = await store.ingest({ ...event, wearEvidence }, NOW);
+    assert.equal(result.displayable, false);
+    assert.equal(db.readings.get(result.id).wearQualified, false);
+  }
+});
+
+test('qualified readings persist their receipt-time wearing proof and deduplicate within that period', async () => {
+  const db = fakeDb();
+  const store = createWellbeingStore({ db, enabled: true, deviceMode: 'accepted', customerEnabled: true, now: () => NOW });
+  const event = { type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98, wearEvidence: worn };
+  const first = await store.ingest(event, NOW);
+  assert.equal(first.displayable, true);
+  assert.equal(db.readings.get(first.id).wearEvidence.continuityId, worn.continuityId);
+  assert.equal((await store.ingest(event, NOW)).status, 'duplicate');
+  assert.equal(db.readings.size, 1);
+});
+
+test('an off-wrist value cannot suppress a later equal qualified value in the same two-minute bucket', async () => {
+  const db = fakeDb();
+  const store = createWellbeingStore({ db, enabled: true, deviceMode: 'accepted', customerEnabled: true, now: () => NOW });
+  const event = { type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98 };
+  const excluded = await store.ingest(event, NOW);
+  const accepted = await store.ingest({ ...event, wearEvidence: worn }, new Date(+NOW + 1000));
+  assert.notEqual(excluded.id, accepted.id);
+  assert.equal(db.readings.get(excluded.id).displayable, false);
+  assert.equal(db.readings.get(accepted.id).displayable, true);
 });

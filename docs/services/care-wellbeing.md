@@ -94,3 +94,18 @@ The app remains customer-hidden. When enabled after acceptance, all active editi
 
 For the current read-only pilot check and remaining physical tests, see
 [the resumed acceptance handoff](../testing/wellness-resume-2026-09-14.md).
+
+
+## Wearing data quality (2026-09-14)
+
+New readings require fresh, exact-device-accepted wearing evidence as well as
+consent, accepted measurement mode and customer enablement before display.
+Each reading stores its receipt-time `wearEvidence`, `wearQualified` and
+`wearReason`; unverified/off-wrist uploads stay private and cannot enter customer
+analytics. Receipt time is not a proven measurement time. Equal values in the
+same two-minute bucket are deduplicated only within the same wearing period,
+so an excluded off-wrist upload cannot suppress a subsequent qualified upload.
+The Wellness card shows current wearing status on every edition, expires it
+locally and retains earlier qualified readings with their original age.
+See [the shared wearing contract and passive test](wearing-data-quality.md).
+No hardware schedule is changed or automatically stopped/restarted by this work.

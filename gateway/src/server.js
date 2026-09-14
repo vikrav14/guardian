@@ -133,6 +133,13 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
   customerEnabled: config.careWellbeingCustomerEnabled,
   retentionDays: config.careWellbeingRetentionDays,
 }) : null;
+const { createWearEvidence } = require('./wear-evidence');
+const wearEvidence = createWearEvidence({ db: getDb(),
+  enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
+  deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
+  onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
+});
+
 const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
   enabled: config.activityStepsIngestEnabled,
   customerEnabled: config.activityStepsCustomerEnabled,
@@ -1297,6 +1304,8 @@ const server = net.createServer((socket) => {
       const { acks, events } = handlePacket(decoded, session);
 
       const receivedAt = new Date();
+      try { wearEvidence.capture(decoded, events, session, receivedAt); }
+      catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
         try {
           for (const event of events) if (event.type === 'location') {
@@ -1350,6 +1359,7 @@ const server = net.createServer((socket) => {
     console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
 
     if (session?.imei) {
+      wearEvidence.disconnect(session.imei, session);
 
       noteDiagnosticEventForJourney(
         session.imei,
