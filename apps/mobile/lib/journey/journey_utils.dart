@@ -1370,7 +1370,9 @@ List<({double lat, double lng})> decodePolyline(String encoded) {
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-    final dlat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+    // Arithmetic negation preserves signed deltas on native and Dart web.
+    // Bitwise complement can produce an unsigned 32-bit result in browsers.
+    final dlat = (result & 1) != 0 ? -((result >> 1) + 1) : (result >> 1);
     lat += dlat;
 
     shift = 0;
@@ -1380,7 +1382,7 @@ List<({double lat, double lng})> decodePolyline(String encoded) {
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-    final dlng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+    final dlng = (result & 1) != 0 ? -((result >> 1) + 1) : (result >> 1);
     lng += dlng;
 
     points.add((lat: lat / 1e5, lng: lng / 1e5));

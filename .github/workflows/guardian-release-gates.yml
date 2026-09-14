@@ -81,6 +81,9 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
+      - name: Run journey coordinate regression in Chrome
+        run: flutter test --platform chrome test/journey_polyline_platform_test.dart
+
       - name: Build Flutter Web release
         run: flutter build web --release
 
