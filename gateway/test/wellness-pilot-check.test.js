@@ -101,3 +101,16 @@ test('explicit comparison exposes only the latest three permitted values per met
     { includeReadingValues: true });
   assert.ok(revoked.wellbeing.metrics.every(metric => metric.latestReadings.length === 0));
 });
+
+test('daily ledger diagnostics remain visible in shadow mode without exposing a customer total', () => {
+  const report = buildReport({ activityState: { schemaVersion: 2, counterMode: 'unverified',
+    lastRaw: 1098, latestRaw: 1098, baselineAt: now, lastObservedAt: now, imei: 'private-watch' },
+  activityDays: [{ schemaVersion: 2, localDate: '2026-09-15', recordedSteps: 98,
+    observedDeltaSteps: 98, displayable: false, coverage: 'partial',
+    unallocatedSteps: 12, coverageReasons: ['cross_midnight_unallocated'], lastObservedAt: now }] }, {}, now);
+  assert.equal(report.activity.persistedGatewayState.schemaVersion, 2);
+  assert.equal(report.activity.days[0].recordedSteps, 98);
+  assert.equal(report.activity.days[0].reportedSteps, null);
+  assert.equal(report.activity.days[0].unallocatedSteps, 12);
+  assert.doesNotMatch(JSON.stringify(report), /private-watch/);
+});

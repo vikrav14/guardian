@@ -14,6 +14,35 @@ GuardianSubscription plan(String name) => GuardianSubscription.fromMap({
 });
 void main() {
   final now = DateTime.utc(2026, 9, 14, 20);
+  testWidgets('observed step totals are visibly labelled as a partial day', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: WellnessCard(
+              now: now,
+              activityAvailable: true,
+              samples: const [],
+              days: [
+                ActivityDay(
+                  localDate: '2026-09-15',
+                  steps: 98,
+                  lastObservedAt: now,
+                  quality: 'partial',
+                  partialCoverage: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('98'), findsOneWidget);
+    expect(find.textContaining('Partial day'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   test(
     'Mauritius date changes at UTC 20:00; history is bounded per edition',
     () {

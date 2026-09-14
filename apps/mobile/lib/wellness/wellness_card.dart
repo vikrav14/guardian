@@ -90,11 +90,17 @@ class WellnessCard extends StatelessWidget {
                           activityAvailable && !activityError && today != null
                           ? NumberFormat.decimalPattern().format(today.steps)
                           : '—',
-                      status: status(
-                        activityAvailable,
-                        activityError,
-                        today?.lastObservedAt,
-                      ),
+                      status:
+                          (today?.partialCoverage == true &&
+                                  activityAvailable &&
+                                  !activityError
+                              ? 'Partial day · '
+                              : '') +
+                          status(
+                            activityAvailable,
+                            activityError,
+                            today?.lastObservedAt,
+                          ),
                     ),
                   ),
                   SizedBox(

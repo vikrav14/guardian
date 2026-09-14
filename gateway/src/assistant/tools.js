@@ -524,6 +524,7 @@ async function getActivitySummary(
         day.lastObservedAt ||
         null,
       quality: day.quality || 'partial',
+      partialCoverage: day.coverage === 'partial',
       resetRecovered: Number(day.resetCount || 0) > 0,
     }));
   return {

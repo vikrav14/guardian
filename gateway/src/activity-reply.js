@@ -19,10 +19,11 @@ function formatActivityReply(result = {}) {
     const freshness = at && Number.isFinite(at.getTime())
       ? ` Last update: ${at.toISOString().replace('T', ' ').slice(0, 16)} UTC.`
       : '';
-    return `${name}: ${formatSteps(day.steps)} steps on ${day.localDate}.${freshness}`;
+    const coverage = day.partialCoverage ? ' Partial day: steps recorded during observed intervals; missing periods are unknown.' : '';
+    return `${name}: ${formatSteps(day.steps)} steps on ${day.localDate}.${coverage}${freshness}`;
   }
   const readings = days
-    .map((day) => `${day.localDate}: ${formatSteps(day.steps)}`)
+    .map((day) => `${day.localDate}: ${formatSteps(day.steps)}${day.partialCoverage ? ' (partial day)' : ''}`)
     .join(' · ');
   return `${name}'s accepted daily step readings: ${readings}. These are everyday activity estimates, not medical measurements.`;
 }

@@ -38,3 +38,9 @@ test('missing activity data never fabricates a total', () => {
     'No accepted step reading is available for Jesh yet.',
   );
 });
+
+test('partial observed totals cannot be described as complete daily activity', () => {
+  const day = { localDate: '2026-09-15', steps: 98, partialCoverage: true };
+  assert.match(formatActivityReply({ days: [day] }), /Partial day.*missing periods are unknown/);
+  assert.match(formatActivityReply({ days: [day], requestedDays: 7 }), /98 \(partial day\)/);
+});

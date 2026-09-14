@@ -11,6 +11,7 @@
     "chat": "node scripts/chat.js",
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "activity:provision": "node scripts/provision-activity-steps.js",
+    "activity:check": "node scripts/inspect-activity-counter.js",
     "sos:alarm-mode": "node scripts/queue-v52-alarm-mode.js",
     "phonebook:provision": "node scripts/send-phonebook-contact.js",
     "phonebook:test": "node scripts/send-phonebook-contact.js",

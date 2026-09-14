@@ -1,6 +1,7 @@
 'use strict';
 
 const { localDateKey } = require('../src/activity-steps');
+const { summarizeActivityDay, summarizeActivityState } = require('../src/activity-counter-diagnostics');
 const { validConsent, METRIC_SET } = require('../src/care-wellbeing');
 
 const WINDOW_MS = 25 * 60 * 60 * 1000;
@@ -22,8 +23,9 @@ async function loadEvidence(db, imei, now = new Date(), timeZone = 'Indian/Mauri
   const deviceRef = db.collection('devices').doc(imei);
   const consentRef = db.collection('wellbeingConsents').doc(imei);
   const dates = [now, new Date(now - 86400000)].map(date => localDateKey(date, timeZone));
-  const [device, consent, ...days] = await Promise.all([
+  const [device, consent, activityState, ...days] = await Promise.all([
     deviceRef.get(), consentRef.get(),
+    deviceRef.collection('activityState').doc('counter').get(),
     ...dates.map(date => deviceRef.collection('activityDays').doc(date).get()),
   ]);
   if (!device.exists) throw new Error('Configured watch was not found in Firestore.');
@@ -42,6 +44,7 @@ async function loadEvidence(db, imei, now = new Date(), timeZone = 'Indian/Mauri
     if (!validConsent(currentConsent, now)) { readings = []; truncated = false; }
   }
   return { device: device.data(), consent: currentConsent,
+    activityState: activityState.exists ? activityState.data() : null,
     activityDays: days.filter(day => day.exists).map(day => day.data()), readings, truncated };
 }
 
@@ -76,13 +79,8 @@ function buildReport(evidence, config, now = new Date(), { includeReadingValues 
       rawCounter: Number.isInteger(device.stepsRaw) ? device.stepsRaw : null,
       counterUpdatedAt: iso(device.activityUpdatedAt),
       counterAgeSeconds: age(device.activityUpdatedAt, now),
-      days: (evidence.activityDays || []).map(day => ({
-        localDate: day.localDate, lastRaw: day.lastRaw ?? null,
-        reportedSteps: day.displayable === true ? day.reportedSteps ?? null : null,
-        displayable: day.displayable === true, quality: day.quality || 'unverified',
-        resetCount: day.resetCount ?? 0, anomalyCount: day.anomalyCount ?? 0,
-        lastObservedAt: iso(day.lastObservedAt),
-      })),
+      persistedGatewayState: summarizeActivityState(evidence.activityState),
+      days: (evidence.activityDays || []).map(summarizeActivityDay),
       acceptance: 'manual_watch_comparison_midnight_and_reboot_still_required',
     },
     wellbeing: {

@@ -2,6 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/activity_day.dart';
 
 void main() {
+  test('recorded increases carry partial coverage into the display model', () {
+    final day = ActivityDay.fromMap({
+      'localDate': '2026-09-15',
+      'displayable': true,
+      'reportedSteps': 98,
+      'lastObservedAt': DateTime.utc(2026, 9, 14, 20, 10),
+      'coverage': 'partial',
+    });
+    expect(day.steps, 98);
+    expect(day.partialCoverage, true);
+  });
   test('accepted activity day parses customer-safe fields', () {
     final day = ActivityDay.fromMap({
       'localDate': '2026-08-23',

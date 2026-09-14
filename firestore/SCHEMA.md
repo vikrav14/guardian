@@ -229,35 +229,52 @@ to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
 ## `devices/{imei}/activityDays/{localDate}`
 
-Gateway-owned daily activity records. Document ID is the local calendar date
-(`YYYY-MM-DD`) in the configured watch timezone. Clients cannot write these
-documents. Linked Family/Care users can read only records whose
-`displayable=true`; Essential and unverified records fail closed in rules.
+Gateway-owned daily activity. Linked users may read only `displayable=true`
+records within their active Wellness edition window: Essential today, Family
+seven local calendar days, Care available retained history. Clients cannot write.
 
 | Field | Type | Notes |
-|-------|------|-------|
-| schemaVersion | number | Currently `1`. |
-| imei | string | Parent watch IMEI. |
-| localDate | string | Local `YYYY-MM-DD` date. |
-| timeZone | string | IANA timezone used for the day boundary. |
-| source | string | `v52_counter`; passive protocol telemetry. |
-| counterMode | string | `unverified` or physically accepted `daily_reset`. |
-| displayable | boolean | True only in accepted counter mode with no anomaly. |
-| reportedSteps | number \| null | Customer total only when `displayable=true`. |
-| observedDeltaSteps | number | Diagnostic sum of accepted raw deltas. |
-| firstRaw | number | First valid raw counter observed for the day. |
-| lastRaw | number | Most recent valid raw counter observed for the day. |
-| firstObservedAt | timestamp | Gateway receipt time of first sample. |
-| lastObservedAt | timestamp | Gateway receipt time of latest accepted-order sample. |
-| sampleCount | number | Valid in-order observations processed. |
-| resetCount | number | Same-day counter decreases recovered by the aggregator. |
-| anomalyCount | number | Implausible jumps; any positive value hides the day. |
-| quality | string | `unverified`, `partial`, `reset_recovered`, or `anomalous`. |
-| expiresAt | timestamp | Gateway retention deadline. |
-| updatedAt | timestamp | Last gateway persistence time. |
+|---|---|---|
+| schemaVersion | number | `2` for observed-increase accounting; legacy `daily_reset` records remain version `1`. |
+| imei, localDate, timeZone | string | Parent watch, local YYYY-MM-DD and configured IANA timezone. |
+| aggregation | string | `observed_delta` for v2. |
+| counterMode | string | `unverified`, accepted `observed_delta`, or legacy accepted `daily_reset`. |
+| recordedSteps, observedDeltaSteps | number | V2 sum of accepted increases assigned to this day, starting from zero at its first observation. |
+| displayable | boolean | V2 requires accepted observed-delta mode and customer opt-in. |
+| reportedSteps | number or null | V2 customer projection of recordedSteps; null while unverified/disabled. |
+| firstRaw, lastRaw | number | Observed raw counter values, not daily totals. |
+| firstObservedAt, lastObservedAt | timestamp | Receipt interval endpoints. |
+| sampleCount | number | Observations represented in persisted accounting; unchanged packets are throttled. |
+| resetCount, confirmedResetCount | number | Counter-decrease candidates and confirmed new baselines. No reset total is inferred. |
+| anomalyCount, gapCount | number | Implausible increases and observation gaps over 30 minutes. |
+| unallocatedSteps | number | Positive increase seen across a day boundary or long gap, recorded on the arrival-day diagnostic but excluded from either daily total. |
+| coverage, coverageReasons | string, array | `partial`, with reasons such as monitoring_started, counter_discontinuity or cross_midnight_unallocated. Never proves full-day coverage/inactivity. |
+| lastIntervalReason | string | Latest accounting decision. |
+| quality | string | V2 unverified or partial; legacy records may contain reset_recovered/anomalous. |
+| expiresAt, updatedAt | timestamp | Retention deadline and last persistence. |
 
-The collection intentionally does not derive active minutes, distance,
-calories, fitness or medical conclusions from steps.
+## `devices/{imei}/activityState/counter`
+
+Backend-only durable v2 counter baseline. Stores accepted `lastRaw`, `baselineAt`,
+`baselineLocalDate`, latest received raw/time/source, last device timestamp where
+available, segment number, pending discontinuity, mode and intervalSequence.
+One Firestore transaction commits this state, the day and any diagnostic interval.
+Receipt/device timestamp replay checks make retry idempotent across gateway
+restarts and concurrent instances. This is one bounded document per watch,
+retained with the device rather than expiring at a day boundary.
+
+## `devices/{imei}/activityIntervals/{slot}`
+
+Backend-only ring of at most 256 recent diagnostic intervals per watch, with a
+seven-day expiry handled by gateway cleanup. Each contains rawBefore/rawAfter,
+receipt-time from/to, source/deviceObservedAt when supplied, local dates,
+acceptedSteps, unallocatedSteps, segment and reason. Slots may be overwritten;
+this is recent diagnostic evidence, not promised complete hourly history.
+Unchanged heartbeat history is not written. Daily aggregates have their own
+retention and do not disappear when diagnostic intervals expire.
+
+No counter field is copied into current location, journeys, emergency alerts,
+active minutes, calories, distance or medical conclusions.
 
 ## `devices/{imei}/locations/{locationId}`
 

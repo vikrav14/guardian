@@ -19,15 +19,15 @@ const config = {
   journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
 
   // V52 activity is passive and fail-closed. Raw counters continue to be
-  // retained on devices/{imei}; daily aggregation stays off until the exact
-  // firmware's midnight/reboot semantics have passed physical acceptance.
+  // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
+  // Customer exposure still requires exact-device acceptance and opt-in.
   activityStepsIngestEnabled:
     String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
   activityStepsCustomerEnabled:
     String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
   activityStepsCounterMode:
-    process.env.ACTIVITY_STEPS_COUNTER_MODE === 'daily_reset'
-      ? 'daily_reset'
+    ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
+      ? process.env.ACTIVITY_STEPS_COUNTER_MODE
       : 'unverified',
   activityStepsTimeZone:
     process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',

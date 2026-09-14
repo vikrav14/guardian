@@ -92,3 +92,12 @@ Determine display versus upload reset behavior at midnight and on watch reboot
 before accepting a daily-total counter mode. Do not subtract a fixed observed
 offset or equate the uploaded counter with today's total. Temperature was
 reported on the watch; its network payload has not been supplied or validated.
+# Midnight counter update
+
+The combined branch now includes #119's durable observed-increase ledger.
+`wellness:check` shows persistedGatewayState and schema-v2 recordedSteps,
+unallocatedSteps and coverage. `activity:check -- --save=before-midnight` saves a
+bounded private diagnostic snapshot without requesting a measurement or changing
+the watch. See [the current midnight runbook](activity-counter-midnight-2026-09-14.md).
+Keep the current `unverified` mode and customer flags off for this field test.
+The confirmed 98-step walk passed and does not need the declined repeat walks.
