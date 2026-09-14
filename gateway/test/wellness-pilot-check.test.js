@@ -84,3 +84,20 @@ test('consent revocation during the query suppresses reading evidence', async ()
   assert.equal(report.wellbeing.readingsTruncated, false);
   assert.ok(report.wellbeing.metrics.every(metric => metric.uploads === 0));
 });
+
+test('explicit comparison exposes only the latest three permitted values per metric', () => {
+  const samples = [15, 16, 17, 18].map(hour => ({ ...reading(`2026-09-14T${hour}:00:00Z`),
+    values: { spo2Percent: 97, privateFixture: 'must-not-appear' },
+    quality: 'transport_valid_unverified' }));
+  const report = buildReport({ consent, readings: samples }, {}, now, { includeReadingValues: true });
+  const oxygen = report.wellbeing.metrics.find(metric => metric.metricSet === 'spo2');
+  assert.equal(oxygen.latestReadings.length, 3);
+  assert.equal(oxygen.latestReadings[0].observedAt, '2026-09-14T18:00:00.000Z');
+  assert.deepEqual(oxygen.latestReadings[0].values, { spo2Percent: 97 });
+  assert.equal(oxygen.latestReadings[0].displayable, false);
+  assert.equal(oxygen.latestReadings[0].quality, 'transport_valid_unverified');
+  assert.doesNotMatch(JSON.stringify(report), /must-not-appear|999999999999999/);
+  const revoked = buildReport({ consent: { ...consent, status: 'revoked' }, readings: samples }, {}, now,
+    { includeReadingValues: true });
+  assert.ok(revoked.wellbeing.metrics.every(metric => metric.latestReadings.length === 0));
+});

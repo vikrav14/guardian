@@ -45,7 +45,7 @@ async function loadEvidence(db, imei, now = new Date(), timeZone = 'Indian/Mauri
     activityDays: days.filter(day => day.exists).map(day => day.data()), readings, truncated };
 }
 
-function buildReport(evidence, config, now = new Date()) {
+function buildReport(evidence, config, now = new Date(), { includeReadingValues = false } = {}) {
   const device = evidence.device || {};
   const consentValid = validConsent(evidence.consent, now);
   const readings = consentValid ? (evidence.readings || []).filter(reading => {
@@ -92,11 +92,20 @@ function buildReport(evidence, config, now = new Date()) {
           .sort((a, b) => asDate(a.observedAt) - asDate(b.observedAt));
         const gaps = samples.slice(1).map((reading, index) =>
           Math.round((asDate(reading.observedAt) - asDate(samples[index].observedAt)) / 1000));
+        const valueKeys = metricSet === METRIC_SET.SPO2
+          ? ['spo2Percent'] : ['heartRateBpm', 'systolicMmHg', 'diastolicMmHg'];
         return { metricSet, uploads: samples.length,
           displayableUploads: samples.filter(reading => reading.displayable === true).length,
           firstUploadAt: iso(samples[0]?.observedAt), lastUploadAt: iso(samples.at(-1)?.observedAt),
           lastUploadAgeSeconds: age(samples.at(-1)?.observedAt, now),
-          maximumGapSeconds: gaps.length ? Math.max(...gaps) : null };
+          maximumGapSeconds: gaps.length ? Math.max(...gaps) : null,
+          ...(includeReadingValues ? { latestReadings: samples.slice(-3).reverse().map(reading => ({
+            observedAt: iso(reading.observedAt), quality: reading.quality || 'unverified',
+            displayable: reading.displayable === true,
+            values: Object.fromEntries(valueKeys.filter(key => Number.isFinite(reading.values?.[key]))
+              .map(key => [key, reading.values[key]])),
+          })) } : {}),
+        };
       }),
       scheduleState: 'not_proven_by_uploads',
       skinTemperature: 'not_available_pending_exact_device_validation',
@@ -106,9 +115,11 @@ function buildReport(evidence, config, now = new Date()) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const supplied = process.argv.slice(2);
+  const includeReadingValues = supplied.includes('--include-reading-values');
+  const args = supplied.filter(arg => arg !== '--include-reading-values');
   if (args.length && (args.length !== 2 || args[0] !== '--imei')) {
-    throw new Error('Usage: npm run wellness:check [-- --imei <15 digits>]');
+    throw new Error('Usage: npm run wellness:check [-- --imei <15 digits> --include-reading-values]');
   }
   const config = require('../src/config');
   const imei = String(args[1] || config.wifiHomePilotImei || '').trim();
@@ -119,7 +130,7 @@ async function main() {
   if (!db) throw new Error('Firestore is unavailable.');
   const now = new Date();
   const evidence = await loadEvidence(db, imei, now, config.activityStepsTimeZone);
-  console.log(JSON.stringify(buildReport(evidence, config, now), null, 2));
+  console.log(JSON.stringify(buildReport(evidence, config, now, { includeReadingValues }), null, 2));
 }
 
 if (require.main === module) main().catch(error => {

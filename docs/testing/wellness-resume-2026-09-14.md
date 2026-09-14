@@ -16,7 +16,19 @@ npm run wellness:check
 This uses the watch already selected by `WIFI_HOME_PILOT_IMEI`. To inspect another
 authorized pilot, pass `-- --imei <15 digits>`. The command reads Firestore only:
 no writes, watchers, pedometer activation, consent changes or measurement requests.
-It omits identity, coordinates, secrets and numerical health readings.
+It omits identity, coordinates, secrets and numerical health readings by default.
+
+For an explicit comparison with the watch display, use:
+
+```powershell
+npm run wellness:check -- --include-reading-values
+```
+
+This adds the three latest stored readings per supported metric, with their
+times, quality and displayability. It still requires current consent and only
+prints the known numerical heart/BP/oxygen fields. Treat this optional output
+as private acceptance evidence; do not copy personal readings into public PRs.
+Matching a watch display verifies transport, not physical sensor accuracy.
 
 The report includes local configuration flags, the backend heartbeat and its age,
 the last raw step counter and its age, today/yesterday's daily records, current
@@ -65,3 +77,18 @@ or stopping a trial. The existing strict-admin controls remain unchanged.
 
 The earlier August handoff files are historical evidence, not the current
 edition contract or confirmation of today's watch configuration.
+
+## Evening pilot checkpoint
+
+The latest operator check confirms a daily shadow activity record and one
+heart/BP plus one oxygen upload. Customer visibility remains disabled and
+device modes remain unverified. The watch display and uploaded step counter
+both increased by 14 between the supplied before/after readings, but their
+absolute totals differ. A different reset baseline is possible, not yet
+established. No known counted distance or
+controlled step count was supplied, so this is not an accuracy acceptance.
+
+Determine display versus upload reset behavior at midnight and on watch reboot
+before accepting a daily-total counter mode. Do not subtract a fixed observed
+offset or equate the uploaded counter with today's total. Temperature was
+reported on the watch; its network payload has not been supplied or validated.
