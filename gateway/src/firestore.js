@@ -562,6 +562,12 @@ async function refreshDeviceIntelligence(imei, deviceOverride = null) {
   }
   if (!device) return [];
 
+  if (deviceOverride) {
+    // Live telemetry overrides omit the separately published Home field.
+    const homeWifiPresence = require('./wifi-home-runtime').getHomeWifiPriority(canonicalImei);
+    device = { ...device, homeWifiPresence };
+  }
+
   const geofences = db ? await loadActiveGeofences(db, canonicalImei) : [];
   const insights = evaluateDeviceIntelligence({
     imei: canonicalImei,

@@ -1,0 +1,109 @@
+{
+  "source": "Operator-provided gateway excerpts, read-only checker output and app screenshots in the PR #116 follow-up chat",
+  "dateUtc": "2026-09-13",
+  "dateMauritius": "2026-09-14",
+  "implementationCheckpoint": "e9cad972bc36de2e9d48f5b779414f0d1697d34e",
+  "checkoutEvidence": "Post-update check instructed against e9cad97; new bindingTimeouts and lastHomeDetection diagnostics are present. No new git HEAD output was supplied with this physical run.",
+  "physicalContext": "One pilot V52 remained at Home. The operator deferred departure and return testing because it was late.",
+  "freshHome": {
+    "locationRequest": "Gateway logged one CR handoff and echo in the supplied excerpt, followed by radio observations; this is not a count of all commands outside the excerpt.",
+    "firstObservedAt": "2026-09-13T21:12:20.000Z",
+    "matchedStatus": {
+      "asOf": "2026-09-13T21:13:04.004Z",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "consecutiveMatches": 3,
+      "observedAt": "2026-09-13T21:13:02.000Z",
+      "signalDbm": -60
+    },
+    "displayingHome": true,
+    "displayReason": "home_wifi_detected",
+    "screenshot": {
+      "uploadedName": "2026-09-14_01h13_56.png",
+      "observedLabels": ["Home Wi-Fi detected", "Home", "Just now"],
+      "retainedGpsAge": "1d ago"
+    }
+  },
+  "afterExpiry": {
+    "displayEnabled": true,
+    "publisherActive": true,
+    "homeBindingReady": true,
+    "bindingReason": "ready",
+    "phase": "idle",
+    "pendingSeconds": null,
+    "bindingTimeouts": 0,
+    "sessionConnected": true,
+    "matchState": "expired",
+    "matchReason": "observation_expired",
+    "consecutiveMatches": 0,
+    "observationAgeSeconds": 210,
+    "homeEvidenceEligible": false,
+    "selectionReason": "observation_expired",
+    "publishedHomeFresh": false,
+    "wifiConflictEligible": false,
+    "publishedConflictFresh": false,
+    "lastHomePublication": {
+      "confirmedAt": "2026-09-13T21:16:23.007Z",
+      "observedAt": "2026-09-13T21:15:08.000Z",
+      "expiresAt": "2026-09-13T21:17:08.000Z"
+    },
+    "lastConflictPublication": null,
+    "lastClearedAt": "2026-09-13T21:17:09.132Z",
+    "lastClearedReason": "observation_expired",
+    "lastHomeDetection": {
+      "observedAt": "2026-09-13T21:15:08.000Z"
+    }
+  },
+  "afterExpiryScreenshot": {
+    "uploadedName": "2026-09-14_01h19_45.png",
+    "observedLabels": [
+      "Last detected at Home",
+      "Home",
+      "4m ago",
+      "Current presence at Home is unconfirmed."
+    ],
+    "map": "The Home pin remains selected; the insight and banner describe it as the last detected place.",
+    "watchStatus": "Watch connected; checked in just now",
+    "captureTimeEvidence": "Local time appears in the uploaded filename; no independent capture timestamp or continuous UI recording was supplied."
+  },
+  "afterGatewayRestart": {
+    "displayEnabled": true,
+    "publisherActive": true,
+    "homeBindingReady": true,
+    "bindingReason": "ready",
+    "phase": "idle",
+    "pendingSeconds": null,
+    "bindingTimeouts": 0,
+    "sessionConnected": false,
+    "matchState": "no_observation",
+    "matchReason": "no_observation",
+    "consecutiveMatches": 0,
+    "observationAgeSeconds": null,
+    "homeEvidenceEligible": false,
+    "selectionReason": "awaiting_router_evidence",
+    "publishedHomeFresh": false,
+    "wifiConflictEligible": false,
+    "publishedConflictFresh": false,
+    "lastHomePublication": null,
+    "lastConflictPublication": null,
+    "lastClearedAt": "2026-09-13T21:21:10.563Z",
+    "lastClearedReason": "awaiting_router_evidence",
+    "lastHomeDetection": {
+      "observedAt": "2026-09-13T21:15:08.000Z"
+    }
+  },
+  "acceptedScope": [
+    "Fresh Home qualification, publication and dashboard display on one pilot watch/router.",
+    "Fresh evidence expires while the original historical source timestamp remains.",
+    "Dashboard retains Home with source age and explicitly unconfirmed current presence after expiry.",
+    "Gateway restores the same historical timestamp after restart with a ready binding and no fresh Home authority."
+  ],
+  "remainingAcceptance": [
+    "Actual departure and return, time to the first usable GPS report, displayed GPS precedence and journey/zone behavior.",
+    "Ordinary WhatsApp and location-details agreement for historical Home on the physical pilot.",
+    "App presentation and watch reconnection after gateway restart; no post-restart screenshot or reconnected status was supplied.",
+    "Binding timeout and recovery under a real connection failure; bindingTimeouts remained zero in this run.",
+    "Continuous reporting, router loss/return or restart, native fence semantics and measured battery impact."
+  ],
+  "redaction": "Device/protocol IDs, coordinates, owner IDs, router identifiers, hashes, keys and command frames are omitted. Screenshots are described rather than committed."
+}

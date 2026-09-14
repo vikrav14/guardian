@@ -3,6 +3,8 @@
 const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
 const { toDate } = require('./sos-location-policy');
 const { batteryFreshness, formatAge } = require('./battery-freshness');
+const { readHomeWifiDisplay, readHomeWifiConflict } = require('./wifi-home-display-policy');
+const { readLastHomeWifiDetection } = require('./last-home-wifi-detection');
 
 function recordedDate(value, now) {
   try {
@@ -21,11 +23,16 @@ function ageSeconds(date, now) {
  * Reuse the validated, read-only map/SOS selection contract. This does not
  * create an SOS or write a snapshot. An approximate observation never replaces
  * retained GPS just because 30 minutes passed; its evidence stays separate.
+ * The private Home display pilot may overlay an enrolled Home pin only for
+ * ordinary location replies. It never changes the underlying SOS selection.
  */
 function buildLocationReplyData(device = {}, { now = new Date() } = {}) {
   const selection = buildSosLocationSnapshot(device, { now });
   const clock = selection.capturedAt;
-  const loc = selection.location;
+  const home = readHomeWifiDisplay(device, { now: selection.capturedAt });
+  const conflict = readHomeWifiConflict(device, { now: selection.capturedAt });
+  const rememberedHome = readLastHomeWifiDetection(device, { now: selection.capturedAt });
+  const loc = home || rememberedHome || selection.location;
   const latest = selection.latestObservation;
   const heartbeatAt = recordedDate(device.lastHeartbeatAt, clock);
   const updatedAt = recordedDate(device.updatedAt, clock);
@@ -44,17 +51,31 @@ function buildLocationReplyData(device = {}, { now = new Date() } = {}) {
     accuracySource: loc?.source || null,
     accuracyMeters: loc?.accuracyMeters ?? null,
     recordedAt: loc?.recordedAt?.toISOString() || null,
-    ageSeconds: selection.ageSeconds,
-    stalenessSeconds: selection.ageSeconds,
-    locationState: selection.state,
-    retainedSatellite: selection.retainedSatellite,
+    ageSeconds: home?.ageSeconds ?? rememberedHome?.ageSeconds ?? selection.ageSeconds,
+    stalenessSeconds: home?.ageSeconds ?? rememberedHome?.ageSeconds ?? selection.ageSeconds,
+    locationState: home ? 'fresh' : rememberedHome ? 'last_known' : selection.state,
+    retainedSatellite: home || rememberedHome ? false : selection.retainedSatellite,
+    homeWifiDetected: Boolean(home),
+    lastDetectedAtHome: Boolean(rememberedHome),
+    homeWifiConflict: Boolean(conflict),
+    homeWifiObservedAt: conflict?.observedAt.toISOString() || null,
+    homeWifiAgeSeconds: conflict?.ageSeconds ?? null,
+    retainedGpsRecordedAt: (home || rememberedHome) && selection.location?.source === 'gps'
+      ? selection.location.recordedAt?.toISOString() || null : null,
+    retainedGpsAgeSeconds: (home || rememberedHome) && selection.location?.source === 'gps' ? selection.ageSeconds : null,
     latestObservationSource: latest?.source || null,
     latestObservationAt: latest?.recordedAt?.toISOString() || null,
     latestObservationAgeSeconds: ageSeconds(latest?.recordedAt, clock),
     latestObservationAccuracyMeters: latest?.accuracyMeters ?? null,
     latestObservationIsNewer: Boolean(latest?.recordedAt && loc?.recordedAt &&
       latest.recordedAt.getTime() > loc.recordedAt.getTime()),
-    locationDisclosure: !loc
+    locationDisclosure: conflict
+      ? 'Home Wi-Fi detected, but GPS does not confirm the saved Home location. Current position unconfirmed. The map shows a recorded position, not confirmed current whereabouts.'
+      : home
+      ? 'Home Wi-Fi detected. The watch is at or near the saved Home pin; this is not a GPS fix.'
+      : rememberedHome
+      ? 'Last detected at Home. Current presence at Home is unconfirmed. The map shows the saved Home pin from that earlier Wi-Fi detection.'
+      : !loc
       ? 'No usable recorded location is available.'
       : selection.retainedSatellite
         ? 'Showing the last satellite fix. Current position unconfirmed.'
@@ -115,8 +136,31 @@ function formatLocationReply(result) {
   const approximate = ['wifi', 'lbs'].includes(result.accuracySource);
   const historical = result.retainedSatellite || result.locationState !== 'fresh';
   const lines = [];
+  if (result.homeWifiConflict === true) {
+    lines.push(`*Location uncertain for ${name}*`,
+      `Home Wi-Fi detected ${formatAge(result.homeWifiAgeSeconds) || 'recently'}.`,
+      'GPS does not confirm the saved Home location. Current position unconfirmed.',
+      'The recorded position below is shown for reference.', '');
+  }
 
-  if (!result.mapsUrl || result.locationState === 'unavailable') {
+  if (result.lastDetectedAtHome === true && result.accuracySource === 'home_wifi_last_detected' && result.mapsUrl) {
+    lines.push(`*Last detected at Home for ${name}*`,
+      recordedTime(result), 'Current presence at Home is unconfirmed.',
+      'The map shows your saved Home pin from that earlier Wi-Fi detection.');
+    if (result.retainedGpsRecordedAt) {
+      lines.push('', `Last GPS fix retained separately: ${formatAge(result.retainedGpsAgeSeconds) || 'time unavailable'}.`);
+    }
+    lines.push('', 'View last detected Home location:', result.mapsUrl);
+  } else if (result.homeWifiDetected === true && result.accuracySource === 'home_wifi' && result.mapsUrl) {
+    lines.push(`*Home Wi-Fi detected for ${name}*`,
+      'The watch is at or near your saved Home location.',
+      `Detected ${formatAge(result.ageSeconds) || 'recently'}.`,
+      'This uses your enrolled Home router and saved Home pin, not a satellite GPS fix.');
+    if (result.retainedGpsRecordedAt) {
+      lines.push('', `Last GPS fix retained separately: ${formatAge(result.retainedGpsAgeSeconds) || 'time unavailable'}.`);
+    }
+    lines.push('', 'View saved Home location:', result.mapsUrl);
+  } else if (!result.mapsUrl || result.locationState === 'unavailable') {
     lines.push(`No usable recorded location is available for ${name}.`, 'Current position unconfirmed.');
   } else {
     const heading = result.accuracySource === 'gps'

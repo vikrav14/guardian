@@ -18,6 +18,27 @@ const _enabled = bool.fromEnvironment('DASHBOARD_PREVIEWS');
 void main() {
   for (final preview in [
     (
+      name: 'remembered_mobile',
+      width: 390.0,
+      height: 1800.0,
+      dark: false,
+      viewport: false,
+    ),
+    (
+      name: 'remembered_wide',
+      width: 1280.0,
+      height: 1800.0,
+      dark: false,
+      viewport: false,
+    ),
+    (
+      name: 'remembered_dark',
+      width: 390.0,
+      height: 1800.0,
+      dark: true,
+      viewport: false,
+    ),
+    (
       name: 'mobile',
       width: 390.0,
       height: 1800.0,
@@ -63,7 +84,9 @@ void main() {
       });
 
       final boundaryKey = GlobalKey();
-      final device = dashboardFixtureDevice();
+      final device = dashboardFixtureDevice(
+        rememberedHome: preview.name.startsWith('remembered_'),
+      );
       await tester.pumpWidget(
         dashboardFixtureHost(
           dashboardFixtureOverview(

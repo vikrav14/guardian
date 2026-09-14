@@ -6,6 +6,7 @@ const {
   hasActiveJourney,
   noteJourneyObservation,
   noteJourneyDiagnosticEvent,
+  forceCloseJourney,
 } = require('./journey-builder');
 
 /**
@@ -265,6 +266,19 @@ function trackPointForJourney(imei, point, now = new Date(), options = {}) {
   return trackJourneyPoint(state, point, now, options);
 }
 
+function suspendTrackingForHome(imei, now = new Date()) {
+  const state = getState(imei);
+  const lastPoint = state.currentJourney?.points.at(-1);
+  // Preserve a route at its last recorded endpoint. Home is not an invented
+  // GPS point or a proven return across the saved zone boundary.
+  const closed = forceCloseJourney(state, lastPoint?.recordedAt || now, 'home_wifi_detected');
+  state.currentDwell = null;
+  state.lastConfirmedSafeZonePoint = null;
+  state.journeyResumeReference = null;
+  state.journeyResumePending = true;
+  return closed ? [closed] : [];
+}
+
 function flushJourneyIfNeeded(imei, now = new Date(), force = false) {
   // Kept for server-call compatibility while the outing engine is migrated.
   // Disconnect must not close an outing; closure is driven by outing semantics.
@@ -312,6 +326,7 @@ module.exports = {
   trackPointForDwell,
   flushDwellIfNeeded,
   trackPointForJourney,
+  suspendTrackingForHome,
   flushJourneyIfNeeded,
   isJourneyActive,
   noteObservationForJourney,

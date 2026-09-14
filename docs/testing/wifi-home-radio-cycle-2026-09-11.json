@@ -1,0 +1,102 @@
+{
+  "evidenceOrigin": "Operator-pasted start, at_home, router_off, router_on and stopped report outputs, 11 September 2026 UTC",
+  "runtimeRevisionReported": null,
+  "revisionLimitation": "The capture does not identify the running-process commit. The prior UI merge is not a runtime revision measurement.",
+  "redactions": [
+    "captureId omitted from trial and capture"
+  ],
+  "sameObservationCaptureAcrossSuppliedOutputs": true,
+  "observationCaptureIsOriginalProvisioningCapture": false,
+  "intermediateStatusSnapshots": [
+    { "action": "start", "elapsedSeconds": 0, "sessionConnected": true, "heartbeats": 0, "markers": 0 },
+    { "action": "mark_at_home", "elapsedSeconds": 13, "sessionConnected": false, "heartbeats": 0, "markers": 1 },
+    { "action": "mark_router_off", "elapsedSeconds": 142, "sessionConnected": true, "heartbeats": 3, "markers": 2 },
+    { "action": "mark_router_on", "elapsedSeconds": 445, "sessionConnected": true, "heartbeats": 7, "markers": 3 }
+  ],
+  "assessment": {
+    "nativeSettingAcceptance": "unconfirmed",
+    "reportedFenceTransitionObserved": false,
+    "freshRouterBaselineEstablished": false,
+    "physicalDepartureOrReturnVerified": false,
+    "interpretation": "The marked stationary radio cycle produced heartbeats but no decoded location/radio reports or fence events. No CR, UPLOAD or WIFIFENCE handoff occurred in this capture. This does not establish whether the earlier native setting was applied, whether scanning occurred internally, or whether the firmware supports the inferred setting.",
+    "connectionLimitation": "The at_home status reported a disconnected session; later marker and final statuses were connected, with heartbeats in every radio phase. Continuous connectivity is not independently established.",
+    "physicalLimitation": "Radio changes and stationary placement are operator observations. The gateway does not verify the physical switch, radio identity after restoration or watch movement.",
+    "settingMayPersist": true,
+    "repeatProvisioningRecommended": false,
+    "nextExperiment": "One protected CR attempt with a fresh-router baseline, then a short marked radio loss/restoration during the observed reporting burst. Keep the existing native setting and reporting policy."
+  },
+  "derivedChecks": {
+    "heartbeatPacketCounts": { "LK": 10, "TKQ": 1 },
+    "heartbeatsByRadioPhase": { "beforeOff": 3, "off": 4, "restored": 4 },
+    "secondsFromCaptureStartToRadioOff": 142.474,
+    "secondsFromAtHomeMarkerToRadioOff": 129.001,
+    "radioOffSeconds": 302.875,
+    "restoredSecondsLowerInclusive": 288.651,
+    "restoredSecondsUpperExclusive": 289.651,
+    "stopAtLowerInclusiveUtc": "2026-09-11T18:30:15.469Z",
+    "stopAtUpperExclusiveUtc": "2026-09-11T18:30:16.469Z",
+    "stopTimeLimitation": "elapsedSeconds is floored; endsAt is the scheduled 30-minute capture ceiling, not the manual stop time.",
+    "lkGapSeconds": { "minimum": 72.824, "maximum": 73.249, "median": 72.992 }
+  },
+  "version": 1,
+  "configured": true,
+  "sessionConnected": true,
+  "liveProvisioningAvailable": false,
+  "provisioningMode": "experimental_single_router_only",
+  "singleRouterTrial": {
+    "supported": true,
+    "attempted": true,
+    "requestedAt": "2026-09-11T09:48:56.802Z",
+    "phase": "queued",
+    "captureRecorded": true,
+    "settingMayPersist": true,
+    "rollbackKnown": false,
+    "settingsApplied": null,
+    "nativeFenceAccepted": false,
+    "homeClaim": false
+  },
+  "capture": {
+    "observeOnly": true,
+    "homeClaim": false,
+    "nativeFenceAccepted": false,
+    "phase": "stopped",
+    "startedAt": "2026-09-11T18:18:01.469Z",
+    "endsAt": "2026-09-11T18:48:01.469Z",
+    "elapsedSeconds": 734,
+    "counts": {
+      "reports": 0,
+      "heartbeats": 11,
+      "freshRouterSightings": 0,
+      "staleOrInvalidReports": 0,
+      "repeatedReports": 0,
+      "fencePackets": 0,
+      "freshFencePackets": 0,
+      "crHandoffs": 0,
+      "uploadHandoffs": 0,
+      "fenceHandoffs": 0,
+      "commandResponses": 0,
+      "markers": 3
+    },
+    "maxReportGapSeconds": null,
+    "secondsSinceLastReport": null,
+    "secondsSinceLastRouterSighting": null,
+    "retainedEntries": 14,
+    "droppedEntries": 0,
+    "timeline": [
+      { "at": "2026-09-11T18:18:14.942Z", "kind": "operator_marker", "label": "at_home", "physicallyVerifiedByGateway": false },
+      { "at": "2026-09-11T18:18:50.650Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:18:50.828Z", "kind": "heartbeat", "packet": "TKQ" },
+      { "at": "2026-09-11T18:20:03.899Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:20:23.943Z", "kind": "operator_marker", "label": "router_off", "physicallyVerifiedByGateway": false },
+      { "at": "2026-09-11T18:21:16.872Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:22:29.696Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:23:42.698Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:24:55.692Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:25:26.818Z", "kind": "operator_marker", "label": "router_on", "physicallyVerifiedByGateway": false },
+      { "at": "2026-09-11T18:26:08.795Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:27:21.787Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:28:34.741Z", "kind": "heartbeat", "packet": "LK" },
+      { "at": "2026-09-11T18:29:47.716Z", "kind": "heartbeat", "packet": "LK" }
+    ]
+  }
+}
