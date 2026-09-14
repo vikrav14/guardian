@@ -10,6 +10,7 @@ const start = Date.parse('2026-09-01T12:00:00Z');
 
 function status() {
   return { version: 1, observerEnabled: true, displayEnabled: true, pilotConfigured: true,
+    walkRecoveryEnabled: false, walkRecoveryActive: false,
     sessionConnected: true, observer: { matchState: 'candidate', consecutiveMatches: 2 },
     publisher: { active: true, phase: 'idle', homeBindingReady: true,
       bindingReason: 'ready', operationSlow: false, homeEvidenceEligible: false,
@@ -40,14 +41,14 @@ test('default inspection is read-only and preserves evidence of an expired publi
   assert.deepEqual(output[0].lastHomePublication, value.publisher.lastHomePublication);
 });
 
-test('read-only inspection distinguishes experiment opt-in from a running recovery buffer', async () => {
-  for (const active of [false, true]) {
-    const value = { ...status(), walkRecoveryEnabled: true, walkRecoveryActive: active };
+test('read-only inspection distinguishes opt-in, active recovery and an older gateway with unknown state', async () => {
+  for (const [enabled, active] of [[false, false], [true, false], [true, true], [undefined, undefined]]) {
+    const value = { ...status(), walkRecoveryEnabled: enabled, walkRecoveryActive: active };
     const output = [];
     await inspectWifiHome({ readStatus: async () => value, emit: item => output.push(item),
       requestLocation: () => assert.fail('inspection must not send a watch command') });
-    assert.equal(output[0].walkRecoveryEnabled, true);
-    assert.equal(output[0].walkRecoveryActive, active);
+    assert.equal(output[0].walkRecoveryEnabled, enabled ?? null);
+    assert.equal(output[0].walkRecoveryActive, active ?? null);
     assert.equal(output[0].publisherActive, true);
   }
 });

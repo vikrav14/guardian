@@ -8,8 +8,10 @@ function summary(status) {
   return {
     displayEnabled: status.displayEnabled === true,
     publisherActive: p?.active === true,
-    walkRecoveryEnabled: status.walkRecoveryEnabled === true,
-    walkRecoveryActive: status.walkRecoveryActive === true,
+    // An older running gateway has neither field and may still run recovery.
+    // Missing diagnostics mean unknown, never proof the experiment is off.
+    walkRecoveryEnabled: typeof status.walkRecoveryEnabled === 'boolean' ? status.walkRecoveryEnabled : null,
+    walkRecoveryActive: typeof status.walkRecoveryActive === 'boolean' ? status.walkRecoveryActive : null,
     homeBindingReady: p?.homeBindingReady === true,
     bindingReason: p?.bindingReason || 'publisher_not_started',
     phase: p?.phase || 'not_started',

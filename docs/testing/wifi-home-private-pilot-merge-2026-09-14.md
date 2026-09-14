@@ -24,6 +24,9 @@ With its flag absent/false, no recovery buffer or timer is allocated, even
 though the server supplies a recovery callback. The protected read-only checker
 reports `walkRecoveryEnabled` and `walkRecoveryActive` so a configured flag is
 not confused with a running experiment or a successful recovery.
+If the running gateway predates these fields, the checker prints `null` (unknown)
+instead of claiming recovery is off. Pulling the script alone does not update
+the running process; restart the gateway to use the new default-off behavior.
 
 The experiment's existing source, age, binding, scope and cancellation rules
 continue to apply when explicitly enabled. Disabling it and restarting empties
