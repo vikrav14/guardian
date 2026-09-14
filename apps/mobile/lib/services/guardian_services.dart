@@ -537,6 +537,7 @@ class ActivityService {
     int limit = 7,
     DateTime? before,
     DateTime? now,
+    bool pilotPreview = false,
   }) {
     if (!subscription.has(GuardianFeature.activitySteps)) {
       return Stream.error(
@@ -550,15 +551,18 @@ class ActivityService {
       before: before,
       days: limit,
     );
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('activityDays');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
     return watchLinkedWellnessData(
       _db,
       _auth,
       imei,
-      () => _db
-          .collection('devices')
-          .doc(imei)
-          .collection('activityDays')
-          .where('displayable', isEqualTo: true)
+      () => query
           .where(
             'lastObservedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(window.start),
@@ -571,7 +575,9 @@ class ActivityService {
             final days = <ActivityDay>[];
             for (final doc in snapshot.docs) {
               try {
-                final day = ActivityDay.fromDoc(doc);
+                final day = pilotPreview
+                    ? ActivityDay.fromPilotMap(doc.data())
+                    : ActivityDay.fromDoc(doc);
                 if (window.includesDate(day.localDate) &&
                     window.contains(
                       day.lastObservedAt,
@@ -769,6 +775,7 @@ class WellbeingService {
     int limit = 12,
     WellnessWindow? window,
     DateTime? now,
+    bool pilotPreview = false,
   }) {
     if (!subscription.has(GuardianFeature.wellnessReadings)) {
       return Stream.error(
@@ -790,15 +797,18 @@ class WellbeingService {
         StateError('This date range is outside the edition history window.'),
       );
     }
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('wellbeingReadings');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
     return watchLinkedWellnessData(
       _db,
       _auth,
       imei,
-      () => _db
-          .collection('devices')
-          .doc(imei)
-          .collection('wellbeingReadings')
-          .where('displayable', isEqualTo: true)
+      () => query
           .where(
             'observedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(range.start),
@@ -810,7 +820,10 @@ class WellbeingService {
             final readings = <WellbeingReading>[];
             for (final doc in snapshot.docs) {
               try {
-                final reading = WellbeingReading.fromDoc(doc);
+                final reading = WellbeingReading.fromDoc(
+                  doc,
+                  pilotPreview: pilotPreview,
+                );
                 if (range.contains(
                   reading.observedAt,
                   now: now ?? DateTime.now(),
@@ -830,8 +843,14 @@ class WellbeingService {
     String imei, {
     required GuardianSubscription subscription,
     required WellnessWindow window,
+    bool pilotPreview = false,
   }) =>
-      watchRecentReadings(imei, subscription: subscription, window: window).map(
+      watchRecentReadings(
+        imei,
+        subscription: subscription,
+        window: window,
+        pilotPreview: pilotPreview,
+      ).map(
         (readings) => [
           for (final r in readings) ...[
             if (r.heartRateBpm != null)

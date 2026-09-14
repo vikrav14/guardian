@@ -32,32 +32,57 @@ class WellbeingReading {
   };
 
   factory WellbeingReading.fromDoc(
-    DocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data() ?? <String, dynamic>{};
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    bool pilotPreview = false,
+  }) => WellbeingReading.fromMap(
+    doc.data() ?? <String, dynamic>{},
+    id: doc.id,
+    pilotPreview: pilotPreview,
+  );
+
+  factory WellbeingReading.fromMap(
+    Map<String, dynamic> data, {
+    required String id,
+    bool pilotPreview = false,
+  }) {
     final metric = switch (data['metricSet']) {
       'spo2' => WellbeingMetricSet.spo2,
-      'heart_rate_blood_pressure' =>
-        WellbeingMetricSet.heartRateBloodPressure,
-      _ => throw StateError('Unsupported wellbeing metric in ${doc.id}'),
+      'heart_rate_blood_pressure' => WellbeingMetricSet.heartRateBloodPressure,
+      _ => throw StateError('Unsupported wellbeing metric'),
     };
     final values = data['values'] is Map
         ? Map<String, dynamic>.from(data['values'] as Map)
         : const <String, dynamic>{};
     final observedAt = _asDateTime(data['observedAt']);
     if (observedAt == null) {
-      throw StateError('Missing wellbeing receipt time in ${doc.id}');
+      throw StateError('Missing wellbeing receipt time');
     }
     final displayable = data['displayable'] == true;
-    if (!displayable) {
+    bool inRange(String key, int min, int max) =>
+        values[key] is int &&
+        (values[key] as int) >= min &&
+        (values[key] as int) <= max;
+    if (pilotPreview &&
+        !(metric == WellbeingMetricSet.spo2
+            ? inRange('spo2Percent', 1, 100)
+            : inRange('heartRateBpm', 20, 250) &&
+                  inRange('systolicMmHg', 40, 300) &&
+                  inRange('diastolicMmHg', 20, 200) &&
+                  (values['systolicMmHg'] as int) >
+                      (values['diastolicMmHg'] as int))) {
+      throw StateError('Invalid pilot reading values');
+    }
+    if (!displayable && !pilotPreview) {
       throw StateError('Protected wellbeing evidence is not displayable');
     }
 
     final reading = WellbeingReading(
-      id: doc.id,
+      id: id,
       metricSet: metric,
       observedAt: observedAt,
-      quality: (data['quality'] as String?) ?? 'unknown',
+      quality: pilotPreview
+          ? 'pilot_unverified'
+          : (data['quality'] as String?) ?? 'unknown',
       displayable: displayable,
       spo2Percent: (values['spo2Percent'] as num?)?.toInt(),
       heartRateBpm: (values['heartRateBpm'] as num?)?.toInt(),
@@ -65,7 +90,7 @@ class WellbeingReading {
       diastolicMmHg: (values['diastolicMmHg'] as num?)?.toInt(),
     );
     if (!reading._hasCompleteValues) {
-      throw StateError('Incomplete wellbeing values in ${doc.id}');
+      throw StateError('Incomplete wellbeing values');
     }
     return reading;
   }

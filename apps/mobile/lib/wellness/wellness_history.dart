@@ -21,6 +21,7 @@ class WellnessHistory extends StatelessWidget {
     this.onAsk,
     this.readingError = false,
     this.activityError = false,
+    this.pilotPreview = false,
   });
   final WellnessWindow window;
   final List<ActivityDay> days;
@@ -28,6 +29,7 @@ class WellnessHistory extends StatelessWidget {
   final DateTime now;
   final bool activityAvailable, readingsAvailable, readingError, activityError;
   final VoidCallback? onPrevious, onNext, onChooseDate, onAsk;
+  final bool pilotPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,14 @@ class WellnessHistory extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (pilotPreview) ...[
+          const WellnessSurface(
+            child: Text(
+              'Private preview · unverified watch readings. Wearing at measurement time is unconfirmed. These values are excluded from customer reports and alerts.',
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         WellnessSurface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

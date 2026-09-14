@@ -19,6 +19,7 @@ class WellnessCard extends StatelessWidget {
     this.loading = false,
     this.onOpen,
     this.wearStatus = const WearStatus(),
+    this.pilotPreview = false,
   });
   final List<ActivityDay> days;
   final List<WellnessSample> samples;
@@ -30,6 +31,7 @@ class WellnessCard extends StatelessWidget {
       loading;
   final VoidCallback? onOpen;
   final WearStatus wearStatus;
+  final bool pilotPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -69,8 +71,19 @@ class WellnessCard extends StatelessWidget {
             subtitle: 'Today’s watch readings',
           ),
           const SizedBox(height: 8),
-          Text(wearStatus.labelAt(now),
-            style: TextStyle(fontSize: 12, color: context.guardianColors.textSecondary)),
+          if (pilotPreview) ...[
+            const Text(
+              'Private preview · watch readings are unverified. Wearing at measurement time is unconfirmed.',
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            wearStatus.labelAt(now),
+            style: TextStyle(
+              fontSize: 12,
+              color: context.guardianColors.textSecondary,
+            ),
+          ),
           if (loading) ...[
             const SizedBox(height: 12),
             const LinearProgressIndicator(minHeight: 2),
@@ -89,7 +102,9 @@ class WellnessCard extends StatelessWidget {
                   SizedBox(
                     width: width,
                     child: WellnessTile(
-                      label: 'Steps today',
+                      label: pilotPreview
+                          ? 'Recorded steps today'
+                          : 'Steps today',
                       icon: Icons.directions_walk_rounded,
                       tint: const Color(0xFF15956F),
                       value:

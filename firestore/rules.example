@@ -97,6 +97,19 @@ service cloud.firestore {
         );
     }
 
+    // Explicit, expiring permission to inspect this watch's diagnostic readings.
+    // It does not promote source records or authorize reports/notifications.
+    function wellnessPilotAllowed(imei) {
+      let grant = get(/databases/$(database)/documents/wellnessPilots/$(imei)).data;
+      return grant.get('version', 0) == 1
+        && grant.get('managedBy', '') == 'guardian_admin'
+        && grant.get('viewerUid', '') == request.auth.uid
+        && grant.get('enabled', false) == true
+        && grant.createdAt is timestamp && grant.createdAt <= request.time
+        && grant.expiresAt is timestamp && grant.expiresAt > request.time
+        && grant.expiresAt <= grant.createdAt + duration.value(1, 'd');
+    }
+
     function caregiverLimit() {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
@@ -216,20 +229,20 @@ service cloud.firestore {
         }
       }
 
-      // Sensitive watch wellbeing estimates. Only backend-accepted,
-      // customer-enabled evidence is readable, within the edition history window.
-      // Admin SDK owns every write and all unverified shadow evidence.
+      // Customer reads require accepted evidence. A separately granted pilot
+      // may inspect shadow readings within the same consent and edition window.
+      // Admin SDK owns every write; preview never changes source acceptance.
       match /wellbeingReadings/{readingId} {
         allow read: if linkedTo(imei)
           && wellnessHistoryAllowed(resource.data.observedAt)
           && activeWellbeingConsent(imei)
-          && resource.data.displayable == true;
+          && (resource.data.displayable == true || wellnessPilotAllowed(imei));
         allow write: if false;
       }
 
       // Gateway-owned V52 daily activity. A client must be linked, hold an
-      // active edition entitlement, and query only physically accepted
-      // displayable records. Unverified raw counters remain backend-only.
+      // active edition entitlement, and query accepted displayable records or
+      // have an explicit expiring pilot grant. Baselines remain backend-only.
       // Wearing data quality is available on every active edition. Raw
       // tracker bits and diagnostic captures remain backend-only.
       match /wearStatus/{statusId} {
@@ -242,7 +255,7 @@ service cloud.firestore {
       match /activityDays/{localDate} {
         allow read: if linkedTo(imei)
           && wellnessHistoryAllowed(resource.data.lastObservedAt)
-          && resource.data.displayable == true;
+          && (resource.data.displayable == true || wellnessPilotAllowed(imei));
         allow create, update, delete: if false;
       }
     }
@@ -251,6 +264,12 @@ service cloud.firestore {
     // readable or forgeable through a mobile/web client.
     match /wellbeingConsents/{imei} {
       allow read, write: if false;
+    }
+
+    match /wellnessPilots/{imei} {
+      allow get: if linkedTo(imei) && activePlanAtLeast('essential')
+        && resource.data.viewerUid == request.auth.uid;
+      allow list, create, update, delete: if false;
     }
 
     match /geofences/{geofenceId} {

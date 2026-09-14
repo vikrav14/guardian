@@ -9,6 +9,7 @@ import 'wellness_card.dart';
 import 'wellness_history.dart';
 import 'wellness_sample.dart';
 import 'wellness_window.dart';
+import 'wellness_pilot_access.dart';
 
 typedef WellnessReadingsSource =
     Stream<List<WellnessSample>> Function(
@@ -25,34 +26,43 @@ class WellnessPanel extends StatelessWidget {
     required this.activityEnabled,
     this.readingsSource,
     this.onAsk,
+    this.pilotPreview = false,
   });
   final String imei, name;
   final GuardianSubscription subscription;
   final bool activityEnabled;
+  final bool pilotPreview;
   final WellnessReadingsSource? readingsSource;
   final VoidCallback? onAsk;
 
   @override
-  Widget build(BuildContext context) => _WellnessData(
-    key: ValueKey('$imei:${subscription.plan}:${subscription.accessUntil}'),
-    imei: imei,
-    subscription: subscription,
-    activityEnabled: activityEnabled,
-    readingsSource: readingsSource,
-    onOpen: subscription.plan == GuardianPlan.essential
-        ? null
-        : () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => _WellnessRoute(
-                imei: imei,
-                name: name,
-                activityEnabled: activityEnabled,
-                readingsSource: readingsSource,
-                onAsk: onAsk,
+  Widget build(BuildContext context) {
+    final content = _WellnessData(
+      key: ValueKey('$imei:${subscription.plan}:${subscription.accessUntil}'),
+      imei: imei,
+      subscription: subscription,
+      activityEnabled: activityEnabled,
+      readingsSource: readingsSource,
+      pilotPreview: pilotPreview,
+      onOpen: subscription.plan == GuardianPlan.essential
+          ? null
+          : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => _WellnessRoute(
+                  imei: imei,
+                  name: name,
+                  activityEnabled: activityEnabled,
+                  readingsSource: readingsSource,
+                  pilotPreview: pilotPreview,
+                  onAsk: onAsk,
+                ),
               ),
             ),
-          ),
-  );
+    );
+    return pilotPreview
+        ? WellnessPilotAccess(imei: imei, child: content)
+        : content;
+  }
 }
 
 class _WellnessRoute extends StatefulWidget {
@@ -62,9 +72,11 @@ class _WellnessRoute extends StatefulWidget {
     required this.activityEnabled,
     this.readingsSource,
     this.onAsk,
+    this.pilotPreview = false,
   });
   final String imei, name;
   final bool activityEnabled;
+  final bool pilotPreview;
   final WellnessReadingsSource? readingsSource;
   final VoidCallback? onAsk;
   @override
@@ -95,7 +107,7 @@ class _WellnessRouteState extends State<_WellnessRoute> {
             ),
           );
         }
-        return SingleChildScrollView(
+        final content = SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Center(
             child: ConstrainedBox(
@@ -107,11 +119,15 @@ class _WellnessRouteState extends State<_WellnessRoute> {
                 activityEnabled: widget.activityEnabled,
                 readingsSource: widget.readingsSource,
                 detail: true,
+                pilotPreview: widget.pilotPreview,
                 onAsk: widget.onAsk,
               ),
             ),
           ),
         );
+        return widget.pilotPreview
+            ? WellnessPilotAccess(imei: widget.imei, child: content)
+            : content;
       },
     ),
   );
@@ -127,10 +143,12 @@ class _WellnessData extends StatefulWidget {
     this.detail = false,
     this.onOpen,
     this.onAsk,
+    this.pilotPreview = false,
   });
   final String imei;
   final GuardianSubscription subscription;
   final bool activityEnabled, detail;
+  final bool pilotPreview;
   final WellnessReadingsSource? readingsSource;
   final VoidCallback? onOpen, onAsk;
   @override
@@ -170,11 +188,18 @@ class _WellnessDataState extends State<_WellnessData>
             subscription: widget.subscription,
             before: _window.end,
             limit: widget.detail ? 7 : 1,
+            pilotPreview: widget.pilotPreview,
           )
         : Stream.value(const []);
-    _readings =
-        widget.readingsSource?.call(_window, widget.subscription) ??
-        Stream.value(const []);
+    _readings = widget.pilotPreview
+        ? WellbeingService().watchWellnessSamples(
+            widget.imei,
+            subscription: widget.subscription,
+            window: _window,
+            pilotPreview: true,
+          )
+        : widget.readingsSource?.call(_window, widget.subscription) ??
+              Stream.value(const []);
   }
 
   bool get _active =>
@@ -196,6 +221,7 @@ class _WellnessDataState extends State<_WellnessData>
     if (oldWidget.subscription != widget.subscription ||
         oldWidget.imei != widget.imei ||
         oldWidget.activityEnabled != widget.activityEnabled ||
+        oldWidget.pilotPreview != widget.pilotPreview ||
         oldWidget.readingsSource != widget.readingsSource) {
       _connect();
     }
@@ -244,9 +270,14 @@ class _WellnessDataState extends State<_WellnessData>
       );
     }
     return StreamBuilder<WearStatus>(
-      key: ObjectKey(_wearStatus), stream: _wearStatus,
-      builder: (context, status) => _buildReadings(context,
-        status.hasError ? const WearStatus() : status.data ?? const WearStatus()),
+      key: ObjectKey(_wearStatus),
+      stream: _wearStatus,
+      builder: (context, status) => _buildReadings(
+        context,
+        status.hasError
+            ? const WearStatus()
+            : status.data ?? const WearStatus(),
+      ),
     );
   }
 
@@ -267,12 +298,14 @@ class _WellnessDataState extends State<_WellnessData>
               : readings.data ?? <WellnessSample>[];
           if (!widget.detail) {
             return WellnessCard(
+              pilotPreview: widget.pilotPreview,
               wearStatus: wearStatus,
               days: days,
               samples: samples,
               now: _now,
               activityAvailable: widget.activityEnabled,
-              readingsAvailable: widget.readingsSource != null,
+              readingsAvailable:
+                  widget.pilotPreview || widget.readingsSource != null,
               activityError: activity.hasError,
               readingsError: readings.hasError,
               loading:
@@ -284,12 +317,14 @@ class _WellnessDataState extends State<_WellnessData>
           final care = widget.subscription.plan == GuardianPlan.care;
           final tomorrow = wellnessDayStart(_now).add(const Duration(days: 1));
           return WellnessHistory(
+            pilotPreview: widget.pilotPreview,
             window: _window,
             days: days,
             samples: samples,
             now: _now,
             activityAvailable: widget.activityEnabled,
-            readingsAvailable: widget.readingsSource != null,
+            readingsAvailable:
+                widget.pilotPreview || widget.readingsSource != null,
             activityError: activity.hasError,
             readingError: readings.hasError,
             onPrevious: care ? () => _move(_window.start) : null,
@@ -298,9 +333,10 @@ class _WellnessDataState extends State<_WellnessData>
                 : null,
             onChooseDate: care ? _chooseDate : null,
             onAsk:
-                widget.subscription.has(
-                  GuardianFeature.whatsappQuestionsAnswers,
-                )
+                !widget.pilotPreview &&
+                    widget.subscription.has(
+                      GuardianFeature.whatsappQuestionsAnswers,
+                    )
                 ? widget.onAsk
                 : null,
           );

@@ -34,6 +34,11 @@ const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
   defaultValue: false,
 );
 
+const bool _wellnessPilotPreview = bool.fromEnvironment(
+  'GUARDIAN_WELLNESS_PILOT',
+  defaultValue: false,
+);
+
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
 
@@ -685,7 +690,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
     return GuardianDashboardOverview(
       wellness:
-          (_activityStepsCustomerEnabled || _careWellbeingCustomerEnabled) &&
+          (_activityStepsCustomerEnabled ||
+                  _careWellbeingCustomerEnabled ||
+                  _wellnessPilotPreview) &&
               selected != null &&
               entitlementScope
                   .decision(GuardianFeature.activitySteps)
@@ -695,7 +702,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               imei: selected.imei,
               name: selected.displayName,
               subscription: entitlementScope.subscription!,
-              activityEnabled: _activityStepsCustomerEnabled,
+              activityEnabled:
+                  _activityStepsCustomerEnabled || _wellnessPilotPreview,
+              pilotPreview: _wellnessPilotPreview,
               readingsSource:
                   _careWellbeingCustomerEnabled &&
                       entitlementScope
