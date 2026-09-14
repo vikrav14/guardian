@@ -8,6 +8,7 @@ function requiredFeatureForAlert(alert) {
   if (type === 'sos' || type === 'fall') return FEATURE.SOS_ALERTS;
   if (type === 'low_battery') return FEATURE.BATTERY_ALERTS;
   if (type === 'geofence_exit' || type === 'geofence_enter') return FEATURE.SAFE_ZONES;
+  if (type === 'watch_removed') return FEATURE.WATCH_REMOVAL_ALERTS;
   return FEATURE.PROACTIVE_SMART_NOTIFICATIONS;
 }
 
@@ -40,6 +41,8 @@ function titleFor(alert) {
       return 'Entered safe zone';
     case 'low_battery':
       return 'Pendant battery low';
+    case 'watch_removed':
+      return 'Watch may have been removed';
     default:
       return 'Guardian alert';
   }

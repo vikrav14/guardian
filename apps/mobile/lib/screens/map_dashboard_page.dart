@@ -17,11 +17,17 @@ import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../wellness/wellness_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_dashboard_overview.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
+
+const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
+  'GUARDIAN_ACTIVITY_STEPS_ENABLED',
+  defaultValue: false,
+);
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -671,6 +677,21 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
+      wellness:
+          _activityStepsCustomerEnabled &&
+              selected != null &&
+              entitlementScope
+                  .decision(GuardianFeature.activitySteps)
+                  .allowed &&
+              entitlementScope.subscription != null
+          ? WellnessPanel(
+              imei: selected.imei,
+              name: selected.displayName,
+              subscription: entitlementScope.subscription!,
+              activityEnabled: _activityStepsCustomerEnabled,
+              onAsk: () => unawaited(_continueOnWhatsApp(selected)),
+            )
+          : null,
       device: selected,
       devices: _devices,
       geofences: _geofences,

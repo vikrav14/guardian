@@ -10,7 +10,7 @@ const cache = require('../src/live-cache');
 const geofence = require('../src/geofence');
 const { createHomeWifiTrackingPolicy } = require('../src/wifi-home-tracking');
 
-for (const durable of [false, true]) test(`real dispatcher respects Home priority and delayed history (durability=${durable})`, async t => {
+for (const durable of [false, true]) test(`real dispatcher respects Home priority and delayed history (durability=${durable})`, { timeout: 2000 }, async t => {
   cache.resetCacheForTests(); geofence.resetGeofenceStateForTests();
   const noop = () => {};
   const imei = 'synthetic-watch';
@@ -26,10 +26,17 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   }) }] }) };
   const db = { collection: () => query };
   const writes = [], history = [], alerts = [], journeys = [], errors = [], retained = [];
+  const stepReports = [];
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
+    './removal-dispatcher': require('../src/removal-dispatcher'),
+    './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
-    './config': { firestoreDisabled: !durable, journeyJournalEnabled: durable, journeyJournalDirectory: directory },
+    './config': { firestoreDisabled: !durable, journeyJournalEnabled: durable, journeyJournalDirectory: directory,
+      activityStepsIngestEnabled: true },
+    './activity-steps': { ActivityStepsStore: function () { return {
+      ingest: event => { stepReports.push(event); return new Promise(() => {}); },
+    }; } },
     './journey-reliability': { createJourneyReliability: options => {
       reliability = require('../src/journey-reliability').createJourneyReliability({ ...options, report: noop });
       return reliability;
@@ -65,7 +72,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   vm.runInNewContext(`${source}\nmodule.exports = { applyEvents };`, sandbox);
   const point = { lat: -20.24, lng: 57.5, source: 'gps', gpsValid: true,
     satellites: 5, recordedAt: new Date(now - 1000) };
-  const event = { imei, type: 'location', location: point, accuracySource: 'gps', gpsValid: true, speedKmh: 20 };
+  const event = { imei, type: 'location', location: point, accuracySource: 'gps', gpsValid: true, speedKmh: 20, stepsRaw: 100 };
   await sandbox.module.exports.applyEvents([event], {});
   assert.deepEqual(errors, []);
   assert.equal(boundaryEvaluations, 0);
@@ -81,6 +88,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   assert.equal(retained[0].location.source, 'gps');
   assert.equal(retained[0].location.recordedAt, point.recordedAt);
   assert.equal(retained[0].location.speedKmh, 20);
+  assert.equal(stepReports.length, 1, 'a stalled step write must not block live GPS');
 
   home = null;
   await sandbox.module.exports.applyEvents([{ ...event,
@@ -98,6 +106,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
     assert.equal(writes.length, previousWrites, 'delayed GPS must not move the current map backwards');
     assert.equal(boundaryEvaluations, previousBoundaries, 'delayed GPS must not evaluate live boundaries');
     assert.equal(alerts.length, 1, 'no retrospective alert');
+    assert.equal(stepReports.length, 2, 'historical counters must not be counted in the current day');
     assert.equal(Object.values(reliability.journal.read(imei).points).filter(p => p.status === 'historical').length, 1);
   }
 });

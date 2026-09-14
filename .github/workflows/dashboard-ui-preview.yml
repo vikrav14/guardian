@@ -15,6 +15,9 @@ on:
       - 'apps/mobile/lib/screens/login_page.dart'
       - 'apps/mobile/lib/screens/safe_zones_page.dart'
       - 'apps/mobile/lib/widgets/safe_zones/**'
+      - 'apps/mobile/lib/wellness/**'
+      - 'apps/mobile/test/wellness_editions_test.dart'
+      - 'apps/mobile/tool/render_wellness_previews_test.dart'
       - 'apps/mobile/test/safe_zone_map_test.dart'
       - 'apps/mobile/test/safe_zones_overview_test.dart'
       - 'apps/mobile/test/safe_zone_logic_test.dart'
@@ -135,3 +138,15 @@ jobs:
           name: guardian-login-previews
           path: apps/mobile/build/login-previews/*.png
           if-no-files-found: warn
+
+      - name: Render shared Wellness editions
+        if: ${{ !cancelled() }}
+        run: flutter test --no-pub tool/render_wellness_previews_test.dart --dart-define=WELLNESS_PREVIEWS=true
+
+      - name: Save Wellness review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-wellness-previews
+          path: apps/mobile/build/wellness-previews/*.png
+          if-no-files-found: error

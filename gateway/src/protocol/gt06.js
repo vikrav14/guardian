@@ -44,6 +44,12 @@ function parseV52Telemetry(fields) {
   };
 }
 
+function trackerStateHasBit(trackerState, bit) {
+  if (!V52_TRACKER_STATE_HEX.test(trackerState || '')) return null;
+  const value = Number.parseInt(trackerState, 16);
+  return (value & (1 << bit)) !== 0;
+}
+
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
 // Includes commands confirmed in the V52 vendor protocol and companion
@@ -84,6 +90,8 @@ function parseLocationData(fields) {
   let course = 0;
   let speedKmh = null;
   const telemetry = parseV52Telemetry(fields);
+  const trackerState = extractV52TrackerState(fields);
+  const braceletRemoved = trackerStateHasBit(trackerState, 20);
 
   if (fields.length > 5) {
     lat = parseFloat(fields[3]);
@@ -147,6 +155,8 @@ function parseLocationData(fields) {
       batteryPercent: telemetry.batteryPercent,
       stepsRaw: telemetry.stepsRaw,
       rollCountRaw: telemetry.rollCountRaw,
+      trackerState,
+      braceletRemoved,
     };
   }
 
@@ -171,6 +181,8 @@ function parseLocationData(fields) {
     batteryPercent: telemetry.batteryPercent,
     stepsRaw: telemetry.stepsRaw,
     rollCountRaw: telemetry.rollCountRaw,
+    trackerState,
+    braceletRemoved,
   };
 }
 
@@ -447,6 +459,7 @@ module.exports = {
   parseLocationData,
   parseLkData,
   parseV52Telemetry,
+  trackerStateHasBit,
   extractV52TrackerState,
   classifyV52Alarm,
   V52_TRACKER_STATE_INDEX,

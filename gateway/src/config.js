@@ -1,6 +1,11 @@
 require('dotenv').config();
 const path = require('path');
 
+function finiteAtLeast(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 9000),
@@ -12,6 +17,56 @@ const config = {
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
   journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
   journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
+
+  // Interpretation is separately accepted per exact device/firmware. The
+  // passive observer runs alongside activity/wellbeing without watch commands.
+  wearEvidenceDeviceMode: process.env.WEAR_EVIDENCE_DEVICE_MODE || 'unverified',
+  wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
+
+  // V52 activity is passive and fail-closed. Raw counters continue to be
+  // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
+  // Customer exposure still requires exact-device acceptance and opt-in.
+  activityStepsIngestEnabled:
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCustomerEnabled:
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCounterMode:
+    ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
+      ? process.env.ACTIVITY_STEPS_COUNTER_MODE
+      : 'unverified',
+  activityStepsTimeZone:
+    process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
+  activityStepsRetentionDays: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_RETENTION_DAYS,
+    90,
+    7,
+  ),
+  activityStepsWriteMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_WRITE_MINUTES,
+    15,
+    1,
+  ),
+  activityStepsMaxPerMinute: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_MAX_PER_MINUTE,
+    300,
+    30,
+  ),
+  activityStepsCleanupMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_CLEANUP_MINUTES,
+    360,
+    60,
+  ),
+
+  // V52 bracelet-removal evidence is fail-closed. Raw tracker-state
+  // observations may be collected in an explicit shadow pilot, but customer
+  // delivery requires accepted firmware semantics and a separate gate.
+  removalAlertsIngestEnabled:
+    String(process.env.REMOVAL_ALERTS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  removalAlertsCustomerEnabled:
+    String(process.env.REMOVAL_ALERTS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  removalAlertsDeviceMode:
+    process.env.REMOVAL_ALERTS_DEVICE_MODE === 'accepted' ? 'accepted' : 'unverified',
 
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),

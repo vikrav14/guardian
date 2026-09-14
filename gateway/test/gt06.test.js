@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { extractFrames, decodeFrame, handlePacket, buildAckFrame } = require('../src/protocol/gt06');
+const {
+  extractFrames,
+  decodeFrame,
+  handlePacket,
+  buildAckFrame,
+  parseLocationData,
+} = require('../src/protocol/gt06');
 
 function asciiFrame(factory, protocolId, command, payload = '') {
   const content = payload ? `${command},${payload}` : command;
@@ -259,6 +265,21 @@ test('handlePacket uses V52 bit 20 for bracelet removal, not safe-zone exit', ()
   const { events } = handlePacket(decodeFrame(frame), {});
 
   assert.equal(events[0].alarmType, 'bracelet_removed');
+});
+
+test('normal positioning packets expose bracelet state for restoration policy', () => {
+  const trackerState = '00100000';
+  const args = [
+    '230826', '120000', 'A', '-20.02', 'S', '57.59', 'E', '0', '0',
+    '10', '6', '70', '80', '123', '0', trackerState,
+  ];
+  const result = parseLocationData(args);
+  assert.equal(result.trackerState, trackerState);
+  assert.equal(result.braceletRemoved, true);
+
+  args[15] = '00000000';
+  const restored = parseLocationData(args);
+  assert.equal(restored.braceletRemoved, false);
 });
 
 test('handlePacket parses full V52 gps=V alarm and keeps WiFi geolocation tail', () => {

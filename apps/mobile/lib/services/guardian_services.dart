@@ -5,6 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/alert.dart';
+import '../models/activity_day.dart';
+import '../wellness/wellness_window.dart';
+import '../wellness/linked_wellness_stream.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
@@ -349,9 +352,7 @@ class DeviceService {
         .map((doc) {
           if (!doc.exists) return null;
           final presentation = JourneyRoutePresentation.fromDoc(doc);
-          return presentation.isUsableAt(DateTime.now())
-              ? presentation
-              : null;
+          return presentation.isUsableAt(DateTime.now()) ? presentation : null;
         });
   }
 
@@ -517,6 +518,72 @@ class DeviceService {
           .snapshots()
           .map((snap) => snap.docs.map(Device.fromDoc).toList());
     });
+  }
+}
+
+class ActivityService {
+  ActivityService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<ActivityDay>> watchRecentDays({
+    required String imei,
+    required GuardianSubscription subscription,
+    int limit = 7,
+    DateTime? before,
+    DateTime? now,
+  }) {
+    if (!subscription.has(GuardianFeature.activitySteps)) {
+      return Stream.error(
+        StateError('An active Guardian subscription is required for activity.'),
+      );
+    }
+    final clock = now ?? DateTime.now();
+    final window = WellnessWindow.forSubscription(
+      subscription,
+      now: clock,
+      before: before,
+      days: limit,
+    );
+    return watchLinkedWellnessData(
+      _db,
+      _auth,
+      imei,
+      () => _db
+          .collection('devices')
+          .doc(imei)
+          .collection('activityDays')
+          .where('displayable', isEqualTo: true)
+          .where(
+            'lastObservedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(window.start),
+          )
+          .where('lastObservedAt', isLessThan: Timestamp.fromDate(window.end))
+          .orderBy('lastObservedAt', descending: true)
+          .limit(31)
+          .snapshots()
+          .map((snapshot) {
+            final days = <ActivityDay>[];
+            for (final doc in snapshot.docs) {
+              try {
+                final day = ActivityDay.fromDoc(doc);
+                if (window.includesDate(day.localDate) &&
+                    window.contains(
+                      day.lastObservedAt,
+                      now: now ?? DateTime.now(),
+                    )) {
+                  days.add(day);
+                }
+              } on FormatException {
+                /* Invalid evidence is never displayed. */
+              }
+            }
+            return days;
+          }),
+    );
   }
 }
 
@@ -822,7 +889,8 @@ class UserProfileService {
           .whereType<Map>()
           .map((m) => EmergencyContact.fromMap(Map<String, dynamic>.from(m)))
           .toList();
-      if (contacts.isNotEmpty && !contacts.any((contact) => contact.isPrimary)) {
+      if (contacts.isNotEmpty &&
+          !contacts.any((contact) => contact.isPrimary)) {
         contacts[0] = contacts[0].copyWith(isPrimary: true);
       }
       return contacts;
