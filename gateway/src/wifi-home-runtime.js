@@ -47,7 +47,10 @@ function startWifiHomeDisplayPilot(db, { recoverWalk } = {}) {
     resetObservation: () => { observer = undefined; },
   });
   if (!publisher) { displayPublisher = null; return null; }
-  walkBuffer = typeof recoverWalk === 'function' ? require('./home-wifi-walk-buffer').createHomeWifiWalkBuffer({
+  // Supplying the server callback or enabling Home display does not opt into
+  // unaccepted recovery. With the experiment off, allocate no buffer or timer.
+  walkBuffer = config.wifiHomeWalkRecoveryExperimentEnabled === true &&
+    typeof recoverWalk === 'function' ? require('./home-wifi-walk-buffer').createHomeWifiWalkBuffer({
     readContext: clock => publisher.getTrackingContext(clock), recover: recoverWalk,
     report: data => console.log(`[wifi-home-walk] ${JSON.stringify(data)}`),
   }) : null;
@@ -72,6 +75,8 @@ function getWifiHomeRuntimeStatus(nowMs = Date.now()) {
     version: 1,
     observerEnabled: config.wifiHomeObserveEnabled === true,
     displayEnabled: config.wifiHomeDisplayPilotEnabled === true,
+    walkRecoveryEnabled: config.wifiHomeWalkRecoveryExperimentEnabled === true,
+    walkRecoveryActive: walkBuffer !== null,
     pilotConfigured: /^\d{15}$/.test(config.wifiHomePilotImei || '') &&
       /^[0-9a-f]{64}$/i.test(config.wifiHomeRouterHash || '') &&
       /^[0-9a-f]{64}$/i.test(config.wifiHomeHashKey || ''),

@@ -31,11 +31,25 @@ test('default inspection is read-only and preserves evidence of an expired publi
     emit: item => output.push(item),
   });
   assert.equal(result.outcome, 'read_only');
+  assert.equal(output[0].walkRecoveryEnabled, false);
+  assert.equal(output[0].walkRecoveryActive, false);
   assert.equal(output[0].publishedHomeFresh, false);
   assert.equal(output[0].matchReason, 'repeated_router_observations');
   assert.equal(output[0].selectionReason, 'gps_outside_home');
   assert.equal(output[0].lastClearedReason, 'gps_outside_home');
   assert.deepEqual(output[0].lastHomePublication, value.publisher.lastHomePublication);
+});
+
+test('read-only inspection distinguishes experiment opt-in from a running recovery buffer', async () => {
+  for (const active of [false, true]) {
+    const value = { ...status(), walkRecoveryEnabled: true, walkRecoveryActive: active };
+    const output = [];
+    await inspectWifiHome({ readStatus: async () => value, emit: item => output.push(item),
+      requestLocation: () => assert.fail('inspection must not send a watch command') });
+    assert.equal(output[0].walkRecoveryEnabled, true);
+    assert.equal(output[0].walkRecoveryActive, active);
+    assert.equal(output[0].publisherActive, true);
+  }
 });
 
 test('one requested CR waits for published Home, not a candidate or socket handoff', async () => {

@@ -5,6 +5,16 @@ samples arriving during Home priority and disappearing from journey processing
 before the 120-second Home radio lifetime ends. It does not replay old operator
 logs or backfill stored journeys. Physical acceptance on the new code is pending.
 
+**Merge boundary:** recovery is now a separate default-off experiment controlled
+by `WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED`. Home display opt-in and ordinary
+setup do not enable it. With the flag absent or false, the runtime creates no
+recovery buffer or timer; the existing Home observer/display continues normally.
+The experiment also requires the configured observer/display pilot and a usable
+publisher. `wifi-home:check` reports `walkRecoveryEnabled` and
+`walkRecoveryActive` separately. Restart is required after changing configuration.
+The pending hardware gate applies to enabling/accepting this experiment, not to
+merging its disabled code with the established private Home pilot.
+
 ## Expected timeline
 
 These are the third walk's supplied timestamps, illustrating equivalent future
@@ -73,7 +83,8 @@ No pilot coordinates or identifiers are included in test fixtures.
 
 The existing Home priority, SOS failure isolation, ordinary GPS/journey, geofence,
 reporting and entitlement suites remain regression gates. Record final CI results
-in PR #116. New physical acceptance is still required before completing that PR.
+in PR #116. New physical acceptance is still required before accepting walk
+recovery beyond an explicitly enabled private experiment.
 
 Both #119 and #120 also change `gateway/src/server.js`; preserve this location
 hook and startup callback when reconciling those integrations. Their edition

@@ -1,5 +1,26 @@
 # Wi-Fi home-presence detection
 
+## Private pilot merge scope — 14 September 2026
+
+The merge scope is the configured Home observer/display pilot, source-aware
+expiry/history, protected diagnostics and GPS/journey presentation fixes.
+General customer Home activation remains disabled. This is not acceptance of
+continuous Home reporting, native fencing or general short-walk recognition.
+
+Experimental recovery of GPS retained under fresh Home priority is separately
+controlled by `WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED`, default false.
+Existing Home display opt-in never enables that experiment. With it off, no
+recovery buffer or timer is created. The read-only checker exposes
+`walkRecoveryEnabled` (configuration) and `walkRecoveryActive` (running buffer).
+Existing operators can leave the new setting absent; restart after pulling the
+merged code. Physical recovery acceptance stays open before broader use.
+
+See the [merge checklist and remaining release work](../testing/wifi-home-private-pilot-merge-2026-09-14.md),
+[near-Home walking review](../testing/near-home-walking-logic-review-2026-09-14.md)
+and [archived PR checkpoints](../testing/wifi-home-pr116-checkpoints-through-2026-09-14.md).
+Older pending/next-step notes below are historical where superseded by this
+scope. Outstanding customer-release tests remain outstanding, not passed.
+
 ## Remembered Home and read recovery — 13 September 2026 UTC
 
 The stationary pilot reproduced two independent problems: a Home binding read

@@ -58,6 +58,9 @@ const config = {
   wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
   wifiHomeDisplayPilotEnabled:
     String(process.env.WIFI_HOME_DISPLAY_PILOT_ENABLED || 'false').toLowerCase() === 'true',
+  // Separate, unaccepted walk-recovery experiment; Home display never opts in.
+  wifiHomeWalkRecoveryExperimentEnabled:
+    String(process.env.WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED || 'false').toLowerCase() === 'true',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

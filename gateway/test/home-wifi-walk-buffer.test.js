@@ -217,7 +217,8 @@ test('live runtime scopes retention to its pilot, ticks without packets and stop
     getStatus: () => ({}), getEvidence: () => run.context().home,
     getTrackingContext: () => run.context(),
   });
-  const config = { wifiHomeObserveEnabled: true, wifiHomeDisplayPilotEnabled: true, wifiHomePilotImei: run.imei };
+  const config = { wifiHomeObserveEnabled: true, wifiHomeDisplayPilotEnabled: true,
+    wifiHomeWalkRecoveryExperimentEnabled: true, wifiHomePilotImei: run.imei };
   const modules = {
     './config': config, './wifi-home-observer': {},
     './wifi-home-display': { startHomeWifiPublisher: () => publisher },

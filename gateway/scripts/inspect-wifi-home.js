@@ -8,6 +8,8 @@ function summary(status) {
   return {
     displayEnabled: status.displayEnabled === true,
     publisherActive: p?.active === true,
+    walkRecoveryEnabled: status.walkRecoveryEnabled === true,
+    walkRecoveryActive: status.walkRecoveryActive === true,
     homeBindingReady: p?.homeBindingReady === true,
     bindingReason: p?.bindingReason || 'publisher_not_started',
     phase: p?.phase || 'not_started',
