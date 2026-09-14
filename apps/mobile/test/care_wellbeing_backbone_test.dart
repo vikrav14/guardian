@@ -6,7 +6,7 @@ void main() {
     expect(CareWellbeingBackbone.lifecycle, 'device_acceptance');
     expect(CareWellbeingBackbone.enabledByDefault, isFalse);
     expect(CareWellbeingBackbone.customerVisible, isFalse);
-    expect(CareWellbeingBackbone.minimumPlan, 'care');
+    expect(CareWellbeingBackbone.minimumPlan, 'essential');
     expect(CareWellbeingBackbone.protocolCommands, isNotEmpty);
     expect(CareWellbeingBackbone.acceptedUploads, <String>['bphrt', 'oxygen']);
     expect(CareWellbeingBackbone.blockedUntilCaptured, isNotEmpty);

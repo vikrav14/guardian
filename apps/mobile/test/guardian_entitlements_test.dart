@@ -27,7 +27,7 @@ void main() {
     expect(result.reason, 'untrusted_legacy_subscription');
   });
 
-  test('Essential has core services, one caregiver and seven days', () {
+  test('Essential has core services and SOS-only WhatsApp', () {
     final result = GuardianSubscription.fromMap(
       subscription('essential'),
       now: now,
@@ -35,7 +35,9 @@ void main() {
 
     expect(result.serviceActive, true);
     expect(result.has(GuardianFeature.liveGps), true);
+    expect(result.has(GuardianFeature.sosWhatsappAlerts), true);
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), false);
+    expect(result.has(GuardianFeature.whatsappSafetyAlerts), false);
     expect(result.caregiverLimit, 1);
     expect(result.locationHistoryDays, 7);
   });
@@ -47,6 +49,7 @@ void main() {
     );
 
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
+    expect(result.has(GuardianFeature.activitySteps), true);
     expect(result.has(GuardianFeature.medicationReminders), false);
     expect(result.caregiverLimit, 5);
     expect(result.locationHistoryDays, isNull);
@@ -59,6 +62,7 @@ void main() {
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
     expect(result.has(GuardianFeature.medicationReminders), true);
     expect(result.has(GuardianFeature.weeklyCareSummaries), true);
+    expect(result.has(GuardianFeature.activitySteps), true);
   });
 
   test('bounded statuses expire deterministically', () {
@@ -136,6 +140,10 @@ void main() {
       feature: GuardianFeature.medicationReminders,
       subscription: family,
     );
+    final activity = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.activitySteps,
+      subscription: essential,
+    );
 
     expect(whatsapp.allowed, false);
     expect(whatsapp.state, GuardianEntitlementDecisionState.upgradeRequired);
@@ -143,6 +151,8 @@ void main() {
     expect(medication.allowed, false);
     expect(medication.minimumPlan, GuardianPlan.care);
     expect(medication.message, contains('Guardian Care'));
+    expect(activity.allowed, true);
+    expect(activity.minimumPlan, GuardianPlan.essential);
   });
 
   test('feature decisions fail closed while checking or unavailable', () {

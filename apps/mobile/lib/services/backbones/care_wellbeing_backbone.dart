@@ -3,7 +3,7 @@ class CareWellbeingBackbone {
 
   static const String serviceId = 'care-wellbeing';
   static const String displayName = 'Care wellbeing readings';
-  static const String minimumPlan = 'care';
+  static const String minimumPlan = 'essential';
   static const String lifecycle = 'device_acceptance';
   static const bool enabledByDefault = false;
   static const bool customerVisible = false;

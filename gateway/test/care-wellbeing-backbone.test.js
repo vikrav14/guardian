@@ -9,7 +9,7 @@ test('care-wellbeing remains disabled while in exact-device acceptance', () => {
   assert.equal(SERVICE_CONTRACT.lifecycle, 'device_acceptance');
   assert.equal(SERVICE_CONTRACT.enabledByDefault, false);
   assert.equal(SERVICE_CONTRACT.customerVisible, false);
-  assert.equal(SERVICE_CONTRACT.minimumPlan, 'care');
+  assert.equal(SERVICE_CONTRACT.minimumPlan, 'essential');
   assert.ok(SERVICE_CONTRACT.protocolCommands.length > 0);
   assert.deepEqual(SERVICE_CONTRACT.acceptedUploads, ['bphrt', 'oxygen']);
   assert.deepEqual(SERVICE_CONTRACT.blockedUntilCaptured, ['bodytemp', 'bodytemp2', 'BTTIMESET']);

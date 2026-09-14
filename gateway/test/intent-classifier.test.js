@@ -65,6 +65,18 @@ test('classifyIntent: journey history queries', () => {
   }
 });
 
+test('classifyIntent: steps and daily activity queries', () => {
+  for (const text of [
+    'How many steps did Jesh take today?',
+    'Steps?',
+    'Was Mum active today?',
+    'Did Dad walk today?',
+    'Show the last seven days of activity',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'ACTIVITY_QUERY', `Failed for: ${text}`);
+  }
+});
+
 test('classifyIntent: weather near a wearer', () => {
   for (const text of [
     "How's the weather near Jesh?",

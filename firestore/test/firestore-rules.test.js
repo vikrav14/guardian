@@ -105,6 +105,36 @@ beforeEach(async () => {
         db,
         'devices',
         '000000000000001',
+        'activityDays',
+        '2026-08-23',
+      ),
+      {
+        localDate: '2026-08-23',
+        displayable: true,
+        reportedSteps: 4321,
+        lastObservedAt: new Date(now - 5 * 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '000000000000001',
+        'activityDays',
+        '2026-08-22-unverified',
+      ),
+      {
+        localDate: '2026-08-22',
+        displayable: false,
+        reportedSteps: null,
+        observedDeltaSteps: 300,
+      },
+    );
+    await setDoc(
+      doc(
+        db,
+        'devices',
+        '000000000000001',
         'journeys',
         'journey-1',
         'presentations',
@@ -349,6 +379,73 @@ test('linked Family users can query journeys for a bounded day', async () => {
   await assertSucceeds(getDocs(journeys));
 });
 
+test('daily activity permits Essential today and hides unverified counters', async () => {
+  const now = Date.now();
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'essential',
+    });
+  });
+  const path = [
+    'devices',
+    '000000000000001',
+    'activityDays',
+    '2026-08-23',
+  ];
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...path)));
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  await assertSucceeds(getDoc(doc(authedDb('member'), ...path)));
+  const acceptedDays = query(
+    collection(
+      authedDb('member'),
+      'devices',
+      '000000000000001',
+      'activityDays',
+    ),
+    where('displayable', '==', true),
+    where('lastObservedAt', '>=', new Date(now - 24 * 60 * 60 * 1000)),
+    where('lastObservedAt', '<', new Date(now)),
+    orderBy('lastObservedAt', 'desc'),
+  );
+  await assertSucceeds(getDocs(acceptedDays));
+  await assertFails(
+    getDocs(
+      query(
+        collection(
+          authedDb('member'),
+          'devices',
+          '000000000000001',
+          'activityDays',
+        ),
+        orderBy('localDate', 'desc'),
+      ),
+    ),
+  );
+  await assertFails(
+    getDoc(
+      doc(
+        authedDb('member'),
+        'devices',
+        '000000000000001',
+        'activityDays',
+        '2026-08-22-unverified',
+      ),
+    ),
+  );
+  await assertFails(
+    setDoc(doc(authedDb('owner'), ...path), {
+      localDate: '2026-08-23',
+      displayable: true,
+      reportedSteps: 999999,
+    }),
+  );
+});
+
 test('linked users can read only unexpired journey presentations', async () => {
   const db = authedDb('member');
   const active = doc(
@@ -422,7 +519,7 @@ test('medication data and commands require Guardian Care', async () => {
   await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
 });
 
-test('only linked Care users can read displayable wellbeing readings', async () => {
+test('linked Family and Care users can read consented displayable wellbeing readings', async () => {
   const acceptedPath = [
     'devices', '000000000000001', 'wellbeingReadings', 'accepted',
   ];
@@ -435,7 +532,7 @@ test('only linked Care users can read displayable wellbeing readings', async () 
       plan: 'family',
     });
   });
-  await assertFails(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...acceptedPath)));
 });
 
 test('unverified wellbeing evidence and consent records remain backend-only', async () => {
@@ -471,6 +568,8 @@ test('Care clients can query only readings constrained to displayable evidence',
   await assertSucceeds(getDocs(query(
     readings,
     where('displayable', '==', true),
+    where('observedAt', '>=', new Date(Date.now() - 86_400_000)),
+    where('observedAt', '<', new Date()),
     orderBy('observedAt', 'desc'),
   )));
   await assertFails(getDocs(query(readings, orderBy('observedAt', 'desc'))));

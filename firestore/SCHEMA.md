@@ -1,5 +1,20 @@
 # Guardian Firestore Schema
 
+## Wellness edition access — 14 September 2026
+
+`activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be
+bounded by Mauritius calendar timestamps: Essential today, Family today plus six
+previous days, Care selected retained periods. Every query keeps `displayable == true`
+and the caller must have a trusted active subscription and linked device. Wellbeing
+also requires current backend-managed wearer consent. `wellness_readings` is a new
+basic entitlement; Care profile/medication/advanced summary permissions stay separate.
+Accepted Care records renew their `expiresAt` review deadline through cleanup after
+subscription/membership verification (and consent for wellbeing); old source times
+never change. Fixed-expiry shadow evidence is not renewed. This supersedes older
+Family/Care-only reading and fixed-retention descriptions below. No client writes
+or automatic TTL policy are introduced.
+
+
 Collections used by the GT06 gateway and (later) the Flutter app.
 
 ## `users/{uid}`
@@ -18,7 +33,7 @@ Firebase Auth UID as document ID.
 | subscription | map \| null | **Deprecated and untrusted.** Legacy `{ tier: 'free'\|'premium', ... }` display data. It must never grant service access. |
 | serviceOwnerUid | string | UID whose authoritative Guardian plan this account inherits. Defaults to the same UID for the purchaser. A family relationship must also be verified on the owner's record. |
 | memberUids | string[] | Backend-managed normalized family membership used to verify plan inheritance. Keep a display copy in `familyMembers`, but never authorize from that legacy field. |
-| emergencyContacts | array | `{ name, phone, whatsapp? }` |
+| emergencyContacts | array | `{ name, phone, whatsapp?, isPrimary? }`; exactly one primary is preferred, with the first valid contact as the legacy fallback |
 | familyMembers | array | Backend-managed display list `{ uid, displayName, email? }`; never use it for authorization. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
@@ -115,6 +130,7 @@ Live device state. Document ID = device IMEI (digits only).
 | lastLocationObservation | map | Self-contained copy of the latest persisted observation, including source, validity, radius and time. |
 | lastSatelliteLocation | map \| null | Most recent valid `gps=A` satellite fix. Retained when the watch later reports an indoor `gps=V` fallback. |
 | lastApproximateLocation | map \| null | Most recent WiFi/cell-derived observation and its estimated radius. Never overwrites `lastSatelliteLocation`. |
+| homeWifiPresence | map \| null | Backend-owned, expiring private Home display evidence. Linked readers only; clients cannot create, change or delete it. See below. |
 | lastAlarm | map \| null | `{ type, at, raw }` |
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
@@ -122,6 +138,74 @@ Live device state. Document ID = device IMEI (digits only).
 | locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
+
+The raw `stepsRaw` and `rollCountRaw` fields are diagnostic counters, not
+customer activity totals. Accepted daily totals are stored separately under
+`activityDays` so Family/Care rules can fail closed without placing a total on
+the broadly readable device document.
+### `lastHomeWifiDetection` (map) — historical Home display
+
+Backend-owned qualified Home detection, stored atomically alongside a fresh v4
+`homeWifiPresence`. Linked readers can read it; the existing client update allowlist
+prevents creating, changing or deleting it. It grants no current presence,
+tracking priority, geofence transition, alert suppression or SOS location authority.
+
+- `version: 1`, `policy: "last_detected_home_v1"`, `source: "home_wifi"`.
+- `observedAt`: original qualified radio source timestamp; never refreshed by heartbeats.
+- `qualifiedUntil`: the original valid publication deadline, greater than `observedAt`
+  and at most two minutes later. This documents qualification, not ongoing presence.
+- `anchor`: verified saved Home `geofenceId`, `label`, `lat`, `lng`, `radiusMeters`.
+- `bindingHash`: SHA-256 of the verified Home/owner binding key. It contains no
+  router identifier and is not an authorization token. Startup compares it and
+  the exact anchor against the current verified binding before restoring history.
+
+A newer accepted GPS fix takes presentation precedence permanently until another
+qualified Home detection occurs. Invalid/future GPS and approximate network
+observations cannot renew or supersede history. Ordinary radio expiry retains
+history; verified binding changes clear incompatible history. Transient binding
+read failures cannot renew fresh presence and do not erase the earlier detection.
+The app/chat label is **Last detected at Home · age; current presence unconfirmed**.
+Older records lacking this field keep their previous fallback behavior.
+
+### `homeWifiPresence` map — private display pilot
+
+Published only when the operator separately enables the display pilot and the
+gateway validates repeated router observations plus one active saved Home zone
+owned by a linked Family/Care service owner. This is presentation evidence, not
+GPS, a network association, an indoor guarantee or a movement event.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| version / policy | number / string | New writes: `4` / `enrolled_home_radio_v4`, with Home-radio priority over GPS A/V. Readers accept cached v1/v2/v3 pairs using their original contracts. Other pairs fail closed. |
+| pilot / state / source | boolean / string / string | `true` / `matched` / `home_wifi` for v4. Only cached v3 permits `conflict`. |
+| conflictReason | string, legacy v3 conflict only | `gps_outside_home` or `gps_boundary_uncertain`. No arbitrary strings. A conflict preserves fresh router evidence but cannot select the Home pin. |
+| observedAt | ISO timestamp string | Last qualifying radio observation's source time; never a heartbeat or display write time. |
+| expiresAt | ISO timestamp string | Earlier of the two-minute observation lifetime and the at-most-60-second verified Home/plan binding lease. Consumers reject future source time, expired or oversized leases without needing another database event. |
+| anchor | map | `{ geofenceId, label: 'Home', lat, lng, radiusMeters }` from the validated saved Home zone. Positive finite radius is required in v2/v3/v4; absent legacy zone radius defaults to 150 m. No raw BSSID, SSID, router fingerprint, key or password. |
+
+Only the independent pilot publisher writes this field, without refreshing
+`updatedAt`, raw location, satellite history, battery, connectivity or incident
+snapshots. Invalid radio/binding evidence clears it to `null`.
+
+V4 selects the verified saved Home pin regardless of GPS A/V. The runtime uses
+the same fresh, bound evidence to hold GPS-derived dwell, journey and geofence
+calculations. It seeds a Home baseline without manufacturing arrival alerts.
+An open route is preserved at its last measured endpoint with
+`closeReason: home_wifi_detected`; no Home coordinate is inserted. After Home
+loss/expiry, a fresh GPS fix newer than the last radio observation is required
+to resume movement evaluation. Source switching/expiry alone is not departure.
+The first resumed route cannot bridge indoor GPS or a pre-Home anchor.
+GPS-based intelligence uses the same priority; ordinary app/WhatsApp source
+selection agrees. SOS/fall snapshots keep their independent accepted contract.
+
+Cached v1 keeps newer/equal-GPS precedence; v2 retains spatial agreement. V3
+conflicts remain unconfirmed references and cannot silently turn into Home.
+Those legacy records never activate v4 tracking priority. Only a new validated
+v4 publication changes the policy. GPS/heartbeats cannot renew Home timestamps.
+The map anchor denotes saved Home proximity, not measured indoor GPS accuracy.
+Binding and ownership are rechecked every 30 seconds; changed/invalid bindings
+require new repeated observations. Existing device update allowlists prohibit
+client evidence forgery; no Firestore rules expansion is required.
 
 ### `location` map
 
@@ -142,6 +226,38 @@ This prevents a WiFi/LBS radius from leaking into a later GPS observation.
 During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
+
+## `devices/{imei}/activityDays/{localDate}`
+
+Gateway-owned daily activity records. Document ID is the local calendar date
+(`YYYY-MM-DD`) in the configured watch timezone. Clients cannot write these
+documents. Linked Family/Care users can read only records whose
+`displayable=true`; Essential and unverified records fail closed in rules.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| schemaVersion | number | Currently `1`. |
+| imei | string | Parent watch IMEI. |
+| localDate | string | Local `YYYY-MM-DD` date. |
+| timeZone | string | IANA timezone used for the day boundary. |
+| source | string | `v52_counter`; passive protocol telemetry. |
+| counterMode | string | `unverified` or physically accepted `daily_reset`. |
+| displayable | boolean | True only in accepted counter mode with no anomaly. |
+| reportedSteps | number \| null | Customer total only when `displayable=true`. |
+| observedDeltaSteps | number | Diagnostic sum of accepted raw deltas. |
+| firstRaw | number | First valid raw counter observed for the day. |
+| lastRaw | number | Most recent valid raw counter observed for the day. |
+| firstObservedAt | timestamp | Gateway receipt time of first sample. |
+| lastObservedAt | timestamp | Gateway receipt time of latest accepted-order sample. |
+| sampleCount | number | Valid in-order observations processed. |
+| resetCount | number | Same-day counter decreases recovered by the aggregator. |
+| anomalyCount | number | Implausible jumps; any positive value hides the day. |
+| quality | string | `unverified`, `partial`, `reset_recovered`, or `anomalous`. |
+| expiresAt | timestamp | Gateway retention deadline. |
+| updatedAt | timestamp | Last gateway persistence time. |
+
+The collection intentionally does not derive active minutes, distance,
+calories, fitness or medical conclusions from steps.
 
 ## `devices/{imei}/locations/{locationId}`
 
@@ -223,15 +339,27 @@ A TCP disconnect is diagnostic evidence and does not split an outing.
 |-------|------|-------|
 | startAt | timestamp | Journey start |
 | endAt | timestamp | Journey end |
-| distanceKm | number | Path length along buffered GPS points |
+| distanceKm | number | Sum of consecutive valid GPS edges; excludes Wi-Fi/LBS edges and tracking gaps over five minutes. Older stored totals are recomputed on customer reads. |
 | polyline | string | Google encoded polyline (precision 5) |
 | events | array | Optional inline events, e.g. `{ type: 'geofence_exit', geofenceId, name, at }` |
-| pointCount | number | Raw GPS fixes in buffer before compression |
+| pointCount | number | Raw buffered observations before compression, including approximate observations retained during a GPS journey |
+| evidenceVersion | number | Version 3 stores aligned per-point source evidence and route-start anchoring |
+| pointEvidence | array | One entry per polyline point: source, gpsValid, offsetMs and optional quality metadata; a network estimate is never valid movement evidence |
+| routeStartAnchored | boolean | Whether a safe-zone departure has a retained inside-origin GPS anchor; required for customer-facing confirmed-return outings |
+| routeCoverage | map | GPS/approximate counts and tracking gaps; structureReliable is false for mixed-source routes |
 | compressed | boolean | Always `true` for gateway-written docs |
 | closeReason | string | Current reasons include `return_to_origin`, `idle`, and `daily_boundary`; `disconnect` may exist on legacy documents only |
 | observationAudit | map | Aggregate counts for approximate packets, resolution and acceptance outcomes |
 | diagnosticEvents | array | Bounded timestamp-offset timeline of connection, heartbeat, location, fallback, recovery-probe and reporting-policy evidence used by the read-only gap investigator |
 | createdAt | timestamp | Write time |
+
+Journey creation and boundary confirmation require valid satellite observations.
+Provider Wi-Fi/LBS estimates remain observations, even if their estimated radius
+lies outside a safe zone. Existing records without at least two valid GPS points
+and aligned version-3 source evidence are excluded from customer trip counts,
+distance totals and replay selection; raw documents are retained for diagnostics.
+The existing minimum-distance and anchored-return rules still apply. See
+[`journey-source-validation.md`](../docs/services/journey-source-validation.md).
 
 ### `devices/{imei}/journeys/{journeyId}/presentations/google_v1`
 
@@ -281,6 +409,7 @@ unaltered GPS evidence.
 | severity | string | `info` \| `warning` \| `critical` |
 | message | string | Human-readable |
 | payload | map | Raw / extra fields. V52 fall alerts include immutable `locationSnapshot`; see below. |
+| sosLocationSnapshot | map \| null | Backend-only frozen primary/secondary location evidence for physical V52 SOS; see below. |
 | resolved | boolean | Default false |
 | resolvedAt | timestamp \| null | |
 | notifyStatus | string \| null | `pending` \| `sending` \| `accepted` \| `partial` \| `sent` \| `delivered` \| `failed` \| `skipped`; `accepted` means provider acceptance, not handset delivery |
@@ -288,6 +417,46 @@ unaltered GPS evidence.
 | notifyDeliveryUpdatedAt | timestamp \| null | Latest signed provider status update |
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
+
+### Physical SOS `sosLocationSnapshot`
+
+The gateway captures this top-level field at physical SOS receipt, before
+notification work. It is **not** stored in the client-writable `payload` map.
+The existing alerts create allowlist rejects this field from clients, and the
+update allowlist permits only resolution fields. Read access remains linked
+watch access. No rules relaxation or new index is required.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| version | number | `1` |
+| policy | string | `map_retained_satellite_v1` |
+| capturedAt | timestamp | Gateway receipt time, not a claim of the exact physical button-press time. |
+| state | string | `fresh`, `last_known`, or `unavailable`; retained GPS is always `last_known`. |
+| reason | string | Selection/freshness reason, including `retained_satellite` and `source_unconfirmed`. |
+| ageSeconds | number \| null | Primary observation age relative to receipt; readers recompute it from the frozen timestamps. |
+| retainedSatellite | boolean | The primary pin uses retained satellite evidence rather than the latest approximate observation. |
+| location | map \| null | Copied `{ lat, lng, source, gpsValid, accuracyMeters, recordedAt, placeLabel }`. GPS accuracy is null, never inherited from WiFi/LBS. |
+| latestObservation | map \| null | Separate copied observation with its own time, source and radius. Can be secondary network evidence. |
+
+The primary pin follows the existing Flutter map's retained-GPS policy, tested
+in both languages against `docs/testing/sos-location-selection.json`. Very old
+or unknown-age GPS remains historical and explicitly says the current position
+is unconfirmed; there is no promise that the wearer is still there. Newer
+approximate evidence is retained and disclosed separately. Freshness alone
+does not imply positional precision.
+
+Post-receipt coordinates and malformed/null/blank/out-of-range coordinates are
+excluded. A missing device observation timestamp stays unknown; completion of
+a network geolocation lookup does not invent a timestamp. Body, template state,
+map button and notification-log location text use this snapshot. Battery and
+connection status may still reflect the notification-time device record.
+
+Legacy/app-created SOS alerts without a valid backend snapshot still notify,
+but fail closed to the no-location template. Do not retroactively fill their
+location from a newer device document. Existing sent messages are not edited
+or resent. Fall snapshot semantics and raw tracking data are unchanged.
+
+See `docs/services/sos-location.md` for the physical QA checklist and limits.
 
 ### Fall `payload.locationSnapshot`
 
@@ -330,8 +499,8 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`; V52 transport support varies by command and live-session state. `set_phonebook_contact` is explicitly rejected by Firestore rules and the generic gateway command dispatcher; PHBX is available only through the strict administrator provisioning endpoint. |
-| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }` |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }`. Alarm modes: `0` platform only, `1` platform+SMS+call, `2` platform+call, `3` platform+SMS. |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |
@@ -446,6 +615,7 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
 | Battery integer change | Upsert `batteryPercent` and its independent receipt timestamp. |
 | Persisted V52 heartbeat/location/alarm | Store validated latest cellular signal and raw activity counters without creating extra history writes. |
+| Passive V52 step observation while activity ingestion is enabled | Upsert one protected local-day `activityDays` document; duplicate counters are throttled and no customer total is exposed in `unverified` mode. |
 | SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
 | Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
 | First GPS fix after TCP connect | Always upsert location |

@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { cleanupWellnessRecords } = require('./wellness-retention');
 
 const METRIC_SET = Object.freeze({
   SPO2: 'spo2',
@@ -221,10 +222,12 @@ function createWellbeingStore({
       .limit(Math.min(500, Math.max(1, Number(limit) || 200)))
       .get();
     if (snap.empty) return { deleted: 0 };
-    const batch = db.batch();
-    for (const doc of snap.docs) batch.delete(doc.ref);
-    await batch.commit();
-    return { deleted: snap.size };
+    return cleanupWellnessRecords(db, snap.docs, { now: now(),
+      canRetain: async imei => {
+        const consent = await db.collection('wellbeingConsents').doc(imei).get();
+        return consent.exists && validConsent(consent.data(), now());
+      },
+    });
   }
 
   return Object.freeze({ ingest, cleanupExpired });

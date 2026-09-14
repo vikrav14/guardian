@@ -3,7 +3,7 @@
 const SERVICE_CONTRACT = Object.freeze({
   serviceId: 'care-wellbeing',
   displayName: 'Care wellbeing readings',
-  minimumPlan: 'care',
+  minimumPlan: 'essential',
   lifecycle: 'device_acceptance',
   enabledByDefault: false,
   customerVisible: false,

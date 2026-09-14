@@ -1,9 +1,16 @@
-# Care wellbeing readings
+# Wellness watch readings
+
+> **14 September 2026 implementation update:** the shared Wellness edition design
+> supersedes older Care-only/Family-only reading access described below. Essential
+> gets today, Family seven days, and Care retained history. All device/customer
+> acceptance gates remain off by default. See
+> [the current edition contract](../design/wellness-editions-2026-09-14.md).
+
 
 | Field | Value |
 |---|---|
 | Service ID | `care-wellbeing` |
-| Minimum package | Care |
+| Minimum package | Essential (today); Family (7 days); Care (retained history) |
 | Current state | Implemented backbone; exact-device acceptance pending; disabled |
 | Customer-visible | No; backend and Flutter release flags default off |
 | Confirmed upload surface | `bphrt`, `oxygen` |
@@ -33,9 +40,9 @@ The V52 datasheet lists heart rate, blood pressure, blood oxygen and skin temper
 - [x] reject unconfirmed temperature shapes rather than guessing
 - [x] require backend-owned consent before persistence
 - [x] make client reads depend on current consent and delete retained readings on revocation
-- [x] store source, receipt freshness, quality, displayability and 30-day retention
+- [x] store source, receipt freshness, quality, displayability and retention with active-Care review
 - [x] deduplicate repeated packets in a bounded receipt window
-- [x] provide deterministic Care-only app and WhatsApp reads
+- [x] provide calendar-bounded app reads for all editions and basic Family/Care WhatsApp reads
 
 ## App completion
 

@@ -1,5 +1,6 @@
 const { buildAckFrame } = require('./protocol/gt06');
 const { findSocketsForDevice } = require('./sessions');
+const { noteWifiFenceDownlink } = require('./wifi-fence-runtime');
 
 function redactPhone(value) {
   const phone = String(value || '');
@@ -9,6 +10,7 @@ function redactPhone(value) {
 /** Keep contact data and call destinations out of routine gateway logs. */
 function redactDownlinkCommand(command) {
   const text = String(command || '');
+  if (/^WIFIFENCE(?:,|$)/i.test(text)) return 'WIFIFENCE,<radios-redacted>';
   if (text.startsWith('PHBX,')) {
     const fields = text.split(',');
     return [
@@ -51,6 +53,8 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
     socket.write(frame);
   }
 
+  noteWifiFenceDownlink(command, matches);
+
   const safeCommand = redactDownlinkCommand(command);
   const frameLog = safeCommand === command ? `: ${frameStr}` : ' (frame redacted)';
   console.log(
@@ -68,6 +72,8 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
 }
 
 function sendContinuousReporting(imeiOrProtocolId) {
+  // Historical helper name. Supplier section II.2 describes a temporary GPS
+  // wake-up: reports every 30 seconds for about three minutes, not indefinitely.
   return sendDownlinkCommand(imeiOrProtocolId, 'CR');
 }
 

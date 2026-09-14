@@ -43,6 +43,34 @@
       ]
     },
     {
+      "collectionGroup": "activityDays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "displayable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "localDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activityDays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "displayable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastObservedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "wellbeingReadings",
       "queryScope": "COLLECTION",
       "fields": [

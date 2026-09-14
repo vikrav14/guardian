@@ -1,0 +1,573 @@
+{
+  "description": "Source eligibility only; valid GPS still uses existing journey boundary, distance and timing rules. Coordinates are synthetic. First case reproduces the operator-reported source counts, duration and displayed distance, not private raw coordinates.",
+  "cases": [
+    {
+      "name": "reported_indoor_trip_40_wifi_4_lbs",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 44,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 34837,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 69674,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 104512,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 139349,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 174186,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 209023,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 243860,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 278698,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 313535,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 348372,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 383209,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 418047,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 452884,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 487721,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 522558,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 557395,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 592233,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 627070,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 661907,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 696744,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 731581,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 766419,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 801256,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 836093,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 870930,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 905767,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 940605,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 975442,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1010279,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1045116,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1079953,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1114791,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1149628,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1184465,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1219302,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1254140,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1288977,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1323814,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1358651,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1393488,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1428326,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1463163,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?~C?_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "all_lbs",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 4,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 499333,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 998667,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?~C?_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "unknown_sources",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 3,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": null,
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 749000,
+            "source": null,
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": null,
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?~C?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "single_gps_among_network_updates",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 3,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 749000,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?~C?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "two_valid_gps",
+      "eligible": true,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 2,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "gps_with_approximate_route_section",
+      "eligible": true,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 4,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 499333,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 998667,
+            "source": "wifi",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "lbs",
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?~C?_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "legacy_without_provenance",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 2,
+        "evidenceVersion": 0,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "misaligned_evidence",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 3,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "gps",
+            "gpsValid": true,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "gps_source_but_invalid_flag",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 2,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "gps",
+            "gpsValid": false,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "gps",
+            "gpsValid": false,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    },
+    {
+      "name": "wifi_must_not_inherit_gps_valid",
+      "eligible": false,
+      "journey": {
+        "startAt": "2026-09-06T20:16:34Z",
+        "endAt": "2026-09-06T20:41:32Z",
+        "distanceKm": 4.039,
+        "pointCount": 2,
+        "evidenceVersion": 3,
+        "pointEvidence": [
+          {
+            "offsetMs": 0,
+            "source": "wifi",
+            "gpsValid": true,
+            "speedKmh": 0
+          },
+          {
+            "offsetMs": 1498000,
+            "source": "wifi",
+            "gpsValid": true,
+            "speedKmh": 0
+          }
+        ],
+        "polyline": "narzB_n}}I_D?",
+        "closeReason": "idle",
+        "events": []
+      }
+    }
+  ]
+}

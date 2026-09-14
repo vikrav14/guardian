@@ -1,0 +1,468 @@
+[
+  {
+    "name": "GPS is fresh at ten minutes",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "fresh",
+      "ageSeconds": 600,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "GPS becomes historical after ten minutes",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "last_known",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:49:59Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "last_known",
+      "ageSeconds": 601,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "retained GPS stays historical beside newer network evidence",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "last_known",
+      "retainedSatellite": true,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:53:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": {
+        "lat": -20.3,
+        "lng": 57.6,
+        "source": "wifi",
+        "recordedAt": "2026-09-06T11:59:30Z",
+        "accuracyMeters": 519
+      },
+      "ageSeconds": 0
+    },
+    "expected": {
+      "state": "last_known",
+      "ageSeconds": 420,
+      "retainedSatellite": true,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": "wifi"
+    }
+  },
+  {
+    "name": "unknown recording time is historical",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "last_known",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": null,
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "last_known",
+      "ageSeconds": null,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "unknown source is never labelled fresh",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "last_known",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "unknown",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "last_known",
+      "ageSeconds": 600,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "recent Wi-Fi with no retained satellite",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "wifi",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park",
+        "accuracyMeters": 200
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "fresh",
+      "ageSeconds": 600,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "missing location has no map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "unavailable",
+      "retainedSatellite": false,
+      "location": null,
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "unavailable",
+      "ageSeconds": null,
+      "retainedSatellite": false,
+      "coordinates": null,
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "future secondary evidence is discarded",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "last_known",
+      "retainedSatellite": true,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": {
+        "lat": -20.3,
+        "lng": 57.6,
+        "source": "lbs",
+        "recordedAt": "2026-09-06T12:00:01Z"
+      }
+    },
+    "expected": {
+      "state": "last_known",
+      "ageSeconds": 600,
+      "retainedSatellite": true,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "numeric coordinate strings are accepted",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": "-20.25",
+        "lng": "57.5",
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": {
+      "state": "fresh",
+      "ageSeconds": 600,
+      "retainedSatellite": false,
+      "coordinates": [
+        -20.25,
+        57.5
+      ],
+      "secondarySource": null
+    }
+  },
+  {
+    "name": "retained GPS cannot claim fresh",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": true,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "future primary evidence is rejected",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T12:00:01Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "invalid GPS cannot become a map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park",
+        "gpsValid": false
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "null coordinates cannot become a map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": null,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "boolean coordinates cannot become a map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": true,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "null island cannot become a map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": 0,
+        "lng": 0,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "out of range coordinates cannot become a map",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 181,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "unavailable state cannot contain coordinates",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "unavailable",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown snapshot version is rejected",
+    "snapshot": {
+      "version": 2,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "unknown selection policy is rejected",
+    "snapshot": {
+      "version": 1,
+      "policy": "live_pin",
+      "capturedAt": "2026-09-06T12:00:00Z",
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  },
+  {
+    "name": "missing capture time is rejected",
+    "snapshot": {
+      "version": 1,
+      "policy": "map_retained_satellite_v1",
+      "capturedAt": null,
+      "state": "fresh",
+      "retainedSatellite": false,
+      "location": {
+        "lat": -20.25,
+        "lng": 57.5,
+        "source": "gps",
+        "recordedAt": "2026-09-06T11:50:00Z",
+        "placeLabel": "Example park"
+      },
+      "latestObservation": null
+    },
+    "expected": null
+  }
+]

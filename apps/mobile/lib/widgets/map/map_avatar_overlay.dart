@@ -57,11 +57,10 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
 
   String _fingerprint(List<Device> devices) {
     return devices
-        .map(
-          (device) =>
-              '${device.imei}|${device.avatarUrl ?? ''}|'
-              '${device.mapDisplayLocation?.lat}|${device.mapDisplayLocation?.lng}',
-        )
+        .map((device) {
+          final location = device.mapDisplayLocation;
+          return '${device.imei}|${device.avatarUrl ?? ''}|${location?.lat}|${location?.lng}';
+        })
         .join('||');
   }
 
@@ -74,11 +73,11 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
 
     final positions = <String, Offset>{};
     for (final device in widget.devices) {
-      if (device.mapDisplayLocation?.isValid != true) continue;
-      final location = device.mapDisplayLocation!;
+      final location = device.mapDisplayLocation;
+      if (location?.isValid != true) continue;
       try {
         final screen = await controller.getScreenCoordinate(
-          LatLng(location.lat, location.lng),
+          LatLng(location!.lat, location.lng),
         );
         positions[device.imei] = Offset(
           screen.x.toDouble(),

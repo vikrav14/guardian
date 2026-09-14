@@ -15,6 +15,13 @@ captures, real-device acceptance, or the V52-only decoder tests.
 
 The three protocol/APN PDFs may live outside the repo (vendor email / download). Copy them here when available.
 
+The operator supplied the V52 user guide, V52 datasheet, shared **V46/V48/V52
+Communication Protocol and Communication Example**, and an updated SMS sheet
+on 8 September 2026. The shared documents apply to the V52 per operator
+confirmation. Their originals remain outside this repository; inspected pages,
+file hashes, differences and Wi-Fi fence interpretation are recorded in
+[the supplier validation note](../services/wifi-home-supplier-validation.md).
+
 **Current release evidence:** [../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md)
 
 Preserve raw vendor files, but record interpretation separately. For V52,
