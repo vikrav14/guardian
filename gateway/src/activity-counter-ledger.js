@@ -1,5 +1,6 @@
 'use strict';
 
+const { wearAt } = require('./wear-evidence');
 const VERSION = 2;
 const MAX_INTERVAL_MS = 30 * 60_000;
 const INTERVAL_RETENTION_MS = 7 * 86_400_000;
@@ -114,7 +115,21 @@ function reduceCounterLedger(previousState, previousDay, observation, options = 
     interval.reason = delta === 0 ? 'unchanged' : 'observed_increase';
     interval.acceptedSteps = delta;
   }
+  const wear = wearAt(observation.wearEvidence, at);
+  const sameWearingPeriod = wear.eligible && prior?.baselineWearId === wear.continuityId;
+  interval.wearQualifiedSteps = sameWearingPeriod ? interval.acceptedSteps : 0;
+  interval.wearReason = sameWearingPeriod ? 'continuous_wearing_evidence' : wear.reason;
+  // Existing diagnostic totals are never backfilled as wearer-qualified steps.
+  day.wearQualityVersion = 1;
+  day.wearQualifiedSteps = (day.wearQualifiedSteps || 0) + interval.wearQualifiedSteps;
+  day.wearExcludedSteps = day.recordedSteps + interval.acceptedSteps - day.wearQualifiedSteps;
+  day.wearReason = interval.wearReason;
+  if (sameWearingPeriod && ['observed_increase', 'unchanged'].includes(interval.reason)) {
+    day.lastWearQualifiedAt = at;
+  }
+  if (!sameWearingPeriod) addReason(day, 'wearing_not_confirmed_for_interval');
   if (advanceBaseline) {
+    state.baselineWearId = wear.eligible ? wear.continuityId : null;
     state.lastRaw = observation.stepsRaw;
     state.baselineAt = at;
     state.baselineLocalDate = observation.localDate;
@@ -136,8 +151,9 @@ function reduceCounterLedger(previousState, previousDay, observation, options = 
   // Coverage stays explicitly partial: no evidence claims a complete day or
   // that a silent interval proves inactivity. Customer activation is separate.
   day.quality = day.counterMode === 'observed_delta' ? 'partial' : 'unverified';
-  day.displayable = day.counterMode === 'observed_delta' && options.customerEnabled === true;
-  day.reportedSteps = day.displayable ? day.recordedSteps : null;
+  day.displayable = day.counterMode === 'observed_delta' && options.customerEnabled === true &&
+    day.lastWearQualifiedAt != null;
+  day.reportedSteps = day.displayable ? day.wearQualifiedSteps : null;
   return { status: 'stored', state, day, interval };
 }
 
@@ -156,7 +172,9 @@ async function ingestCounterLedger(db, observation, options = {}) {
     if (result.status === 'ignored_stale') return { status: result.status, day: previousDay };
     const sameDay = previousDay?.schemaVersion === VERSION && previousState?.timeZone === observation.timeZone;
     const unchanged = result.interval.reason === 'unchanged' && sameDay &&
-      previousDay.counterMode === result.day.counterMode && previousDay.displayable === result.day.displayable;
+      previousDay.counterMode === result.day.counterMode && previousDay.displayable === result.day.displayable &&
+      previousState.baselineWearId === result.state.baselineWearId &&
+      previousDay.wearQualityVersion === result.day.wearQualityVersion;
     if (unchanged && +observation.receivedAt - +date(previousState.lastObservedAt) < options.writeIntervalMs) {
       return { status: 'deduplicated', day: previousDay };
     }

@@ -18,6 +18,12 @@ const config = {
   journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
   journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
 
+  // Interpretation is separately accepted per exact device/firmware. The
+  // passive observer runs alongside activity/wellbeing without watch commands.
+  wearEvidenceDeviceMode: process.env.WEAR_EVIDENCE_DEVICE_MODE || 'unverified',
+  wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
+
   // V52 activity is passive and fail-closed. Raw counters continue to be
   // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
   // Customer exposure still requires exact-device acceptance and opt-in.

@@ -469,8 +469,8 @@ async function getActivitySummary(
       localDate: day.localDate || day.id,
       steps: day.reportedSteps,
       lastObservedAt:
-        day.lastObservedAt?.toDate?.()?.toISOString?.() ||
-        day.lastObservedAt ||
+        (day.lastWearQualifiedAt || day.lastObservedAt)?.toDate?.()?.toISOString?.() ||
+        day.lastWearQualifiedAt || day.lastObservedAt ||
         null,
       quality: day.quality || 'partial',
       partialCoverage: day.coverage === 'partial',

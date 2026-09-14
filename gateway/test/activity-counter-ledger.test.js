@@ -87,7 +87,7 @@ test('customer opt-in and accepted mode are both required and partial coverage i
   for (const mode of ['unverified', 'observed_delta']) for (const customerEnabled of [false, true]) {
     const result = replay([[100, '2026-09-14T17:00:00Z'], [198, '2026-09-14T17:05:00Z']],
       { counterMode: mode, customerEnabled });
-    assert.equal(result.today.displayable, mode === 'observed_delta' && customerEnabled);
+    assert.equal(result.today.displayable, false); // Wearing is independently unconfirmed.
     assert.equal(result.today.reportedSteps, result.today.displayable ? 98 : null);
     assert.equal(result.today.coverage, 'partial');
   }

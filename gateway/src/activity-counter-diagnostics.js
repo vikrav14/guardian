@@ -11,6 +11,9 @@ function summarizeActivityDay(day) {
     localDate: day.localDate, schemaVersion: day.schemaVersion ?? 1,
     lastRaw: day.lastRaw ?? null,
     recordedSteps: day.schemaVersion === 2 ? day.recordedSteps ?? null : null,
+    wearQualifiedSteps: day.wearQualifiedSteps ?? null,
+    wearExcludedSteps: day.wearExcludedSteps ?? null, wearReason: day.wearReason || null,
+    lastWearQualifiedAt: iso(day.lastWearQualifiedAt),
     observedDeltaSteps: day.observedDeltaSteps ?? null,
     reportedSteps: day.displayable === true ? day.reportedSteps ?? null : null,
     displayable: day.displayable === true, quality: day.quality || 'unverified',
@@ -43,6 +46,7 @@ function summarizeActivityInterval(interval) {
     fromLocalDate: interval.fromLocalDate, toLocalDate: interval.toLocalDate,
     rawBefore: interval.rawBefore, rawAfter: interval.rawAfter,
     acceptedSteps: interval.acceptedSteps, unallocatedSteps: interval.unallocatedSteps,
+    wearQualifiedSteps: interval.wearQualifiedSteps ?? null, wearReason: interval.wearReason || null,
     reason: interval.reason, timeBasis: interval.timeBasis,
   };
 }
