@@ -52,6 +52,43 @@ The reminder template receives wearer name, reminder text, and scheduled time.
 If any required template is missing or rejected, Guardian records a visible
 failure; it never switches to another WhatsApp provider.
 
+### SOS callback pilot
+
+Guardian can select a second, pilot-only SOS template set after a controlled
+V52 no-call acceptance test:
+
+| Location at event time | Template | Approved buttons |
+|---|---|---|
+| Fresh | `guardian_sos_callback_alert_v1` | Index 0 `Call watch` (static phone), index 1 `View location` (dynamic URL) |
+| Last known | `guardian_sos_callback_last_location_v1` | Index 0 `Call watch` (static phone), index 1 `View last known location` (dynamic URL) |
+| Unavailable | `guardian_sos_callback_unavailable_v1` | Index 0 `Call watch` (static phone) |
+
+Meta fixes the phone number in the approved phone-button template. Guardian
+therefore enables this set only when both private settings below match the
+alerting device exactly:
+
+```dotenv
+META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI=
+META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER=
+```
+
+Leave both empty by default. This pilot guard prevents another watch's alert
+from displaying a button that calls the pilot watch. The template button text
+is static; use the generic production label `Call watch` rather than embedding
+a wearer's name. This is not yet the scalable multi-watch call-link design.
+
+Guardian Essential includes only the physical-watch SOS WhatsApp entitlement.
+It sends one template per accepted SOS incident to the family's primary
+emergency contact. It does not grant WhatsApp questions/answers, fall or
+routine WhatsApp alerts, AI, reminders, or watch commands. Family and Care keep
+the broader WhatsApp safety-alert entitlement and recipient fan-out.
+
+The static `Call watch` button remains protected by the exact pilot IMEI and SIM
+match above. Essential entitlement alone must never activate a phone button
+whose approved number belongs to another watch. Non-pilot Essential devices
+use the approved standard SOS template until a scalable per-device call-link
+design passes security and delivery acceptance.
+
 ## Webhook
 
 Expose this signed endpoint over HTTPS and configure it in the Meta app:

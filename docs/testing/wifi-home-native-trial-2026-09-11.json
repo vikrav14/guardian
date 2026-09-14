@@ -1,0 +1,454 @@
+{
+  "evidenceOrigin": "Operator-supplied completed wifi-home:fence --report output, 11 September 2026 UTC",
+  "sourceAttachmentSha256": "88020ee4f53c00569224d46cea99b66f34554add57bb4b9f1ccb3013e134e261",
+  "operatorCheckoutRevision": "d59f4f9c5a20cabd2a137f16ab7d1b5c8db8076f",
+  "runtimeRevisionReported": null,
+  "revisionLimitation": "Operator showed this checkout before the trial; the capture does not report a running-process commit.",
+  "redactions": [
+    "captureId omitted from trial and capture"
+  ],
+  "captureIdentifiersMatched": true,
+  "assessment": {
+    "nativeSettingAcceptance": "unconfirmed",
+    "wifiFenceCommandResponses": 0,
+    "fenceEventsObserved": 0,
+    "physicalDepartureOrReturnVerified": false,
+    "interpretation": "Two CR replies and subsequent fresh reports establish a working response/report path. They do not establish WIFIFENCE acceptance, a native fence transition or continuous Home availability.",
+    "crOrigin": "not recorded; timing is consistent with existing packet-silence recovery but does not prove its origin",
+    "currentSettingMayPersist": true,
+    "repeatProvisioningRecommended": false
+  },
+  "derivedChecks": {
+    "responseCountsByCommand": {
+      "CR": 2
+    },
+    "handoffCountsByCommand": {
+      "WIFIFENCE": 1,
+      "CR": 2
+    },
+    "gpsValidReports": 8,
+    "nonGpsReports": 5,
+    "secondsFromFenceHandoffToFirstReport": 1282.633,
+    "firstCrToFirstReportSeconds": 3.609,
+    "firstReportBurstSpanSeconds": 168.407,
+    "secondCrToFirstReportSeconds": 3.664
+  },
+  "version": 1,
+  "configured": true,
+  "sessionConnected": true,
+  "liveProvisioningAvailable": false,
+  "provisioningMode": "experimental_single_router_only",
+  "singleRouterTrial": {
+    "supported": true,
+    "attempted": true,
+    "requestedAt": "2026-09-11T09:48:56.802Z",
+    "phase": "queued",
+    "captureRecorded": true,
+    "settingMayPersist": true,
+    "rollbackKnown": false,
+    "settingsApplied": null,
+    "nativeFenceAccepted": false,
+    "homeClaim": false
+  },
+  "capture": {
+    "observeOnly": true,
+    "homeClaim": false,
+    "nativeFenceAccepted": false,
+    "phase": "completed",
+    "startedAt": "2026-09-11T09:48:56.797Z",
+    "endsAt": "2026-09-11T10:18:56.797Z",
+    "elapsedSeconds": 1800,
+    "counts": {
+      "reports": 13,
+      "heartbeats": 21,
+      "freshRouterSightings": 1,
+      "staleOrInvalidReports": 0,
+      "repeatedReports": 0,
+      "fencePackets": 0,
+      "freshFencePackets": 0,
+      "crHandoffs": 2,
+      "uploadHandoffs": 0,
+      "fenceHandoffs": 1,
+      "commandResponses": 2,
+      "markers": 0
+    },
+    "maxReportGapSeconds": 312,
+    "secondsSinceLastReport": 13,
+    "secondsSinceLastRouterSighting": 517,
+    "retainedEntries": 39,
+    "droppedEntries": 0,
+    "timeline": [
+      {
+        "at": "2026-09-11T09:48:56.802Z",
+        "kind": "socket_handoff",
+        "command": "WIFIFENCE",
+        "settingsApplied": null
+      },
+      {
+        "at": "2026-09-11T09:49:33.803Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:50:32.799Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:51:31.806Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:52:30.769Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:53:29.779Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:54:28.790Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:55:27.781Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:56:26.760Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:57:25.763Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:58:24.752Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T09:59:23.749Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:00:22.748Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:01:21.752Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:02:20.760Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:03:19.769Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:04:18.739Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:05:17.731Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:06:16.734Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:07:15.732Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:10:15.826Z",
+        "kind": "socket_handoff",
+        "command": "CR",
+        "documentedBurstSeconds": 180,
+        "settingsApplied": null
+      },
+      {
+        "at": "2026-09-11T10:10:16.233Z",
+        "kind": "command_response",
+        "packet": "CR",
+        "settingsApplied": null
+      },
+      {
+        "at": "2026-09-11T10:10:19.435Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:10:18.000Z",
+        "observationAgeSeconds": 1,
+        "reportGapSeconds": null,
+        "gpsValid": false,
+        "radiosReported": 1,
+        "homeRouterSeen": true,
+        "signalDbm": -57,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:10:26.724Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:10:25.000Z",
+        "observationAgeSeconds": 1,
+        "reportGapSeconds": 7,
+        "gpsValid": false,
+        "radiosReported": 0,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:10:40.966Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:10:38.000Z",
+        "observationAgeSeconds": 2,
+        "reportGapSeconds": 14,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:11:05.108Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:10:59.000Z",
+        "observationAgeSeconds": 6,
+        "reportGapSeconds": 24,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:11:15.773Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:11:26.028Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:11:20.000Z",
+        "observationAgeSeconds": 6,
+        "reportGapSeconds": 21,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:11:43.940Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:11:41.000Z",
+        "observationAgeSeconds": 2,
+        "reportGapSeconds": 18,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:12:07.712Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:12:02.000Z",
+        "observationAgeSeconds": 5,
+        "reportGapSeconds": 24,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:12:25.879Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:12:23.000Z",
+        "observationAgeSeconds": 2,
+        "reportGapSeconds": 18,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:12:49.919Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:12:44.000Z",
+        "observationAgeSeconds": 5,
+        "reportGapSeconds": 24,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:13:07.842Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:13:05.000Z",
+        "observationAgeSeconds": 2,
+        "reportGapSeconds": 18,
+        "gpsValid": true,
+        "radiosReported": null,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:15:15.714Z",
+        "kind": "heartbeat",
+        "packet": "LK"
+      },
+      {
+        "at": "2026-09-11T10:18:16.162Z",
+        "kind": "socket_handoff",
+        "command": "CR",
+        "documentedBurstSeconds": 180,
+        "settingsApplied": null
+      },
+      {
+        "at": "2026-09-11T10:18:16.544Z",
+        "kind": "command_response",
+        "packet": "CR",
+        "settingsApplied": null
+      },
+      {
+        "at": "2026-09-11T10:18:19.826Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:18:19.000Z",
+        "observationAgeSeconds": 0,
+        "reportGapSeconds": 312,
+        "gpsValid": false,
+        "radiosReported": 0,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:18:27.107Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:18:26.000Z",
+        "observationAgeSeconds": 1,
+        "reportGapSeconds": 7,
+        "gpsValid": false,
+        "radiosReported": 0,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      },
+      {
+        "at": "2026-09-11T10:18:43.353Z",
+        "kind": "report",
+        "packet": "UD_LTE",
+        "timeStatus": "fresh",
+        "repeated": false,
+        "observedAt": "2026-09-11T10:18:40.000Z",
+        "observationAgeSeconds": 3,
+        "reportGapSeconds": 16,
+        "gpsValid": false,
+        "radiosReported": 0,
+        "homeRouterSeen": false,
+        "signalDbm": null,
+        "fenceExitBit": false,
+        "fenceEnterBit": false,
+        "sosBit": false,
+        "fenceSource": null
+      }
+    ]
+  }
+}

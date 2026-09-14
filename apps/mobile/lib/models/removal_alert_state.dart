@@ -9,6 +9,7 @@ class RemovalAlertState {
     required this.mode,
     this.stateChangedAt,
     this.lastObservedAt,
+    this.expiresAt,
   });
 
   final WatchRemovalState state;
@@ -16,8 +17,14 @@ class RemovalAlertState {
   final String mode;
   final DateTime? stateChangedAt;
   final DateTime? lastObservedAt;
+  final DateTime? expiresAt;
 
-  bool get customerSafe => displayable && mode == 'accepted';
+  bool get customerSafe => customerSafeAt(DateTime.now());
+
+  bool customerSafeAt(DateTime now) => displayable && mode == 'accepted' &&
+      state != WatchRemovalState.unknown && lastObservedAt != null && expiresAt != null &&
+      !lastObservedAt!.isAfter(now) && expiresAt!.isAfter(now) &&
+      expiresAt!.difference(lastObservedAt!) <= const Duration(seconds: 120);
 
   factory RemovalAlertState.fromMap(Map<String, dynamic>? map) {
     final data = map ?? const <String, dynamic>{};
@@ -32,6 +39,7 @@ class RemovalAlertState {
       mode: data['mode'] as String? ?? 'unverified',
       stateChangedAt: _date(data['stateChangedAt']),
       lastObservedAt: _date(data['lastObservedAt']),
+      expiresAt: _date(data['expiresAt']),
     );
   }
 }

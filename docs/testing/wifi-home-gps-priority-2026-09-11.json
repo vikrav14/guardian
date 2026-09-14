@@ -1,0 +1,811 @@
+{
+  "evidenceOrigin": "Operator-uploaded gateway log, 11 September 2026 UTC",
+  "sourceFile": "Pasted text(20260911-200422).txt",
+  "sourceSha256": "645b01c0c9514ebc8b7638e60a1e103b10f81d9136fa620031a7ea6387bd0392",
+  "sourceBytes": 18895,
+  "sourceLines": 142,
+  "runtimeRevisionReported": null,
+  "privacy": "Only selected diagnostic fields, location source/accuracy, command kinds and the Home zone category are retained. Device/router identifiers, coordinates, endpoints, contacts and raw frames are omitted.",
+  "timestampLimitation": "Only observer entries include their original asOf/source/expiry timestamps. Other entries retain source line order; no timestamps are invented for untimestamped lines.",
+  "counts": {
+    "observerSnapshots": 21,
+    "displayDiagnostics": 10,
+    "locationSummaries": 31,
+    "gpsLocationSummaries": 7,
+    "displayHomeActive": 3,
+    "displaySatelliteClears": 2,
+    "displayObservationExpiryClears": 2,
+    "crHandoffs": 3,
+    "crResponses": 3,
+    "automaticRecoveryReasons": {
+      "packet_silence": 1,
+      "location_stale": 2
+    },
+    "serverHomeEntries": 1
+  },
+  "assessment": {
+    "earlyClearCause": "satellite_observation",
+    "firstSatelliteClearObservedAt": "2026-09-11T19:51:48.868Z",
+    "firstPublicationClearConfirmedAt": "2026-09-11T19:51:49.719Z",
+    "firstObservationToConfirmedClearSeconds": 0.851,
+    "publisherStatusEvidence": "wifi-home-publication-cleared-2026-09-11.json",
+    "secondSatelliteClearObservedAt": "2026-09-11T20:02:11.259Z",
+    "normalExpiryBetweenSatelliteClears": "2026-09-11T19:59:50.000Z",
+    "firstSourceObservationBeforeClear": "2026-09-11T19:51:22.000Z",
+    "firstSourceObservationAgeAtClearSeconds": 27.719,
+    "publicationRenewalClarification": "lastHomePublication records the latest usable successful write, including a renewal. The earlier status measured six seconds from that renewal to clearing; the log shows displayingHome:true before that renewal, so six seconds is not an established total Home-active duration.",
+    "geofenceFinding": "The second satellite clearing is accompanied by a server geofence_enter for Home. Source audit identifies the server zone-evaluation log path. It is not proof of a native WIFIFENCE packet, physical arrival or departure.",
+    "ruleFinding": "The existing Home observer clears its match on a fresh GPS-valid report before evaluating Wi-Fi radios, GPS accuracy or distance from Home. The backend and Flutter display readers also suppress Home evidence for newer/equal GPS observations.",
+    "accuracyLimitation": "Seven location summaries say GPS A with accuracy not supplied. This does not prove their coordinates wrong, outside Home, or more accurate than Home-radio evidence.",
+    "radioLimitation": "Strong Home radio sightings precede both GPS switches, but these ordinary logs do not expose the radio fields of those GPS packets. Same-packet Home sightings remain unconfirmed.",
+    "reportingGapFinding": "Between the GPS clears, Home requalifies, then expires at the original radio source time plus 120 seconds. Three CR handoffs/replies are recorded with automatic recovery reasons; these are not three new operator requests.",
+    "nextStep": "Capture GPS-valid packet radio fields while the watch remains near the enrolled router, using scanDiagnosticsVersion 1. Inspect the simultaneous router match and any fence bits before changing location selection or attempting the marked radio comparison.",
+    "nativeFenceAcceptance": "unconfirmed",
+    "continuousHomeAcceptance": "unconfirmed",
+    "runtimeOrHardwareChanged": false
+  },
+  "entries": [
+    {
+      "sourceLine": 3,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 517,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 6,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "observation_expired"
+    },
+    {
+      "sourceLine": 7,
+      "kind": "home_observer",
+      "matchState": "expired",
+      "reason": "observation_expired",
+      "asOf": "2026-09-11T19:46:34.299Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": 136,
+      "observedAt": "2026-09-11T19:44:18.000Z",
+      "expiresAt": "2026-09-11T19:46:18.000Z",
+      "signalDbm": null,
+      "counts": {
+        "reports": 10,
+        "routerSeen": 9,
+        "qualified": 9,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 11,
+      "kind": "command_handoff",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 12,
+      "kind": "recovery_request",
+      "command": "CR",
+      "reason": "packet_silence"
+    },
+    {
+      "sourceLine": 14,
+      "kind": "home_observer",
+      "matchState": "expired",
+      "reason": "observation_expired",
+      "asOf": "2026-09-11T19:49:36.130Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": 318,
+      "observedAt": "2026-09-11T19:44:18.000Z",
+      "expiresAt": "2026-09-11T19:46:18.000Z",
+      "signalDbm": null,
+      "counts": {
+        "reports": 10,
+        "routerSeen": 9,
+        "qualified": 9,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 15,
+      "kind": "command_response",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 17,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 19,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "awaiting_repeated_observations"
+    },
+    {
+      "sourceLine": 20,
+      "kind": "home_observer",
+      "matchState": "candidate",
+      "reason": "awaiting_repeated_observations",
+      "asOf": "2026-09-11T19:49:48.594Z",
+      "consecutiveMatches": 1,
+      "lastMatchAgeSeconds": 11,
+      "observedAt": "2026-09-11T19:49:37.000Z",
+      "expiresAt": "2026-09-11T19:51:37.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 12,
+        "routerSeen": 10,
+        "qualified": 10,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 22,
+      "kind": "location_summary",
+      "source": "lbs",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 24,
+      "kind": "location_summary",
+      "source": "lbs",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 27,
+      "kind": "home_observer",
+      "matchState": "candidate",
+      "reason": "awaiting_repeated_observations",
+      "asOf": "2026-09-11T19:50:24.086Z",
+      "consecutiveMatches": 2,
+      "lastMatchAgeSeconds": 5,
+      "observedAt": "2026-09-11T19:50:19.000Z",
+      "expiresAt": "2026-09-11T19:52:19.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 14,
+        "routerSeen": 11,
+        "qualified": 11,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 29,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 30,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:50:41.995Z",
+      "consecutiveMatches": 3,
+      "lastMatchAgeSeconds": 1,
+      "observedAt": "2026-09-11T19:50:40.000Z",
+      "expiresAt": "2026-09-11T19:52:40.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 15,
+        "routerSeen": 12,
+        "qualified": 12,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 32,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 33,
+      "kind": "home_display",
+      "displayingHome": true,
+      "reason": "home_wifi_detected"
+    },
+    {
+      "sourceLine": 35,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 517,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 38,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:51:24.228Z",
+      "consecutiveMatches": 5,
+      "lastMatchAgeSeconds": 2,
+      "observedAt": "2026-09-11T19:51:22.000Z",
+      "expiresAt": "2026-09-11T19:53:22.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 17,
+        "routerSeen": 14,
+        "qualified": 14,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 40,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 42,
+      "kind": "home_observer",
+      "matchState": "unknown",
+      "reason": "satellite_observation",
+      "asOf": "2026-09-11T19:51:48.868Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": null,
+      "observedAt": null,
+      "expiresAt": null,
+      "signalDbm": null,
+      "counts": {
+        "reports": 18,
+        "routerSeen": 14,
+        "qualified": 14,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 43,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 44,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "satellite_observation"
+    },
+    {
+      "sourceLine": 46,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 49,
+      "kind": "home_observer",
+      "matchState": "unknown",
+      "reason": "satellite_observation",
+      "asOf": "2026-09-11T19:52:30.205Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": null,
+      "observedAt": null,
+      "expiresAt": null,
+      "signalDbm": null,
+      "counts": {
+        "reports": 20,
+        "routerSeen": 14,
+        "qualified": 14,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 50,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 54,
+      "kind": "home_observer",
+      "matchState": "unknown",
+      "reason": "satellite_observation",
+      "asOf": "2026-09-11T19:54:34.308Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": null,
+      "observedAt": null,
+      "expiresAt": null,
+      "signalDbm": null,
+      "counts": {
+        "reports": 20,
+        "routerSeen": 14,
+        "qualified": 14,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 56,
+      "kind": "command_handoff",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 57,
+      "kind": "recovery_request",
+      "command": "CR",
+      "reason": "location_stale"
+    },
+    {
+      "sourceLine": 59,
+      "kind": "command_response",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 60,
+      "kind": "home_observer",
+      "matchState": "candidate",
+      "reason": "awaiting_repeated_observations",
+      "asOf": "2026-09-11T19:55:04.453Z",
+      "consecutiveMatches": 1,
+      "lastMatchAgeSeconds": 2,
+      "observedAt": "2026-09-11T19:55:02.000Z",
+      "expiresAt": "2026-09-11T19:57:02.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 21,
+        "routerSeen": 15,
+        "qualified": 15,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 62,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 64,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "awaiting_repeated_observations"
+    },
+    {
+      "sourceLine": 66,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 69,
+      "kind": "location_summary",
+      "source": "lbs",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 70,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:55:49.191Z",
+      "consecutiveMatches": 3,
+      "lastMatchAgeSeconds": 5,
+      "observedAt": "2026-09-11T19:55:44.000Z",
+      "expiresAt": "2026-09-11T19:57:44.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 24,
+        "routerSeen": 17,
+        "qualified": 17,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 72,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 73,
+      "kind": "home_display",
+      "displayingHome": true,
+      "reason": "home_wifi_detected"
+    },
+    {
+      "sourceLine": 75,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 78,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:56:31.108Z",
+      "consecutiveMatches": 5,
+      "lastMatchAgeSeconds": 5,
+      "observedAt": "2026-09-11T19:56:26.000Z",
+      "expiresAt": "2026-09-11T19:58:26.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 26,
+        "routerSeen": 19,
+        "qualified": 19,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 80,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 82,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 83,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:57:09.964Z",
+      "consecutiveMatches": 7,
+      "lastMatchAgeSeconds": 1,
+      "observedAt": "2026-09-11T19:57:08.000Z",
+      "expiresAt": "2026-09-11T19:59:08.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 28,
+        "routerSeen": 21,
+        "qualified": 21,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 85,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 89,
+      "kind": "location_summary",
+      "source": "lbs",
+      "gpsFlag": "V",
+      "accuracyMeters": 517,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 91,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:57:52.008Z",
+      "consecutiveMatches": 8,
+      "lastMatchAgeSeconds": 2,
+      "observedAt": "2026-09-11T19:57:50.000Z",
+      "expiresAt": "2026-09-11T19:59:50.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 30,
+        "routerSeen": 22,
+        "qualified": 22,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 93,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 97,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T19:58:34.118Z",
+      "consecutiveMatches": 8,
+      "lastMatchAgeSeconds": 44,
+      "observedAt": "2026-09-11T19:57:50.000Z",
+      "expiresAt": "2026-09-11T19:59:50.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 30,
+        "routerSeen": 22,
+        "qualified": 22,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 100,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "observation_expired"
+    },
+    {
+      "sourceLine": 101,
+      "kind": "command_handoff",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 102,
+      "kind": "recovery_request",
+      "command": "CR",
+      "reason": "location_stale"
+    },
+    {
+      "sourceLine": 104,
+      "kind": "home_observer",
+      "matchState": "expired",
+      "reason": "observation_expired",
+      "asOf": "2026-09-11T20:00:22.436Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": 152,
+      "observedAt": "2026-09-11T19:57:50.000Z",
+      "expiresAt": "2026-09-11T19:59:50.000Z",
+      "signalDbm": null,
+      "counts": {
+        "reports": 30,
+        "routerSeen": 22,
+        "qualified": 22,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 105,
+      "kind": "command_response",
+      "command": "CR"
+    },
+    {
+      "sourceLine": 107,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 108,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "awaiting_repeated_observations"
+    },
+    {
+      "sourceLine": 112,
+      "kind": "home_observer",
+      "matchState": "candidate",
+      "reason": "awaiting_repeated_observations",
+      "asOf": "2026-09-11T20:00:33.025Z",
+      "consecutiveMatches": 2,
+      "lastMatchAgeSeconds": 2,
+      "observedAt": "2026-09-11T20:00:31.000Z",
+      "expiresAt": "2026-09-11T20:02:31.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 32,
+        "routerSeen": 24,
+        "qualified": 24,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 114,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 116,
+      "kind": "location_summary",
+      "source": "lbs",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 117,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T20:01:09.896Z",
+      "consecutiveMatches": 3,
+      "lastMatchAgeSeconds": 4,
+      "observedAt": "2026-09-11T20:01:05.000Z",
+      "expiresAt": "2026-09-11T20:03:05.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 34,
+        "routerSeen": 25,
+        "qualified": 25,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 119,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 229,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 120,
+      "kind": "home_display",
+      "displayingHome": true,
+      "reason": "home_wifi_detected"
+    },
+    {
+      "sourceLine": 124,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 126,
+      "kind": "home_observer",
+      "matchState": "matched",
+      "reason": "repeated_router_observations",
+      "asOf": "2026-09-11T20:01:52.263Z",
+      "consecutiveMatches": 5,
+      "lastMatchAgeSeconds": 5,
+      "observedAt": "2026-09-11T20:01:47.000Z",
+      "expiresAt": "2026-09-11T20:03:47.000Z",
+      "signalDbm": -30,
+      "counts": {
+        "reports": 36,
+        "routerSeen": 27,
+        "qualified": 27,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 128,
+      "kind": "location_summary",
+      "source": "wifi",
+      "gpsFlag": "V",
+      "accuracyMeters": 577,
+      "accuracyReported": true
+    },
+    {
+      "sourceLine": 129,
+      "kind": "home_observer",
+      "matchState": "unknown",
+      "reason": "satellite_observation",
+      "asOf": "2026-09-11T20:02:11.259Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": null,
+      "observedAt": null,
+      "expiresAt": null,
+      "signalDbm": null,
+      "counts": {
+        "reports": 37,
+        "routerSeen": 27,
+        "qualified": 27,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 130,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 131,
+      "kind": "server_geofence_transition",
+      "direction": "enter",
+      "zoneLabel": "Home",
+      "nativeWifiFenceEvidence": false
+    },
+    {
+      "sourceLine": 132,
+      "kind": "home_display",
+      "displayingHome": false,
+      "reason": "satellite_observation"
+    },
+    {
+      "sourceLine": 136,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 137,
+      "kind": "home_observer",
+      "matchState": "unknown",
+      "reason": "satellite_observation",
+      "asOf": "2026-09-11T20:02:53.095Z",
+      "consecutiveMatches": 0,
+      "lastMatchAgeSeconds": null,
+      "observedAt": null,
+      "expiresAt": null,
+      "signalDbm": null,
+      "counts": {
+        "reports": 39,
+        "routerSeen": 27,
+        "qualified": 27,
+        "ignoredTime": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "sourceLine": 138,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    },
+    {
+      "sourceLine": 139,
+      "kind": "location_summary",
+      "source": "gps",
+      "gpsFlag": "A",
+      "accuracyMeters": null,
+      "accuracyReported": false
+    }
+  ]
+}

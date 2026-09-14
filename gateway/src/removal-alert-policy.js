@@ -1,4 +1,5 @@
 'use strict';
+const { wearAt } = require('./wear-evidence');
 
 const MODE_UNVERIFIED = 'unverified';
 const MODE_ACCEPTED = 'accepted';
@@ -67,13 +68,15 @@ function isQuietAt(date, settings) {
 }
 
 function normalizeRemovalObservation(event = {}, now = new Date()) {
-  if (typeof event.braceletRemoved !== 'boolean') return null;
+  if (event.wearEvidence?.version !== 1) return null;
   const observedAt = asDate(event.observedAt || event.receivedAt || now);
   if (!observedAt) return null;
+  const proof = wearAt(event.wearEvidence, observedAt);
   return Object.freeze({
     imei: String(event.imei || '').trim(),
-    removed: event.braceletRemoved,
-    observedAt,
+    removed: proof.state === 'removed' ? true : proof.state === 'worn' ? false : null,
+    expiresAt: proof.expiresAt,
+    observedAt: proof.observedAt || observedAt,
     source: String(event.source || event.command || 'v52_tracker_state')
       .trim()
       .toLowerCase(),
@@ -82,10 +85,12 @@ function normalizeRemovalObservation(event = {}, now = new Date()) {
 }
 
 function initialRemovalState(observation, settings, mode) {
-  const state = observation.removed ? STATE_UNKNOWN : STATE_WORN;
+  const state = observation.removed === false ? STATE_WORN : STATE_UNKNOWN;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     state,
+    lastConfirmedState: state,
+    expiresAt: observation.expiresAt,
     candidateState: observation.removed ? STATE_REMOVED : null,
     candidateSince: observation.removed ? observation.observedAt : null,
     lastObservedAt: observation.observedAt,
@@ -112,13 +117,20 @@ function reduceRemovalState(previous, observation, rawSettings = {}, options = {
     return { state: previous, transition: null, ignored: 'stale' };
   }
 
+  if (observation.removed == null) {
+    return { state: { ...previous, schemaVersion: 2, state: STATE_UNKNOWN,
+      lastConfirmedState: previous.lastConfirmedState || previous.state,
+      candidateState: null, candidateSince: null, expiresAt: null,
+      lastObservedAt: observation.observedAt, displayable: false }, transition: null };
+  }
   const target = observation.removed ? STATE_REMOVED : STATE_WORN;
   const current = [STATE_WORN, STATE_REMOVED].includes(previous.state)
     ? previous.state
     : STATE_UNKNOWN;
   const next = {
     ...previous,
-    schemaVersion: 1,
+    schemaVersion: 2,
+    expiresAt: observation.expiresAt,
     mode,
     displayable: mode === MODE_ACCEPTED,
     settings,
@@ -130,15 +142,19 @@ function reduceRemovalState(previous, observation, rawSettings = {}, options = {
     duplicateCount: Number(previous.duplicateCount || 0),
   };
 
-  if (target === current) {
+  if (target === current || target === previous.lastConfirmedState) {
+    next.state = target;
+    next.lastConfirmedState = target;
     next.candidateState = null;
     next.candidateSince = null;
     next.duplicateCount += 1;
     return { state: next, transition: null };
   }
 
+  next.state = STATE_UNKNOWN;
   const candidateSince = asDate(previous.candidateSince);
-  if (previous.candidateState !== target || !candidateSince) {
+  if (previous.candidateState !== target || !candidateSince ||
+      (asDate(previous.expiresAt) && observation.observedAt >= asDate(previous.expiresAt))) {
     next.candidateState = target;
     next.candidateSince = observation.observedAt;
     return { state: next, transition: null };
@@ -152,6 +168,7 @@ function reduceRemovalState(previous, observation, rawSettings = {}, options = {
   if (elapsedSeconds < requiredSeconds) return { state: next, transition: null };
 
   next.state = target;
+  next.lastConfirmedState = target;
   next.stateChangedAt = observation.observedAt;
   next.candidateState = null;
   next.candidateSince = null;

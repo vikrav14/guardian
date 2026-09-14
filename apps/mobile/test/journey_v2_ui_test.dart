@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/journey/journey_models.dart';
@@ -103,7 +107,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
-    expect(find.byKey(const ValueKey('journey-map-type-toggle')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('journey-map-type-toggle')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('journey-fit-complete-route')),
       findsOneWidget,
@@ -203,6 +210,64 @@ void main() {
     expect(find.byKey(const ValueKey('journey-map-wifi-ghost')), findsNothing);
     expect(find.textContaining('2.1 km'), findsNothing);
   });
+
+  for (final width in [390.0, 1400.0]) {
+    testWidgets(
+      'reported 44-point network trip is unconfirmed at width $width',
+      (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 1050));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final fixture =
+            jsonDecode(
+                  File(
+                    '../../docs/testing/journey-source-evidence.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        final scenario = (fixture['cases'] as List).first as Map;
+        final ref = FakeFirebaseFirestore()
+            .collection('journeys')
+            .doc('network-only');
+        await ref.set(Map<String, dynamic>.from(scenario['journey'] as Map));
+        final unconfirmed = JourneyRecord.fromDoc(await ref.get());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: JourneyV2Dashboard(
+                deviceName: 'Test wearer',
+                day: DateTime(2026, 9, 7),
+                journeys: [unconfirmed],
+                selected: unconfirmed,
+                onSelectJourney: (_) {},
+                onBack: () {},
+                onChooseDay: () {},
+              ),
+            ),
+          ),
+        );
+        await pumpJourneyUi(tester);
+
+        expect(
+          find.textContaining('a trip could not be confirmed'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('4.0 km'), findsNothing);
+        expect(find.textContaining('evidence-backed'), findsNothing);
+        expect(find.textContaining('departure'), findsNothing);
+        expect(find.byType(JourneyV2StaticMap), findsNothing);
+        expect(
+          find.byKey(const ValueKey('journey-replay-toggle')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('journey-trip-network-only')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('confirmed outing reports time away and the concrete route gap', (
     tester,

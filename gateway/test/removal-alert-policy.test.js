@@ -11,7 +11,10 @@ const {
 function observation(removed, seconds = 0) {
   return normalizeRemovalObservation({
     imei: '000000000000001',
-    braceletRemoved: removed,
+    wearEvidence: { version: 1, state: removed ? 'removed' : 'worn', deviceAccepted: true,
+      continuityId: removed ? null : 'accepted-fixture-period',
+      observedAt: new Date(Date.UTC(2026, 7, 23, 10, 0, seconds)),
+      expiresAt: new Date(Date.UTC(2026, 7, 23, 10, 2, seconds)) },
     observedAt: new Date(Date.UTC(2026, 7, 23, 10, 0, seconds)),
     source: 'v52_tracker_state',
   });
@@ -122,4 +125,23 @@ test('quiet period suppresses delivery without suppressing transition evidence',
   assert.equal(result.transition.type, 'watch_removed');
   assert.equal(result.transition.quiet, true);
   assert.equal(result.transition.notify, false);
+});
+
+
+test('alarm-clear alone and raw positive alarms are not wearing observations', () => {
+  for (const braceletRemoved of [true, false]) {
+    assert.equal(normalizeRemovalObservation({ imei: 'watch', braceletRemoved }), null);
+  }
+});
+
+test('unknown evidence stops status claims without fabricating restoration or duplicate removal', () => {
+  const options = { mode: 'accepted', customerEnabled: true };
+  const settings = { enabled: true, debounceSeconds: 30 };
+  let result = reduceRemovalState(null, observation(true), settings, options);
+  result = reduceRemovalState(result.state, observation(true, 31), settings, options);
+  assert.equal(result.transition.type, 'watch_removed');
+  result = reduceRemovalState(result.state, { ...observation(true, 40), removed: null, expiresAt: null }, settings, options);
+  assert.equal(result.state.state, 'unknown'); assert.equal(result.transition, null);
+  result = reduceRemovalState(result.state, observation(true, 60), settings, options);
+  assert.equal(result.state.state, 'removed'); assert.equal(result.transition, null);
 });

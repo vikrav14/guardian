@@ -18,9 +18,12 @@ void main() {
       'state': 'worn',
       'displayable': true,
       'mode': 'accepted',
+      'lastObservedAt': DateTime.utc(2026, 9, 14, 18),
+      'expiresAt': DateTime.utc(2026, 9, 14, 18, 2),
     });
 
     expect(state.state, WatchRemovalState.worn);
-    expect(state.customerSafe, isTrue);
+    expect(state.customerSafeAt(DateTime.utc(2026, 9, 14, 18, 1)), isTrue);
+    expect(state.customerSafeAt(DateTime.utc(2026, 9, 14, 18, 2)), isFalse);
   });
 }

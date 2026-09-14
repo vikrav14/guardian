@@ -43,6 +43,34 @@
       ]
     },
     {
+      "collectionGroup": "activityDays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "displayable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "localDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activityDays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "displayable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastObservedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "removalAlertAudit",
       "queryScope": "COLLECTION",
       "fields": [
@@ -57,5 +85,42 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "activityDays",
+      "fieldPath": "expiresAt",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activityIntervals",
+      "fieldPath": "expiresAt",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    }
+  ]
 }

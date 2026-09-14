@@ -1,6 +1,11 @@
 require('dotenv').config();
 const path = require('path');
 
+function finiteAtLeast(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 9000),
@@ -10,6 +15,48 @@ const config = {
     ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
+  journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
+  journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
+
+  // Interpretation is separately accepted per exact device/firmware. The
+  // passive observer runs alongside activity/wellbeing without watch commands.
+  wearEvidenceDeviceMode: process.env.WEAR_EVIDENCE_DEVICE_MODE || 'unverified',
+  wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
+
+  // V52 activity is passive and fail-closed. Raw counters continue to be
+  // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
+  // Customer exposure still requires exact-device acceptance and opt-in.
+  activityStepsIngestEnabled:
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCustomerEnabled:
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCounterMode:
+    ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
+      ? process.env.ACTIVITY_STEPS_COUNTER_MODE
+      : 'unverified',
+  activityStepsTimeZone:
+    process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
+  activityStepsRetentionDays: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_RETENTION_DAYS,
+    90,
+    7,
+  ),
+  activityStepsWriteMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_WRITE_MINUTES,
+    15,
+    1,
+  ),
+  activityStepsMaxPerMinute: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_MAX_PER_MINUTE,
+    300,
+    30,
+  ),
+  activityStepsCleanupMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_CLEANUP_MINUTES,
+    360,
+    60,
+  ),
 
   // V52 bracelet-removal evidence is fail-closed. Raw tracker-state
   // observations may be collected in an explicit shadow pilot, but customer
@@ -52,6 +99,25 @@ const config = {
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
+  // Pilot-only: both values must match a device before Guardian selects the
+  // SOS templates whose static Meta phone button calls that watch. Leave both
+  // empty until the templates are approved and the real-device test passes.
+  metaWhatsAppSosCallbackPilotImei:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppSosCallbackPilotNumber:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
+
+  // Private, read-only router observation. Never enables customer Home presence.
+  wifiHomeObserveEnabled:
+    String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',
+  wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
+  wifiHomeRouterHash: process.env.WIFI_HOME_ROUTER_HASH || '',
+  wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
+  wifiHomeDisplayPilotEnabled:
+    String(process.env.WIFI_HOME_DISPLAY_PILOT_ENABLED || 'false').toLowerCase() === 'true',
+  // Separate, unaccepted walk-recovery experiment; Home display never opts in.
+  wifiHomeWalkRecoveryExperimentEnabled:
+    String(process.env.WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED || 'false').toLowerCase() === 'true',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),

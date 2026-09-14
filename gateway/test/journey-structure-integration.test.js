@@ -15,6 +15,7 @@ function point(lat, lng, at, speedKmh) {
   return {
     lat,
     lng,
+    source: 'gps', gpsValid: true,
     speedKmh,
     recordedAt: new Date(at),
   };

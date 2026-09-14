@@ -39,17 +39,26 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
 const { withFallLocationSnapshot } = require('./fall-location-snapshot');
-const { ingestRemovalObservation } = require('./removal-alert-store');
+const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
 } = require('./v52-telemetry');
+const {
+  ActivityStepsStore,
+  deleteExpiredActivityDays,
+} = require('./activity-steps');
 
 const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
+const { claimSosIncident } = require('./sos-incident-window');
+const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, observeHomeWifiWalk } = require('./wifi-home-runtime');
+const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
+const { selectHomeWifiTracking } = require('./wifi-home-tracking');
+const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 
 const {
   incrementEvent,
@@ -115,6 +124,68 @@ const {
 
 
 initFirestore();
+
+const { createWearEvidence } = require('./wear-evidence');
+const { createRemovalDispatcher } = require('./removal-dispatcher');
+const removalDispatcher = createRemovalDispatcher({ db: getDb(), config, createAlert,
+  onError: error => console.warn(`[removal] ingest failed: ${error.message}`) });
+const wearEvidence = createWearEvidence({ db: getDb(),
+  enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
+  deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
+  onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
+});
+
+const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
+  enabled: config.activityStepsIngestEnabled,
+  customerEnabled: config.activityStepsCustomerEnabled,
+  counterMode: config.activityStepsCounterMode,
+  timeZone: config.activityStepsTimeZone,
+  retentionDays: config.activityStepsRetentionDays,
+  writeIntervalMinutes: config.activityStepsWriteMinutes,
+  maxStepsPerMinute: config.activityStepsMaxPerMinute,
+}) : null;
+
+if (config.activityStepsIngestEnabled && getDb()) {
+  const cleanupActivityDays = async () => {
+    try {
+      const deleted = await deleteExpiredActivityDays(getDb());
+      if (deleted > 0) {
+        console.log(`[activity] deleted ${deleted} expired daily record(s)`);
+      }
+    } catch (err) {
+      console.warn(`[activity] expiry cleanup failed: ${err.message}`);
+    }
+  };
+  const timer = setInterval(
+    cleanupActivityDays,
+    config.activityStepsCleanupMinutes * 60_000,
+  );
+  timer.unref?.();
+}
+
+let journeyReliability = null;
+if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
+  const { createJourneyReliability } = require('./journey-reliability');
+  journeyReliability = createJourneyReliability({ directory: config.journeyJournalDirectory, getDb, appendJourney,
+    readHomeEvidence: getHomeWifiPriority,
+    closeAtHome: (imei, home) => selectHomeWifiTracking(imei, null, home, new Date()).flushes });
+  journeyReliability.journal.acquire();
+  process.once('exit', () => journeyReliability.journal.release());
+  require('./live-cache').configureJourneyPersistence(journeyReliability.journal);
+  const retry = setInterval(() => { void journeyReliability.flush(); }, 30000);
+  retry.unref?.();
+  void journeyReliability.flush();
+}
+
+if (config.wifiHomeDisplayPilotEnabled) {
+  try { startWifiHomeDisplayPilot(getDb(), {
+    recoverWalk: (points, batch, current, signal) => recoverHomeWifiWalk({
+      db: getDb(), imei: config.wifiHomePilotImei, points, batch, current, signal,
+      createAlert, flushJourneys,
+    }),
+  }); }
+  catch { console.warn('[wifi-home-display] pilot unavailable; tracking continues'); }
+}
 
 startIntelligenceMonitor();
 
@@ -195,6 +266,12 @@ async function maybeFlushDwell(imei, force = false) {
 
 
 async function flushJourneys(imei, flushes) {
+
+  if (journeyReliability) {
+    for (const journey of flushes) journeyReliability.journal.queue(imei, journey);
+    void journeyReliability.flush();
+    return;
+  }
 
   for (const journey of flushes) {
 
@@ -298,7 +375,20 @@ async function resolveGeolocation(event) {
 
 
 
-async function applyEvents(events, session) {
+// Tracking/reporting failures must not prevent a physical SOS from reaching
+// createAlert. Keep the original error behavior for every other event type.
+// Alert persistence and delivery are deliberately NOT wrapped by this helper.
+async function runTrackingSideEffect(event, stage, operation) {
+  try {
+    return await operation();
+  } catch (err) {
+    if (event.type !== 'alarm' || event.alarmType !== 'sos') throw err;
+    console.error(`[sos] ${stage} failed; continuing emergency alert:`, err.message);
+    return null;
+  }
+}
+
+async function applyEvents(events, session, packetArgs, receivedAt) {
 
   for (const event of events) {
 
@@ -317,12 +407,27 @@ async function applyEvents(events, session) {
     try {
 
       const devicePatch = event.protocolId ? { protocolId: event.protocolId } : {};
-      const eventReceivedAt = new Date();
+      const eventReceivedAt = receivedAt || new Date();
+      // Record before remote awaits. Old location reports belong to history,
+      // never the current map, geofence alerts or adaptive reporting.
+      const journeyRoute = event.type === 'location'
+        ? journeyReliability?.route(event, eventReceivedAt, getHomeWifiPriority(event.imei)) : null;
+      if (journeyRoute && !journeyRoute.live) {
+        console.log(`[journey-ingress] ${JSON.stringify(journeyRoute)}`);
+        continue;
+      }
+      // Observe the original packet before geolocation or write gating. This
+      // synchronous, in-memory pilot must never interrupt tracking or SOS.
+      try {
+        observeWifiHomeEvent(event, eventReceivedAt, packetArgs);
+      } catch {
+        console.warn('[wifi-home] observer unavailable; tracking continues');
+      }
       const telemetryValues = extractV52TelemetryValues(event);
       const telemetryPatch = buildV52TelemetryPatch(event, eventReceivedAt);
 
       if (event.imei) {
-        const connectionAnnounced = await maybeAnnounceConnecting(
+        const connectionAnnounced = await runTrackingSideEffect(event, 'connection', () => maybeAnnounceConnecting(
           session,
           event.imei,
           devicePatch,
@@ -331,7 +436,7 @@ async function applyEvents(events, session) {
           cancelPendingOffline,
           getDeviceDocument,
           seedLastKnownLocation
-        );
+        ));
         if (connectionAnnounced) {
           noteDiagnosticEventForJourney(
             event.imei,
@@ -342,29 +447,27 @@ async function applyEvents(events, session) {
         }
       }
 
-      let removalOutcome = null;
-      const braceletRemoved = event.alarmType === 'bracelet_removed'
-        ? true
-        : event.braceletRemoved;
-      if (typeof braceletRemoved === 'boolean') {
-        removalOutcome = await ingestRemovalObservation(getDb(), {
-          imei: event.imei,
-          braceletRemoved,
-          observedAt: eventReceivedAt,
-          source: event.alarmType === 'bracelet_removed'
-            ? 'v52_removal_alarm'
-            : 'v52_tracker_state',
-          trackerState: event.trackerState || event.alarmCode || null,
-        }, {
-          enabled: config.removalAlertsIngestEnabled,
-          mode: config.removalAlertsDeviceMode,
-          customerEnabled: config.removalAlertsCustomerEnabled,
-        });
-        if (removalOutcome.status === 'stored') {
-          console.log(
-            `[removal] ${event.imei} state=${removalOutcome.state.state} ` +
-              `mode=${removalOutcome.state.mode}`
-          );
+      if (activityStepsStore && event.imei && event.stepsRaw != null) {
+        try {
+          // A slow supplementary write must not delay location or SOS. The
+          // store serializes counters per watch and handles receipt ordering.
+          void activityStepsStore.ingest(
+            event,
+            eventReceivedAt,
+          ).then(activityResult => {
+            if (activityResult.status === 'stored') {
+              console.log(
+                `[activity] ${event.imei} ${activityResult.day.localDate} ` +
+                  `quality=${activityResult.day.quality}`
+              );
+            }
+          }).catch(err => {
+            console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
+          });
+        } catch (err) {
+          // Activity is supplementary. A malformed counter or Firestore issue
+          // must never interrupt heartbeat, location or SOS processing.
+          console.warn(`[activity] ${event.imei} ingest failed: ${err.message}`);
         }
       }
 
@@ -401,7 +504,8 @@ async function applyEvents(events, session) {
         console.log(
           `[location] ${locEvent.imei} source=${locEvent.accuracySource} ` +
             `gps=${locEvent.gpsValid ? 'A' : 'V'} ` +
-            `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel}`
+            `${locEvent.location.lat},${locEvent.location.lng} accuracy=${accLabel} ` +
+            `observedAt=${new Date(locEvent.location.recordedAt).toISOString()} receivedAt=${eventReceivedAt.toISOString()}`
         );
 
         noteDeviceLocation(locEvent.imei, eventReceivedAt.getTime());
@@ -420,7 +524,14 @@ async function applyEvents(events, session) {
 
 
 
+        observeHomeWifiWalk?.(locEvent.imei,
+          { ...locEvent.location, speedKmh: locEvent.speedKmh }, new Date());
         const db = getDb();
+        let trackingDecision = selectHomeWifiTracking(locEvent.imei, locEvent.location,
+          getHomeWifiPriority(locEvent.imei), new Date());
+        if (trackingDecision.flushes.length) {
+          await flushJourneys(locEvent.imei, trackingDecision.flushes);
+        }
 
         let geofenceTransition = false;
 
@@ -434,7 +545,7 @@ async function applyEvents(events, session) {
           insideZoneIds: [],
         };
 
-        if (db && locEvent.location) {
+        if (db && locEvent.location && !trackingDecision.hold) {
 
           const transitions = await evaluateGeofenceTransitions(
 
@@ -442,14 +553,18 @@ async function applyEvents(events, session) {
 
             locEvent.imei,
 
-            locEvent.location
+            locEvent.location,
+            { readHomeEvidence: () => getHomeWifiPriority(locEvent.imei) }
 
           );
 
-          geofenceTransition = transitions.length > 0;
+          trackingDecision = selectHomeWifiTracking(locEvent.imei, locEvent.location,
+            getHomeWifiPriority(locEvent.imei), new Date());
+          if (trackingDecision.flushes.length) await flushJourneys(locEvent.imei, trackingDecision.flushes);
+          geofenceTransition = !trackingDecision.hold && transitions.length > 0;
           geofencePresence = getGeofencePresence(locEvent.imei);
 
-          for (const t of transitions) {
+          for (const t of trackingDecision.hold ? [] : transitions) {
 
             console.log(`[geofence] ${locEvent.imei} ${t.type}: ${t.message}`);
 
@@ -473,7 +588,7 @@ async function applyEvents(events, session) {
 
 
 
-        trackPointForDwell(locEvent.imei, {
+        if (!trackingDecision.hold) trackPointForDwell(locEvent.imei, {
 
           lat: locEvent.location.lat,
 
@@ -497,7 +612,7 @@ async function applyEvents(events, session) {
           ? (enterTransition || exitTransition)
           : (exitTransition || enterTransition);
 
-        const journeyResult = trackPointForJourney(
+        const journeyResult = trackingDecision.hold ? { flushes: [], started: false } : trackPointForJourney(
 
           locEvent.imei,
 
@@ -555,6 +670,8 @@ async function applyEvents(events, session) {
           await flushJourneys(locEvent.imei, journeyResult.flushes);
 
         }
+
+        journeyReliability?.processed(locEvent.imei, journeyRoute?.id, trackingDecision.hold);
 
 
 
@@ -671,7 +788,7 @@ async function applyEvents(events, session) {
 
 
 
-        await maybeFlushDwell(locEvent.imei);
+        if (!trackingDecision.hold) await maybeFlushDwell(locEvent.imei);
         const adaptiveDb = getDb();
         const outingActive = isJourneyActive(locEvent.imei);
         const journeyReturned =
@@ -802,9 +919,22 @@ async function applyEvents(events, session) {
         }
       } else if (event.type === 'alarm') {
 
+        // Capture pre-alarm evidence before geolocation/reporting/persistence
+        // can yield to a later watch observation. Never read it at send time.
+        let sosDeviceAtReceipt = null;
+        if (event.alarmType === 'sos') {
+          sosDeviceAtReceipt = { ...getLiveDeviceState(event.imei) };
+          try {
+            sosDeviceAtReceipt = await getDeviceDocument(event.imei)
+              || sosDeviceAtReceipt;
+          } catch (err) {
+            console.error('[sos] location evidence lookup failed:', err.message);
+          }
+        }
+
         let alarmEvent = event;
         if (event.needsGeolocation) {
-          const resolved = await resolveGeolocation(event);
+          const resolved = await runTrackingSideEffect(event, 'geolocation', () => resolveGeolocation(event));
           if (resolved?.location && typeof resolved.location.lat === 'number') {
             alarmEvent = resolved;
           } else {
@@ -830,14 +960,24 @@ async function applyEvents(events, session) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
-        const alarmAt = new Date();
+        const alarmAt = alarmType === 'sos' ? eventReceivedAt : new Date();
+        const sosLocationSnapshot = alarmType === 'sos'
+          ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
+              now: alarmAt,
+              observation: alarmProvenance.location ? {
+                ...alarmProvenance.location,
+                // A resolver completion time is not a device observation time.
+                recordedAt: event.location?.recordedAt || null,
+              } : null,
+            })
+          : null;
         if (alarmType === 'sos') {
           const adaptiveDb = getDb();
           if (adaptiveDb) {
-            await activateSosOverride(adaptiveDb, alarmEvent.imei, {
+            await runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
               batteryPercent: alarmEvent.batteryPercent,
               outingActive: isJourneyActive(alarmEvent.imei),
-            });
+            }));
           }
         }
 
@@ -901,7 +1041,8 @@ async function applyEvents(events, session) {
 
 
 
-        await persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session);
+        await runTrackingSideEffect(event, 'persistence', () =>
+          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session));
 
         if (alarmType === 'fall') {
           let deviceAtFall = null;
@@ -925,7 +1066,7 @@ async function applyEvents(events, session) {
 
         if (alarmEvent.location) {
 
-          await appendLocation(alarmEvent.imei, {
+          await runTrackingSideEffect(event, 'history', () => appendLocation(alarmEvent.imei, {
 
             lat: alarmEvent.location.lat,
 
@@ -947,11 +1088,11 @@ async function applyEvents(events, session) {
 
             recordedAt: alarmEvent.location.recordedAt,
 
-          });
+          }));
 
         }
 
-        await refreshDeviceIntelligence(alarmEvent.imei, {
+        await runTrackingSideEffect(event, 'intelligence', () => refreshDeviceIntelligence(alarmEvent.imei, {
 
           ...getLiveDeviceState(alarmEvent.imei),
 
@@ -969,40 +1110,36 @@ async function applyEvents(events, session) {
 
           ...telemetryValues,
 
-        });
+        }));
 
 
 
-        if (alarmType === 'bracelet_removed') {
-          if (removalOutcome?.transition?.notify === true) {
-            await createAlert(alarmEvent.imei, {
-              type: 'watch_removed',
-              severity: 'warning',
-              message: 'The watch may have been removed. Please check with the wearer.',
-              eventAt: alarmAt,
-              payload: {
-                source: 'v52_removal_policy',
-                quiet: false,
-              },
-            });
-          } else {
-            console.log(
-              `[removal] ${alarmEvent.imei} raw alarm retained without customer delivery`
-            );
-          }
-        } else await createAlert(alarmEvent.imei, {
+        const sosIncident = alarmType === 'sos'
+          ? claimSosIncident(alarmEvent.imei, { nowMs: alarmAt.getTime() })
+          : { accepted: true };
 
-          type: alarmType,
+        if (sosIncident.accepted && alarmType !== 'bracelet_removed') {
+          await createAlert(alarmEvent.imei, {
 
-          severity: alarmEvent.severity || 'warning',
+            type: alarmType,
 
-          message: `Device alarm: ${alarmType}`,
+            severity: alarmEvent.severity || 'warning',
 
-          eventAt: alarmAt,
+            message: `Device alarm: ${alarmType}`,
 
-          payload: alarmPayload,
+            eventAt: alarmAt,
 
-        });
+            payload: alarmPayload,
+
+            ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
+
+          });
+        } else {
+          console.log(
+            `[sos] duplicate packet collapsed for ${alarmEvent.imei}; ` +
+              `retry window ${Math.ceil(sosIncident.retryAfterMs / 1000)}s`
+          );
+        }
 
       } else if (event.type === 'crc_error') {
 
@@ -1140,13 +1277,37 @@ const server = net.createServer((socket) => {
 
       const { acks, events } = handlePacket(decoded, session);
 
+      const receivedAt = new Date();
+      try { wearEvidence.capture(decoded, events, session, receivedAt); }
+      catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
+      for (const event of events) removalDispatcher.observe(event, receivedAt);
+      if (journeyReliability) {
+        try {
+          for (const event of events) if (event.type === 'location') {
+            journeyReliability.capture(event, receivedAt, getHomeWifiPriority(event.imei));
+          }
+        } catch (error) {
+          console.error(`[journey-durability] GPS evidence not committed: ${error.message}`);
+          // Alarms bypass history persistence and remain acknowledged/delivered.
+          if (!events.some(e => e.type === 'alarm')) continue;
+        }
+      }
+
+      // Bounded admin-started evidence capture. It never changes decoded events,
+      // ACKs or customer state, and isolates all diagnostic failures internally.
+      observeWifiFencePacket(decoded, events);
+
       for (const ack of acks) {
 
         socket.write(ack);
 
       }
 
-      applyEvents(events, session).catch((err) => {
+      const apply = () => applyEvents(events, session, decoded.args, receivedAt);
+      const pending = journeyReliability && events.some(e => e.type === 'location') &&
+          !events.some(e => e.type === 'alarm')
+        ? journeyReliability.enqueue(events.find(e => e.imei)?.imei, apply) : apply();
+      pending.catch((err) => {
 
         console.error('[gateway] applyEvents', err);
 
@@ -1173,6 +1334,7 @@ const server = net.createServer((socket) => {
     console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
 
     if (session?.imei) {
+      wearEvidence.disconnect(session.imei, session);
 
       noteDiagnosticEventForJourney(
         session.imei,

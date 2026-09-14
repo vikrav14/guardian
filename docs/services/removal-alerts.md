@@ -58,20 +58,37 @@ The feature flag must remain off until every acceptance gate has evidence attach
 
 ## Transition policy
 
-A single bit-20 observation never creates a customer alert. Guardian records a
-candidate state and requires a later tracker-state observation after the
-configured debounce window. A clear observation cancels an unconfirmed
-removal. Restoration is independently debounced. Quiet periods suppress
-customer delivery but still retain the privacy-safe transition audit.
+This branch includes the shared wearing-evidence dependency from #119. It
+consumes receipt-time `wearEvidence` instead of interpreting a clear bit-20
+alarm as worn. See [the shared contract and passive test](wearing-data-quality.md).
+Raw alarms, heartbeats and unverified wearing bits cannot restore status or
+create a customer removal alert. The exact-device wearing mapping requires its
+own acceptance and allowlist, in addition to all removal service gates.
 
-This policy is intentionally conservative until the exact V52 proves whether
-bit 20 is a sustained state or a transient alarm flag. If the firmware emits
-only one transient alarm, acceptance must adjust the policy using captured
-evidence rather than weakening it by assumption.
+The shared observer first confirms fresh worn/removed evidence over 60 seconds.
+The notification policy then applies the configured removal/restore debounce
+(default 60 seconds), quiet periods, customer gate and Family/Care routing.
+One contradictory observation immediately makes the data-quality status
+unknown. An unconfirmed period does not manufacture a restoration or duplicate
+an already confirmed removal. Current app state expires locally after the
+underlying evidence expires, even without another Firestore update.
+
+Removal persistence and notification delivery run outside the GPS/SOS queue.
+Pending observations are bounded/coalesced; slow writes may delay confirmation
+but cannot block the physical alarm path. Before delivery, an obsolete removed
+transition is suppressed if the latest wearing evidence is expired, unknown
+or worn. Raw bit-20 alarms cannot bypass the qualified notification policy.
 
 ## Protocol boundary
 
-The incoming V52 tracker-state mapping for bracelet removal is documented at
-bit 20 and regression-tested. The exact `REMOVESMS` payload and its firmware
-effect are not accepted. Guardian therefore does not send that command from
-this implementation.
+The incoming V52 bit-20 removal alarm remains documented and regression-tested.
+It does not establish positive wearing/restoration. Bit-3 polarity and continuous
+behaviour still need exact-watch acceptance. The `REMOVESMS` payload/effect are
+not accepted and no command is sent by this implementation.
+
+## Remaining release work
+
+- Complete the passive on-wrist/table/charging/restore/reconnect captures.
+- Verify accepted status and notification timing on this exact firmware.
+- Finish the wearer-visible configuration flow and delivery/retry acceptance.
+- Keep this PR draft and all customer flags off until these gates pass.

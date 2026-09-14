@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/removal_alert_state.dart';
@@ -13,17 +14,30 @@ class RemovalAlertsService {
     if (!RemovalAlertsBackbone.customerBuildEnabled) {
       return Stream<RemovalAlertState?>.value(null);
     }
-    return _db
-        .collection('devices')
-        .doc(imei)
-        .collection('safetyStates')
-        .doc('watchRemoval')
-        .snapshots()
-        .map((snapshot) {
-          if (!snapshot.exists) return null;
-          final state = RemovalAlertState.fromMap(snapshot.data());
-          return state.customerSafe ? state : null;
-        });
+    return Stream<RemovalAlertState?>.multi((controller) {
+      RemovalAlertState? latest;
+      final subscription = _db.collection('devices').doc(imei)
+          .collection('safetyStates').doc('watchRemoval').snapshots().listen(
+        (snapshot) {
+          latest = snapshot.exists ? RemovalAlertState.fromMap(snapshot.data()) : null;
+          controller.add(latest?.customerSafe == true ? latest : null);
+        }, onError: (Object error, StackTrace stack) {
+          latest = null;
+          controller.add(null);
+          controller.addError(error, stack);
+        },
+      );
+      final timer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (latest != null && !latest!.customerSafe) {
+          latest = null;
+          controller.add(null);
+        }
+      });
+      controller.onCancel = () async {
+        timer.cancel();
+        await subscription.cancel();
+      };
+    });
   }
 
   Stream<List<RemovalAlertAuditEvent>> watchHistory(

@@ -20,6 +20,9 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { provisionActivitySteps } = require('./activity-steps-provisioning');
+const { getWifiHomeRuntimeStatus } = require('./wifi-home-runtime');
+const { getWifiFenceValidation, controlWifiFenceValidation, sendSingleRouterTrial } = require('./wifi-fence-runtime');
 const { recordAiDecision } = require('./ai-telemetry');
 const {
   checkAdminAuth,
@@ -47,8 +50,10 @@ const {
   validateReminderResponse,
 } = require('./response-validator');
 const { formatBatteryReply } = require('./battery-freshness');
+const { formatLocationReply } = require('./location-reply');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { formatActivityReply } = require('./activity-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
 const { answerWeatherQuery } = require('./weather-reply');
 const { buildContextPacket, buildSystemPrompt, selectAllowedTools } = require('./request-context');
@@ -230,6 +235,22 @@ async function handleChat({ from, text }) {
     // LLM/tool work. Critical messages retain the deterministic emergency
     // boundary even when service is inactive.
     const initialIntent = classifyIntent(text);
+    if (
+      initialIntent.type === 'ACTIVITY_QUERY' &&
+      ctx.uid &&
+      config.activityStepsCustomerEnabled !== true
+    ) {
+      const reply =
+        'Steps and daily activity are still being validated on the watch and are not enabled yet.';
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: 'activity_steps_customer_disabled',
+      });
+      return { ctx, reply, deterministic: true, featureDisabled: true };
+    }
     if (!isCritical(initialIntent) && ctx.uid) {
       const requiredFeature = featureForWhatsAppIntent(initialIntent.type);
       if (requiredFeature && !hasEntitlement(ctx.entitlements, requiredFeature)) {
@@ -390,6 +411,29 @@ async function handleChat({ from, text }) {
       return { ctx, reply, accessRestricted: true };
     }
 
+    // A location answer must preserve the selected observation's source and
+    // timestamp. Render it before any provider call, including fallback models.
+    if (intent.type === 'LOCATION_REQUEST') {
+      let locationResult;
+      try {
+        locationResult = await runTool(db, ctx, 'get_last_location', {
+          imei: wearerResolution.wearer?.imei,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'location_query', error: err });
+        locationResult = { error: err.message };
+      }
+      const reply = formatLocationReply(locationResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: locationResult?.error ? 'location_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
     // Journey history is a typed factual read. Query it directly and render it
     // deterministically so common journey questions incur no LLM call and can
     // never invent a route, destination, or purpose.
@@ -415,6 +459,33 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: journeyResult?.error ? 'journey_query_failed' : null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'ACTIVITY_QUERY') {
+      const requestedDays = /\b(week|weekly|seven|7 days|last days)\b/i.test(
+        effectiveText,
+      )
+        ? 7
+        : 1;
+      let activityResult;
+      try {
+        activityResult = await runTool(db, ctx, 'get_activity_summary', {
+          imei: wearerResolution.wearer?.imei,
+          days: requestedDays,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'activity_query', error: err });
+        activityResult = { error: err.message };
+      }
+      const reply = formatActivityReply(activityResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: activityResult?.error ? 'activity_query_failed' : null,
       });
       return { ctx, reply, deterministic: true };
     }
@@ -714,8 +785,90 @@ async function requireStrictAdmin(req, res) {
 }
 
 async function handleOpsHttpRequest(req, res, url) {
+  if (url.pathname === '/ops/wifi-fence-single-router-trial') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'POST required' });
+      return true;
+    }
+    if (url.searchParams.get('imei') !== config.wifiHomePilotImei ||
+        [...url.searchParams.keys()].some(key => key !== 'imei') ||
+        url.searchParams.getAll('imei').length !== 1) {
+      sendJson(res, 409, { error: 'Running pilot differs or unsupported parameters supplied' });
+      return true;
+    }
+    // Router input is confined to a small authenticated body, never a URL or
+    // log. Parse errors must not echo that input through the outer HTTP catch.
+    try {
+      let size = 0;
+      const chunks = [];
+      for await (const chunk of req) {
+        size += Buffer.byteLength(chunk);
+        if (size > 512) throw new Error('trial_body_too_large');
+        chunks.push(Buffer.from(chunk));
+      }
+      const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      sendJson(res, 200, sendSingleRouterTrial(input));
+    } catch {
+      sendJson(res, 409, { error: 'Trial rejected or handoff uncertain; inspect read-only capture before any further action' });
+    }
+    return true;
+  }
+
+  if (url.pathname === '/ops/wifi-fence-validation') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    if (!['GET', 'POST'].includes(req.method)) {
+      sendJson(res, 405, { error: 'GET or POST required' });
+      return true;
+    }
+    // Every operation must identify the locally configured pilot. No arbitrary
+    // watch selector, packet body or hardware command is accepted here.
+    if (url.searchParams.get('imei') !== config.wifiHomePilotImei) {
+      sendJson(res, 409, { error: 'Running pilot differs from the local configuration' });
+      return true;
+    }
+    const allowed = req.method === 'GET' ? ['imei', 'timeline'] : ['imei', 'action', 'capture', 'marker'];
+    if ([...url.searchParams.keys()].some(key => !allowed.includes(key) ||
+        url.searchParams.getAll(key).length !== 1)) {
+      sendJson(res, 400, { error: 'Unsupported capture parameters' });
+      return true;
+    }
+    if (req.method === 'GET') {
+      sendJson(res, 200, getWifiFenceValidation(Date.now(), url.searchParams.get('timeline') === '1'));
+    } else {
+      const action = url.searchParams.get('action');
+      if (!['start', 'stop', 'mark'].includes(action)) {
+        sendJson(res, 400, { error: 'Only start, stop and mark are available; no watch provisioning' });
+        return true;
+      }
+      try {
+        sendJson(res, 200, controlWifiFenceValidation({ action,
+          captureId: url.searchParams.get('capture'), marker: url.searchParams.get('marker') }));
+      } catch {
+        sendJson(res, 409, { error: 'Capture operation rejected; read the current status before retrying' });
+      }
+    }
+    return true;
+  }
+
   if (req.method !== 'GET' || !url.pathname.startsWith('/ops/')) {
     return false;
+  }
+
+  if (url.pathname === '/ops/wifi-home') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    // Compare without returning either identifier. The checker must not use a
+    // changed local .env to request a different watch from this running pilot.
+    if (url.searchParams.has('imei') &&
+        url.searchParams.get('imei') !== config.wifiHomePilotImei) {
+      sendJson(res, 409, { error: 'Running pilot differs from the local configuration' });
+      return true;
+    }
+    sendJson(res, 200, getWifiHomeRuntimeStatus());
+    return true;
   }
 
   if (url.pathname === '/ops/context-sources') {
@@ -1018,6 +1171,60 @@ function startHttpServer() {
       }
 
       if (
+        req.method === 'POST' &&
+        url.pathname === '/admin/device-activity-steps/pedometer'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) {
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        let result;
+        try {
+          result = provisionActivitySteps(payload);
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({
+              requestId: generateRequestId(),
+              phase: 'device_provisioning',
+              imei: String(payload.imei || '').trim(),
+              data: {
+                status: result.ok ? 'socket_handoff' : result.error,
+                operation: 'activity_steps_pedometer',
+                enabled: result.enabled,
+                windowMode: result.windowMode,
+                commandsHandedOff: result.commandsHandedOff,
+                commandsRequired: result.commandsRequired,
+                sessions: result.sessions,
+              },
+            });
+            auditRecorded = true;
+          }
+        } catch (error) {
+          // A command may already have reached the watch. Preserve the exact
+          // handoff result so an operator does not retry a partial operation.
+          console.error('[activity-steps-provisioning] audit failed:', error.message);
+        }
+
+        sendJson(res, result.ok ? 200 : 409, { ...result, auditRecorded });
+        return;
+      }
+
+      if (
         (req.method === 'POST' || req.method === 'GET') &&
         (url.pathname === '/dev/send-cr' || url.pathname === '/dev/downlink')
       ) {
@@ -1218,6 +1425,8 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/ai-stats');
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
+    console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
+    console.log('[guardian-http] GET/POST /ops/wifi-fence-validation  (strict admin; observation only)');
   });
 
   return server;
@@ -1228,4 +1437,5 @@ module.exports = {
   handleChat,
   normalizeE164,
   requireStrictAdmin,
+  handleOpsHttpRequest,
 };
