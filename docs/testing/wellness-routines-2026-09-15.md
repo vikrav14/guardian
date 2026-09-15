@@ -171,3 +171,43 @@ apply; the CLI sends one VERNO command, then only reads status.
 Reply capture does not broaden firmware parsing, accept BT=2, establish wearing,
 send a measurement, or start a routine. Inspect the real reply before changing
 its interpretation. No additional physical watch restart is needed.
+
+## Two firmware labels confirmed — 15 September, 17:25 UTC
+
+The opt-in query returned two complete labels 373 ms after dispatch, with no
+truncation. The first parser rejected the reply only because it required one
+argument. Preserve both labels in their received order:
+
+1. `C403H_RFHZ_V52_EN_750_V1.3_2025.03.10_18.29.29`
+2. `C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29`
+
+The second label matches the earlier `ts#` firmware readback recorded in
+`docs/services/wifi-home-supplier-validation.md`. The roles of the two labels are
+unverified; do not label them modem/application versions or choose one as primary.
+
+The observer now accepts one or two individually validated version labels,
+preserves them as `firmwareEvidence.versionLabels`, and reports
+`replyState: version_received`. The bounded CLI can then report
+`versionConfirmed: true`. The legacy singular `version` is populated only for a
+one-label reply; it remains null for two labels. Malformed, mixed valid/invalid,
+and more-than-two-field replies remain rejected. This supersedes the diagnostic
+format rejection above. The supplied capture is sufficient for this parser
+regression; another physical version query is not required to repeat it.
+
+This checkpoint still has no decoded CONFIG, no BT/TM values, unknown wearing,
+and no saved routine. Neither firmware label establishes temperature mode or
+contact detection, and the parser fix cannot start automatic readings.
+
+The remaining supplier questions, using these exact two firmware labels, are:
+
+- Does this firmware implement `bodytemp2` and `bodytemp,enabled,hours`, and how
+  can its temperature mode be read when no CONFIG packet is emitted? Supply the
+  exact request, response and stop acknowledgement forms.
+- Does it implement wrist/contact detection? If enablement is needed, supply the
+  command, rollback, and distinct worn, removed and restored packet examples.
+  Existing status-bit comparisons did not distinguish the physical phases.
+
+Separately, saving Gentle/Balanced in the private app can verify preference
+delivery. It is expected to stay paused while the hardware prerequisites above
+remain unconfirmed. Native cycle uploads, stopping/reconnection and battery
+acceptance follow only after those prerequisites are established.

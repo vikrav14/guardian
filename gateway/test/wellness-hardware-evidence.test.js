@@ -8,6 +8,10 @@ const { createHardwareEvidence } = require('../src/wellness-hardware-evidence');
 const { inspectRoutine, parseArguments } = require('../scripts/inspect-wellness-routine');
 const AT = new Date('2026-10-01T10:00:00Z');
 const VERSION = 'V52_TEST_V1.0_2026.01.01_12.00.00';
+const PILOT_VERSIONS = [
+  'C403H_RFHZ_V52_EN_750_V1.3_2025.03.10_18.29.29',
+  'C403H_RFHZ_V52_EN_04R6_V1.3_2025.03.10_18.29.29',
+];
 
 function packet(payload) {
   return decodeFrame(Buffer.from(`[3G*9700000000*${payload.length.toString(16).padStart(4, '0')}*${payload}]`));
@@ -59,7 +63,35 @@ test('VERNO replies are distinct from command handoff, missing version and inval
     assert.equal(evidence.current(session).firmwareEvidence.replyState, state);
   }
   assert.equal(evidence.current(session).firmwareEvidence.version, VERSION);
+  assert.deepEqual(evidence.current(session).firmwareEvidence.versionLabels, [VERSION]);
   assert.equal(evidence.current(session).configurationEvidence.state, 'no_config_received');
+});
+
+test('observed two-label V52 reply is preserved in wire order without choosing a primary or accepting mode', () => {
+  const evidence = createHardwareEvidence(), session = {};
+  evidence.observe(packet(`CONFIG,VR:${VERSION}`), session, AT);
+  evidence.requestVersion(session, AT, { includeReply: true });
+  const decoded = packet(`VERNO,${PILOT_VERSIONS.join(',')}`);
+  assert.equal(handlePacket(decoded, session).acks.length, 0);
+  evidence.observe(decoded, session, new Date(+AT + 373));
+  const current = evidence.current(session, AT);
+  assert.equal(current.firmwareEvidence.replyState, 'version_received');
+  assert.equal(current.firmwareEvidence.version, null);
+  assert.deepEqual(current.firmwareEvidence.versionLabels, PILOT_VERSIONS);
+  assert.equal(current.firmwareEvidence.source, 'VERNO');
+  assert.equal(current.firmwareEvidence.receivedAt, new Date(+AT + 373).toISOString());
+  assert.equal(current.firmwareEvidence.replyDetails.parserReason, 'accepted_version_labels');
+  assert.equal(current.configurationEvidence.btField, 'missing');
+  current.firmwareEvidence.versionLabels[0] = 'changed';
+  assert.deepEqual(evidence.current(session, AT).firmwareEvidence.versionLabels, PILOT_VERSIONS);
+  for (const args of [[PILOT_VERSIONS[0], ''], [PILOT_VERSIONS[0], 'PW:secret'],
+    [PILOT_VERSIONS[0], '123456789012345'], [...PILOT_VERSIONS, VERSION]]) {
+    const fresh = {};
+    evidence.observe(packet(`VERNO,${args.join(',')}`), fresh, AT);
+    assert.equal(evidence.current(fresh, AT).firmwareEvidence.replyState, 'unsupported_reply');
+    assert.deepEqual(evidence.current(fresh, AT).firmwareEvidence.versionLabels, []);
+  }
+  assert.deepEqual(evidence.current({}, AT).firmwareEvidence.versionLabels, []);
 });
 
 test('requested reply details expose rejected format without accepting firmware or retaining other packets', () => {
@@ -76,7 +108,7 @@ test('requested reply details expose rejected format without accepting firmware 
   assert.equal(firmware.version, 'example'); // Earlier CONFIG remains independently attributed.
   assert.equal(firmware.source, 'CONFIG');
   assert.deepEqual(firmware.replyDetails.arguments, ['Version: V52 example', 'extra']);
-  assert.equal(firmware.replyDetails.parserReason, 'expected_one_argument');
+  assert.equal(firmware.replyDetails.parserReason, 'version_label_format_rejected');
   firmware.replyDetails.arguments[0] = 'changed';
   assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails.arguments[0], 'Version: V52 example');
   evidence.observe(packet('VERNO,second'), session, new Date(+AT + 500));
@@ -146,9 +178,10 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
   assert.equal(runtime.requestVersion({ includeReply: true }).outcome, 'version_request_handed_off');
   assert.deepEqual(sent, [[pilot.imei, 'VERNO']]);
   assert.throws(() => runtime.requestVersion(), /two minutes/);
-  runtime.observe(packet(`VERNO,${VERSION}`), pilot);
-  assert.equal((await runtime.status()).firmwareEvidence.version, VERSION);
-  assert.deepEqual((await runtime.status()).firmwareEvidence.replyDetails.arguments, [VERSION]);
+  runtime.observe(packet(`VERNO,${PILOT_VERSIONS.join(',')}`), pilot);
+  assert.equal((await runtime.status()).firmwareEvidence.version, null);
+  assert.deepEqual((await runtime.status()).firmwareEvidence.versionLabels, PILOT_VERSIONS);
+  assert.deepEqual((await runtime.status()).firmwareEvidence.replyDetails.arguments, PILOT_VERSIONS);
   assert.equal((await runtime.status()).temperatureBt, null);
   await assert.rejects(runtime.requestTemperature(), /CONFIG BT:2/);
   assert.equal(sent.length, 1);
@@ -157,7 +190,7 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
   runtime.close();
 });
 
-test('CLI version check sends exactly one query then reads for a matching reply', async () => {
+test('CLI version check confirms a two-label reply with exactly one query', async () => {
   let now = +AT;
   const methods = [], printed = [];
   const code = await inspectRoutine({ args: ['--request-version'], config: { adminApiKey: 'test', httpPort: 9001 },
@@ -169,12 +202,14 @@ test('CLI version check sends exactly one query then reads for a matching reply'
         return { ok: true, json: async () => ({ outcome: 'version_request_handed_off', requestedAt: AT.toISOString() }) };
       }
       return { ok: true, json: async () => ({ firmwareEvidence: {
-        requestedAt: AT.toISOString(), replyAt: new Date(now).toISOString(), replyState: 'version_received', version: VERSION,
+        requestedAt: AT.toISOString(), replyAt: new Date(now).toISOString(), replyState: 'version_received',
+        version: null, versionLabels: PILOT_VERSIONS,
       } }) };
     },
   });
   assert.equal(code, 0); assert.deepEqual(methods, ['POST', 'GET']);
   assert.equal(JSON.parse(printed.at(-1)).versionConfirmed, true);
+  assert.deepEqual(JSON.parse(printed.at(-1)).firmwareEvidence.versionLabels, PILOT_VERSIONS);
 });
 
 test('CLI opt-in captures a rejected reply with one version query and never promotes it', async () => {

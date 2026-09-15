@@ -36,7 +36,7 @@ function emptyEvidence() {
   return {
     configurationEvidence: { state: 'no_config_received', packets: 0, lastReceivedAt: null,
       btField: 'not_observed', tmField: 'not_observed' },
-    firmwareEvidence: { version: null, source: null, receivedAt: null,
+    firmwareEvidence: { version: null, versionLabels: [], source: null, receivedAt: null,
       requestedAt: null, replyAt: null, replyState: 'no_version_reply' },
   };
 }
@@ -52,7 +52,7 @@ function createHardwareEvidence() {
     if (!session || decoded?.error || !Array.isArray(decoded?.args) ||
         !['CONFIG', 'VERNO'].includes(decoded.command)) return;
     const current = state(session), receivedAt = at.toISOString();
-    let version;
+    let versionLabels = [];
     if (decoded.command === 'CONFIG') {
       const mode = parseTemperatureMode(decoded);
       const btField = fieldStatus(decoded.args, 'BT'), tmField = fieldStatus(decoded.args, 'TM');
@@ -62,20 +62,26 @@ function createHardwareEvidence() {
         lastReceivedAt: receivedAt, btField, tmField,
       };
       const versions = decoded.args.filter(value => typeof value === 'string' && value.startsWith('VR:'));
-      version = versions.length === 1 ? firmwareLabel(versions[0].slice(3)) : null;
+      const version = versions.length === 1 ? firmwareLabel(versions[0].slice(3)) : null;
+      if (version) versionLabels = [version];
     } else {
-      version = decoded.args.length === 1 ? firmwareLabel(decoded.args[0]) : null;
+      // The real V52 VERNO reply contains two labels. Preserve wire order;
+      // neither label is assumed to mean modem/application or to establish BT.
+      if (decoded.args.length >= 1 && decoded.args.length <= 2 && decoded.args.every(firmwareLabel)) {
+        versionLabels = [...decoded.args];
+      }
       Object.assign(current.firmwareEvidence, { replyAt: receivedAt,
-        replyState: version ? 'version_received' : decoded.args.length ? 'unsupported_reply' : 'empty_reply' });
+        replyState: versionLabels.length ? 'version_received' : decoded.args.length ? 'unsupported_reply' : 'empty_reply' });
       const capture = captures.get(session);
       if (capture && +at >= capture.startedAt && +at < capture.expiresAt && !capture.details) {
         capture.details = { receivedAt, ...replyDetails(decoded.args),
-          parserReason: version ? 'accepted_version_label' : decoded.args.length === 0 ? 'no_arguments'
-            : decoded.args.length !== 1 ? 'expected_one_argument' : 'version_label_format_rejected' };
+          parserReason: versionLabels.length ? 'accepted_version_labels' : decoded.args.length === 0 ? 'no_arguments'
+            : decoded.args.length > 2 ? 'expected_one_or_two_arguments' : 'version_label_format_rejected' };
       } else if (capture && +at >= capture.expiresAt) captures.delete(session);
     }
-    if (version) Object.assign(current.firmwareEvidence,
-      { version, source: decoded.command, receivedAt });
+    if (versionLabels.length) Object.assign(current.firmwareEvidence,
+      { version: versionLabels.length === 1 ? versionLabels[0] : null,
+        versionLabels, source: decoded.command, receivedAt });
   }
   function requestVersion(session, at = new Date(), { includeReply = false } = {}) {
     captures.delete(session);
@@ -90,6 +96,7 @@ function createHardwareEvidence() {
     if (capture && +at >= capture.expiresAt) { captures.delete(session); capture = null; }
     return { configurationEvidence: { ...value.configurationEvidence },
       firmwareEvidence: { ...value.firmwareEvidence,
+        versionLabels: [...value.firmwareEvidence.versionLabels],
         ...(capture ? { replyCaptureExpiresAt: new Date(capture.expiresAt).toISOString(),
           replyDetails: capture.details ? { ...capture.details, arguments: [...capture.details.arguments] } : null } : {}) } };
   }
