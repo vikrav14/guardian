@@ -123,8 +123,8 @@ void main() {
           body: WellnessPilotAccess(
             imei: 'synthetic-watch',
             grants: grants.stream,
-            child: const Text('private reading'),
             unavailableChild: const Text('routine unavailable'),
+            child: const Text('private reading'),
           ),
         ),
       ),

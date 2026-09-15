@@ -261,8 +261,9 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     final widgets = <Widget>[];
 
     void addSection(Widget section) {
-      if (widgets.isNotEmpty)
+      if (widgets.isNotEmpty) {
         widgets.add(const SizedBox(height: GuardianSpacing.lg));
+      }
       widgets.add(section);
     }
 

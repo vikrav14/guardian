@@ -218,17 +218,19 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
       await widget.onSave!(
         _selected ?? widget.status['routine'] as String? ?? 'manual',
       );
-      if (mounted)
+      if (mounted) {
         setState(
           () =>
               _feedback = 'Choice saved. Waiting for the gateway to apply it.',
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _feedback =
               'Could not save the routine. Check your connection and preview access.',
         );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
