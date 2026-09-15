@@ -62,6 +62,39 @@ firmware name would be justified.
 
 ## Concrete next hardware tests
 
+### Supervised removal trial result, 2026-09-15 18:53 UTC
+
+The operator ran the REMOVE enable test and reported the following. No new
+hardware command was sent remotely while recording this result.
+
+| Evidence | Observation | Meaning |
+| --- | --- | --- |
+| Enable reply | Bare REMOVE received at 18:44:26.739 UTC | Command reply observed; no setting readback. |
+| Worn baseline | Seven UD_LTE packets through 18:46:01 UTC, all status `00000000` | No positive wearing bit in the baseline. |
+| First off-watch capture | Captured at 18:50:04.149 UTC; 13 UD_LTE packets, all zero | No removal bit had appeared in that capture yet. |
+| Subsequent removal alarm | AL_LTE observed at 18:50:43 UTC, received at 18:50:47.073 UTC; status `00100000`, bit 20 true, bit 3 false | First direct exact-watch removal-alarm packet in this trial. |
+| SMS reported by operator | Two messages saying the device had been removed | Existing device alert configuration also generated SMS. This does not establish two distinct removals; only one AL_LTE packet is retained here. |
+| Worn-again capture | Captured at 18:53:03.557 UTC, latest packet still the alarm received at 18:50:47.073 UTC | No later observation to demonstrate restoration; latest packet receipt is about 136 seconds old. |
+| Cleanup | Disable helper returned "One connected pilot watch session is required; nothing sent." Read-only status then showed connected false. | OFF was not sent or queued. Cleanup is pending reconnection; the setting may still be enabled. |
+
+All times above are UTC; add four hours for Mauritius (alarm at 22:50:43).
+The exact physical removal and put-back times and any vibration remain to be
+provided. Therefore detection latency and repeatability cannot be established.
+
+Conclusion: the exact watch can emit the documented removal-alarm bit. This is
+stronger evidence than the earlier all-zero snapshots and must not be described
+as "no removal signal." Reliable positive worn/restored detection, a persistent
+current wearing state, and automatic measurement gating remain unverified.
+The runtime correctly retains unknown rather than treating an old removal alarm
+or its absence as current worn evidence.
+
+Immediate next action: reconnect the watch, use `npm run wear:trial -- --disable`
+once, and inspect `npm run wear:trial` for a subsequent REMOVE reply. Do not
+re-enable for another cycle before cleanup. A reply is transport evidence, not
+proof that the stored setting is OFF. Do not change REMOVESMS, SOS numbers or
+global alarm mode based solely on these two SMS messages. Future removal trials
+must explicitly account for the observed SMS side effect.
+
 ### 1. Establish remote temperature separately from scheduling
 
 The protocol distinguishes:
