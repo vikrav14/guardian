@@ -5,6 +5,8 @@ const { extractV52TrackerState } = require('./protocol/gt06');
 const FRESH_MS = 120_000;
 const DEBOUNCE_MS = 60_000;
 const ACCEPTED_MODE = 'v52_bit3_worn';
+const TRACE_LIMIT = 120;
+const TRACE_DEVICE_LIMIT = 128;
 
 function date(value) {
   if (value == null) return null;
@@ -51,17 +53,78 @@ function parseWearSignal(decoded) {
     removalAlarmBit: (bits & (1 << 20)) !== 0 };
 }
 
+function bitmapBits(value) {
+  if (!value) return [];
+  const bits = Number.parseInt(value, 16) >>> 0;
+  return Array.from({ length: 32 }, (_, bit) => bit).filter(bit => (bits >>> bit) & 1);
+}
+
+function traceDecision(decoded, signal, lastDeviceAt, at) {
+  if (/^UD2(?:_|$)/i.test(decoded.command)) return 'buffered_history';
+  if (signal === undefined) return 'unsupported_status_command';
+  if (signal === null) return 'invalid_status_packet';
+  if (+signal.observedAt > +at) return 'future_device_time';
+  if (+at - +signal.observedAt > FRESH_MS) return 'stale_device_time';
+  if (lastDeviceAt && +signal.observedAt === +lastDeviceAt) return 'duplicate_device_time';
+  if (lastDeviceAt && +signal.observedAt < +lastDeviceAt) return 'out_of_order_device_time';
+  return 'live_status_sample';
+}
+
+// Receipt diagnostics deliberately precede the eligibility filters. A delayed
+// alarm, same-second status change or buffered packet is useful for protocol
+// investigation even though it must not establish present wearing status.
+function statusTrace(decoded, signal, state, diagnostic, at) {
+  if (typeof decoded?.command !== 'string' || decoded.command.length > 32 ||
+      !/^(?:UD|AL)[A-Z0-9_]*$/i.test(decoded.command)) return null;
+  const trackerState = extractV52TrackerState(decoded.args);
+  const previous = diagnostic.lastBitmap;
+  const changed = trackerState && previous
+    ? ((Number.parseInt(trackerState, 16) ^ Number.parseInt(previous, 16)) >>> 0)
+      .toString(16).padStart(8, '0') : null;
+  if (trackerState) diagnostic.lastBitmap = trackerState;
+  // Reuse the fixed-layout timestamp validator for history/other variants;
+  // its result is diagnostic only and never goes into the wear state machine.
+  const timestamp = signal || parseWearSignal({ ...decoded, command: 'UD' });
+  return { kind: 'status', session: diagnostic.sessionNumber, command: decoded.command,
+    receivedAt: at, deviceObservedAt: timestamp?.observedAt || null,
+    trackerState, setBits: bitmapBits(trackerState), changedBits: bitmapBits(changed),
+    previousTrackerState: previous || null,
+    decision: traceDecision(decoded, signal, state.lastDeviceAt, at) };
+}
+
 function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', acceptedImeis = [],
   onError = () => {} } = {}) {
-  const devices = new Map(), pending = new Map();
+  const devices = new Map(), pending = new Map(), diagnostics = new Map();
   const allowlist = new Set(acceptedImeis);
+
+  function diagnosticFor(imei) {
+    let diagnostic = diagnostics.get(imei);
+    if (!diagnostic) diagnostic = { sessionNumber: 0, lastBitmap: null,
+      receivedStatusPackets: 0, droppedEntries: 0, entries: [] };
+    // Retain the most recently observed devices only. Traces survive socket
+    // reconnects, while production wearing evidence still starts from unknown.
+    diagnostics.delete(imei); diagnostics.set(imei, diagnostic);
+    if (diagnostics.size > TRACE_DEVICE_LIMIT) diagnostics.delete(diagnostics.keys().next().value);
+    return diagnostic;
+  }
+  function appendTrace(diagnostic, entry) {
+    if (entry.kind === 'status') diagnostic.receivedStatusPackets += 1;
+    diagnostic.entries.push(entry);
+    if (diagnostic.entries.length > TRACE_LIMIT) {
+      diagnostic.entries.shift(); diagnostic.droppedEntries += 1;
+    }
+  }
 
   function persist(imei, state, at) {
     if (!db) return;
     const summary = { ...state.evidence, updatedAt: at };
     delete summary.continuityId;
+    const trace = diagnostics.get(imei);
     const diagnostic = { version: 1, updatedAt: at, deviceMode,
       deviceAccepted: state.accepted, status: summary, samples: state.samples };
+    if (trace) diagnostic.receivedStatusTrace = { version: 1, maxEntries: TRACE_LIMIT,
+      receivedStatusPackets: trace.receivedStatusPackets, droppedEntries: trace.droppedEntries,
+      entries: [...trace.entries] };
     // Coalesce pending writes: slow Firestore never queues unlimited heartbeats
     // or delays ACKs/SOS. Retained raw status samples are capped at 120.
     const work = pending.get(imei) || { next: null, running: false };
@@ -89,16 +152,40 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
   function capture(decoded, events, session, at) {
     const imei = events.find(event => event.imei)?.imei;
     if (!enabled || !imei) return;
+    const diagnostic = diagnosticFor(imei);
     let state = devices.get(imei);
     if (!state || state.session !== session) {
       state = { session, accepted: deviceMode === ACCEPTED_MODE && allowlist.has(imei),
         evidence: unknown('new_session'), candidate: null, lastDeviceAt: null, samples: [] };
       devices.set(imei, state);
+      diagnostic.sessionNumber += 1; diagnostic.lastBitmap = null;
+      appendTrace(diagnostic, { kind: 'session_started', session: diagnostic.sessionNumber,
+        receivedAt: at });
       persist(imei, state, at);
+    } else if (diagnostic.sessionNumber === 0) {
+      // This device's older trace may have been evicted by the bounded cache.
+      // Starting a new trace must not reset the still-live wearing state.
+      diagnostic.sessionNumber = 1;
+      appendTrace(diagnostic, { kind: 'trace_resumed', session: diagnostic.sessionNumber,
+        receivedAt: at });
     }
     const signal = parseWearSignal(decoded);
+    const trace = statusTrace(decoded, signal, state, diagnostic, at);
+    if (trace) appendTrace(diagnostic, trace);
     if (state.evidence.state !== 'unknown' && !wearAt(state.evidence, at).expiresAt) {
       state.evidence = unknown('wearing_evidence_expired'); state.candidate = null;
+      persist(imei, state, at);
+    }
+    if (state.accepted && signal?.removalAlarmBit && state.lastDeviceAt &&
+        +signal.observedAt === +state.lastDeviceAt &&
+        +signal.observedAt <= +at && +at - +signal.observedAt <= FRESH_MS &&
+        (state.evidence.state === 'worn' || state.candidate?.target === 'worn')) {
+      // Firmware timestamps have one-second resolution. An alarm in the same
+      // second as the latest position is still contradictory evidence: revoke
+      // qualification now, but keep strict ordering for positive confirmation.
+      // Older/history packets cannot enter this path or erase newer proof.
+      state.evidence = unknown('same_timestamp_removal_alarm'); state.candidate = null;
+      if (trace) trace.decision = 'same_timestamp_removal_invalidated_wearing';
       persist(imei, state, at);
     }
     if (signal && +at - +signal.observedAt <= FRESH_MS && +signal.observedAt <= +at &&
@@ -135,6 +222,10 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     } else if (signal === null) {
       state.evidence = unknown('invalid_wearing_packet'); state.candidate = null;
       persist(imei, state, at);
+    } else if (trace) {
+      // Preserve the rejected receipt without changing wearing evidence,
+      // candidates, timestamps or the accepted live-sample collection.
+      persist(imei, state, at);
     }
     // Snapshot before any remote await or location queue. A later packet cannot
     // retroactively lend its wearing proof to an earlier counter/health upload.
@@ -144,6 +235,9 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
   function disconnect(imei, session, at = new Date()) {
     const state = devices.get(imei);
     if (state?.session !== session) return;
+    const diagnostic = diagnosticFor(imei);
+    appendTrace(diagnostic, { kind: 'session_disconnected', session: diagnostic.sessionNumber,
+      receivedAt: at });
     state.evidence = unknown('watch_disconnected'); state.candidate = null;
     persist(imei, state, at); devices.delete(imei);
   }
@@ -151,4 +245,5 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     wearAt(devices.get(imei)?.evidence, at) };
 }
 
-module.exports = { createWearEvidence, parseWearSignal, wearAt, unknown, ACCEPTED_MODE, FRESH_MS };
+module.exports = { createWearEvidence, parseWearSignal, wearAt, unknown, ACCEPTED_MODE, FRESH_MS,
+  TRACE_LIMIT, TRACE_DEVICE_LIMIT };

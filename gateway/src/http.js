@@ -1283,6 +1283,25 @@ function startHttpServer() {
         return;
       }
 
+      if (url.pathname === '/admin/temperature-trial' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const { parseTemperatureTrialOperation } = require('./supervised-temperature-trial');
+        const routine = getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') {
+            sendJson(res, 200, await routine.temperatureTrialStatus({ includeValues: url.searchParams.get('includeValues') === '1' }));
+          } else {
+            let payload;
+            try { payload = parseTemperatureTrialOperation(JSON.parse(await readBody(req))); }
+            catch { sendJson(res, 400, { error: 'Use action single with operatorPosition worn.' }); return; }
+            sendJson(res, 200, await routine.requestTemperatureTrial(payload));
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Temperature trial failed.' : error.message }); }
+        return;
+      }
+
       if (url.pathname === '/admin/wellness-routine' && ['GET', 'POST'].includes(req.method)) {
         if (!(await requireStrictAdmin(req, res))) return;
         const { getWellnessRoutineRuntime, parseRoutineOperation } = require('./wellness-routine-runtime');

@@ -169,15 +169,49 @@ The protocol distinguishes:
 | `bodytemp,1,hours` | BT=2; hours 1–12 | Multiple unattended readings at the requested interval, timestamps, reboot/reconnect behavior, battery impact and a proven stop procedure. |
 | `BTTIMESET,...` | TM=1; separate timing mode | Exact-device mode and daily/once behavior before introducing an alternative scheduler. |
 
-First obtain current CONFIG BT/TM evidence or the supplier's exact-build support
-confirmation and readback method. Do not repeatedly reboot to solicit CONFIG;
-that already failed to produce it. Do not issue a guessed CONFIG query.
+The follow-up review distinguishes the BT=2 firmware variant from receiving a
+CONFIG handshake first. The original documentation does not require that
+handshake before a single measurement. The operator requested further supervised
+engineering tests before supplier contact. The known manual `btemp2` upload is a
+reason for a bounded experiment, not proof of remote measurement or a schedule.
+Do not repeatedly reboot to solicit CONFIG or issue a guessed CONFIG query.
 
-The existing `npm run wellness:routine -- --request-temperature` remains a
-single-request test guarded by current-session BT=2 and consent. A supplier-
-approved exploratory test for firmware that never reports CONFIG should be a
-separate bounded operator trial with raw reply/upload comparison, not a change
-to the routine's capability gate. There is no new bypass flag in this change.
+The existing `wellness:routine -- --request-temperature` and automatic routines
+retain their BT=2 checks. A separate strict-admin `temperature:trial` sends only
+one documented lowercase `bodytemp2`. It requires pilot/request/ingestion flags,
+current consent, one unchanged connected session with a packet received within
+three minutes, no selected automatic routine or known possibly running schedule,
+and an explicit operator report that the watch is worn. Missing BT permits this
+experiment. A reported incompatible BT remains blocking even if a later partial
+CONFIG omits BT. No mode, wearing state or customer acceptance is promoted.
+
+After pulling the branch and restarting the gateway, wear the watch normally
+and do not press its temperature button. In the gateway directory run:
+
+```powershell
+npm run temperature:trial -- --once --worn --include-values
+```
+
+The helper sends once and polls for up to two minutes. Record whether the watch
+starts measuring or vibrates, the physical time and its displayed result. The
+capture separates a bare command reply from a subsequent temperature upload;
+temporal proximity alone does not prove the request caused the measurement.
+No native schedule, SMS or REMOVE command is sent, and there is no retry.
+
+After a timeout or uncertain handoff, inspect without sending another request:
+
+```powershell
+npm run temperature:trial -- --include-values
+```
+
+At most ten packet records are retained, with bounded numeric fields including
+sentinels marked unverified. Values require explicit opt-in and a fresh consent
+check; they expire ten minutes after the two-minute capture window. Metadata
+remains until the next trial/process restart. Capture is tied to the original
+session. Existing temperature ingestion still rejects unvalidated shapes and
+sentinels. A manual control after the capture window can distinguish a failed
+remote command from a sensor/upload failure. Do not enable unattended cycles
+from one successful comparison or automatically try another command casing.
 
 ### 2. Test the documented removal-alarm switch
 
@@ -201,6 +235,30 @@ securely worn, removed and stationary, then worn again. Repeat the transition
 sequence. Preserve physical transition times, device observation times and
 receipt times. Compare all status bits; do not fit a polarity rule to one trace.
 Use the existing `wear:check -- --save=<marker>` captures for each stage.
+
+`wear:check` now includes `receivedStatusTrace`: full 32-bit status, changed/set
+bits, receipt/device times, session boundaries and filter reasons recorded before
+the freshness/order filters. This includes same-timestamp, late, out-of-order and
+buffered status evidence omitted by the old sample list. It retains at most 120
+entries per device across socket reconnects, with a 128-device memory cap; process
+restart starts a new in-memory trace. Original accepted samples remain separate.
+A fresh removal signal at the same timestamp as the latest accepted packet now
+immediately cancels worn eligibility; it cannot establish positive wear, and
+older history cannot override newer proof.
+
+Keep the removal enable test paused during the connection investigation. Use the
+single temperature experiment first. A later supervised worn/off/worn comparison
+must record physical transition times and fresh packets in every stage. The last
+enabled trial had no post-alarm packet before disconnect, so restoration remains
+untested. An alarm clearing while the watch is still on a table would establish
+that clearing is not a current positive contact indication.
+
+The companion example declares `000b` for both `REMOVESMS,1` and bare `REMOVESMS`,
+although the latter is nine characters (`0009`). Use the frame builder rather
+than literal sample envelopes. The original documents disagree on the takeoff
+switch's command name; another manufacturer's protocol separates detector and
+SMS switches, but that is not exact-watch proof. The REMOVE test already produced
+AL and SMS, so changing REMOVESMS is unnecessary merely to inspect restoration.
 
 Operator sequence (PowerShell, in the gateway directory):
 

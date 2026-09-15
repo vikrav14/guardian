@@ -185,6 +185,7 @@ test('running pilot confines hardware operations to one session; firmware and re
       if (name === './wellness-routine') return { ...require('../src/wellness-routine'),
         createRoutineController: () => ({ tick: async () => {} }) };
       if (name === './wellness-hardware-evidence') return { createHardwareEvidence };
+      if (name === './supervised-temperature-trial') return require('../src/supervised-temperature-trial');
       return require(name);
     },
   });
@@ -197,7 +198,7 @@ test('running pilot confines hardware operations to one session; firmware and re
   assert.equal(parseRoutineOperation({ action: 'firmware_version', includeReply: true }).includeReply, true);
   assert.equal(parseRoutineOperation({ action: 'temperature_once' }).includeReply, false);
   const runtime = module.exports.startWellnessRoutineRuntime({ db: ref,
-    config: { wifiHomePilotImei: pilot.imei, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
+    config: { wifiHomePilotImei: pilot.imei, wellnessRoutinePilotEnabled: true, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     wearEvidence: { current: () => null } });
   runtime.observe(packet('CONFIG,BT:2,TM:1'), { imei: '861000000000002' });
   assert.equal((await runtime.status()).configurationEvidence.state, 'no_config_received');
@@ -232,6 +233,14 @@ test('running pilot confines hardware operations to one session; firmware and re
     matches = candidates;
     assert.throws(() => runtime.requestRemovalTest(false), /connected/);
   }
+  assert.equal(sent.length, 3);
+  matches = [{ socket: {}, session: pilot }];
+  pilot.lastPacketAt = Date.now();
+  runtime.observe(packet('CONFIG,BT:1'), pilot);
+  runtime.observe(packet('CONFIG,TY:partial'), pilot);
+  assert.equal(pilot.wellnessLastReportedTemperatureBt, 1);
+  assert.equal((await runtime.status()).temperatureBt, null);
+  await assert.rejects(runtime.requestTemperatureTrial({ action: 'single', operatorPosition: 'worn' }), /reported BT mode/);
   assert.equal(sent.length, 3);
   matches = [{ socket: {}, session: { imei: pilot.imei } }];
   assert.equal((await runtime.status()).firmwareEvidence.version, null);

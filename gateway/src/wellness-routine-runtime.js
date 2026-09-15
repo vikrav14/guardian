@@ -7,6 +7,7 @@ const { createRoutineController, parseTemperatureMode, temperatureCommand } = re
 const { findSocketsForDevice } = require('./sessions');
 const { sendDownlinkCommand } = require('./downlink');
 const { createHardwareEvidence } = require('./wellness-hardware-evidence');
+const { createSupervisedTemperatureTrial } = require('./supervised-temperature-trial');
 
 let runtime;
 const date = value => value?.toDate?.() || (value == null ? null : new Date(value));
@@ -42,6 +43,15 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
       tm: session.wellnessTemperatureMode?.tm ?? null,
       wear: wearEvidence.current(imei) };
   }
+  const temperatureTrial = createSupervisedTemperatureTrial({ config, currentSession,
+    send: command => sendDownlinkCommand(imei, command),
+    readContext: async () => {
+      const [consent, request, state] = await Promise.all([
+        db.collection('wellbeingConsents').doc(imei).get(), requestRef.get(), stateRef.get(),
+      ]);
+      return { consent: consent.data(), request: request.data(), state: state.data() };
+    },
+  });
   async function read() {
     const [requestDoc, grantDoc, consentDoc] = await Promise.all([
       requestRef.get(), db.collection('wellnessPilots').doc(imei).get(),
@@ -98,7 +108,13 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
     if (session?.imei !== imei) return;
     hardware.observe(decoded, session);
     const mode = parseTemperatureMode(decoded);
-    if (mode !== undefined) session.wellnessTemperatureMode = mode;
+    if (mode !== undefined) {
+      session.wellnessTemperatureMode = mode;
+      // A partial/malformed later CONFIG must not erase a known incompatible
+      // variant and turn it into permission for the missing-mode experiment.
+      if (mode.bt !== null) session.wellnessLastReportedTemperatureBt = mode.bt;
+    }
+    temperatureTrial.observe(decoded, session);
     // No async read in the GPS/SOS/ACK path. Coalescing occurs in tick().
   }
   let singleRequestAt = 0;
@@ -152,6 +168,8 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   const timer = setInterval(tick, 20_000); timer.unref?.();
   void tick();
   runtime = { observe, tick, requestTemperature, requestVersion, requestRemovalTest,
+    requestTemperatureTrial: temperatureTrial.request,
+    temperatureTrialStatus: temperatureTrial.status,
     async status() {
       const state = (await stateRef.get()).data() || {};
       const { leaseOwner, leaseUntil, handoffKey, revision, ...summary } = state;

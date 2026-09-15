@@ -22,7 +22,19 @@ async function loadWearReport(db, imei, now = new Date()) {
       command: sample.command, observedAt: iso(sample.observedAt), receivedAt: iso(sample.receivedAt),
       trackerState: sample.trackerState, wearBit: sample.wearBit, removalAlarmBit: sample.removalAlarmBit,
     })),
-    interpretation: 'Raw bits require exact-watch comparison. No watch command or notification is sent. Online does not prove worn.',
+    receivedStatusTrace: data?.receivedStatusTrace ? {
+      version: 1, maxEntries: 120,
+      receivedStatusPackets: data.receivedStatusTrace.receivedStatusPackets,
+      droppedEntries: data.receivedStatusTrace.droppedEntries,
+      entries: (data.receivedStatusTrace.entries || []).slice(-120).map(entry => ({
+        kind: entry.kind, session: entry.session, receivedAt: iso(entry.receivedAt),
+        ...(entry.kind === 'status' ? { command: entry.command,
+          deviceObservedAt: iso(entry.deviceObservedAt), trackerState: entry.trackerState,
+          setBits: entry.setBits, changedBits: entry.changedBits,
+          previousTrackerState: entry.previousTrackerState, decision: entry.decision } : {}),
+      })),
+    } : null,
+    interpretation: 'Raw bits require exact-watch comparison. Receipt traces include rejected or historical packets and do not prove present wearing. No watch command or notification is sent. Online does not prove worn.',
   };
 }
 
