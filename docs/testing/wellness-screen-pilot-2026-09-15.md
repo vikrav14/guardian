@@ -18,10 +18,12 @@ It is not evidence of sensor accuracy, confirmed wearing, or unattended reliabil
   wearing at measurement time. It has no AI/report action for preview data.
 - Yesterday's measurements never populate today's card. A new measurement is
   required to populate today's heart/oxygen tiles; older readings stay in history.
-- Skin temperature remains `— °C · Not available yet`. The operator previously
-  saw temperature on the watch, but no exact V52 temperature upload shape has
-  been verified. No value is copied from chat, inferred from another metric or
-  generated from the unsupported `bodytemp`/`bodytemp2` responses.
+- After the 15 September packet comparison, the private preview also shows the
+  configured pilot's observed `btemp2,1,<two-decimal Celsius value>` variant in
+  the existing Skin temperature tile and dated history. The value comes from
+  a consented upload or the explicit saved-capture import, with its original
+  receipt time. Other temperature variants remain unsupported. Normal customer
+  mode still shows `Not available yet`; preview data stays unverified.
 
 ## Authorization and source integrity
 
@@ -84,4 +86,4 @@ npm run wellness:preview -- --disable
 
 This PR does not activate measurement schedules, send watch commands, publish
 weekly reports, deliver alerts or enable customer/device acceptance flags.
-Temperature capture and interpretation remain a separate device-dependent step.
+Temperature customer acceptance remains a separate device-dependent step.

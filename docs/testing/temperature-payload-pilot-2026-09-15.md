@@ -43,20 +43,59 @@ check connection, window, consent and the printed capture status first.
 
 ## Remaining work
 
-- Compare raw argument positions and units with the watch display; receipt time
-  is not assumed to be measurement time.
-- Verify the upload/ACK contract and malformed/error variants before ingestion.
-- Add a narrowly validated decoder and consented private preview integration.
-- Keep the skin-temperature tile unavailable until that numeric path is verified.
+- One captured `btemp2,1,<value>` packet now matches the operator's displayed
+  wrist value in Celsius. Only this decimal variant is supported in private preview.
+- Verify the leading field's meaning, the supplier's ACK contract and additional
+  success/error variants. The preserved bare ACK is not newly vendor-validated.
+- Verify repeated hardware behavior and reliability before customer acceptance.
+- Keep temperature requests, schedules and customer display disabled.
 
 The capture does not infer temperature from a plausible number, another metric's
 trailing fields, online state or the photograph. It does not establish worn state.
 
+## Display the saved capture and future uploads
+
+After pulling the updated `feat/v52-care-wellbeing` branch, restart the gateway.
+With `CARE_WELLBEING_INGEST_ENABLED=true`, future uploads for the configured
+`WIFI_HOME_PILOT_IMEI` use the private temperature path even under ordinary
+`npm start`. The ten-minute capture command remains useful for inspecting other
+variants; it is not required for ongoing ingestion of the supported shape.
+
+The saved capture is local and contains no identity. Import only the file produced
+by the configured pilot watch, using its existing Admin SDK environment:
+
+```powershell
+npm run temperature:import -- --file="data/temperature-captures/YOUR_CAPTURE.jsonl"
+npm run temperature:import -- --file="data/temperature-captures/YOUR_CAPTURE.jsonl" --apply
+```
+
+The first command previews packet count and original receipt times without database
+writes or numeric output. `--apply` stores the captured packet under the configured
+watch, subject to current consent, enabled ingestion and retention. Whole-file shape
+validation precedes writes. Future/expired timestamps and unsupported variants are
+rejected. Repeating an import deduplicates through the normal reading identity.
+The import neither assigns a new measurement time nor claims wearing was proven.
+
+Restart Flutter with `--dart-define=GUARDIAN_WELLNESS_PILOT=true`. Existing deployed
+rules/indexes and the existing unexpired viewer grant are sufficient. If the grant
+expired, `npm run wellness:preview -- --enable` creates a new authorized preview.
+The Skin temperature tile shows today's latest valid private sample and receipt
+age; older dates stay in the permitted history window. Errors, unavailable access,
+and absent samples do not become a zero value. Customer mode remains unavailable.
+
+`npm run wellness:check -- --include-reading-values` includes the private
+`skin_temperature` metric for explicit comparison. Normal diagnostics redact values.
+Delete the local capture once its comparison/import is complete.
+
 ## Software validation
 
-The combined gateway suite passes 1,026 tests. Capture checks cover opt-in and
+The initial capture checkpoint passed 1,026 gateway tests. Capture checks cover opt-in and
 pilot isolation, unparsed field preservation, existing ACK/event compatibility,
 revoked/expired consent, capture expiry during a pending read, packet/size bounds,
 private file creation and isolated read/write/logger failures. The hardware
-payload comparison remains outstanding; fixtures are synthetic, not a proposed
-temperature encoding.
+variant comparison is recorded above. New parser/import tests cover strict decimal
+shape, pilot isolation, forced private status even under general acceptance,
+consent, timestamps, idempotency and redaction. App/rules tests cover private
+access, receipt age, day boundaries, error clearing and temperature history.
+All committed numeric fixtures are synthetic; the operator's health values remain
+in the private conversation/capture.

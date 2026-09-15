@@ -7,6 +7,7 @@ const { cleanupWellnessRecords } = require('./wellness-retention');
 const METRIC_SET = Object.freeze({
   SPO2: 'spo2',
   HEART_RATE_BLOOD_PRESSURE: 'heart_rate_blood_pressure',
+  SKIN_TEMPERATURE: 'skin_temperature',
 });
 
 const DEVICE_MODE = Object.freeze({
@@ -89,6 +90,21 @@ function normalizeWellbeingEvent(event, observedAt = new Date()) {
     };
   }
 
+  if (event.metric === 'skin_temperature') {
+    // A watch-display comparison established this one pilot variant only.
+    // Prefix "1" is opaque: it does not establish success, wearing or mode.
+    const args = event.args;
+    if (event.sourceCommand !== 'btemp2' || !Array.isArray(args) ||
+        args.length !== 2 || args[0] !== '1' || typeof args[1] !== 'string' ||
+        !/^\d{2}\.\d{2}$/.test(args[1]) || Number(args[1]) <= 0 || Number(args[1]) > 60) {
+      return { ok: false, reason: 'unsupported_temperature_shape' };
+    }
+    return { ok: true, imei, metricSet: METRIC_SET.SKIN_TEMPERATURE,
+      values: { skinTemperatureCelsius: Number(args[1]) }, measurementType: null,
+      sourceCommand: 'btemp2', sourceVariant: '1', privatePreviewOnly: true,
+      observedAt: receivedAt };
+  }
+
   return { ok: false, reason: 'unsupported_metric' };
 }
 
@@ -140,6 +156,7 @@ function createWellbeingStore({
   deviceMode = DEVICE_MODE.UNVERIFIED,
   customerEnabled = false,
   retentionDays = 30,
+  temperaturePilotImei = '',
   now = () => new Date(),
 } = {}) {
   if (!Object.values(DEVICE_MODE).includes(deviceMode)) {
@@ -156,6 +173,15 @@ function createWellbeingStore({
       return { ok: false, status: 'invalid', reason: normalized.reason };
     }
 
+    const temperature = normalized.metricSet === METRIC_SET.SKIN_TEMPERATURE;
+    if (temperature && (!/^\d{15}$/.test(temperaturePilotImei) || normalized.imei !== temperaturePilotImei)) {
+      return { ok: false, status: 'temperature_pilot_only', metricSet: normalized.metricSet };
+    }
+    if (temperature && (normalized.observedAt > now() ||
+        normalized.observedAt <= new Date(+now() - safeRetentionDays * 86400_000))) {
+      return { ok: false, status: 'outside_retention_window', metricSet: normalized.metricSet };
+    }
+
     // Capture qualification at receipt, before any consent/database await.
     const wearEvidence = wearAt(event.wearEvidence, normalized.observedAt);
     normalized.wearEvidence = wearEvidence;
@@ -168,7 +194,8 @@ function createWellbeingStore({
       };
     }
 
-    const displayable = deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true && wearEvidence.eligible;
+    // General wellbeing acceptance can never promote this experimental variant.
+    const displayable = !temperature && deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true && wearEvidence.eligible;
     const id = readingIdFor(normalized);
     const ref = db
       .collection('devices')
@@ -183,10 +210,11 @@ function createWellbeingStore({
       measurementType: normalized.measurementType,
       source: 'v52_upload',
       sourceCommand: normalized.sourceCommand,
+      ...(temperature ? { privatePreviewOnly: true, sourceVariant: normalized.sourceVariant } : {}),
       observedAt: normalized.observedAt,
       receivedAt: normalized.observedAt,
       quality: displayable ? 'device_accepted' : 'transport_valid_unverified',
-      deviceMode,
+      deviceMode: temperature ? DEVICE_MODE.UNVERIFIED : deviceMode,
       wearQualityVersion: 1, wearEvidence,
       wearQualified: wearEvidence.eligible,
       wearReason: wearEvidence.reason,

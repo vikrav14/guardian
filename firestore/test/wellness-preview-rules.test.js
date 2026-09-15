@@ -20,6 +20,11 @@ before(async () => {
     }
     await setDoc(doc(db, 'wellnessPilots', imei), { version: 1, managedBy: 'guardian_admin', viewerUid: 'pilot', enabled: true, createdAt: created, expiresAt: expires });
     await setDoc(doc(db, 'wellbeingConsents', imei), { version: 1, managedBy: 'guardian_admin', status: 'granted', wearerAcknowledgedAt: today });
+    await setDoc(doc(db, 'devices', imei, 'wellbeingReadings', 'temperature'), {
+      metricSet: 'skin_temperature', values: { skinTemperatureCelsius: 34.56 },
+      displayable: false, privatePreviewOnly: true, observedAt: today,
+      sourceCommand: 'btemp2', sourceVariant: '1',
+    });
     for (const [kind, timeField] of [['activityDays','lastObservedAt'],['wellbeingReadings','observedAt']]) {
       for (const [id, offset] of [['today',0],['yesterday',-1],['too-old',-7]]) {
         await setDoc(doc(db,'devices',imei,kind,id), {displayable:false,[timeField]:new Date(+today+offset*86400_000)});
@@ -31,6 +36,10 @@ after(async () => env?.cleanup());
 const read = (uid, kind='activityDays', id='today') => getDoc(doc(env.authenticatedContext(uid).firestore(),'devices',imei,kind,id));
 const patch = async (collectionName, id, values) => env.withSecurityRulesDisabled(c => updateDoc(doc(c.firestore(), collectionName, id), values));
 test('only the explicitly granted viewer can query shadow data within the edition window', async () => {
+  await assertSucceeds(read('pilot', 'wellbeingReadings', 'temperature'));
+  await assertFails(read('other', 'wellbeingReadings', 'temperature'));
+  await assertFails(updateDoc(doc(env.authenticatedContext('pilot').firestore(),
+    'devices', imei, 'wellbeingReadings', 'temperature'), { displayable: true }));
   for (const [kind,timeField] of [['activityDays','lastObservedAt'],['wellbeingReadings','observedAt']]) {
     await assertSucceeds(read('pilot',kind));
     await assertSucceeds(read('pilot',kind,'yesterday'));
@@ -50,12 +59,14 @@ test('expired, disabled, future and oversized grants cannot release private read
     await patch('wellnessPilots',imei,{createdAt:created,expiresAt:expires,enabled:true,...values});
     await assertFails(read('pilot'));
     await assertFails(read('pilot','wellbeingReadings'));
+    await assertFails(read('pilot','wellbeingReadings','temperature'));
   }
   await patch('wellnessPilots',imei,{createdAt:created,expiresAt:expires,enabled:true});
 });
 test('consent, membership, subscription and Essential calendar boundaries still apply', async () => {
   await patch('wellbeingConsents',imei,{status:'revoked'});
   await assertFails(read('pilot','wellbeingReadings'));
+  await assertFails(read('pilot','wellbeingReadings','temperature'));
   await assertSucceeds(read('pilot'));
   await patch('wellbeingConsents',imei,{status:'granted'});
   await patch('users','pilot',{linkedImeis:[]});

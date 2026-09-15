@@ -9,6 +9,7 @@ class CareWellbeingBackbone {
   static const bool customerVisible = false;
   static const List<String> protocolCommands = <String>['bphrt', 'oxygen', 'hrtstart'];
   static const List<String> acceptedUploads = <String>['bphrt', 'oxygen'];
+  static const List<String> pilotOnlyUploads = <String>['btemp2'];
   static const List<String> pilotOnlyRequests = <String>['hrtstart,1'];
   static const List<String> blockedUntilCaptured = <String>['bodytemp', 'bodytemp2', 'BTTIMESET'];
   static const List<String> safetyControls = <String>['non-medical wording', 'no diagnosis or emergency clearance', 'durable wearer consent', 'measurement quality and freshness labels', 'no automatic normal or abnormal classification'];

@@ -1,7 +1,7 @@
-enum WellnessMetric { heartRate, bloodOxygen, bloodPressure }
+enum WellnessMetric { heartRate, bloodOxygen, bloodPressure, skinTemperature }
 
-/// A display adapter for accepted evidence. Unsupported temperature has no
-/// sample type and cannot accidentally become a live reading.
+/// Display adapter for accepted evidence and explicitly authorized previews.
+/// Skin temperature is restricted to the private pilot by its source adapter.
 class WellnessSample {
   const WellnessSample({
     required this.metric,

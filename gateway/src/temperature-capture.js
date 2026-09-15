@@ -9,8 +9,8 @@ const WINDOW_MS = 10 * 60_000;
 const MAX_PACKETS = 10;
 const MAX_PAYLOAD_BYTES = 2048;
 
-// Engineering evidence only: btemp2 was observed on the pilot, but its fields,
-// units and measurement time are not yet verified. Do not manufacture a reading.
+// Engineering evidence only: this observer preserves raw btemp2 variants.
+// The separate wellbeing store accepts only the compared private-pilot shape.
 function createTemperatureCapture({ enabled = false, pilotImei, readConsent,
   write, clock = Date.now, onStatus = () => {} } = {}) {
   const startedAt = clock();

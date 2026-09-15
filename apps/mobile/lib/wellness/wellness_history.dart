@@ -43,7 +43,8 @@ class WellnessHistory extends StatelessWidget {
         .toList();
     final maximum = accepted.fold<int>(1, (a, d) => d.steps > a ? d.steps : a);
     final ordered =
-        samples.where((s) => window.contains(s.recordedAt, now: now)).toList()
+        samples.where((s) => window.contains(s.recordedAt, now: now) &&
+            (pilotPreview || s.metric != WellnessMetric.skinTemperature)).toList()
           ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -121,10 +122,12 @@ class WellnessHistory extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const WellnessHeading(
+              WellnessHeading(
                 title: 'Watch readings',
                 subtitle:
-                    'Heart rate, blood oxygen and blood-pressure estimates',
+                    pilotPreview
+                        ? 'Heart rate, blood oxygen, blood-pressure and skin-temperature estimates'
+                        : 'Heart rate, blood oxygen and blood-pressure estimates',
               ),
               const SizedBox(height: 16),
               if (!readingsAvailable)
@@ -142,10 +145,11 @@ class WellnessHistory extends StatelessWidget {
                   now: now,
                 ),
               const SizedBox(height: 12),
-              Text(
-                'Skin temperature · Not available yet',
-                style: TextStyle(color: colors.textSecondary),
-              ),
+              if (!pilotPreview)
+                Text(
+                  'Skin temperature · Not available yet',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
               const SizedBox(height: 8),
               Text(
                 'These are watch estimates, not medical measurements.',
@@ -222,6 +226,7 @@ String _metricName(WellnessMetric metric) => switch (metric) {
   WellnessMetric.heartRate => 'Heart rate',
   WellnessMetric.bloodOxygen => 'Blood oxygen',
   WellnessMetric.bloodPressure => 'Blood-pressure estimate',
+  WellnessMetric.skinTemperature => 'Skin temperature · received',
 };
 
 class _ReadingHistoryList extends StatefulWidget {

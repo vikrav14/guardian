@@ -17,14 +17,14 @@
 | Confirmed scheduled measurement | `hrtstart,300..65535`; `3600` is Guardian's intended hourly interval |
 | Confirmed stop | `hrtstart,0` |
 | One-time request | `hrtstart,1` is acknowledged but did not start measurement on the pilot V52 |
-| Observed, payload not yet decoded | `btemp2` during the 15 September wrist-temperature test; opt-in private capture available |
+| Private pilot temperature | `btemp2,1,<two-decimal Celsius value>` matched a wearer-initiated wrist result on 15 September; first field meaning and other variants remain unverified |
 | Blocked pending exact packet | `bodytemp`, `bodytemp2`, `BTTIMESET` |
 
 For the observed `btemp2` variant, follow the [private payload capture runbook](../testing/temperature-payload-pilot-2026-09-15.md).
 
 This implementation establishes a complete disabled backend, Firestore and Flutter path. It does not activate a device command, expose a menu item, or promise the service to customers.
 
-The V52 datasheet lists heart rate, blood pressure, blood oxygen and skin temperature. The mixed V46/V48/V52 protocol specifies `bphrt` and `oxygen` uploads. Its separate example labels `hrtstart,1` as V46-only. On 23 August 2026 the pilot V52 acknowledged that command but did not start measuring until the wearer pressed the health control. The same watch accepted `hrtstart,300` and produced recurring, consent-gated `bphrt` and `oxygen` uploads without wearer interaction. Guardian therefore uses the scheduled form for the Care pilot, defaults to `3600` seconds, reserves `300` seconds for acceptance testing, and provides `hrtstart,0` as an explicit stop. The documents do not establish the V52 temperature upload value shape, so no temperature value is parsed or displayed.
+The V52 datasheet lists heart rate, blood pressure, blood oxygen and skin temperature. The mixed V46/V48/V52 protocol specifies `bphrt` and `oxygen` uploads. Its separate example labels `hrtstart,1` as V46-only. On 23 August 2026 the pilot V52 acknowledged that command but did not start measuring until the wearer pressed the health control. The same watch accepted `hrtstart,300` and produced recurring, consent-gated `bphrt` and `oxygen` uploads without wearer interaction. Guardian therefore uses the scheduled form for the Care pilot, defaults to `3600` seconds, reserves `300` seconds for acceptance testing, and provides `hrtstart,0` as an explicit stop. The documents do not establish the V52 temperature upload value shape. The 15 September capture and watch comparison now support one narrow private-preview variant; they do not establish its clinical accuracy or a temperature downlink.
 
 ## Safety controls
 
@@ -60,7 +60,8 @@ The V52 datasheet lists heart rate, blood pressure, blood oxygen and skin temper
 - [x] match wearer-initiated watch values to returned `bphrt` and `oxygen` fields on one pilot V52
 - [x] capture two autonomous measurement cycles under `hrtstart,300`
 - [ ] complete a 24-hour `hrtstart,3600` reliability and battery trial
-- [ ] obtain and capture the exact V52 temperature upload before adding it
+- [x] capture and compare one wearer-initiated `btemp2,1,<value>` wrist-temperature upload for private preview
+- [ ] validate additional temperature variants, failures, ACK semantics and sensor reliability before customer acceptance
 - [ ] complete medical-language and privacy review
 - [ ] test missing stale implausible and failed measurements
 
@@ -93,7 +94,24 @@ npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --schedule-seconds 300
 npm run wellbeing:request -- --imei YOUR_15_DIGIT_IMEI --stop
 ```
 
-The app remains customer-hidden. When enabled after acceptance, all active editions share the **Wellness** dashboard with individual reading freshness, explicit stale/missing states and non-medical wording. Essential includes today; Family includes today and six preceding Mauritius calendar days; Care can browse available retained history. Skin temperature remains unavailable until its exact-device packet is validated.
+The app remains customer-hidden. When enabled after acceptance, all active editions share the **Wellness** dashboard with individual reading freshness, explicit stale/missing states and non-medical wording. Essential includes today; Family includes today and six preceding Mauritius calendar days; Care can browse available retained history. Skin temperature remains unavailable outside the separately authorized private preview.
+
+## Private temperature preview
+
+With wellbeing ingestion enabled, only `WIFI_HOME_PILOT_IMEI` may store the
+observed `btemp2` variant. Prefix `1` is preserved as `sourceVariant`, not used as
+wearing, success or measurement-mode evidence. Exactly two arguments are required;
+the second must have two decimal places and pass broad transport bounds above
+zero and at most 60 Celsius. These are rejection bounds, not clinical thresholds.
+Other commands, prefixes, encodings and error/sentinel shapes remain unsupported.
+
+Every stored temperature record is `privatePreviewOnly: true`, `displayable: false`
+and `deviceMode: unverified`, even if general wellbeing acceptance is enabled.
+Current consent, existing retention and the expiring viewer grant still apply.
+The dashboard and dated history show the watch estimate with its receipt time;
+receipt is not proof of measurement time. No temperature requests, automatic
+schedules, customer reports or alerts are enabled. See the
+[capture/import runbook](../testing/temperature-payload-pilot-2026-09-15.md).
 
 For the current read-only pilot check and remaining physical tests, see
 [the resumed acceptance handoff](../testing/wellness-resume-2026-09-14.md).

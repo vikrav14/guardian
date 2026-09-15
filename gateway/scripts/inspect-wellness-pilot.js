@@ -91,7 +91,8 @@ function buildReport(evidence, config, now = new Date(), { includeReadingValues 
         const gaps = samples.slice(1).map((reading, index) =>
           Math.round((asDate(reading.observedAt) - asDate(samples[index].observedAt)) / 1000));
         const valueKeys = metricSet === METRIC_SET.SPO2
-          ? ['spo2Percent'] : ['heartRateBpm', 'systolicMmHg', 'diastolicMmHg'];
+          ? ['spo2Percent'] : metricSet === METRIC_SET.SKIN_TEMPERATURE
+            ? ['skinTemperatureCelsius'] : ['heartRateBpm', 'systolicMmHg', 'diastolicMmHg'];
         return { metricSet, uploads: samples.length,
           displayableUploads: samples.filter(reading => reading.displayable === true).length,
           wearQualifiedUploads: samples.filter(reading => reading.wearQualified === true).length,
@@ -108,7 +109,7 @@ function buildReport(evidence, config, now = new Date(), { includeReadingValues 
         };
       }),
       scheduleState: 'not_proven_by_uploads',
-      skinTemperature: 'not_available_pending_exact_device_validation',
+      skinTemperature: 'private_pilot_observed_variant_only',
       acceptance: 'manual_reliability_battery_and_consent_tests_still_required',
     },
   };

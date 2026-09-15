@@ -30,10 +30,11 @@ test('Flutter customer panel also defaults off independently', () => {
   assert.match(dashboard, /defaultValue: false/);
 });
 
-test('unconfirmed V52 temperature values are not parsed or exposed', () => {
-  const store = read('src/care-wellbeing.js');
+test('uncaptured temperature commands remain blocked alongside the observed private pilot variant', () => {
   const contract = read('src/service-backbones/care-wellbeing.js');
-  assert.doesNotMatch(store, /temperatureCelsius|skinTemperature/);
+  const { normalizeWellbeingEvent } = require('../src/care-wellbeing');
+  assert.equal(normalizeWellbeingEvent({ type: 'health_reading', imei: '861000000000001',
+    metric: 'temperature', value: 34.56 }).reason, 'unsupported_metric');
   assert.match(contract, /blockedUntilCaptured/);
   assert.match(contract, /bodytemp2/);
 });

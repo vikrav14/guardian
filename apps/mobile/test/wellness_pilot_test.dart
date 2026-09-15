@@ -108,7 +108,7 @@ void main() {
       );
       expect(find.text('73 bpm'), findsNothing);
       expect(find.text('97 %'), findsOneWidget);
-      expect(find.text('Not available yet'), findsOneWidget);
+      expect(find.text('No reading today'), findsNWidgets(3));
       expect(tester.takeException(), isNull);
     },
   );

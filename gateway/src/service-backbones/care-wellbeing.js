@@ -9,6 +9,7 @@ const SERVICE_CONTRACT = Object.freeze({
   customerVisible: false,
   protocolCommands: Object.freeze(['bphrt', 'oxygen', 'hrtstart']),
   acceptedUploads: Object.freeze(['bphrt', 'oxygen']),
+  pilotOnlyUploads: Object.freeze(['btemp2']),
   pilotOnlyRequests: Object.freeze(['hrtstart,1']),
   blockedUntilCaptured: Object.freeze(['bodytemp', 'bodytemp2', 'BTTIMESET']),
   safetyControls: Object.freeze(['non-medical wording', 'no diagnosis or emergency clearance', 'durable wearer consent', 'measurement quality and freshness labels', 'no automatic normal or abnormal classification']),

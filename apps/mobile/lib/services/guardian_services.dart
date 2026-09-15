@@ -871,6 +871,12 @@ class WellbeingService {
                 value: '${r.systolicMmHg}/${r.diastolicMmHg} mmHg',
                 recordedAt: r.observedAt,
               ),
+            if (pilotPreview && r.skinTemperatureCelsius != null)
+              WellnessSample(
+                metric: WellnessMetric.skinTemperature,
+                value: '${r.skinTemperatureCelsius!.toStringAsFixed(2)} °C',
+                recordedAt: r.observedAt,
+              ),
           ],
         ],
       );

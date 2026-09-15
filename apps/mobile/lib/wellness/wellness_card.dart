@@ -56,6 +56,7 @@ class WellnessCard extends StatelessWidget {
     final heart = latest(WellnessMetric.heartRate);
     final oxygen = latest(WellnessMetric.bloodOxygen);
     final pressure = latest(WellnessMetric.bloodPressure);
+    final temperature = pilotPreview ? latest(WellnessMetric.skinTemperature) : null;
     String status(bool available, bool error, DateTime? at) => !available
         ? 'Not available yet'
         : error
@@ -159,12 +160,16 @@ class WellnessCard extends StatelessWidget {
                   ),
                   SizedBox(
                     width: width,
-                    child: const WellnessTile(
+                    child: WellnessTile(
                       label: 'Skin temperature',
                       icon: Icons.thermostat_outlined,
-                      tint: Color(0xFF7860AA),
-                      value: '— °C',
-                      status: 'Not available yet',
+                      tint: const Color(0xFF7860AA),
+                      value: pilotPreview && readingsAvailable && !readingsError
+                          ? temperature?.value ?? '— °C'
+                          : '— °C',
+                      status: pilotPreview && readingsAvailable && !readingsError && temperature != null
+                          ? 'Received ${wellnessAge(temperature.recordedAt, now)}'
+                          : status(pilotPreview && readingsAvailable, readingsError, null),
                     ),
                   ),
                 ],

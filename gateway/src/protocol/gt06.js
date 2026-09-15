@@ -388,6 +388,13 @@ function handlePacket(decoded, session) {
       systolic: Number.isNaN(sys) ? null : sys,
       diastolic: Number.isNaN(dia) ? null : dia,
     });
+  } else if (command === 'btemp2') {
+    // Observed V52 wrist-temperature upload. Preserve the previous bare ACK;
+    // the supplier's ACK contract and the leading field's meaning are unknown.
+    // Only the configured private pilot may ingest the exact observed shape.
+    acks.push(buildAckFrame(protocolId, 'btemp2'));
+    events.push({ type: 'health_reading', ...eventMeta,
+      metric: 'skin_temperature', sourceCommand: 'btemp2', args: [...args] });
   } else if (command.startsWith('AL')) {
     // V52 Annex I fixes tracker state at positioning field 15. LTE, cell,
     // WiFi, delay, and voltage fields follow it, so the final argument is

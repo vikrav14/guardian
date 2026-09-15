@@ -34,7 +34,7 @@ test('capture is opt-in, pilot-only and limited to the observed command', async 
   assert.equal(startTemperatureCapture().active, false);
 });
 
-test('preserves unparsed strings and receipt time without adding health events or changing ACKs', async () => {
+test('preserves unparsed strings and receipt time without altering decoded events or ACKs', async () => {
   const payload = packet().payload;
   const frame = Buffer.from(`[3G*${IMEI}*${payload.length.toString(16).padStart(4, '0')}*${payload}]`);
   const decoded = decodeFrame(frame), session = {};
@@ -45,7 +45,7 @@ test('preserves unparsed strings and receipt time without adding health events o
   decoded.args[1] = 'changed-after-receipt';
   await capture.flush();
   assert.deepEqual(structuredClone(result), original);
-  assert.equal(result.events[0].type, 'unknown_command');
+  assert.equal(result.events[0].metric, 'skin_temperature');
   assert.equal(result.acks[0].toString(), '[SG*0000000000*0006*btemp2]');
   assert.deepEqual(records, [{ version: 1, command: 'btemp2', receivedAt: new Date(NOW).toISOString(),
     timeBasis: 'gateway_receipt', fieldMeaning: 'unverified', args: ['1', '003412', ''] }]);

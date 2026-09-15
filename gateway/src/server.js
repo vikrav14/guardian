@@ -132,6 +132,7 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
   deviceMode: config.careWellbeingDeviceMode,
   customerEnabled: config.careWellbeingCustomerEnabled,
   retentionDays: config.careWellbeingRetentionDays,
+  temperaturePilotImei: config.wifiHomePilotImei,
 }) : null;
 const temperatureCapture = config.temperatureCaptureEnabled === true
   ? require('./temperature-capture').startTemperatureCapture({ config, db: getDb(), enabled: true })
