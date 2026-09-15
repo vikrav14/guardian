@@ -62,6 +62,51 @@ test('VERNO replies are distinct from command handoff, missing version and inval
   assert.equal(evidence.current(session).configurationEvidence.state, 'no_config_received');
 });
 
+test('requested reply details expose rejected format without accepting firmware or retaining other packets', () => {
+  const evidence = createHardwareEvidence(), session = {};
+  evidence.requestVersion(session, AT);
+  evidence.observe(packet('VERNO,Version: V52 example,extra'), session, new Date(+AT + 100));
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails, undefined);
+  evidence.requestVersion(session, AT, { includeReply: true });
+  evidence.observe(packet('CONFIG,VR:example,BT:invalid'), session, AT);
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails, null);
+  evidence.observe(packet('VERNO,Version: V52 example,extra'), session, new Date(+AT + 392));
+  const firmware = evidence.current(session, new Date(+AT + 1000)).firmwareEvidence;
+  assert.equal(firmware.replyState, 'unsupported_reply');
+  assert.equal(firmware.version, 'example'); // Earlier CONFIG remains independently attributed.
+  assert.equal(firmware.source, 'CONFIG');
+  assert.deepEqual(firmware.replyDetails.arguments, ['Version: V52 example', 'extra']);
+  assert.equal(firmware.replyDetails.parserReason, 'expected_one_argument');
+  firmware.replyDetails.arguments[0] = 'changed';
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails.arguments[0], 'Version: V52 example');
+  evidence.observe(packet('VERNO,second'), session, new Date(+AT + 500));
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails.arguments[0], 'Version: V52 example');
+  assert.equal(evidence.current({}, AT).firmwareEvidence.replyDetails, undefined);
+  assert.equal(evidence.current(session, new Date(+AT + 120_000)).firmwareEvidence.replyDetails, undefined);
+  evidence.observe(packet('VERNO,late reply'), session, new Date(+AT + 120_001));
+  assert.equal(evidence.current(session, new Date(+AT + 120_002)).firmwareEvidence.replyDetails, undefined);
+});
+
+test('opt-in VERNO detail capture bounds and redacts values and resets on every request', () => {
+  const evidence = createHardwareEvidence(), session = {};
+  evidence.requestVersion(session, AT, { includeReply: true });
+  evidence.observe(packet('VERNO,early reply'), session, new Date(+AT - 1));
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails, null);
+  const args = ['PW:private-secret', '123456789012345', 'https://private.invalid',
+    '192.168.1.1:9000', 'person@example.invalid', 'Version: with spaces\t', 'X'.repeat(300), 'last', 'excluded'];
+  evidence.observe(packet(`VERNO,${args.join(',')}`), session, new Date(+AT + 10));
+  const details = evidence.current(session, AT).firmwareEvidence.replyDetails;
+  assert.equal(details.argumentCount, 9);
+  assert.equal(details.arguments.length, 8);
+  assert.equal(details.truncated, true);
+  assert.ok(details.arguments.every(value => value.length <= 256));
+  for (const secret of ['private-secret', '123456789012345', 'private.invalid', '192.168.1.1', 'person@example', '\t', 'excluded']) {
+    assert.equal(details.arguments.join(',').includes(secret), false);
+  }
+  evidence.requestVersion(session, new Date(+AT + 20));
+  assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails, undefined);
+});
+
 test('running pilot uses one session and VERNO only; firmware cannot unlock temperature requests', async () => {
   const sent = [], pilot = { imei: '861000000000001' };
   let matches = [{ socket: { destroyed: false }, session: pilot }];
@@ -81,6 +126,13 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
       return require(name);
     },
   });
+  const { parseRoutineOperation } = module.exports;
+  for (const payload of [null, [], { action: 'CONFIG' }, { action: 'firmware_version', command: 'CONFIG' },
+    { action: 'firmware_version', includeReply: 'true' }, { action: 'temperature_once', includeReply: true }]) {
+    assert.throws(() => parseRoutineOperation(payload));
+  }
+  assert.equal(parseRoutineOperation({ action: 'firmware_version', includeReply: true }).includeReply, true);
+  assert.equal(parseRoutineOperation({ action: 'temperature_once' }).includeReply, false);
   const runtime = module.exports.startWellnessRoutineRuntime({ db: ref,
     config: { wifiHomePilotImei: pilot.imei, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     wearEvidence: { current: () => null } });
@@ -91,11 +143,12 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
   matches = [{ socket: {}, session: pilot }, { socket: {}, session: {} }];
   assert.throws(() => runtime.requestVersion(), /connected/); assert.equal(sent.length, 0);
   matches = [{ socket: {}, session: pilot }];
-  assert.equal(runtime.requestVersion().outcome, 'version_request_handed_off');
+  assert.equal(runtime.requestVersion({ includeReply: true }).outcome, 'version_request_handed_off');
   assert.deepEqual(sent, [[pilot.imei, 'VERNO']]);
   assert.throws(() => runtime.requestVersion(), /two minutes/);
   runtime.observe(packet(`VERNO,${VERSION}`), pilot);
   assert.equal((await runtime.status()).firmwareEvidence.version, VERSION);
+  assert.deepEqual((await runtime.status()).firmwareEvidence.replyDetails.arguments, [VERSION]);
   assert.equal((await runtime.status()).temperatureBt, null);
   await assert.rejects(runtime.requestTemperature(), /CONFIG BT:2/);
   assert.equal(sent.length, 1);
@@ -124,6 +177,32 @@ test('CLI version check sends exactly one query then reads for a matching reply'
   assert.equal(JSON.parse(printed.at(-1)).versionConfirmed, true);
 });
 
+test('CLI opt-in captures a rejected reply with one version query and never promotes it', async () => {
+  let now = +AT;
+  const methods = [], printed = [];
+  const code = await inspectRoutine({ args: ['--request-version', '--include-version-reply'],
+    config: { adminApiKey: 'test', httpPort: 9001 }, now: () => now,
+    sleep: async ms => { now += ms; }, print: value => printed.push(value),
+    fetchImpl: async (_, options) => {
+      methods.push(options.method);
+      if (options.method === 'POST') {
+        assert.deepEqual(JSON.parse(options.body), { action: 'firmware_version', includeReply: true });
+        return { ok: true, json: async () => ({ outcome: 'version_request_handed_off', requestedAt: AT.toISOString() }) };
+      }
+      return { ok: true, json: async () => ({ firmwareEvidence: {
+        requestedAt: AT.toISOString(), replyAt: new Date(now).toISOString(), replyState: 'unsupported_reply',
+        version: null, replyDetails: { argumentCount: 1, arguments: ['Version: example'],
+          parserReason: 'version_label_format_rejected', truncated: false },
+      } }) };
+    } });
+  assert.equal(code, 0);
+  assert.deepEqual(methods, ['POST', 'GET']);
+  const result = JSON.parse(printed.at(-1));
+  assert.equal(result.versionConfirmed, false);
+  assert.equal(result.outcome, 'version_reply_received');
+  assert.equal(result.firmwareEvidence.replyDetails.arguments[0], 'Version: example');
+});
+
 test('CLI times out without retries, does not reuse an older reply, and rejects arbitrary actions', async () => {
   let now = +AT, posts = 0;
   const printed = [];
@@ -138,7 +217,9 @@ test('CLI times out without retries, does not reuse an older reply, and rejects 
   });
   assert.equal(code, 1); assert.equal(posts, 1); assert.equal(now - +AT, 20_000);
   assert.equal(JSON.parse(printed.at(-1)).outcome, 'version_reply_not_observed');
-  for (const args of [['--request-version', '--request-temperature'], ['--command=CONFIG'], ['--enable']]) {
+  for (const args of [['--request-version', '--request-temperature'], ['--command=CONFIG'], ['--enable'],
+    ['--include-version-reply'], ['--request-temperature', '--include-version-reply'],
+    ['--request-version', '--include-version-reply', '--include-version-reply']]) {
     assert.throws(() => parseArguments(args));
   }
   assert.equal(parseArguments([]), null);

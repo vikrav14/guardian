@@ -142,3 +142,32 @@ The independent no_routine_selected reason means no valid saved preference reach
 the gateway; manual is only its fallback. Save Gentle/Balanced from the private app
 controls to test preference delivery. Missing temperature/wearing proof still
 blocks automatic starts after a preference is saved.
+
+## Rejected VERNO reply format — 15 September follow-up
+
+The physical watch replied at 17:11:21.330Z, 392 ms after the query. The
+diagnostic reported `unsupported_reply`, `versionConfirmed: false`, and no CONFIG
+packets in this session. Here, unsupported means the helper rejected the reply's
+format: it expects exactly one bounded version label without spaces or colons.
+It does not establish lack of firmware-query or temperature support. The original
+diagnostic did not retain rejected arguments, so the actual format is unknown.
+
+After pulling and restarting the gateway, use one opt-in diagnostic query:
+
+```powershell
+npm run wellness:routine -- --request-version --include-version-reply
+```
+
+This adds `firmwareEvidence.replyDetails`: argument count, up to eight bounded
+arguments, truncation status, and the parser rejection reason. Common identifiers,
+addresses, sensitive named fields and control characters are redacted before
+capture. Only the first VERNO reply within the requested two-minute window is
+captured, in the current session's memory; details expire from diagnostic access
+after that window and are cleared by the next request or a new session. Nothing
+is written to Firestore or general gateway logs. Ordinary queries do not capture
+arguments. Strict-admin access and the existing single-session/cooldown guards
+apply; the CLI sends one VERNO command, then only reads status.
+
+Reply capture does not broaden firmware parsing, accept BT=2, establish wearing,
+send a measurement, or start a routine. Inspect the real reply before changing
+its interpretation. No additional physical watch restart is needed.

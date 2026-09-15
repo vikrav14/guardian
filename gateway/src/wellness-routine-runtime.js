@@ -11,6 +11,16 @@ const { createHardwareEvidence } = require('./wellness-hardware-evidence');
 let runtime;
 const date = value => value?.toDate?.() || (value == null ? null : new Date(value));
 
+function parseRoutineOperation(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      !['temperature_once', 'firmware_version'].includes(payload.action) ||
+      Object.keys(payload).some(key => !['action', 'includeReply'].includes(key)) ||
+      ('includeReply' in payload && (payload.action !== 'firmware_version' || payload.includeReply !== true))) {
+    throw new Error('Use temperature_once or firmware_version; only firmware_version accepts includeReply: true.');
+  }
+  return { action: payload.action, includeReply: payload.includeReply === true };
+}
+
 function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   const imei = config.wifiHomePilotImei;
   if (!db || !/^\d{15}$/.test(imei || '')) return null;
@@ -93,7 +103,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   }
   let singleRequestAt = 0;
   let versionRequestAt = 0;
-  function requestVersion() {
+  function requestVersion({ includeReply = false } = {}) {
     // Supplier protocol II.45: read firmware version only. No measurement or
     // settings change; a version reply never establishes BT or wearing support.
     const session = currentSession();
@@ -101,7 +111,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
     const at = new Date();
     if (+at - versionRequestAt < 120_000) throw new Error('Wait two minutes before another version request.');
     versionRequestAt = +at;
-    hardware.requestVersion(session, at);
+    hardware.requestVersion(session, at, { includeReply });
     const result = sendDownlinkCommand(imei, 'VERNO');
     return { outcome: result.ok ? 'version_request_handed_off' : 'watch_not_connected',
       requestedAt: at.toISOString(), versionConfirmed: false };
@@ -143,4 +153,4 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   return runtime;
 }
 
-module.exports = { startWellnessRoutineRuntime, getWellnessRoutineRuntime: () => runtime };
+module.exports = { startWellnessRoutineRuntime, getWellnessRoutineRuntime: () => runtime, parseRoutineOperation };

@@ -1,6 +1,22 @@
 'use strict';
 
 const { parseTemperatureMode } = require('./wellness-routine');
+const REPLY_WINDOW_MS = 120_000;
+
+function replyDetails(args) {
+  // Inspect only the requested VERNO reply, never CONFIG, health or location
+  // payloads. Bound and redact before keeping anything in session memory.
+  const values = args.slice(0, 8).map(value => String(value).slice(0, 1024)
+    .replace(/\b(?:imei|imsi|iccid|phone|pw|password|apn|ip|server|token|key)\s*[:=].*/gi, '[redacted field]')
+    .replace(/\b(?:https?|tcp):\/\/[^\s,]+/gi, '[redacted address]')
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[redacted email]')
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '[redacted address]')
+    .replace(/\+?\d{10,}/g, '[redacted identifier]')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '[control]')
+    .slice(0, 256));
+  return { argumentCount: args.length, arguments: values,
+    truncated: args.length > 8 || args.some(value => String(value).length > 256) };
+}
 
 function fieldStatus(args, key) {
   const fields = args.filter(value => typeof value === 'string')
@@ -27,6 +43,7 @@ function emptyEvidence() {
 
 function createHardwareEvidence() {
   const sessions = new WeakMap();
+  const captures = new WeakMap();
   function state(session) {
     if (!sessions.has(session)) sessions.set(session, emptyEvidence());
     return sessions.get(session);
@@ -50,18 +67,31 @@ function createHardwareEvidence() {
       version = decoded.args.length === 1 ? firmwareLabel(decoded.args[0]) : null;
       Object.assign(current.firmwareEvidence, { replyAt: receivedAt,
         replyState: version ? 'version_received' : decoded.args.length ? 'unsupported_reply' : 'empty_reply' });
+      const capture = captures.get(session);
+      if (capture && +at >= capture.startedAt && +at < capture.expiresAt && !capture.details) {
+        capture.details = { receivedAt, ...replyDetails(decoded.args),
+          parserReason: version ? 'accepted_version_label' : decoded.args.length === 0 ? 'no_arguments'
+            : decoded.args.length !== 1 ? 'expected_one_argument' : 'version_label_format_rejected' };
+      } else if (capture && +at >= capture.expiresAt) captures.delete(session);
     }
     if (version) Object.assign(current.firmwareEvidence,
       { version, source: decoded.command, receivedAt });
   }
-  function requestVersion(session, at = new Date()) {
+  function requestVersion(session, at = new Date(), { includeReply = false } = {}) {
+    captures.delete(session);
+    if (includeReply === true) captures.set(session,
+      { startedAt: +at, expiresAt: +at + REPLY_WINDOW_MS, details: null });
     Object.assign(state(session).firmwareEvidence,
       { requestedAt: at.toISOString(), replyAt: null, replyState: 'awaiting_reply' });
   }
-  function current(session) {
+  function current(session, at = new Date()) {
     const value = session && sessions.get(session) || emptyEvidence();
+    let capture = session && captures.get(session);
+    if (capture && +at >= capture.expiresAt) { captures.delete(session); capture = null; }
     return { configurationEvidence: { ...value.configurationEvidence },
-      firmwareEvidence: { ...value.firmwareEvidence } };
+      firmwareEvidence: { ...value.firmwareEvidence,
+        ...(capture ? { replyCaptureExpiresAt: new Date(capture.expiresAt).toISOString(),
+          replyDetails: capture.details ? { ...capture.details, arguments: [...capture.details.arguments] } : null } : {}) } };
   }
   return { observe, requestVersion, current };
 }

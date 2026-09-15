@@ -1285,17 +1285,19 @@ function startHttpServer() {
 
       if (url.pathname === '/admin/wellness-routine' && ['GET', 'POST'].includes(req.method)) {
         if (!(await requireStrictAdmin(req, res))) return;
-        const routine = require('./wellness-routine-runtime').getWellnessRoutineRuntime();
+        const { getWellnessRoutineRuntime, parseRoutineOperation } = require('./wellness-routine-runtime');
+        const routine = getWellnessRoutineRuntime();
         if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
         try {
           if (req.method === 'GET') sendJson(res, 200, await routine.status());
           else {
-            const payload = JSON.parse(await readBody(req));
-            if (!payload || !['temperature_once', 'firmware_version'].includes(payload.action) || Object.keys(payload).length !== 1) {
-              sendJson(res, 400, { error: 'Only temperature_once or firmware_version is supported here.' }); return;
+            let payload;
+            try { payload = parseRoutineOperation(JSON.parse(await readBody(req))); }
+            catch {
+              sendJson(res, 400, { error: 'Use temperature_once or firmware_version; only firmware_version accepts includeReply: true.' }); return;
             }
             sendJson(res, 200, payload.action === 'firmware_version'
-              ? routine.requestVersion() : await routine.requestTemperature());
+              ? routine.requestVersion({ includeReply: payload.includeReply }) : await routine.requestTemperature());
           }
         } catch (error) { sendJson(res, 409, { error: error.code ? 'Pilot operation failed.' : error.message }); }
         return;

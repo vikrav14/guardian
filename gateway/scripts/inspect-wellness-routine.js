@@ -4,7 +4,8 @@ function parseArguments(args) {
   if (!args.length) return null;
   if (args.length === 1 && args[0] === '--request-temperature') return 'temperature_once';
   if (args.length === 1 && args[0] === '--request-version') return 'firmware_version';
-  throw new Error('Use no arguments, --request-temperature or --request-version.');
+  if (args.length === 2 && args.includes('--request-version') && args.includes('--include-version-reply')) return 'firmware_version';
+  throw new Error('Use no arguments, --request-temperature, or --request-version with optional --include-version-reply.');
 }
 
 async function inspectRoutine({ args, config, fetchImpl = fetch, now = Date.now,
@@ -17,7 +18,8 @@ async function inspectRoutine({ args, config, fetchImpl = fetch, now = Date.now,
   };
   const response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(5000),
     method: action ? 'POST' : 'GET',
-    ...(action ? { body: JSON.stringify({ action }) } : {}),
+    ...(action ? { body: JSON.stringify({ action,
+      ...(args.includes('--include-version-reply') ? { includeReply: true } : {}) }) } : {}),
   });
   const result = await response.json();
   if (!response.ok || action !== 'firmware_version' || result.outcome !== 'version_request_handed_off') {
