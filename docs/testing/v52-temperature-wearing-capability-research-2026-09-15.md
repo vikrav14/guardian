@@ -213,6 +213,40 @@ sentinels. A manual control after the capture window can distinguish a failed
 remote command from a sensor/upload failure. Do not enable unattended cycles
 from one successful comparison or automatically try another command casing.
 
+### First supervised remote temperature result, 2026-09-15 19:42 UTC
+
+The operator ran `temperature:trial -- --once --worn --include-values` using the
+new single-request tool. The capture reported:
+
+| Event | UTC receipt/request time | Evidence |
+| --- | --- | --- |
+| One `bodytemp2` request handed off | 19:41:57.700 | The current session had no reported BT mode. |
+| Bare `bodytemp2` reply | 19:41:59.750 | Acknowledgement arrived 2.050 seconds after the request. |
+| `btemp2,1,36.68` upload | 19:42:20.834 | Numeric upload arrived 23.134 seconds after the request, in the same session. |
+
+The final inspection still showed connected, with one reply, one upload, zero
+rejected packets, zero duplicates and zero dropped entries. Mauritius local
+times are 23:41:57.700, 23:41:59.750 and 23:42:20.834 respectively.
+
+This is direct evidence of a remote command acknowledgement followed by a
+temperature upload without a CONFIG prerequisite. A newly performed measurement
+and causal attribution still need the operator's physical observation: whether
+the watch was worn, its temperature button remained untouched, and whether it
+started measuring/vibrated or displayed a result. The operator-worn CLI flag is
+manual test context, not sensor-confirmed contact.
+
+The value equals an earlier manual reading (36.68). That does not prove either
+caching or a fresh measurement. This packet has no measurement timestamp, so
+the receipt time alone cannot distinguish those possibilities. The experiment's
+`measurementConfirmed`, `requestCausedUpload`, `wearingConfirmed` and
+`scheduleVerified` fields are deliberately false until separately evaluated;
+they are not failure flags supplied by the watch.
+
+Next: obtain the operator observation, then repeat one worn request after the
+two-minute capture/cooldown window to assess repeatability. Do not introduce a
+native schedule or derive contact status from the numeric value. An off-wrist
+comparison and complete removal/restoration trace remain separate tests.
+
 ### 2. Test the documented removal-alarm switch
 
 The operator has now requested this supervised test. `npm run wear:trial`
