@@ -5,7 +5,7 @@ const { createSupervisedTemperatureTrial, parseTemperatureTrialOperation } = req
 
 const AT = Date.parse('2026-09-15T19:30:00Z');
 const action = { action: 'single', operatorPosition: 'worn' };
-function fixture() {
+function fixture({ quarantineStore } = {}) {
   const env = { now: AT, sent: [], config: { wellnessRoutinePilotEnabled: true,
     careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     context: { consent: { version: 1, status: 'granted', managedBy: 'guardian_admin',
@@ -13,16 +13,18 @@ function fixture() {
       request: undefined, state: {} },
     session: { lastPacketAt: AT }, result: { ok: true },
   };
-  env.trial = createSupervisedTemperatureTrial({ config: env.config, clock: () => env.now,
+  env.trial = createSupervisedTemperatureTrial({ config: env.config, clock: () => env.now, quarantineStore,
     readContext: async () => { await env.beforeRead?.(); return env.context; },
     currentSession: () => env.session,
-    send: command => { env.sent.push(command); if (env.failSend) throw Error('transport lost'); return env.result; },
+    send: command => { env.onSend?.(); env.sent.push(command); if (env.failSend) throw Error('transport lost'); return env.result; },
   });
   return env;
 }
 
-test('only explicit operator-worn single action and two fixed command cases are accepted', () => {
+test('only an explicit operator position, single action and two fixed command cases are accepted', () => {
   assert.deepEqual(parseTemperatureTrialOperation(action), action);
+  assert.deepEqual(parseTemperatureTrialOperation({ ...action, operatorPosition: 'removed' }),
+    { action: 'single', operatorPosition: 'removed' });
   for (const commandCase of ['lowercase', 'uppercase']) {
     const request = { ...action, commandCase };
     assert.deepEqual(parseTemperatureTrialOperation(request), request);
@@ -138,4 +140,42 @@ test('numeric values require opt-in and current consent even for an earlier auth
   const expired = await env.trial.status({ includeValues: true });
   assert.equal(expired.valuesIncluded, false);
   assert.equal(expired.trial.valuesIncluded, false);
+});
+
+test('removed trial stays excluded beyond capture expiry and reconnection until a successful worn request', async () => {
+  const env = fixture();
+  env.onSend = () => assert.equal(env.trial.suppressTemperatureIngestion(), true);
+  const result = await env.trial.request({ ...action, operatorPosition: 'removed' });
+  delete env.onSend;
+  assert.equal(result.temperatureIngestionSuppressed, true);
+  assert.equal(result.dataUse, 'engineering_trial_only');
+  assert.equal((await env.trial.status()).trial.operatorPosition, 'removed');
+  env.now += 13 * 60_000;
+  env.session = { lastPacketAt: env.now };
+  assert.equal((await env.trial.status()).temperatureIngestionSuppressed, true);
+  env.result = { ok: false };
+  assert.equal((await env.trial.request(action)).temperatureIngestionSuppressed, true);
+  env.now += 120_001; env.session.lastPacketAt = env.now; env.failSend = true;
+  assert.equal((await env.trial.request(action)).temperatureIngestionSuppressed, true);
+  env.now += 120_001; env.session.lastPacketAt = env.now; env.failSend = false; env.result = { ok: true };
+  assert.equal((await env.trial.request(action)).temperatureIngestionSuppressed, false);
+});
+
+test('removed request cannot send if persistent exclusion fails', async () => {
+  const env = fixture({ quarantineStore: { isSuppressed: () => false,
+    suppress: () => { throw Error('disk unavailable'); }, resume() {} } });
+  await assert.rejects(env.trial.request({ ...action, operatorPosition: 'removed' }), /disk unavailable/);
+  assert.deepEqual(env.sent, []);
+});
+
+test('cleanup failure preserves successful handoff while maintaining exclusion', async () => {
+  let restored = 0;
+  const env = fixture({ quarantineStore: { isSuppressed: () => false,
+    suppress: () => { restored++; }, resume: () => { throw Error('cleanup denied'); } } });
+  const result = await env.trial.request(action);
+  assert.equal(result.outcome, 'command_handed_off');
+  assert.equal(result.cleanupError, 'temperature_trial_quarantine_release_failed');
+  assert.equal(result.temperatureIngestionSuppressed, true);
+  assert.equal(restored, 1);
+  assert.equal(env.sent.length, 1);
 });

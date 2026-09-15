@@ -201,3 +201,20 @@ test('a command that was not sent cannot collect a later unsolicited upload', ()
   assert.equal(f.current().outcome, 'not_sent');
   assert.equal(f.current().packets.length, 0);
 });
+
+test('removed trial records its reported position without claiming worn or promoting readings', () => {
+  const f = fixture();
+  const started = f.start({ operatorPosition: 'removed', command: 'BODYTEMP2' });
+  assert.equal(started.operatorPosition, 'removed');
+  assert.equal(started.operatorPositionIsManual, true);
+  assert.equal(started.dataUse, 'engineering_trial_only');
+  f.evidence.markHandoff('command_handed_off');
+  f.tick(1); f.observe();
+  const result = f.current({ includeValues: true });
+  assert.equal(result.operatorPosition, 'removed');
+  assert.equal(result.dataUse, 'engineering_trial_only');
+  assert.equal(result.wearingConfirmed, false);
+  assert.equal(result.measurementConfirmed, false);
+  assert.equal(result.scheduleVerified, false);
+  assert.equal(result.packets[0].args[1], '36.68');
+});

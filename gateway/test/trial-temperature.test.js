@@ -11,6 +11,24 @@ const replyOnly = { trialId: 'trial-new', phase: 'observing', outcome: 'reply_re
 const uploaded = { trialId: 'trial-new', phase: 'observing', outcome: 'upload_observed_after_request', counts: { replies: 1, uploads: 1 } };
 const response = (body, ok = true, status = ok ? 200 : 409) => ({ ok, status, json: async () => body });
 
+test('read-only status shows persisted intake exclusion without a surviving trial', async () => {
+  const h = harness([response({ connected: true, trial: null, temperatureIngestionSuppressed: true })]);
+  assert.equal(await runTrial({ ...h.options, args: [] }), 0);
+  assert.equal(h.last().temperatureIngestionSuppressed, true);
+  assert.deepEqual(h.calls.map(call => call.method), ['GET']);
+});
+
+test('cleanup failure is visible after successful handoff without an automatic retry', async () => {
+  const h = harness([response({ connected: true }), response({ ...handedOff,
+    temperatureIngestionSuppressed: true, cleanupError: 'temperature_trial_quarantine_release_failed' }),
+  response({ connected: true, trial: uploaded, temperatureIngestionSuppressed: true })]);
+  await runTrial(h.options);
+  const first = h.printed.filter(value => value.startsWith('{')).map(value => JSON.parse(value))[0];
+  assert.equal(first.cleanupError, 'temperature_trial_quarantine_release_failed');
+  assert.equal(h.last().temperatureIngestionSuppressed, true);
+  assert.equal(h.calls.filter(call => call.method === 'POST').length, 1);
+});
+
 function harness(replies) {
   let time = 0;
   const calls = [], printed = [], sleeps = [];
@@ -37,11 +55,16 @@ test('temperature trial accepts read-only defaults and requires paired one-shot/
   assert.deepEqual(parseArguments(['--include-values', '--worn', '--once']), { once: true, includeValues: true });
   assert.deepEqual(parseArguments(['--once', '--worn', '--uppercase']),
     { once: true, includeValues: false, commandCase: 'uppercase' });
+  assert.deepEqual(parseArguments(['--once', '--removed']),
+    { once: true, includeValues: false, operatorPosition: 'removed' });
+  assert.deepEqual(parseArguments(['--include-values', '--removed', '--once', '--uppercase']),
+    { once: true, includeValues: true, operatorPosition: 'removed', commandCase: 'uppercase' });
   for (const args of [['--once'], ['--worn'], ['--once', '--once', '--worn'],
     ['--include-values', '--include-values'], ['--once', '--worn', '--imei=123'],
     ['--command=BODYTEMP2'], ['--once', '--worn', '--removed'], ['--help'],
     ['--uppercase'], ['--uppercase', '--include-values'], ['--uppercase', '--once'],
-    ['--once', '--worn', '--uppercase', '--uppercase']]) {
+    ['--once', '--worn', '--uppercase', '--uppercase'], ['--removed'], ['--removed', '--include-values'],
+    ['--removed', '--uppercase'], ['--worn', '--removed'], ['--once', '--removed', '--removed']]) {
     assert.throws(() => parseArguments(args));
   }
 });
@@ -115,6 +138,21 @@ test('uppercase comparison never falls back to lowercase after uncertain or reje
     assert.equal(await runTrial({ ...h.options, args: ['--once', '--worn', '--uppercase'] }), 1);
     assert.deepEqual(h.calls.map(call => call.method), ['GET', 'POST']);
     assert.equal(JSON.parse(h.calls[1].body).commandCase, 'uppercase');
+  }
+});
+
+test('removed comparison sends one correctly labelled request and gives off-wrist trial-only instructions', async () => {
+  for (const uppercase of [false, true]) {
+    const h = harness([response({ connected: true }), response(handedOff),
+      response({ connected: true, trial: { ...uploaded, operatorPosition: 'removed' } })]);
+    assert.equal(await runTrial({ ...h.options, args: ['--once', '--removed', ...(uppercase ? ['--uppercase'] : [])] }), 0);
+    assert.deepEqual(h.calls.map(call => call.method), ['GET', 'POST', 'GET']);
+    assert.deepEqual(JSON.parse(h.calls[1].body), { action: 'single', operatorPosition: 'removed',
+      ...(uppercase ? { commandCase: 'uppercase' } : {}) });
+    assert.equal(h.printed.some(value => value.includes('keep the watch off the wrist')), true);
+    assert.equal(h.printed.some(value => value.includes('Trial-only diagnostic output')), true);
+    assert.equal(h.printed.some(value => value.includes('test: wear the watch')), false);
+    assert.equal(h.last().wearingConfirmed, false);
   }
 });
 

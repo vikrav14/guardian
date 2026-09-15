@@ -22,7 +22,7 @@ function parseRoutineOperation(payload) {
   return { action: payload.action, includeReply: payload.includeReply === true };
 }
 
-function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
+function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTrialQuarantine }) {
   const imei = config.wifiHomePilotImei;
   if (!db || !/^\d{15}$/.test(imei || '')) return null;
   const owner = randomUUID();
@@ -44,6 +44,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
       wear: wearEvidence.current(imei) };
   }
   const temperatureTrial = createSupervisedTemperatureTrial({ config, currentSession,
+    quarantineStore: temperatureTrialQuarantine,
     send: command => sendDownlinkCommand(imei, command),
     readContext: async () => {
       const [consent, request, state] = await Promise.all([

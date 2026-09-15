@@ -97,7 +97,8 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       valuesExpireAt: new Date(trial.valuesExpireAt).toISOString(),
       sessionMatches: sameSession(session),
       sessionChangedAt: trial.sessionChangedAt === null ? null : new Date(trial.sessionChangedAt).toISOString(),
-      operatorPosition: 'worn', operatorPositionIsManual: true,
+      operatorPosition: trial.operatorPosition, operatorPositionIsManual: true,
+      ...(trial.operatorPosition === 'removed' ? { dataUse: 'engineering_trial_only' } : {}),
       modeBtAtRequest: trial.modeBt, fieldMeaning: 'unverified', timeBasis: 'gateway_receipt',
       settingsConfirmed: false, wearingConfirmed: false, scheduleVerified: false,
       measurementConfirmed: false, requestCausedUpload: false,
@@ -115,17 +116,18 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     operatorPosition, modeBt = null, command = 'bodytemp2' } = {}) {
     const atMs = timestamp(requestedAt), now = clock();
     if (!session || typeof session !== 'object' || atMs === null || atMs > now ||
-        operatorPosition !== 'worn' || ![null, 2].includes(modeBt) ||
+        !['worn', 'removed'].includes(operatorPosition) || ![null, 2].includes(modeBt) ||
         !PROBE_COMMANDS.has(command) ||
         typeof trialId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(trialId)) {
-      throw new TypeError('A session, valid request time, trial identifier and manually confirmed worn position are required.');
+      throw new TypeError('A session, valid request time, trial identifier and explicitly reported worn or removed position are required.');
     }
     expireValues(now);
     if (trial && !['capture_timeout', 'session_changed', 'not_sent'].includes(phase(now))) {
       throw new Error('A temperature trial is already observing this request.');
     }
     trial = { session, sessionImei: session.imei, sessionProtocolId: session.protocolId,
-      requestedAt: atMs, trialId, modeBt, command, captureExpiresAt: atMs + CAPTURE_WINDOW_MS,
+      requestedAt: atMs, trialId, modeBt, command, operatorPosition,
+      captureExpiresAt: atMs + CAPTURE_WINDOW_MS,
       valuesExpireAt: atMs + CAPTURE_WINDOW_MS + VALUE_RETENTION_MS,
       handoff: 'pending', sessionChangedAt: null, valuesExpired: false,
       packets: [], keys: new Set(), counts: { replies: 0, uploads: 0, rejected: 0, duplicates: 0, dropped: 0 } };

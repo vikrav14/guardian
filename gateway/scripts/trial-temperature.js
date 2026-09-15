@@ -4,19 +4,28 @@ const POLL_MS = 2000;
 const CAPTURE_MS = 120_000;
 
 function parseArguments(args) {
-  const allowed = new Set(['--once', '--worn', '--include-values', '--uppercase']);
+  const allowed = new Set(['--once', '--worn', '--removed', '--include-values', '--uppercase']);
   if (!Array.isArray(args) || args.some(arg => !allowed.has(arg)) || new Set(args).size !== args.length ||
-      args.includes('--once') !== args.includes('--worn') ||
+      args.includes('--once') !== (args.includes('--worn') || args.includes('--removed')) ||
+      (args.includes('--worn') && args.includes('--removed')) ||
       (args.includes('--uppercase') && !args.includes('--once'))) {
-    throw new Error('Use no arguments (read only), --include-values, or --once --worn with optional --include-values and --uppercase.');
+    throw new Error('Use no arguments (read only), --include-values, or --once with exactly one of --worn/--removed and optional --include-values and --uppercase.');
   }
   return { once: args.includes('--once'), includeValues: args.includes('--include-values'),
+    ...(args.includes('--removed') ? { operatorPosition: 'removed' } : {}),
     ...(args.includes('--uppercase') ? { commandCase: 'uppercase' } : {}) };
 }
 
 function terminal(trial) {
   return trial?.outcome === 'upload_observed_after_request' ||
     ['capture_timeout', 'session_changed', 'not_sent'].includes(trial?.phase);
+}
+
+function intakeStatus(value) {
+  return { ...(typeof value?.temperatureIngestionSuppressed === 'boolean'
+    ? { temperatureIngestionSuppressed: value.temperatureIngestionSuppressed } : {}),
+    ...(value?.cleanupError === 'temperature_trial_quarantine_release_failed'
+      ? { cleanupError: value.cleanupError } : {}) };
 }
 
 async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
@@ -44,12 +53,16 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   const before = await readStatus();
   if (!before) throw new Error('Gateway trial status unavailable; no measurement command sent.');
   if (!operation.once) {
-    emit({ outcome: 'read_only', connected: before.connected === true, trial: before.trial || null });
+    emit({ outcome: 'read_only', connected: before.connected === true, trial: before.trial || null, ...intakeStatus(before) });
     return 0;
   }
   if (before.connected !== true) throw new Error('One connected pilot watch session is required; nothing sent.');
 
-  print('Supervised temperature test: wear the watch and do not press its temperature button during the two-minute capture. The gateway will send one measurement request.');
+  const operatorPosition = operation.operatorPosition || 'worn';
+  print(operatorPosition === 'removed'
+    ? 'Supervised temperature test: keep the watch off the wrist with its sensor back uncovered. Do not press its temperature button during the two-minute capture. The gateway will send one measurement request.'
+    : 'Supervised temperature test: wear the watch and do not press its temperature button during the two-minute capture. The gateway will send one measurement request.');
+  print('Trial-only diagnostic output: a returned value does not confirm a fresh measurement or wearing status.');
   print(operation.commandCase === 'uppercase'
     ? 'Selected command: BODYTEMP2. This is an explicit uppercase comparison; there is no automatic fallback to another command.'
     : 'Selected command: bodytemp2, the lowercase variant in the supplied protocol.');
@@ -60,7 +73,7 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   try {
     response = await fetchImpl(endpoint, { method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'single', operatorPosition: 'worn',
+      body: JSON.stringify({ action: 'single', operatorPosition,
         ...(operation.commandCase ? { commandCase: operation.commandCase } : {}) }),
       signal: AbortSignal.timeout(5000) });
     result = await response.json();
@@ -77,7 +90,7 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
       if (typeof secret === 'string' && secret) error = error.split(secret).join('[redacted]');
     }
     error = error.replace(/\b\d{15}\b/g, '[redacted]').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 240);
-    emit({ outcome, httpStatus: response.status || null, ...(error ? { error } : {}),
+    emit({ outcome, httpStatus: response.status || null, ...(error ? { error } : {}), ...intakeStatus(result),
       readingConfirmed: false, wearingConfirmed: false,
       instruction: outcome === 'handoff_unknown'
         ? `The watch may have received the request. Do not repeat --once. Retrieve capture status with: ${retrieval}`
@@ -91,6 +104,7 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   }
   const trialId = result.trialId;
   emit({ outcome: 'command_handed_off', trialId, requestedAt: result.requestedAt || null,
+    ...intakeStatus(result),
     ...(['bodytemp2', 'BODYTEMP2'].includes(result.command) ? { command: result.command } : {}),
     readingConfirmed: false, wearingConfirmed: false });
   const deadline = now() + CAPTURE_MS;
@@ -112,12 +126,13 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
     latest = status;
     if (terminal(status.trial)) {
       emit({ outcome: status.trial.outcome, connected: status.connected === true, trial: status.trial,
+        ...intakeStatus(status),
         readingConfirmed: false, wearingConfirmed: false });
       return status.trial.outcome === 'upload_observed_after_request' ? 0 : 1;
     }
   }
   emit({ outcome: 'capture_timeout', trialId,
-    ...(latest ? { connected: latest.connected === true, trial: latest.trial } : {}),
+    ...(latest ? { connected: latest.connected === true, trial: latest.trial, ...intakeStatus(latest) } : {}),
     readingConfirmed: false, wearingConfirmed: false,
     instruction: `The two-minute wait ended without an observed matching upload. Read the final capture with: ${retrieval}` });
   return 1;

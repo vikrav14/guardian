@@ -292,23 +292,71 @@ Trial `d824a8ec-9c33-43bf-b742-cd33edb53e74` recorded:
 
 The same session remained connected, with one reply, one upload and no rejected,
 duplicate or dropped entries. The upload receipt corresponds to **23:58:15.001
-Mauritius time on 15 September**. The operator has not yet provided the watch's
-history entry or reported physical measurement activity for this second trial.
+Mauritius time on 15 September**. The operator subsequently confirmed that
+history still showed the 18:53 entry, there was no vibration, and **no manual
+temperature measurement was taken between the two remote tests**.
 
 This strengthens the evidence for remote measurement: the response was not
 identical to the previously observed value. However, a changed value alone
-does not establish measurement time, exclude another stored/intervening reading,
+does not establish measurement time or exclude a refreshed internal reading,
 or prove that uppercase is required. Both trials returned uploads approximately
 22–23 seconds after dispatch. The earlier lack of vibration/history change was
 consistent with caching but did not prove it; silent background measurements
-remain another possibility to investigate.
+remain another possibility to investigate. The operator confirmation rules out
+an intervening manual measurement as the explanation for 36.73. It is too strong
+to call the first result a proven cached replay. Neither vibration nor a local
+history entry is documented as required for a remote measurement on this build.
 
-Next: inspect the latest watch history entry without initiating a new reading,
-compare its time/value with 23:58 and 36.73, and record any automatic screen,
-progress or vibration observed during the request and whether any manual
-measurement intervened. No further request is needed for this comparison.
 The diagnostic confirmation flags remain false by design; neither a schedule
 nor worn/restored detection is accepted by this result.
+
+### Controlled wrist / removed / wrist comparison
+
+The next comparison uses **the same uppercase command in each position**, no
+manual temperature measurement between stages and no settings changes. Reuse
+the 36.73 worn trial as baseline while its operator context is clear.
+
+1. Remove the watch and rest it on its strap/side on an ordinary room-temperature
+   table, leaving the sensor back uncovered and away from skin. Wait five minutes.
+   This is a consistent experimental interval, not a validated firmware settling
+   requirement. Do not heat, chill or immerse the device.
+2. Run one explicitly labelled removed trial:
+
+   ```powershell
+   npm run temperature:trial -- --once --removed --uppercase --include-values
+   ```
+
+3. Refit normally, wait the same five minutes, then run one worn trial:
+
+   ```powershell
+   npm run temperature:trial -- --once --worn --uppercase --include-values
+   ```
+
+Preserve both outputs and physical transition times. Operator labels remain
+manual test context and never set customer wearing status. Numeric results
+while removed mean temperature responses alone cannot establish wearing. An
+off-wrist failure/sentinel followed by worn recovery is a candidate rejection
+signal, not validated contact detection. A value decrease off-wrist and increase
+after refitting supports sensor responsiveness; an unchanged value or absent
+upload is inconclusive. We do not fit a medical threshold or infer removal from
+silence. Local vibration/history is supplementary observation, not a mandatory
+success condition.
+
+Before a removed request can be dispatched, a local per-pilot exclusion marker
+is saved under `gateway/data/temperature-trials`. Incoming pilot temperature
+events are marked at receipt and rejected by the wellbeing store, independently
+of evidence-capture limits/errors. The marker contains no health values. It
+survives reconnects and restarts on the same gateway data directory, and remains
+after timeout until an explicit worn trial is successfully handed off. Failed
+or uncertain worn sends do not release it; cleanup failure remains visible and
+keeps intake blocked. Moving to another gateway without that data directory is
+not supported during this diagnostic sequence. The read-only trial status
+exposes `temperatureIngestionSuppressed` even when no capture survives restart.
+
+Other metrics and ACKs are unchanged. No native schedule or removal/SMS command
+is sent. Resume is an operator declaration of the test position, not proof of
+contact or the measurement time of a subsequent packet; delayed uploads still
+lack a request ID/timestamp and cannot be promoted to verified readings.
 
 ### 2. Test the documented removal-alarm switch
 

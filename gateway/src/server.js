@@ -126,6 +126,8 @@ const {
 
 initFirestore();
 
+const temperatureTrialQuarantine = require('./temperature-trial-quarantine')
+  .createTemperatureTrialQuarantine({ pilotImei: config.wifiHomePilotImei });
 const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbeingStore({
   db: getDb(),
   enabled: config.careWellbeingIngestEnabled,
@@ -133,6 +135,7 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
   customerEnabled: config.careWellbeingCustomerEnabled,
   retentionDays: config.careWellbeingRetentionDays,
   temperaturePilotImei: config.wifiHomePilotImei,
+  temperatureTrialQuarantine,
 }) : null;
 const temperatureCapture = config.temperatureCaptureEnabled === true
   ? require('./temperature-capture').startTemperatureCapture({ config, db: getDb(), enabled: true })
@@ -145,7 +148,7 @@ const wearEvidence = createWearEvidence({ db: getDb(),
 });
 const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRoutinePilotEnabled
   ? require('./wellness-routine-runtime').startWellnessRoutineRuntime({
-    db: getDb(), config, wearEvidence,
+    db: getDb(), config, wearEvidence, temperatureTrialQuarantine,
   }) : null;
 
 const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
@@ -1350,6 +1353,9 @@ const server = net.createServer((socket) => {
       try { wellnessRoutine?.observe(decoded, session); }
       catch { console.warn('[wellness-routine] observation_failed'); }
 
+      // Independent of capture success and request flags; preserve exclusion
+      // on the receipt event even if it is applied after the trial resumes.
+      temperatureTrialQuarantine.markEvents(events);
       const apply = () => applyEvents(events, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&
           !events.some(e => e.type === 'alarm')

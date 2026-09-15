@@ -157,16 +157,24 @@ function createWellbeingStore({
   customerEnabled = false,
   retentionDays = 30,
   temperaturePilotImei = '',
+  temperatureTrialQuarantine,
   now = () => new Date(),
 } = {}) {
   if (!Object.values(DEVICE_MODE).includes(deviceMode)) {
     throw new Error(`Unsupported Care wellbeing device mode: ${deviceMode}`);
   }
   const safeRetentionDays = Math.min(365, Math.max(1, Number(retentionDays) || 30));
+  function trialExcluded(event) {
+    if (event?.metric !== 'skin_temperature') return false;
+    if (event.temperatureTrialOnly === true) return true;
+    try { return temperatureTrialQuarantine?.excludes(event.imei) === true; }
+    catch { return true; }
+  }
 
   async function ingest(event, observedAt = now()) {
     if (!enabled) return { ok: false, status: 'disabled' };
     if (!db) return { ok: false, status: 'firestore_disabled' };
+    if (trialExcluded(event)) return { ok: false, status: 'temperature_trial_excluded' };
 
     const normalized = normalizeWellbeingEvent(event, observedAt);
     if (!normalized.ok) {
@@ -193,6 +201,9 @@ function createWellbeingStore({
         metricSet: normalized.metricSet,
       };
     }
+    // A trial may begin while consent is loading. Conversely, the event's
+    // receipt marker remains excluding even if a worn trial has since resumed.
+    if (trialExcluded(event)) return { ok: false, status: 'temperature_trial_excluded' };
 
     // General wellbeing acceptance can never promote this experimental variant.
     const displayable = !temperature && deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true && wearEvidence.eligible;
