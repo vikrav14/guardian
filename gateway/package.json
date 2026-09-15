@@ -29,7 +29,8 @@
     "wifi-home:check": "node scripts/inspect-wifi-home.js",
     "wifi-home:fence": "node scripts/inspect-wifi-fence.js",
     "wifi-home:fence-trial": "node scripts/trial-wifi-fence-single-router.js",
-    "test": "node --test"
+    "test": "node --test",
+    "wellness:routine": "node scripts/inspect-wellness-routine.js"
   },
   "engines": {
     "node": ">=18"

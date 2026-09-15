@@ -18,6 +18,7 @@ class WellnessCard extends StatelessWidget {
     this.readingsError = false,
     this.loading = false,
     this.onOpen,
+    this.onRoutine,
     this.wearStatus = const WearStatus(),
     this.pilotPreview = false,
   });
@@ -29,7 +30,7 @@ class WellnessCard extends StatelessWidget {
       activityError,
       readingsError,
       loading;
-  final VoidCallback? onOpen;
+  final VoidCallback? onOpen, onRoutine;
   final WearStatus wearStatus;
   final bool pilotPreview;
 
@@ -195,6 +196,14 @@ class WellnessCard extends StatelessWidget {
               color: context.guardianColors.textSecondary,
             ),
           ),
+          if (onRoutine != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRoutine,
+              icon: const Icon(Icons.schedule),
+              label: const Text('Wellness routine'),
+            ),
+          ],
           if (onOpen != null) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(

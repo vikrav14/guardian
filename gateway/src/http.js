@@ -1283,6 +1283,23 @@ function startHttpServer() {
         return;
       }
 
+      if (url.pathname === '/admin/wellness-routine' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const routine = require('./wellness-routine-runtime').getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') sendJson(res, 200, await routine.status());
+          else {
+            const payload = JSON.parse(await readBody(req));
+            if (payload.action !== 'temperature_once' || Object.keys(payload).length !== 1) {
+              sendJson(res, 400, { error: 'Only temperature_once is supported here.' }); return;
+            }
+            sendJson(res, 200, await routine.requestTemperature());
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Pilot operation failed.' : error.message }); }
+        return;
+      }
+
       if (
         req.method === 'POST' &&
         url.pathname === '/admin/device-activity-steps/pedometer'

@@ -18,7 +18,8 @@
 | Confirmed stop | `hrtstart,0` |
 | One-time request | `hrtstart,1` is acknowledged but did not start measurement on the pilot V52 |
 | Private pilot temperature | `btemp2,1,<two-decimal Celsius value>` matched a wearer-initiated wrist result on 15 September; first field meaning and other variants remain unverified |
-| Blocked pending exact packet | `bodytemp`, `bodytemp2`, `BTTIMESET` |
+| Documented private temperature controls | BT=2: `bodytemp2` single; `bodytemp,0/1,1..12` cycle in hours; exact-watch command acceptance pending |
+| Blocked timing mode | `BTTIMESET` (TM=1, separate from BT=2 cycles) |
 
 For the observed `btemp2` variant, follow the [private payload capture runbook](../testing/temperature-payload-pilot-2026-09-15.md).
 
@@ -130,3 +131,10 @@ The Wellness card shows current wearing status on every edition, expires it
 locally and retains earlier qualified readings with their original age.
 See [the shared wearing contract and passive test](wearing-data-quality.md).
 No hardware schedule is changed or automatically stopped/restarted by this work.
+
+**15 September routine update:** the private controller now offers Manual,
+Gentle (12h) and Balanced (8h), requiring fresh accepted wearing evidence and
+current-session CONFIG BT:2 before any automatic start. This supersedes the
+earlier capture-only/downlink limitation for the documented BT=2 pilot commands.
+The separate strict-admin single-temperature test does not promote wearing or
+measurement acceptance. See [commands, safeguards and remaining watch tests](../testing/wellness-routines-2026-09-15.md).

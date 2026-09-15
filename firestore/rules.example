@@ -249,6 +249,11 @@ service cloud.firestore {
         allow read: if statusId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
         allow write: if false;
       }
+      match /wellnessRoutine/{statusId} {
+        allow get: if statusId == 'current' && linkedTo(imei)
+          && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
+        allow list, write: if false;
+      }
       match /wearDiagnostics/{captureId} {
         allow read, write: if false;
       }
@@ -270,6 +275,22 @@ service cloud.firestore {
       allow get: if linkedTo(imei) && activePlanAtLeast('essential')
         && resource.data.viewerUid == request.auth.uid;
       allow list, create, update, delete: if false;
+    }
+
+    // Desired settings only. The gateway separately checks current consent,
+    // firmware mode, wearing evidence, session, feature gate and account access.
+    // This does not let preview users forge device acceptance or raw commands.
+    match /wellnessRoutineRequests/{imei} {
+      allow get: if linkedTo(imei) && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
+      allow create, update: if linkedTo(imei) && activePlanAtLeast('essential')
+        && wellnessPilotAllowed(imei)
+        && request.resource.data.keys().hasOnly(['version', 'routine', 'requestedBy', 'updatedAt'])
+        && request.resource.data.version == 1
+        && request.resource.data.routine in ['manual', 'gentle', 'balanced']
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
+      allow list, delete: if false;
     }
 
     match /geofences/{geofenceId} {

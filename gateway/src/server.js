@@ -143,6 +143,10 @@ const wearEvidence = createWearEvidence({ db: getDb(),
   deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
   onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
 });
+const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRoutinePilotEnabled
+  ? require('./wellness-routine-runtime').startWellnessRoutineRuntime({
+    db: getDb(), config, wearEvidence,
+  }) : null;
 
 const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
   enabled: config.activityStepsIngestEnabled,
@@ -1336,6 +1340,8 @@ const server = net.createServer((socket) => {
       // the packet path. It does not modify events, readings or notifications.
       try { temperatureCapture?.observe(decoded, session, receivedAt); }
       catch { console.warn('[temperature-capture] capture_failed'); }
+      try { wellnessRoutine?.observe(decoded, session); }
+      catch { console.warn('[wellness-routine] observation_failed'); }
 
       const apply = () => applyEvents(events, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&

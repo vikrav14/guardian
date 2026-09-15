@@ -2,6 +2,12 @@
 
 Status: software implemented; exact V52 firmware interpretation remains **unverified**.
 
+**15 September source correction:** the original companion Communication Example
+p5 calls bit 3 unused, whereas Protocol p13 labels it wearing status. PR #112
+and the constant-zero physical test do not resolve that conflict. Automatic
+routine start now requires the same fresh accepted wearing evidence; this pilot
+stays paused. See the [routine contract](../testing/wellness-routines-2026-09-15.md).
+
 The passive observer runs when activity, wellbeing or removal ingestion is enabled.
 It sends no downlink, changes no measurement schedule, and does not deliver alerts.
 It reads only Annex I tracker field 15 from live UD/AL positioning packets. Bit 3
@@ -80,5 +86,6 @@ immobility, loose fit, timestamp behaviour and reboot on this exact firmware.
 Then verify health uploads at removal/restoration, step interval exclusion,
 app freshness and separate notification debounce. A reliable sensor/contact
 flag or supplier clarification is required if bit 3 is not dependable.
-Automatic stopping/restarting of hardware measurements is separate, still
-unverified work; this change gates the **use of data**, not the watch scheduler.
+The private routine controller attempts connected stops after evidence changes.
+Physical stopping while offline is not guaranteed. Customer use of data remains
+independently gated; full automatic scheduling acceptance is still outstanding.

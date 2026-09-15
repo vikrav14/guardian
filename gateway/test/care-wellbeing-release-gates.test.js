@@ -30,7 +30,7 @@ test('Flutter customer panel also defaults off independently', () => {
   assert.match(dashboard, /defaultValue: false/);
 });
 
-test('uncaptured temperature commands remain blocked alongside the observed private pilot variant', () => {
+test('temperature remains private and unsupported upload shapes remain blocked', () => {
   const contract = read('src/service-backbones/care-wellbeing.js');
   const { normalizeWellbeingEvent } = require('../src/care-wellbeing');
   assert.equal(normalizeWellbeingEvent({ type: 'health_reading', imei: '861000000000001',

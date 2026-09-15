@@ -171,6 +171,7 @@ const config = {
   // are never displayable, and on-demand requests are a separate pilot gate.
   // Process-local opt-in used by the private temperature capture launcher.
   temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
+  wellnessRoutinePilotEnabled: process.env.WELLNESS_ROUTINE_PILOT_ENABLED === 'true',
   careWellbeingIngestEnabled:
     String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
   careWellbeingDeviceMode:

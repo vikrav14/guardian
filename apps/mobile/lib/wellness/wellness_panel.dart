@@ -10,6 +10,7 @@ import 'wellness_history.dart';
 import 'wellness_sample.dart';
 import 'wellness_window.dart';
 import 'wellness_pilot_access.dart';
+import 'wellness_routine.dart';
 
 typedef WellnessReadingsSource =
     Stream<List<WellnessSample>> Function(
@@ -298,6 +299,11 @@ class _WellnessDataState extends State<_WellnessData>
               : readings.data ?? <WellnessSample>[];
           if (!widget.detail) {
             return WellnessCard(
+              onRoutine: widget.pilotPreview
+                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => WellnessRoutinePage(imei: widget.imei),
+                    ))
+                  : null,
               pilotPreview: widget.pilotPreview,
               wearStatus: wearStatus,
               days: days,

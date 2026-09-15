@@ -32,8 +32,9 @@ function wearAt(evidence, at) {
   return { ...evidence, eligible };
 }
 
-// Annex I: fixed field 15, bit 3 wearing status, bit 20 removal ALARM.
-// Polarity/behaviour must be accepted on the exact firmware before interpretation.
+// Annex I labels bit 3 wearing; the companion Example p5 calls it unused.
+// Keep this conflicting mapping unverified without exact-firmware evidence.
+// Fixed field 15, bit 20 is a removal ALARM, not positive wearing proof.
 // UD2 is buffered history. Never use it (or a variable LTE tail) for current wear.
 function parseWearSignal(decoded) {
   const command = decoded?.command || '';
@@ -146,7 +147,8 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     state.evidence = unknown('watch_disconnected'); state.candidate = null;
     persist(imei, state, at); devices.delete(imei);
   }
-  return { capture, disconnect };
+  return { capture, disconnect, current: (imei, at = new Date()) =>
+    wearAt(devices.get(imei)?.evidence, at) };
 }
 
 module.exports = { createWearEvidence, parseWearSignal, wearAt, unknown, ACCEPTED_MODE, FRESH_MS };
