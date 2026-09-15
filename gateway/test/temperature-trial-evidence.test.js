@@ -24,11 +24,13 @@ test('starts only an explicit supervised trial and never upgrades acceptance', (
   const f = fixture();
   assert.equal(f.current().outcome, 'no_trial');
   for (const options of [{ operatorPosition: undefined }, { operatorPosition: 'unknown' },
-    { modeBt: 1 }, { trialId: 'private value,not allowed' }, { requestedAt: new Date(NOW + 1) }]) {
+    { modeBt: 1 }, { trialId: 'private value,not allowed' }, { requestedAt: new Date(NOW + 1) },
+    { command: 'bodytemp,1,1' }, { command: 'BodyTemp2' }, { command: 'btemp2' }, { command: null }]) {
     assert.throws(() => f.start(options));
   }
   const started = f.start();
   assert.equal(started.phase, 'waiting');
+  assert.equal(started.command, 'bodytemp2');
   assert.equal(started.modeBtAtRequest, null);
   assert.equal(started.operatorPositionIsManual, true);
   assert.throws(() => f.start(), /already observing/);
@@ -51,7 +53,7 @@ test('isolates the original session and ignores prior, future and other command 
   f.observe(packet(), f.session, new Date(NOW + 1));
   f.observe(packet(), { ...f.session });
   f.observe(packet('bphrt'));
-  f.observe(packet('BODYTEMP2', []));
+  f.observe(packet('BODYTEMP3', []));
   assert.equal(f.current().packets.length, 0);
   f.tick(1); f.observe();
   assert.equal(f.current().counts.uploads, 1);
@@ -60,6 +62,44 @@ test('isolates the original session and ignores prior, future and other command 
   f.tick(1); f.observe();
   assert.equal(f.current().phase, 'session_changed');
   assert.equal(f.current().counts.uploads, 1);
+});
+
+test('explicit uppercase probe preserves command case and distinguishes cross-case replies', () => {
+  const f = fixture();
+  const started = f.start({ command: 'BODYTEMP2' });
+  assert.equal(started.command, 'BODYTEMP2');
+  f.evidence.markHandoff('command_handed_off');
+  f.tick(1); f.observe(packet('bodytemp2', []));
+  f.tick(1); f.observe(packet('BODYTEMP2', []));
+  const replies = f.current();
+  assert.equal(replies.counts.replies, 2);
+  assert.equal(replies.outcome, 'reply_received_awaiting_upload');
+  assert.deepEqual(replies.packets.map(value => ({ command: value.command,
+    matchesRequestedCommand: value.matchesRequestedCommand })), [
+    { command: 'bodytemp2', matchesRequestedCommand: false },
+    { command: 'BODYTEMP2', matchesRequestedCommand: true },
+  ]);
+  assert.equal(replies.measurementConfirmed, false);
+  assert.equal(replies.requestCausedUpload, false);
+  f.tick(1); f.observe();
+  const upload = f.current({ includeValues: true });
+  assert.equal(upload.outcome, 'upload_observed_after_request');
+  assert.equal(upload.packets[2].command, 'btemp2');
+  assert.equal(Object.hasOwn(upload.packets[2], 'matchesRequestedCommand'), false);
+  assert.deepEqual(upload.packets[2].args, ['1', '36.68']);
+  assert.equal(upload.measurementConfirmed, false);
+  assert.equal(upload.requestCausedUpload, false);
+});
+
+test('an uppercase reply during a lowercase trial stays a nonmatching observation', () => {
+  const f = fixture(); f.start();
+  f.tick(1); f.observe(packet('BODYTEMP2', []));
+  f.tick(CAPTURE_WINDOW_MS);
+  const result = f.current();
+  assert.equal(result.command, 'bodytemp2');
+  assert.equal(result.outcome, 'reply_without_upload');
+  assert.equal(result.packets[0].matchesRequestedCommand, false);
+  assert.equal(result.measurementConfirmed, false);
 });
 
 test('separates bare reply from uploaded data and reports an unanswered measurement window', () => {

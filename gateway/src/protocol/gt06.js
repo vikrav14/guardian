@@ -60,6 +60,9 @@ const SERVER_ONLY_COMMANDS = new Set([
   'hrtstart', 'SEDENTARY', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
+  // ReachFar V48 integration evidence uses this spelling. Recognize its reply
+  // without ACK for the explicit pilot comparison; this does not enable it.
+  'BODYTEMP2',
 ]);
 
 function parseLocationData(fields) {

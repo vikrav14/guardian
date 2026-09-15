@@ -35,9 +35,13 @@ test('temperature trial accepts read-only defaults and requires paired one-shot/
   assert.deepEqual(parseArguments([]), { once: false, includeValues: false });
   assert.deepEqual(parseArguments(['--include-values']), { once: false, includeValues: true });
   assert.deepEqual(parseArguments(['--include-values', '--worn', '--once']), { once: true, includeValues: true });
+  assert.deepEqual(parseArguments(['--once', '--worn', '--uppercase']),
+    { once: true, includeValues: false, commandCase: 'uppercase' });
   for (const args of [['--once'], ['--worn'], ['--once', '--once', '--worn'],
     ['--include-values', '--include-values'], ['--once', '--worn', '--imei=123'],
-    ['--command=BODYTEMP2'], ['--once', '--worn', '--removed'], ['--help']]) {
+    ['--command=BODYTEMP2'], ['--once', '--worn', '--removed'], ['--help'],
+    ['--uppercase'], ['--uppercase', '--include-values'], ['--uppercase', '--once'],
+    ['--once', '--worn', '--uppercase', '--uppercase']]) {
     assert.throws(() => parseArguments(args));
   }
 });
@@ -91,6 +95,27 @@ test('stale capture completion is ignored even when its upload or terminal state
   assert.equal(await runTrial(h.options), 0);
   assert.equal(h.calls.length, 4);
   assert.equal(h.last().trial.trialId, 'trial-new');
+});
+
+test('uppercase comparison sends one explicitly selected command and reports the returned spelling', async () => {
+  const h = harness([response({ connected: true }), response({ ...handedOff, command: 'BODYTEMP2' }),
+    response({ connected: true, trial: { ...uploaded, command: 'BODYTEMP2' } })]);
+  assert.equal(await runTrial({ ...h.options, args: ['--once', '--worn', '--uppercase'] }), 0);
+  assert.deepEqual(h.calls.map(call => call.method), ['GET', 'POST', 'GET']);
+  assert.deepEqual(JSON.parse(h.calls[1].body), { action: 'single', operatorPosition: 'worn', commandCase: 'uppercase' });
+  const initialResult = h.printed.filter(value => value.startsWith('{')).map(value => JSON.parse(value))
+    .find(value => value.outcome === 'command_handed_off');
+  assert.equal(initialResult.command, 'BODYTEMP2');
+  assert.equal(h.printed.some(value => value.includes('Selected command: BODYTEMP2')), true);
+});
+
+test('uppercase comparison never falls back to lowercase after uncertain or rejected dispatch', async () => {
+  for (const failure of [new Error('socket lost'), response({ error: 'Trial blocked.' }, false, 409)]) {
+    const h = harness([response({ connected: true }), failure]);
+    assert.equal(await runTrial({ ...h.options, args: ['--once', '--worn', '--uppercase'] }), 1);
+    assert.deepEqual(h.calls.map(call => call.method), ['GET', 'POST']);
+    assert.equal(JSON.parse(h.calls[1].body).commandCase, 'uppercase');
+  }
 });
 
 test('values are opt-in on reads only, not part of the mutation payload', async () => {

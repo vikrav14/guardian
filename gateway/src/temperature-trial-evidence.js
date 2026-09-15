@@ -9,6 +9,7 @@ const MAX_FIELDS = 8;
 const MAX_FIELD_LENGTH = 16;
 const MAX_PAYLOAD_BYTES = 160;
 const HANDOFF_OUTCOMES = new Set(['command_handed_off', 'handoff_unknown', 'not_sent']);
+const PROBE_COMMANDS = new Set(['bodytemp2', 'BODYTEMP2']);
 
 function timestamp(value) {
   return value instanceof Date && Number.isFinite(+value) ? +value : null;
@@ -29,7 +30,7 @@ function safePayload(decoded) {
   if (decoded.payload !== [decoded.command, ...decoded.args].join(',')) {
     return { accepted: false, reason: 'payload_mismatch', argumentCount };
   }
-  if (decoded.command === 'bodytemp2') {
+  if (PROBE_COMMANDS.has(decoded.command)) {
     return decoded.args.length === 0
       ? { accepted: true, reason: 'bare_command_reply', argumentCount: 0 }
       : { accepted: false, reason: 'unexpected_reply_arguments', argumentCount };
@@ -90,7 +91,7 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       checkedAt < trial.valuesExpireAt;
     return {
       version: 1, trialId: trial.trialId, phase: valuePhase, outcome,
-      command: 'bodytemp2', handoff: trial.handoff,
+      command: trial.command, handoff: trial.handoff,
       requestedAt: new Date(trial.requestedAt).toISOString(),
       captureExpiresAt: new Date(trial.captureExpiresAt).toISOString(),
       valuesExpireAt: new Date(trial.valuesExpireAt).toISOString(),
@@ -111,10 +112,11 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
   }
 
   function start(session, { requestedAt = new Date(clock()), trialId = randomUUID(),
-    operatorPosition, modeBt = null } = {}) {
+    operatorPosition, modeBt = null, command = 'bodytemp2' } = {}) {
     const atMs = timestamp(requestedAt), now = clock();
     if (!session || typeof session !== 'object' || atMs === null || atMs > now ||
         operatorPosition !== 'worn' || ![null, 2].includes(modeBt) ||
+        !PROBE_COMMANDS.has(command) ||
         typeof trialId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(trialId)) {
       throw new TypeError('A session, valid request time, trial identifier and manually confirmed worn position are required.');
     }
@@ -123,7 +125,7 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       throw new Error('A temperature trial is already observing this request.');
     }
     trial = { session, sessionImei: session.imei, sessionProtocolId: session.protocolId,
-      requestedAt: atMs, trialId, modeBt, captureExpiresAt: atMs + CAPTURE_WINDOW_MS,
+      requestedAt: atMs, trialId, modeBt, command, captureExpiresAt: atMs + CAPTURE_WINDOW_MS,
       valuesExpireAt: atMs + CAPTURE_WINDOW_MS + VALUE_RETENTION_MS,
       handoff: 'pending', sessionChangedAt: null, valuesExpired: false,
       packets: [], keys: new Set(), counts: { replies: 0, uploads: 0, rejected: 0, duplicates: 0, dropped: 0 } };
@@ -142,7 +144,8 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     if (!trial || !sameSession(session) || trial.sessionChangedAt !== null ||
         trial.handoff === 'not_sent' || atMs === null || atMs > now ||
         atMs < trial.requestedAt || atMs >= trial.captureExpiresAt ||
-        now >= trial.captureExpiresAt || !['bodytemp2', 'btemp2'].includes(decoded?.command)) return;
+        now >= trial.captureExpiresAt ||
+        (!PROBE_COMMANDS.has(decoded?.command) && decoded?.command !== 'btemp2')) return;
     const safe = safePayload(decoded);
     const key = JSON.stringify([atMs, decoded.command, safe.reason, safe.args || null]);
     if (trial.keys.has(key)) {
@@ -154,12 +157,14 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       return;
     }
     trial.keys.add(key);
+    const reply = PROBE_COMMANDS.has(decoded.command);
     trial.packets.push({ command: decoded.command,
-      kind: decoded.command === 'bodytemp2' ? 'command_reply' : 'temperature_upload',
+      kind: reply ? 'command_reply' : 'temperature_upload',
+      ...(reply ? { matchesRequestedCommand: decoded.command === trial.command } : {}),
       receivedAt: at.toISOString(), timeBasis: 'gateway_receipt', fieldMeaning: 'unverified',
       ...safe });
     if (!safe.accepted) trial.counts.rejected += 1;
-    else if (decoded.command === 'bodytemp2') trial.counts.replies += 1;
+    else if (reply) trial.counts.replies += 1;
     else trial.counts.uploads += 1;
   }
 

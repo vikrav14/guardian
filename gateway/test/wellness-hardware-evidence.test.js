@@ -17,9 +17,9 @@ function packet(payload) {
   return decodeFrame(Buffer.from(`[3G*9700000000*${payload.length.toString(16).padStart(4, '0')}*${payload}]`));
 }
 
-test('documented removal and temperature replies do not loop ACKs or confirm wearing or a schedule', () => {
+test('removal and temperature trial replies do not loop ACKs or confirm wearing or a schedule', () => {
   const evidence = createHardwareEvidence(), session = {};
-  for (const command of ['REMOVE', 'REMOVESMS', 'bodytemp2', 'bodytemp', 'BTTIMESET']) {
+  for (const command of ['REMOVE', 'REMOVESMS', 'bodytemp2', 'BODYTEMP2', 'bodytemp', 'BTTIMESET']) {
     const decoded = packet(command);
     const handled = handlePacket(decoded, session);
     assert.equal(handled.acks.length, 0, command);
@@ -28,7 +28,7 @@ test('documented removal and temperature replies do not loop ACKs or confirm wea
     evidence.observe(packet(`${command},private-value`), session, new Date(+AT + 1000));
   }
   const current = evidence.current(session, AT);
-  assert.equal(current.commandReplyEvidence.replies.length, 5);
+  assert.equal(current.commandReplyEvidence.replies.length, 6);
   assert.equal(current.commandReplyEvidence.replies[0].count, 2);
   assert.equal(current.commandReplyEvidence.replies[0].bareReply, false);
   assert.equal(current.commandReplyEvidence.settingsConfirmed, false);

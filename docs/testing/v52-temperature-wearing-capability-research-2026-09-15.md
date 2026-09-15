@@ -27,8 +27,9 @@ was disabled, or that enabling the switch will produce a positive worn signal.
   Its [V52 integration page](https://flespi.com/devices/reachfar-v52) lists temperature
   and wristband status/alarm parameters. This supports the protocol-family lead;
   it does not validate the command casing, BT mode or wearing polarity on this
-  particular V52. Keep the original V52 protocol's lowercase command builders;
-  an uppercase trial would require a separately recorded comparison.
+  particular V52. Customer routine builders retain the original V52 protocol's
+  lowercase command; a separately selected strict-admin uppercase comparison
+  is available as described below, with no automatic fallback.
 - [4P-Touch's manufacturer protocol, II.18 and temperature section](https://www.4p-touch.com/beesure-gps-setracker-server-protocol.html)
   distinguishes `REMOVE` from `REMOVESMS` and says removal alerts require suitable
   light-sensor/firmware support. It also documents the temperature command family.
@@ -178,7 +179,8 @@ Do not repeatedly reboot to solicit CONFIG or issue a guessed CONFIG query.
 
 The existing `wellness:routine -- --request-temperature` and automatic routines
 retain their BT=2 checks. A separate strict-admin `temperature:trial` sends only
-one documented lowercase `bodytemp2`. It requires pilot/request/ingestion flags,
+one documented lowercase `bodytemp2` by default. A separately selected uppercase
+comparison sends only `BODYTEMP2`. Both require pilot/request/ingestion flags,
 current consent, one unchanged connected session with a packet received within
 three minutes, no selected automatic routine or known possibly running schedule,
 and an explicit operator report that the watch is worn. Missing BT permits this
@@ -229,23 +231,53 @@ rejected packets, zero duplicates and zero dropped entries. Mauritius local
 times are 23:41:57.700, 23:41:59.750 and 23:42:20.834 respectively.
 
 This is direct evidence of a remote command acknowledgement followed by a
-temperature upload without a CONFIG prerequisite. A newly performed measurement
-and causal attribution still need the operator's physical observation: whether
-the watch was worn, its temperature button remained untouched, and whether it
-started measuring/vibrated or displayed a result. The operator-worn CLI flag is
-manual test context, not sensor-confirmed contact.
+temperature upload without a CONFIG prerequisite. At approximately 23:49 local,
+the operator reported that the watch did **not** vibrate and its history still
+showed **36.68 at 18:53:31**, with no new history entry from the 23:42 request.
+The returned value therefore matched a history entry about 4 hours 49 minutes
+old. The operator-worn CLI flag is manual test context, not sensor-confirmed
+contact.
 
-The value equals an earlier manual reading (36.68). That does not prove either
-caching or a fresh measurement. This packet has no measurement timestamp, so
-the receipt time alone cannot distinguish those possibilities. The experiment's
+Conclusion: **fresh measurement not demonstrated; consistent with a cached
+upload**. This does not establish that remote measurements are impossible or
+that a silent background measurement must appear in local history. The packet
+has no measurement timestamp, so its new receipt time cannot establish a new
+measurement. Keep temperature labelled as received, with measurement time and
+freshness unknown; do not use it to verify a schedule or current skin contact.
+The experiment's
 `measurementConfirmed`, `requestCausedUpload`, `wearingConfirmed` and
 `scheduleVerified` fields are deliberately false until separately evaluated;
 they are not failure flags supplied by the watch.
 
-Next: obtain the operator observation, then repeat one worn request after the
-two-minute capture/cooldown window to assess repeatability. Do not introduce a
-native schedule or derive contact status from the numeric value. An off-wrist
-comparison and complete removal/restoration trace remain separate tests.
+### Next supervised comparison: explicit uppercase command
+
+The original protocol spells the one-shot command `bodytemp2`, while flespi's
+ReachFar V48 changelog spells it `BODYTEMP2`. This supports testing case as one
+variable, not assuming support on this V52 or changing production routines.
+
+After pulling the update and restarting the gateway once, wait for a connected
+pilot session with a fresh packet. Keep the watch worn normally, record its
+latest history entry, and do not take a new manual temperature immediately
+beforehand: that would make a cached response harder to distinguish. Run:
+
+```powershell
+npm run temperature:trial -- --once --worn --uppercase --include-values
+```
+
+The helper sends exactly one `BODYTEMP2`; it never retries with lowercase.
+Uppercase and lowercase share the two-minute cooldown and the same consent,
+session, mode and routine checks. The parser recognizes both command replies
+without acknowledging them; the capture records the selected command, actual
+reply spelling and whether they match. It never interprets either reply as a
+successful measurement. Health-value capture limits and expiry are unchanged.
+
+Watch for an automatic measurement screen, progress, result or vibration, and
+then inspect history without pressing the measurement button. Compare the
+uploaded value and any new history time after the two-minute window. A reply
+or upload alone remains insufficient. If history is unchanged again, record
+that result rather than enabling a native schedule or repeatedly probing.
+An off-wrist comparison and full removal/restoration trace remain separate
+tests. No native schedule, SMS, removal-alarm or night-mode setting is changed.
 
 ### 2. Test the documented removal-alarm switch
 

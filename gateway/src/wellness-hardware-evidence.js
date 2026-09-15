@@ -4,7 +4,9 @@ const { parseTemperatureMode } = require('./wellness-routine');
 const REPLY_WINDOW_MS = 120_000;
 // Supplier protocol II.18 / II.32-34. Replies are transport evidence only:
 // bare REMOVE cannot tell us the configured value or positive wearing state.
-const CAPABILITY_REPLY_COMMANDS = new Set(['REMOVE', 'REMOVESMS', 'bodytemp2', 'bodytemp', 'BTTIMESET']);
+// BODYTEMP2 is a separately selected ReachFar case-comparison trial, not an
+// automatic fallback or proof of support on this firmware.
+const CAPABILITY_REPLY_COMMANDS = new Set(['REMOVE', 'REMOVESMS', 'bodytemp2', 'BODYTEMP2', 'bodytemp', 'BTTIMESET']);
 
 function replyDetails(args) {
   // Inspect only the requested VERNO reply, never CONFIG, health or location

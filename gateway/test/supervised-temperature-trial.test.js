@@ -21,12 +21,37 @@ function fixture() {
   return env;
 }
 
-test('only explicit operator-worn single action is accepted; no arbitrary target, casing or command', () => {
+test('only explicit operator-worn single action and two fixed command cases are accepted', () => {
   assert.deepEqual(parseTemperatureTrialOperation(action), action);
+  for (const commandCase of ['lowercase', 'uppercase']) {
+    const request = { ...action, commandCase };
+    assert.deepEqual(parseTemperatureTrialOperation(request), request);
+  }
   for (const value of [null, [], {}, { action: 'single' }, { ...action, operatorPosition: 'unknown' },
-    { ...action, command: 'bodytemp,1,1' }, { ...action, imei: 'other' }, { ...action, action: 'BODYTEMP2' }]) {
+    { ...action, command: 'bodytemp,1,1' }, { ...action, imei: 'other' }, { ...action, action: 'BODYTEMP2' },
+    ...[null, undefined, '', 'Uppercase', 'BODYTEMP2', 'bodytemp,1,1'].map(commandCase => ({ ...action, commandCase }))]) {
     assert.throws(() => parseTemperatureTrialOperation(value));
   }
+});
+
+test('uppercase comparison sends exactly one selected command and shares the cooldown with lowercase', async () => {
+  const env = fixture();
+  const result = await env.trial.request({ ...action, commandCase: 'uppercase' });
+  assert.deepEqual(env.sent, ['BODYTEMP2']);
+  assert.equal(result.command, 'BODYTEMP2');
+  const status = await env.trial.status();
+  assert.equal(status.trial.command, 'BODYTEMP2');
+  assert.equal(status.trial.measurementConfirmed, false);
+  await assert.rejects(env.trial.request(action), /two minutes/);
+  assert.deepEqual(env.sent, ['BODYTEMP2']);
+});
+
+test('an uncertain uppercase handoff never falls back to lowercase', async () => {
+  const env = fixture(); env.failSend = true;
+  const result = await env.trial.request({ ...action, commandCase: 'uppercase' });
+  assert.equal(result.outcome, 'handoff_unknown');
+  assert.deepEqual(env.sent, ['BODYTEMP2']);
+  assert.equal((await env.trial.status()).trial.command, 'BODYTEMP2');
 });
 
 test('missing CONFIG allows only one supervised lowercase request, without upgrading mode or wearing', async () => {

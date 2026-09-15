@@ -4,12 +4,14 @@ const POLL_MS = 2000;
 const CAPTURE_MS = 120_000;
 
 function parseArguments(args) {
-  const allowed = new Set(['--once', '--worn', '--include-values']);
+  const allowed = new Set(['--once', '--worn', '--include-values', '--uppercase']);
   if (!Array.isArray(args) || args.some(arg => !allowed.has(arg)) || new Set(args).size !== args.length ||
-      args.includes('--once') !== args.includes('--worn')) {
-    throw new Error('Use no arguments (read only), --include-values, or --once --worn with optional --include-values.');
+      args.includes('--once') !== args.includes('--worn') ||
+      (args.includes('--uppercase') && !args.includes('--once'))) {
+    throw new Error('Use no arguments (read only), --include-values, or --once --worn with optional --include-values and --uppercase.');
   }
-  return { once: args.includes('--once'), includeValues: args.includes('--include-values') };
+  return { once: args.includes('--once'), includeValues: args.includes('--include-values'),
+    ...(args.includes('--uppercase') ? { commandCase: 'uppercase' } : {}) };
 }
 
 function terminal(trial) {
@@ -48,6 +50,9 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   if (before.connected !== true) throw new Error('One connected pilot watch session is required; nothing sent.');
 
   print('Supervised temperature test: wear the watch and do not press its temperature button during the two-minute capture. The gateway will send one measurement request.');
+  print(operation.commandCase === 'uppercase'
+    ? 'Selected command: BODYTEMP2. This is an explicit uppercase comparison; there is no automatic fallback to another command.'
+    : 'Selected command: bodytemp2, the lowercase variant in the supplied protocol.');
   print(operation.includeValues
     ? 'Reading values will be included in this diagnostic output.'
     : 'This output shows capture metadata only. Use --include-values on a read-only check to inspect captured values.');
@@ -55,7 +60,8 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   try {
     response = await fetchImpl(endpoint, { method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'single', operatorPosition: 'worn' }),
+      body: JSON.stringify({ action: 'single', operatorPosition: 'worn',
+        ...(operation.commandCase ? { commandCase: operation.commandCase } : {}) }),
       signal: AbortSignal.timeout(5000) });
     result = await response.json();
   } catch {
@@ -85,6 +91,7 @@ async function runTrial({ args, config, fetchImpl = fetch, print = console.log,
   }
   const trialId = result.trialId;
   emit({ outcome: 'command_handed_off', trialId, requestedAt: result.requestedAt || null,
+    ...(['bodytemp2', 'BODYTEMP2'].includes(result.command) ? { command: result.command } : {}),
     readingConfirmed: false, wearingConfirmed: false });
   const deadline = now() + CAPTURE_MS;
   let latest = null;
