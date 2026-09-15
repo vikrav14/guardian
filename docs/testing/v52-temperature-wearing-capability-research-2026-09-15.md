@@ -358,6 +358,61 @@ is sent. Resume is an operator declaration of the test position, not proof of
 contact or the measurement time of a subsequent packet; delayed uploads still
 lack a request ID/timestamp and cannot be promoted to verified readings.
 
+### Removed / worn comparison results, 2026-09-15 20:20–20:27 UTC
+
+The operator supplied both labelled outputs from the comparison:
+
+| Operator position | Request UTC | Bare uppercase reply UTC | Upload UTC | Raw fields | Request-to-upload | Intake exclusion reported |
+| --- | --- | --- | --- | --- | --- | --- |
+| Removed | 20:20:15.371 | 20:20:16.293 | 20:20:37.323 | `1,36.53` | 21.952 seconds | true |
+| Worn again | 20:26:45.195 | 20:26:46.692 | 20:27:07.534 | `1,36.64` | 22.339 seconds | false |
+
+These correspond to **00:20 and 00:27 on 16 September in Mauritius**. Each
+capture stayed on its original connected session, with one matching-case reply,
+one numeric upload and zero rejected, duplicate or dropped entries. Trial IDs
+were `9b325fe4-e95f-43a6-ae1b-9d2856084b4f` and
+`914b1dc3-c319-4775-84e8-572e10816a71` respectively. The removed trial was explicitly
+labelled engineering-only. Its intake exclusion was reported active; the worn
+handoff reported the exclusion released. This records the diagnostic states,
+not a separate audit of live Firestore writes.
+
+Together with the earlier 36.73 worn response, the values changed 36.73 → 36.53
+→ 36.64. That is consistent with a responsive sensor or changing internal
+estimate, but this single sequence does not establish which, measurement
+accuracy, or freshness of every response. The 0.11-degree increase after
+refitting is not a defensible contact threshold. Exact physical transition
+times and settling durations were not independently captured.
+
+The concrete finding is that this remote command repeatedly produces a reply
+and temperature upload about 22 seconds later, **including while removed**.
+The removed response contains the same leading `1`, not an explicit failure or
+rejection. Neither that field nor a numeric temperature can qualify wearing.
+No customer wearing acceptance, BT/TM mode or unattended schedule is promoted.
+
+The operator also cited protocol sections 32–34. Those match page 9 of the
+supplied Communication Protocol PDF: one request (`bodytemp2`), a BT=2 hourly
+cycle (`bodytemp,enabled,hours`, 1–12 hours), and a separate TM=1 clock-time
+schedule (`BTTIMESET`). The existing code maps Gentle to 12 hours and Balanced
+to 8 hours. The document establishes an automation mechanism; the returned
+values do not establish contact gating or operation of an unattended cycle.
+The lowercase cycle builder is not changed on the strength of uppercase
+single-command trials, and TM=1 is not inferred from temperature uploads.
+
+Next, obtain the already-collected status trace for this same physical
+comparison without changing watch settings or repeating temperature requests:
+
+```powershell
+npm run wear:check -- --save=temperature-wear-comparison
+```
+
+Inspect `receivedStatusTrace` around 20:20 and 20:27 UTC, including full bitmaps,
+changed bits, receipt/device times and session boundaries. This is a bounded
+120-entry trace, so coverage must be checked before interpreting an absent
+transition. The save label marks inspection time, not a physical removal time.
+REMOVE was last requested OFF after the earlier supervised trial; no removal
+alarm in this window would not establish that the hardware lacks detection.
+Reliable restoration evidence remains separate from the observed removal alarm.
+
 ### 2. Test the documented removal-alarm switch
 
 The operator has now requested this supervised test. `npm run wear:trial`
