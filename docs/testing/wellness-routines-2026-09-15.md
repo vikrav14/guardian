@@ -80,9 +80,9 @@ whether measurement starts and a fresh btemp2 upload reaches Wellness. This send
 only documented bodytemp2, with a two-minute local cooldown, strict admin/pilot
 scope and current consent. Result data remains unverified; handoff is not success.
 
-If BT is absent, wait for CONFIG on a new watch connection and share the redacted
-status. Ask the supplier how this firmware advertises its mode if it never sends
-CONFIG. Do not infer BT=2 from a btemp2 value or change firmware configuration.
+If BT is absent, use the diagnostic below. A watch restart did not produce usable
+BT/TM evidence in the operator's 15 September follow-up. Do not keep repeating
+restarts or infer BT=2 from a btemp2 value.
 
 To inspect the app controls: deploy this branch's Firestore rules (no new index),
 retain a valid private-preview grant and Flutter preview flag, and enable
@@ -100,3 +100,45 @@ offline stops, partial handoffs, restart, lease/checkpoint failure and changed
 preflight evidence. Rules tests reject unauthorized/forged requests and status
 writes. Flutter tests cover choices, pending/error feedback, stale status and
 narrow layouts with enlarged text.
+
+## Missing CONFIG diagnostic — 15 September follow-up
+
+The connected watch still reported null BT/TM after the requested physical restart,
+with the routine controller enabled and no routine preference saved. The old
+diagnostic could not distinguish absent CONFIG from absent/invalid fields inside
+CONFIG. These observations do not prove lack of temperature support.
+
+After pulling this update and restarting only the gateway, run:
+
+```powershell
+npm run wellness:routine -- --request-version
+```
+
+This strict-admin, configured-pilot operation sends the documented VERNO query
+once (Protocol p12, II.45), then reads status for up to 20 seconds. It sends no
+measurement or settings command and does not retry the device query. A separate
+two-minute gateway cooldown prevents repeated requests. GET remains read-only.
+No additional physical watch restart is required for this query.
+
+The report adds current-session configurationEvidence and firmwareEvidence, with
+ISO timestamps. Configuration states distinguish no valid decoded CONFIG observed,
+BT missing, invalid or duplicate, BT=2 reported, and other BT values. No-CONFIG
+does not prove the watch sent no network bytes; malformed framing is a separate
+possibility. The bounded firmware label comes only from CONFIG VR or VERNO; other
+raw CONFIG fields, identifiers and health readings are not retained here.
+
+A version request handoff, bare echo, unsupported reply and valid version reply
+remain distinct. A previously observed or other-session reply cannot satisfy the bounded check.
+The protocol provides no request ID; reply association uses this session and receipt time.
+Version evidence does not establish BT=2, physical wearing or customer acceptance.
+
+If BT=2 is reported, continue the one-off temperature comparison above. Otherwise,
+use the captured firmware version and field-status result to ask the supplier for
+the exact firmware's temperature-mode/readback contract and positive worn/restored
+signal. There is no verified CONFIG-request command in the supplied documents.
+Do not substitute an invented query or change acceptance flags.
+
+The independent no_routine_selected reason means no valid saved preference reached
+the gateway; manual is only its fallback. Save Gentle/Balanced from the private app
+controls to test preference delivery. Missing temperature/wearing proof still
+blocks automatic starts after a preference is saved.

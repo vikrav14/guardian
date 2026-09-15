@@ -1291,10 +1291,11 @@ function startHttpServer() {
           if (req.method === 'GET') sendJson(res, 200, await routine.status());
           else {
             const payload = JSON.parse(await readBody(req));
-            if (payload.action !== 'temperature_once' || Object.keys(payload).length !== 1) {
-              sendJson(res, 400, { error: 'Only temperature_once is supported here.' }); return;
+            if (!payload || !['temperature_once', 'firmware_version'].includes(payload.action) || Object.keys(payload).length !== 1) {
+              sendJson(res, 400, { error: 'Only temperature_once or firmware_version is supported here.' }); return;
             }
-            sendJson(res, 200, await routine.requestTemperature());
+            sendJson(res, 200, payload.action === 'firmware_version'
+              ? routine.requestVersion() : await routine.requestTemperature());
           }
         } catch (error) { sendJson(res, 409, { error: error.code ? 'Pilot operation failed.' : error.message }); }
         return;
