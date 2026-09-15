@@ -91,26 +91,28 @@ void main() {
     expect(find.textContaining('34.56 °C'), findsNothing);
     expect(tester.takeException(), isNull);
   });
-  test('Firestore stream maps temperature alongside oxygen only with pilot access', () async {
-    final db = FakeFirebaseFirestore();
-    final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'pilot'), signedIn: true);
-    await db.collection('users').doc('pilot').set({'linkedImeis': ['watch']});
-    final readings = db.collection('devices').doc('watch').collection('wellbeingReadings');
-    // Use the current day because the service also checks the current clock.
-    final recent = DateTime.now().subtract(const Duration(seconds: 1));
-    await readings.doc('temp').set({...record(), 'observedAt': Timestamp.fromDate(recent)});
-    await readings.doc('oxygen').set({'metricSet': 'spo2', 'displayable': true,
-      'values': {'spo2Percent': 97}, 'observedAt': Timestamp.fromDate(recent)});
-    final subscription = GuardianSubscription.fromMap({
-      'version': 1, 'managedBy': 'guardian_admin', 'status': 'active', 'plan': 'family',
+  for (final preview in [true, false]) {
+    test('Firestore stream temperature access with pilot preview $preview', () async {
+      // A fresh auth stream per mode models independent subscriptions and avoids
+      // relying on replay behavior of a cancelled mock auth stream.
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(mockUser: MockUser(uid: 'pilot'), signedIn: true);
+      await db.collection('users').doc('pilot').set({'linkedImeis': ['watch']});
+      final readings = db.collection('devices').doc('watch').collection('wellbeingReadings');
+      final recent = DateTime.now().subtract(const Duration(seconds: 1));
+      await readings.doc('temp').set({...record(), 'observedAt': Timestamp.fromDate(recent)});
+      await readings.doc('oxygen').set({'metricSet': 'spo2', 'displayable': true,
+        'values': {'spo2Percent': 97}, 'observedAt': Timestamp.fromDate(recent)});
+      final subscription = GuardianSubscription.fromMap({
+        'version': 1, 'managedBy': 'guardian_admin', 'status': 'active', 'plan': 'family',
+      });
+      final service = WellbeingService(db: db, auth: auth);
+      final window = WellnessWindow.forSubscription(subscription, now: DateTime.now());
+      final samples = await service.watchWellnessSamples('watch', subscription: subscription,
+        window: window, pilotPreview: preview).firstWhere((v) => v.isNotEmpty)
+          .timeout(const Duration(seconds: 5));
+      expect(samples.map((v) => v.value),
+          unorderedEquals(preview ? ['34.56 °C', '97 %'] : ['97 %']));
     });
-    final service = WellbeingService(db: db, auth: auth);
-    final window = WellnessWindow.forSubscription(subscription, now: DateTime.now());
-    final preview = await service.watchWellnessSamples('watch', subscription: subscription,
-      window: window, pilotPreview: true).firstWhere((v) => v.isNotEmpty);
-    expect(preview.map((v) => v.value), containsAll(['34.56 °C', '97 %']));
-    final customer = await service.watchWellnessSamples('watch', subscription: subscription,
-      window: window).firstWhere((v) => v.isNotEmpty);
-    expect(customer.map((v) => v.value), ['97 %']);
-  });
+  }
 }
