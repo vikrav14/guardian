@@ -2,6 +2,9 @@
 
 const { parseTemperatureMode } = require('./wellness-routine');
 const REPLY_WINDOW_MS = 120_000;
+// Supplier protocol II.18 / II.32-34. Replies are transport evidence only:
+// bare REMOVE cannot tell us the configured value or positive wearing state.
+const CAPABILITY_REPLY_COMMANDS = new Set(['REMOVE', 'REMOVESMS', 'bodytemp2', 'bodytemp', 'BTTIMESET']);
 
 function replyDetails(args) {
   // Inspect only the requested VERNO reply, never CONFIG, health or location
@@ -38,6 +41,8 @@ function emptyEvidence() {
       btField: 'not_observed', tmField: 'not_observed' },
     firmwareEvidence: { version: null, versionLabels: [], source: null, receivedAt: null,
       requestedAt: null, replyAt: null, replyState: 'no_version_reply' },
+    commandReplyEvidence: { replies: [], settingsConfirmed: false, wearingConfirmed: false,
+      scheduleVerified: false },
   };
 }
 
@@ -50,8 +55,20 @@ function createHardwareEvidence() {
   }
   function observe(decoded, session, at = new Date()) {
     if (!session || decoded?.error || !Array.isArray(decoded?.args) ||
-        !['CONFIG', 'VERNO'].includes(decoded.command)) return;
+        (!['CONFIG', 'VERNO'].includes(decoded.command) && !CAPABILITY_REPLY_COMMANDS.has(decoded.command))) return;
     const current = state(session), receivedAt = at.toISOString();
+    if (CAPABILITY_REPLY_COMMANDS.has(decoded.command)) {
+      const replies = current.commandReplyEvidence.replies;
+      const prior = replies.find(reply => reply.command === decoded.command);
+      const value = { command: decoded.command, lastReceivedAt: receivedAt,
+        count: Math.min((prior?.count || 0) + 1, Number.MAX_SAFE_INTEGER),
+        argumentCount: decoded.args.length, bareReply: decoded.args.length === 0 };
+      // Fixed command set, one summary per command; never retain arguments or
+      // infer enabled/disabled from an echo. Unsolicited replies are not tied
+      // to a request and do not validate hardware capabilities.
+      current.commandReplyEvidence.replies = [...replies.filter(reply => reply.command !== decoded.command), value];
+      return;
+    }
     let versionLabels = [];
     if (decoded.command === 'CONFIG') {
       const mode = parseTemperatureMode(decoded);
@@ -94,7 +111,9 @@ function createHardwareEvidence() {
     const value = session && sessions.get(session) || emptyEvidence();
     let capture = session && captures.get(session);
     if (capture && +at >= capture.expiresAt) { captures.delete(session); capture = null; }
-    return { configurationEvidence: { ...value.configurationEvidence },
+    return { commandReplyEvidence: { ...value.commandReplyEvidence,
+        replies: value.commandReplyEvidence.replies.map(reply => ({ ...reply })) },
+      configurationEvidence: { ...value.configurationEvidence },
       firmwareEvidence: { ...value.firmwareEvidence,
         versionLabels: [...value.firmwareEvidence.versionLabels],
         ...(capture ? { replyCaptureExpiresAt: new Date(capture.expiresAt).toISOString(),

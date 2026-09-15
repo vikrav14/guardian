@@ -17,6 +17,36 @@ function packet(payload) {
   return decodeFrame(Buffer.from(`[3G*9700000000*${payload.length.toString(16).padStart(4, '0')}*${payload}]`));
 }
 
+test('documented removal and temperature replies do not loop ACKs or confirm wearing or a schedule', () => {
+  const evidence = createHardwareEvidence(), session = {};
+  for (const command of ['REMOVE', 'REMOVESMS', 'bodytemp2', 'bodytemp', 'BTTIMESET']) {
+    const decoded = packet(command);
+    const handled = handlePacket(decoded, session);
+    assert.equal(handled.acks.length, 0, command);
+    assert.equal(handled.events[0].type, 'command_echo');
+    evidence.observe(decoded, session, AT);
+    evidence.observe(packet(`${command},private-value`), session, new Date(+AT + 1000));
+  }
+  const current = evidence.current(session, AT);
+  assert.equal(current.commandReplyEvidence.replies.length, 5);
+  assert.equal(current.commandReplyEvidence.replies[0].count, 2);
+  assert.equal(current.commandReplyEvidence.replies[0].bareReply, false);
+  assert.equal(current.commandReplyEvidence.settingsConfirmed, false);
+  assert.equal(current.commandReplyEvidence.wearingConfirmed, false);
+  assert.equal(current.commandReplyEvidence.scheduleVerified, false);
+  assert.equal(current.configurationEvidence.state, 'no_config_received');
+  assert.deepEqual(current.firmwareEvidence.versionLabels, []);
+  assert.equal(JSON.stringify(current).includes('private-value'), false);
+  current.commandReplyEvidence.replies[0].count = 999;
+  assert.equal(evidence.current(session).commandReplyEvidence.replies[0].count, 2);
+  assert.deepEqual(evidence.current({}).commandReplyEvidence.replies, []);
+  assert.deepEqual(createHardwareEvidence().current(session).commandReplyEvidence.replies, []);
+  const before = evidence.current(session);
+  evidence.observe({ ...packet('REMOVE'), error: 'length_mismatch' }, session, AT);
+  evidence.observe(packet('UNKNOWN,private-value'), session, AT);
+  assert.deepEqual(evidence.current(session), before);
+});
+
 test('wire CONFIG distinguishes no packet, absent fields, invalid/duplicate fields and reported modes', () => {
   const evidence = createHardwareEvidence(), session = {};
   assert.equal(evidence.current(session).configurationEvidence.state, 'no_config_received');

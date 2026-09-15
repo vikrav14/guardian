@@ -211,3 +211,11 @@ Separately, saving Gentle/Balanced in the private app can verify preference
 delivery. It is expected to stay paused while the hardware prerequisites above
 remain unconfirmed. Native cycle uploads, stopping/reconnection and battery
 acceptance follow only after those prerequisites are established.
+
+## Follow-up capability research
+
+The [V52 temperature and wearing investigation](v52-temperature-wearing-capability-research-2026-09-15.md)
+records the original PDF hashes, the documented REMOVE enable switch, the
+conflicting wearing-bit descriptions, and the next hardware comparisons.
+`wellness:routine` includes bounded command-reply diagnostics; a reply does not
+confirm a setting or enable an automatic routine.
