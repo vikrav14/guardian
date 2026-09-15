@@ -75,7 +75,7 @@ hardware command was sent remotely while recording this result.
 | Subsequent removal alarm | AL_LTE observed at 18:50:43 UTC, received at 18:50:47.073 UTC; status `00100000`, bit 20 true, bit 3 false | First direct exact-watch removal-alarm packet in this trial. |
 | SMS reported by operator | Two messages saying the device had been removed | Existing device alert configuration also generated SMS. This does not establish two distinct removals; only one AL_LTE packet is retained here. |
 | Worn-again capture | Captured at 18:53:03.557 UTC, latest packet still the alarm received at 18:50:47.073 UTC | No later observation to demonstrate restoration; latest packet receipt is about 136 seconds old. |
-| Cleanup | Disable helper returned "One connected pilot watch session is required; nothing sent." Read-only status then showed connected false. | OFF was not sent or queued. Cleanup is pending reconnection; the setting may still be enabled. |
+| Initial cleanup attempt | Disable helper returned "One connected pilot watch session is required; nothing sent." Read-only status then showed connected false. | OFF was not sent or queued at this attempt. See the subsequent cleanup exchange below. |
 
 All times above are UTC; add four hours for Mauritius (alarm at 22:50:43).
 The exact physical removal and put-back times and any vibration remain to be
@@ -88,12 +88,33 @@ current wearing state, and automatic measurement gating remain unverified.
 The runtime correctly retains unknown rather than treating an old removal alarm
 or its absence as current worn evidence.
 
-Immediate next action: reconnect the watch, use `npm run wear:trial -- --disable`
-once, and inspect `npm run wear:trial` for a subsequent REMOVE reply. Do not
-re-enable for another cycle before cleanup. A reply is transport evidence, not
-proof that the stored setting is OFF. Do not change REMOVESMS, SOS numbers or
-global alarm mode based solely on these two SMS messages. Future removal trials
-must explicitly account for the observed SMS side effect.
+### Cleanup exchange and connection issue, 2026-09-15 19:01 UTC
+
+The operator reported repeated "Watch reconnecting" messages during this trial.
+The 22:56:29 Mauritius screenshot showed a last check-in about five minutes old;
+the runtime had independently reported no connected session. The timing makes
+the trial a possible contributor, but does not establish why the session ended.
+
+The next read-only `wear:trial` showed `connected: true`. One disable request was
+then handed off as `REMOVE,0` at **19:01:35.448 UTC** (23:01:35 Mauritius). The
+subsequent inspection showed one bare `REMOVE` reply received at
+**19:01:36.300 UTC**, 852 milliseconds later, and `connected: true`.
+
+The cleanup command exchange is now observed. A bare reply does not read back
+the applied setting, so `settingsConfirmed` remains false. Current wearing
+status remains unknown. There is no need to repeat the disable command solely
+because these acceptance fields remain false.
+
+Next, keep this removal trial paused and observe connection behavior after the
+disable exchange. Collect gateway connect/disconnect, recovery, downlink and
+error logs around 18:44–19:02 UTC (22:44–23:02 Mauritius), retaining any later
+disconnects. Stable behavior afterward would help assess the association; it
+would not alone prove causation or the stored setting. Repeated disconnections
+remain unresolved until the session logs identify the failure path.
+
+Do not change REMOVESMS, SOS numbers or global alarm mode based solely on the
+two SMS messages. Future removal trials must explicitly account for both the
+observed SMS side effect and the reported connection instability.
 
 ### 1. Establish remote temperature separately from scheduling
 
