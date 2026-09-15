@@ -299,11 +299,15 @@ class _WellnessDataState extends State<_WellnessData>
               : readings.data ?? <WellnessSample>[];
           if (!widget.detail) {
             return WellnessCard(
-              onRoutine: widget.pilotPreview
-                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => WellnessRoutinePage(imei: widget.imei),
-                    ))
-                  : null,
+              onRoutine: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => WellnessRoutinePage(
+                    imei: widget.imei,
+                    subscription: widget.subscription,
+                    pilotPreview: widget.pilotPreview,
+                  ),
+                ),
+              ),
               pilotPreview: widget.pilotPreview,
               wearStatus: wearStatus,
               days: days,
@@ -323,6 +327,16 @@ class _WellnessDataState extends State<_WellnessData>
           final care = widget.subscription.plan == GuardianPlan.care;
           final tomorrow = wellnessDayStart(_now).add(const Duration(days: 1));
           return WellnessHistory(
+            onRoutine: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => WellnessRoutinePage(
+                  imei: widget.imei,
+                  subscription: widget.subscription,
+                  pilotPreview: widget.pilotPreview,
+                ),
+              ),
+            ),
+            planDescription: widget.subscription.wellnessHistoryDescription,
             pilotPreview: widget.pilotPreview,
             window: _window,
             days: days,

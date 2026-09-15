@@ -16,6 +16,9 @@ on:
       - 'apps/mobile/lib/screens/safe_zones_page.dart'
       - 'apps/mobile/lib/widgets/safe_zones/**'
       - 'apps/mobile/lib/wellness/**'
+      - 'apps/mobile/lib/screens/watch_settings_page.dart'
+      - 'apps/mobile/lib/screens/watch_preferences_page.dart'
+      - 'apps/mobile/test/watch_preferences_test.dart'
       - 'apps/mobile/test/wellness_editions_test.dart'
       - 'apps/mobile/tool/render_wellness_previews_test.dart'
       - 'apps/mobile/test/safe_zone_map_test.dart'
@@ -101,7 +104,7 @@ jobs:
 
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_dashboard_overview_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart
+        run: flutter test test/guardian_dashboard_overview_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}

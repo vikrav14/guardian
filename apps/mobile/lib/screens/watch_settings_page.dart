@@ -7,7 +7,9 @@ import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
-import 'care_settings_page.dart';
+import 'watch_preferences_page.dart';
+import '../wellness/wellness_routine.dart';
+import '../wellness/wellness_settings_card.dart';
 import 'emergency_contacts_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
@@ -132,7 +134,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       appBar: AppBar(
         backgroundColor: colors.canvas,
         elevation: 0,
-        title: Text('${widget.device.displayName} settings'),
+        title: Text('${widget.device.displayName} · Watch settings'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -146,16 +148,28 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                   eyebrow: 'PERSON',
                   title: 'Who wears this watch?',
                   subtitle:
-                      'Identity and care context belong to the person, not the hardware.',
+                      'Name, relationship and photo for your family dashboard.',
                 ),
                 const SizedBox(height: 14),
                 _personCard(colors),
+                const SizedBox(height: 24),
+                WellnessSettingsCard(
+                  subscription: widget.subscription,
+                  onOpen: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => WellnessRoutinePage(
+                        imei: widget.device.imei,
+                        subscription: widget.subscription,
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 _SectionHeading(
                   eyebrow: 'SAFETY & CARE',
                   title: 'What Guardian should do',
                   subtitle:
-                      'Emergency calling, care profile, fall detection and reminders.',
+                      'Location updates, fall detection and emergency contacts. Care extras are labelled separately.',
                 ),
                 const SizedBox(height: 14),
                 _safetyCard(colors),
@@ -236,25 +250,18 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
   }
 
   Widget _safetyCard(GuardianThemeColors colors) {
-    final careDecision = GuardianEntitlementDecision.resolve(
-      feature: GuardianFeature.wellbeingActivitySummaries,
-      subscription: widget.subscription,
-    );
     return GuardianCard(
       child: Column(
         children: [
           _SettingsTile(
-            icon: careDecision.allowed
-                ? Icons.volunteer_activism_rounded
-                : Icons.lock_outline_rounded,
-            title: careDecision.allowed ? 'Care profile' : 'Care services',
-            subtitle: careDecision.allowed
-                ? 'Person profile, wellbeing priorities and medication reminders'
-                : 'Guardian Care is required for wellbeing and medication services',
+            icon: Icons.tune_rounded,
+            title: 'Location, safety & Care preferences',
+            subtitle:
+                'Location reporting, fall detection and optional Care extras',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => CareSettingsPage(
+                  builder: (_) => WatchPreferencesPage(
                     device: widget.device,
                     subscription: widget.subscription,
                   ),
@@ -363,22 +370,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
               icon: const Icon(Icons.sim_card_rounded, size: 17),
               label: const Text('Save SIM number'),
             ),
-          ),
-          const Divider(height: 28),
-          _SettingsTile(
-            icon: Icons.location_on_outlined,
-            title: 'Location update frequency',
-            subtitle: 'Manage core location reporting for this watch',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => CareSettingsPage(
-                    device: widget.device,
-                    subscription: widget.subscription,
-                  ),
-                ),
-              );
-            },
           ),
         ],
       ),

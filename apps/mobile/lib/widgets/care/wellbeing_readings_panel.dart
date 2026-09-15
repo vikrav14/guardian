@@ -42,8 +42,8 @@ class WellbeingReadingsPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             allowed
-                ? 'Automatic watch estimates, scheduled hourly when a measurement succeeds.'
-                : 'Wellbeing insights are available with Guardian Care.',
+                ? 'Available watch estimates. Each reading has its own update time.'
+                : 'Today’s available readings are on Home. Check Wellness settings for access.',
             style: TextStyle(color: colors.textSecondary),
           ),
           if (allowed) ...[
@@ -66,8 +66,11 @@ class WellbeingReadingsPanel extends StatelessWidget {
                 final latest = values.reduce(
                   (a, b) => a.observedAt.isAfter(b.observedAt) ? a : b,
                 );
-                final latestAge = (now ?? DateTime.now()).difference(latest.observedAt);
-                final recent = !latestAge.isNegative && latestAge.inMinutes <= 90;
+                final latestAge = (now ?? DateTime.now()).difference(
+                  latest.observedAt,
+                );
+                final recent =
+                    !latestAge.isNegative && latestAge.inMinutes <= 90;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -113,7 +116,9 @@ class _ReadingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final received = DateFormat('d MMM, HH:mm').format(reading.observedAt.toLocal());
+    final received = DateFormat(
+      'd MMM, HH:mm',
+    ).format(reading.observedAt.toLocal());
     final age = _ageLabel(now.difference(reading.observedAt));
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

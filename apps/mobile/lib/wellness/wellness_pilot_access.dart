@@ -24,10 +24,12 @@ class WellnessPilotAccess extends StatefulWidget {
     required this.imei,
     required this.child,
     this.grants,
+    this.unavailableChild,
   });
   final String imei;
   final Widget child;
   final Stream<List<WellnessPilotGrant>>? grants;
+  final Widget? unavailableChild;
   @override
   State<WellnessPilotAccess> createState() => _WellnessPilotAccessState();
 }
@@ -127,6 +129,8 @@ class _WellnessPilotAccessState extends State<WellnessPilotAccess> {
   @override
   Widget build(BuildContext context) => _grant?.validAt(DateTime.now()) == true
       ? widget.child
+      : !_loading && widget.unavailableChild != null
+      ? widget.unavailableChild!
       : WellnessSurface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

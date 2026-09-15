@@ -8,13 +8,15 @@ import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
 import '../widgets/layout/guardian_page_frame.dart';
+import '../wellness/wellness_routine.dart';
+import '../wellness/wellness_settings_card.dart';
 
 /// V52 only. Fall detection and medication reminders are TCP
 /// downlink commands with no SMS fallback -- the device must currently
 /// hold a live connection to the gateway for either to actually reach it.
 /// See gateway/src/commands.js and firestore/SCHEMA.md.
-class CareSettingsPage extends StatefulWidget {
-  const CareSettingsPage({
+class WatchPreferencesPage extends StatefulWidget {
+  const WatchPreferencesPage({
     super.key,
     required this.device,
     required this.subscription,
@@ -24,10 +26,10 @@ class CareSettingsPage extends StatefulWidget {
   final GuardianSubscription subscription;
 
   @override
-  State<CareSettingsPage> createState() => _CareSettingsPageState();
+  State<WatchPreferencesPage> createState() => _WatchPreferencesPageState();
 }
 
-class _CareSettingsPageState extends State<CareSettingsPage> {
+class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
   late GuardianCareProfile _adaptiveProfile;
   late Set<String> _adaptivePriorities;
 
@@ -40,17 +42,11 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   late int _uploadIntervalSeconds;
   bool _savingInterval = false;
 
-  static const _uploadIntervalPresets = [30, 60, 120, 300];
+  static const _uploadIntervalPresets = [60, 300, 600, 900];
 
   @override
   void initState() {
     super.initState();
-    _adaptiveProfile = GuardianCareProfileX.fromValue(
-      widget.device.careProfile,
-    );
-    _adaptivePriorities = widget.device.carePriorities.isEmpty
-        ? {...GuardianCarePriority.defaultsFor(_adaptiveProfile)}
-        : {...widget.device.carePriorities};
     _adaptiveProfile = GuardianCareProfileX.fromValue(
       widget.device.careProfile,
     );
@@ -177,7 +173,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       appBar: AppBar(
         backgroundColor: colors.canvas,
         elevation: 0,
-        title: Text('${widget.device.displayName} - Care'),
+        title: Text('${widget.device.displayName} · Watch preferences'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -188,7 +184,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'PROACTIVE WELLBEING',
+                  'WATCH PREFERENCES',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: 11,
@@ -198,16 +194,15 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Care settings',
+                  'Safety and Wellness',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'These need the watch to be online right now to take '
-                  'effect - there is no SMS fallback for fall detection or '
-                  'medication reminders.',
+                  'Choose when readings are taken and how location and safety features work. '
+                  'Changes sent to the watch need a current connection.',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12.5,
@@ -215,20 +210,40 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
-                if (careDecision.allowed)
+                WellnessSettingsCard(
+                  subscription: subscription,
+                  onOpen: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => WellnessRoutinePage(
+                        imei: widget.device.imei,
+                        subscription: subscription,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: GuardianSpacing.lg),
+                _buildLocationUpdatesCard(colors),
+                const SizedBox(height: GuardianSpacing.lg),
+                _buildFallDetectionCard(colors),
+                const SizedBox(height: GuardianSpacing.lg),
+                Text(
+                  'Care extras',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: GuardianSpacing.sm),
+                if (careDecision.allowed) ...[
                   CareProfileCard(
                     device: widget.device,
                     subscription: subscription,
                     onChanged: _onCareDraftChanged,
-                  )
-                else
+                  ),
+                  const SizedBox(height: GuardianSpacing.lg),
+                  _buildAdaptiveCareSections(
+                    colors,
+                    subscription: subscription,
+                  ),
+                ] else
                   _PlanNotice(decision: careDecision),
-                const SizedBox(height: GuardianSpacing.lg),
-                _buildAdaptiveCareSections(
-                  colors,
-                  careEnabled: careDecision.allowed,
-                  subscription: subscription,
-                ),
               ],
             ),
           ),
@@ -239,39 +254,17 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
 
   Widget _buildAdaptiveCareSections(
     GuardianThemeColors colors, {
-    required bool careEnabled,
-    required GuardianSubscription? subscription,
+    required GuardianSubscription subscription,
   }) {
     final priorities = _adaptivePriorities;
 
-    final widgets = <Widget>[
-      _buildLocationUpdatesCard(colors),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildFallDetectionCard(colors),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildPriorityInfoCard(
-        colors,
-        icon: Icons.location_on_outlined,
-        title: 'Safe zones',
-        subtitle:
-            'Important places Guardian can watch for arrivals and departures.',
-      ),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildPriorityInfoCard(
-        colors,
-        icon: Icons.route_outlined,
-        title: 'Journeys',
-        subtitle:
-            'Follow recorded movement between places. History length adapts to the family plan.',
-      ),
-    ];
+    final widgets = <Widget>[];
 
     void addSection(Widget section) {
-      widgets.add(const SizedBox(height: GuardianSpacing.lg));
+      if (widgets.isNotEmpty)
+        widgets.add(const SizedBox(height: GuardianSpacing.lg));
       widgets.add(section);
     }
-
-    if (!careEnabled || subscription == null) return Column(children: widgets);
 
     if (priorities.contains(GuardianCarePriority.unusualStops)) {
       addSection(
@@ -280,7 +273,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.pause_circle_outline_rounded,
           title: 'Unusual stops',
           subtitle:
-              'Surface unexpected pauses or stops when they matter in context.',
+              'Planned · insights about unusual stops need verified movement history.',
         ),
       );
     }
@@ -300,7 +293,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.hourglass_empty_rounded,
           title: 'Inactivity',
           subtitle:
-              'Surface unusually long periods without meaningful movement.',
+              'Planned · personal activity patterns need sufficient readings and confirmed wearing.',
         ),
       );
     }
@@ -312,11 +305,20 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.directions_walk_rounded,
           title: 'Wandering',
           subtitle:
-              'Watch for movement that looks unusual for the personâ€™s routine.',
+              'Planned · personal routine notices need verified movement history.',
         ),
       );
     }
 
+    addSection(
+      _buildPriorityInfoCard(
+        colors,
+        icon: Icons.summarize_outlined,
+        title: 'Weekly reports and advanced insights',
+        subtitle:
+            'Planned for Guardian Care · weekly WhatsApp reports, longer-term comparisons and optional personal-pattern notices.',
+      ),
+    );
     return Column(children: widgets);
   }
 
@@ -343,9 +345,9 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
         icon: Icons.favorite_border_rounded,
         iconColor: colors.accent,
         iconBackground: colors.accentMuted,
-        title: 'Wellbeing context',
+        title: 'Care insights',
         subtitle:
-            'Guardian may use supported watch signals to explain patterns, but never as a medical diagnosis.',
+            'Planned · insights from recorded Wellness history. Today’s watch readings are available on Home across all plans.',
       ),
     );
   }
@@ -461,7 +463,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   }
 
   Widget _buildLocationUpdatesCard(GuardianThemeColors colors) {
-    const presets = <int>[60, 300, 600, 900];
+    const presets = _uploadIntervalPresets;
 
     String labelFor(int seconds) => switch (seconds) {
       60 => '1 min',
@@ -517,30 +519,25 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             ],
           ),
           const SizedBox(height: GuardianSpacing.md),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment<String>(
-                value: 'automatic',
-                icon: Icon(Icons.auto_awesome_rounded, size: 16),
-                label: Text('Automatic'),
-              ),
-              ButtonSegment<String>(
-                value: 'manual',
-                icon: Icon(Icons.tune_rounded, size: 16),
-                label: Text('Manual'),
-              ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mode in ['automatic', 'manual'])
+                ChoiceChip(
+                  label: Text(mode == 'automatic' ? 'Automatic' : 'Manual'),
+                  selected: _locationReportingMode == mode,
+                  onSelected: _savingInterval
+                      ? null
+                      : (_) {
+                          if (mode == 'automatic') {
+                            _enableAutomaticLocationReporting();
+                          } else {
+                            setState(() => _locationReportingMode = 'manual');
+                          }
+                        },
+                ),
             ],
-            selected: {_locationReportingMode},
-            onSelectionChanged: _savingInterval
-                ? null
-                : (selection) {
-                    final mode = selection.first;
-                    if (mode == 'automatic') {
-                      _enableAutomaticLocationReporting();
-                    } else {
-                      setState(() => _locationReportingMode = 'manual');
-                    }
-                  },
           ),
           const SizedBox(height: GuardianSpacing.md),
           if (automatic)
@@ -614,9 +611,8 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           ],
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'Reporting frequency controls how often the watch is asked to send '
-            'updates. It does not change GPS A/V interpretation and does not '
-            'guarantee a satellite GPS fix.',
+            'This controls location updates. Heart rate, oxygen, blood pressure '
+            'and temperature use the separate Wellness routine.',
             style: TextStyle(
               color: colors.textMuted,
               fontSize: 11,
@@ -853,7 +849,10 @@ class _PlanNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  decision.title,
+                  decision.state ==
+                          GuardianEntitlementDecisionState.upgradeRequired
+                      ? 'Care profile and medication reminders'
+                      : decision.title,
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -861,7 +860,10 @@ class _PlanNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  decision.message,
+                  decision.state ==
+                          GuardianEntitlementDecisionState.upgradeRequired
+                      ? 'These extras require Guardian Care. Basic Wellness readings are included with every active plan.'
+                      : decision.message,
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12,
@@ -870,7 +872,7 @@ class _PlanNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'Core location, safe-zone, journey and fall-safety settings remain available below.',
+                  'Your Wellness history follows your plan. Location and safety controls are above.',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: 11,

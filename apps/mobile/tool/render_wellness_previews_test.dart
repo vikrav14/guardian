@@ -6,6 +6,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/activity_day.dart';
+import 'package:guardian/models/device.dart';
+import 'package:guardian/screens/watch_preferences_page.dart';
+import 'package:guardian/theme/colors.dart';
+import 'package:guardian/wellness/wellness_routine.dart';
 import 'package:guardian/services/guardian_entitlements.dart';
 import 'package:guardian/wellness/wellness_card.dart';
 import 'package:guardian/wellness/wellness_history.dart';
@@ -15,6 +19,77 @@ import '../test/support/dashboard_fixture.dart';
 
 const enabled = bool.fromEnvironment('WELLNESS_PREVIEWS');
 void main() {
+  for (final width in [390.0, 1280.0]) {
+    for (final routine in [false, true]) {
+      testWidgets('render shared settings $routine at $width', (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, routine ? 1500 : 1900);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.runAsync(() async {
+          final font = FontLoader('WellnessPreview')
+            ..addFont(
+              Future.value(
+                ByteData.sublistView(
+                  await File(
+                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                  ).readAsBytes(),
+                ),
+              ),
+            );
+          await font.load();
+          final icons = FontLoader('MaterialIcons')
+            ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+          await icons.load();
+        });
+        final subscription = GuardianSubscription.fromMap({
+          'version': 1,
+          'managedBy': 'guardian_admin',
+          'plan': 'family',
+          'status': 'active',
+        });
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              useMaterial3: true,
+              fontFamily: 'WellnessPreview',
+              extensions: const [GuardianThemeColors.light],
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: GuardianThemeColors.light.accent,
+              ),
+            ),
+            home: RepaintBoundary(
+              key: key,
+              child: routine
+                  ? WellnessRoutinePage(
+                      imei: 'synthetic',
+                      subscription: subscription,
+                      pilotPreview: false,
+                    )
+                  : WatchPreferencesPage(
+                      device: const Device(
+                        imei: 'synthetic',
+                        nickname: 'Sample wearer',
+                        online: false,
+                      ),
+                      subscription: subscription,
+                    ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await save(
+          tester,
+          key,
+          '${routine ? 'routine' : 'preferences'}_${width.toInt()}',
+        );
+        await tester.pumpWidget(const SizedBox());
+      }, skip: !enabled);
+    }
+  }
   final now = DateTime.utc(2026, 9, 14, 12);
   final days = [
     for (var n = 0; n < 7; n++)
@@ -87,6 +162,7 @@ void main() {
                     now: now,
                     readingsAvailable: true,
                     onOpen: plan == 'essential' ? null : () {},
+                    onRoutine: () {},
                   ),
                 ),
               ],
@@ -116,6 +192,8 @@ void main() {
                 onPrevious: plan == 'care' ? () {} : null,
                 onChooseDate: plan == 'care' ? () {} : null,
                 onAsk: () {},
+                onRoutine: () {},
+                planDescription: subscription.wellnessHistoryDescription,
               ),
               boundaryKey: boundaryKey,
               fontFamily: 'WellnessPreview',

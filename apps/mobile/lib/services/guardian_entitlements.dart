@@ -71,10 +71,12 @@ extension GuardianFeaturePresentation on GuardianFeature {
     GuardianFeature.medicationReminders => 'Medication reminders',
     GuardianFeature.reminderAcknowledgements => 'Reminder acknowledgements',
     GuardianFeature.wellbeingActivitySummaries =>
-      'Wellbeing and activity summaries',
-    GuardianFeature.weeklyCareSummaries => 'Weekly care summaries',
-    GuardianFeature.shareableWellbeingReports => 'Shareable wellbeing reports',
-    GuardianFeature.proactiveRoutineAlerts => 'Proactive routine alerts',
+      'Advanced Wellness summaries · planned',
+    GuardianFeature.weeklyCareSummaries => 'Weekly WhatsApp reports · planned',
+    GuardianFeature.shareableWellbeingReports =>
+      'Shareable Wellness reports · planned',
+    GuardianFeature.proactiveRoutineAlerts =>
+      'Personal-pattern notices · planned',
     GuardianFeature.prioritySupport => 'Priority family support',
   };
 
@@ -175,6 +177,18 @@ class GuardianSubscription {
       : plan == GuardianPlan.family
       ? 7
       : null;
+
+  String get wellnessHistoryDescription => !serviceActive
+      ? 'An active Guardian plan is needed for Wellness readings.'
+      : switch (plan) {
+          GuardianPlan.essential =>
+            'Today’s activity and watch readings on your dashboard.',
+          GuardianPlan.family =>
+            'Seven days of activity and watch-reading history, including today.',
+          GuardianPlan.care =>
+            'All available activity and watch-reading history during active service.',
+          null => 'Wellness access is being checked.',
+        };
 
   bool has(GuardianFeature feature) =>
       serviceActive && features.contains(feature);

@@ -124,6 +124,7 @@ void main() {
             imei: 'synthetic-watch',
             grants: grants.stream,
             child: const Text('private reading'),
+            unavailableChild: const Text('routine unavailable'),
           ),
         ),
       ),
@@ -137,6 +138,7 @@ void main() {
     expect(find.text('private reading'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
     expect(find.text('private reading'), findsNothing);
+    expect(find.text('routine unavailable'), findsOneWidget);
     grants.add([
       WellnessPilotGrant(
         DateTime.now(),
@@ -151,6 +153,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('private reading'), findsNothing);
+    expect(find.text('routine unavailable'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

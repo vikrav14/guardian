@@ -19,6 +19,8 @@ class WellnessHistory extends StatelessWidget {
     this.onNext,
     this.onChooseDate,
     this.onAsk,
+    this.onRoutine,
+    this.planDescription,
     this.readingError = false,
     this.activityError = false,
     this.pilotPreview = false,
@@ -28,7 +30,8 @@ class WellnessHistory extends StatelessWidget {
   final List<WellnessSample> samples;
   final DateTime now;
   final bool activityAvailable, readingsAvailable, readingError, activityError;
-  final VoidCallback? onPrevious, onNext, onChooseDate, onAsk;
+  final VoidCallback? onPrevious, onNext, onChooseDate, onAsk, onRoutine;
+  final String? planDescription;
   final bool pilotPreview;
 
   @override
@@ -43,12 +46,36 @@ class WellnessHistory extends StatelessWidget {
         .toList();
     final maximum = accepted.fold<int>(1, (a, d) => d.steps > a ? d.steps : a);
     final ordered =
-        samples.where((s) => window.contains(s.recordedAt, now: now) &&
-            (pilotPreview || s.metric != WellnessMetric.skinTemperature)).toList()
+        samples
+            .where(
+              (s) =>
+                  window.contains(s.recordedAt, now: now) &&
+                  (pilotPreview || s.metric != WellnessMetric.skinTemperature),
+            )
+            .toList()
           ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (planDescription != null || onRoutine != null) ...[
+          WellnessSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (planDescription != null) Text(planDescription!),
+                if (onRoutine != null) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: onRoutine,
+                    icon: const Icon(Icons.schedule),
+                    label: const Text('Wellness routine'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (pilotPreview) ...[
           const WellnessSurface(
             child: Text(
@@ -124,10 +151,9 @@ class WellnessHistory extends StatelessWidget {
             children: [
               WellnessHeading(
                 title: 'Watch readings',
-                subtitle:
-                    pilotPreview
-                        ? 'Heart rate, blood oxygen, blood-pressure and skin-temperature estimates'
-                        : 'Heart rate, blood oxygen and blood-pressure estimates',
+                subtitle: pilotPreview
+                    ? 'Heart rate, blood oxygen, blood-pressure and skin-temperature estimates'
+                    : 'Heart rate, blood oxygen and blood-pressure estimates',
               ),
               const SizedBox(height: 16),
               if (!readingsAvailable)

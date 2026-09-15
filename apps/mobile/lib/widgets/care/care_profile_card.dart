@@ -192,7 +192,7 @@ class _CareProfileEditorState extends State<_CareProfileEditor> {
                       ),
                     ),
                     Text(
-                      'Guardian adapts what it watches and explains.',
+                      'Choose care priorities. Available features are shown below.',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],

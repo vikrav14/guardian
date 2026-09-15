@@ -107,9 +107,9 @@ class AroundThemPanel extends StatelessWidget {
         const _ContextCard(
           icon: Icons.favorite_rounded,
           color: Color(0xFF8058BE),
-          title: 'Wellbeing',
-          value: 'Care observations available',
-          detail: 'Trends and context, not diagnosis',
+          title: 'Care insights',
+          value: 'Advanced insights planned',
+          detail: 'Today’s Wellness readings are on Home',
         ),
       );
     }
@@ -121,7 +121,7 @@ class AroundThemPanel extends StatelessWidget {
           color: Color(0xFFD19B16),
           title: 'Medication',
           value: 'Reminder support available',
-          detail: 'Configure reminders in Care settings',
+          detail: 'Configure reminders in Watch preferences',
         ),
       );
     }
