@@ -1263,7 +1263,12 @@ const server = net.createServer((socket) => {
 
   const remote = `${socket.remoteAddress}:${socket.remotePort}`;
 
-  console.log(`[tcp] connected ${remote}`);
+  const connectedAt = new Date().toISOString();
+  let lastDataAt = null;
+  let peerEndAt = null;
+  let socketErrorCode = null;
+
+  console.log(`[tcp] connected ${remote} at=${connectedAt}`);
 
   registerSession(socket, {
     onRecoveryProbe: ({ imei, protocolId, reason }) => {
@@ -1292,6 +1297,8 @@ const server = net.createServer((socket) => {
     const session = getSession(socket);
 
     if (!session) return;
+
+    lastDataAt = new Date().toISOString();
 
     noteSessionPacket(socket);
 
@@ -1359,19 +1366,43 @@ const server = net.createServer((socket) => {
 
 
 
+  // The peer here may be a tunnel agent. An end event records transport
+  // evidence; it cannot identify the watch, carrier or tunnel as the cause.
+  socket.on('end', () => {
+    peerEndAt = new Date().toISOString();
+  });
+
   socket.on('error', (err) => {
 
-    console.error(`[tcp] error ${remote}:`, err.message);
+    socketErrorCode = typeof err.code === 'string' ? err.code : 'unknown';
+    console.error(
+      `[tcp] error ${remote} at=${new Date().toISOString()} code=${socketErrorCode}:`,
+      err.message
+    );
 
   });
 
 
 
-  socket.on('close', () => {
+  socket.on('close', (hadError) => {
 
     const session = getSession(socket);
 
-    console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
+    console.log(
+      `[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'} ` +
+      JSON.stringify({
+        at: new Date().toISOString(),
+        connectedAt,
+        lastDataAt,
+        peerEndAt,
+        hadError: hadError === true,
+        socketErrorCode,
+        localCloseReason: session?.localCloseReason || null,
+        localCloseRequestedAt: session?.localCloseRequestedAt || null,
+        bytesRead: socket.bytesRead,
+        bytesWritten: socket.bytesWritten,
+      })
+    );
 
     if (session?.imei) {
       wearEvidence.disconnect(session.imei, session);

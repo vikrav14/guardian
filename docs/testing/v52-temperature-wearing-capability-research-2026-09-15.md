@@ -105,16 +105,59 @@ the applied setting, so `settingsConfirmed` remains false. Current wearing
 status remains unknown. There is no need to repeat the disable command solely
 because these acceptance fields remain false.
 
-Next, keep this removal trial paused and observe connection behavior after the
-disable exchange. Collect gateway connect/disconnect, recovery, downlink and
-error logs around 18:44–19:02 UTC (22:44–23:02 Mauritius), retaining any later
-disconnects. Stable behavior afterward would help assess the association; it
-would not alone prove causation or the stored setting. Repeated disconnections
-remain unresolved until the session logs identify the failure path.
+The subsequent supplied logs establish an initial stable observation window,
+described below. Keep this removal trial paused. Stability after the disable
+exchange does not alone prove causation or the stored setting.
 
 Do not change REMOVESMS, SOS numbers or global alarm mode based solely on the
 two SMS messages. Future removal trials must explicitly account for both the
 observed SMS side effect and the reported connection instability.
+
+### Gateway log review through 19:09:13 UTC
+
+Reviewed the operator's `Pasted text(20260915-190931).txt` export (933 lines),
+including the gateway session started at approximately 18:43:40 UTC. This source
+includes several earlier gateway starts and recovery probes; they must not all
+be attributed to the later removal test.
+
+- The first `REMOVE,1` in this trial is followed by its bare reply at
+  18:44:26.739 UTC. The gateway recognizes it without sending another ACK.
+- Three short unidentified TCP connections occur around 18:46–18:47 UTC, with
+  two parse-error events. They use different socket endpoints from the watch
+  connection. The identified watch continues to deliver location packets after
+  these connections close. Their origin is unknown; these are not three proven
+  watch reconnects.
+- The identified watch connection closes after the alarm received at
+  18:50:47.073 UTC and before the next timestamped background poll at
+  18:53:41.069 UTC. The old close line has no timestamp, error status or end-event
+  evidence, so the exact close time and initiator cannot be recovered from it.
+- There is no logged socket error, idle-timeout destroy or gateway restart
+  around that close. Background schedulers continue through the gap. This
+  argues against a gateway process crash or the logged idle-destroy path; it
+  does not identify the watch firmware, carrier, tunnel or another cause.
+- A new identified session has a packet by 19:01:05.110 UTC. `REMOVE,0` is sent
+  once, followed by the bare reply at 19:01:36.300 UTC.
+- Eight location packets arrive from 19:02:00.652 through 19:09:13.906 UTC,
+  approximately 62 seconds apart. There is no further disconnect, recovery
+  probe or socket error in this portion of the supplied log. The operator's
+  accompanying read-only check still reports connected. This is about 7 minutes
+  38 seconds of evidence after the OFF reply, not a long-term reliability test.
+
+The observed connection gap overlaps the removal-alarm trial. A causal link
+remains unproven. The earlier packet-silence probes predate `REMOVE,1` and cannot
+be presented as effects of that command. The Wi-Fi Home candidate/expiry states
+continue while packets are arriving, so they also must not be equated with TCP
+disconnection.
+
+Additive connection diagnostics now timestamp connect/error/close logs and
+include the last received-data time, peer end-event time, socket error code,
+close error flag and byte totals. The existing idle-destroy path marks its own
+reason and request time. An observed peer end can originate from the local
+tunnel agent and is not proof that the physical watch initiated the failure.
+Absent cause evidence remains null rather than being guessed. This changes no
+timeout, retry, ACK, device command or connection-state policy. It becomes active
+on the next gateway restart; a restart is not required to preserve the current
+post-disable observation window.
 
 ### 1. Establish remote temperature separately from scheduling
 
