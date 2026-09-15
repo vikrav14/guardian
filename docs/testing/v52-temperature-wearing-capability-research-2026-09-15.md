@@ -456,6 +456,49 @@ remains `npm run wear:trial -- --disable` followed by a read-only reply check;
 if disconnected, finish cleanup on reconnection. An alarm clearing is not a
 positive worn-restoration signal.
 
+### Enabled repeat and second connection gap, 2026-09-15 20:43–20:59 UTC
+
+The operator supplied `Pasted text(20260915-204525).txt`,
+`Pasted text(20260915-205143).txt` and
+`Pasted text(20260915-205925).txt` for the supervised repeat. Times below are
+UTC; Mauritius times are four hours later, on 16 September.
+
+| Evidence | Observation | Meaning |
+| --- | --- | --- |
+| Enable handoff/reply | `REMOVE,1` handed off at 20:43:36.322; bare `REMOVE` reply at 20:43:37.254 | Command exchange observed, without applied-setting readback. |
+| Initial baseline | Inspection at 20:44:06.303 still ended with a packet received at 20:43:10.013 | This capture preceded the enable at the packet level; it cannot establish post-enable wearing status. |
+| Fresh worn baseline | Five live UD_LTE packets at device times 20:44:08, 20:45:10, 20:46:12, 20:47:14 and 20:48:16, all `00000000`; read-only runtime connected | Positive wearing bit still absent while operator reports worn after enable. |
+| Removal alarm | AL_LTE at device time 20:55:00, received 20:55:03.658, status `00100000`; set/changed bits both `[20]` | Second observed exact-watch bit-20 removal alarm across these supervised trials. |
+| Connection boundary | `session_disconnected` recorded at 20:57:37.320 | Connection ended 153.662 seconds after the alarm receipt; the trace does not record who initiated it. |
+| Removed inspection | At 20:58:54.144, 34 status packets in the trace, zero dropped entries, no status after the alarm; runtime `connected: false` | Neither an alarm-clear observation nor a fresh restored/worn observation is available. |
+| Operator SMS | Removal SMS reported at approximately 00:58 Mauritius | Reported SMS receipt follows the platform alarm by about three minutes. Exact SMS dispatch/delivery timestamps and physical removal time were not supplied. |
+
+`gatewayUpdatedAt` at 20:57:37 reflects the disconnect update, not a new wearing
+sample. Empty current-session command replies after disconnect do not undo the
+previously captured REMOVE reply. The exact removal time requested with
+`Get-Date -Format o` is absent from the supplied export, so sensor detection
+latency cannot be calculated from this capture.
+
+This repeats the sequence of an observed removal alarm followed by a connection
+gap. It strengthens the reason to investigate that sequence, without proving
+that REMOVE, SMS, the watch, carrier, tunnel or gateway caused the disconnect.
+The document's I.4 requires a bare `AL` response for AL_LTE. The current decoder
+constructs that response and the server writes ACKs before asynchronous event
+handling; there is no removal-specific socket-close branch. Source inspection
+does not prove that an ACK reached or was accepted by the physical watch.
+
+Before repeating removal cycles, preserve the gateway console around
+20:54–20:59 UTC, especially the timestamped `[tcp] disconnected` JSON and any
+preceding error, silent/recovery or idle-timeout line. The added fields
+`lastDataAt`, `peerEndAt`, `hadError`, `socketErrorCode`, `localCloseReason` and
+`localCloseRequestedAt` distinguish recorded transport events and a local idle
+destroy. A peer end can originate from the tunnel agent and does not identify
+the physical cause. Returning the watch to the wrist may be recorded with an
+immediate physical timestamp, but requires fresh packets after reconnection
+before making any restoration claim. Finish the chosen REMOVE-OFF cleanup
+once connected. No SMS/alarm-mode setting, acceptance flag or automatic
+temperature routine was changed while recording this result.
+
 ### 2. Test the documented removal-alarm switch
 
 The operator has now requested this supervised test. `npm run wear:trial`
@@ -490,12 +533,14 @@ immediately cancels worn eligibility; it cannot establish positive wear, and
 older history cannot override newer proof.
 
 The removal enable test was paused during the initial connection investigation
-and temperature experiments. The 20:34 trace above now supports a bounded
-supervised retry with the updated diagnostics. The worn/off/worn comparison
-must record physical transition times and fresh packets in every stage. The last
-enabled trial had no post-alarm packet before disconnect, so restoration remains
-untested. An alarm clearing while the watch is still on a table would establish
-that clearing is not a current positive contact indication.
+and temperature experiments. The 20:34 trace supported a bounded supervised
+retry with the updated diagnostics. That repeat also ended without a post-alarm
+status packet before disconnect, as recorded above. Inspect the captured close
+diagnostics before repeating removal cycles. Any continuation of the worn/off/
+worn comparison must record physical transition times and fresh packets in
+every stage; restoration remains untested. An alarm clearing while the watch
+is still on a table would establish that clearing is not a current positive
+contact indication.
 
 The companion example declares `000b` for both `REMOVESMS,1` and bare `REMOVESMS`,
 although the latter is nine characters (`0009`). Use the frame builder rather
