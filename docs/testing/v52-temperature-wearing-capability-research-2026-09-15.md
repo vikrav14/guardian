@@ -413,6 +413,49 @@ REMOVE was last requested OFF after the earlier supervised trial; no removal
 alarm in this window would not establish that the hardware lacks detection.
 Reliable restoration evidence remains separate from the observed removal alarm.
 
+### Status trace across the temperature comparison, 2026-09-15 20:34 UTC
+
+The operator saved `temperature-wear-comparison` at 20:34:14.854 UTC (00:34 on
+16 September in Mauritius). The persisted gateway update was 20:33:52.934 UTC.
+The trace contained one session-start marker at 20:20:12.971 UTC and **13 live
+UD_LTE status samples**, from device time 20:20:36 to 20:33:49 UTC. All samples
+reported `00000000`, empty `setBits` and empty `changedBits`; zero trace entries
+were dropped. All 13 were classified as live samples, not stale/history rejects.
+
+This covers packets near the removed temperature upload (20:20:37) and the worn
+request/upload (20:26:45–20:27:07), plus subsequent worn observations. No bit in
+these reported status fields differentiated the labelled positions. The first
+sample was after removal, so the trace does not include the initial worn-to-
+removed transition. It does cover the later labelled removed/worn comparison.
+The exact physical put-back time remains operator context, not a watch event.
+
+This rules out retention drops or stale-sample filtering as explanations for a
+missing difference within the 13 received packets. It does not prove that all
+device packets were delivered or that the hardware lacks a removal detector.
+REMOVE was last requested OFF at 19:01:35.448 UTC, with a bare reply; applied
+configuration is not read back. The earlier enabled trial did produce an
+AL_LTE bit-20 removal alarm and reported SMS. That trial's missing fresh
+post-return packets and connection gap still leave restoration unresolved.
+
+The next useful test is a bounded repeat with REMOVE enabled, fresh baseline
+and post-return packets, and the new receipt/connection diagnostics. The
+temperature requests are not repeated for this purpose. Current evidence of a
+continuous session and 13 fresh samples supports a supervised retry, not a claim
+that the earlier disconnect cause is fixed. Existing removal SMS may recur;
+no REMOVESMS, recipient, global alarm or native temperature-cycle setting is
+changed. Do not label zero as worn or promote acceptance from an enable reply.
+
+Start while wearing the watch: send `npm run wear:trial -- --enable` once,
+wait two minutes, then save `npm run wear:check -- --save=enabled-worn-baseline`
+and inspect `npm run wear:trial`. Review that baseline and connectivity before
+removing the watch. For the subsequent off/return comparison, record physical
+transition times immediately, allow a bounded observation period in each state,
+and ensure fresh packets after return. Retain an off-wrist interval after any
+alarm to see whether its bit clears while the watch is still removed. Cleanup
+remains `npm run wear:trial -- --disable` followed by a read-only reply check;
+if disconnected, finish cleanup on reconnection. An alarm clearing is not a
+positive worn-restoration signal.
+
 ### 2. Test the documented removal-alarm switch
 
 The operator has now requested this supervised test. `npm run wear:trial`
@@ -446,8 +489,9 @@ A fresh removal signal at the same timestamp as the latest accepted packet now
 immediately cancels worn eligibility; it cannot establish positive wear, and
 older history cannot override newer proof.
 
-Keep the removal enable test paused during the connection investigation. Use the
-single temperature experiment first. A later supervised worn/off/worn comparison
+The removal enable test was paused during the initial connection investigation
+and temperature experiments. The 20:34 trace above now supports a bounded
+supervised retry with the updated diagnostics. The worn/off/worn comparison
 must record physical transition times and fresh packets in every stage. The last
 enabled trial had no post-alarm packet before disconnect, so restoration remains
 untested. An alarm clearing while the watch is still on a table would establish
