@@ -17,11 +17,27 @@ import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
+import '../wellness/wellness_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_dashboard_overview.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
+
+const bool _careWellbeingCustomerEnabled = bool.fromEnvironment(
+  'GUARDIAN_CARE_WELLBEING_ENABLED',
+  defaultValue: false,
+);
+
+const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
+  'GUARDIAN_ACTIVITY_STEPS_ENABLED',
+  defaultValue: false,
+);
+
+const bool _wellnessPilotPreview = bool.fromEnvironment(
+  'GUARDIAN_WELLNESS_PILOT',
+  defaultValue: false,
+);
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -32,6 +48,7 @@ class MapDashboardPage extends StatefulWidget {
 
 class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
+  late final WellbeingService _wellbeingService;
   GoogleMapController? _mapController;
   // Keep the platform map mounted when the responsive columns rearrange.
   final GlobalKey _mapKey = GlobalKey(debugLabel: 'dashboard-map');
@@ -52,6 +69,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _wellbeingService = WellbeingService();
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
@@ -671,6 +689,37 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
+      wellness:
+          (_activityStepsCustomerEnabled ||
+                  _careWellbeingCustomerEnabled ||
+                  _wellnessPilotPreview) &&
+              selected != null &&
+              entitlementScope
+                  .decision(GuardianFeature.activitySteps)
+                  .allowed &&
+              entitlementScope.subscription != null
+          ? WellnessPanel(
+              imei: selected.imei,
+              name: selected.displayName,
+              subscription: entitlementScope.subscription!,
+              activityEnabled:
+                  _activityStepsCustomerEnabled || _wellnessPilotPreview,
+              pilotPreview: _wellnessPilotPreview,
+              readingsSource:
+                  _careWellbeingCustomerEnabled &&
+                      entitlementScope
+                          .decision(GuardianFeature.wellnessReadings)
+                          .allowed
+                  ? (window, subscription) =>
+                        _wellbeingService.watchWellnessSamples(
+                          selected.imei,
+                          subscription: subscription,
+                          window: window,
+                        )
+                  : null,
+              onAsk: () => unawaited(_continueOnWhatsApp(selected)),
+            )
+          : null,
       device: selected,
       devices: _devices,
       geofences: _geofences,

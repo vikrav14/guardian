@@ -1,6 +1,11 @@
 require('dotenv').config();
 const path = require('path');
 
+function finiteAtLeast(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 9000),
@@ -12,6 +17,46 @@ const config = {
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
   journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
   journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
+
+  // Interpretation is separately accepted per exact device/firmware. The
+  // passive observer runs alongside activity/wellbeing without watch commands.
+  wearEvidenceDeviceMode: process.env.WEAR_EVIDENCE_DEVICE_MODE || 'unverified',
+  wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
+
+  // V52 activity is passive and fail-closed. Raw counters continue to be
+  // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
+  // Customer exposure still requires exact-device acceptance and opt-in.
+  activityStepsIngestEnabled:
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCustomerEnabled:
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  activityStepsCounterMode:
+    ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
+      ? process.env.ACTIVITY_STEPS_COUNTER_MODE
+      : 'unverified',
+  activityStepsTimeZone:
+    process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
+  activityStepsRetentionDays: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_RETENTION_DAYS,
+    90,
+    7,
+  ),
+  activityStepsWriteMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_WRITE_MINUTES,
+    15,
+    1,
+  ),
+  activityStepsMaxPerMinute: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_MAX_PER_MINUTE,
+    300,
+    30,
+  ),
+  activityStepsCleanupMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_CLEANUP_MINUTES,
+    360,
+    60,
+  ),
 
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),
@@ -120,6 +165,25 @@ const config = {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
   opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
+
+  // V52 Care wellbeing. Health readings are sensitive and remain fail-closed:
+  // ingestion requires a backend-owned consent record, unverified readings
+  // are never displayable, and on-demand requests are a separate pilot gate.
+  // Process-local opt-in used by the private temperature capture launcher.
+  temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
+  wellnessRoutinePilotEnabled: process.env.WELLNESS_ROUTINE_PILOT_ENABLED === 'true',
+  careWellbeingIngestEnabled:
+    String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingDeviceMode:
+    String(process.env.CARE_WELLBEING_DEVICE_MODE || 'unverified').toLowerCase(),
+  careWellbeingCustomerEnabled:
+    String(process.env.CARE_WELLBEING_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRequestEnabled:
+    String(process.env.CARE_WELLBEING_REQUEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRetentionDays: Math.min(
+    365,
+    Math.max(1, Number(process.env.CARE_WELLBEING_RETENTION_DAYS || 30))
+  ),
 
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',

@@ -5,10 +5,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/alert.dart';
+import '../models/activity_day.dart';
+import '../wellness/wellness_window.dart';
+import '../wellness/linked_wellness_stream.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
+import '../models/wellbeing_reading.dart';
+import '../wellness/wellness_sample.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
 import 'guardian_entitlements.dart';
@@ -349,9 +354,7 @@ class DeviceService {
         .map((doc) {
           if (!doc.exists) return null;
           final presentation = JourneyRoutePresentation.fromDoc(doc);
-          return presentation.isUsableAt(DateTime.now())
-              ? presentation
-              : null;
+          return presentation.isUsableAt(DateTime.now()) ? presentation : null;
         });
   }
 
@@ -517,6 +520,78 @@ class DeviceService {
           .snapshots()
           .map((snap) => snap.docs.map(Device.fromDoc).toList());
     });
+  }
+}
+
+class ActivityService {
+  ActivityService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<ActivityDay>> watchRecentDays({
+    required String imei,
+    required GuardianSubscription subscription,
+    int limit = 7,
+    DateTime? before,
+    DateTime? now,
+    bool pilotPreview = false,
+  }) {
+    if (!subscription.has(GuardianFeature.activitySteps)) {
+      return Stream.error(
+        StateError('An active Guardian subscription is required for activity.'),
+      );
+    }
+    final clock = now ?? DateTime.now();
+    final window = WellnessWindow.forSubscription(
+      subscription,
+      now: clock,
+      before: before,
+      days: limit,
+    );
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('activityDays');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
+    return watchLinkedWellnessData(
+      _db,
+      _auth,
+      imei,
+      () => query
+          .where(
+            'lastObservedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(window.start),
+          )
+          .where('lastObservedAt', isLessThan: Timestamp.fromDate(window.end))
+          .orderBy('lastObservedAt', descending: true)
+          .limit(31)
+          .snapshots()
+          .map((snapshot) {
+            final days = <ActivityDay>[];
+            for (final doc in snapshot.docs) {
+              try {
+                final day = pilotPreview
+                    ? ActivityDay.fromPilotMap(doc.data())
+                    : ActivityDay.fromDoc(doc);
+                if (window.includesDate(day.localDate) &&
+                    window.contains(
+                      day.lastObservedAt,
+                      now: now ?? DateTime.now(),
+                    )) {
+                  days.add(day);
+                }
+              } on FormatException {
+                /* Invalid evidence is never displayed. */
+              }
+            }
+            return days;
+          }),
+    );
   }
 }
 
@@ -687,6 +762,126 @@ class MedicationReminderService {
   }
 }
 
+class WellbeingService {
+  WellbeingService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<WellbeingReading>> watchRecentReadings(
+    String imei, {
+    required GuardianSubscription subscription,
+    int limit = 12,
+    WellnessWindow? window,
+    DateTime? now,
+    bool pilotPreview = false,
+  }) {
+    if (!subscription.has(GuardianFeature.wellnessReadings)) {
+      return Stream.error(
+        StateError('An active Guardian subscription is required.'),
+      );
+    }
+    final clock = now ?? DateTime.now();
+    final range =
+        window ?? WellnessWindow.forSubscription(subscription, now: clock);
+    // Revalidate caller-supplied dates; a hidden date picker is not authorization.
+    final authorized = WellnessWindow.forSubscription(
+      subscription,
+      now: clock,
+      before: range.end,
+      days: range.end.difference(range.start).inDays,
+    );
+    if (range.start != authorized.start || range.end != authorized.end) {
+      return Stream.error(
+        StateError('This date range is outside the edition history window.'),
+      );
+    }
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('wellbeingReadings');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
+    return watchLinkedWellnessData(
+      _db,
+      _auth,
+      imei,
+      () => query
+          .where(
+            'observedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(range.start),
+          )
+          .where('observedAt', isLessThan: Timestamp.fromDate(range.end))
+          .orderBy('observedAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+            final readings = <WellbeingReading>[];
+            for (final doc in snapshot.docs) {
+              try {
+                final reading = WellbeingReading.fromDoc(
+                  doc,
+                  pilotPreview: pilotPreview,
+                );
+                if (range.contains(
+                  reading.observedAt,
+                  now: now ?? DateTime.now(),
+                )) {
+                  readings.add(reading);
+                }
+              } catch (_) {
+                /* Malformed evidence never becomes a reading. */
+              }
+            }
+            return readings;
+          }),
+    );
+  }
+
+  Stream<List<WellnessSample>> watchWellnessSamples(
+    String imei, {
+    required GuardianSubscription subscription,
+    required WellnessWindow window,
+    bool pilotPreview = false,
+  }) =>
+      watchRecentReadings(
+        imei,
+        subscription: subscription,
+        window: window,
+        pilotPreview: pilotPreview,
+      ).map(
+        (readings) => [
+          for (final r in readings) ...[
+            if (r.heartRateBpm != null)
+              WellnessSample(
+                metric: WellnessMetric.heartRate,
+                value: '${r.heartRateBpm} bpm',
+                recordedAt: r.observedAt,
+              ),
+            if (r.spo2Percent != null)
+              WellnessSample(
+                metric: WellnessMetric.bloodOxygen,
+                value: '${r.spo2Percent} %',
+                recordedAt: r.observedAt,
+              ),
+            if (r.systolicMmHg != null && r.diastolicMmHg != null)
+              WellnessSample(
+                metric: WellnessMetric.bloodPressure,
+                value: '${r.systolicMmHg}/${r.diastolicMmHg} mmHg',
+                recordedAt: r.observedAt,
+              ),
+            if (pilotPreview && r.skinTemperatureCelsius != null)
+              WellnessSample(
+                metric: WellnessMetric.skinTemperature,
+                value: '${r.skinTemperatureCelsius!.toStringAsFixed(2)} °C',
+                recordedAt: r.observedAt,
+              ),
+          ],
+        ],
+      );
+}
+
 class EmergencyContact {
   const EmergencyContact({
     required this.name,
@@ -822,7 +1017,8 @@ class UserProfileService {
           .whereType<Map>()
           .map((m) => EmergencyContact.fromMap(Map<String, dynamic>.from(m)))
           .toList();
-      if (contacts.isNotEmpty && !contacts.any((contact) => contact.isPrimary)) {
+      if (contacts.isNotEmpty &&
+          !contacts.any((contact) => contact.isPrimary)) {
         contacts[0] = contacts[0].copyWith(isPrimary: true);
       }
       return contacts;

@@ -1,5 +1,20 @@
 # Guardian Firestore Schema
 
+## Wellness edition access — 14 September 2026
+
+`activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be
+bounded by Mauritius calendar timestamps: Essential today, Family today plus six
+previous days, Care selected retained periods. Every query keeps `displayable == true`
+and the caller must have a trusted active subscription and linked device. Wellbeing
+also requires current backend-managed wearer consent. `wellness_readings` is a new
+basic entitlement; Care profile/medication/advanced summary permissions stay separate.
+Accepted Care records renew their `expiresAt` review deadline through cleanup after
+subscription/membership verification (and consent for wellbeing); old source times
+never change. Fixed-expiry shadow evidence is not renewed. This supersedes older
+Family/Care-only reading and fixed-retention descriptions below. No client writes
+or automatic TTL policy are introduced.
+
+
 Collections used by the GT06 gateway and (later) the Flutter app.
 
 ## `users/{uid}`
@@ -124,6 +139,10 @@ Live device state. Document ID = device IMEI (digits only).
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
+The raw `stepsRaw` and `rollCountRaw` fields are diagnostic counters, not
+customer activity totals. Accepted daily totals are stored separately under
+`activityDays` so Family/Care rules can fail closed without placing a total on
+the broadly readable device document.
 ### `lastHomeWifiDetection` (map) — historical Home display
 
 Backend-owned qualified Home detection, stored atomically alongside a fresh v4
@@ -208,9 +227,92 @@ During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
+## `devices/{imei}/activityDays/{localDate}`
+
+Gateway-owned daily activity. Linked users may read only `displayable=true`
+records within their active Wellness edition window: Essential today, Family
+seven local calendar days, Care available retained history. Clients cannot write.
+
+| Field | Type | Notes |
+|---|---|---|
+| schemaVersion | number | `2` for observed-increase accounting; legacy `daily_reset` records remain version `1`. |
+| imei, localDate, timeZone | string | Parent watch, local YYYY-MM-DD and configured IANA timezone. |
+| aggregation | string | `observed_delta` for v2. |
+| counterMode | string | `unverified`, accepted `observed_delta`, or legacy accepted `daily_reset`. |
+| recordedSteps, observedDeltaSteps | number | V2 sum of accepted increases assigned to this day, starting from zero at its first observation. |
+| displayable | boolean | V2 requires accepted observed-delta mode and customer opt-in. |
+| reportedSteps | number or null | V2 customer projection of recordedSteps; null while unverified/disabled. |
+| firstRaw, lastRaw | number | Observed raw counter values, not daily totals. |
+| firstObservedAt, lastObservedAt | timestamp | Receipt interval endpoints. |
+| sampleCount | number | Observations represented in persisted accounting; unchanged packets are throttled. |
+| resetCount, confirmedResetCount | number | Counter-decrease candidates and confirmed new baselines. No reset total is inferred. |
+| anomalyCount, gapCount | number | Implausible increases and observation gaps over 30 minutes. |
+| unallocatedSteps | number | Positive increase seen across a day boundary or long gap, recorded on the arrival-day diagnostic but excluded from either daily total. |
+| coverage, coverageReasons | string, array | `partial`, with reasons such as monitoring_started, counter_discontinuity or cross_midnight_unallocated. Never proves full-day coverage/inactivity. |
+| lastIntervalReason | string | Latest accounting decision. |
+| quality | string | V2 unverified or partial; legacy records may contain reset_recovered/anomalous. |
+| expiresAt, updatedAt | timestamp | Retention deadline and last persistence. |
+
+## `devices/{imei}/activityState/counter`
+
+Backend-only durable v2 counter baseline. Stores accepted `lastRaw`, `baselineAt`,
+`baselineLocalDate`, latest received raw/time/source, last device timestamp where
+available, segment number, pending discontinuity, mode and intervalSequence.
+One Firestore transaction commits this state, the day and any diagnostic interval.
+Receipt/device timestamp replay checks make retry idempotent across gateway
+restarts and concurrent instances. This is one bounded document per watch,
+retained with the device rather than expiring at a day boundary.
+
+## `devices/{imei}/activityIntervals/{slot}`
+
+Backend-only ring of at most 256 recent diagnostic intervals per watch, with a
+seven-day expiry handled by gateway cleanup. Each contains rawBefore/rawAfter,
+receipt-time from/to, source/deviceObservedAt when supplied, local dates,
+acceptedSteps, unallocatedSteps, segment and reason. Slots may be overwritten;
+this is recent diagnostic evidence, not promised complete hourly history.
+Unchanged heartbeat history is not written. Daily aggregates have their own
+retention and do not disappear when diagnostic intervals expire.
+
+No counter field is copied into current location, journeys, emergency alerts,
+active minutes, calories, distance or medical conclusions.
+
 ## `devices/{imei}/locations/{locationId}`
 
 Optional history (gateway throttles writes — see write gate below).
+
+## `devices/{imei}/wellbeingReadings/{readingId}`
+
+Short-retention, backend-owned V52 wellbeing estimates. These records are
+sensitive. Clients can read only records with `displayable == true`, only when
+linked to the watch, and only with an active Guardian Care subscription.
+Unverified pilot evidence remains backend-only.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| schemaVersion | number | `1` |
+| imei | string | Device IMEI |
+| metricSet | string | `spo2` \| `heart_rate_blood_pressure` |
+| values | map | Confirmed packet fields only: `spo2Percent`, or `heartRateBpm`, `systolicMmHg`, `diastolicMmHg` |
+| measurementType | string \| null | Vendor oxygen type field, retained without interpretation |
+| source | string | `v52_upload` |
+| sourceCommand | string | `oxygen` \| `bphrt` |
+| observedAt | timestamp | Gateway receipt time; the packets do not supply a measurement timestamp |
+| receivedAt | timestamp | Same receipt evidence as `observedAt` |
+| quality | string | `transport_valid_unverified` \| `device_accepted` |
+| deviceMode | string | `unverified` \| `accepted` |
+| displayable | boolean | True only after device acceptance and customer release gates |
+| expiresAt | timestamp | Retention deadline, 30 days by default |
+
+These values are watch estimates, not medical measurements. No schema field
+labels a reading normal, abnormal, safe or unsafe.
+
+## `wellbeingConsents/{imei}`
+
+Backend-only durable wearer-consent authority. Client rules deny every read and
+write. Ingestion fails closed unless `version == 1`, `status == granted`,
+`managedBy` is trusted, `wearerAcknowledgedAt` exists, and the record is neither
+revoked nor expired. The same current-consent predicate gates customer reads;
+revocation also deletes the device's retained wellbeing readings.
 
 | Field | Type |
 |-------|------|
@@ -530,6 +632,7 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
 | Battery integer change | Upsert `batteryPercent` and its independent receipt timestamp. |
 | Persisted V52 heartbeat/location/alarm | Store validated latest cellular signal and raw activity counters without creating extra history writes. |
+| Passive V52 step observation while activity ingestion is enabled | Upsert one protected local-day `activityDays` document; duplicate counters are throttled and no customer total is exposed in `unverified` mode. |
 | SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
 | Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
 | First GPS fix after TCP connect | Always upsert location |
@@ -561,3 +664,21 @@ not a client-accessible Firestore collection.
 - Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences and medication reminders, and resolve alerts for linked devices.
 - Wearer photos live in Firebase Storage at `deviceAvatars/{imei}/avatar`; Storage rules restrict access to signed-in guardians linked to that IMEI and enforce image content under 5 MB.
 - Gateway uses **Admin SDK** (bypasses rules). See [rules.example](rules.example).
+
+
+### Wearing quality alongside activity and Wellness
+
+- `devices/{imei}/wearStatus/current`: backend-only writes; safe versioned state,
+  reason, exact-device acceptance, observation/expiry and gateway update times.
+  Linked members on any active edition may read. Clients must expire status.
+- `devices/{imei}/wearDiagnostics/current`: backend-only, at most 120 raw status
+  samples, running gateway mode. Never expose raw bits through customer rules.
+- Activity v2 keeps diagnostic `recordedSteps` and separately aggregates
+  `wearQualifiedSteps`, `wearExcludedSteps`, `lastWearQualifiedAt` and
+  `wearQualityVersion: 1`. Customer `reportedSteps` is qualified partial coverage;
+  raw-counter receipt times do not refresh the accepted total's age.
+- New wellbeing records include `wearQualityVersion: 1`, receipt-time
+  `wearEvidence`, `wearQualified`, `wearReason`, and
+  `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
+  requires eligible wearing proof. Missing evidence stays private. Historical
+  diagnostic records are not retroactively made qualified.

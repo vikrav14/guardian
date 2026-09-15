@@ -16,7 +16,6 @@ import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
-import 'care_settings_page.dart';
 import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
@@ -700,7 +699,7 @@ class _DeviceRow extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
-            tooltip: 'Person and device settings',
+            tooltip: 'Watch settings',
             onPressed: () {
               final verifiedSubscription = subscription;
               if (verifiedSubscription == null) {
@@ -952,16 +951,16 @@ Future<void> _showDeviceSettingsDialog(
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.favorite_outline),
-                    title: const Text('Care settings'),
+                    title: const Text('Watch settings'),
                     subtitle: const Text(
-                      'Fall detection & medication reminders — V52',
+                      'Wellness routine, location, safety and watch details',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => CareSettingsPage(
+                          builder: (_) => WatchSettingsPage(
                             device: device,
                             subscription: subscription,
                           ),

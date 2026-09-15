@@ -24,7 +24,8 @@ function asIso(value) {
 function eventAt(value) {
   return asDate(
     value?.eventAt || value?.createdAt || value?.completedAt ||
-      value?.updatedAt || value?.recordedAt
+      value?.updatedAt || value?.recordedAt || value?.observedAt ||
+      value?.receivedAt || value?.lastObservedAt
   );
 }
 
@@ -222,6 +223,84 @@ function locationCapability(device, since) {
   };
 }
 
+function wellbeingCapability(readings, since) {
+  const matching = readings
+    .filter((reading) => after(reading, since))
+    .sort((a, b) => (eventAt(b)?.getTime() || 0) - (eventAt(a)?.getTime() || 0));
+  const evidence = matching.slice(0, 24).map((reading) => ({
+    id: reading.id || null,
+    metricSet: reading.metricSet || null,
+    values: reading.values || {},
+    quality: reading.quality || null,
+    displayable: reading.displayable === true,
+    observedAt: asIso(reading.observedAt || reading.receivedAt),
+  }));
+  const timestampsByMetric = {};
+  for (const reading of matching) {
+    const metric = String(reading.metricSet || 'unknown');
+    (timestampsByMetric[metric] ||= []).push(eventAt(reading));
+  }
+  const recurringMetrics = Object.fromEntries(
+    Object.entries(timestampsByMetric).map(([metric, timestamps]) => {
+      const ordered = timestamps.filter(Boolean).sort((a, b) => a - b);
+      return [metric, {
+        count: ordered.length,
+        observedAt: ordered.map((value) => value.toISOString()),
+        intervalSeconds: ordered.slice(1).map((value, index) =>
+          Math.round((value.getTime() - ordered[index].getTime()) / 1000)
+        ),
+      }];
+    }),
+  );
+  const recurringScheduleObserved =
+    (recurringMetrics.heart_rate_blood_pressure?.count || 0) >= 2 &&
+    (recurringMetrics.spo2?.count || 0) >= 2;
+  return {
+    releaseBlocking: false,
+    status: evidence.length > 0
+      ? ACCEPTANCE_STATUS.MANUAL_REQUIRED
+      : ACCEPTANCE_STATUS.PENDING,
+    protectedEvidencePresent: evidence.length > 0,
+    recurringScheduleObserved,
+    recurringMetrics,
+    readings: evidence,
+    note: evidence.length === 0
+      ? 'No consent-gated V52 wellbeing upload was captured in this acceptance window.'
+      : recurringScheduleObserved
+        ? 'Multiple protected heart/BP and SpO2 uploads exist in the window. Confirm no wearer action occurred and compare the schedule intervals; no medical accuracy claim is made.'
+        : 'Packet evidence exists. Compare each value with the watch display and repeat measurements before accepting the exact V52 firmware; no medical accuracy claim is made.',
+  };
+}
+
+function activityStepsCapability(activityDays, since) {
+  const observedDays = activityDays
+    .filter((day) => after(day, since))
+    .slice(0, 14)
+    .map((day) => ({
+      localDate: day.localDate || day.id || null,
+      displayable: day.displayable === true,
+      reportedSteps:
+        day.displayable === true && Number.isInteger(day.reportedSteps)
+          ? day.reportedSteps
+          : null,
+      firstRaw: Number.isInteger(day.firstRaw) ? day.firstRaw : null,
+      lastRaw: Number.isInteger(day.lastRaw) ? day.lastRaw : null,
+      sampleCount: Number(day.sampleCount || 0),
+      resetCount: Number(day.resetCount || 0),
+      anomalyCount: Number(day.anomalyCount || 0),
+      quality: day.quality || 'unverified',
+      lastObservedAt: asIso(day.lastObservedAt),
+    }));
+  return {
+    status: ACCEPTANCE_STATUS.MANUAL_REQUIRED,
+    shadowEvidencePresent: observedDays.length > 0,
+    days: observedDays,
+    note: observedDays.length > 0
+      ? 'Passive counter evidence exists. Compare it with the watch and controlled walks, then test midnight and reboot before enabling customer display.'
+      : 'Enable unverified shadow ingestion and collect passive V52 counters before the controlled activity test.',
+  };
+}
+
 function buildDeviceAcceptanceReport(evidence, options = {}) {
   const now = asDate(options.now) || new Date();
   const since = asDate(options.since) || new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -230,6 +309,8 @@ function buildDeviceAcceptanceReport(evidence, options = {}) {
   const commands = evidence.deviceCommands || [];
   const reminders = evidence.reminders || [];
   const notificationLogs = evidence.notificationLogs || [];
+  const wellbeingReadings = evidence.wellbeingReadings || [];
+  const activityDays = evidence.activityDays || [];
   const heartbeat = asDate(device.lastHeartbeatAt);
   const heartbeatAgeMs = heartbeat ? now.getTime() - heartbeat.getTime() : null;
   const connectionPassed = device.online === true && heartbeatAgeMs != null &&
@@ -251,6 +332,8 @@ function buildDeviceAcceptanceReport(evidence, options = {}) {
     geofence: geofenceCapability(alerts, since),
     battery: alertCapability('low_battery', alerts, notificationLogs, since),
     medicationReminder: reminderCapability(reminders, commands, since),
+    careWellbeing: wellbeingCapability(wellbeingReadings, since),
+    activitySteps: activityStepsCapability(activityDays, since),
     twoWayCall: {
       status: ACCEPTANCE_STATUS.MANUAL_REQUIRED,
       note: 'A normal carrier voice call bypasses Guardian servers. Record incoming and outgoing call results manually; backend logs cannot prove audio or carrier charging.',
@@ -258,7 +341,10 @@ function buildDeviceAcceptanceReport(evidence, options = {}) {
   };
 
   const machineObserved = Object.entries(capabilities)
-    .filter(([, value]) => value.status !== ACCEPTANCE_STATUS.MANUAL_REQUIRED);
+    .filter(([, value]) =>
+      value.releaseBlocking !== false &&
+      value.status !== ACCEPTANCE_STATUS.MANUAL_REQUIRED
+    );
   const machinePassed = machineObserved.every(([, value]) =>
     value.status === ACCEPTANCE_STATUS.PASSED
   );
@@ -282,5 +368,6 @@ module.exports = {
   DEFAULT_HEARTBEAT_FRESH_MS,
   asDate,
   asIso,
+  wellbeingCapability,
   buildDeviceAcceptanceReport,
 };
