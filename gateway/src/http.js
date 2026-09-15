@@ -1294,10 +1294,13 @@ function startHttpServer() {
             let payload;
             try { payload = parseRoutineOperation(JSON.parse(await readBody(req))); }
             catch {
-              sendJson(res, 400, { error: 'Use temperature_once or firmware_version; only firmware_version accepts includeReply: true.' }); return;
+              sendJson(res, 400, { error: 'Use temperature_once, firmware_version, removal_test_enable or removal_test_disable; only firmware_version accepts includeReply: true.' }); return;
             }
-            sendJson(res, 200, payload.action === 'firmware_version'
-              ? routine.requestVersion({ includeReply: payload.includeReply }) : await routine.requestTemperature());
+            const result = payload.action.startsWith('removal_test_')
+              ? routine.requestRemovalTest(payload.action === 'removal_test_enable')
+              : payload.action === 'firmware_version'
+                ? routine.requestVersion({ includeReply: payload.includeReply }) : await routine.requestTemperature();
+            sendJson(res, 200, result);
           }
         } catch (error) { sendJson(res, 409, { error: error.code ? 'Pilot operation failed.' : error.message }); }
         return;

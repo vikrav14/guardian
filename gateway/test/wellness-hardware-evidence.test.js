@@ -169,7 +169,7 @@ test('opt-in VERNO detail capture bounds and redacts values and resets on every 
   assert.equal(evidence.current(session, AT).firmwareEvidence.replyDetails, undefined);
 });
 
-test('running pilot uses one session and VERNO only; firmware cannot unlock temperature requests', async () => {
+test('running pilot confines hardware operations to one session; firmware and removal replies cannot unlock temperature', async () => {
   const sent = [], pilot = { imei: '861000000000001' };
   let matches = [{ socket: { destroyed: false }, session: pilot }];
   const module = { exports: {} };
@@ -190,7 +190,8 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
   });
   const { parseRoutineOperation } = module.exports;
   for (const payload of [null, [], { action: 'CONFIG' }, { action: 'firmware_version', command: 'CONFIG' },
-    { action: 'firmware_version', includeReply: 'true' }, { action: 'temperature_once', includeReply: true }]) {
+    { action: 'firmware_version', includeReply: 'true' }, { action: 'temperature_once', includeReply: true },
+    { action: 'removal_test_enable', includeReply: true }, { action: 'removal_test_enable', imei: 'other' }]) {
     assert.throws(() => parseRoutineOperation(payload));
   }
   assert.equal(parseRoutineOperation({ action: 'firmware_version', includeReply: true }).includeReply, true);
@@ -215,6 +216,23 @@ test('running pilot uses one session and VERNO only; firmware cannot unlock temp
   assert.equal((await runtime.status()).temperatureBt, null);
   await assert.rejects(runtime.requestTemperature(), /CONFIG BT:2/);
   assert.equal(sent.length, 1);
+  assert.throws(() => runtime.requestRemovalTest(1), /boolean/);
+  assert.equal(parseRoutineOperation({ action: 'removal_test_enable' }).action, 'removal_test_enable');
+  assert.equal(parseRoutineOperation({ action: 'removal_test_disable' }).action, 'removal_test_disable');
+  const enabled = runtime.requestRemovalTest(true);
+  assert.equal(enabled.outcome, 'command_handed_off');
+  assert.equal(enabled.settingsConfirmed, false);
+  assert.throws(() => runtime.requestRemovalTest(true), /two minutes/);
+  runtime.observe(packet('REMOVE'), pilot);
+  assert.equal((await runtime.status()).commandReplyEvidence.wearingConfirmed, false);
+  assert.equal((await runtime.status()).temperatureBt, null);
+  assert.equal(runtime.requestRemovalTest(false).command, 'REMOVE,0');
+  assert.deepEqual(sent.slice(1), [[pilot.imei, 'REMOVE,1'], [pilot.imei, 'REMOVE,0']]);
+  for (const candidates of [[], [{ socket: {}, session: pilot }, { socket: {}, session: {} }]]) {
+    matches = candidates;
+    assert.throws(() => runtime.requestRemovalTest(false), /connected/);
+  }
+  assert.equal(sent.length, 3);
   matches = [{ socket: {}, session: { imei: pilot.imei } }];
   assert.equal((await runtime.status()).firmwareEvidence.version, null);
   runtime.close();

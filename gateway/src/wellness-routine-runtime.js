@@ -13,10 +13,10 @@ const date = value => value?.toDate?.() || (value == null ? null : new Date(valu
 
 function parseRoutineOperation(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
-      !['temperature_once', 'firmware_version'].includes(payload.action) ||
+      !['temperature_once', 'firmware_version', 'removal_test_enable', 'removal_test_disable'].includes(payload.action) ||
       Object.keys(payload).some(key => !['action', 'includeReply'].includes(key)) ||
       ('includeReply' in payload && (payload.action !== 'firmware_version' || payload.includeReply !== true))) {
-    throw new Error('Use temperature_once or firmware_version; only firmware_version accepts includeReply: true.');
+    throw new Error('Use temperature_once, firmware_version, removal_test_enable or removal_test_disable; only firmware_version accepts includeReply: true.');
   }
   return { action: payload.action, includeReply: payload.includeReply === true };
 }
@@ -103,6 +103,22 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   }
   let singleRequestAt = 0;
   let versionRequestAt = 0;
+  let removalEnableAt = 0;
+  function requestRemovalTest(enabled) {
+    if (typeof enabled !== 'boolean') throw new Error('A boolean removal-test setting is required.');
+    if (!currentSession()) throw new Error('One connected pilot watch session is required.');
+    const at = Date.now();
+    if (enabled && at - removalEnableAt < 120_000) throw new Error('Wait two minutes before another enable request. Disable remains available.');
+    if (enabled) removalEnableAt = at;
+    // Strict-admin, explicitly supervised test of supplier II.18. Check and
+    // write synchronously to the running gateway's configured pilot only.
+    // No timer, SMS command, consent/acceptance change or background retry.
+    const command = `REMOVE,${enabled ? 1 : 0}`;
+    const result = sendDownlinkCommand(imei, command);
+    return { outcome: result.ok ? 'command_handed_off' : 'watch_not_connected',
+      command, requestedAt: new Date(at).toISOString(), settingMayPersist: true,
+      settingsConfirmed: false, wearingConfirmed: false };
+  }
   function requestVersion({ includeReply = false } = {}) {
     // Supplier protocol II.45: read firmware version only. No measurement or
     // settings change; a version reply never establishes BT or wearing support.
@@ -135,7 +151,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence }) {
   }
   const timer = setInterval(tick, 20_000); timer.unref?.();
   void tick();
-  runtime = { observe, tick, requestTemperature, requestVersion,
+  runtime = { observe, tick, requestTemperature, requestVersion, requestRemovalTest,
     async status() {
       const state = (await stateRef.get()).data() || {};
       const { leaseOwner, leaseUntil, handoffKey, revision, ...summary } = state;

@@ -84,6 +84,15 @@ to the routine's capability gate. There is no new bypass flag in this change.
 
 ### 2. Test the documented removal-alarm switch
 
+The operator has now requested this supervised test. `npm run wear:trial`
+reads current-session diagnostics. `npm run wear:trial -- --enable` sends
+exactly one `REMOVE,1`; `npm run wear:trial -- --disable` sends `REMOVE,0`.
+The strict-admin runtime targets its configured pilot, rechecks that exactly one
+session is connected immediately before dispatch, and rejects arbitrary payloads.
+Repeated enable requests have a two-minute cooldown; disabling remains available.
+An HTTP timeout is an uncertain handoff and never causes an automatic retry.
+These commands do not select a routine, accept a wearing bit or enable SMS.
+
 Prepare a supervised test of `REMOVE,1`, recording the previous setting and how
 to restore it. `REMOVE,0` is a documented disable command, but a bare reply does
 not report the previous/current setting or prove restoration. Settings may
@@ -95,6 +104,31 @@ securely worn, removed and stationary, then worn again. Repeat the transition
 sequence. Preserve physical transition times, device observation times and
 receipt times. Compare all status bits; do not fit a polarity rule to one trace.
 Use the existing `wear:check -- --save=<marker>` captures for each stage.
+
+Operator sequence (PowerShell, in the gateway directory):
+
+1. Pull this feature branch and restart the gateway process to load the new
+   strict-admin action and reply parser. Keep the watch and ngrok running.
+2. Wear the watch securely. Run `npm run wear:trial -- --enable` once. If it
+   fails or reports an uncertain handoff, inspect the output before continuing.
+3. Request fresh observations with
+   `npm run wifi-home:check -- --request-location`. This location request does
+   not prove wearing. Wait 60 seconds, then run
+   `npm run wear:check -- --save=removal-enabled-worn` and
+   `npm run wear:trial` to save/inspect the baseline and command reply.
+4. Remove the watch, put it on a table and record the physical removal time.
+   After 90 seconds, save `npm run wear:check -- --save=removal-enabled-off`.
+   If all sample timestamps precede removal, request another location observation
+   and wait for fresh samples; do not interpret an unchanged old capture.
+5. Wear it again, record the time, wait 90 seconds and save
+   `npm run wear:check -- --save=removal-enabled-on-again`.
+6. Request OFF with `npm run wear:trial -- --disable`, then inspect
+   `npm run wear:trial` for a subsequent reply. OFF is the chosen cleanup state,
+   not proof of restoring an unknown original state. A disconnected watch needs
+   cleanup after reconnection; a bare reply alone does not prove applied OFF.
+
+Complete the first comparison before repeating cycles or attempting a
+temperature schedule. Preserve all three captures even if the bits stay zero.
 
 The change in this investigation makes `REMOVE` replies recognizable command
 echoes with no extra ACK. `wellness:routine` also exposes bounded
