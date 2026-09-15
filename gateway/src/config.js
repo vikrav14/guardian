@@ -169,6 +169,8 @@ const config = {
   // V52 Care wellbeing. Health readings are sensitive and remain fail-closed:
   // ingestion requires a backend-owned consent record, unverified readings
   // are never displayable, and on-demand requests are a separate pilot gate.
+  // Process-local opt-in used by the private temperature capture launcher.
+  temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
   careWellbeingIngestEnabled:
     String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
   careWellbeingDeviceMode:

@@ -133,6 +133,9 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
   customerEnabled: config.careWellbeingCustomerEnabled,
   retentionDays: config.careWellbeingRetentionDays,
 }) : null;
+const temperatureCapture = config.temperatureCaptureEnabled === true
+  ? require('./temperature-capture').startTemperatureCapture({ config, db: getDb(), enabled: true })
+  : null;
 const { createWearEvidence } = require('./wear-evidence');
 const wearEvidence = createWearEvidence({ db: getDb(),
   enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
@@ -1327,6 +1330,11 @@ const server = net.createServer((socket) => {
         socket.write(ack);
 
       }
+
+      // Optional private payload capture runs after ACKs and never awaits I/O in
+      // the packet path. It does not modify events, readings or notifications.
+      try { temperatureCapture?.observe(decoded, session, receivedAt); }
+      catch { console.warn('[temperature-capture] capture_failed'); }
 
       const apply = () => applyEvents(events, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&

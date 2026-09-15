@@ -17,7 +17,10 @@
 | Confirmed scheduled measurement | `hrtstart,300..65535`; `3600` is Guardian's intended hourly interval |
 | Confirmed stop | `hrtstart,0` |
 | One-time request | `hrtstart,1` is acknowledged but did not start measurement on the pilot V52 |
+| Observed, payload not yet decoded | `btemp2` during the 15 September wrist-temperature test; opt-in private capture available |
 | Blocked pending exact packet | `bodytemp`, `bodytemp2`, `BTTIMESET` |
+
+For the observed `btemp2` variant, follow the [private payload capture runbook](../testing/temperature-payload-pilot-2026-09-15.md).
 
 This implementation establishes a complete disabled backend, Firestore and Flutter path. It does not activate a device command, expose a menu item, or promise the service to customers.
 

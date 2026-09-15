@@ -65,6 +65,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | `bphrt,<systolic>,<diastolic>,<heart rate>,...` | Documented | Parse only the three confirmed leading values; persist only with durable wearer consent; no clinical classification. | Capture on the exact V52 and compare with the watch display. |
 | `oxygen,<type>,<value>` | Documented | Validate a whole-number percentage, acknowledge `oxygen,1` when transport-valid or `oxygen,2` on invalid input, and retain the type without interpretation. | Capture wearer-initiated exact-V52 upload and compare with the watch display. |
 | `bodytemp`, `bodytemp2`, `BTTIMESET` | Incomplete | Blocked: no customer parser, value or command surface. | Establish the exact V52 firmware variant, request form and upload value shape. |
+| `btemp2` | Command name observed during the 15 September wrist-temperature test | Opt-in, consent-checked private payload capture only; no decoded value or new downlink. Existing unknown-command ACK preserved. | Compare the raw fields with a wearer-initiated watch result using the [capture runbook](testing/temperature-payload-pilot-2026-09-15.md). |
 
 The V52 datasheet lists the sensors, but a sensor claim does not establish a command or upload schema. Customer display remains off until the separate real-device gate passes.
 
