@@ -279,6 +279,37 @@ that result rather than enabling a native schedule or repeatedly probing.
 An off-wrist comparison and full removal/restoration trace remain separate
 tests. No native schedule, SMS, removal-alarm or night-mode setting is changed.
 
+### Uppercase comparison result, 2026-09-15 19:58 UTC
+
+The operator ran `temperature:trial -- --once --worn --uppercase --include-values`.
+Trial `d824a8ec-9c33-43bf-b742-cd33edb53e74` recorded:
+
+| Event | UTC request/receipt time | Evidence |
+| --- | --- | --- |
+| One `BODYTEMP2` request handed off | 19:57:52.846 | Missing BT mode; explicitly supervised worn context. |
+| Bare `BODYTEMP2` reply | 19:57:53.727 | Exact requested spelling, 0.881 seconds after dispatch. |
+| `btemp2,1,36.73` upload | 19:58:15.001 | 22.155 seconds after dispatch; different from the earlier 36.68 value. |
+
+The same session remained connected, with one reply, one upload and no rejected,
+duplicate or dropped entries. The upload receipt corresponds to **23:58:15.001
+Mauritius time on 15 September**. The operator has not yet provided the watch's
+history entry or reported physical measurement activity for this second trial.
+
+This strengthens the evidence for remote measurement: the response was not
+identical to the previously observed value. However, a changed value alone
+does not establish measurement time, exclude another stored/intervening reading,
+or prove that uppercase is required. Both trials returned uploads approximately
+22–23 seconds after dispatch. The earlier lack of vibration/history change was
+consistent with caching but did not prove it; silent background measurements
+remain another possibility to investigate.
+
+Next: inspect the latest watch history entry without initiating a new reading,
+compare its time/value with 23:58 and 36.73, and record any automatic screen,
+progress or vibration observed during the request and whether any manual
+measurement intervened. No further request is needed for this comparison.
+The diagnostic confirmation flags remain false by design; neither a schedule
+nor worn/restored detection is accepted by this result.
+
 ### 2. Test the documented removal-alarm switch
 
 The operator has now requested this supervised test. `npm run wear:trial`
