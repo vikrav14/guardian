@@ -14,7 +14,7 @@ display policy, available to linked members on every active edition:
 | Exact-device accepted, fresh sensor evidence, live connection | Wearing detected / Watch off wrist; Watch sensor; age |
 | Read/access failure | Wearing status unavailable; retry |
 
-Only the last row of actual sensor evidence can produce green wearing detection.
+Only fresh, accepted positive sensor evidence can produce green wearing detection.
 A manual check remains neutral and historical at every age. It never changes the
 wearing eligibility contract, validates readings, enables a watch command or
 sends a notification. Newer removal reports supersede earlier family checks;

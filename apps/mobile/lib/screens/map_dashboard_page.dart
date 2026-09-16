@@ -696,7 +696,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
-      wearingStatus: selected != null &&
+      wearingStatus:
+          selected != null &&
               entitlementScope.decision(GuardianFeature.activitySteps).allowed
           ? DashboardWearingStatus(
               key: ValueKey('wearing-${selected.imei}'),

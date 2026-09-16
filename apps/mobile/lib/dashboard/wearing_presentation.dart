@@ -25,7 +25,8 @@ class WearingPresentation {
 
     // A newer family observation or removal report overrides older sensor
     // evidence in this display. Equal-time contradictions never show green.
-    if (automatic != 'unknown' && automaticAt != null &&
+    if (automatic != 'unknown' &&
+        automaticAt != null &&
         (!validCheck || automaticAt.isAfter(check.recordedAt)) &&
         (!validRemoval || automaticAt.isAfter(removal))) {
       return WearingPresentation(
@@ -36,7 +37,9 @@ class WearingPresentation {
     }
     if (validCheck && (!validRemoval || check.observedAt.isAfter(removal))) {
       return WearingPresentation(
-        check.state == 'worn' ? 'Last checked on wrist' : 'Last checked off wrist',
+        check.state == 'worn'
+            ? 'Last checked on wrist'
+            : 'Last checked off wrist',
         'Family check · ${wearingAge(check.observedAt, now)}',
         WearingTone.neutral,
       );

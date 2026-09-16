@@ -80,20 +80,30 @@ class _DashboardWearingStatusState extends State<DashboardWearingStatus>
       stream: _checks,
       builder: (context, checkSnapshot) {
         final unavailable = statusSnapshot.hasError || checkSnapshot.hasError;
-        final loading = statusSnapshot.connectionState == ConnectionState.waiting ||
+        final loading =
+            statusSnapshot.connectionState == ConnectionState.waiting ||
             checkSnapshot.connectionState == ConnectionState.waiting;
         final status = unavailable
-            ? const WearStatus() : statusSnapshot.data ?? const WearStatus();
+            ? const WearStatus()
+            : statusSnapshot.data ?? const WearStatus();
         final check = unavailable ? null : checkSnapshot.data;
         final presentation = unavailable
-            ? const WearingPresentation('Wearing status unavailable',
-                'Tap to retry', WearingTone.neutral)
+            ? const WearingPresentation(
+                'Wearing status unavailable',
+                'Tap to retry',
+                WearingTone.neutral,
+              )
             : loading
-            ? const WearingPresentation('Checking wearing status…',
-                'Waiting for an update', WearingTone.neutral)
+            ? const WearingPresentation(
+                'Checking wearing status…',
+                'Waiting for an update',
+                WearingTone.neutral,
+              )
             : WearingPresentation.at(
                 now: widget.clock?.call() ?? DateTime.now(),
-                connected: widget.device.connectivityPhase() == DeviceConnectivityPhase.live,
+                connected:
+                    widget.device.connectivityPhase() ==
+                    DeviceConnectivityPhase.live,
                 status: status,
                 check: check,
               );
@@ -101,7 +111,9 @@ class _DashboardWearingStatusState extends State<DashboardWearingStatus>
           presentation: presentation,
           onTap: unavailable
               ? () => setState(_subscribe)
-              : loading ? null : () => _showDetails(status, check),
+              : loading
+              ? null
+              : () => _showDetails(status, check),
         );
       },
     ),
@@ -139,7 +151,8 @@ class WearingStatusTile extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final color = switch (presentation.tone) {
       WearingTone.detected => dark ? colors.accent : GuardianColors.safeText,
-      WearingTone.removal => dark ? GuardianColors.warning : GuardianColors.warningText,
+      WearingTone.removal =>
+        dark ? GuardianColors.warning : GuardianColors.warningText,
       WearingTone.neutral => colors.textSecondary,
     };
     return Column(
@@ -159,17 +172,33 @@ class WearingStatusTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(presentation.title, style: TextStyle(
-                        color: color, fontSize: 14, fontWeight: FontWeight.w600)),
+                      Text(
+                        presentation.title,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(presentation.detail, style: TextStyle(
-                        color: colors.textSecondary, fontSize: 13, height: 1.4)),
+                      Text(
+                        presentation.detail,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 if (onTap != null) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.chevron_right, color: colors.textSecondary, size: 20),
+                  Icon(
+                    Icons.chevron_right,
+                    color: colors.textSecondary,
+                    size: 20,
+                  ),
                 ],
               ],
             ),
@@ -208,15 +237,21 @@ class _WearingDetailsState extends State<_WearingDetails> {
   }
 
   Future<void> _save(String state) async {
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await widget.onRecord(state);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
-      if (mounted) setState(() {
-        _saving = false;
-        _error = 'Check could not be saved. Check your connection and phone clock, then try again.';
-      });
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error =
+              'Check could not be saved. Check your connection and phone clock, then try again.';
+        });
+      }
     }
   }
 
@@ -232,25 +267,36 @@ class _WearingDetailsState extends State<_WearingDetails> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('${widget.name} · Wearing information',
-              style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              '${widget.name} · Wearing information',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
-            Text(widget.status.deviceAccepted
-              ? 'Wearing detection uses fresh watch sensor reports. A connection alone does not confirm wearing.'
-              : 'This watch reports removal alarms. We cannot yet confirm automatically when it is back on the wrist.'),
+            Text(
+              widget.status.deviceAccepted
+                  ? 'Wearing detection uses fresh watch sensor reports. A connection alone does not confirm wearing.'
+                  : 'This watch reports removal alarms. We cannot yet confirm automatically when it is back on the wrist.',
+            ),
             if (removal != null && !removal.isAfter(DateTime.now())) ...[
               const SizedBox(height: 16),
               Text('Last removal report: ${_when(removal)}'),
             ],
             if (check != null && !check.observedAt.isAfter(DateTime.now())) ...[
               const SizedBox(height: 12),
-              Text('Last family check: ${check.state == 'worn' ? 'on wrist' : 'off wrist'} · ${_when(check.observedAt)}'),
+              Text(
+                'Last family check: ${check.state == 'worn' ? 'on wrist' : 'off wrist'} · ${_when(check.observedAt)}',
+              ),
             ],
             const SizedBox(height: 24),
-            Text('Record a family check', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Record a family check',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
-            const Text('Only record this after checking the person’s wrist now. '
-              'It is saved as a dated family observation, not automatic detection.'),
+            const Text(
+              'Only record this after checking the person’s wrist now. '
+              'It is saved as a dated family observation, not automatic detection.',
+            ),
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: _saving ? null : () => _save('worn'),
@@ -261,16 +307,23 @@ class _WearingDetailsState extends State<_WearingDetails> {
               onPressed: _saving ? null : () => _save('removed'),
               child: const Text('I checked: off wrist'),
             ),
-            if (_saving) const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: Text('Saving family check…'),
+            if (_saving)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Text('Saving family check…'),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
             ),
-            if (_error != null) Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(_error!, style: TextStyle(color: colors.textPrimary)),
-            ),
-            TextButton(onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close')),
           ],
         ),
       ),

@@ -13,15 +13,21 @@ class WearCheckService {
   final FirebaseAuth _auth;
 
   DocumentReference<Map<String, dynamic>> _ref(String imei) => _db
-      .collection('devices').doc(imei).collection('wearChecks').doc('current');
+      .collection('devices')
+      .doc(imei)
+      .collection('wearChecks')
+      .doc('current');
 
   Stream<WearCheck?> watch(String imei) => watchLinkedWellnessData<WearCheck>(
-    _db, _auth, imei,
+    _db,
+    _auth,
+    imei,
     () => _ref(imei).snapshots(includeMetadataChanges: true).map((snapshot) {
       // A local write is not a saved family check until the server accepts it.
       final check = snapshot.metadata.hasPendingWrites
-          ? null : WearCheck.fromMap(snapshot.data());
-      return [if (check != null) check];
+          ? null
+          : WearCheck.fromMap(snapshot.data());
+      return [?check];
     }),
   ).map((checks) => checks.firstOrNull);
 

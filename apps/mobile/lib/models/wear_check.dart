@@ -16,10 +16,15 @@ class WearCheck {
     if (data == null || data['version'] != 1) return null;
     final observed = data['observedAt'];
     final recorded = data['recordedAt'];
-    if (observed is! Timestamp || recorded is! Timestamp ||
-        !['worn', 'removed'].contains(data['state'])) return null;
+    if (observed is! Timestamp ||
+        recorded is! Timestamp ||
+        !['worn', 'removed'].contains(data['state'])) {
+      return null;
+    }
     if (recorded.toDate().difference(observed.toDate()).abs() >
-        const Duration(seconds: 60)) return null;
+        const Duration(seconds: 60)) {
+      return null;
+    }
     return WearCheck(
       state: data['state'] as String,
       observedAt: observed.toDate(),

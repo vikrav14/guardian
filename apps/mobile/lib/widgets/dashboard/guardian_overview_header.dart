@@ -167,7 +167,7 @@ class _OverviewIdentity extends StatelessWidget {
         ),
         Divider(height: 24, color: colors.border),
         _OverviewWatchState(device: device, onWatchStatus: onWatchStatus),
-        if (wearingStatus != null) wearingStatus!,
+        ?wearingStatus,
       ],
     );
   }

@@ -2,8 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Wearing evidence is separate from network connection and health values.
 class WearStatus {
-  const WearStatus({this.state = 'unknown', this.observedAt, this.expiresAt,
-    this.deviceAccepted = false, this.lastRemovalReportedAt});
+  const WearStatus({
+    this.state = 'unknown',
+    this.observedAt,
+    this.expiresAt,
+    this.deviceAccepted = false,
+    this.lastRemovalReportedAt,
+  });
   final String state;
   final DateTime? observedAt, expiresAt;
   final bool deviceAccepted;
@@ -11,16 +16,23 @@ class WearStatus {
   final DateTime? lastRemovalReportedAt;
 
   factory WearStatus.fromMap(Map<String, dynamic> data) => WearStatus(
-    state: data['version'] == 1 ? data['state'] as String? ?? 'unknown' : 'unknown',
-    observedAt: _date(data['observedAt']), expiresAt: _date(data['expiresAt']),
+    state: data['version'] == 1
+        ? data['state'] as String? ?? 'unknown'
+        : 'unknown',
+    observedAt: _date(data['observedAt']),
+    expiresAt: _date(data['expiresAt']),
     deviceAccepted: data['deviceAccepted'] == true,
     lastRemovalReportedAt: data['version'] == 1
-        ? _date(data['lastRemovalReportedAt']) : null,
+        ? _date(data['lastRemovalReportedAt'])
+        : null,
   );
 
   String stateAt(DateTime now) {
-    if (!deviceAccepted || observedAt == null || expiresAt == null ||
-        observedAt!.isAfter(now) || !expiresAt!.isAfter(now) ||
+    if (!deviceAccepted ||
+        observedAt == null ||
+        expiresAt == null ||
+        observedAt!.isAfter(now) ||
+        !expiresAt!.isAfter(now) ||
         expiresAt!.difference(observedAt!) > const Duration(seconds: 120) ||
         !['worn', 'removed'].contains(state)) {
       return 'unknown';
