@@ -48,9 +48,12 @@ focused decoder, ACK and wearing tests passes. This confirms the software path,
 not the present hardware's ability to supply its input. No new algorithm can
 distinguish the observed on/off states from their identical zero-bit reports.
 
-The [ready-to-send firmware request](v52-current-contact-firmware-request-2026-09-16.md)
+The [firmware request and supplier-contact record](v52-current-contact-firmware-request-2026-09-16.md)
 contains the two exact firmware labels, required reporting behaviour, observed
-counterexample and matching AL acknowledgement evidence. It has not been sent.
+counterexample and matching AL acknowledgement evidence. On 16 September the
+operator sent the core current-contact questions and firmware labels to Jett
+via WhatsApp (screenshot time 23:00 Mauritius). We are awaiting his response;
+the longer request contains additional engineering follow-up detail.
 No further identical removal cycle is required. A changed firmware or documented
 contact interface would justify a new, targeted acceptance comparison.
 
@@ -235,7 +238,12 @@ Do not change acceptance/consent flags or repeat requests to force a result.
   alarm, contradictory evidence or expiry must end a positive claim. Do not
   invent confidence percentages from these few pilot samples.
 
-## Supplier question prepared; not sent
+## Supplier follow-up: core contact questions sent to Jett
+
+The operator's WhatsApp asks for a current sensor-state query, bit-3/restoration
+enablement or compatible firmware, with exact commands and example replies.
+It has been sent; no supplier answer or firmware-team escalation is confirmed.
+The question set below retains further detail for that engineering discussion.
 
 For these two labels, in their observed wire order (roles not established):
 

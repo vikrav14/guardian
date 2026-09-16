@@ -61,9 +61,11 @@ This does not prove that the firmware cannot expose contact under a different
 supported setting/query, or that no such message could arrive outside this
 window. It also cannot observe packets that never reached the gateway.
 
-The next useful step is the [exact-firmware contact question](v52-current-contact-firmware-request-2026-09-16.md),
-now including this result, asking whether bit 3 is implemented and what supported
-configuration/query provides current contact and restoration. Another unchanged
+The [exact-firmware contact question](v52-current-contact-firmware-request-2026-09-16.md)
+is now with the supplier: the operator sent its core questions and observed
+results to Jett via WhatsApp on 16 September (screenshot time 23:00 Mauritius).
+We are awaiting his reply on a supported contact query, bit-3 enablement or
+compatible firmware; no response or firmware-team escalation is confirmed. Another unchanged
 passive capture or identical removal-alarm trial has no defined new hypothesis.
 The gateway continued reporting after capture expiry; no cleanup command or
 restart is needed. Automatic current-wearing acceptance remains open.

@@ -1,8 +1,16 @@
 # ReachFar V52: current-contact firmware request
 
-Prepared 16 September 2026. Ready for the operator to send to ReachFar's
-firmware team; **not sent**. This is a request for a supported interface,
-not a claim that a compatible update exists.
+**Supplier contact: sent by the operator to Jett via WhatsApp on 16 September
+2026; awaiting his response.** The supplied screenshot shows 23:00 Mauritius.
+The sent message asks for a current-contact query, bit-3 enablement/restoration
+reporting, or compatible firmware, and includes both firmware labels and the
+observed zero-state/removal results. Forwarding to the firmware team, reading
+and a technical response are not yet confirmed.
+
+The longer technical request below remains an engineering reference; it is not
+a verbatim transcript of the shorter WhatsApp message. No compatible update or
+supported query has yet been established. Private source: operator confirmation
+and screenshot `73e65b45-cebc-4ce6-a8aa-0b8b4ebe08b8.png`.
 
 ## Request
 
