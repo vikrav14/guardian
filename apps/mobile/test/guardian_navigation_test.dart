@@ -36,9 +36,7 @@ Future<void> _pumpBar(
         extensions: [colors],
       ),
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(
+        data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(textScale),
           highContrast: highContrast,
           disableAnimations: reducedMotion,
@@ -93,6 +91,7 @@ void main() {
       matchesSemantics(
         label: 'Account',
         isButton: true,
+        hasSelectedState: true,
         isSelected: true,
         hasTapAction: true,
       ),
