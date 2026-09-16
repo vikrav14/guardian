@@ -145,6 +145,9 @@ const temperatureCapture = config.temperatureCaptureEnabled === true
 const wearCapture = config.wearCaptureEnabled === true
   ? require('./wear-capture').startWearCapture({ enabled: true, pilotImei: config.wifiHomePilotImei })
   : null;
+const wearSensorCapture = config.wearSensorCaptureEnabled === true
+  ? require('./wear-sensor-capture').startWearSensorCapture({ config, db: getDb(), enabled: true })
+  : null;
 const { createWearEvidence } = require('./wear-evidence');
 const wearEvidence = createWearEvidence({ db: getDb(),
   enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
@@ -1359,6 +1362,8 @@ const server = net.createServer((socket) => {
       // the packet path. It does not modify events, readings or notifications.
       try { temperatureCapture?.observe(decoded, session, receivedAt); }
       catch { console.warn('[temperature-capture] capture_failed'); }
+      try { wearSensorCapture?.observe(decoded, session, receivedAt, frame); }
+      catch { console.warn('[wear-sensor-capture] capture_failed'); }
       try { wellnessRoutine?.observe(decoded, session); }
       catch { console.warn('[wellness-routine] observation_failed'); }
 

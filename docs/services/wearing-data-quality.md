@@ -1,5 +1,11 @@
 # Wearing evidence and Wellness data quality
 
+**Product acceptance correction, 16 September:** automatic current wrist
+detection remains required. The operator rejected the unknown/manual-check
+experience as the solution. The row below is an implemented fallback, not
+completion of that requirement. See the [positive-wearing investigation and
+bounded optical-response check](../testing/v52-positive-wearing-investigation-2026-09-16.md).
+
 ## Dashboard wearing line (16 September 2026)
 
 The family overview places a separate wearing row below connection/check-in and
