@@ -11,6 +11,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/dashboard/wearing_presentation.dart';
+import 'package:guardian/l10n/app_localizations.dart';
+import 'package:guardian/theme/colors.dart';
+import 'package:guardian/widgets/navigation/guardian_navigation.dart';
 import 'package:guardian/models/wear_check.dart';
 import 'package:guardian/models/wear_status.dart';
 import 'package:guardian/widgets/dashboard/dashboard_wearing_status.dart';
@@ -186,6 +189,93 @@ void main() {
         // reviewer recover the PNG from an authenticated CI job log.
         // ignore: avoid_print
         print('DASHBOARD_PREVIEW_${preview.name}=${base64Encode(bytes)}');
+      });
+    }, skip: !_enabled);
+  }
+  for (final sample in [
+    (name: 'navigation_light', dark: false, contrast: false, scale: 1.0),
+    (name: 'navigation_dark', dark: true, contrast: false, scale: 1.0),
+    (name: 'navigation_contrast', dark: false, contrast: true, scale: 2.0),
+  ]) {
+    testWidgets('render ${sample.name}', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 520);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.runAsync(() async {
+        final font = FontLoader('NavigationPreview')
+          ..addFont(
+            Future.value(
+              ByteData.sublistView(
+                await File(
+                  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                ).readAsBytes(),
+              ),
+            ),
+          );
+        await font.load();
+      });
+      final colors = sample.contrast
+          ? GuardianThemeColors.elderCare
+          : sample.dark
+          ? GuardianThemeColors.dark
+          : GuardianThemeColors.light;
+      final boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: ThemeData(
+            fontFamily: 'NavigationPreview',
+            brightness: sample.dark ? Brightness.dark : Brightness.light,
+            extensions: [colors],
+          ),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(sample.scale),
+              highContrast: sample.contrast,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            backgroundColor: colors.canvas,
+            body: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final selected in [0, 1, 3]) ...[
+                      MobileBottomBar(
+                        currentIndex: selected,
+                        onTap: (_) {},
+                        onSos: () {},
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final boundary =
+          boundaryKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: 1);
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        if (data == null) throw StateError('Navigation PNG encoding failed');
+        final directory = Directory('build/dashboard-previews');
+        await directory.create(recursive: true);
+        await File('${directory.path}/${sample.name}.png').writeAsBytes(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
       });
     }, skip: !_enabled);
   }

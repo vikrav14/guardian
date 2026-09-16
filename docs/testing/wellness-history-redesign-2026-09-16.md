@@ -102,3 +102,22 @@ safe zones; existing journey and alert tests protect their interactions.
 Latest-head CI and visual review results are recorded in PR #120. The QA Wiki
 mirror still needs an available authenticated Wiki write capability; this
 repository note is the reviewable QA record.
+
+## Approved navigation icons: option A
+
+The operator selected the soft two-tone example. The shared bottom navigation
+now uses matching native vector icons: house, checked shield, ringing bell,
+circular profile, and a red emergency shield. The selected destination has a
+soft accent background; icons share one row, with separate space for the SOS
+hold caption. Active labels use a darker accent in light themes for readability.
+High-contrast mode removes decorative fills and uses stronger strokes and
+borders. Reduced-motion mode changes the selection without animation.
+
+Destination order, route indices, localized labels, screen-reader selection,
+safe-area layout and the three-second SOS gesture/timer stay in place. Existing
+SOS tests cover tap, early release, cancellation, disposal and one dispatch per
+completed hold. Additional checks cover icon alignment at 320 px with enlarged
+French labels and accessible selection in high-contrast/reduced-motion mode.
+Production-widget previews include light, dark and enlarged high-contrast
+navigation, plus the existing full dashboard viewport. No watch command or live
+alert is sent during these checks. Latest verification is linked from PR #120.

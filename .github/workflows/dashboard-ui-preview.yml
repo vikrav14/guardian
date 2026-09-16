@@ -16,7 +16,7 @@ on:
       - 'apps/mobile/test/wear_check_service_test.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
       - 'apps/mobile/lib/screens/home_shell.dart'
-      - 'apps/mobile/lib/widgets/navigation/guardian_navigation.dart'
+      - 'apps/mobile/lib/widgets/navigation/**'
       - 'apps/mobile/lib/widgets/layout/guardian_app_header.dart'
       - 'apps/mobile/lib/screens/login_page.dart'
       - 'apps/mobile/lib/screens/safe_zones_page.dart'
@@ -110,6 +110,7 @@ jobs:
             lib/screens/map_dashboard_page.dart \
             lib/screens/home_shell.dart \
             lib/widgets/navigation/guardian_navigation.dart \
+            lib/widgets/navigation/guardian_navigation_icon.dart \
             lib/widgets/layout/guardian_app_header.dart \
             lib/screens/login_page.dart \
             lib/screens/safe_zones_page.dart \

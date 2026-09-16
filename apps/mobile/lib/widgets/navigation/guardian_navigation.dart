@@ -4,32 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
+import 'guardian_navigation_icon.dart';
 
-typedef GuardianDestination = ({
-  IconData icon,
-  IconData activeIcon,
-  String label,
-});
+typedef GuardianDestination = ({GuardianNavigationSymbol icon, String label});
 
 List<GuardianDestination> guardianDestinations(BuildContext context) {
   final t = AppLocalizations.of(context)!;
   return [
-    (icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    (
-      icon: Icons.shield_outlined,
-      activeIcon: Icons.shield_rounded,
-      label: t.navSafeZones,
-    ),
-    (
-      icon: Icons.notifications_none_rounded,
-      activeIcon: Icons.notifications_rounded,
-      label: t.navAlerts,
-    ),
-    (
-      icon: Icons.person_outline_rounded,
-      activeIcon: Icons.person_rounded,
-      label: t.navAccount,
-    ),
+    (icon: GuardianNavigationSymbol.home, label: 'Home'),
+    (icon: GuardianNavigationSymbol.safeZones, label: t.navSafeZones),
+    (icon: GuardianNavigationSymbol.alerts, label: t.navAlerts),
+    (icon: GuardianNavigationSymbol.account, label: t.navAccount),
   ];
 }
 
@@ -180,6 +165,7 @@ class _SosHoldButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final danger = _navigationTone(context, emergency: true);
     return Semantics(
       button: true,
       label: 'SOS emergency. Hold for 3 seconds.',
@@ -196,34 +182,20 @@ class _SosHoldButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          size: 26,
-                          color: GuardianColors.danger,
-                        ),
-                        if (holding)
-                          CircularProgressIndicator(
-                            value: progress,
-                            strokeWidth: 2,
-                            color: GuardianColors.danger,
-                          ),
-                      ],
-                    ),
+                  _NavigationMark(
+                    symbol: GuardianNavigationSymbol.sos,
+                    color: danger,
+                    emergency: true,
+                    progress: holding ? progress : null,
                   ),
                   const SizedBox(height: 3),
-                  const Text(
+                  Text(
                     'SOS',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: GuardianColors.danger,
+                      color: danger,
                       fontSize: 11.5,
                       height: 1.2,
                       fontWeight: FontWeight.w700,
@@ -234,7 +206,7 @@ class _SosHoldButton extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 10,
+                      fontSize: 11,
                       height: 1.2,
                       fontWeight: FontWeight.w500,
                     ),
@@ -263,6 +235,7 @@ class _DestinationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
+    final tone = active ? _navigationTone(context) : colors.textSecondary;
     return Expanded(
       child: Semantics(
         selected: active,
@@ -279,12 +252,12 @@ class _DestinationButton extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    Icon(
-                      active ? item.activeIcon : item.icon,
-                      size: 26,
-                      color: active ? colors.accent : colors.textSecondary,
+                    _NavigationMark(
+                      symbol: item.icon,
+                      color: tone,
+                      selected: active,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -293,9 +266,12 @@ class _DestinationButton extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11.5,
                         height: 1.2,
-                        color: active ? colors.accent : colors.textSecondary,
+                        color: tone,
                         fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                       ),
+                    ),
+                    SizedBox(
+                      height: MediaQuery.textScalerOf(context).scale(11) * 1.2,
                     ),
                   ],
                 ),
@@ -303,6 +279,84 @@ class _DestinationButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+Color _navigationTone(BuildContext context, {bool emergency = false}) {
+  final colors = context.guardianColors;
+  final base = emergency ? GuardianColors.danger : colors.accent;
+  if (Theme.of(context).brightness == Brightness.dark) {
+    return emergency ? Color.lerp(base, Colors.white, .30)! : base;
+  }
+  return Color.lerp(base, colors.textPrimary, emergency ? .14 : .40)!;
+}
+
+class _NavigationMark extends StatelessWidget {
+  const _NavigationMark({
+    required this.symbol,
+    required this.color,
+    this.selected = false,
+    this.emergency = false,
+    this.progress,
+  });
+
+  final GuardianNavigationSymbol symbol;
+  final Color color;
+  final bool selected, emergency;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final highContrast =
+        MediaQuery.highContrastOf(context) ||
+        colors.border == GuardianThemeColors.elderCare.border;
+    final highlighted = selected || emergency;
+    final tint = emergency ? GuardianColors.danger : colors.accent;
+    return AnimatedContainer(
+      width: 50,
+      height: 42,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: highlighted && !highContrast
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.lerp(colors.surface, tint, .13)!,
+                  Color.lerp(colors.surface, tint, .055)!,
+                ],
+              )
+            : null,
+        border: highlighted && highContrast
+            ? Border.all(color: color, width: 2)
+            : null,
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          GuardianNavigationIcon(
+            symbol: symbol,
+            color: color,
+            selected: selected,
+            highContrast: highContrast,
+          ),
+          if (progress != null)
+            SizedBox.square(
+              dimension: 38,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 2,
+                color: color,
+              ),
+            ),
+        ],
       ),
     );
   }
