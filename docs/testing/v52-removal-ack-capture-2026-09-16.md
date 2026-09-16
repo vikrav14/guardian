@@ -27,6 +27,58 @@ affirmative SMS report was supplied for the OFF control.
 Bit 20 is already decoded. The companion example calls bit 3 unused. A removal
 alarm establishes a reported event; clearing it cannot establish current wearing.
 
+## Enabled trial with ACK capture (16 September, Mauritius UTC+4)
+
+The operator confirmed the watch remained off wrist throughout the capture.
+The supplied private JSONL contains 44 incoming packets, three ACK write records,
+and the old socket's end/close records. The Alerts screenshot also shows the
+17:47 `bracelet_removed` event. Times below are gateway receipt times except
+the operator's removal and OFF request.
+
+| Time | Observation |
+| --- | --- |
+| 17:46:19.213 | Operator recorded physical removal |
+| 17:47:21.277 | Session 1 received `AL_LTE`, state `00100000`, bit 20 set |
+| 17:47:21.278 | Bare `AL` ACK local write completed, 1 ms after receipt; no error or backpressure; identity and payload lengths matched |
+| 17:47:46.469 | Session 2 was already receiving a heartbeat, 25.192 seconds after the alarm |
+| 17:47:49.640 | Session 2 received `UD_LTE`, state `00000000`, while the watch remained off wrist |
+| 17:49:54.937 | Session 1 closed after peer end, 153.660 seconds after the alarm; no recorded local close request or socket error |
+| 18:00:46.368 | Operator requested `REMOVE,0` cleanup |
+| 18:00:48.062 | Session 2 received a bare `REMOVE` reply; helper reported connected |
+| 18:01:38.487 | Last supplied packet: session 2 `UD_LTE`, state `00000000` |
+
+This confirms that the gateway attempted and locally completed the expected
+ACK; it does not confirm the watch received or accepted it. The later close was
+of the **old** socket. A replacement was already reporting, with 128.468 seconds
+of overlap in the gateway registry. The trace therefore does not show a
+154-second total outage. The reason for the replacement connection remains
+unresolved, and the local tunnel peer does not identify who initiated it.
+
+Bit 20 cleared while the operator still had the watch off wrist, across this
+session change. Zero cannot mean worn or restored. The app can report the
+removal event while present wearing remains unknown. OFF cleanup was requested
+and replied to; the bare reply is still not a setting readback. No additional
+physical removal cycle is needed to establish these findings.
+
+Review found a separate gateway defect: each socket close unconditionally
+cleared the device's live cache, ran disconnect journey/dwell cleanup and, for
+a previously live session, scheduled an offline write. An older socket could
+therefore invalidate newer live data. The existing connecting grace may suppress
+the eventual offline write in this particular trace; its effect on the observed
+UI is not established.
+
+The close handler now unregisters the closed socket and retains per-socket
+diagnostics and session-scoped wear cleanup. Device-wide disconnect handling
+runs only when no other non-destroyed session for the same IMEI remains. Existing
+last-session and live-packet threshold behavior is preserved. This fix addresses
+the cleanup defect; it does not claim to prevent watch/carrier/tunnel reconnects.
+
+Verification: four overlap regressions failed before the fix. All nine targeted
+cases pass after it, including last-session cleanup, connecting replacements,
+reverse close order, and destroyed/unidentified/other-device sockets. The focused
+gateway run passes 82 tests, including ACK capture, decoding, recovery, trial
+command restrictions, SOS dispatch and Home priority.
+
 ## Capture behavior
 
 `npm run wear:capture` replaces `npm start` for one diagnostic run. It starts the

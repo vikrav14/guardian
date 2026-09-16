@@ -75,6 +75,8 @@ const {
 
   getSession,
 
+  findSocketsForDevice,
+
   touchSessionActivity,
 
   noteSessionPacket,
@@ -1429,8 +1431,21 @@ const server = net.createServer((socket) => {
       })
     );
 
+    // A replacement TCP connection can already be reporting when this older
+    // socket closes. Remove only this socket before deciding device-wide state.
+    unregisterSession(socket);
+
     if (session?.imei) {
       wearEvidence.disconnect(session.imei, session);
+
+      const remainingSessions = findSocketsForDevice(session.imei)
+        .filter(({ socket: remaining }) => !remaining.destroyed);
+      if (remainingSessions.length > 0) {
+        console.log(
+          `[tcp] device remains connected imei=${session.imei} sessions=${remainingSessions.length}`
+        );
+        return;
+      }
 
       noteDiagnosticEventForJourney(
         session.imei,
@@ -1470,8 +1485,6 @@ const server = net.createServer((socket) => {
       onDeviceDisconnect(session.imei);
 
     }
-
-    unregisterSession(socket);
 
   });
 
