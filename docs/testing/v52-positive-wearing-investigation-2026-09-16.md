@@ -47,6 +47,53 @@ These sources were inspected on 16 September 2026. Public integration support
 does not resolve the conflicting supplied bit-3 descriptions or the exact
 firmware's all-zero field observations.
 
+## On-wrist baseline capture, 16 September at 20:58 Mauritius time
+
+The operator reported a heart result on the watch at 20:58. The requested
+on-wrist baseline produced two consent-gated sensor records in session 1:
+
+| Response | Received UTC / Mauritius | Fields retained | Finding |
+| --- | --- | --- | --- |
+| bphrt | 16:58:16.242 / 20:58:16.242 | Seven arguments: three populated leading reading fields; arguments 3–6 empty | No additional contact, quality or failure field is populated in this response. |
+| oxygen | 16:58:16.443 / 20:58:16.443 | Two arguments: a leading `0` and a numeric reading | The leading field's interpretation remains unverified; it is not accepted as a wear flag. |
+
+Both records report matching declared/actual payload lengths (40 and 32 total
+frame bytes respectively). They arrived 201 ms apart. These are gateway receipt
+times, consistent with the reported watch-result minute; the packets supply no
+verified measurement timestamp or request correlation. The operator has not
+provided the displayed numeric value for an exact screen-to-packet comparison.
+
+The private source is
+`1789577837381-c6175bb1-8858-4c60-909c-a76d6ae2f324.jsonl`.
+Individual health values remain out of repository/PR documentation. This is an
+observed packet shape, not a medical-accuracy or wearing-acceptance result.
+
+An earlier launcher attempt printed capture-armed messages and then failed with
+`journey_journal_writer_already_running`. That process did not finish gateway
+startup. The supplied sensor file is a different, later capture and proves that
+a subsequent run received these responses. It does not prove uninterrupted
+connectivity after those records. Do not bypass or delete an active journal
+writer's lock to start another gateway.
+
+**Outcome:** the complete response has now been inspected. Empty trailing slots
+do not reveal a missed positive contact flag in this sample. The result does not
+prove that all firmware modes lack contact detection. Numeric presence, empty
+fields and the oxygen prefix are not promoted into automatic wearing evidence.
+
+**Next action:** obtain the firmware contract described below. In particular,
+ask what the four empty bphrt slots and oxygen's first field represent, how
+no-contact/failed measurement is encoded, whether readings may be cached, and
+which supported interface reports current contact and restoration. These
+unresolved definitions give the supplier a specific question. Do not repeat
+this same worn measurement or another removal-alarm cycle to seek a different
+interpretation of the same fields. Any further optical comparison should target
+a concrete validity/failure signal or firmware prerequisite.
+
+The initial on-wrist check below is therefore **completed**, not a request for
+another measurement. The capture window expires automatically; the gateway
+can remain running. No new app build, deployment or device command follows
+from this result.
+
 ## New bounded diagnostic: complete optical response fields
 
 `npm run wear:sensor-capture` replaces `npm start` for one run. It enables the
@@ -131,8 +178,11 @@ Ask ReachFar's firmware team to provide:
 2. Any prerequisite documented command, applied-setting readback and rollback;
    whether the contact state works independently of removal/SMS alarm enablement.
 3. The exact bphrt/oxygen response-field definitions, fresh-measurement versus
-   cached-value behaviour, and no-contact/failed-measurement codes. Does the
-   optical module expose contact validity or signal quality over TCP?
+   cached-value behaviour, and no-contact/failed-measurement codes. The on-wrist
+   bphrt upload contained three populated reading fields and four empty trailing
+   fields; oxygen had a leading `0`. Define these fields and whether they change
+   on invalid contact. Does the optical module expose contact validity or signal
+   quality over TCP?
 4. If this build emits only removal events, a compatible firmware that reports
    both current contact and restoration. If unavailable, explicitly confirm the
    capability limit so hardware suitability can be evaluated against the
