@@ -8,6 +8,57 @@ operator rejected the unknown-status/manual-family-check experience on
 requirement. A software test passing or a family check does not accept automatic
 wearing. No customer acceptance flag or display wording is changed by this work.
 
+## Concrete implementation route after the repeat
+
+The direct route is an exact-firmware setting or firmware change that exposes
+**current contact**, including return to the wrist, independently of the removal
+alarm event. First ask whether this build already supports such a setting; if
+not, request the existing documented bit-3 contract to be implemented and
+periodically reported. Supplier availability of that change is not yet known.
+
+Guardian already parses the fixed status field and implements `v52_bit3_worn`
+behind exact-device acceptance. With accepted fresh repeated bit-3 observations,
+the overview already renders **Wearing detected**; it invalidates the claim on
+removal, conflicting/stale evidence and disconnect. Re-running 40 existing
+focused decoder, ACK and wearing tests passes. This confirms the software path,
+not the present hardware's ability to supply its input. No new algorithm can
+distinguish the observed on/off states from their identical zero-bit reports.
+
+The [ready-to-send firmware request](v52-current-contact-firmware-request-2026-09-16.md)
+contains the two exact firmware labels, required reporting behaviour, observed
+counterexample and matching AL acknowledgement evidence. It has not been sent.
+No further identical removal cycle is required. A changed firmware or documented
+contact interface would justify a new, targeted acceptance comparison.
+
+### Source corrections from reopening the original documents
+
+- Original Protocol section II.26, page 8, defines the leading oxygen argument
+  as measurement type, with `0` for device-initiated measurement. The previous
+  statement that its basic interpretation was unknown was too broad. It is not
+  a documented contact-quality flag or an acknowledgement result sent by the
+  watch; the response status belongs to the server's separate reply.
+- Original Protocol page 3 explicitly shows `[SG*…*0002*AL]` as the response to
+  `AL_LTE`. The repeat captured that form with matching ID/length and a locally
+  completed write in 5 ms. Changing the prefix, adding an AL result code or
+  changing it to `AL_LTE` is not supported by this source.
+- Page 13 labels bit 3 wearing. Page 18 leaves it blank in the **CDMA** annex;
+  that annex must not replace the non-CDMA V52 LTE table. The separate Example
+  still calls bit 3 unused. Exact firmware behaviour, not selecting a convenient
+  table, must resolve the discrepancy.
+- Another manufacturer's [published protocol](https://www.4p-touch.com/beesure-gps-setracker-server-protocol.html),
+  section III.3, names bphrt arguments 4–7 as height, sex, age and weight.
+  This is a useful explanation for the four empty slots, not an accepted V52
+  field mapping. It provides no hidden contact flag to turn on in Guardian.
+- The same other-manufacturer source distinguishes removal alarms from removal
+  SMS. SMS/modem interaction remains a possible disconnect hypothesis, not a
+  demonstrated cause or a reason to change this pilot's alert settings. The
+  original V52 protocol's general `MOD` setting affects more than this alarm.
+
+The primary PDFs remain the operator-supplied originals identified by name and
+SHA-256 in the [source inventory](v52-temperature-wearing-capability-research-2026-09-15.md).
+The latest [repeat review](v52-removal-ack-capture-2026-09-16.md) includes the
+1,727-byte incoming-session accounting and completes the cleanup evidence.
+
 ## What the existing evidence rules out
 
 | Evidence | Consequence |
@@ -55,7 +106,7 @@ on-wrist baseline produced two consent-gated sensor records in session 1:
 | Response | Received UTC / Mauritius | Fields retained | Finding |
 | --- | --- | --- | --- |
 | bphrt | 16:58:16.242 / 20:58:16.242 | Seven arguments: three populated leading reading fields; arguments 3–6 empty | No additional contact, quality or failure field is populated in this response. |
-| oxygen | 16:58:16.443 / 20:58:16.443 | Two arguments: a leading `0` and a numeric reading | The leading field's interpretation remains unverified; it is not accepted as a wear flag. |
+| oxygen | 16:58:16.443 / 20:58:16.443 | Two arguments: a leading `0` and a numeric reading | Original Protocol II.26 defines `0` as device-initiated measurement type; it is not a contact flag. |
 
 Both records report matching declared/actual payload lengths (40 and 32 total
 frame bytes respectively). They arrived 201 ms apart. These are gateway receipt
@@ -81,7 +132,7 @@ prove that all firmware modes lack contact detection. Numeric presence, empty
 fields and the oxygen prefix are not promoted into automatic wearing evidence.
 
 **Next action:** obtain the firmware contract described below. In particular,
-ask what the four empty bphrt slots and oxygen's first field represent, how
+confirm the exact-build meaning of the four empty bphrt slots, how
 no-contact/failed measurement is encoded, whether readings may be cached, and
 which supported interface reports current contact and restoration. These
 unresolved definitions give the supplier a specific question. Do not repeat
@@ -180,8 +231,8 @@ Ask ReachFar's firmware team to provide:
 3. The exact bphrt/oxygen response-field definitions, fresh-measurement versus
    cached-value behaviour, and no-contact/failed-measurement codes. The on-wrist
    bphrt upload contained three populated reading fields and four empty trailing
-   fields; oxygen had a leading `0`. Define these fields and whether they change
-   on invalid contact. Does the optical module expose contact validity or signal
+   fields; oxygen had measurement type `0` as defined by Protocol II.26. Confirm
+   this build's no-contact behaviour. Does the optical module expose contact validity or signal
    quality over TCP?
 4. If this build emits only removal events, a compatible firmware that reports
    both current contact and restoration. If unavailable, explicitly confirm the

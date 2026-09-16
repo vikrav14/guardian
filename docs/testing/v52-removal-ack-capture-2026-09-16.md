@@ -1,6 +1,6 @@
 # V52 removal: connection control and acknowledgement capture
 
-## Repeat requested by operator: 21:12–21:34 Mauritius checkpoint
+## Repeat requested by operator: 21:12–21:39 Mauritius result
 
 The operator explicitly requested one more worn/removed/restored comparison.
 This resumed physical testing for that repeat; it does not erase the earlier
@@ -13,43 +13,96 @@ off-wrist zero-bit capture or accept a new wearing interpretation.
 | Fresh baseline UD receipts | 17:14:42.615 and 17:15:44.389 | 21:14:42.615 and 21:15:44.389 | Both `00000000` after the reply, while instructed to remain worn. |
 | Removal AL_LTE receipt | 17:20:48.682 | 21:20:48.682 | Device observation 17:20:46 UTC; `00100000`, bit 20 set, bit 3 clear. |
 | Operator app/SMS observations | Approximately 17:20 | Approximately 21:20 | Both removal alerts reported in the same minute. Exact delivery order is not established. |
+| AL acknowledgement completed locally | 17:20:48.687 | 21:20:48.687 | 5 ms after receipt; matching identity/length, no write error or backpressure. Watch receipt/acceptance remains unconfirmed. |
 | First removed inspection | 17:22:48.179 | 21:22:48.179 | Runtime reported connected; no status packet after the alarm. |
 | Session disconnected | 17:23:22.608 | 21:23:22.608 | **153.926 seconds after alarm receipt.** |
 | Follow-up inspection | 17:25:28.418 | 21:25:28.418 | Runtime disconnected; still eight status packets (seven UD, one AL), zero trace drops. |
 | Operator put the watch back on | Approximately 17:28 | Approximately 21:28 | Operator-reported return time; seconds unspecified. |
 | Session 2 started | 17:31:03.622 | 21:31:03.622 | 461.014 seconds (7m41.014s) after the recorded disconnect. |
+| Worn-again inspection | 17:32:39.244 | 21:32:39.244 | Empty current-session samples: session 2 had supplied heartbeats, but no status packet yet. |
 | First post-return UD receipt | 17:33:22.103 | 21:33:22.103 | Device observation 17:33:19 UTC; `00000000`, bit 3 and bit 20 clear. |
 | OFF request handoff | 17:33:22.214 | 21:33:22.214 | `REMOVE,0` handed off; the first zero receipt preceded this reported request time by 111 ms. |
+| OFF reply | 17:33:22.630 | 21:33:22.630 | Bare `REMOVE` in raw capture and runtime; 416 ms after the request, without applied-setting readback. |
 | Second post-return UD receipt | 17:34:24.074 | 21:34:24.074 | Device observation 17:34:21 UTC; `00000000` again. |
-| After-OFF inspection | 17:34:34.780 | 21:34:34.780 | Ten status packets in the retained trace, zero trace drops. OFF reply not yet supplied. |
+| After-OFF inspection | 17:34:34.780 | 21:34:34.780 | Ten status packets in the retained trace, zero trace drops. |
+| Last supplied packet | 17:39:33.559 | 21:39:33.559 | Seventh post-return UD, all zero; no session-2 close recorded in the supplied window. |
 
-This repeats the roughly 154-second alarm-to-close timing. It does not establish
-who closed the socket or why: the complete TCP close line and raw ACK/connection
-capture are still required. There are no status observations between the alarm
-and 21:33:22, spanning the operator's approximately 21:28 return. The post-return
-packets show zero, including one before the recorded OFF request time, but do
-not show when or why the alarm cleared. This repeat cannot establish that it
-stayed set throughout removal or that refitting caused the change.
+### Raw acknowledgement and connection evidence
+
+All three supplied files were reviewed:
+`1789579959889-repeat-worn-again.json`,
+`1789580075426-repeat-after-off.json`, and
+`1789578744965-7d9f6432-6da5-4360-a5c9-2a77510ef890.jsonl`.
+Raw identifiers and packet files are not copied into the repository.
+
+The JSONL has 51 records: 45 consecutive packet records (numbers 1–45), one
+capture-start record, three stages of one AL acknowledgement write, and one
+peer-end/socket-close pair. Received commands are 26 `LK`, two `TKQ`,
+fourteen `UD_LTE`, two `REMOVE`, and one `AL_LTE`. Every recorded packet
+has matching declared/actual payload length and session identity. The supplied
+copy ends before scheduled expiry without a capture-end marker; it does not
+cover the entire configured 30-minute window.
+
+Packet 23 is the removal alarm. Its expected bare AL acknowledgement is
+`[SG*<protocolId>*0002*AL]` (identifier redacted here), 23 bytes in the actual
+frame, with matching protocol identity and payload length. Attempt, return and
+completion were recorded at 17:20:48.685, .686 and .687 UTC. The capture records
+`backpressure:false`, `localWriteCompleted:true`, `errorCode:null`, and
+`deliveryConfirmed:false`. This proves local write completion, not delivery
+through the tunnel or acceptance by the watch firmware.
+
+The close record has `peerEndAt:17:23:22.605Z`, with peer-end and close hooks
+recorded at .606 and .607, and the wearing trace at .608.
+`localCloseRequestedAt`, `localCloseReason` and `errorCode` are null;
+`hadError:false`. The socket recorded 1,727 bytes read and 536 bytes written.
+The 23 captured session-1 frames sum to exactly 1,727 bytes, accounting for all
+incoming bytes reported by that socket. Its 536 written bytes are consistent
+with the existing 507-byte ACK sequence plus one 29-byte `REMOVE,1` command;
+this aggregate comparison does not prove delivery or recover uncaptured writes.
+This run does not show a locally requested idle timeout. The local TCP peer is
+the tunnel agent, so peer end cannot identify the watch, cellular network or
+tunnel as the initiating component. The underlying cause remains unresolved.
+
+There are **no recorded incoming packets, including heartbeats**, between the
+alarm and session 2's first heartbeat at 21:31:03.622. No replacement session
+was reporting when session 1 closed. The earlier overlapping-session cleanup
+fix therefore had no live replacement to preserve. The new session supplies
+heartbeats and seven zero-bit UDs through 21:39:33.559, an observed 8m29.937s
+window from its first packet. This establishes short-window resumed reporting,
+not long-term stability or a resolved disconnect.
+
+### Wearing conclusion and cleanup
+
+This repeats the roughly 154-second alarm-to-close timing and supplies the
+previously missing local ACK and socket-close evidence. No status was received
+between the alarm and 21:33:22, spanning the operator's approximately 21:28
+return. One zero-bit report precedes the recorded OFF request, so the return
+to zero cannot be attributed solely to that request. The reporting gap hides
+when and why it cleared; this cannot establish persistence throughout removal
+or a change caused by refitting.
 
 The physical removal timestamp remains unspecified; do not infer it from the
-save label, alert time or ordinary location packets. The operator explicitly
-reported putting the watch back on at 21:28. The earlier independent off-wrist
-zero-bit capture remains valid evidence against treating zero as worn. There
-is still no distinct positive worn bit or confirmed restoration message here.
+save label, alert time or ordinary location packets. The earlier independent
+off-wrist zero-bit capture remains valid evidence against treating zero as
+worn. No distinct positive worn bit or confirmed restoration command appears
+in this repeat's received-command census.
 
-**Cleanup requested; reply evidence pending:** the operator supplied
-`REMOVE,0` handoff at 21:33:22.214. Do not repeat OFF solely because the
-post-request `wear:trial` output has not yet been supplied. Read that status and
-inspect the current raw capture for the reply. A bare reply, if captured, is
-different from applied-setting readback. No further removal test is requested.
+**Cleanup command exchange captured:** `REMOVE,0` was requested and a bare
+`REMOVE` reply arrived 416 ms later. The latest runtime inspection reports
+connected. No additional OFF command or physical removal test is requested.
+The reply does not read back the applied setting. The earlier request for
+the raw capture and socket-close evidence is satisfied by these attachments.
 
-Await the current
-`1789578744965-7d9f6432-6da5-4360-a5c9-2a77510ef890.jsonl` capture and the complete
-TCP disconnect line. Customer wearing acceptance remains unchanged.
+Next engineering work requires identifying the cause of the post-alarm
+connection loss and obtaining the exact-firmware current-contact/restoration
+contract described in the [positive-wearing investigation](v52-positive-wearing-investigation-2026-09-16.md).
+Repeating the same removal cycle does not resolve those questions. No supplier
+message has been sent.
 
 This follows the [wearing investigation](v52-temperature-wearing-capability-research-2026-09-15.md).
 PR #120 remains draft and unmerged. Wearing interpretation remains unverified.
-No device command, customer flag, measurement schedule or acceptance changes.
+This evidence update changes documentation only; no device command, customer
+flag, measurement schedule or acceptance change is made.
 
 ## Field checkpoint (16 September, Mauritius UTC+4)
 
