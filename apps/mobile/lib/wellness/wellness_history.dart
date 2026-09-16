@@ -198,8 +198,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
         if (_activity) _activityView(context) else _readingsView(context),
         const SizedBox(height: 16),
         if (widget.pilotPreview)
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
+          _HistoryDisclosure(
             childrenPadding: const EdgeInsets.only(bottom: 12),
             title: Text(
               'Private preview · Unverified readings',
@@ -526,11 +525,10 @@ class _WellnessHistoryState extends State<WellnessHistory> {
         ),
         const SizedBox(height: 14),
         WellnessSurface(
-          child: ExpansionTile(
+          child: _HistoryDisclosure(
             key: ValueKey(
               'activity-log:${widget.window.start}:${widget.window.end}',
             ),
-            tilePadding: EdgeInsets.zero,
             title: const Text(
               'Daily log',
               style: TextStyle(fontWeight: FontWeight.w600),
@@ -727,8 +725,7 @@ class _ReadingLogState extends State<_ReadingLog> {
     final shown = widget.samples.take(_visible).toList();
     final dates = shown.map((s) => wellnessDateKey(s.recordedAt)).toSet();
     return WellnessSurface(
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
+      child: _HistoryDisclosure(
         title: const Text(
           'Reading log',
           style: TextStyle(fontWeight: FontWeight.w600),
@@ -796,4 +793,31 @@ class _ReadingLogState extends State<_ReadingLog> {
       ),
     );
   }
+}
+
+/// Keeps disclosure ink above both the card decoration and the page background.
+class _HistoryDisclosure extends StatelessWidget {
+  const _HistoryDisclosure({
+    super.key,
+    required this.title,
+    required this.children,
+    this.subtitle,
+    this.childrenPadding = EdgeInsets.zero,
+  });
+  final Widget title;
+  final Widget? subtitle;
+  final List<Widget> children;
+  final EdgeInsetsGeometry childrenPadding;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    type: MaterialType.transparency,
+    child: ExpansionTile(
+      title: title,
+      subtitle: subtitle,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: childrenPadding,
+      children: children,
+    ),
+  );
 }

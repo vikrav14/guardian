@@ -343,8 +343,9 @@ class _WellnessPainter extends CustomPainter {
       final p = points[i];
       final x = layout.x(p.at);
       if (p.value == null) {
-        if (activity)
+        if (activity) {
           label(canvas, '—', Offset(x, plot.bottom - 24), align: .5);
+        }
         continue;
       }
       final y = layout.y(p.value!);
