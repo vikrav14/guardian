@@ -140,6 +140,9 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
 const temperatureCapture = config.temperatureCaptureEnabled === true
   ? require('./temperature-capture').startTemperatureCapture({ config, db: getDb(), enabled: true })
   : null;
+const wearCapture = require('./wear-capture').startWearCapture({
+  enabled: config.wearCaptureEnabled, pilotImei: config.wifiHomePilotImei,
+});
 const { createWearEvidence } = require('./wear-evidence');
 const wearEvidence = createWearEvidence({ db: getDb(),
   enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
@@ -1322,6 +1325,9 @@ const server = net.createServer((socket) => {
       const { acks, events } = handlePacket(decoded, session);
 
       const receivedAt = new Date();
+      const capturedAlarm = wearCapture.observePacket({
+        socket, session, frame, decoded, receivedAt,
+      });
       try { wearEvidence.capture(decoded, events, session, receivedAt); }
       catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
@@ -1342,7 +1348,8 @@ const server = net.createServer((socket) => {
 
       for (const ack of acks) {
 
-        socket.write(ack);
+        if (capturedAlarm) wearCapture.writeAlarmAck(socket, ack, capturedAlarm);
+        else socket.write(ack);
 
       }
 
@@ -1376,11 +1383,17 @@ const server = net.createServer((socket) => {
   // evidence; it cannot identify the watch, carrier or tunnel as the cause.
   socket.on('end', () => {
     peerEndAt = new Date().toISOString();
+    wearCapture.observeSocket('peer_end', socket, getSession(socket), {
+      connectedAt, lastDataAt, peerEndAt,
+    });
   });
 
   socket.on('error', (err) => {
 
     socketErrorCode = typeof err.code === 'string' ? err.code : 'unknown';
+    wearCapture.observeSocket('socket_error', socket, getSession(socket), {
+      connectedAt, lastDataAt, peerEndAt, socketErrorCode,
+    });
     console.error(
       `[tcp] error ${remote} at=${new Date().toISOString()} code=${socketErrorCode}:`,
       err.message
@@ -1393,6 +1406,12 @@ const server = net.createServer((socket) => {
   socket.on('close', (hadError) => {
 
     const session = getSession(socket);
+    wearCapture.observeSocket('socket_closed', socket, session, {
+      connectedAt, lastDataAt, peerEndAt, hadError, socketErrorCode,
+      localCloseReason: session?.localCloseReason,
+      localCloseRequestedAt: session?.localCloseRequestedAt,
+      bytesRead: socket.bytesRead, bytesWritten: socket.bytesWritten,
+    });
 
     console.log(
       `[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'} ` +

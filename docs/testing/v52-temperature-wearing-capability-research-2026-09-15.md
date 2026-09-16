@@ -4,6 +4,11 @@ Date: 2026-09-15. Status: documented paths identified; exact-watch automatic
 temperature and wearing detection are not accepted. No hardware command was sent
 as part of this investigation.
 
+16 September follow-up: the OFF-request physical control did not reproduce the
+alarm-associated disconnect. See the [new checkpoint and temporary ACK capture
+runbook](v52-removal-ack-capture-2026-09-16.md) before another enabled trial.
+Its setup supersedes the earlier repeat-trial instructions below.
+
 ## What the original documents establish
 
 The original supplied PDFs were reopened and their relevant pages rendered and

@@ -12,6 +12,7 @@
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "activity:provision": "node scripts/provision-activity-steps.js",
     "wear:check": "node scripts/inspect-wear-evidence.js",
+    "wear:capture": "node scripts/capture-wear.js",
     "wear:trial": "node scripts/trial-wear-removal.js",
     "activity:check": "node scripts/inspect-activity-counter.js",
     "sos:alarm-mode": "node scripts/queue-v52-alarm-mode.js",
