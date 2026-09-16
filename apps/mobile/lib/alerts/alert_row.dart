@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/cards/guardian_surface.dart';
 import '../dashboard/alert_formatters.dart';
 import '../models/alert.dart';
 import '../models/device.dart';
@@ -39,13 +40,12 @@ class AlertRow extends StatelessWidget {
       'offline' => Icons.wifi_off_rounded,
       _ => Icons.notifications_outlined,
     };
-    return Material(
-      color: selected ? colors.accentMuted : colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: selected ? colors.accent : colors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
+    return GuardianSurface(
+      padding: EdgeInsets.zero,
+      radius: 16,
+      tint: tone,
+      color: selected ? colors.accentMuted : null,
+      borderColor: selected ? colors.accent : null,
       child: Semantics(
         selected: selected,
         child: InkWell(

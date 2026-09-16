@@ -17,8 +17,31 @@ class WellnessPlotPoint {
   final double? value, secondary;
 }
 
-/// Plots only supplied observations. Missing activity days stay null; reading
-/// points are deliberately not interpolated across unobserved intervals.
+/// Adjacent observations that may share a visual guide. A guide never spans a
+/// missing/invalid point, duplicate timestamp or interval longer than a day.
+Iterable<(WellnessPlotPoint, WellnessPlotPoint)> wellnessReadingSegments(
+  List<WellnessPlotPoint> points, {
+  bool secondary = false,
+}) sync* {
+  for (var i = 1; i < points.length; i++) {
+    final before = points[i - 1];
+    final after = points[i];
+    final gap = after.at.difference(before.at);
+    final a = secondary ? before.secondary : before.value;
+    final b = secondary ? after.secondary : after.value;
+    if (gap > Duration.zero &&
+        gap <= const Duration(hours: 24) &&
+        a != null &&
+        b != null &&
+        a.isFinite &&
+        b.isFinite) {
+      yield (before, after);
+    }
+  }
+}
+
+/// Plots supplied observations. Optional faint guides link nearby readings;
+/// they do not create observations or extrapolate beyond the recorded points.
 class WellnessChart extends StatefulWidget {
   const WellnessChart({
     super.key,
@@ -27,12 +50,13 @@ class WellnessChart extends StatefulWidget {
     required this.unit,
     required this.color,
     this.activity = false,
+    this.connectReadings = false,
   });
   final List<WellnessPlotPoint> points;
   final WellnessWindow window;
   final String unit;
   final Color color;
-  final bool activity;
+  final bool activity, connectReadings;
 
   @override
   State<WellnessChart> createState() => _WellnessChartState();
@@ -144,6 +168,7 @@ class _WellnessChartState extends State<WellnessChart> {
                         colors: colors,
                         unit: widget.unit,
                         activity: widget.activity,
+                        connectReadings: widget.connectReadings,
                         focused: _focused,
                       ),
                     ),
@@ -258,6 +283,7 @@ class _WellnessPainter extends CustomPainter {
     required this.unit,
     required this.activity,
     required this.focused,
+    required this.connectReadings,
   });
   final _PlotLayout layout;
   final List<WellnessPlotPoint> points;
@@ -265,7 +291,7 @@ class _WellnessPainter extends CustomPainter {
   final Color color;
   final GuardianThemeColors colors;
   final String unit;
-  final bool activity, focused;
+  final bool activity, focused, connectReadings;
 
   void label(Canvas canvas, String value, Offset at, {double align = 0}) {
     final text = layout.measure(value);
@@ -339,6 +365,31 @@ class _WellnessPainter extends CustomPainter {
     canvas.clipRect(plot.inflate(5));
     final primary = Paint()..color = color;
     final secondary = Paint()..color = colors.textPrimary;
+    if (connectReadings && !activity) {
+      for (final second in [false, true]) {
+        final guide = Paint()
+          ..color = (second ? colors.textPrimary : color)
+              .withValues(alpha: second ? .20 : .28)
+          ..strokeWidth = 1.5
+          ..strokeCap = StrokeCap.round;
+        for (final (before, after) in wellnessReadingSegments(
+          points,
+          secondary: second,
+        )) {
+          canvas.drawLine(
+            Offset(
+              layout.x(before.at),
+              layout.y((second ? before.secondary : before.value)!),
+            ),
+            Offset(
+              layout.x(after.at),
+              layout.y((second ? after.secondary : after.value)!),
+            ),
+            guide,
+          );
+        }
+      }
+    }
     for (var i = 0; i < points.length; i++) {
       final p = points[i];
       final x = layout.x(p.at);

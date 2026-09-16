@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../widgets/cards/guardian_surface.dart';
 import '../models/activity_day.dart';
 import '../models/wear_status.dart';
 import '../theme/app_theme.dart';
@@ -226,12 +227,12 @@ class _BloodPressureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     const tint = Color(0xFFAA7845);
     final colors = context.guardianColors;
-    return Container(
+    return GuardianSurface(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
+      radius: 16,
+      tint: tint,
+      tonal: true,
+      elevation: 0,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -307,12 +308,12 @@ class WellnessTile extends StatelessWidget {
   final IconData icon;
   final Color tint;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GuardianSurface(
     padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: tint.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(16),
-    ),
+    radius: 16,
+    tint: tint,
+    tonal: true,
+    elevation: 0,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -395,13 +396,8 @@ class WellnessSurface extends StatelessWidget {
   const WellnessSurface({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GuardianSurface(
     padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: context.guardianColors.surface,
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: context.guardianColors.border),
-    ),
     child: child,
   );
 }

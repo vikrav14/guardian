@@ -75,3 +75,30 @@ acceptance/scheduler checklist remain open separately.
 Wiki mirror: this is the QA-facing source note. Mirror into the project Wiki
 when Wiki write access is available; the current connector exposes repository
 and PR updates, not Wiki writes.
+
+
+## Card and chart refinement
+
+The shared `GuardianSurface` adds a subtle diagonal tint, a restrained shadow
+and consistent rounded borders. It is used by dashboard/place panels, Wellness
+cards and history, GuardianCard consumers (account and watch settings), grouped
+settings lists, alert rows/details, sign-in and the main Journey cards. Metric
+tiles retain their own rose, blue, amber and violet accents. Controls keep their
+Material ink surface, action keys and selected/critical states. Elder Care and
+system high-contrast mode use a solid fill, stronger border and no shadow.
+
+Heart-rate and pressure charts now draw faint straight guides between adjacent
+saved readings up to 24 hours apart. Actual dots and the paired systolic and
+diastolic series remain visible. Gaps longer than a day, missing/non-finite
+values and duplicate/out-of-order timestamps break guides; a single reading
+stays a single point. No smooth curve, fabricated sample, health threshold or
+extrapolated current value is introduced. Activity, oxygen and temperature keep
+their existing presentation.
+
+Focused checks cover separated pressure series, guide gaps, nested card
+controls and expansion tiles in light/dark/high-contrast palettes. Existing
+production-widget previews cover dashboard, Wellness, settings, sign-in and
+safe zones; existing journey and alert tests protect their interactions.
+Latest-head CI and visual review results are recorded in PR #120. The QA Wiki
+mirror still needs an available authenticated Wiki write capability; this
+repository note is the reviewable QA record.

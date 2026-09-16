@@ -76,6 +76,36 @@ void main() {
     ),
   ];
 
+  test('reading guides keep pressure series separate and preserve gaps', () {
+    WellnessPlotPoint point(int hours, double? value, [double? secondary]) =>
+        WellnessPlotPoint(
+          at: now.add(Duration(hours: hours)),
+          label: 'record',
+          value: value,
+          secondary: secondary,
+        );
+    final points = [
+      point(0, 120, 80),
+      point(1, 124, 78),
+      point(2, null),
+      point(3, 121, 79),
+      point(30, 119, 77),
+      point(54, 118, 76),
+      point(54, 125, 81),
+      point(55, double.nan, 80),
+    ];
+    final primary = wellnessReadingSegments(points).toList();
+    expect(primary, [(points[0], points[1]), (points[4], points[5])]);
+    final secondary = wellnessReadingSegments(points, secondary: true).toList();
+    expect(secondary, [
+      (points[0], points[1]),
+      (points[4], points[5]),
+      (points[6], points[7]),
+    ]);
+    expect(wellnessReadingSegments([points.first]), isEmpty);
+    expect(wellnessReadingSegments(points.reversed.toList()), isEmpty);
+  });
+
   test(
     'trend window excludes future/older records and counts only observed days',
     () {

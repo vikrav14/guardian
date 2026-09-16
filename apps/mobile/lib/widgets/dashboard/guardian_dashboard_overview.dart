@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../cards/guardian_surface.dart';
 import '../../dashboard/device_formatters.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
@@ -732,17 +733,11 @@ class _DashboardSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      clipBehavior: Clip.antiAlias,
+    return GuardianSurface(
+      radius: 16,
       padding:
           padding ??
           EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
       child: child,
     );
   }

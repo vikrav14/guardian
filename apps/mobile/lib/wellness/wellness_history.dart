@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../widgets/cards/guardian_surface.dart';
 import '../models/activity_day.dart';
 import '../theme/app_theme.dart';
 import 'wellness_card.dart';
@@ -357,6 +358,9 @@ class _WellnessHistoryState extends State<WellnessHistory> {
                   window: widget.window,
                   unit: _metric.unit,
                   color: metricColor(_metric, context),
+                  connectReadings:
+                      _metric == WellnessMetric.heartRate ||
+                      _metric == WellnessMetric.bloodPressure,
                   points: [
                     for (final sample in selected.points)
                       WellnessPlotPoint(
@@ -379,6 +383,9 @@ class _WellnessHistoryState extends State<WellnessHistory> {
                 Text(
                   _metric == WellnessMetric.skinTemperature
                       ? 'Points show receipt times. Measurement times are unconfirmed.'
+                      : _metric == WellnessMetric.heartRate ||
+                            _metric == WellnessMetric.bloodPressure
+                      ? 'Dots are saved readings. Faint lines link readings up to 24 hours apart, not continuous monitoring.'
                       : 'Each point is one saved reading. Missing records remain gaps.',
                   style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
@@ -606,16 +613,14 @@ class _MetricCard extends StatelessWidget {
     };
     return Semantics(
       selected: selected,
-      child: Material(
-        color: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: selected ? colors.accent : colors.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
+      child: GuardianSurface(
+        padding: EdgeInsets.zero,
+        radius: 16,
+        tint: metricColor(metric, context),
+        tonal: true,
+        elevation: 0,
+        borderColor: selected ? colors.accent : null,
+        borderWidth: selected ? 2 : 1,
         child: InkWell(
           key: ValueKey('wellness-metric-${metric.name}'),
           onTap: available ? onTap : null,

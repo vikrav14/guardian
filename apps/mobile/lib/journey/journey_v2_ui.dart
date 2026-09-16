@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../widgets/cards/guardian_surface.dart';
 import '../models/geofence.dart';
 import '../theme/app_theme.dart';
 import 'journey_models.dart';
@@ -201,20 +202,9 @@ class _JourneyTopBar extends StatelessWidget {
     final isToday =
         day.year == now.year && day.month == now.month && day.day == now.day;
 
-    return Container(
+    return GuardianSurface(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.border.withValues(alpha: 0.62)),
-        boxShadow: [
-          BoxShadow(
-            color: GuardianColors.forest.withValues(alpha: 0.05),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+      radius: 24,
       child: Row(
         children: [
           _SquareAction(icon: Icons.arrow_back_rounded, onTap: onBack),
@@ -403,15 +393,9 @@ class _DayOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-
-    return Container(
+    return GuardianSurface(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.border.withValues(alpha: 0.62)),
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -729,13 +713,9 @@ class _TripList extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
 
-    return Container(
+    return GuardianSurface(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.border.withValues(alpha: 0.62)),
-      ),
+      radius: 24,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1029,12 +1009,8 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
     return ListenableBuilder(
       listenable: replay,
       builder: (context, _) {
-        return Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: colors.border.withValues(alpha: 0.62)),
-          ),
+        return GuardianSurface(
+          padding: EdgeInsets.zero,
           child: Column(
             children: [
               Padding(

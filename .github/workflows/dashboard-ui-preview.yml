@@ -22,6 +22,11 @@ on:
       - 'apps/mobile/lib/screens/safe_zones_page.dart'
       - 'apps/mobile/lib/widgets/safe_zones/**'
       - 'apps/mobile/lib/wellness/**'
+      - 'apps/mobile/lib/widgets/cards/**'
+      - 'apps/mobile/lib/widgets/guardian_widgets.dart'
+      - 'apps/mobile/lib/alerts/**'
+      - 'apps/mobile/lib/journey/journey_v2_ui.dart'
+      - 'apps/mobile/test/guardian_surface_test.dart'
       - 'apps/mobile/lib/screens/watch_settings_page.dart'
       - 'apps/mobile/lib/screens/watch_preferences_page.dart'
       - 'apps/mobile/test/watch_preferences_test.dart'
@@ -85,6 +90,13 @@ jobs:
       - name: Check app UI formatting
         run: |
           dart format \
+            lib/widgets/cards/guardian_surface.dart \
+            lib/widgets/cards/guardian_card.dart \
+            lib/widgets/guardian_widgets.dart \
+            lib/alerts/alert_row.dart \
+            lib/alerts/alert_detail.dart \
+            lib/wellness/wellness_card.dart \
+            test/guardian_surface_test.dart \
             lib/widgets/dashboard/dashboard_section_icon.dart \
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
@@ -127,7 +139,7 @@ jobs:
 
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
+        run: flutter test test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../cards/guardian_surface.dart';
 import '../../dashboard/device_connectivity.dart';
 import '../../dashboard/device_formatters.dart';
 import '../../models/care_profile.dart';
@@ -47,13 +48,9 @@ class GuardianOverviewHeader extends StatelessWidget {
         );
         final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
 
-        return Container(
+        return GuardianSurface(
+          radius: 16,
           padding: EdgeInsets.all(desktop ? 20 : 14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border),
-          ),
           child: desktop
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
