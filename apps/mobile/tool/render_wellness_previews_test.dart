@@ -187,40 +187,80 @@ void main() {
           });
           await tester.pumpWidget(
             dashboardFixtureHost(
-              Center(child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: WellnessHistory(
-                window: WellnessWindow.forSubscription(subscription, now: now),
-                days: [for (final day in days.where((day) => day.localDate != wellnessDateKey(now.subtract(const Duration(days: 2)))))
-                  ActivityDay(localDate: day.localDate, steps: day.steps,
-                    lastObservedAt: day.lastObservedAt, quality: 'partial', partialCoverage: true)],
-                samples: [
-                  ...samples,
-                  WellnessSample(metric: WellnessMetric.skinTemperature, value: '34.56 °C',
-                    numericValue: 34.56, recordedAt: now.subtract(const Duration(minutes: 4))),
-                  for (var n = 1; n <= 6; n++) ...[
-                    WellnessSample(metric: WellnessMetric.heartRate, value: '${[70, 76, 74, 80, 77, 73][n - 1]} bpm',
-                      numericValue: [70, 76, 74, 80, 77, 73][n - 1], recordedAt: now.subtract(Duration(days: n))),
-                    WellnessSample(metric: WellnessMetric.bloodOxygen, value: '${n.isEven ? 97 : 98} %',
-                      numericValue: n.isEven ? 97 : 98, recordedAt: now.subtract(Duration(days: n))),
-                    WellnessSample(metric: WellnessMetric.bloodPressure, value: '${[120, 118, 122, 119, 117, 121][n - 1]}/${[78, 76, 79, 77, 75, 78][n - 1]} mmHg',
-                      numericValue: [120, 118, 122, 119, 117, 121][n - 1], secondaryValue: [78, 76, 79, 77, 75, 78][n - 1],
-                      recordedAt: now.subtract(Duration(days: n))),
-                    WellnessSample(metric: WellnessMetric.skinTemperature, value: '${(34.2 + n * .05).toStringAsFixed(2)} °C',
-                      numericValue: 34.2 + n * .05, recordedAt: now.subtract(Duration(days: n))),
-                  ],
-                ],
-                now: now,
-                pilotPreview: true,
-                readingsAvailable: true,
-                onToday: () {},
-                onWeek: () {},
-                onPrevious: plan == 'care' ? () {} : null,
-                onChooseDate: plan == 'care' ? () {} : null,
-                onAsk: () {},
-                onRoutine: () {},
-                planDescription: subscription.wellnessHistoryDescription,
-              ))),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: WellnessHistory(
+                    window: WellnessWindow.forSubscription(
+                      subscription,
+                      now: now,
+                    ),
+                    days: [
+                      for (final day in days.where(
+                        (day) =>
+                            day.localDate !=
+                            wellnessDateKey(
+                              now.subtract(const Duration(days: 2)),
+                            ),
+                      ))
+                        ActivityDay(
+                          localDate: day.localDate,
+                          steps: day.steps,
+                          lastObservedAt: day.lastObservedAt,
+                          quality: 'partial',
+                          partialCoverage: true,
+                        ),
+                    ],
+                    samples: [
+                      ...samples,
+                      WellnessSample(
+                        metric: WellnessMetric.skinTemperature,
+                        value: '34.56 °C',
+                        numericValue: 34.56,
+                        recordedAt: now.subtract(const Duration(minutes: 4)),
+                      ),
+                      for (var n = 1; n <= 6; n++) ...[
+                        WellnessSample(
+                          metric: WellnessMetric.heartRate,
+                          value: '${[70, 76, 74, 80, 77, 73][n - 1]} bpm',
+                          numericValue: [70, 76, 74, 80, 77, 73][n - 1],
+                          recordedAt: now.subtract(Duration(days: n)),
+                        ),
+                        WellnessSample(
+                          metric: WellnessMetric.bloodOxygen,
+                          value: '${n.isEven ? 97 : 98} %',
+                          numericValue: n.isEven ? 97 : 98,
+                          recordedAt: now.subtract(Duration(days: n)),
+                        ),
+                        WellnessSample(
+                          metric: WellnessMetric.bloodPressure,
+                          value:
+                              '${[120, 118, 122, 119, 117, 121][n - 1]}/${[78, 76, 79, 77, 75, 78][n - 1]} mmHg',
+                          numericValue: [120, 118, 122, 119, 117, 121][n - 1],
+                          secondaryValue: [78, 76, 79, 77, 75, 78][n - 1],
+                          recordedAt: now.subtract(Duration(days: n)),
+                        ),
+                        WellnessSample(
+                          metric: WellnessMetric.skinTemperature,
+                          value: '${(34.2 + n * .05).toStringAsFixed(2)} °C',
+                          numericValue: 34.2 + n * .05,
+                          recordedAt: now.subtract(Duration(days: n)),
+                        ),
+                      ],
+                    ],
+                    now: now,
+                    pilotPreview: true,
+                    readingsAvailable: true,
+                    onToday: () {},
+                    onWeek: () {},
+                    onPrevious: plan == 'care' ? () {} : null,
+                    onChooseDate: plan == 'care' ? () {} : null,
+                    onAsk: () {},
+                    onRoutine: () {},
+                    planDescription: subscription.wellnessHistoryDescription,
+                  ),
+                ),
+              ),
               boundaryKey: boundaryKey,
               fontFamily: 'WellnessPreview',
             ),
@@ -229,16 +269,31 @@ void main() {
           expect(tester.takeException(), isNull);
           await save(tester, boundaryKey, '${plan}_history_${width.toInt()}');
           if (plan == 'family') {
-            for (final metric in [WellnessMetric.bloodPressure, WellnessMetric.skinTemperature]) {
-              await tester.tap(find.byKey(ValueKey('wellness-metric-${metric.name}')));
+            for (final metric in [
+              WellnessMetric.bloodPressure,
+              WellnessMetric.skinTemperature,
+            ]) {
+              await tester.tap(
+                find.byKey(ValueKey('wellness-metric-${metric.name}')),
+              );
               await tester.pumpAndSettle();
               expect(tester.takeException(), isNull);
-              await save(tester, boundaryKey, '${plan}_${metric.name}_${width.toInt()}');
+              await save(
+                tester,
+                boundaryKey,
+                '${plan}_${metric.name}_${width.toInt()}',
+              );
             }
-            await tester.tap(find.byKey(const ValueKey('wellness-tab-activity')));
+            await tester.tap(
+              find.byKey(const ValueKey('wellness-tab-activity')),
+            );
             await tester.pumpAndSettle();
             expect(tester.takeException(), isNull);
-            await save(tester, boundaryKey, '${plan}_activity_${width.toInt()}');
+            await save(
+              tester,
+              boundaryKey,
+              '${plan}_activity_${width.toInt()}',
+            );
           }
         }
       }, skip: !enabled);

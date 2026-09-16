@@ -342,7 +342,8 @@ class _WellnessDataState extends State<_WellnessData>
             onMetricChanged: (value) => _historyMetric = value,
             onToday: () => _period(1),
             onWeek: () => _period(7),
-            loading: activity.connectionState == ConnectionState.waiting ||
+            loading:
+                activity.connectionState == ConnectionState.waiting ||
                 readings.connectionState == ConnectionState.waiting,
             onRoutine: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
