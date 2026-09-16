@@ -50,10 +50,12 @@ void main() {
       expect(tester.takeException(), isNull);
       if (palette == GuardianThemeColors.elderCare) {
         final ink = tester.widget<Ink>(
-          find.descendant(
-            of: find.byType(GuardianSurface),
-            matching: find.byType(Ink),
-          ).first,
+          find
+              .descendant(
+                of: find.byType(GuardianSurface),
+                matching: find.byType(Ink),
+              )
+              .first,
         );
         expect((ink.decoration! as BoxDecoration).gradient, isNull);
       }

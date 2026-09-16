@@ -500,11 +500,7 @@ class _ZoneSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GuardianSurface(
-      padding: padding,
-      radius: 16,
-      child: child,
-    );
+    return GuardianSurface(padding: padding, radius: 16, child: child);
   }
 }
 

@@ -368,8 +368,9 @@ class _WellnessPainter extends CustomPainter {
     if (connectReadings && !activity) {
       for (final second in [false, true]) {
         final guide = Paint()
-          ..color = (second ? colors.textPrimary : color)
-              .withValues(alpha: second ? .20 : .28)
+          ..color = (second ? colors.textPrimary : color).withValues(
+            alpha: second ? .20 : .28,
+          )
           ..strokeWidth = 1.5
           ..strokeCap = StrokeCap.round;
         for (final (before, after) in wellnessReadingSegments(

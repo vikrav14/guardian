@@ -58,7 +58,9 @@ class WellnessCard extends StatelessWidget {
     final heart = latest(WellnessMetric.heartRate);
     final oxygen = latest(WellnessMetric.bloodOxygen);
     final pressure = latest(WellnessMetric.bloodPressure);
-    final temperature = pilotPreview ? latest(WellnessMetric.skinTemperature) : null;
+    final temperature = pilotPreview
+        ? latest(WellnessMetric.skinTemperature)
+        : null;
     String status(bool available, bool error, DateTime? at) => !available
         ? 'Not available yet'
         : error
@@ -169,9 +171,17 @@ class WellnessCard extends StatelessWidget {
                       value: pilotPreview && readingsAvailable && !readingsError
                           ? temperature?.value ?? '— °C'
                           : '— °C',
-                      status: pilotPreview && readingsAvailable && !readingsError && temperature != null
+                      status:
+                          pilotPreview &&
+                              readingsAvailable &&
+                              !readingsError &&
+                              temperature != null
                           ? 'Received ${wellnessAge(temperature.recordedAt, now)}'
-                          : status(pilotPreview && readingsAvailable, readingsError, null),
+                          : status(
+                              pilotPreview && readingsAvailable,
+                              readingsError,
+                              null,
+                            ),
                     ),
                   ),
                 ],
@@ -396,8 +406,6 @@ class WellnessSurface extends StatelessWidget {
   const WellnessSurface({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) => GuardianSurface(
-    padding: const EdgeInsets.all(20),
-    child: child,
-  );
+  Widget build(BuildContext context) =>
+      GuardianSurface(padding: const EdgeInsets.all(20), child: child);
 }

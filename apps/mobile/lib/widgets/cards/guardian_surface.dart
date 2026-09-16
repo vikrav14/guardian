@@ -36,8 +36,8 @@ class GuardianSurface extends StatelessWidget {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius),
       side: BorderSide(
-        color: borderColor ??
-            (highContrast ? colors.textPrimary : colors.border),
+        color:
+            borderColor ?? (highContrast ? colors.textPrimary : colors.border),
         width: highContrast && borderWidth < 2 ? 2 : borderWidth,
       ),
     );
@@ -48,8 +48,9 @@ class GuardianSurface extends StatelessWidget {
             ? null
             : [
                 BoxShadow(
-                  color: (dark ? Colors.black : colors.textPrimary)
-                      .withValues(alpha: dark ? .16 : .035),
+                  color: (dark ? Colors.black : colors.textPrimary).withValues(
+                    alpha: dark ? .16 : .035,
+                  ),
                   blurRadius: 16 + elevation * 4,
                   offset: Offset(0, 3 + elevation),
                 ),
@@ -68,9 +69,9 @@ class GuardianSurface extends StatelessWidget {
                     end: Alignment.bottomRight,
                     stops: const [0, .48, 1],
                     colors: [
-                      Color.lerp(base, tone, tonal ? .055 : .015)!,
-                      Color.lerp(base, tone, tonal ? .025 : .003)!,
-                      Color.lerp(base, tone, tonal ? .13 : .045)!,
+                      Color.lerp(base, tone, tonal ? .035 : .015)!,
+                      Color.lerp(base, tone, tonal ? .012 : .003)!,
+                      Color.lerp(base, tone, tonal ? .075 : .045)!,
                     ],
                   ),
           ),
