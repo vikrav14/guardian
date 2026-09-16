@@ -22,6 +22,12 @@ Your V46–V48–V52 Communication Protocol, page 13, identifies status bit 3 as
 wearing. The companion Example, page 5, calls it unused. On this unit:
 
 - Ordinary `UD_LTE` status is `00000000` both while worn and while off wrist.
+- A five-minute worn-only capture on 16 September (18:30:59–18:35:59 UTC)
+  retained every byte received before protocol decoding. All 732 bytes match
+  the socket counter: 2 LK, 1 TKQ and 4 UD_LTE. Independent length-based
+  reconstruction found no rejected/incomplete frame, unknown command or extra
+  trailing field. All four status values are `00000000`. The last requested
+  removal setting was OFF; its applied value has no readback confirmation.
 - Removal produces `AL_LTE` with `00100000` (bit 20).
 - A later zero-bit UD has arrived while the watch remained off wrist. Therefore
   alarm clearance cannot establish restoration.
@@ -32,7 +38,10 @@ wearing. The companion Example, page 5, calls it unused. On this unit:
 **Please confirm the exact supported setting/query for continuous contact on
 this build, or provide compatible firmware that reports the state.** Our
 preferred integration is the already documented bit 3 in the normal V52
-status field, keeping bit 20 as the separate removal alarm.
+status field, keeping bit 20 as the separate removal alarm. Is bit 3 implemented
+on these exact builds, and does its reporting depend on removal-alarm settings?
+Please provide the documented enabling/query sequence and applied-setting
+readback if one exists.
 
 We need:
 
@@ -74,5 +83,6 @@ this V52 build cannot meet automatic current-wearing detection from its present
 uploads. A software estimate may be a separately agreed product, but must not
 be presented as sensor-confirmed wearing.
 
-Evidence: [repeat and cleanup](v52-removal-ack-capture-2026-09-16.md) and
+Evidence: [complete incoming-byte baseline](v52-worn-wire-capture-2026-09-16.md),
+[repeat and cleanup](v52-removal-ack-capture-2026-09-16.md) and
 [signal investigation](v52-positive-wearing-investigation-2026-09-16.md).

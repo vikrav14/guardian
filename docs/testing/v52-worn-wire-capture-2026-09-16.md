@@ -19,7 +19,65 @@ Existing gateway behaviour continues, including its normal ACKs and schedules.
 This closes a diagnostic coverage gap. It does not yet establish a positive
 wearing signal or prove the dashboard requirement complete.
 
-## One run on the currently worn watch
+## Field result: 16 September, 22:30:59–22:35:59 Mauritius
+
+The operator supplied the capture and accompanying gateway console after reporting
+the watch on the wrist. This is the requested worn-only baseline; the file does
+not itself prove physical skin contact. The last requested removal setting was
+OFF, with no setting readback established and no new command requested for this run.
+
+Independent review decoded every base64 chunk, validated its byte length and
+contiguous offset, rebuilt the session stream, then parsed each frame using its
+header's declared payload length. This reconstruction did not call Guardian's
+production `extractFrames` or `decodeFrame`. It consumed all 732 bytes, including
+the two initial handshake frames, and matched the capture and socket counters.
+
+| Check | Result |
+| --- | --- |
+| Window UTC | 18:30:59.828–18:35:59.832; timed window complete |
+| First received data UTC | 18:31:18.061; socket byte count starts at 0 |
+| Observed / saved / socket bytes | 732 / 732 / 732 |
+| Chunks / independently reconstructed frames | 7 / 7 |
+| Commands | 2 LK, 1 TKQ, 4 UD_LTE |
+| Capture drops / unobserved socket bytes | 0 / 0 |
+| Unidentified / excluded / untracked sessions | 0 / 0 / 0 |
+| Invalid headers or lengths / unconsumed bytes | 0 / 0 |
+| Disconnect or identity change in the window | None recorded |
+| All four fixed-field tracker states | `00000000`; no set status/alarm bits |
+
+The four UD_LTE packets were received at **22:31:55.848, 22:32:57.721,
+22:33:59.612 and 22:35:01.557 Mauritius**. Their device observation times were
+22:31:53, 22:32:55, 22:33:57 and 22:34:59. Each is 160 bytes, declares a 139-byte
+payload and has 28 arguments. The state is at argument 15, not an inferred tail
+position. Arguments 16–27 fit the existing cell/Wi-Fi/accuracy layout; no extra
+trailing field or separate unhandled command appears. LK has three arguments;
+TKQ has none. No optical measurement or CONFIG packet arrived in this window.
+
+**Conclusion:** for this complete baseline, the gateway did not lose or filter
+out an incoming bit-3 wearing report. The watch sent zero in that bit in every
+status packet received while the operator reported wearing it. Every received
+frame is accounted for; no additional contact message was hidden by decoding.
+This does not prove that the firmware cannot expose contact under a different
+supported setting/query, or that no such message could arrive outside this
+window. It also cannot observe packets that never reached the gateway.
+
+The next useful step is the [exact-firmware contact question](v52-current-contact-firmware-request-2026-09-16.md),
+now including this result, asking whether bit 3 is implemented and what supported
+configuration/query provides current contact and restoration. Another unchanged
+passive capture or identical removal-alarm trial has no defined new hypothesis.
+The gateway continued reporting after capture expiry; no cleanup command or
+restart is needed. Automatic current-wearing acceptance remains open.
+
+Private source references (raw payloads are not committed):
+
+- `1789583459828-63be5b34-84c8-4ea1-b9a3-10106177ca3c.jsonl`
+- `Pasted text(20260916-183751).txt`
+- Capture file SHA-256:
+  `cddc8f1006ce1503c794db48c972b4178412fb914bf30751f9046999fe206bd1`
+- Reconstructed stream SHA-256:
+  `b4d9cc0464b47ca861548a0c6925cf9d5c543e31f53d8a680066021396e4e0cf`
+
+## Run procedure (completed for the baseline above)
 
 Keep the watch fastened on the wrist for the capture. Keep the laptop awake and
 ngrok running. Leave the removal setting at its last requested OFF state; do not

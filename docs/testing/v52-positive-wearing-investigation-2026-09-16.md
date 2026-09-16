@@ -8,22 +8,29 @@ operator rejected the unknown-status/manual-family-check experience on
 requirement. A software test passing or a family check does not accept automatic
 wearing. No customer acceptance flag or display wording is changed by this work.
 
-## Receive coverage correction and next worn-only baseline
+## Receive coverage correction and completed worn-only baseline
 
 The operator's question about checking every incoming packet identifies a real
 diagnostic gap: the existing receipt census skips decoder errors and retains
 metadata rather than full payloads. Its complete byte accounting applies to one
 closed repeat session, not every session or what the watch is sending now.
-It would be premature to rule out an unhandled field in currently incoming data.
+A raw baseline was therefore needed before ruling out a missed incoming field.
 
 The [five-minute pre-decoder byte capture](v52-worn-wire-capture-2026-09-16.md)
 preserves the original received stream for the consented exact pilot, including
 unknown payloads, rejected frames and unfinished fragments. It reports gaps and
-socket byte accounting explicitly. The next step is one passive baseline while
-the operator keeps the watch on; no further removal-alarm trial is requested.
-This is a diagnostic improvement, not yet a positive wearing result. The supplier
-route below remains available if a complete capture yields no current-contact
-signal; no firmware capability is assumed absent merely from the older census.
+socket byte accounting explicitly. The operator completed that baseline at
+22:30:59–22:35:59 Mauritius. Independent length-based reconstruction consumed
+all **732 bytes** and matched the socket counters: **2 LK, 1 TKQ and 4 UD_LTE**,
+with zero drops, rejected frames, untracked sessions or unfinished fragments.
+Every UD_LTE has fixed-field state `00000000`; the complete payloads have no extra
+contact field identified and there is no separate unknown command. No current
+bit-3 signal was being missed by the parser in this window.
+
+This is a complete diagnostic result, not positive wearing acceptance. A setting
+or query could still expose contact outside this passive baseline. The next
+step is the exact-firmware supplier question below, now updated with this result;
+another unchanged removal cycle is not requested.
 
 ## Concrete implementation route after the repeat
 

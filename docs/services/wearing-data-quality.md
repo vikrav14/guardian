@@ -10,8 +10,11 @@ bounded optical-response check](../testing/v52-positive-wearing-investigation-20
 and omits full payloads. A new optional five-minute
 [`wear:wire-capture` run](../testing/v52-worn-wire-capture-2026-09-16.md) retains
 the consented pilot's bytes before framing and reports any capture gaps. It adds
-no watch command or accepted wearing state. Current wrist detection remains open
-while one worn-only raw baseline is reviewed.
+no watch command or accepted wearing state. The 22:30:59–22:35:59 Mauritius worn
+baseline is now reviewed: all 732 incoming bytes are accounted for, with no
+rejected/unhandled frame, and all four UD_LTE status fields are `00000000`.
+Current wrist detection remains open pending an exact-firmware contact interface;
+this window provides no missed bit-3 signal to enable in the dashboard.
 
 ## Dashboard wearing line (16 September 2026)
 
