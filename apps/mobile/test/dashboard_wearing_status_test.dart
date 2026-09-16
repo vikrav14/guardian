@@ -211,8 +211,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Wearing status unavailable'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
-      await statuses.close();
-      await checks.close();
+      await tester.runAsync(() async {
+        await statuses.close();
+        await checks.close();
+      });
     },
   );
 
@@ -259,12 +261,14 @@ void main() {
       expect(find.textContaining('Check could not be saved.'), findsOneWidget);
       expect(find.text('Last checked on wrist'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
-      for (final controller in statuses.values) {
-        await controller.close();
-      }
-      for (final controller in checks.values) {
-        await controller.close();
-      }
+      await tester.runAsync(() async {
+        for (final controller in statuses.values) {
+          await controller.close();
+        }
+        for (final controller in checks.values) {
+          await controller.close();
+        }
+      });
     },
   );
 

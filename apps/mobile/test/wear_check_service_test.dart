@@ -33,8 +33,9 @@ void main() {
       final cleared = Completer<void>();
       final sub = service.watch('watch-a').listen((check) {
         if (check != null && !received.isCompleted) received.complete();
-        if (check == null && received.isCompleted && !cleared.isCompleted)
+        if (check == null && received.isCompleted && !cleared.isCompleted) {
           cleared.complete();
+        }
       });
       await received.future.timeout(const Duration(seconds: 5));
       await db.collection('users').doc('owner').update({'linkedImeis': []});
