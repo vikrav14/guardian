@@ -1,5 +1,43 @@
 # V52 removal: connection control and acknowledgement capture
 
+## Repeat requested by operator: 21:12–21:25 Mauritius checkpoint
+
+The operator explicitly requested one more worn/removed/restored comparison.
+This resumed physical testing for that repeat; it does not erase the earlier
+off-wrist zero-bit capture or accept a new wearing interpretation.
+
+| Evidence | UTC | Mauritius | Interpretation |
+| --- | --- | --- | --- |
+| Capture armed | 17:12:24.965 | 21:12:24.965 | New 30-minute census; scheduled expiry 21:42:24.965 local. |
+| REMOVE reply | 17:14:30.637 | 21:14:30.637 | Bare reply after the requested enable step; enable handoff output was not supplied and applied settings are not read back. |
+| Fresh baseline UD receipts | 17:14:42.615 and 17:15:44.389 | 21:14:42.615 and 21:15:44.389 | Both `00000000` after the reply, while instructed to remain worn. |
+| Removal AL_LTE receipt | 17:20:48.682 | 21:20:48.682 | Device observation 17:20:46 UTC; `00100000`, bit 20 set, bit 3 clear. |
+| Operator app/SMS observations | Approximately 17:20 | Approximately 21:20 | Both removal alerts reported in the same minute. Exact delivery order is not established. |
+| First removed inspection | 17:22:48.179 | 21:22:48.179 | Runtime reported connected; no status packet after the alarm. |
+| Session disconnected | 17:23:22.608 | 21:23:22.608 | **153.926 seconds after alarm receipt.** |
+| Follow-up inspection | 17:25:28.418 | 21:25:28.418 | Runtime disconnected; still eight status packets (seven UD, one AL), zero trace drops. |
+
+This repeats the roughly 154-second alarm-to-close timing. It does not establish
+who closed the socket or why: the complete TCP close line and raw ACK/connection
+capture are still required. No subsequent status was received in this excerpt,
+so the stored alarm does not prove that bit 20 remained set, and this repeat
+has not demonstrated either clearing or restoration.
+
+The physical removal timestamp and explicit off/on state through the follow-up
+have not yet been supplied. Do not infer them from the save label, alert time or
+the last ordinary location packet. The operator was instructed to refit now if
+still removed and record the return time; no additional removal is requested.
+
+**Cleanup pending:** no OFF request is recorded for this repeat. Keep the
+gateway/ngrok running, check connectivity read-only, then capture fresh
+post-return samples and request `REMOVE,0` once a single session is connected.
+Record its reply without treating a bare echo as applied-setting proof. The
+capture expiring does not perform cleanup.
+
+Await the current
+`1789578744965-7d9f6432-6da5-4360-a5c9-2a77510ef890.jsonl` capture and the complete
+TCP disconnect line. Customer wearing acceptance remains unchanged.
+
 This follows the [wearing investigation](v52-temperature-wearing-capability-research-2026-09-15.md).
 PR #120 remains draft and unmerged. Wearing interpretation remains unverified.
 No device command, customer flag, measurement schedule or acceptance changes.
