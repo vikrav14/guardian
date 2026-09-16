@@ -51,9 +51,13 @@ report or gateway behavior is changed by this UI work.
 - Production-widget preview renderer now captures Family/Care history at
   phone and desktop widths, plus pressure, temperature and activity views.
   Fixtures are synthetic and labelled; no customer account or hardware is used.
-- GitHub release gates and UI previews must pass on the pushed revision before
-  this implementation is considered verified. This environment has no local
-  Flutter SDK; CI supplies the repository's pinned SDK.
+- The complete release gates passed at `f906e9a`: Flutter analysis, tests,
+  Chrome regression and Web release build; gateway tests; Firestore
+  authorization. UI formatting, layout tests and all 20 production-widget
+  preview images also passed. Phone and desktop reading, pressure, temperature,
+  activity and Care navigation views were visually reviewed. The final category
+  icon refinement receives the same checks; see PR #120 for latest-head status.
+  This environment has no local Flutter SDK; CI supplies the pinned SDK.
 
 ## QA walkthrough after pulling the branch
 

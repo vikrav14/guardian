@@ -129,6 +129,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
               children: [
                 ChoiceChip(
                   key: const ValueKey('wellness-tab-activity'),
+                  showCheckmark: false,
                   avatar: const Icon(Icons.directions_walk_outlined, size: 18),
                   label: const Text('Activity'),
                   selected: _activity,
@@ -136,6 +137,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
                 ),
                 ChoiceChip(
                   key: const ValueKey('wellness-tab-readings'),
+                  showCheckmark: false,
                   avatar: const Icon(Icons.monitor_heart_outlined, size: 18),
                   label: const Text('Watch readings'),
                   selected: !_activity,
