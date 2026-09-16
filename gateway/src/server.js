@@ -148,6 +148,9 @@ const wearCapture = config.wearCaptureEnabled === true
 const wearSensorCapture = config.wearSensorCaptureEnabled === true
   ? require('./wear-sensor-capture').startWearSensorCapture({ config, db: getDb(), enabled: true })
   : null;
+const wearWireCapture = config.wearWireCaptureEnabled === true
+  ? require('./wear-wire-capture').startWearWireCapture({ config, db: getDb(), enabled: true })
+  : null;
 const { createWearEvidence } = require('./wear-evidence');
 const wearEvidence = createWearEvidence({ db: getDb(),
   enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
@@ -1309,6 +1312,10 @@ const server = net.createServer((socket) => {
 
     if (!session) return;
 
+    // Preserve incoming bytes before framing can discard noise or decoding can
+    // reject a frame. Identity/consent are checked separately before persistence.
+    wearWireCapture?.observeChunk(socket, session, chunk);
+
     lastDataAt = new Date().toISOString();
 
     noteSessionPacket(socket);
@@ -1328,6 +1335,8 @@ const server = net.createServer((socket) => {
       const decoded = decodeFrame(frame);
 
       const { acks, events } = handlePacket(decoded, session);
+
+      wearWireCapture?.observeIdentity(socket, session);
 
       const receivedAt = new Date();
       const capturedAlarm = wearCapture?.observePacket({
@@ -1413,6 +1422,7 @@ const server = net.createServer((socket) => {
   socket.on('close', (hadError) => {
 
     const session = getSession(socket);
+    wearWireCapture?.observeClose(socket);
     wearCapture?.observeSocket('socket_closed', socket, session, {
       connectedAt, lastDataAt, peerEndAt, hadError, socketErrorCode,
       localCloseReason: session?.localCloseReason,

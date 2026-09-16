@@ -6,6 +6,13 @@ experience as the solution. The row below is an implemented fallback, not
 completion of that requirement. See the [positive-wearing investigation and
 bounded optical-response check](../testing/v52-positive-wearing-investigation-2026-09-16.md).
 
+**Receive coverage correction:** the older receipt census skips decoding errors
+and omits full payloads. A new optional five-minute
+[`wear:wire-capture` run](../testing/v52-worn-wire-capture-2026-09-16.md) retains
+the consented pilot's bytes before framing and reports any capture gaps. It adds
+no watch command or accepted wearing state. Current wrist detection remains open
+while one worn-only raw baseline is reviewed.
+
 ## Dashboard wearing line (16 September 2026)
 
 The family overview places a separate wearing row below connection/check-in and

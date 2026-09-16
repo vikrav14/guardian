@@ -173,6 +173,7 @@ const config = {
   temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
   wearCaptureEnabled: process.env.GUARDIAN_WEAR_CAPTURE === '1',
   wearSensorCaptureEnabled: process.env.GUARDIAN_WEAR_SENSOR_CAPTURE === '1',
+  wearWireCaptureEnabled: process.env.GUARDIAN_WEAR_WIRE_CAPTURE === '1',
   wellnessRoutinePilotEnabled: process.env.WELLNESS_ROUTINE_PILOT_ENABLED === 'true',
   careWellbeingIngestEnabled:
     String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
