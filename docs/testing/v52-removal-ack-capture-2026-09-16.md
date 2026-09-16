@@ -1,6 +1,6 @@
 # V52 removal: connection control and acknowledgement capture
 
-## Repeat requested by operator: 21:12–21:25 Mauritius checkpoint
+## Repeat requested by operator: 21:12–21:34 Mauritius checkpoint
 
 The operator explicitly requested one more worn/removed/restored comparison.
 This resumed physical testing for that repeat; it does not erase the earlier
@@ -16,23 +16,32 @@ off-wrist zero-bit capture or accept a new wearing interpretation.
 | First removed inspection | 17:22:48.179 | 21:22:48.179 | Runtime reported connected; no status packet after the alarm. |
 | Session disconnected | 17:23:22.608 | 21:23:22.608 | **153.926 seconds after alarm receipt.** |
 | Follow-up inspection | 17:25:28.418 | 21:25:28.418 | Runtime disconnected; still eight status packets (seven UD, one AL), zero trace drops. |
+| Operator put the watch back on | Approximately 17:28 | Approximately 21:28 | Operator-reported return time; seconds unspecified. |
+| Session 2 started | 17:31:03.622 | 21:31:03.622 | 461.014 seconds (7m41.014s) after the recorded disconnect. |
+| First post-return UD receipt | 17:33:22.103 | 21:33:22.103 | Device observation 17:33:19 UTC; `00000000`, bit 3 and bit 20 clear. |
+| OFF request handoff | 17:33:22.214 | 21:33:22.214 | `REMOVE,0` handed off; the first zero receipt preceded this reported request time by 111 ms. |
+| Second post-return UD receipt | 17:34:24.074 | 21:34:24.074 | Device observation 17:34:21 UTC; `00000000` again. |
+| After-OFF inspection | 17:34:34.780 | 21:34:34.780 | Ten status packets in the retained trace, zero trace drops. OFF reply not yet supplied. |
 
 This repeats the roughly 154-second alarm-to-close timing. It does not establish
 who closed the socket or why: the complete TCP close line and raw ACK/connection
-capture are still required. No subsequent status was received in this excerpt,
-so the stored alarm does not prove that bit 20 remained set, and this repeat
-has not demonstrated either clearing or restoration.
+capture are still required. There are no status observations between the alarm
+and 21:33:22, spanning the operator's approximately 21:28 return. The post-return
+packets show zero, including one before the recorded OFF request time, but do
+not show when or why the alarm cleared. This repeat cannot establish that it
+stayed set throughout removal or that refitting caused the change.
 
-The physical removal timestamp and explicit off/on state through the follow-up
-have not yet been supplied. Do not infer them from the save label, alert time or
-the last ordinary location packet. The operator was instructed to refit now if
-still removed and record the return time; no additional removal is requested.
+The physical removal timestamp remains unspecified; do not infer it from the
+save label, alert time or ordinary location packets. The operator explicitly
+reported putting the watch back on at 21:28. The earlier independent off-wrist
+zero-bit capture remains valid evidence against treating zero as worn. There
+is still no distinct positive worn bit or confirmed restoration message here.
 
-**Cleanup pending:** no OFF request is recorded for this repeat. Keep the
-gateway/ngrok running, check connectivity read-only, then capture fresh
-post-return samples and request `REMOVE,0` once a single session is connected.
-Record its reply without treating a bare echo as applied-setting proof. The
-capture expiring does not perform cleanup.
+**Cleanup requested; reply evidence pending:** the operator supplied
+`REMOVE,0` handoff at 21:33:22.214. Do not repeat OFF solely because the
+post-request `wear:trial` output has not yet been supplied. Read that status and
+inspect the current raw capture for the reply. A bare reply, if captured, is
+different from applied-setting readback. No further removal test is requested.
 
 Await the current
 `1789578744965-7d9f6432-6da5-4360-a5c9-2a77510ef890.jsonl` capture and the complete
