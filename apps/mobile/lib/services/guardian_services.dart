@@ -857,24 +857,29 @@ class WellbeingService {
               WellnessSample(
                 metric: WellnessMetric.heartRate,
                 value: '${r.heartRateBpm} bpm',
+                numericValue: r.heartRateBpm,
                 recordedAt: r.observedAt,
               ),
             if (r.spo2Percent != null)
               WellnessSample(
                 metric: WellnessMetric.bloodOxygen,
                 value: '${r.spo2Percent} %',
+                numericValue: r.spo2Percent,
                 recordedAt: r.observedAt,
               ),
             if (r.systolicMmHg != null && r.diastolicMmHg != null)
               WellnessSample(
                 metric: WellnessMetric.bloodPressure,
                 value: '${r.systolicMmHg}/${r.diastolicMmHg} mmHg',
+                numericValue: r.systolicMmHg,
+                secondaryValue: r.diastolicMmHg,
                 recordedAt: r.observedAt,
               ),
             if (pilotPreview && r.skinTemperatureCelsius != null)
               WellnessSample(
                 metric: WellnessMetric.skinTemperature,
                 value: '${r.skinTemperatureCelsius!.toStringAsFixed(2)} °C',
+                numericValue: r.skinTemperatureCelsius,
                 recordedAt: r.observedAt,
               ),
           ],

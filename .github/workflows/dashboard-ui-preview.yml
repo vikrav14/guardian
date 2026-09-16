@@ -26,6 +26,8 @@ on:
       - 'apps/mobile/lib/screens/watch_preferences_page.dart'
       - 'apps/mobile/test/watch_preferences_test.dart'
       - 'apps/mobile/test/wellness_editions_test.dart'
+      - 'apps/mobile/test/wellness_history_test.dart'
+      - 'apps/mobile/test/temperature_preview_test.dart'
       - 'apps/mobile/tool/render_wellness_previews_test.dart'
       - 'apps/mobile/test/safe_zone_map_test.dart'
       - 'apps/mobile/test/safe_zones_overview_test.dart'
@@ -112,12 +114,20 @@ jobs:
             test/login_page_test.dart \
             test/support/dashboard_fixture.dart \
             tool/render_dashboard_previews_test.dart \
-            tool/render_login_previews_test.dart
+            tool/render_login_previews_test.dart \
+            lib/wellness/wellness_history.dart \
+            lib/wellness/wellness_chart.dart \
+            lib/wellness/wellness_trends.dart \
+            lib/wellness/wellness_sample.dart \
+            lib/wellness/wellness_panel.dart \
+            test/wellness_history_test.dart \
+            test/temperature_preview_test.dart \
+            tool/render_wellness_previews_test.dart
           git diff --exit-code
 
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart
+        run: flutter test test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}

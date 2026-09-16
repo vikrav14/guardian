@@ -86,7 +86,11 @@ void main() {
       ))),
     ));
     await show(true);
-    expect(find.textContaining('Skin temperature · received · 34.56 °C'), findsOneWidget);
+    expect(find.text('34.56 °C'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('wellness-metric-skinTemperature')));
+    await tester.pumpAndSettle();
+    expect(find.text('Skin temperature over time'), findsOneWidget);
+    expect(find.textContaining('Received ·'), findsOneWidget);
     await show(false);
     expect(find.textContaining('34.56 °C'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -103,6 +107,10 @@ void main() {
       await readings.doc('temp').set({...record(), 'observedAt': Timestamp.fromDate(recent)});
       await readings.doc('oxygen').set({'metricSet': 'spo2', 'displayable': true,
         'values': {'spo2Percent': 97}, 'observedAt': Timestamp.fromDate(recent)});
+      await readings.doc('heart').set({'metricSet': 'heart_rate_blood_pressure',
+        'displayable': true, 'values': {'heartRateBpm': 72,
+          'systolicMmHg': 118, 'diastolicMmHg': 76},
+        'observedAt': Timestamp.fromDate(recent)});
       final subscription = GuardianSubscription.fromMap({
         'version': 1, 'managedBy': 'guardian_admin', 'status': 'active', 'plan': 'family',
       });
@@ -112,7 +120,16 @@ void main() {
         window: window, pilotPreview: preview).firstWhere((v) => v.isNotEmpty)
           .timeout(const Duration(seconds: 5));
       expect(samples.map((v) => v.value),
-          unorderedEquals(preview ? ['34.56 °C', '97 %'] : ['97 %']));
+          unorderedEquals(preview ? ['34.56 °C', '97 %', '72 bpm', '118/76 mmHg']
+              : ['97 %', '72 bpm', '118/76 mmHg']));
+      expect(samples.singleWhere((s) => s.metric == WellnessMetric.bloodOxygen).numericValue, 97);
+      expect(samples.singleWhere((s) => s.metric == WellnessMetric.heartRate).numericValue, 72);
+      final pressure = samples.singleWhere((s) => s.metric == WellnessMetric.bloodPressure);
+      expect(pressure.numericValue, 118);
+      expect(pressure.secondaryValue, 76);
+      if (preview) {
+        expect(samples.singleWhere((s) => s.metric == WellnessMetric.skinTemperature).numericValue, 34.56);
+      }
     });
   }
 }

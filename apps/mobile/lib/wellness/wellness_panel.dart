@@ -160,6 +160,9 @@ class _WellnessDataState extends State<_WellnessData>
     with WidgetsBindingObserver {
   late DateTime _now;
   DateTime? _before;
+  int _historyDays = 7;
+  bool? _historyActivity;
+  WellnessMetric _historyMetric = WellnessMetric.heartRate;
   late WellnessWindow _window;
   Stream<List<ActivityDay>>? _days;
   Stream<List<WellnessSample>>? _readings;
@@ -181,14 +184,14 @@ class _WellnessDataState extends State<_WellnessData>
       widget.subscription,
       now: _now,
       before: _before,
-      days: widget.detail ? 7 : 1,
+      days: widget.detail ? _historyDays : 1,
     );
     _days = widget.activityEnabled
         ? ActivityService().watchRecentDays(
             imei: widget.imei,
             subscription: widget.subscription,
             before: _window.end,
-            limit: widget.detail ? 7 : 1,
+            limit: widget.detail ? _historyDays : 1,
             pilotPreview: widget.pilotPreview,
           )
         : Stream.value(const []);
@@ -242,6 +245,12 @@ class _WellnessDataState extends State<_WellnessData>
 
   void _move(DateTime end) => setState(() {
     _before = end;
+    _historyDays = 7;
+    _connect();
+  });
+  void _period(int days) => setState(() {
+    _before = null;
+    _historyDays = days;
     _connect();
   });
   Future<void> _chooseDate() async {
@@ -327,6 +336,14 @@ class _WellnessDataState extends State<_WellnessData>
           final care = widget.subscription.plan == GuardianPlan.care;
           final tomorrow = wellnessDayStart(_now).add(const Duration(days: 1));
           return WellnessHistory(
+            initialActivity: _historyActivity,
+            initialMetric: _historyMetric,
+            onActivityChanged: (value) => _historyActivity = value,
+            onMetricChanged: (value) => _historyMetric = value,
+            onToday: () => _period(1),
+            onWeek: () => _period(7),
+            loading: activity.connectionState == ConnectionState.waiting ||
+                readings.connectionState == ConnectionState.waiting,
             onRoutine: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => WellnessRoutinePage(
