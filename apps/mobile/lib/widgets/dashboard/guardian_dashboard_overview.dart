@@ -35,6 +35,7 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.onLinkWatch,
     this.serviceSections = const [],
     this.wellness,
+    this.wearingStatus,
   });
 
   final Device? device;
@@ -63,6 +64,7 @@ class GuardianDashboardOverview extends StatelessWidget {
   /// An empty list keeps unfinished service features absent from the dashboard.
   final List<Widget> serviceSections;
   final Widget? wellness;
+  final Widget? wearingStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +127,7 @@ class GuardianDashboardOverview extends StatelessWidget {
             onJourney: onJourney,
             onHelp: onHelp,
             onWatchStatus: onWatchStatus,
+            wearingStatus: wearingStatus,
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(

@@ -3,15 +3,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Wearing evidence is separate from network connection and health values.
 class WearStatus {
   const WearStatus({this.state = 'unknown', this.observedAt, this.expiresAt,
-    this.deviceAccepted = false});
+    this.deviceAccepted = false, this.lastRemovalReportedAt});
   final String state;
   final DateTime? observedAt, expiresAt;
   final bool deviceAccepted;
+  // Dated alarm history. Never participates in stateAt or data qualification.
+  final DateTime? lastRemovalReportedAt;
 
   factory WearStatus.fromMap(Map<String, dynamic> data) => WearStatus(
     state: data['version'] == 1 ? data['state'] as String? ?? 'unknown' : 'unknown',
     observedAt: _date(data['observedAt']), expiresAt: _date(data['expiresAt']),
     deviceAccepted: data['deviceAccepted'] == true,
+    lastRemovalReportedAt: data['version'] == 1
+        ? _date(data['lastRemovalReportedAt']) : null,
   );
 
   String stateAt(DateTime now) {

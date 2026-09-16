@@ -117,7 +117,8 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
 
   function persist(imei, state, at) {
     if (!db) return;
-    const summary = { ...state.evidence, updatedAt: at };
+    const summary = { ...state.evidence, updatedAt: at,
+      lastRemovalReportedAt: state.lastRemovalReportedAt || null };
     delete summary.continuityId;
     const trace = diagnostics.get(imei);
     const diagnostic = { version: 1, updatedAt: at, deviceMode,
@@ -128,6 +129,11 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     // Coalesce pending writes: slow Firestore never queues unlimited heartbeats
     // or delays ACKs/SOS. Retained raw status samples are capped at 120.
     const work = pending.get(imei) || { next: null, running: false };
+    const queuedRemoval = date(work.next?.summary.lastRemovalReportedAt);
+    if (queuedRemoval && (!summary.lastRemovalReportedAt ||
+        +queuedRemoval > +summary.lastRemovalReportedAt)) {
+      summary.lastRemovalReportedAt = queuedRemoval;
+    }
     work.next = { summary, diagnostic }; pending.set(imei, work);
     if (work.running) return;
     work.running = true;
@@ -140,8 +146,17 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
           await db.runTransaction(async tx => {
             const prior = await tx.get(statusRef);
             if (prior.exists && +date(prior.data().updatedAt) > +item.summary.updatedAt) return;
-            tx.set(statusRef, item.summary);
-            tx.set(device.collection('wearDiagnostics').doc('current'), item.diagnostic);
+            // This is dated event history, independent of wearing eligibility.
+            // Preserve it across zero-bit packets, disconnects and restarts.
+            const previousRemoval = prior.exists ? date(prior.data().lastRemovalReportedAt) : null;
+            const currentRemoval = date(item.summary.lastRemovalReportedAt);
+            const summary = { ...item.summary, lastRemovalReportedAt:
+              previousRemoval && +previousRemoval <= +item.summary.updatedAt &&
+              (!currentRemoval || +previousRemoval > +currentRemoval)
+                ? previousRemoval : currentRemoval };
+            tx.set(statusRef, summary);
+            tx.set(device.collection('wearDiagnostics').doc('current'),
+              { ...item.diagnostic, status: summary });
           });
         }
       } catch (error) { onError(error); }
@@ -156,7 +171,8 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     let state = devices.get(imei);
     if (!state || state.session !== session) {
       state = { session, accepted: deviceMode === ACCEPTED_MODE && allowlist.has(imei),
-        evidence: unknown('new_session'), candidate: null, lastDeviceAt: null, samples: [] };
+        evidence: unknown('new_session'), candidate: null, lastDeviceAt: null, samples: [],
+        lastRemovalReportedAt: state?.lastRemovalReportedAt || null };
       devices.set(imei, state);
       diagnostic.sessionNumber += 1; diagnostic.lastBitmap = null;
       appendTrace(diagnostic, { kind: 'session_started', session: diagnostic.sessionNumber,
@@ -172,6 +188,14 @@ function createWearEvidence({ db, enabled = false, deviceMode = 'unverified', ac
     const signal = parseWearSignal(decoded);
     const trace = statusTrace(decoded, signal, state, diagnostic, at);
     if (trace) appendTrace(diagnostic, trace);
+    // AL bit 20 reports a removal event even on an unverified firmware. A
+    // later zero bitmap cannot establish that the watch is back on the wrist.
+    // Use the device observation time, not delayed receipt time, for history.
+    if (signal?.removalAlarmBit && /^AL(?:_|$)/.test(signal.command) &&
+        +signal.observedAt <= +at && +at - +signal.observedAt <= FRESH_MS &&
+        (!state.lastRemovalReportedAt || +signal.observedAt > +state.lastRemovalReportedAt)) {
+      state.lastRemovalReportedAt = signal.observedAt;
+    }
     if (state.evidence.state !== 'unknown' && !wearAt(state.evidence, at).expiresAt) {
       state.evidence = unknown('wearing_evidence_expired'); state.candidate = null;
       persist(imei, state, at);

@@ -16,10 +16,13 @@ import '../navigation/home_shell_scope.dart';
 import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
+import '../services/wear_check_service.dart';
+import '../services/wear_status_service.dart';
 import '../theme/app_theme.dart';
 import '../wellness/wellness_panel.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_dashboard_overview.dart';
+import '../widgets/dashboard/dashboard_wearing_status.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
@@ -49,6 +52,8 @@ class MapDashboardPage extends StatefulWidget {
 class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
   late final WellbeingService _wellbeingService;
+  late final WearStatusService _wearStatusService;
+  late final WearCheckService _wearCheckService;
   GoogleMapController? _mapController;
   // Keep the platform map mounted when the responsive columns rearrange.
   final GlobalKey _mapKey = GlobalKey(debugLabel: 'dashboard-map');
@@ -70,6 +75,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   void initState() {
     super.initState();
     _wellbeingService = WellbeingService();
+    _wearStatusService = WearStatusService();
+    _wearCheckService = WearCheckService();
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
@@ -689,6 +696,16 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
+      wearingStatus: selected != null &&
+              entitlementScope.decision(GuardianFeature.activitySteps).allowed
+          ? DashboardWearingStatus(
+              key: ValueKey('wearing-${selected.imei}'),
+              device: selected,
+              watchStatus: _wearStatusService.watch,
+              watchChecks: _wearCheckService.watch,
+              recordCheck: _wearCheckService.record,
+            )
+          : null,
       wellness:
           (_activityStepsCustomerEnabled ||
                   _careWellbeingCustomerEnabled ||

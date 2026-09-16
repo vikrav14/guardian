@@ -249,6 +249,26 @@ service cloud.firestore {
         allow read: if statusId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
         allow write: if false;
       }
+      // Manual observations are separate from gateway-owned wearing evidence.
+      // Require a current, server-acknowledged check; never accept queued old
+      // checks, client eligibility fields or a forged recorder identity.
+      match /wearChecks/{checkId} {
+        function validCheck() {
+          let data = request.resource.data;
+          return checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential')
+            && data.keys().hasOnly(['version', 'state', 'observedAt', 'recordedAt', 'recordedBy'])
+            && data.version == 1 && data.state in ['worn', 'removed']
+            && data.recordedBy == request.auth.uid
+            && data.recordedAt == request.time
+            && data.observedAt is timestamp
+            && data.observedAt >= request.time - duration.value(60, 's')
+            && data.observedAt <= request.time + duration.value(60, 's');
+        }
+        allow get: if checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow create: if validCheck();
+        allow update: if validCheck() && request.resource.data.observedAt >= resource.data.observedAt;
+        allow list, delete: if false;
+      }
       match /wellnessRoutine/{statusId} {
         allow get: if statusId == 'current' && linkedTo(imei)
           && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);

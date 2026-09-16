@@ -126,7 +126,7 @@ test('diagnostic report redacts identity and treats expired state as unknown', a
   assert.doesNotMatch(JSON.stringify(report), /999999999999999|latitude/);
 });
 
-function diagnosticPilot() {
+function diagnosticPilot(options = {}) {
   const documents = new Map();
   const reference = path => ({ path, collection: name => reference(`${path}/${name}`),
     doc: name => reference(`${path}/${name}`),
@@ -136,9 +136,9 @@ function diagnosticPilot() {
       get: ref => ref.get(), set: (ref, value) => documents.set(ref.path, structuredClone(value)),
     }) };
   const observer = createWearEvidence({ db, enabled: true, deviceMode: ACCEPTED_MODE,
-    acceptedImeis: [imei] });
+    acceptedImeis: [imei], ...options });
   const session = {};
-  return { observer, session, db,
+  return { observer, session, db, documents,
     capture(decoded, receipt, socket = session) {
       const events = [{ imei }]; observer.capture(decoded, events, socket, at(receipt));
       return events[0].wearEvidence;
@@ -149,6 +149,47 @@ function diagnosticPilot() {
       return loadWearReport(db, imei, at(receipt));
     } };
 }
+
+test('unverified removal reports survive zero packets, disconnects and restart without qualifying wearing', async () => {
+  const { observer, capture, session, db, documents, report } = diagnosticPilot({ deviceMode: 'unverified' });
+  const statusPath = `devices/${imei}/wearStatus/current`;
+  assert.equal(capture(packet(0, '00100000', 'AL_LTE'), 1).eligible, false);
+  // Reconnect before a coalesced write has drained must also retain the event.
+  observer.disconnect(imei, session, at(2));
+  capture(packet(10, '00000000'), 10, {});
+  await report();
+  assert.equal(+documents.get(statusPath).lastRemovalReportedAt, +at(0));
+  assert.equal(documents.get(statusPath).state, 'unknown');
+  observer.disconnect(imei, session, at(20));
+  const restarted = createWearEvidence({ db, enabled: true });
+  const events = [{ imei }];
+  restarted.capture(packet(30, '00000000'), events, {}, at(30));
+  await report();
+  assert.equal(+documents.get(statusPath).lastRemovalReportedAt, +at(0));
+  assert.equal(documents.get(statusPath).state, 'unknown');
+  assert.equal(events[0].wearEvidence.eligible, false);
+  assert.equal(events[0].wearEvidence.lastRemovalReportedAt, undefined);
+});
+
+test('only fresh AL events update removal history, preserving observation time and newest event', async () => {
+  const { capture, documents, report } = diagnosticPilot({ deviceMode: 'unverified' });
+  const status = () => documents.get(`devices/${imei}/wearStatus/current`);
+  for (const [decoded, receipt] of [
+    [packet(0, '00100000', 'UD2_LTE'), 0],
+    [packet(1, '00100000', 'UD_LTE'), 1],
+    [packet(200, '00100000', 'AL_LTE'), 2],
+    [packet(0, '00100000', 'AL_LTE'), 121],
+  ]) capture(decoded, receipt);
+  await report();
+  assert.equal(status().lastRemovalReportedAt, null);
+  capture(packet(125, '00100000', 'AL_LTE'), 130);
+  await report();
+  assert.equal(+status().lastRemovalReportedAt, +at(125));
+  capture(packet(120, '00100000', 'AL_LTE'), 135);
+  await report();
+  assert.equal(+status().lastRemovalReportedAt, +at(125));
+  assert.equal(status().eligible, false);
+});
 
 test('receipt diagnostics retain same-second alarms, delayed/history and unrecognized status variants', async () => {
   const { capture, report } = diagnosticPilot();

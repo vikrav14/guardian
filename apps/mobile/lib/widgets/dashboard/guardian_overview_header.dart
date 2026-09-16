@@ -18,6 +18,7 @@ class GuardianOverviewHeader extends StatelessWidget {
     this.onJourney,
     this.onHelp,
     this.onWatchStatus,
+    this.wearingStatus,
   });
 
   final Device device;
@@ -26,6 +27,7 @@ class GuardianOverviewHeader extends StatelessWidget {
   final VoidCallback? onJourney;
   final VoidCallback? onHelp;
   final VoidCallback? onWatchStatus;
+  final Widget? wearingStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +43,7 @@ class GuardianOverviewHeader extends StatelessWidget {
           helpEnabled: helpEnabled,
           onHelp: onHelp,
           onWatchStatus: onWatchStatus,
+          wearingStatus: wearingStatus,
         );
         final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
 
@@ -81,6 +84,7 @@ class _OverviewIdentity extends StatelessWidget {
     required this.helpEnabled,
     this.onHelp,
     this.onWatchStatus,
+    this.wearingStatus,
   });
 
   final Device device;
@@ -88,6 +92,7 @@ class _OverviewIdentity extends StatelessWidget {
   final bool helpEnabled;
   final VoidCallback? onHelp;
   final VoidCallback? onWatchStatus;
+  final Widget? wearingStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +167,7 @@ class _OverviewIdentity extends StatelessWidget {
         ),
         Divider(height: 24, color: colors.border),
         _OverviewWatchState(device: device, onWatchStatus: onWatchStatus),
+        if (wearingStatus != null) wearingStatus!,
       ],
     );
   }

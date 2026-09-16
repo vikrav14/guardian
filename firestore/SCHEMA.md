@@ -671,6 +671,16 @@ not a client-accessible Firestore collection.
 - `devices/{imei}/wearStatus/current`: backend-only writes; safe versioned state,
   reason, exact-device acceptance, observation/expiry and gateway update times.
   Linked members on any active edition may read. Clients must expire status.
+  Optional `lastRemovalReportedAt` is the device observation time of the newest
+  fresh AL removal report. It survives zero-bit packets, disconnection and
+  restart. This is historical event information, never present wearing proof.
+- `devices/{imei}/wearChecks/current`: a linked member on any active edition may
+  save/read the latest **manual family observation**. Exact fields: `version: 1`,
+  `state: worn|removed`, `observedAt` (client timestamp), `recordedAt` (server
+  timestamp), `recordedBy` (authenticated UID). An online transaction and rules
+  require an observation within 60 seconds of server time and prevent an older
+  observation replacing a newer check. No list/delete or additional fields.
+  This document never qualifies wearing, activity or Wellness readings.
 - `devices/{imei}/wearDiagnostics/current`: backend-only, at most 120 raw status
   samples, running gateway mode. Never expose raw bits through customer rules.
 - Activity v2 keeps diagnostic `recordedSteps` and separately aggregates

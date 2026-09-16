@@ -10,6 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:guardian/dashboard/wearing_presentation.dart';
+import 'package:guardian/models/wear_check.dart';
+import 'package:guardian/models/wear_status.dart';
+import 'package:guardian/widgets/dashboard/dashboard_wearing_status.dart';
 
 import '../test/support/dashboard_fixture.dart';
 
@@ -17,6 +21,9 @@ const _enabled = bool.fromEnvironment('DASHBOARD_PREVIEWS');
 
 void main() {
   for (final preview in [
+    (name: 'wearing_removed', width: 390.0, height: 1800.0, dark: false, viewport: false),
+    (name: 'wearing_family_check', width: 390.0, height: 1800.0, dark: false, viewport: false),
+    (name: 'wearing_verified', width: 390.0, height: 1800.0, dark: false, viewport: false),
     (
       name: 'remembered_mobile',
       width: 390.0,
@@ -84,6 +91,8 @@ void main() {
       });
 
       final boundaryKey = GlobalKey();
+      final now = DateTime.now();
+      final observedAt = now.subtract(const Duration(minutes: 5));
       final device = dashboardFixtureDevice(
         rememberedHome: preview.name.startsWith('remembered_'),
       );
@@ -91,6 +100,22 @@ void main() {
         dashboardFixtureHost(
           dashboardFixtureOverview(
             device: device,
+            wearingStatus: WearingStatusTile(
+              presentation: WearingPresentation.at(
+                now: now,
+                connected: true,
+                status: preview.name == 'wearing_removed'
+                    ? WearStatus(lastRemovalReportedAt: observedAt)
+                    : preview.name == 'wearing_verified'
+                    ? WearStatus(state: 'worn', deviceAccepted: true,
+                        observedAt: now, expiresAt: now.add(const Duration(seconds: 120)))
+                    : const WearStatus(),
+                check: preview.name == 'wearing_family_check'
+                    ? WearCheck(state: 'worn', observedAt: observedAt, recordedAt: observedAt)
+                    : null,
+              ),
+              onTap: () {},
+            ),
             devices: preview.viewport
                 ? [device]
                 : [

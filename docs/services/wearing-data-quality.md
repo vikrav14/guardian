@@ -1,5 +1,67 @@
 # Wearing evidence and Wellness data quality
 
+## Dashboard wearing line (16 September 2026)
+
+The family overview places a separate wearing row below connection/check-in and
+battery. Connection still describes transport. Wearing uses the following
+display policy, available to linked members on every active edition:
+
+| Evidence | Dashboard wording |
+| --- | --- |
+| No verified current evidence | Wearing not confirmed |
+| Fresh AL bit-20 removal event | Removal reported; age; wearing now is unconfirmed |
+| Family member checks the wrist | Last checked on/off wrist; Family check; age |
+| Exact-device accepted, fresh sensor evidence, live connection | Wearing detected / Watch off wrist; Watch sensor; age |
+| Read/access failure | Wearing status unavailable; retry |
+
+Only the last row of actual sensor evidence can produce green wearing detection.
+A manual check remains neutral and historical at every age. It never changes the
+wearing eligibility contract, validates readings, enables a watch command or
+sends a notification. Newer removal reports supersede earlier family checks;
+newer family observations supersede older reports in the display. Older or
+equal-time positive sensor observations cannot override a contradictory check
+or removal report. Sensor evidence expires locally even without new Firestore
+updates and is reevaluated after app resume. Switching device/unlink/sign-out or
+read failure clears the affected data.
+
+Manual checks use a separate `wearChecks/current` document and online transaction.
+Rules enforce linked membership, an active edition, recorder identity, exact
+fields, server recording time and an observation within 60 seconds of server
+time. This 60-second allowance is a clock/transport bound, not a claim that the
+person remains wearing the watch for 60 seconds. Offline saves fail; pending
+local writes cannot display a saved check.
+
+`lastRemovalReportedAt` is independent, dated history in the gateway-owned
+`wearStatus/current` summary. The gateway only advances it for timestamp-valid
+AL removal reports received within the existing two-minute freshness window.
+Duplicate/older reports cannot advance it. Zero bits, disconnection, coalesced
+writes and restart preserve it. Existing alerts are not backfilled, and the
+dashboard never reads the private raw diagnostics.
+
+### Exact-watch limitation and rollout
+
+The [16 September field checkpoint](../testing/v52-removal-ack-capture-2026-09-16.md)
+remains authoritative: bit 20 reported removal; zero-bit packets were received
+while the watch was still off; positive restoration is unverified. Physical
+removal trials remain paused and the last requested setting remains REMOVE,0.
+No enable/disable commands are part of this dashboard change.
+
+The [V52 manufacturer page](https://www.reachfargps.com/products/GPS-watch/v52.html)
+does not establish a positive-wearing packet contract for the tested firmware.
+[Flespi's V52 integration](https://flespi.com/devices/reachfar-v52) lists separate
+wristband-connected status and takeoff-alarm parameters; this is an integration
+lead, not proof of what this exact watch emits. Obtain the vendor's positive
+contact/restoration definition before accepting a firmware or using sensor
+values, steps or motion to infer wearing. No confidence score is invented.
+
+Rollout order: deploy `firestore/rules.example` through the existing Firestore
+configuration, restart the updated gateway once, then build/release the Flutter
+app through its existing release process. Until the new rules are deployed,
+the row fails closed as unavailable. Until a new removal report or family check
+exists, this unverified watch shows “Wearing not confirmed.” This code change
+does not itself deploy rules, publish the app, or alter device acceptance.
+
+
 Status: software implemented; exact V52 firmware interpretation remains **unverified**.
 
 **15 September source correction:** the original companion Communication Example
