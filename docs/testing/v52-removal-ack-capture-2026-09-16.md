@@ -79,6 +79,68 @@ reverse close order, and destroyed/unidentified/other-device sockets. The focuse
 gateway run passes 82 tests, including ACK capture, decoding, recovery, trial
 command restrictions, SOS dispatch and Home priority.
 
+## Post-fix trial and cleanup (16 September, Mauritius UTC+4)
+
+The gateway was restarted on overlap-cleanup fix `2897f08`. A second startup
+initially hit the existing single-writer journal lock; the operator then stopped
+the previous gateway and confirmed a successful normal `npm start`. The new
+run received a connection at 18:20:39.445.
+
+`REMOVE,1` was requested at 18:36:29.722 and a bare `REMOVE` reply arrived at
+18:36:30.128. Five fresh baseline status packets with device times 18:36:44
+through 18:38:08 were all `00000000`; the helper reported connected.
+
+| Time | Observation |
+| --- | --- |
+| 18:38:38.061 | Session 1 received `AL_LTE`, bit 20 set; device time 18:38:35 |
+| 18:41:11.782 | Session 1 closed after peer end, 153.721 seconds after the alarm; no socket error or recorded local close request |
+| 18:41:13.869 | Operator ran `Get-Date`; later clarified the watch was **already off wrist at 18:38:38** |
+| 18:46:06.342 | Removal capture retained 18 status packets, zero dropped trace entries, and no status after the alarm; helper reported disconnected |
+| 18:49:26.600 | Session 2 connected, then closed at 18:49:26.821 after 0.221 seconds |
+| 18:49:47.824 | Session 3 connected; first location report arrived at 18:50:28.503 |
+| Around 18:51:05 | Console recorded `REMOVE,0` sent and a subsequent bare `REMOVE` reply |
+| 18:51:30.435, 18:52:32.335, 18:53:34.278 | Three post-cleanup status packets, all `00000000`, on session 3 |
+| 18:54:19.524 | Post-cleanup capture: 22 status packets across the run, zero dropped entries, no recorded session-3 disconnect |
+
+The exact physical removal instant is unknown. The later manual timestamp must
+not be used to calculate detection latency or classify this as an alarm while
+worn: the operator explicitly confirmed the watch was off when the alarm
+arrived. The operator subsequently confirmed it was back on the wrist.
+
+This run had a genuine gap in registered connections. No replacement existed
+when session 1 closed, so the overlap guard had no surviving connection to
+preserve. The next connection that continued reporting began 516.042 seconds
+(8 minutes 36 seconds) after the close, with the brief session-2 attempt in
+between. The gateway continued its scheduler logs throughout the gap. No
+post-fix overlapping-session field validation was obtained, and the fix has
+not resolved the underlying disconnection.
+
+Four timestamped alarm/close examples now cluster between 153.660 and 153.897
+seconds. This is an observed association, not proof of a particular timeout,
+watch firmware fault, missing ACK, SMS effect, or ngrok/carrier failure. The
+local peer is the tunnel agent. The earlier ACK capture proves only local write
+completion on that earlier trial; normal-start logs do not add ACK-delivery
+evidence for this trial.
+
+Post-cleanup reports were approximately 62 seconds apart. The latest packet
+was 45.246 seconds old when the snapshot was read. This supports resumed
+reporting over the short captured window only; it is not evidence of 40 minutes
+of uninterrupted connectivity or proof that requesting OFF caused recovery.
+The connection and first report had already returned before OFF was requested.
+
+Cleanup is recorded and no repeat OFF request is needed from this evidence.
+The bare reply remains different from an applied-setting readback. Device mode
+stays `unverified`, acceptance false, and wearing `unknown`; neither the cleared
+alarm nor the operator's temporary confirmation establishes a firmware wearing
+signal. Removal-event receipt has been observed; continuous wearing/restoration
+and reliable alarm-time connectivity remain unresolved.
+
+Physical removal tests are paused. The next investigation needs evidence that
+distinguishes watch/network/tunnel closure and clarification of alarm/ACK/session
+behavior for this exact firmware, rather than another identical removal cycle.
+Do not promote this result to customer acceptance or change alarm, SMS, SOS or
+reporting settings to speculate about the cause.
+
 ## Capture behavior
 
 `npm run wear:capture` replaces `npm start` for one diagnostic run. It starts the
@@ -136,9 +198,12 @@ trial. Setup sends no REMOVE or REMOVESMS command. Do not run a second gateway
 on the same port. A new session can have an empty command-reply history even
 though the earlier OFF reply was previously captured.
 
-## Next supervised trial
+## Reference trial procedure (physical testing paused)
 
-Proceed step by step once capture is active and the operator is ready. The
+The trials above are complete. Retain this procedure as a record; the latest
+checkpoint pauses further physical removal testing pending a distinct diagnostic
+question. For a future explicitly resumed trial, proceed step by step once
+capture is active and the operator is ready. The
 comparison is one `REMOVE,1` request, a fresh worn baseline, recorded physical
 removal, and the ensuing alarm/ACK/close sequence. Use the existing
 `wear:check -- --save=<marker>` alongside capture. Retain physical transition
