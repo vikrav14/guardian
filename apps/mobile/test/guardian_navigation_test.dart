@@ -79,37 +79,40 @@ void main() {
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
-    await _pumpBar(
-      tester,
-      currentIndex: 3,
-      highContrast: true,
-      reducedMotion: true,
-    );
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('Account')),
-      matchesSemantics(
-        label: 'Account',
-        isButton: true,
-        hasSelectedState: true,
-        isSelected: true,
-        hasTapAction: true,
-      ),
-    );
-    for (final icon in tester.widgetList<GuardianNavigationIcon>(
-      find.byType(GuardianNavigationIcon),
-    )) {
-      expect(icon.highContrast, isTrue);
+    try {
+      await _pumpBar(
+        tester,
+        currentIndex: 3,
+        highContrast: true,
+        reducedMotion: true,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Account')),
+        matchesSemantics(
+          label: 'Account',
+          isButton: true,
+          hasSelectedState: true,
+          isSelected: true,
+          hasTapAction: true,
+        ),
+      );
+      for (final icon in tester.widgetList<GuardianNavigationIcon>(
+        find.byType(GuardianNavigationIcon),
+      )) {
+        expect(icon.highContrast, isTrue);
+      }
+      for (final mark in tester.widgetList<AnimatedContainer>(
+        find.descendant(
+          of: find.byType(MobileBottomBar),
+          matching: find.byType(AnimatedContainer),
+        ),
+      )) {
+        expect(mark.duration, Duration.zero);
+      }
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
     }
-    for (final mark in tester.widgetList<AnimatedContainer>(
-      find.descendant(
-        of: find.byType(MobileBottomBar),
-        matching: find.byType(AnimatedContainer),
-      ),
-    )) {
-      expect(mark.duration, Duration.zero);
-    }
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('each destination keeps its existing shell index', (
