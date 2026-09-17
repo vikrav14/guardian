@@ -77,6 +77,23 @@ test('weather condition codes cover rain, thunder, snow, mist and cloudy skies w
   }
 });
 
+test('profile weather uses a fresh area despite expired or future GPS and keeps its real expiry', () => {
+  const wifi = { ...location, source: 'wifi', placeLabel: 'Recent area',
+    recordedAt: new Date(now - 45 * 60_000) };
+  for (const recordedAt of [new Date(now - 70 * 60_000), new Date(now - MAX_AGE_MS),
+    new Date(now + 2 * 60_000)]) {
+    const value = project({ lastSatelliteLocation: { ...location, recordedAt },
+      lastLocationObservation: wifi });
+    assert.equal(value.state, 'available');
+    assert.equal(value.location.source, 'wifi');
+    assert.equal(value.locationObservedAt, wifi.recordedAt.toISOString());
+    assert.equal(value.expiresAt, new Date(now + 15 * 60_000).toISOString());
+  }
+  assert.equal(project({ lastSatelliteLocation: { ...location, recordedAt: new Date(now - 70 * 60_000) },
+    lastLocationObservation: { ...wifi, recordedAt: new Date(now - MAX_AGE_MS) },
+    lastHeartbeatAt: new Date(now) }).state, 'unavailable');
+});
+
 function fakeDb(initial) {
   const writes = [];
   const documents = initial.map(([id, data]) => ({ id, data: () => data }));

@@ -32,6 +32,10 @@ Provider reference: [current weather fields](https://old.openweathermap.org/curr
 
 ## Verification
 
+If the panel shows `Weather unavailable`, run `npm run weather:check` from `gateway` (or add `-- --imei=<15 digits>`). This read-only command reports each stored location's source and actual age, the selected location and rejection reason, plus the gateway's current weather record. It prints only whether a weather key is configured, never its value. The command's environment and selection belong to the current checkout; restart the gateway after code changes to apply them to the running service.
+
+An unavailable record with `location_stale_or_undated` means the weather service ran but rejected its selected location; it does not establish an API-key or provider failure. A fresh Wi-Fi/LBS observation can supply area weather after satellite evidence expires. The weather selector must not reselect an expired GPS fix just because the map retains it. If every recorded location is stale or undated, fresh check-ins alone do not restore weather availability.
+
 Automated coverage includes location/weather expiry, missing and future timestamps, condition mapping, wind conversion, request failures/timeouts, cache coalescing, failed-write retries, linked/unlinked authorization, denied client writes, profile switching, local expiry and removal of the header shortcut while preserving the other actions.
 
 The dashboard UI workflow renders synthetic desktop, mobile, dark, night, unavailable and 320px enlarged-text previews from the production widgets. Field QA should confirm a named area appears for Jesh, observe updates after a genuine location change, and verify expiry rather than treating a fresh heartbeat as a new position.

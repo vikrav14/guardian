@@ -226,3 +226,57 @@ test('missing location age is treated as unknown rather than fresh', () => {
   assert.match(reply, /location has an unknown age/);
   assert.doesNotMatch(reply, /26°C/);
 });
+
+test('weather selects fresh approximate evidence when map retention would keep expired GPS', () => {
+  const now = new Date('2026-09-17T20:00:00Z');
+  const fix = (source, minutes) => ({ lat: -20.028, lng: 57.596, source,
+    recordedAt: new Date(now.getTime() - minutes * 60_000) });
+  for (const minutes of [70, 60]) {
+    const gps = fix('gps', minutes);
+    const wifi = fix('wifi', 45);
+    const selection = selectWeatherLocation({ lastSatelliteLocation: gps,
+      lastLocationObservation: wifi }, { now });
+    assert.equal(selection.source, 'wifi');
+    assert.equal(selection.location, wifi, 'preserve the actual location observation');
+    assert.equal(selection.retainedSatellite, false);
+    assert.equal(selection.location.recordedAt, wifi.recordedAt);
+  }
+});
+
+test('weather can select a newer stored approximate fix without inventing a fresh GPS timestamp', () => {
+  const now = new Date('2026-09-17T20:00:00Z');
+  const gps = { lat: -20.028, lng: 57.596, source: 'gps',
+    recordedAt: new Date(now.getTime() - 70 * 60_000) };
+  const olderWifi = { ...gps, source: 'wifi', recordedAt: new Date(now.getTime() - 45 * 60_000) };
+  const recentLbs = { ...gps, source: 'lbs', recordedAt: new Date(now.getTime() - 10 * 60_000) };
+  const selection = selectWeatherLocation({ lastSatelliteLocation: gps, lastLocationObservation: gps,
+    location: olderWifi, lastApproximateLocation: recentLbs }, { now });
+  assert.equal(selection.location, recentLbs);
+  assert.equal(selection.source, 'lbs');
+  assert.equal(selection.location.recordedAt, recentLbs.recordedAt);
+});
+
+test('future GPS cannot mask a fresh approximate fix', () => {
+  const now = new Date('2026-09-17T20:00:00Z');
+  const wifi = { lat: -20.028, lng: 57.596, source: 'wifi', recordedAt: now };
+  const futureGps = { ...wifi, source: 'gps', recordedAt: new Date(now.getTime() + 2 * 60_000) };
+  const selection = selectWeatherLocation({ lastSatelliteLocation: futureGps,
+    lastLocationObservation: wifi }, { now });
+  assert.equal(selection.source, 'wifi');
+  assert.equal(selection.location, wifi);
+});
+
+test('missing, future or exactly expired fix times block weather calls despite a fresh heartbeat', async () => {
+  const now = new Date('2026-09-17T20:00:00Z');
+  for (const recordedAt of [null, 'bad', new Date(now.getTime() + 2 * 60_000),
+    new Date(now.getTime() - 60 * 60_000)]) {
+    let calls = 0;
+    const gps = { lat: -20.028, lng: 57.596, source: 'gps', recordedAt };
+    const reply = await answerWeatherQuery({ now,
+      device: { nickname: 'Jesh', lastHeartbeatAt: now, lastSatelliteLocation: gps },
+      contextService: { weatherProvider: { getWeather: async () => { calls++; } } },
+    });
+    assert.equal(calls, 0);
+    assert.match(reply, /can’t check current weather/);
+  }
+});

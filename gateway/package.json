@@ -23,6 +23,7 @@
     "wellbeing:consent": "node scripts/manage-wellbeing-consent.js",
     "wellbeing:request": "node scripts/request-wellbeing-reading.js",
     "wellness:check": "node scripts/inspect-wellness-pilot.js",
+    "weather:check": "node scripts/inspect-profile-weather.js",
     "temperature:capture": "node scripts/capture-temperature.js",
     "temperature:trial": "node scripts/trial-temperature.js",
     "wellness:sequence": "node scripts/trial-wellness-sequence.js",
