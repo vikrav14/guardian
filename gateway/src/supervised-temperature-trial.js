@@ -4,6 +4,8 @@ const { randomUUID } = require('node:crypto');
 const { validConsent } = require('./care-wellbeing');
 const { createTemperatureTrialEvidence } = require('./temperature-trial-evidence');
 
+const CONTEXT_TIMEOUT_MS = 5000;
+
 function parseTemperatureTrialOperation(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
       Object.keys(payload).some(key => !['action', 'operatorPosition', 'commandCase'].includes(key)) ||
@@ -40,6 +42,18 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
   const enabled = () => config.wellnessRoutinePilotEnabled === true &&
     config.careWellbeingRequestEnabled === true && config.careWellbeingIngestEnabled === true;
 
+  function boundedContext() {
+    let timer;
+    // Only this raced result reaches the request continuation. A late database
+    // result cannot revive a timed-out preparation or send a watch command.
+    return Promise.race([
+      Promise.resolve().then(readContext),
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Temperature context read timed out.')), CONTEXT_TIMEOUT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
   function preflightSession() {
     const session = currentSession();
     if (!session) throw new Error('One connected pilot watch session is required.');
@@ -52,20 +66,30 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
     return session;
   }
 
-  async function request(payload) {
-    const operation = parseTemperatureTrialOperation(payload);
-    // Uppercase is an explicitly selected protocol-family comparison. Never
-    // fall back between spellings or change customer routine command builders.
-    const command = operation.commandCase === 'uppercase' ? 'BODYTEMP2' : 'bodytemp2';
+  // Readiness is also used before the optical stage of a conditional trial.
+  // It never arms evidence, changes quarantine or sends a watch command.
+  function assertReady({ expectedSession } = {}) {
     if (!enabled()) throw new Error('Pilot, wellbeing request and ingestion must be enabled.');
     if (busy) throw new Error('A temperature test is already being prepared.');
     if (lastAttemptAt !== null && clock() - lastAttemptAt < 120_000) {
       throw new Error('Wait two minutes before another temperature test; inspect the existing result first.');
     }
-    const initialSession = preflightSession();
+    const session = preflightSession();
+    if (expectedSession && session !== expectedSession) {
+      throw new Error('The watch session changed during preparation; nothing sent.');
+    }
+    return session;
+  }
+
+  async function request(payload, { expectedSession, shouldSend } = {}) {
+    const operation = parseTemperatureTrialOperation(payload);
+    // Uppercase is an explicitly selected protocol-family comparison. Never
+    // fall back between spellings or change customer routine command builders.
+    const command = operation.commandCase === 'uppercase' ? 'BODYTEMP2' : 'bodytemp2';
+    const initialSession = assertReady({ expectedSession });
     busy = true;
     try {
-      const { consent, request: routineRequest, state } = await readContext();
+      const { consent, request: routineRequest, state } = await boundedContext();
       if (!enabled() || !validConsent(consent, new Date(clock()))) {
         throw new Error('Current wearer consent and enabled pilot ingestion are required.');
       }
@@ -75,6 +99,11 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       }
       const session = preflightSession();
       if (session !== initialSession) throw new Error('The watch session changed during preparation; nothing sent.');
+      // The optical controller may be cancelled while consent is loading.
+      // This guard is internal, never supplied by an HTTP request.
+      if (shouldSend && shouldSend() !== true) {
+        throw new Error('The conditional sequence no longer permits temperature; nothing sent.');
+      }
       // Persist before arming a capture or handing off a removed request.
       // A failed write leaves no apparent request awaiting a watch reply.
       if (operation.operatorPosition === 'removed') quarantine.suppress();
@@ -122,7 +151,7 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
     // explicit opt-in and a fresh consent read, including after revocation.
     let valuesAllowed = false;
     if (includeValues === true && enabled()) {
-      const { consent } = await readContext();
+      const { consent } = await boundedContext();
       valuesAllowed = validConsent(consent, new Date(clock()));
     }
     const session = currentSession();
@@ -132,7 +161,7 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       ...(includeValues ? { valuesIncluded: trial.valuesIncluded === true } : {}) };
   }
 
-  return { request, status, observe: evidence.observe, suppressTemperatureIngestion };
+  return { request, assertReady, status, observe: evidence.observe, suppressTemperatureIngestion };
 }
 
 module.exports = { createSupervisedTemperatureTrial, parseTemperatureTrialOperation };

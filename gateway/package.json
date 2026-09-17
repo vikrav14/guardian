@@ -25,6 +25,7 @@
     "wellness:check": "node scripts/inspect-wellness-pilot.js",
     "temperature:capture": "node scripts/capture-temperature.js",
     "temperature:trial": "node scripts/trial-temperature.js",
+    "wellness:sequence": "node scripts/trial-wellness-sequence.js",
     "temperature:import": "node scripts/import-temperature-capture.js",
     "wellness:preview": "node scripts/manage-wellness-preview.js",
     "journey:enrich": "node scripts/enrich-journey-presentation.js",

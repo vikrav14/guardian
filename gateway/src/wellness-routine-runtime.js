@@ -8,6 +8,7 @@ const { findSocketsForDevice } = require('./sessions');
 const { sendDownlinkCommand } = require('./downlink');
 const { createHardwareEvidence } = require('./wellness-hardware-evidence');
 const { createSupervisedTemperatureTrial } = require('./supervised-temperature-trial');
+const { createConditionalWellnessTrial } = require('./conditional-wellness-trial');
 
 let runtime;
 const date = value => value?.toDate?.() || (value == null ? null : new Date(value));
@@ -30,6 +31,9 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
   const requestRef = db.collection('wellnessRoutineRequests').doc(imei);
   const sessionIds = new WeakMap();
   const hardware = createHardwareEvidence();
+  let conditionalTrial;
+  let externalMeasurementPending = false;
+  let lastExternalMeasurementAt = null;
   function currentSession() {
     const matches = findSocketsForDevice(imei).filter(({ socket }) => !socket.destroyed);
     return matches.length === 1 ? matches[0].session : null;
@@ -43,16 +47,52 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       tm: session.wellnessTemperatureMode?.tm ?? null,
       wear: wearEvidence.current(imei) };
   }
+  const readTrialContext = async () => {
+    const [consent, request, state] = await Promise.all([
+      db.collection('wellbeingConsents').doc(imei).get(), requestRef.get(), stateRef.get(),
+    ]);
+    return { consent: consent.data(), request: request.data(), state: state.data() };
+  };
   const temperatureTrial = createSupervisedTemperatureTrial({ config, currentSession,
     quarantineStore: temperatureTrialQuarantine,
     send: command => sendDownlinkCommand(imei, command),
-    readContext: async () => {
-      const [consent, request, state] = await Promise.all([
-        db.collection('wellbeingConsents').doc(imei).get(), requestRef.get(), stateRef.get(),
-      ]);
-      return { consent: consent.data(), request: request.data(), state: state.data() };
-    },
+    readContext: readTrialContext,
   });
+  conditionalTrial = createConditionalWellnessTrial({ config, currentSession,
+    readContext: readTrialContext, temperatureTrial,
+    sendOptical: command => sendDownlinkCommand(imei, command) });
+
+  const targetsPilot = target => target === imei ||
+    findSocketsForDevice(target).some(({ session }) => session.imei === imei);
+  function assertMeasurementAvailable(targetImei, command) {
+    if (!targetsPilot(targetImei)) return;
+    if (/^REMOVE(?:,|$)/i.test(command)) {
+      conditionalTrial.cancel('removal_setting_changed');
+      return;
+    }
+    if (!/^(?:hrtstart|bodytemp2?|measurement)(?:,|$)/i.test(command)) return;
+    // An explicit stop always remains available, including while a capture
+    // is reserved for delayed packets. It cancels any unsent second stage.
+    if (/^(?:hrtstart,0|bodytemp,0)(?:,|$)/i.test(command)) {
+      conditionalTrial.cancel('external_stop_requested');
+      return;
+    }
+    if (conditionalTrial.isBusy()) {
+      throw new Error('A conditional wellness sequence is active or cooling down; inspect its result first.');
+    }
+    if (externalMeasurementPending) throw new Error('A wellbeing measurement is already being prepared.');
+  }
+  function noteExternalMeasurement(targetImei, command) {
+    if (targetsPilot(targetImei) && /^(?:hrtstart|bodytemp2?)(?:,|$)/i.test(command)) {
+      lastExternalMeasurementAt = Date.now();
+    }
+  }
+  async function externalMeasurement(operation) {
+    assertMeasurementAvailable(imei, 'measurement');
+    externalMeasurementPending = true;
+    try { return await operation(); }
+    finally { externalMeasurementPending = false; }
+  }
   async function read() {
     const [requestDoc, grantDoc, consentDoc] = await Promise.all([
       requestRef.get(), db.collection('wellnessPilots').doc(imei).get(),
@@ -102,6 +142,8 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
   const controller = createRoutineController({ read, live, save,
     send: command => {
       if (!live().connected) return { ok: false };
+      assertMeasurementAvailable(imei, command);
+      noteExternalMeasurement(imei, command);
       return sendDownlinkCommand(imei, command);
     } });
   function tick() { return controller.tick().catch(() => console.warn('[wellness-routine] reconciliation_failed')); }
@@ -116,6 +158,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       if (mode.bt !== null) session.wellnessLastReportedTemperatureBt = mode.bt;
     }
     temperatureTrial.observe(decoded, session);
+    conditionalTrial.observe(decoded, session);
     // No async read in the GPS/SOS/ACK path. Coalescing occurs in tick().
   }
   let singleRequestAt = 0;
@@ -131,6 +174,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     // write synchronously to the running gateway's configured pilot only.
     // No timer, SMS command, consent/acceptance change or background retry.
     const command = `REMOVE,${enabled ? 1 : 0}`;
+    conditionalTrial.cancel('removal_setting_changed');
     const result = sendDownlinkCommand(imei, command);
     return { outcome: result.ok ? 'command_handed_off' : 'watch_not_connected',
       command, requestedAt: new Date(at).toISOString(), settingMayPersist: true,
@@ -162,14 +206,25 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     if (device.bt !== 2) throw new Error('Waiting for this session to report CONFIG BT:2.');
     if (Date.now() - singleRequestAt < 120_000) throw new Error('Wait two minutes before another temperature request.');
     singleRequestAt = Date.now();
+    noteExternalMeasurement(imei, 'bodytemp2');
     const result = sendDownlinkCommand(imei, temperatureCommand({ action: 'single' }));
     return { outcome: result.ok ? 'request_handed_off' : 'watch_not_connected',
       readingConfirmed: false, wearingConfirmed: false };
   }
   const timer = setInterval(tick, 20_000); timer.unref?.();
   void tick();
-  runtime = { observe, tick, requestTemperature, requestVersion, requestRemovalTest,
-    requestTemperatureTrial: temperatureTrial.request,
+  runtime = { observe, tick, requestVersion, requestRemovalTest,
+    assertMeasurementAvailable, noteExternalMeasurement,
+    requestWellnessSequence(payload) {
+      if (externalMeasurementPending) throw new Error('A wellbeing measurement is already being prepared.');
+      if (lastExternalMeasurementAt !== null && Date.now() - lastExternalMeasurementAt < 120_000) {
+        throw new Error('Wait two minutes after the previous measurement request before starting a conditional sequence.');
+      }
+      return conditionalTrial.request(payload);
+    },
+    wellnessSequenceStatus: conditionalTrial.status,
+    requestTemperature: () => externalMeasurement(requestTemperature),
+    requestTemperatureTrial: payload => externalMeasurement(() => temperatureTrial.request(payload)),
     temperatureTrialStatus: temperatureTrial.status,
     async status() {
       const state = (await stateRef.get()).data() || {};
@@ -183,7 +238,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
         ...hardware.current(currentSession()),
         routinePilotEnabled: config.wellnessRoutinePilotEnabled === true };
     },
-    close: () => clearInterval(timer),
+    close: () => { conditionalTrial.cancel('gateway_stopped'); clearInterval(timer); },
   };
   return runtime;
 }

@@ -179,3 +179,83 @@ test('cleanup failure preserves successful handoff while maintaining exclusion',
   assert.equal(restored, 1);
   assert.equal(env.sent.length, 1);
 });
+
+test('conditional readiness is read-only and shares existing cooldown and session guards', async () => {
+  const env = fixture();
+  assert.equal(env.trial.assertReady({ expectedSession: env.session }), env.session);
+  assert.deepEqual(env.sent, []);
+  assert.equal((await env.trial.status()).trial.phase, 'idle');
+  assert.throws(() => env.trial.assertReady({ expectedSession: {} }), /session changed/);
+  await env.trial.request(action);
+  assert.throws(() => env.trial.assertReady(), /two minutes/);
+});
+
+test('conditional cancellation during consent read prevents temperature and quarantine changes', async () => {
+  const env = fixture(); let permitted = true;
+  env.beforeRead = () => { permitted = false; };
+  await assert.rejects(env.trial.request({ ...action, operatorPosition: 'removed' }, {
+    expectedSession: env.session, shouldSend: () => permitted,
+  }), /no longer permits/);
+  assert.deepEqual(env.sent, []);
+  assert.equal((await env.trial.status()).trial.phase, 'idle');
+  assert.equal(env.trial.suppressTemperatureIngestion(), false);
+});
+
+test('conditional expected session cannot borrow a newer connection before preparation', async () => {
+  const env = fixture(); const original = env.session;
+  env.session = { lastPacketAt: AT };
+  await assert.rejects(env.trial.request(action, { expectedSession: original, shouldSend: () => true }), /session changed/);
+  assert.deepEqual(env.sent, []);
+});
+
+test('a context timeout releases preparation and a late read cannot send or quarantine the old attempt', async t => {
+  const env = fixture(); let release, timeoutCallback, timeoutMs;
+  const timer = {};
+  const cleared = [];
+  t.mock.method(global, 'setTimeout', (callback, ms) => {
+    timeoutCallback = callback; timeoutMs = ms; return timer;
+  });
+  t.mock.method(global, 'clearTimeout', handle => cleared.push(handle));
+  env.beforeRead = () => new Promise(resolve => { release = resolve; });
+  const request = env.trial.request({ ...action, operatorPosition: 'removed' }, {
+    expectedSession: env.session, shouldSend: () => true,
+  });
+  const rejected = assert.rejects(request, /context read timed out/);
+  await Promise.resolve();
+  assert.equal(timeoutMs, 5000);
+  timeoutCallback();
+  await rejected;
+  assert.deepEqual(cleared, [timer]);
+  assert.deepEqual(env.sent, []);
+  assert.equal(env.trial.suppressTemperatureIngestion(), false);
+  assert.equal(env.trial.assertReady(), env.session);
+
+  t.mock.restoreAll();
+  delete env.beforeRead;
+  await env.trial.request(action);
+  assert.deepEqual(env.sent, ['bodytemp2']);
+  release();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(env.sent, ['bodytemp2']);
+  assert.equal(env.trial.suppressTemperatureIngestion(), false);
+});
+
+test('opt-in value reads time out without exposing values while metadata stays available', async t => {
+  const env = fixture();
+  await env.trial.request(action);
+  let release, timeoutCallback;
+  t.mock.method(global, 'setTimeout', (callback, ms) => {
+    assert.equal(ms, 5000); timeoutCallback = callback; return {};
+  });
+  t.mock.method(global, 'clearTimeout', () => {});
+  env.beforeRead = () => new Promise(resolve => { release = resolve; });
+  const result = env.trial.status({ includeValues: true });
+  const rejected = assert.rejects(result, /context read timed out/);
+  await Promise.resolve();
+  timeoutCallback();
+  await rejected;
+  assert.equal((await env.trial.status()).trial.valuesIncluded, false);
+  release();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(env.sent, ['bodytemp2']);
+});

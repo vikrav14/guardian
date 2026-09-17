@@ -1270,6 +1270,17 @@ function startHttpServer() {
           return;
         }
 
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const routine = getWellnessRoutineRuntime();
+        try {
+          routine?.assertMeasurementAvailable(imei, command);
+          // Reserve before writing: a thrown write can still have reached the
+          // watch, so it must not be followed immediately by another trial.
+          routine?.noteExternalMeasurement(imei, command);
+        } catch (error) {
+          sendJson(res, 409, { error: error.message });
+          return;
+        }
         const result = sendDownlinkCommand(imei, command);
         sendJson(res, result.ok ? 200 : 404, {
           ...result,
@@ -1280,6 +1291,25 @@ function startHttpServer() {
           pilotOnly: true,
           customerVisible: false,
         });
+        return;
+      }
+
+      if (url.pathname === '/admin/wellness-sequence' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const { parseConditionalWellnessOperation } = require('./conditional-wellness-trial');
+        const routine = getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') {
+            sendJson(res, 200, await routine.wellnessSequenceStatus({ includeValues: url.searchParams.get('includeValues') === '1' }));
+          } else {
+            let payload;
+            try { payload = parseConditionalWellnessOperation(JSON.parse(await readBody(req))); }
+            catch { sendJson(res, 400, { error: 'Use action single with operatorPosition worn or removed.' }); return; }
+            sendJson(res, 200, await routine.requestWellnessSequence(payload));
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Conditional wellness sequence failed.' : error.message }); }
         return;
       }
 
@@ -1397,6 +1427,15 @@ function startHttpServer() {
           return;
         }
         const command = url.searchParams.get('command') || 'CR';
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        try {
+          const routine = getWellnessRoutineRuntime();
+          routine?.assertMeasurementAvailable(imei, command);
+          routine?.noteExternalMeasurement(imei, command);
+        } catch (error) {
+          sendJson(res, 409, { error: error.message });
+          return;
+        }
         const result =
           command === 'CR'
             ? sendContinuousReporting(imei)

@@ -167,3 +167,25 @@ flag or supplier clarification is required if bit 3 is not dependable.
 The private routine controller attempts connected stops after evidence changes.
 Physical stopping while offline is not guaranteed. Customer use of data remains
 independently gated; full automatic scheduling acceptance is still outstanding.
+
+## Conditional optical-to-temperature pilot
+
+`npm run wellness:sequence -- --once --worn --include-values` starts one
+supervised attempt through the running gateway. It sends `hrtstart,1`, requires
+usable heart/BP **and** oxygen uploads within 120 seconds on the same session,
+then sends the observed uppercase `BODYTEMP2` command once. Missing, zero or
+malformed optical output, removal, changed session, withdrawn consent or a
+conflicting routine prevents the temperature stage. There is no automatic
+retry, request on startup, or recurring schedule in this helper.
+
+This implements a result-availability filter. The supplied `--worn`/`--removed`
+position remains an operator observation; numeric output does not update
+wearing evidence, `wearQualified`, device acceptance or customer release gates.
+The known tabletop nonzero response remains a limitation. Sensor-up storage is
+handling advice, not a validation of automatic wearing detection.
+
+The strict-admin endpoint is `/admin/wellness-sequence`; GET is read-only and
+values are opt-in with current consent and limited retention. Existing private
+preview access and native routine controls remain separate. See
+[the supervised test procedure](../testing/v52-conditional-wellness-sequence.md)
+for running the command, cooldown and interrupted-attempt recovery.
