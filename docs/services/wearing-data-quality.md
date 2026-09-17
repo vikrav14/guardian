@@ -16,7 +16,38 @@ rejected/unhandled frame, and all four UD_LTE status fields are `00000000`.
 Current wrist detection remains open pending an exact-firmware contact interface;
 this window provides no missed bit-3 signal to enable in the dashboard.
 
-## Dashboard wearing line (16 September 2026)
+## Dashboard watch checks (17 September 2026)
+
+The V52 overview now shows the latest **scheduled reading check**, below the
+separate connection and battery status. It no longer presents an old removal
+alarm as current wearing status or asks families to resolve unsupported automatic
+wearing detection. The prior wearing row below is historical implementation
+context; it is no longer mounted by the Family overview.
+
+| Latest scheduled attempt | Overview wording |
+| --- | --- |
+| Fresh active attempt with a live capture deadline | Checking readings |
+| Completed conditional sequence with temperature upload | Readings received, with the dated check time |
+| Recent unusable heart/BP or oxygen response | Check watch fit; no usable readings at the check time |
+| Older unusable response | Last check incomplete, with its date/time |
+| Missing/late response | Readings incomplete |
+| Offline or missed slot | Check skipped, with its reason/time |
+| No attempt recorded | Awaiting first check |
+
+Tapping the row opens Wellness routine, including the next slot and previous
+result. Access uses the same named private-preview grant, linked account and
+wellness entitlement as that page; loading/revoked access does not expose the
+previous watch's result. Active checking expires locally after gateway updates
+stop or its capture deadline ends. Date/time labels use Mauritius time.
+
+These labels report measurement availability, **not worn/not-worn status**.
+The documented tabletop false-positive remains relevant. Unusable data suggests
+checking fit but does not prove removal; a timeout is not a fit diagnosis.
+Removal events remain in Alerts. No alarm history, gateway wearing observer,
+manual-check documents, consent, qualification flag or scheduler rule is changed.
+The remaining repeated schedule, reliability and battery checks are handed to QA.
+
+## Historical dashboard wearing line (16 September 2026)
 
 The family overview places a separate wearing row below connection/check-in and
 battery. Connection still describes transport. Wearing uses the following
@@ -82,9 +113,10 @@ Status: software implemented; exact V52 firmware interpretation remains **unveri
 
 **15 September source correction:** the original companion Communication Example
 p5 calls bit 3 unused, whereas Protocol p13 labels it wearing status. PR #112
-and the constant-zero physical test do not resolve that conflict. Automatic
-routine start now requires the same fresh accepted wearing evidence; this pilot
-stays paused. See the [routine contract](../testing/wellness-routines-2026-09-15.md).
+and the constant-zero physical test do not resolve that conflict. The original native
+routine required fresh accepted wearing evidence. The later private pilot uses
+the [daily conditional availability sequence](../testing/wellness-daily-times-2026-09-17.md);
+this does not change the wearing evidence or customer qualification contract.
 
 The passive observer runs when activity, wellbeing or removal ingestion is enabled.
 It sends no downlink, changes no measurement schedule, and does not deliver alerts.
@@ -189,3 +221,4 @@ values are opt-in with current consent and limited retention. Existing private
 preview access and native routine controls remain separate. See
 [the supervised test procedure](../testing/v52-conditional-wellness-sequence.md)
 for running the command, cooldown and interrupted-attempt recovery.
+

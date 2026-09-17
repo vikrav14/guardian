@@ -9,10 +9,12 @@ on:
       - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
       - 'apps/mobile/lib/widgets/dashboard/dashboard_wearing_status.dart'
+      - 'apps/mobile/lib/widgets/dashboard/dashboard_reading_status.dart'
       - 'apps/mobile/lib/dashboard/wearing_presentation.dart'
       - 'apps/mobile/lib/models/wear_*.dart'
       - 'apps/mobile/lib/services/wear_*.dart'
       - 'apps/mobile/test/dashboard_wearing_status_test.dart'
+      - 'apps/mobile/test/dashboard_reading_status_test.dart'
       - 'apps/mobile/test/wear_check_service_test.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
       - 'apps/mobile/lib/screens/home_shell.dart'
@@ -101,11 +103,13 @@ jobs:
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
             lib/widgets/dashboard/dashboard_wearing_status.dart \
+            lib/widgets/dashboard/dashboard_reading_status.dart \
             lib/dashboard/wearing_presentation.dart \
             lib/models/wear_status.dart \
             lib/models/wear_check.dart \
             lib/services/wear_check_service.dart \
             test/dashboard_wearing_status_test.dart \
+            test/dashboard_reading_status_test.dart \
             test/wear_check_service_test.dart \
             lib/screens/map_dashboard_page.dart \
             lib/screens/home_shell.dart \
@@ -140,7 +144,7 @@ jobs:
 
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
+        run: flutter test test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/dashboard_reading_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}
@@ -189,3 +193,4 @@ jobs:
           name: guardian-wellness-previews
           path: apps/mobile/build/wellness-previews/*.png
           if-no-files-found: error
+

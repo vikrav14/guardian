@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,13 +18,14 @@ import '../navigation/home_shell_scope.dart';
 import '../services/guardian_contact_actions.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
-import '../services/wear_check_service.dart';
-import '../services/wear_status_service.dart';
 import '../theme/app_theme.dart';
 import '../wellness/wellness_panel.dart';
+import '../wellness/linked_wellness_stream.dart';
+import '../wellness/wellness_pilot_access.dart';
+import '../wellness/wellness_routine.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_dashboard_overview.dart';
-import '../widgets/dashboard/dashboard_wearing_status.dart';
+import '../widgets/dashboard/dashboard_reading_status.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
@@ -52,8 +55,6 @@ class MapDashboardPage extends StatefulWidget {
 class MapDashboardPageState extends State<MapDashboardPage> {
   late final DashboardController _dashboard;
   late final WellbeingService _wellbeingService;
-  late final WearStatusService _wearStatusService;
-  late final WearCheckService _wearCheckService;
   GoogleMapController? _mapController;
   // Keep the platform map mounted when the responsive columns rearrange.
   final GlobalKey _mapKey = GlobalKey(debugLabel: 'dashboard-map');
@@ -75,8 +76,6 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   void initState() {
     super.initState();
     _wellbeingService = WellbeingService();
-    _wearStatusService = WearStatusService();
-    _wearCheckService = WearCheckService();
     _dashboard = DashboardController()
       ..addListener(_onDashboardChanged)
       ..start();
@@ -681,6 +680,20 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
   }
 
+  Stream<Map<String, dynamic>> _watchRoutineStatus(String imei) =>
+      watchLinkedWellnessData(
+        FirebaseFirestore.instance,
+        FirebaseAuth.instance,
+        imei,
+        () => FirebaseFirestore.instance
+            .collection('devices')
+            .doc(imei)
+            .collection('wellnessRoutine')
+            .doc('current')
+            .snapshots()
+            .map((doc) => [doc.data() ?? <String, dynamic>{}]),
+      ).map((rows) => rows.firstOrNull ?? <String, dynamic>{});
+
   Widget _buildDashboardContent(Device? selected) {
     final entitlementScope = GuardianEntitlementsScope.of(context);
     final home = HomeShellScope.maybeOf(context);
@@ -696,15 +709,29 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
-      wearingStatus:
-          selected != null &&
-              entitlementScope.decision(GuardianFeature.activitySteps).allowed
-          ? DashboardWearingStatus(
-              key: ValueKey('wearing-${selected.imei}'),
-              device: selected,
-              watchStatus: _wearStatusService.watch,
-              watchChecks: _wearCheckService.watch,
-              recordCheck: _wearCheckService.record,
+      watchCheckStatus:
+          _wellnessPilotPreview &&
+              selected != null &&
+              entitlementScope.subscription != null &&
+              entitlementScope.decision(GuardianFeature.wellnessReadings).allowed
+          ? WellnessPilotAccess(
+              key: ValueKey('reading-status-${selected.imei}'),
+              imei: selected.imei,
+              loadingChild: const SizedBox.shrink(),
+              unavailableChild: const SizedBox.shrink(),
+              child: DashboardReadingStatus(
+                imei: selected.imei,
+                watchStatus: _watchRoutineStatus,
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => WellnessRoutinePage(
+                      imei: selected.imei,
+                      subscription: entitlementScope.subscription!,
+                      pilotPreview: true,
+                    ),
+                  ),
+                ),
+              ),
             )
           : null,
       wellness:

@@ -36,7 +36,7 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.onLinkWatch,
     this.serviceSections = const [],
     this.wellness,
-    this.wearingStatus,
+    this.watchCheckStatus,
   });
 
   final Device? device;
@@ -65,7 +65,7 @@ class GuardianDashboardOverview extends StatelessWidget {
   /// An empty list keeps unfinished service features absent from the dashboard.
   final List<Widget> serviceSections;
   final Widget? wellness;
-  final Widget? wearingStatus;
+  final Widget? watchCheckStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +128,7 @@ class GuardianDashboardOverview extends StatelessWidget {
             onJourney: onJourney,
             onHelp: onHelp,
             onWatchStatus: onWatchStatus,
-            wearingStatus: wearingStatus,
+            watchCheckStatus: watchCheckStatus,
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
@@ -785,3 +785,4 @@ ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
     context,
   ).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
 );
+

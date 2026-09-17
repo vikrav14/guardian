@@ -10,13 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:guardian/dashboard/wearing_presentation.dart';
 import 'package:guardian/l10n/app_localizations.dart';
 import 'package:guardian/theme/colors.dart';
 import 'package:guardian/widgets/navigation/guardian_navigation.dart';
-import 'package:guardian/models/wear_check.dart';
-import 'package:guardian/models/wear_status.dart';
-import 'package:guardian/widgets/dashboard/dashboard_wearing_status.dart';
+import 'package:guardian/widgets/dashboard/dashboard_reading_status.dart';
 
 import '../test/support/dashboard_fixture.dart';
 
@@ -25,21 +22,21 @@ const _enabled = bool.fromEnvironment('DASHBOARD_PREVIEWS');
 void main() {
   for (final preview in [
     (
-      name: 'wearing_removed',
+      name: 'reading_fit',
       width: 390.0,
       height: 1800.0,
       dark: false,
       viewport: false,
     ),
     (
-      name: 'wearing_family_check',
+      name: 'reading_waiting',
       width: 390.0,
       height: 1800.0,
       dark: false,
       viewport: false,
     ),
     (
-      name: 'wearing_verified',
+      name: 'reading_received',
       width: 390.0,
       height: 1800.0,
       dark: false,
@@ -113,7 +110,7 @@ void main() {
 
       final boundaryKey = GlobalKey();
       final now = DateTime.now();
-      final observedAt = now.subtract(const Duration(minutes: 5));
+      final observedAt = now.subtract(const Duration(minutes: 1));
       final device = dashboardFixtureDevice(
         rememberedHome: preview.name.startsWith('remembered_'),
       );
@@ -121,27 +118,24 @@ void main() {
         dashboardFixtureHost(
           dashboardFixtureOverview(
             device: device,
-            wearingStatus: WearingStatusTile(
-              presentation: WearingPresentation.at(
+            watchCheckStatus: ReadingStatusTile(
+              presentation: ReadingPresentation.at(
                 now: now,
-                connected: true,
-                status: preview.name == 'wearing_removed'
-                    ? WearStatus(lastRemovalReportedAt: observedAt)
-                    : preview.name == 'wearing_verified'
-                    ? WearStatus(
-                        state: 'worn',
-                        deviceAccepted: true,
-                        observedAt: now,
-                        expiresAt: now.add(const Duration(seconds: 120)),
-                      )
-                    : const WearStatus(),
-                check: preview.name == 'wearing_family_check'
-                    ? WearCheck(
-                        state: 'worn',
-                        observedAt: observedAt,
-                        recordedAt: observedAt,
-                      )
-                    : null,
+                status: {
+                  'updatedAt': now,
+                  'phase': 'scheduled',
+                  if (preview.name != 'reading_waiting')
+                    'lastAttempt': {
+                      'terminal': true,
+                      'outcome': preview.name == 'reading_fit'
+                          ? 'temperature_skipped'
+                          : 'temperature_upload_observed',
+                      'reason': preview.name == 'reading_fit'
+                          ? 'unusable_heart_bp'
+                          : null,
+                      'finishedAt': observedAt,
+                    },
+                },
               ),
               onTap: () {},
             ),
@@ -280,3 +274,4 @@ void main() {
     }, skip: !_enabled);
   }
 }
+

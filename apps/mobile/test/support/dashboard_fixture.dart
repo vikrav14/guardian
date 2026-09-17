@@ -98,7 +98,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
   VoidCallback? onLinkWatch,
   List<Widget> serviceSections = const [],
   Widget? wellness,
-  Widget? wearingStatus,
+  Widget? watchCheckStatus,
   String? mapStatus,
 }) {
   final selected = empty ? null : device ?? dashboardFixtureDevice();
@@ -130,7 +130,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
     onLinkWatch: onLinkWatch,
     serviceSections: serviceSections,
     wellness: wellness,
-    wearingStatus: wearingStatus,
+    watchCheckStatus: watchCheckStatus,
   );
 }
 
@@ -253,3 +253,4 @@ Widget dashboardFixtureHost(
           ),
   );
 }
+

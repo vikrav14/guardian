@@ -293,7 +293,7 @@ void main() {
                   child: GuardianOverviewHeader(
                     device: dashboardFixtureDevice(),
                     helpEnabled: true,
-                    wearingStatus: WearingStatusTile(
+                    watchCheckStatus: WearingStatusTile(
                       presentation: WearingPresentation.at(
                         now: start.add(const Duration(minutes: 10)),
                         connected: true,
@@ -314,3 +314,4 @@ void main() {
     }
   }
 }
+
