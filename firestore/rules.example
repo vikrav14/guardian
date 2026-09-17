@@ -65,25 +65,25 @@ service cloud.firestore {
         );
     }
 
-    // Edition windows are Mauritius calendar days, including today. Keep the
-    // UTC day start separate from the hour adjustment; using the time portion
-    // avoids evaluator errors around date() on timestamp expressions.
+    // Retention envelopes are deliberately expressed relative to request.time
+    // because Firestore's rules evaluator cannot reliably execute timezone
+    // calendar methods. They cover the app's Mauritius-day query bounds with
+    // a small boundary margin.
     function wellnessCalendarWindowAllowed(recordedAt) {
-      let utcDayStart = request.time - request.time.time();
-      let today = request.time.hours() >= 20
-        ? utcDayStart + duration.value(20, 'h')
-        : utcDayStart - duration.value(4, 'h');
       let plan = serviceSubscription().get('plan', '');
       return recordedAt is timestamp
+        && recordedAt < request.time + duration.value(26, 'h')
         && activePlanAtLeast('essential')
-        && recordedAt < today + duration.value(1, 'd')
         && (plan == 'care'
-          || (plan == 'family' && recordedAt >= today - duration.value(6, 'd'))
-          || (plan == 'essential' && recordedAt >= today));
+          || (plan == 'family'
+            && recordedAt >= request.time - duration.value(169, 'h'))
+          || (plan == 'essential'
+            && recordedAt >= request.time - duration.value(25, 'h')));
     }
 
     function wellnessHistoryAllowed(recordedAt) {
-      return wellnessCalendarWindowAllowed(recordedAt);
+      return wellnessCalendarWindowAllowed(recordedAt)
+        && recordedAt <= request.time;
     }
 
     function activeWellbeingConsent(imei) {
