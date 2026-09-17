@@ -21,15 +21,18 @@ class ReadingPresentation {
   }) {
     final attempt = status['lastAttempt'];
     final updated = _readingDate(status['updatedAt']);
-    final gatewayFresh = updated != null &&
+    final gatewayFresh =
+        updated != null &&
         !updated.isAfter(now) &&
         now.difference(updated) < const Duration(minutes: 2);
     if (attempt is! Map) {
       final next = _readingDate(status['nextCheckAt']);
       return ReadingPresentation(
         'Awaiting first check',
-        gatewayFresh && status['phase'] == 'scheduled' &&
-                next != null && next.isAfter(now)
+        gatewayFresh &&
+                status['phase'] == 'scheduled' &&
+                next != null &&
+                next.isAfter(now)
             ? 'Next check · ${_readingMoment(next, now)}'
             : 'Readings will appear after a completed check',
         ReadingTone.neutral,
@@ -37,12 +40,17 @@ class ReadingPresentation {
     }
 
     final activeUntil = _readingDate(attempt['activeUntil']);
-    final started = _readingDate(attempt['startedAt']) ??
+    final started =
+        _readingDate(attempt['startedAt']) ??
         _readingDate(attempt['scheduledAt']);
-    if (gatewayFresh && status['phase'] == 'running' &&
-        status['inFlight'] == true && attempt['terminal'] == false &&
-        started != null && !started.isAfter(now) &&
-        activeUntil != null && activeUntil.isAfter(now)) {
+    if (gatewayFresh &&
+        status['phase'] == 'running' &&
+        status['inFlight'] == true &&
+        attempt['terminal'] == false &&
+        started != null &&
+        !started.isAfter(now) &&
+        activeUntil != null &&
+        activeUntil.isAfter(now)) {
       return const ReadingPresentation(
         'Checking readings',
         'Waiting for the watch to send results',
@@ -50,7 +58,8 @@ class ReadingPresentation {
       );
     }
 
-    final at = _readingDate(attempt['finishedAt']) ??
+    final at =
+        _readingDate(attempt['finishedAt']) ??
         _readingDate(attempt['completedAt']) ??
         started;
     if (at == null || at.isAfter(now)) {
@@ -91,7 +100,8 @@ class ReadingPresentation {
       'removal_reported' => 'Removal reported during check',
       'access_or_consent_unavailable' => 'Access unavailable',
       'daily_limit_reached' || 'daily_attempt_limit' => 'Daily checks complete',
-      'attempt_in_progress' || 'measurement_busy' => 'Another check was in progress',
+      'attempt_in_progress' ||
+      'measurement_busy' => 'Another check was in progress',
       'previous_attempt_reserved' => 'Check was not repeated',
       _ => outcome == 'watch_offline' ? 'Watch was offline' : null,
     };
@@ -106,7 +116,8 @@ class ReadingPresentation {
       (_, 'optical_timeout') => 'Results were incomplete',
       ('temperature_capture_ended', _) => 'Temperature result unavailable',
       ('temperature_skipped', _) => 'Temperature skipped',
-      ('interrupted', _) || ('interrupted_unknown', _) => 'Check was interrupted',
+      ('interrupted', _) ||
+      ('interrupted_unknown', _) => 'Check was interrupted',
       _ => 'A complete result was not received',
     };
     return ReadingPresentation(
@@ -127,8 +138,10 @@ DateTime? _readingDate(dynamic value) => switch (value) {
 String _readingMoment(DateTime value, DateTime now) {
   final local = value.toUtc().add(const Duration(hours: 4));
   final today = now.toUtc().add(const Duration(hours: 4));
-  final sameDay = local.year == today.year &&
-      local.month == today.month && local.day == today.day;
+  final sameDay =
+      local.year == today.year &&
+      local.month == today.month &&
+      local.day == today.day;
   final day = sameDay ? 'today' : '${local.day}/${local.month}/${local.year}';
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
@@ -278,7 +291,11 @@ class ReadingStatusTile extends StatelessWidget {
                 ),
                 if (onTap != null) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.chevron_right, color: colors.textSecondary, size: 20),
+                  Icon(
+                    Icons.chevron_right,
+                    color: colors.textSecondary,
+                    size: 20,
+                  ),
                 ],
               ],
             ),

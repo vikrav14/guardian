@@ -253,4 +253,3 @@ Widget dashboardFixtureHost(
           ),
   );
 }
-

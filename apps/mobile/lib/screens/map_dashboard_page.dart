@@ -713,7 +713,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           _wellnessPilotPreview &&
               selected != null &&
               entitlementScope.subscription != null &&
-              entitlementScope.decision(GuardianFeature.wellnessReadings).allowed
+              entitlementScope
+                  .decision(GuardianFeature.wellnessReadings)
+                  .allowed
           ? WellnessPilotAccess(
               key: ValueKey('reading-status-${selected.imei}'),
               imei: selected.imei,
