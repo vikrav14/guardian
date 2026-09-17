@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../cards/guardian_surface.dart';
 import '../../dashboard/device_formatters.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
@@ -35,6 +36,8 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.onLinkWatch,
     this.serviceSections = const [],
     this.wellness,
+    this.watchCheckStatus,
+    this.weather,
   });
 
   final Device? device;
@@ -63,6 +66,8 @@ class GuardianDashboardOverview extends StatelessWidget {
   /// An empty list keeps unfinished service features absent from the dashboard.
   final List<Widget> serviceSections;
   final Widget? wellness;
+  final Widget? watchCheckStatus;
+  final Widget? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +130,8 @@ class GuardianDashboardOverview extends StatelessWidget {
             onJourney: onJourney,
             onHelp: onHelp,
             onWatchStatus: onWatchStatus,
+            watchCheckStatus: watchCheckStatus,
+            weather: weather,
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
@@ -729,17 +736,11 @@ class _DashboardSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      clipBehavior: Clip.antiAlias,
+    return GuardianSurface(
+      radius: 16,
       padding:
           padding ??
           EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
       child: child,
     );
   }

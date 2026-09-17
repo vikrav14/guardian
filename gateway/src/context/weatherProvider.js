@@ -72,11 +72,13 @@ class WeatherProvider {
     return new Promise((resolve, reject) => {
       const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${this.apiKey}&units=metric`;
 
-      https.get(url, (res) => {
+      const request = https.get(url, (res) => {
         let data = '';
         res.on('data', (chunk) => {
           data += chunk;
+          if (data.length > 256 * 1024) request.destroy(new Error('Weather response too large'));
         });
+        res.on('error', reject);
         res.on('end', () => {
           try {
             const parsed = JSON.parse(data);
@@ -90,6 +92,10 @@ class WeatherProvider {
           }
         });
       }).on('error', reject);
+      request.setTimeout(8000, () => request.destroy(new Error('Weather request timed out')));
+      const deadline = setTimeout(() => request.destroy(new Error('Weather request timed out')), 8000);
+      deadline.unref?.();
+      request.once('close', () => clearTimeout(deadline));
     });
   }
 
@@ -116,10 +122,18 @@ class WeatherProvider {
       location: placeName || raw.name || 'Unknown location',
       lat: raw.coord?.lat,
       lng: raw.coord?.lon,
-      temperature: Math.round(main.temp),
+      temperature: typeof main.temp === 'number' && Number.isFinite(main.temp) ? Math.round(main.temp) : null,
       feelsLike: Math.round(main.feels_like),
       humidity: main.humidity,
       condition: weather.main,
+      // Preserve source evidence for the profile display; fetching a cached
+      // response never makes its weather observation newer.
+      conditionCode: Number.isInteger(weather.id) ? weather.id : null,
+      icon: typeof weather.icon === 'string' && /^(01|02|03|04|09|10|11|13|50)[dn]$/.test(weather.icon) ? weather.icon : null,
+      observedAt: Number.isFinite(raw.dt) && raw.dt > 0
+        ? new Date(raw.dt * 1000).toISOString() : null,
+      windSpeedMps: Number.isFinite(wind.speed) && wind.speed >= 0 ? wind.speed : null,
+      windGustMps: Number.isFinite(wind.gust) && wind.gust >= 0 ? wind.gust : null,
       description: weather.description,
       windSpeed: Math.round(wind.speed),
       cloudiness: raw.clouds?.all,
@@ -233,6 +247,11 @@ class WeatherProvider {
   }
 
   _setInCache(key, value) {
+    // Bound memory during fleet sweeps while retaining existing cell caching.
+    for (const cachedKey of this.cache.keys()) this._getFromCache(cachedKey);
+    if (this.cache.size >= 2000 && !this.cache.has(key)) {
+      this.cache.delete(this.cache.keys().next().value);
+    }
     this.cache.set(key, value);
   }
 

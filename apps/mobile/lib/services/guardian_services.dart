@@ -12,6 +12,8 @@ import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
+import '../models/wellbeing_reading.dart';
+import '../wellness/wellness_sample.dart';
 import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
 import 'guardian_entitlements.dart';
@@ -535,6 +537,7 @@ class ActivityService {
     int limit = 7,
     DateTime? before,
     DateTime? now,
+    bool pilotPreview = false,
   }) {
     if (!subscription.has(GuardianFeature.activitySteps)) {
       return Stream.error(
@@ -548,15 +551,18 @@ class ActivityService {
       before: before,
       days: limit,
     );
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('activityDays');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
     return watchLinkedWellnessData(
       _db,
       _auth,
       imei,
-      () => _db
-          .collection('devices')
-          .doc(imei)
-          .collection('activityDays')
-          .where('displayable', isEqualTo: true)
+      () => query
           .where(
             'lastObservedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(window.start),
@@ -569,7 +575,9 @@ class ActivityService {
             final days = <ActivityDay>[];
             for (final doc in snapshot.docs) {
               try {
-                final day = ActivityDay.fromDoc(doc);
+                final day = pilotPreview
+                    ? ActivityDay.fromPilotMap(doc.data())
+                    : ActivityDay.fromDoc(doc);
                 if (window.includesDate(day.localDate) &&
                     window.contains(
                       day.lastObservedAt,
@@ -752,6 +760,131 @@ class MedicationReminderService {
       throw StateError('Medication reminders require Guardian Care.');
     }
   }
+}
+
+class WellbeingService {
+  WellbeingService({FirebaseFirestore? db, FirebaseAuth? auth})
+    : _db = db ?? FirebaseFirestore.instance,
+      _auth = auth ?? FirebaseAuth.instance;
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<List<WellbeingReading>> watchRecentReadings(
+    String imei, {
+    required GuardianSubscription subscription,
+    int limit = 12,
+    WellnessWindow? window,
+    DateTime? now,
+    bool pilotPreview = false,
+  }) {
+    if (!subscription.has(GuardianFeature.wellnessReadings)) {
+      return Stream.error(
+        StateError('An active Guardian subscription is required.'),
+      );
+    }
+    final clock = now ?? DateTime.now();
+    final range =
+        window ?? WellnessWindow.forSubscription(subscription, now: clock);
+    // Revalidate caller-supplied dates; a hidden date picker is not authorization.
+    final authorized = WellnessWindow.forSubscription(
+      subscription,
+      now: clock,
+      before: range.end,
+      days: range.end.difference(range.start).inDays,
+    );
+    if (range.start != authorized.start || range.end != authorized.end) {
+      return Stream.error(
+        StateError('This date range is outside the edition history window.'),
+      );
+    }
+    Query<Map<String, dynamic>> query = _db
+        .collection('devices')
+        .doc(imei)
+        .collection('wellbeingReadings');
+    if (!pilotPreview) {
+      query = query.where('displayable', isEqualTo: true);
+    }
+    return watchLinkedWellnessData(
+      _db,
+      _auth,
+      imei,
+      () => query
+          .where(
+            'observedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(range.start),
+          )
+          .where('observedAt', isLessThan: Timestamp.fromDate(range.end))
+          .orderBy('observedAt', descending: true)
+          .snapshots()
+          .map((snapshot) {
+            final readings = <WellbeingReading>[];
+            for (final doc in snapshot.docs) {
+              try {
+                final reading = WellbeingReading.fromDoc(
+                  doc,
+                  pilotPreview: pilotPreview,
+                );
+                if (range.contains(
+                  reading.observedAt,
+                  now: now ?? DateTime.now(),
+                )) {
+                  readings.add(reading);
+                }
+              } catch (_) {
+                /* Malformed evidence never becomes a reading. */
+              }
+            }
+            return readings;
+          }),
+    );
+  }
+
+  Stream<List<WellnessSample>> watchWellnessSamples(
+    String imei, {
+    required GuardianSubscription subscription,
+    required WellnessWindow window,
+    bool pilotPreview = false,
+  }) =>
+      watchRecentReadings(
+        imei,
+        subscription: subscription,
+        window: window,
+        pilotPreview: pilotPreview,
+      ).map(
+        (readings) => [
+          for (final r in readings) ...[
+            if (r.heartRateBpm != null)
+              WellnessSample(
+                metric: WellnessMetric.heartRate,
+                value: '${r.heartRateBpm} bpm',
+                numericValue: r.heartRateBpm,
+                recordedAt: r.observedAt,
+              ),
+            if (r.spo2Percent != null)
+              WellnessSample(
+                metric: WellnessMetric.bloodOxygen,
+                value: '${r.spo2Percent} %',
+                numericValue: r.spo2Percent,
+                recordedAt: r.observedAt,
+              ),
+            if (r.systolicMmHg != null && r.diastolicMmHg != null)
+              WellnessSample(
+                metric: WellnessMetric.bloodPressure,
+                value: '${r.systolicMmHg}/${r.diastolicMmHg} mmHg',
+                numericValue: r.systolicMmHg,
+                secondaryValue: r.diastolicMmHg,
+                recordedAt: r.observedAt,
+              ),
+            if (pilotPreview && r.skinTemperatureCelsius != null)
+              WellnessSample(
+                metric: WellnessMetric.skinTemperature,
+                value: '${r.skinTemperatureCelsius!.toStringAsFixed(2)} °C',
+                numericValue: r.skinTemperatureCelsius,
+                recordedAt: r.observedAt,
+              ),
+          ],
+        ],
+      );
 }
 
 class EmergencyContact {

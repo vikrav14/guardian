@@ -29,6 +29,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   const stepReports = [];
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
+    './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
     './config': { firestoreDisabled: !durable, journeyJournalEnabled: durable, journeyJournalDirectory: directory,
@@ -52,6 +53,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
     './reminder-scheduler': { startReminderScheduler: noop },
+    './profile-weather': { startProfileWeather: noop },
     './ops-metrics': { incrementEvent: noop, startMetricsFlusher: noop },
     './sessions': { noteDeviceLocation: noop },
     './adaptive-reporting': { applyAdaptiveReporting: async () => ({}) },

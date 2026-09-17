@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../cards/guardian_surface.dart';
 import '../../models/alert.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
@@ -499,16 +500,7 @@ class _ZoneSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: context.guardianColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.guardianColors.border),
-      ),
-      child: child,
-    );
+    return GuardianSurface(padding: padding, radius: 16, child: child);
   }
 }
 

@@ -44,12 +44,12 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users', 'owner'), {
       serviceOwnerUid: 'owner',
       memberUids: ['member'],
-      linkedImeis: ['861397052547492'],
+      linkedImeis: ['000000000000001'],
       displayName: 'Owner',
     });
     await setDoc(doc(db, 'users', 'member'), {
       serviceOwnerUid: 'owner',
-      linkedImeis: ['861397052547492'],
+      linkedImeis: ['000000000000001'],
       displayName: 'Member',
     });
     await setDoc(doc(db, 'users', 'unverified'), {
@@ -66,13 +66,13 @@ beforeEach(async () => {
       plan: 'care',
       status: 'active',
     });
-    await setDoc(doc(db, 'devices', '861397052547492'), {
+    await setDoc(doc(db, 'devices', '000000000000001'), {
       online: true,
       careProfile: 'senior',
       carePriorities: [],
     });
     await setDoc(
-      doc(db, 'devices', '861397052547492', 'locations', 'recent'),
+      doc(db, 'devices', '000000000000001', 'locations', 'recent'),
       {
         lat: -20,
         lng: 57,
@@ -80,7 +80,7 @@ beforeEach(async () => {
       },
     );
     await setDoc(
-      doc(db, 'devices', '861397052547492', 'locations', 'old'),
+      doc(db, 'devices', '000000000000001', 'locations', 'old'),
       {
         lat: -20,
         lng: 57,
@@ -91,7 +91,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '000000000000001',
         'journeys',
         'journey-1',
       ),
@@ -104,7 +104,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '000000000000001',
         'activityDays',
         '2026-08-23',
       ),
@@ -112,14 +112,16 @@ beforeEach(async () => {
         localDate: '2026-08-23',
         displayable: true,
         reportedSteps: 4321,
-        lastObservedAt: new Date(now - 5 * 60 * 1000),
+        // This fixture represents today. Backdating by five minutes makes it
+        // yesterday immediately after midnight in Mauritius.
+        lastObservedAt: serverTimestamp(),
       },
     );
     await setDoc(
       doc(
         db,
         'devices',
-        '861397052547492',
+        '000000000000001',
         'activityDays',
         '2026-08-22-unverified',
       ),
@@ -134,7 +136,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '000000000000001',
         'journeys',
         'journey-1',
         'presentations',
@@ -151,7 +153,7 @@ beforeEach(async () => {
       doc(
         db,
         'devices',
-        '861397052547492',
+        '000000000000001',
         'journeys',
         'journey-expired',
         'presentations',
@@ -165,10 +167,38 @@ beforeEach(async () => {
       },
     );
     await setDoc(doc(db, 'medicationReminders', 'med-1'), {
-      imei: '861397052547492',
+      imei: '000000000000001',
       text: 'Tablets',
       createdBy: 'owner',
     });
+    await setDoc(doc(db, 'wellbeingConsents', '000000000000001'), {
+      version: 1,
+      status: 'granted',
+      managedBy: 'guardian_admin',
+      wearerAcknowledgedAt: new Date(now - 24 * 60 * 60 * 1000),
+    });
+    await setDoc(
+      doc(db, 'devices', '000000000000001', 'wellbeingReadings', 'accepted'),
+      {
+        schemaVersion: 1,
+        imei: '000000000000001',
+        metricSet: 'spo2',
+        values: { spo2Percent: 98 },
+        displayable: true,
+        observedAt: new Date(now - 60 * 1000),
+      },
+    );
+    await setDoc(
+      doc(db, 'devices', '000000000000001', 'wellbeingReadings', 'shadow'),
+      {
+        schemaVersion: 1,
+        imei: '000000000000001',
+        metricSet: 'spo2',
+        values: { spo2Percent: 97 },
+        displayable: false,
+        observedAt: new Date(now - 2 * 60 * 1000),
+      },
+    );
   });
 });
 
@@ -303,10 +333,10 @@ test('Essential can read recent history but not history older than seven days', 
   });
   const db = authedDb('owner');
   await assertSucceeds(
-    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'recent')),
+    getDoc(doc(db, 'devices', '000000000000001', 'locations', 'recent')),
   );
   await assertFails(
-    getDoc(doc(db, 'devices', '861397052547492', 'locations', 'old')),
+    getDoc(doc(db, 'devices', '000000000000001', 'locations', 'old')),
   );
 });
 
@@ -321,7 +351,7 @@ test('Family and Care can read retained history without the Essential window', a
       doc(
         authedDb('member'),
         'devices',
-        '861397052547492',
+        '000000000000001',
         'locations',
         'old',
       ),
@@ -340,7 +370,7 @@ test('linked Family users can query journeys for a bounded day', async () => {
     collection(
       authedDb('member'),
       'devices',
-      '861397052547492',
+      '000000000000001',
       'journeys',
     ),
     where('startAt', '>=', new Date(now - 24 * 60 * 60 * 1000)),
@@ -360,7 +390,7 @@ test('daily activity permits Essential today and hides unverified counters', asy
   });
   const path = [
     'devices',
-    '861397052547492',
+    '000000000000001',
     'activityDays',
     '2026-08-23',
   ];
@@ -376,7 +406,7 @@ test('daily activity permits Essential today and hides unverified counters', asy
     collection(
       authedDb('member'),
       'devices',
-      '861397052547492',
+      '000000000000001',
       'activityDays',
     ),
     where('displayable', '==', true),
@@ -391,7 +421,7 @@ test('daily activity permits Essential today and hides unverified counters', asy
         collection(
           authedDb('member'),
           'devices',
-          '861397052547492',
+          '000000000000001',
           'activityDays',
         ),
         orderBy('localDate', 'desc'),
@@ -403,7 +433,7 @@ test('daily activity permits Essential today and hides unverified counters', asy
       doc(
         authedDb('member'),
         'devices',
-        '861397052547492',
+        '000000000000001',
         'activityDays',
         '2026-08-22-unverified',
       ),
@@ -423,7 +453,7 @@ test('linked users can read only unexpired journey presentations', async () => {
   const active = doc(
     db,
     'devices',
-    '861397052547492',
+    '000000000000001',
     'journeys',
     'journey-1',
     'presentations',
@@ -432,7 +462,7 @@ test('linked users can read only unexpired journey presentations', async () => {
   const expired = doc(
     db,
     'devices',
-    '861397052547492',
+    '000000000000001',
     'journeys',
     'journey-expired',
     'presentations',
@@ -446,7 +476,7 @@ test('linked users can read only unexpired journey presentations', async () => {
       doc(
         authedDb('attacker'),
         'devices',
-        '861397052547492',
+        '000000000000001',
         'journeys',
         'journey-1',
         'presentations',
@@ -467,14 +497,14 @@ test('medication data and commands require Guardian Care', async () => {
   await assertFails(getDoc(doc(familyDb, 'medicationReminders', 'med-1')));
   await assertFails(
     setDoc(doc(familyDb, 'medicationReminders', 'med-family'), {
-      imei: '861397052547492',
+      imei: '000000000000001',
       text: 'Tablets',
       createdBy: 'owner',
     }),
   );
   await assertFails(
     setDoc(doc(familyDb, 'deviceCommands', 'med-command-family'), {
-      imei: '861397052547492',
+      imei: '000000000000001',
       type: 'set_medication_reminder',
       params: {},
       status: 'pending',
@@ -491,13 +521,69 @@ test('medication data and commands require Guardian Care', async () => {
   await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
 });
 
+test('linked Family and Care users can read consented displayable wellbeing readings', async () => {
+  const acceptedPath = [
+    'devices', '000000000000001', 'wellbeingReadings', 'accepted',
+  ];
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+  await assertSucceeds(getDoc(doc(authedDb('member'), ...acceptedPath)));
+  await assertFails(getDoc(doc(authedDb('attacker'), ...acceptedPath)));
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
+      plan: 'family',
+    });
+  });
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+});
+
+test('unverified wellbeing evidence and consent records remain backend-only', async () => {
+  const ownerDb = authedDb('owner');
+  const shadow = doc(
+    ownerDb, 'devices', '000000000000001', 'wellbeingReadings', 'shadow',
+  );
+  const consentRef = doc(ownerDb, 'wellbeingConsents', '000000000000001');
+  await assertFails(getDoc(shadow));
+  await assertFails(getDoc(consentRef));
+  await assertFails(updateDoc(consentRef, { status: 'granted' }));
+  await assertFails(setDoc(
+    doc(ownerDb, 'devices', '000000000000001', 'wellbeingReadings', 'forged'),
+    { displayable: true, metricSet: 'spo2', values: { spo2Percent: 99 } },
+  ));
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(
+      doc(context.firestore(), 'wellbeingConsents', '000000000000001'),
+      { status: 'revoked', revokedAt: new Date() },
+    );
+  });
+  await assertFails(getDoc(doc(
+    authedDb('owner'),
+    'devices', '000000000000001', 'wellbeingReadings', 'accepted',
+  )));
+});
+
+test('Care clients can query only readings constrained to displayable evidence', async () => {
+  const readings = collection(
+    authedDb('owner'), 'devices', '000000000000001', 'wellbeingReadings',
+  );
+  await assertSucceeds(getDocs(query(
+    readings,
+    where('displayable', '==', true),
+    where('observedAt', '>=', new Date(Date.now() - 86_400_000)),
+    where('observedAt', '<', new Date()),
+    orderBy('observedAt', 'desc'),
+  )));
+  await assertFails(getDocs(query(readings, orderBy('observedAt', 'desc'))));
+});
+
 test('Care profile writes require Guardian Care', async () => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
       plan: 'family',
     });
   });
-  const deviceRef = doc(authedDb('owner'), 'devices', '861397052547492');
+  const deviceRef = doc(authedDb('owner'), 'devices', '000000000000001');
   await assertFails(updateDoc(deviceRef, { careProfile: 'adult' }));
 
   await testEnv.withSecurityRulesDisabled(async (context) => {

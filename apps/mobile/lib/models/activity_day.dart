@@ -17,9 +17,29 @@ class ActivityDay {
   final int resetCount;
   final bool partialCoverage;
 
-  factory ActivityDay.fromDoc(
-    DocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
+  /// Private pilot diagnostics. Never substitutes these totals for accepted data.
+  factory ActivityDay.fromPilotMap(Map<String, dynamic> data) {
+    final steps = data['recordedSteps'];
+    final date = data['localDate'];
+    final at = _asDateTime(data['lastObservedAt']);
+    if (data['schemaVersion'] != 2 ||
+        steps is! int ||
+        steps < 0 ||
+        date is! String ||
+        !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
+        at == null) {
+      throw const FormatException('Invalid pilot activity evidence');
+    }
+    return ActivityDay(
+      localDate: date,
+      steps: steps,
+      lastObservedAt: at,
+      quality: 'pilot_unverified',
+      partialCoverage: true,
+    );
+  }
+
+  factory ActivityDay.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     return ActivityDay.fromMap(data, fallbackDate: doc.id);
   }
@@ -30,8 +50,11 @@ class ActivityDay {
   }) {
     final localDate = (data['localDate'] as String?)?.trim();
     final steps = (data['reportedSteps'] as num?)?.toInt();
-    final observedAt = _asDateTime(data[data['wearQualityVersion'] == 1
-        ? 'lastWearQualifiedAt' : 'lastObservedAt']);
+    final observedAt = _asDateTime(
+      data[data['wearQualityVersion'] == 1
+          ? 'lastWearQualifiedAt'
+          : 'lastObservedAt'],
+    );
     if (data['displayable'] != true ||
         ((localDate?.isNotEmpty != true) &&
             (fallbackDate?.isNotEmpty != true)) ||
@@ -50,7 +73,10 @@ class ActivityDay {
     );
   }
 
-  bool isFresh({DateTime? now, Duration maximumAge = const Duration(hours: 2)}) {
+  bool isFresh({
+    DateTime? now,
+    Duration maximumAge = const Duration(hours: 2),
+  }) {
     final clock = now ?? DateTime.now();
     final age = clock.difference(lastObservedAt);
     return !age.isNegative && age <= maximumAge;

@@ -80,6 +80,7 @@ flutter:
     - assets/dodo/stages/
     - assets/images/dodo_ai_guardian.png
     - assets/images/guardian_family_welcome.webp
+    - assets/weather/weather_atlas.webp
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

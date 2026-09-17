@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/cards/guardian_surface.dart';
 import '../dashboard/alert_formatters.dart';
 import '../models/alert.dart';
 import '../models/device.dart';
@@ -34,14 +35,10 @@ class AlertDetail extends StatelessWidget {
     final sos = alert.type.toLowerCase() == 'sos';
     final canCall =
         device?.simNumber?.trim().isNotEmpty == true && onCall != null;
-    return Container(
+    return GuardianSurface(
       key: ValueKey('alert-detail-${alert.id}'),
+      radius: 22,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

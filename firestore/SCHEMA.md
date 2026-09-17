@@ -1,5 +1,20 @@
 # Guardian Firestore Schema
 
+## Wellness edition access — 14 September 2026
+
+`activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be
+bounded by Mauritius calendar timestamps: Essential today, Family today plus six
+previous days, Care selected retained periods. Every query keeps `displayable == true`
+and the caller must have a trusted active subscription and linked device. Wellbeing
+also requires current backend-managed wearer consent. `wellness_readings` is a new
+basic entitlement; Care profile/medication/advanced summary permissions stay separate.
+Accepted Care records renew their `expiresAt` review deadline through cleanup after
+subscription/membership verification (and consent for wellbeing); old source times
+never change. Fixed-expiry shadow evidence is not renewed. This supersedes older
+Family/Care-only reading and fixed-retention descriptions below. No client writes
+or automatic TTL policy are introduced.
+
+
 Collections used by the GT06 gateway and (later) the Flutter app.
 
 ## `users/{uid}`
@@ -212,6 +227,110 @@ During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
+## `wellnessRoutineRequests/{imei}`
+
+Desired daily Wellness times for the explicitly granted pilot. The request is
+not a watch command or evidence of a completed measurement. A linked, active
+Essential, Family or Care subscriber with a current backend-managed pilot grant
+may get, create or replace this one request; list and delete are denied.
+Starting Gentle or Balanced also requires current backend-managed wearer
+consent. Manual remains available after consent is revoked, while link, plan
+and pilot checks remain mandatory.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `2` for editable daily times. |
+| routine | string | `manual`, `gentle`, or `balanced`. |
+| times | string[] | Exactly 0, 2, or 3 entries respectively. Canonical 24-hour `HH:mm`, ascending and unique, with at least 5 minutes between adjacent slots and between the last slot and the first slot across midnight. |
+| timeZone | string | Exactly `Indian/Mauritius`; phone timezone never changes the schedule. |
+| requestedBy | string | Must equal the authenticated UID. |
+| updatedAt | timestamp | Must be the request's server timestamp (`request.time`). Defines the schedule revision. |
+
+These are the only allowed fields. Rules and gateway validation reject malformed
+times, unsorted/duplicate/overlapping slots, other timezones, extra command or
+result fields, and forged authority/timestamps. A compatibility request may use
+only `{ version: 1, routine: 'manual', requestedBy, updatedAt }` to stop an older
+routine. New version-1 Gentle/Balanced writes are denied; existing interval
+requests never acquire inferred daily times or restart native intervals.
+
+Daily slots are an application schedule. Saving times does not write a native
+watch interval. The gateway rechecks current authorization, feature gates,
+request revision, connection, measurement availability, and evidence at the
+execution boundary. Missed or blocked slots are skipped without catch-up or
+retries. Editing times does not reset the day's attempt count or resurrect a
+consumed slot. Manual stops future scheduled checks; it never erases a completed
+attempt or implies that an already handed-off watch command was undone.
+
+## `devices/{imei}/wellnessRoutine/current`
+
+Gateway-owned schedule summary. Only the current document is readable by the
+linked pilot on an active edition; all client writes and collection lists are
+denied. Consent revocation does not hide the status needed to request a stop.
+No reading values, health classifications, or raw tracker responses belong in
+this document.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `2` for the daily schedule summary. |
+| routine, times, timeZone | string, string[], string | Validated current desired schedule; Manual has an empty list. |
+| phase, reason | string, string or null | Bounded scheduler state and operational reason; never a claim that a watch measurement succeeded. |
+| nextCheckAt | timestamp or null | Next configured future slot, or null for Manual/invalid schedules. Still subject to execution-time checks. |
+| lastAttempt | map or null | Latest bounded slot metadata described below, including outcome and reason; contains no reading values. |
+| inFlight | boolean | Whether the gateway is awaiting this scheduled sequence's outcome. |
+| updatedAt | timestamp | Gateway summary write time. |
+
+Existing native-interval stop/lease bookkeeping may remain in this document
+during migration; it is backend-owned operational state. `intervalHours` is
+null for daily scheduling. Schedule status, slot outcome and a transport handoff
+must never promote device acceptance, wearer confirmation or customer reading
+eligibility.
+
+## `devices/{imei}/wellnessScheduleDays/{YYYY-MM-DD}`
+
+Private gateway ledger for one Mauritius calendar day. All client reads, lists,
+creates, updates and deletes are denied, including for the pilot. The Admin SDK
+updates the day and slot claim transactionally before dispatch so restarts,
+competing gateway instances, reconnects and schedule edits cannot duplicate a
+slot or reset the daily cap.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `1` for this internal ledger. |
+| date | string | Mauritius local day, matching the document ID. |
+| attempts | number | Shared count across edits and routine changes. Gentle may claim only below 2 attempts and Balanced only below 3. Slots skipped before an attempt claim do not consume the budget. Every claimed attempt remains consumed, including later preflight failures and ambiguous handoffs. |
+| lastAttempt | map | Latest slot metadata, containing no reading values. |
+| updatedAt | timestamp | Latest transaction/checkpoint time. |
+| expiresAt | timestamp | 30-day retention metadata; no automatic deletion is promised until the corresponding TTL policy is enabled. |
+
+## `devices/{imei}/wellnessScheduleSlots/{YYYY-MM-DD-HHmm}`
+
+Private durable slot claim and outcome. Client access is denied as for the day
+ledger. The key is based on local day and configured time, independent of request
+revision, so editing or changing routine cannot replay the same slot. The
+gateway may copy safe slot metadata into `wellnessRoutine/current.lastAttempt`.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `1` for the slot ledger. |
+| slotId, date, time | string | Stable slot ID, Mauritius day, and canonical `HH:mm`. |
+| scheduledAt | timestamp | Exact configured slot time. |
+| revision | string | Request `updatedAt` represented as an ISO timestamp. |
+| claimedAt, updatedAt | timestamp | Durable claim and latest checkpoint times. |
+| phase, outcome | string | Bounded execution/skip state; an optical request handoff is distinct from a measurement result. |
+| terminal | boolean | Whether this slot has reached its final scheduler outcome. |
+| attemptConsumed | boolean | Whether the slot counts toward the day's cap. Lost/unknown dispatch results are never retried. |
+| attemptId | string or null | Internal sequence correlation ID; no raw response or reading value. |
+| reason | string or null | Bounded operational skip/block/outcome reason. |
+| activeUntil | timestamp or null | Bounded in-flight deadline used to recover an interrupted attempt. |
+| startedAt, finishedAt | timestamp, optional | Operational attempt boundaries when known. |
+| temperatureRequested | boolean, optional | Whether the conditional temperature stage was requested; never temperature success or a health value. |
+| expiresAt | timestamp | 30-day retention metadata, subject to the same TTL policy requirement as the day ledger. |
+
+The gateway also retains `dailyLastAttempt`, `dailyActiveSlot` and
+`dailyActiveUntil` in its current routine state for recovery and status. These
+fields are not client-writable. A lost response or interrupted process never
+creates an automatic retry or invents a successful measurement.
+
 ## `devices/{imei}/activityDays/{localDate}`
 
 Gateway-owned daily activity. Linked users may read only `displayable=true`
@@ -264,6 +383,40 @@ active minutes, calories, distance or medical conclusions.
 ## `devices/{imei}/locations/{locationId}`
 
 Optional history (gateway throttles writes — see write gate below).
+
+## `devices/{imei}/wellbeingReadings/{readingId}`
+
+Short-retention, backend-owned V52 wellbeing estimates. These records are
+sensitive. Clients can read only records with `displayable == true`, only when
+linked to the watch, and only with an active Guardian Care subscription.
+Unverified pilot evidence remains backend-only.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| schemaVersion | number | `1` |
+| imei | string | Device IMEI |
+| metricSet | string | `spo2` \| `heart_rate_blood_pressure` |
+| values | map | Confirmed packet fields only: `spo2Percent`, or `heartRateBpm`, `systolicMmHg`, `diastolicMmHg` |
+| measurementType | string \| null | Vendor oxygen type field, retained without interpretation |
+| source | string | `v52_upload` |
+| sourceCommand | string | `oxygen` \| `bphrt` |
+| observedAt | timestamp | Gateway receipt time; the packets do not supply a measurement timestamp |
+| receivedAt | timestamp | Same receipt evidence as `observedAt` |
+| quality | string | `transport_valid_unverified` \| `device_accepted` |
+| deviceMode | string | `unverified` \| `accepted` |
+| displayable | boolean | True only after device acceptance and customer release gates |
+| expiresAt | timestamp | Retention deadline, 30 days by default |
+
+These values are watch estimates, not medical measurements. No schema field
+labels a reading normal, abnormal, safe or unsafe.
+
+## `wellbeingConsents/{imei}`
+
+Backend-only durable wearer-consent authority. Client rules deny every read and
+write. Ingestion fails closed unless `version == 1`, `status == granted`,
+`managedBy` is trusted, `wearerAcknowledgedAt` exists, and the record is neither
+revoked nor expired. The same current-consent predicate gates customer reads;
+revocation also deletes the device's retained wellbeing readings.
 
 | Field | Type |
 |-------|------|
@@ -615,3 +768,31 @@ not a client-accessible Firestore collection.
 - Guardians may identify wearers (`nickname`, `relationship`, `avatarUrl`, legacy `name`), write geofences and medication reminders, and resolve alerts for linked devices.
 - Wearer photos live in Firebase Storage at `deviceAvatars/{imei}/avatar`; Storage rules restrict access to signed-in guardians linked to that IMEI and enforce image content under 5 MB.
 - Gateway uses **Admin SDK** (bypasses rules). See [rules.example](rules.example).
+
+
+### Wearing quality alongside activity and Wellness
+
+- `devices/{imei}/wearStatus/current`: backend-only writes; safe versioned state,
+  reason, exact-device acceptance, observation/expiry and gateway update times.
+  Linked members on any active edition may read. Clients must expire status.
+  Optional `lastRemovalReportedAt` is the device observation time of the newest
+  fresh AL removal report. It survives zero-bit packets, disconnection and
+  restart. This is historical event information, never present wearing proof.
+- `devices/{imei}/wearChecks/current`: a linked member on any active edition may
+  save/read the latest **manual family observation**. Exact fields: `version: 1`,
+  `state: worn|removed`, `observedAt` (client timestamp), `recordedAt` (server
+  timestamp), `recordedBy` (authenticated UID). An online transaction and rules
+  require an observation within 60 seconds of server time and prevent an older
+  observation replacing a newer check. No list/delete or additional fields.
+  This document never qualifies wearing, activity or Wellness readings.
+- `devices/{imei}/wearDiagnostics/current`: backend-only, at most 120 raw status
+  samples, running gateway mode. Never expose raw bits through customer rules.
+- Activity v2 keeps diagnostic `recordedSteps` and separately aggregates
+  `wearQualifiedSteps`, `wearExcludedSteps`, `lastWearQualifiedAt` and
+  `wearQualityVersion: 1`. Customer `reportedSteps` is qualified partial coverage;
+  raw-counter receipt times do not refresh the accepted total's age.
+- New wellbeing records include `wearQualityVersion: 1`, receipt-time
+  `wearEvidence`, `wearQualified`, `wearReason`, and
+  `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
+  requires eligible wearing proof. Missing evidence stays private. Historical
+  diagnostic records are not retroactively made qualified.

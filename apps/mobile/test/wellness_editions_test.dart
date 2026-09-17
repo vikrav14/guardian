@@ -123,6 +123,16 @@ void main() {
                           value: '72 bpm',
                           recordedAt: now.subtract(const Duration(seconds: 10)),
                         ),
+                        WellnessSample(
+                          metric: WellnessMetric.bloodPressure,
+                          value: '130/80 mmHg',
+                          recordedAt: now.subtract(const Duration(seconds: 10)),
+                        ),
+                        WellnessSample(
+                          metric: WellnessMetric.bloodPressure,
+                          value: '124/78 mmHg',
+                          recordedAt: now,
+                        ),
                       ],
                       readingsAvailable: true,
                     ),
@@ -133,6 +143,9 @@ void main() {
           );
           expect(find.text('4,321'), findsNothing);
           expect(find.text('72 bpm'), findsNothing);
+          expect(find.text('130/80 mmHg'), findsNothing);
+          expect(find.text('124/78 mmHg'), findsOneWidget);
+          expect(find.text('Watch estimate'), findsOneWidget);
           expect(find.text('No reading today'), findsNWidgets(3));
           expect(find.text('Not available yet'), findsOneWidget);
           expect(find.text('View wellness'), findsNothing);
@@ -166,6 +179,11 @@ void main() {
                   value: '97 %',
                   recordedAt: clock.subtract(const Duration(hours: 2)),
                 ),
+                WellnessSample(
+                  metric: WellnessMetric.bloodPressure,
+                  value: '124/78 mmHg',
+                  recordedAt: clock.subtract(const Duration(minutes: 27)),
+                ),
               ],
             ),
           ),
@@ -174,6 +192,8 @@ void main() {
     );
     expect(find.text('12m ago'), findsOneWidget);
     expect(find.text('2h ago · older reading'), findsOneWidget);
+    expect(find.text('124/78 mmHg'), findsOneWidget);
+    expect(find.text('27m ago'), findsOneWidget);
     await tester.ensureVisible(find.text('View wellness'));
     await tester.tap(find.text('View wellness'));
     expect(opened, true);

@@ -6,6 +6,7 @@ const {
 } = require('./location-provenance');
 
 const MAX_WEATHER_LOCATION_AGE_MINUTES = 60;
+const MAX_WEATHER_FUTURE_MINUTES = 1;
 
 function finiteNumber(value) {
   if (value == null || value === '') return null;
@@ -19,6 +20,9 @@ function rounded(value) {
 }
 
 function locationAgeText(minutes) {
+  if (finiteNumber(minutes) != null && minutes < -MAX_WEATHER_FUTURE_MINUTES) {
+    return 'has an invalid observation time';
+  }
   const value = rounded(minutes);
   if (value == null) return 'has an unknown age';
   if (value < 1) return 'is less than a minute old';
@@ -38,15 +42,15 @@ function recordedAgeMinutes(location, now) {
   const recordedAt = location?.recordedAt?.toDate?.() || location?.recordedAt;
   const timestamp = recordedAt ? new Date(recordedAt) : null;
   if (!timestamp || Number.isNaN(timestamp.getTime())) return null;
-  return Math.max(0, (now.getTime() - timestamp.getTime()) / 60_000);
+  return (now.getTime() - timestamp.getTime()) / 60_000;
 }
 
 /**
  * Weather does not need metre-level positioning, but it should agree with the
  * family map while a trustworthy satellite fix is still current. Once that
- * fix is too old for current weather, retain the normal provenance selector so
- * a fresh WiFi/LBS area can still answer honestly instead of borrowing an old
- * GPS timestamp.
+ * fix is too old for current weather, use the newest fresh WiFi/LBS area.
+ * Map retention compares observation times with one another; it must not
+ * reselect an expired satellite fix for a current-weather request.
  */
 function selectWeatherLocation(
   device,
@@ -57,15 +61,20 @@ function selectWeatherLocation(
   const latestSource = normalizeLocationSource(
     latest?.source || device?.accuracySource,
   );
-  const satellite = device?.lastSatelliteLocation ||
-    (latestSource === 'gps' ? latest : null);
-  const satelliteAge = recordedAgeMinutes(satellite, now);
+  const legacySource = normalizeLocationSource(device?.location?.source || device?.accuracySource);
+  const eligible = (location) => {
+    const age = recordedAgeMinutes(location, now);
+    return validLocation(location) && age != null &&
+      age >= -MAX_WEATHER_FUTURE_MINUTES && age < maxLocationAgeMinutes;
+  };
+  const newestFirst = (left, right) => recordedAgeMinutes(left, now) - recordedAgeMinutes(right, now);
+  const satellite = [
+    device?.lastSatelliteLocation,
+    latestSource === 'gps' ? latest : null,
+    legacySource === 'gps' ? device?.location : null,
+  ].filter(eligible).sort(newestFirst)[0];
 
-  if (
-    validLocation(satellite) &&
-    satelliteAge != null &&
-    satelliteAge <= maxLocationAgeMinutes
-  ) {
+  if (satellite) {
     return {
       location: satellite,
       source: 'gps',
@@ -75,6 +84,19 @@ function selectWeatherLocation(
     };
   }
 
+  const approximate = [
+    { location: latest, source: latestSource },
+    { location: device?.lastApproximateLocation,
+      source: normalizeLocationSource(device?.lastApproximateLocation?.source) },
+    { location: device?.location, source: legacySource },
+  ].filter(({ location, source }) => isApproximateLocationSource(source) && eligible(location))
+    .sort((left, right) => newestFirst(left.location, right.location))[0];
+  if (approximate) {
+    return { ...approximate, retainedSatellite: false, latestObservation: latest };
+  }
+
+  // Preserve old/undated evidence only so callers can explain unavailability;
+  // every consumer still checks the selected observation's actual age.
   return fallback;
 }
 
@@ -86,7 +108,7 @@ function formatWeatherReply({ adapted, weather, maxLocationAgeMinutes = MAX_WEAT
   }
 
   const age = finiteNumber(location.freshnessMinutes);
-  if (age == null || age > maxLocationAgeMinutes) {
+  if (age == null || age >= maxLocationAgeMinutes || age < -MAX_WEATHER_FUTURE_MINUTES) {
     return `I can’t check current weather near ${name} reliably because the latest trustworthy location ${locationAgeText(location.freshnessMinutes)}.`;
   }
 
@@ -133,8 +155,13 @@ async function answerWeatherQuery({
   });
   if (!adapted) return formatWeatherReply({ adapted: null });
 
-  const age = finiteNumber(adapted.location.freshnessMinutes);
-  if (age == null || age > maxAge) {
+  const recordedAge = recordedAgeMinutes(locationSelection.location, observedAt);
+  // The general context adapter can use heartbeat age. Weather must use only
+  // the selected fix's timestamp and cannot turn a future fix into age zero.
+  const age = recordedAge != null && recordedAge >= -MAX_WEATHER_FUTURE_MINUTES
+    ? recordedAge : null;
+  adapted.location.freshnessMinutes = age;
+  if (age == null || age >= maxAge) {
     return formatWeatherReply({ adapted, maxLocationAgeMinutes: maxAge });
   }
 

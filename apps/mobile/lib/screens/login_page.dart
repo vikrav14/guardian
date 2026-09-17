@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../widgets/cards/guardian_surface.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth/guardian_welcome_layout.dart';
@@ -176,20 +177,9 @@ class _LoginPageState extends State<LoginPage> {
       registerMode: _registerMode,
       form: LayoutBuilder(
         builder: (context, constraints) {
-          return Container(
+          return GuardianSurface(
+            radius: 28,
             padding: EdgeInsets.all(constraints.maxWidth >= 400 ? 32 : 24),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: dark ? 0.10 : 0.025),
-                  blurRadius: 32,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
             child: AutofillGroup(
               child: Form(
                 key: _formKey,

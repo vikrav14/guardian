@@ -72,7 +72,7 @@ abstract final class GuardianCarePriority {
     unusualStops => 'Unusual stops',
     falls => 'Fall detection',
     medication => 'Medication',
-    wellbeing => 'Wellbeing',
+    wellbeing => 'Care insights',
     inactivity => 'Inactivity',
     wandering => 'Wandering',
     _ => value,

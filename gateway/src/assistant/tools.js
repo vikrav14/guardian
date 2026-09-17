@@ -1,4 +1,5 @@
 const config = require('../config');
+const { validConsent } = require('../care-wellbeing');
 const { wellnessWindow, wellnessRecordInWindow } = require('../wellness-access');
 const { normalizeE164 } = require('../notify');
 const { haversineMeters } = require('../geofence');
@@ -382,6 +383,56 @@ function timestampMs(value) {
   const date = value?.toDate?.() || (value instanceof Date ? value : new Date(value));
   const time = date?.getTime?.();
   return Number.isFinite(time) ? time : null;
+}
+
+async function getWellbeingReadings(
+  db,
+  ctx,
+  { device_name: deviceName, imei, limit = 6, days = 7 } = {},
+) {
+  const device = findDevice(ctx.devices, imei || deviceName);
+  if (!device) return { error: 'No matching watch.' };
+  if (!db) return { error: 'Wellbeing storage is unavailable.' };
+  const now = new Date();
+  const window = wellnessWindow(ctx.entitlements, { now, days });
+  if (!window) return { error: 'Active service required.' };
+  const consent = await db.collection('wellbeingConsents').doc(device.imei).get();
+  if (!consent.exists || !validConsent(consent.data(), now)) {
+    return { error: 'Current wearer consent is required.', code: 'consent_required' };
+  }
+  const safeLimit = Math.min(20, Math.max(1, Number(limit) || 6));
+  const snap = await db
+    .collection('devices')
+    .doc(device.imei)
+    .collection('wellbeingReadings')
+    .where('displayable', '==', true)
+    .where('observedAt', '>=', window.start)
+    .where('observedAt', '<', window.end)
+    .orderBy('observedAt', 'desc')
+    .limit(safeLimit)
+    .get();
+  // Consent may have been revoked while the Admin SDK query was in flight.
+  const currentConsent = await db.collection('wellbeingConsents').doc(device.imei).get();
+  if (!currentConsent.exists || !validConsent(currentConsent.data(), new Date())) {
+    return { error: 'Current wearer consent is required.', code: 'consent_required' };
+  }
+  return {
+    name: deviceLabel(device),
+    readings: snap.docs.filter(doc => doc.data()?.displayable === true &&
+      wellnessRecordInWindow(doc.data()?.observedAt, window, now)).map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        metricSet: data.metricSet || null,
+        values: data.values || {},
+        quality: data.quality || null,
+        observedAt: data.observedAt?.toDate?.()?.toISOString?.()
+          || data.observedAt?.toISOString?.()
+          || data.observedAt
+          || null,
+      };
+    }),
+  };
 }
 
 async function getDailySummary(
@@ -1023,6 +1074,7 @@ async function runTool(db, ctx, name, input) {
     send_device_command: FEATURE.WHATSAPP_WATCH_COMMANDS,
     schedule_reminder: FEATURE.MEDICATION_REMINDERS,
     get_daily_summary: FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
+    get_wellbeing_readings: FEATURE.WHATSAPP_QA,
     get_activity_summary: FEATURE.WHATSAPP_QA,
   }[name];
   if (requiredFeature && !hasEntitlement(ctx?.entitlements, requiredFeature)) {
@@ -1041,6 +1093,9 @@ async function runTool(db, ctx, name, input) {
       return getRecentJourneys(db, ctx, input || {});
     case 'get_daily_summary':
       return getDailySummary(db, ctx, input || {});
+    case 'get_wellbeing_readings':
+      if (config.careWellbeingCustomerEnabled !== true) return { error: 'Wellbeing is not customer-enabled.', code: 'feature_disabled' };
+      return getWellbeingReadings(db, ctx, input || {});
     case 'get_activity_summary':
       if (config.activityStepsCustomerEnabled !== true) return { error: 'Activity is not customer-enabled.', code: 'feature_disabled' };
       return getActivitySummary(db, ctx, input || {});
@@ -1071,6 +1126,7 @@ module.exports = {
   getDeviceIntelligence,
   getRecentJourneys,
   getDailySummary,
+  getWellbeingReadings,
   getActivitySummary,
   executeConfirmedAction,
   planBoundaryReply,

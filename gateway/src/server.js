@@ -52,8 +52,10 @@ const {
 const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
+const { startProfileWeather } = require('./profile-weather');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
+const { createWellbeingStore } = require('./care-wellbeing');
 const { claimSosIncident } = require('./sos-incident-window');
 const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, observeHomeWifiWalk } = require('./wifi-home-runtime');
 const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
@@ -73,6 +75,8 @@ const {
   unregisterSession,
 
   getSession,
+
+  findSocketsForDevice,
 
   touchSessionActivity,
 
@@ -125,12 +129,39 @@ const {
 
 initFirestore();
 
+const temperatureTrialQuarantine = require('./temperature-trial-quarantine')
+  .createTemperatureTrialQuarantine({ pilotImei: config.wifiHomePilotImei });
+const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbeingStore({
+  db: getDb(),
+  enabled: config.careWellbeingIngestEnabled,
+  deviceMode: config.careWellbeingDeviceMode,
+  customerEnabled: config.careWellbeingCustomerEnabled,
+  retentionDays: config.careWellbeingRetentionDays,
+  temperaturePilotImei: config.wifiHomePilotImei,
+  temperatureTrialQuarantine,
+}) : null;
+const temperatureCapture = config.temperatureCaptureEnabled === true
+  ? require('./temperature-capture').startTemperatureCapture({ config, db: getDb(), enabled: true })
+  : null;
+const wearCapture = config.wearCaptureEnabled === true
+  ? require('./wear-capture').startWearCapture({ enabled: true, pilotImei: config.wifiHomePilotImei })
+  : null;
+const wearSensorCapture = config.wearSensorCaptureEnabled === true
+  ? require('./wear-sensor-capture').startWearSensorCapture({ config, db: getDb(), enabled: true })
+  : null;
+const wearWireCapture = config.wearWireCaptureEnabled === true
+  ? require('./wear-wire-capture').startWearWireCapture({ config, db: getDb(), enabled: true })
+  : null;
 const { createWearEvidence } = require('./wear-evidence');
 const wearEvidence = createWearEvidence({ db: getDb(),
   enabled: config.activityStepsIngestEnabled || config.careWellbeingIngestEnabled || config.removalAlertsIngestEnabled,
   deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
   onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
 });
+const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRoutinePilotEnabled
+  ? require('./wellness-routine-runtime').startWellnessRoutineRuntime({
+    db: getDb(), config, wearEvidence, temperatureTrialQuarantine,
+  }) : null;
 
 const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
   enabled: config.activityStepsIngestEnabled,
@@ -191,6 +222,18 @@ startHttpServer();
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
   startReminderScheduler(getDb(), { checkIntervalMs: 60000 });
+  startProfileWeather({ db: getDb(), apiKey: config.openWeatherMapKey });
+}
+
+if (config.careWellbeingIngestEnabled) {
+  const wellbeingCleanupTimer = setInterval(() => {
+    wellbeingStore.cleanupExpired().then(({ deleted }) => {
+      if (deleted > 0) console.log(`[wellbeing] removed ${deleted} expired reading(s)`);
+    }).catch((error) => {
+      console.error('[wellbeing] retention cleanup failed:', error.message);
+    });
+  }, 6 * 60 * 60 * 1000);
+  wellbeingCleanupTimer.unref?.();
 }
 
 
@@ -1138,6 +1181,16 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           );
         }
 
+      } else if (event.type === 'health_reading' && wellbeingStore) {
+
+        const result = await wellbeingStore.ingest(event, eventReceivedAt);
+        // Health values are deliberately excluded from routine logs. The
+        // acceptance inspector reads protected evidence after explicit consent.
+        console.log(
+          `[wellbeing] ${event.imei} metric=${result.metricSet || event.metric || 'unknown'} ` +
+            `status=${result.status}`
+        );
+
       } else if (event.type === 'crc_error') {
 
         console.warn('[gateway] CRC mismatch — frame dropped');
@@ -1226,7 +1279,12 @@ const server = net.createServer((socket) => {
 
   const remote = `${socket.remoteAddress}:${socket.remotePort}`;
 
-  console.log(`[tcp] connected ${remote}`);
+  const connectedAt = new Date().toISOString();
+  let lastDataAt = null;
+  let peerEndAt = null;
+  let socketErrorCode = null;
+
+  console.log(`[tcp] connected ${remote} at=${connectedAt}`);
 
   registerSession(socket, {
     onRecoveryProbe: ({ imei, protocolId, reason }) => {
@@ -1256,6 +1314,12 @@ const server = net.createServer((socket) => {
 
     if (!session) return;
 
+    // Preserve incoming bytes before framing can discard noise or decoding can
+    // reject a frame. Identity/consent are checked separately before persistence.
+    wearWireCapture?.observeChunk(socket, session, chunk);
+
+    lastDataAt = new Date().toISOString();
+
     noteSessionPacket(socket);
 
     session.buffer = Buffer.concat([session.buffer, chunk]);
@@ -1274,7 +1338,12 @@ const server = net.createServer((socket) => {
 
       const { acks, events } = handlePacket(decoded, session);
 
+      wearWireCapture?.observeIdentity(socket, session);
+
       const receivedAt = new Date();
+      const capturedAlarm = wearCapture?.observePacket({
+        socket, session, frame, decoded, receivedAt,
+      });
       try { wearEvidence.capture(decoded, events, session, receivedAt); }
       catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
@@ -1295,10 +1364,23 @@ const server = net.createServer((socket) => {
 
       for (const ack of acks) {
 
-        socket.write(ack);
+        if (capturedAlarm) wearCapture.writeAlarmAck(socket, ack, capturedAlarm);
+        else socket.write(ack);
 
       }
 
+      // Optional private payload capture runs after ACKs and never awaits I/O in
+      // the packet path. It does not modify events, readings or notifications.
+      try { temperatureCapture?.observe(decoded, session, receivedAt); }
+      catch { console.warn('[temperature-capture] capture_failed'); }
+      try { wearSensorCapture?.observe(decoded, session, receivedAt, frame); }
+      catch { console.warn('[wear-sensor-capture] capture_failed'); }
+      try { wellnessRoutine?.observe(decoded, session); }
+      catch { console.warn('[wellness-routine] observation_failed'); }
+
+      // Independent of capture success and request flags; preserve exclusion
+      // on the receipt event even if it is applied after the trial resumes.
+      temperatureTrialQuarantine.markEvents(events);
       const apply = () => applyEvents(events, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&
           !events.some(e => e.type === 'alarm')
@@ -1315,22 +1397,72 @@ const server = net.createServer((socket) => {
 
 
 
+  // The peer here may be a tunnel agent. An end event records transport
+  // evidence; it cannot identify the watch, carrier or tunnel as the cause.
+  socket.on('end', () => {
+    peerEndAt = new Date().toISOString();
+    wearCapture?.observeSocket('peer_end', socket, getSession(socket), {
+      connectedAt, lastDataAt, peerEndAt,
+    });
+  });
+
   socket.on('error', (err) => {
 
-    console.error(`[tcp] error ${remote}:`, err.message);
+    socketErrorCode = typeof err.code === 'string' ? err.code : 'unknown';
+    wearCapture?.observeSocket('socket_error', socket, getSession(socket), {
+      connectedAt, lastDataAt, peerEndAt, socketErrorCode,
+    });
+    console.error(
+      `[tcp] error ${remote} at=${new Date().toISOString()} code=${socketErrorCode}:`,
+      err.message
+    );
 
   });
 
 
 
-  socket.on('close', () => {
+  socket.on('close', (hadError) => {
 
     const session = getSession(socket);
+    wearWireCapture?.observeClose(socket);
+    wearCapture?.observeSocket('socket_closed', socket, session, {
+      connectedAt, lastDataAt, peerEndAt, hadError, socketErrorCode,
+      localCloseReason: session?.localCloseReason,
+      localCloseRequestedAt: session?.localCloseRequestedAt,
+      bytesRead: socket.bytesRead, bytesWritten: socket.bytesWritten,
+    });
 
-    console.log(`[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'}`);
+    console.log(
+      `[tcp] disconnected ${remote} imei=${session?.imei || 'unknown'} ` +
+      JSON.stringify({
+        at: new Date().toISOString(),
+        connectedAt,
+        lastDataAt,
+        peerEndAt,
+        hadError: hadError === true,
+        socketErrorCode,
+        localCloseReason: session?.localCloseReason || null,
+        localCloseRequestedAt: session?.localCloseRequestedAt || null,
+        bytesRead: socket.bytesRead,
+        bytesWritten: socket.bytesWritten,
+      })
+    );
+
+    // A replacement TCP connection can already be reporting when this older
+    // socket closes. Remove only this socket before deciding device-wide state.
+    unregisterSession(socket);
 
     if (session?.imei) {
       wearEvidence.disconnect(session.imei, session);
+
+      const remainingSessions = findSocketsForDevice(session.imei)
+        .filter(({ socket: remaining }) => !remaining.destroyed);
+      if (remainingSessions.length > 0) {
+        console.log(
+          `[tcp] device remains connected imei=${session.imei} sessions=${remainingSessions.length}`
+        );
+        return;
+      }
 
       noteDiagnosticEventForJourney(
         session.imei,
@@ -1370,8 +1502,6 @@ const server = net.createServer((socket) => {
       onDeviceDisconnect(session.imei);
 
     }
-
-    unregisterSession(socket);
 
   });
 

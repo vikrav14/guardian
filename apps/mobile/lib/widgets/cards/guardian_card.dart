@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'guardian_surface.dart';
 import '../../theme/app_theme.dart';
 
 class GuardianCard extends StatelessWidget {
@@ -29,38 +30,18 @@ class GuardianCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final content = Material(
+    final content = GuardianSurface(
+      padding: EdgeInsets.zero,
+      radius: radius,
       color: color ?? (glass ? colors.glass : colors.surface),
-      borderRadius: BorderRadius.circular(radius),
+      borderColor: borderColor,
+      elevation: elevation,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(radius),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color:
-                  borderColor ??
-                  (glass
-                      ? Colors.white.withValues(alpha: 0.45)
-                      : colors.border),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: colors.textPrimary.withValues(
-                  alpha: 0.035 + (elevation * 0.018),
-                ),
-                blurRadius: 18 + (elevation * 6),
-                offset: Offset(0, 6 + (elevation * 3)),
-              ),
-            ],
-          ),
-          child: child,
-        ),
+        child: Padding(padding: padding, child: child),
       ),
     );
-
     if (!glass) return content;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),

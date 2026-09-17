@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../widgets/cards/guardian_surface.dart';
 import '../models/activity_day.dart';
+import '../models/wear_status.dart';
 import '../theme/app_theme.dart';
 import 'wellness_sample.dart';
+import 'wellness_control.dart';
 import 'wellness_window.dart';
 
 class WellnessCard extends StatelessWidget {
@@ -17,6 +20,9 @@ class WellnessCard extends StatelessWidget {
     this.readingsError = false,
     this.loading = false,
     this.onOpen,
+    this.onRoutine,
+    this.wearStatus = const WearStatus(),
+    this.pilotPreview = false,
   });
   final List<ActivityDay> days;
   final List<WellnessSample> samples;
@@ -26,7 +32,9 @@ class WellnessCard extends StatelessWidget {
       activityError,
       readingsError,
       loading;
-  final VoidCallback? onOpen;
+  final VoidCallback? onOpen, onRoutine;
+  final WearStatus wearStatus;
+  final bool pilotPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +58,10 @@ class WellnessCard extends StatelessWidget {
 
     final heart = latest(WellnessMetric.heartRate);
     final oxygen = latest(WellnessMetric.bloodOxygen);
+    final pressure = latest(WellnessMetric.bloodPressure);
+    final temperature = pilotPreview
+        ? latest(WellnessMetric.skinTemperature)
+        : null;
     String status(bool available, bool error, DateTime? at) => !available
         ? 'Not available yet'
         : error
@@ -64,6 +76,20 @@ class WellnessCard extends StatelessWidget {
           const WellnessHeading(
             title: 'Wellness',
             subtitle: 'Today’s watch readings',
+          ),
+          const SizedBox(height: 8),
+          if (pilotPreview) ...[
+            const Text(
+              'Private preview · watch readings are unverified. Wearing at measurement time is unconfirmed.',
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            wearStatus.labelAt(now),
+            style: TextStyle(
+              fontSize: 12,
+              color: context.guardianColors.textSecondary,
+            ),
           ),
           if (loading) ...[
             const SizedBox(height: 12),
@@ -83,7 +109,9 @@ class WellnessCard extends StatelessWidget {
                   SizedBox(
                     width: width,
                     child: WellnessTile(
-                      label: 'Steps today',
+                      label: pilotPreview
+                          ? 'Recorded steps today'
+                          : 'Steps today',
                       icon: Icons.directions_walk_rounded,
                       tint: const Color(0xFF15956F),
                       value:
@@ -137,17 +165,40 @@ class WellnessCard extends StatelessWidget {
                   ),
                   SizedBox(
                     width: width,
-                    child: const WellnessTile(
+                    child: WellnessTile(
                       label: 'Skin temperature',
                       icon: Icons.thermostat_outlined,
-                      tint: Color(0xFF7860AA),
-                      value: '— °C',
-                      status: 'Not available yet',
+                      tint: const Color(0xFF7860AA),
+                      value: pilotPreview && readingsAvailable && !readingsError
+                          ? temperature?.value ?? '— °C'
+                          : '— °C',
+                      status:
+                          pilotPreview &&
+                              readingsAvailable &&
+                              !readingsError &&
+                              temperature != null
+                          ? 'Received ${wellnessAge(temperature.recordedAt, now)}'
+                          : status(
+                              pilotPreview && readingsAvailable,
+                              readingsError,
+                              null,
+                            ),
                     ),
                   ),
                 ],
               );
             },
+          ),
+          const SizedBox(height: 12),
+          _BloodPressureRow(
+            value: readingsAvailable && !readingsError
+                ? pressure?.value ?? '—/— mmHg'
+                : '—/— mmHg',
+            status: status(
+              readingsAvailable,
+              readingsError,
+              pressure?.recordedAt,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -157,14 +208,93 @@ class WellnessCard extends StatelessWidget {
               color: context.guardianColors.textSecondary,
             ),
           ),
-          if (onOpen != null) ...[
+          if (onRoutine != null) ...[
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onOpen,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-              label: const Text('View wellness'),
+            WellnessControl(
+              emphasized: true,
+              builder: (style) => OutlinedButton.icon(
+                style: style,
+                onPressed: onRoutine,
+                icon: const Icon(Icons.schedule),
+                label: const Text('Wellness routine'),
+              ),
             ),
           ],
+          if (onOpen != null) ...[
+            const SizedBox(height: 12),
+            WellnessControl(
+              builder: (style) => OutlinedButton.icon(
+                style: style,
+                onPressed: onOpen,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('View wellness'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BloodPressureRow extends StatelessWidget {
+  const _BloodPressureRow({required this.value, required this.status});
+  final String value, status;
+
+  @override
+  Widget build(BuildContext context) {
+    const tint = Color(0xFFAA7845);
+    final colors = context.guardianColors;
+    return GuardianSurface(
+      padding: const EdgeInsets.all(14),
+      radius: 16,
+      tint: tint,
+      tonal: true,
+      elevation: 0,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.speed_outlined, color: tint, size: 25),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Blood pressure',
+                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Watch estimate',
+                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -196,12 +326,12 @@ class WellnessTile extends StatelessWidget {
   final IconData icon;
   final Color tint;
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => GuardianSurface(
     padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: tint.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(16),
-    ),
+    radius: 16,
+    tint: tint,
+    tonal: true,
+    elevation: 0,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -284,13 +414,6 @@ class WellnessSurface extends StatelessWidget {
   const WellnessSurface({super.key, required this.child});
   final Widget child;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: context.guardianColors.surface,
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: context.guardianColors.border),
-    ),
-    child: child,
-  );
+  Widget build(BuildContext context) =>
+      GuardianSurface(padding: const EdgeInsets.all(20), child: child);
 }

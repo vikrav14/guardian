@@ -20,6 +20,11 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const {
+  buildWellbeingRequestCommand,
+  buildWellbeingScheduleCommand,
+  validConsent,
+} = require('./care-wellbeing');
 const { provisionActivitySteps } = require('./activity-steps-provisioning');
 const { getWifiHomeRuntimeStatus } = require('./wifi-home-runtime');
 const { getWifiFenceValidation, controlWifiFenceValidation, sendSingleRouterTrial } = require('./wifi-fence-runtime');
@@ -53,6 +58,7 @@ const { formatBatteryReply } = require('./battery-freshness');
 const { formatLocationReply } = require('./location-reply');
 const { formatJourneyReply } = require('./journey-reply');
 const { formatDailySummaryReply } = require('./daily-summary-reply');
+const { formatWellbeingReply } = require('./wellbeing-reply');
 const { formatActivityReply } = require('./activity-reply');
 const { extractTimePeriod, extractRequestedTimePeriod } = require('./language-understanding');
 const { answerWeatherQuery } = require('./weather-reply');
@@ -501,6 +507,40 @@ async function handleChat({ from, text }) {
         destination: 'whatsapp',
         replyLength: reply.length,
         fallbackReason: null,
+      });
+      return { ctx, reply, deterministic: true };
+    }
+
+    if (intent.type === 'WELLBEING_QUERY') {
+      if (!config.careWellbeingCustomerEnabled) {
+        const reply = 'Watch wellbeing readings are still in device acceptance and are not customer-enabled yet.';
+        idempotencyStore.store(requestId, reply);
+        await auditLog.recordResponse({
+          requestId,
+          destination: 'whatsapp',
+          replyLength: reply.length,
+          fallbackReason: 'care_wellbeing_customer_disabled',
+        });
+        return { ctx, reply, deterministic: true };
+      }
+
+      let wellbeingResult;
+      try {
+        wellbeingResult = await runTool(db, ctx, 'get_wellbeing_readings', {
+          imei: wearerResolution.wearer?.imei,
+          limit: 6,
+        });
+      } catch (err) {
+        await auditLog.recordError({ requestId, phase: 'wellbeing_query', error: err });
+        wellbeingResult = { error: err.message };
+      }
+      const reply = formatWellbeingReply(wellbeingResult);
+      idempotencyStore.store(requestId, reply);
+      await auditLog.recordResponse({
+        requestId,
+        destination: 'whatsapp',
+        replyLength: reply.length,
+        fallbackReason: wellbeingResult?.error ? 'wellbeing_query_failed' : null,
       });
       return { ctx, reply, deterministic: true };
     }
@@ -1172,6 +1212,151 @@ function startHttpServer() {
 
       if (
         req.method === 'POST' &&
+        url.pathname === '/admin/device-wellbeing/request'
+      ) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        if (!config.careWellbeingRequestEnabled) {
+          sendJson(res, 409, {
+            error: 'Care wellbeing request pilot is disabled',
+            requiredSetting: 'CARE_WELLBEING_REQUEST_ENABLED=true',
+          });
+          return;
+        }
+
+        let payload;
+        try {
+          const raw = await readBody(req);
+          payload = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'Valid JSON body required' });
+          return;
+        }
+
+        const imei = String(payload.imei || '').trim();
+        if (!/^\d{15}$/.test(imei)) {
+          sendJson(res, 400, { error: 'The 15-digit hardware IMEI is required' });
+          return;
+        }
+
+        const wellbeingDb = getDb();
+        if (!wellbeingDb) {
+          sendJson(res, 503, { error: 'Firestore is unavailable' });
+          return;
+        }
+        const consentSnap = await wellbeingDb
+          .collection('wellbeingConsents')
+          .doc(imei)
+          .get();
+        if (!consentSnap.exists || !validConsent(consentSnap.data(), new Date())) {
+          sendJson(res, 403, {
+            error: 'A current backend-recorded wearer consent is required',
+          });
+          return;
+        }
+
+        let command;
+        try {
+          const action = String(payload.action || 'single');
+          command = action === 'schedule'
+            ? buildWellbeingScheduleCommand({
+                enabled: true,
+                intervalSeconds: payload.intervalSeconds,
+              })
+            : action === 'stop'
+              ? buildWellbeingScheduleCommand({ enabled: false })
+              : buildWellbeingRequestCommand(String(payload.metricSet || ''));
+        } catch (error) {
+          sendJson(res, 400, { error: error.message });
+          return;
+        }
+
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const routine = getWellnessRoutineRuntime();
+        try {
+          routine?.assertMeasurementAvailable(imei, command);
+          // Reserve before writing: a thrown write can still have reached the
+          // watch, so it must not be followed immediately by another trial.
+          routine?.noteExternalMeasurement(imei, command);
+        } catch (error) {
+          sendJson(res, 409, { error: error.message });
+          return;
+        }
+        const result = sendDownlinkCommand(imei, command);
+        sendJson(res, result.ok ? 200 : 404, {
+          ...result,
+          action: String(payload.action || 'single'),
+          intervalSeconds: payload.action === 'schedule'
+            ? Number(payload.intervalSeconds)
+            : null,
+          pilotOnly: true,
+          customerVisible: false,
+        });
+        return;
+      }
+
+      if (url.pathname === '/admin/wellness-sequence' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const { parseConditionalWellnessOperation } = require('./conditional-wellness-trial');
+        const routine = getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') {
+            sendJson(res, 200, await routine.wellnessSequenceStatus({ includeValues: url.searchParams.get('includeValues') === '1' }));
+          } else {
+            let payload;
+            try { payload = parseConditionalWellnessOperation(JSON.parse(await readBody(req))); }
+            catch { sendJson(res, 400, { error: 'Use action single with operatorPosition worn or removed.' }); return; }
+            sendJson(res, 200, await routine.requestWellnessSequence(payload));
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Conditional wellness sequence failed.' : error.message }); }
+        return;
+      }
+
+      if (url.pathname === '/admin/temperature-trial' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        const { parseTemperatureTrialOperation } = require('./supervised-temperature-trial');
+        const routine = getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') {
+            sendJson(res, 200, await routine.temperatureTrialStatus({ includeValues: url.searchParams.get('includeValues') === '1' }));
+          } else {
+            let payload;
+            try { payload = parseTemperatureTrialOperation(JSON.parse(await readBody(req))); }
+            catch { sendJson(res, 400, { error: 'Use action single with operatorPosition worn.' }); return; }
+            sendJson(res, 200, await routine.requestTemperatureTrial(payload));
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Temperature trial failed.' : error.message }); }
+        return;
+      }
+
+      if (url.pathname === '/admin/wellness-routine' && ['GET', 'POST'].includes(req.method)) {
+        if (!(await requireStrictAdmin(req, res))) return;
+        const { getWellnessRoutineRuntime, parseRoutineOperation } = require('./wellness-routine-runtime');
+        const routine = getWellnessRoutineRuntime();
+        if (!routine) { sendJson(res, 503, { error: 'Pilot runtime unavailable.' }); return; }
+        try {
+          if (req.method === 'GET') sendJson(res, 200, await routine.status());
+          else {
+            let payload;
+            try { payload = parseRoutineOperation(JSON.parse(await readBody(req))); }
+            catch {
+              sendJson(res, 400, { error: 'Use temperature_once, firmware_version, removal_test_enable or removal_test_disable; only firmware_version accepts includeReply: true.' }); return;
+            }
+            const result = payload.action.startsWith('removal_test_')
+              ? routine.requestRemovalTest(payload.action === 'removal_test_enable')
+              : payload.action === 'firmware_version'
+                ? routine.requestVersion({ includeReply: payload.includeReply }) : await routine.requestTemperature();
+            sendJson(res, 200, result);
+          }
+        } catch (error) { sendJson(res, 409, { error: error.code ? 'Pilot operation failed.' : error.message }); }
+        return;
+      }
+
+      if (
+        req.method === 'POST' &&
         url.pathname === '/admin/device-activity-steps/pedometer'
       ) {
         if (!(await requireStrictAdmin(req, res))) {
@@ -1242,6 +1427,15 @@ function startHttpServer() {
           return;
         }
         const command = url.searchParams.get('command') || 'CR';
+        const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
+        try {
+          const routine = getWellnessRoutineRuntime();
+          routine?.assertMeasurementAvailable(imei, command);
+          routine?.noteExternalMeasurement(imei, command);
+        } catch (error) {
+          sendJson(res, 409, { error: error.message });
+          return;
+        }
         const result =
           command === 'CR'
             ? sendContinuousReporting(imei)

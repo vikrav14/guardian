@@ -12,10 +12,23 @@
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "activity:provision": "node scripts/provision-activity-steps.js",
     "wear:check": "node scripts/inspect-wear-evidence.js",
+    "wear:capture": "node scripts/capture-wear.js",
+    "wear:sensor-capture": "node scripts/capture-wear-sensors.js",
+    "wear:wire-capture": "node scripts/capture-wear-wire.js",
+    "wear:trial": "node scripts/trial-wear-removal.js",
     "activity:check": "node scripts/inspect-activity-counter.js",
     "sos:alarm-mode": "node scripts/queue-v52-alarm-mode.js",
     "phonebook:provision": "node scripts/send-phonebook-contact.js",
     "phonebook:test": "node scripts/send-phonebook-contact.js",
+    "wellbeing:consent": "node scripts/manage-wellbeing-consent.js",
+    "wellbeing:request": "node scripts/request-wellbeing-reading.js",
+    "wellness:check": "node scripts/inspect-wellness-pilot.js",
+    "weather:check": "node scripts/inspect-profile-weather.js",
+    "temperature:capture": "node scripts/capture-temperature.js",
+    "temperature:trial": "node scripts/trial-temperature.js",
+    "wellness:sequence": "node scripts/trial-wellness-sequence.js",
+    "temperature:import": "node scripts/import-temperature-capture.js",
+    "wellness:preview": "node scripts/manage-wellness-preview.js",
     "journey:enrich": "node scripts/enrich-journey-presentation.js",
     "journey:recover": "node scripts/recover-journey-history.js",
     "journey:status": "node scripts/inspect-journey-journal.js",
@@ -23,7 +36,8 @@
     "wifi-home:check": "node scripts/inspect-wifi-home.js",
     "wifi-home:fence": "node scripts/inspect-wifi-fence.js",
     "wifi-home:fence-trial": "node scripts/trial-wifi-fence-single-router.js",
-    "test": "node --test"
+    "test": "node --test",
+    "wellness:routine": "node scripts/inspect-wellness-routine.js"
   },
   "engines": {
     "node": ">=18"

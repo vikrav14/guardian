@@ -32,6 +32,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     static now() { return clock; }
   }
   const modules = {
+    './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
     './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null, removalAlertsIngestEnabled: wearDb !== null },
