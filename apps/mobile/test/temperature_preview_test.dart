@@ -4,7 +4,6 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/wellbeing_reading.dart';
-import 'package:guardian/services/guardian_entitlements.dart';
 import 'package:guardian/services/guardian_services.dart';
 import 'package:guardian/wellness/wellness_card.dart';
 import 'package:guardian/wellness/wellness_history.dart';
@@ -109,7 +108,7 @@ void main() {
     expect(find.text('— bpm'), findsOneWidget);
     await show(available: false);
     expect(find.text('34.56 °C'), findsNothing);
-    expect(find.text('Not available yet'), findsOneWidget);
+    expect(find.text('Not available yet'), findsNWidgets(4));
     await show(error: true);
     expect(find.text('34.56 °C'), findsNothing);
     expect(find.text('— °C'), findsOneWidget);

@@ -164,14 +164,11 @@ class WellnessCard extends StatelessWidget {
                       value: readingsAvailable && !readingsError
                           ? temperature?.value ?? '— °C'
                           : '— °C',
-                      status:
-                          readingsAvailable && !readingsError && temperature != null
+                      status: readingsAvailable &&
+                              !readingsError &&
+                              temperature != null
                           ? 'Received ${wellnessAge(temperature.recordedAt, now)}'
-                          : status(
-                              readingsAvailable,
-                              readingsError,
-                              null,
-                            ),
+                          : status(readingsAvailable, readingsError, null),
                     ),
                   ),
                 ],

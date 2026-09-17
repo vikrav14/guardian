@@ -153,7 +153,7 @@ test('missing, revoked, expired, or untrusted consent blocks starts but permits 
     { consentPatch: { managedBy: 'client' } },
     { consentPatch: { wearerAcknowledgedAt: new Date('2099-01-01') } },
   ]) {
-    await seed('family', options);
+    await seed('care', options);
     await assertFails(write('pilot', { routine: 'gentle' }));
     await assertFails(write());
     await assertSucceeds(write('pilot', { routine: 'manual' }));

@@ -430,7 +430,9 @@ class _WellnessHistoryState extends State<WellnessHistory> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                includesToday ? 'Steps today' : 'Latest recorded day in this period',
+                includesToday
+                    ? 'Steps today'
+                    : 'Latest recorded day in this period',
                 style: TextStyle(color: colors.textSecondary),
               ),
               const SizedBox(height: 6),
@@ -784,12 +786,10 @@ class _HistoryDisclosure extends StatelessWidget {
     required this.title,
     required this.children,
     this.subtitle,
-    this.childrenPadding = EdgeInsets.zero,
   });
   final Widget title;
   final Widget? subtitle;
   final List<Widget> children;
-  final EdgeInsetsGeometry childrenPadding;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -798,7 +798,6 @@ class _HistoryDisclosure extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       tilePadding: EdgeInsets.zero,
-      childrenPadding: childrenPadding,
       children: children,
     ),
   );

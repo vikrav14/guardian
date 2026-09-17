@@ -180,7 +180,8 @@ class _WellnessDataState extends State<_WellnessData>
             limit: widget.detail ? _historyDays : 1,
           )
         : Stream.value(const []);
-    _readings = widget.readingsSource?.call(_window, widget.subscription) ??
+    _readings =
+        widget.readingsSource?.call(_window, widget.subscription) ??
         Stream.value(const []);
   }
 
@@ -285,7 +286,8 @@ class _WellnessDataState extends State<_WellnessData>
               : readings.data ?? <WellnessSample>[];
           if (!widget.detail) {
             return WellnessCard(
-              onRoutine: widget.subscription.has(GuardianFeature.wellnessReadings)
+              onRoutine:
+                  widget.subscription.has(GuardianFeature.wellnessReadings)
                   ? () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => WellnessRoutinePage(
@@ -300,8 +302,7 @@ class _WellnessDataState extends State<_WellnessData>
               samples: samples,
               now: _now,
               activityAvailable: widget.activityEnabled,
-              readingsAvailable:
-                  widget.readingsSource != null,
+              readingsAvailable: widget.readingsSource != null,
               activityError: activity.hasError,
               readingsError: readings.hasError,
               loading:
@@ -338,8 +339,7 @@ class _WellnessDataState extends State<_WellnessData>
             samples: samples,
             now: _now,
             activityAvailable: widget.activityEnabled,
-            readingsAvailable:
-                widget.readingsSource != null,
+            readingsAvailable: widget.readingsSource != null,
             activityError: activity.hasError,
             readingError: readings.hasError,
             onPrevious: care ? () => _move(_window.start) : null,

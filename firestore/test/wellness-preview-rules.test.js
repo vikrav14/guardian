@@ -29,11 +29,11 @@ before(async () => {
     });
     await setDoc(doc(db, 'devices', imei, 'wellbeingReadings', 'estimate'), {
       metricSet: 'spo2', values: { spo2Percent: 98 },
-      displayable: false, quality: 'transport_valid_unverified', observedAt: today,
+      displayable: true, quality: 'transport_valid_unverified', observedAt: today,
     });
     await setDoc(doc(db, 'devices', imei, 'activityDays', 'today'), {
       schemaVersion: 2, aggregation: 'observed_delta', localDate: today.toISOString().slice(0, 10),
-      recordedSteps: 120, displayable: false, lastObservedAt: today,
+      recordedSteps: 120, displayable: true, lastObservedAt: today,
     });
   });
 });

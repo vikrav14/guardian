@@ -396,7 +396,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           await save(tester, boundaryKey, '${plan}_history_${width.toInt()}');
-          if (plan == 'family') {
+          if (plan == 'care') {
             for (final metric in [
               WellnessMetric.bloodPressure,
               WellnessMetric.skinTemperature,

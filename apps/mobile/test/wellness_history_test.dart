@@ -171,7 +171,7 @@ void main() {
           samples: samples,
           now: now,
         ).readings,
-        isEmpty,
+        hasLength(1),
       );
     },
   );
@@ -214,6 +214,7 @@ void main() {
     bool activityError = false,
     bool available = true,
     List<WellnessSample>? readings,
+    bool? initialActivity,
     Size size = const Size(1000, 1100),
     double scale = 1,
     bool dark = false,
@@ -248,6 +249,7 @@ void main() {
                 readingsAvailable: available,
                 readingError: error,
                 activityError: activityError,
+                initialActivity: initialActivity,
                 onToday: onToday,
                 onWeek: onWeek,
               ),
@@ -305,10 +307,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      await show(tester, available: false);
+      await show(tester, available: false, initialActivity: false);
       expect(find.textContaining('34.56'), findsNothing);
       expect(find.text('Heart rate over time'), findsOneWidget);
-      await show(tester, error: true);
+      await show(tester, error: true, initialActivity: false);
       expect(find.byType(WellnessChart), findsNothing);
       expect(find.text('72 bpm'), findsNothing);
       expect(find.text('Reading log'), findsNothing);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/care_profile.dart';
 import '../models/device.dart';
@@ -668,10 +669,14 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           StreamBuilder<List<MedicationReminder>>(
-            stream: MedicationReminderService().watchForDevice(
-              widget.device.imei,
-              subscription: subscription,
-            ),
+            stream: Firebase.apps.isEmpty
+                ? Stream<List<MedicationReminder>>.value(
+                    const <MedicationReminder>[],
+                  )
+                : MedicationReminderService().watchForDevice(
+                    widget.device.imei,
+                    subscription: subscription,
+                  ),
             builder: (context, snapshot) {
               final reminders = snapshot.data ?? const <MedicationReminder>[];
               if (!snapshot.hasData) {

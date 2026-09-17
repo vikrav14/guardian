@@ -228,6 +228,7 @@ service cloud.firestore {
       match /wellbeingReadings/{readingId} {
         allow read: if linkedTo(imei)
           && activePlanAtLeast('care')
+          && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.observedAt)
           && activeWellbeingConsent(imei);
         allow write: if false;
@@ -281,6 +282,7 @@ service cloud.firestore {
       match /activityDays/{localDate} {
         allow read: if linkedTo(imei)
           && activePlanAtLeast('essential')
+          && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.lastObservedAt);
         allow create, update, delete: if false;
       }

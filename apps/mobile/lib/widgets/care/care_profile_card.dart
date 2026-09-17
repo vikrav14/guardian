@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../models/care_profile.dart';
 import '../../models/device.dart';
@@ -22,7 +23,9 @@ class CareProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Device?>(
-      stream: DeviceService().watchDevice(device.imei),
+      stream: Firebase.apps.isEmpty
+          ? null
+          : DeviceService().watchDevice(device.imei),
       initialData: device,
       builder: (context, snapshot) {
         final latest = snapshot.data ?? device;

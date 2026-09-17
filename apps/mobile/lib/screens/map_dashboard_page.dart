@@ -733,8 +733,8 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               activityEnabled: true,
               readingsSource:
                   entitlementScope
-                          .decision(GuardianFeature.wellnessReadings)
-                          .allowed
+                      .decision(GuardianFeature.wellnessReadings)
+                      .allowed
                   ? (window, subscription) =>
                         _wellbeingService.watchWellnessSamples(
                           selected.imei,
