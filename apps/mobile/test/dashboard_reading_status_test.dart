@@ -186,7 +186,9 @@ void main() {
       );
       expect(tile.presentation.tone, ReadingTone.neutral);
       await tester.pumpWidget(const SizedBox.shrink());
-      await stream.close();
+      await tester.runAsync(() async {
+        await stream.close();
+      });
     },
   );
 
@@ -229,9 +231,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Awaiting first check'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
-    for (final stream in streams.values) {
-      await stream.close();
-    }
+    await tester.runAsync(() async {
+      for (final stream in streams.values) {
+        await stream.close();
+      }
+    });
   });
 
   testWidgets('dated guidance fits a narrow screen with larger text', (
