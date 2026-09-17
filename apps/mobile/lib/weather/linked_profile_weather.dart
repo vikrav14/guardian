@@ -8,7 +8,8 @@ import '../wellness/linked_wellness_stream.dart';
 import '../widgets/dashboard/profile_weather_panel.dart';
 import 'profile_weather.dart';
 
-typedef ProfileWeatherSource = Stream<Map<String, dynamic>> Function(String imei);
+typedef ProfileWeatherSource =
+    Stream<Map<String, dynamic>> Function(String imei);
 
 Stream<Map<String, dynamic>> watchProfileWeather(String imei) =>
     watchLinkedWellnessData(
@@ -73,24 +74,26 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
     _expiryTimer?.cancel();
     _weather = null;
     _loading = true;
-    _subscription = widget.source(widget.imei).listen(
-      (map) {
-        if (!mounted || generation != _generation) return;
-        setState(() {
-          _weather = ProfileWeather.fromMap(map);
-          _loading = false;
-        });
-        _scheduleExpiry();
-      },
-      onError: (Object error, StackTrace stack) {
-        if (!mounted || generation != _generation) return;
-        _expiryTimer?.cancel();
-        setState(() {
-          _weather = null;
-          _loading = false;
-        });
-      },
-    );
+    _subscription = widget
+        .source(widget.imei)
+        .listen(
+          (map) {
+            if (!mounted || generation != _generation) return;
+            setState(() {
+              _weather = ProfileWeather.fromMap(map);
+              _loading = false;
+            });
+            _scheduleExpiry();
+          },
+          onError: (Object error, StackTrace stack) {
+            if (!mounted || generation != _generation) return;
+            _expiryTimer?.cancel();
+            setState(() {
+              _weather = null;
+              _loading = false;
+            });
+          },
+        );
   }
 
   void _scheduleExpiry() {
@@ -105,8 +108,8 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
       weather.fetchedAt!.add(ProfileWeather.maxAge),
     ]..sort();
     // One microsecond also crosses the inclusive maximum-age boundary.
-    final remaining = deadlines.first.difference(now) +
-        const Duration(microseconds: 1);
+    final remaining =
+        deadlines.first.difference(now) + const Duration(microseconds: 1);
     _expiryTimer = Timer(remaining, () {
       if (mounted) setState(() {});
     });

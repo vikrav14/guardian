@@ -244,33 +244,34 @@ void main() {
     }
   }
 
-  testWidgets('overview keeps remaining watch actions reachable after chat removal', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    await _pump(
-      tester,
-      dashboardFixtureOverview(
-        onCall: () => calls.add('call'),
-        onJourney: () => calls.add('journey'),
-        onHelp: () => calls.add('help'),
-        onWatchStatus: () => calls.add('watch'),
-        onLocationDetails: () => calls.add('location'),
-        onSafeZones: () => calls.add('zones'),
-      ),
-    );
+  testWidgets(
+    'overview keeps remaining watch actions reachable after chat removal',
+    (tester) async {
+      final calls = <String>[];
+      await _pump(
+        tester,
+        dashboardFixtureOverview(
+          onCall: () => calls.add('call'),
+          onJourney: () => calls.add('journey'),
+          onHelp: () => calls.add('help'),
+          onWatchStatus: () => calls.add('watch'),
+          onLocationDetails: () => calls.add('location'),
+          onSafeZones: () => calls.add('zones'),
+        ),
+      );
 
-    await _tap(tester, find.text('Call watch'));
-    await _tap(tester, find.text('View journey'));
-    await _tap(tester, find.text('Watch connected'));
-    await _tap(tester, find.text('Location details'));
-    await _tap(tester, find.text('Manage safe zones'));
+      await _tap(tester, find.text('Call watch'));
+      await _tap(tester, find.text('View journey'));
+      await _tap(tester, find.text('Watch connected'));
+      await _tap(tester, find.text('Location details'));
+      await _tap(tester, find.text('Manage safe zones'));
 
-    expect(calls, ['call', 'journey', 'watch', 'location', 'zones']);
-    expect(find.byTooltip('Open Guardian help'), findsNothing);
-    expect(find.text('Weather unavailable'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(calls, ['call', 'journey', 'watch', 'location', 'zones']);
+      expect(find.byTooltip('Open Guardian help'), findsNothing);
+      expect(find.text('Weather unavailable'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('removed chat shortcut is absent on a locked plan too', (
     tester,
@@ -672,4 +673,3 @@ void main() {
     },
   );
 }
-

@@ -25,62 +25,97 @@ Future<void> _pump(
       : dark
       ? GuardianThemeColors.dark
       : GuardianThemeColors.light;
-  await tester.pumpWidget(MaterialApp(
-    theme: ThemeData(
-      brightness: dark ? Brightness.dark : Brightness.light,
-      extensions: [colors],
-    ),
-    home: Builder(builder: (context) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(scale), highContrast: highContrast,
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: ThemeData(
+        brightness: dark ? Brightness.dark : Brightness.light,
+        extensions: [colors],
       ),
-      child: Scaffold(body: SingleChildScrollView(
-        child: Padding(padding: const EdgeInsets.all(12), child: child),
-      )),
-    )),
-  ));
+      home: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(scale),
+            highContrast: highContrast,
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: Padding(padding: const EdgeInsets.all(12), child: child),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
   await tester.pump();
 }
 
 void main() {
-  testWidgets('weather shows observation age, place and wind without replacing rain', (tester) async {
-    final data = weatherTestData(condition: 'rain')
-      ..['windKph'] = 35
-      ..['locationObservedAt'] = weatherTestNow.subtract(const Duration(minutes: 20)).toIso8601String();
-    await _pump(tester, ProfileWeatherPanel(
-      weather: ProfileWeather.fromMap(data), now: weatherTestNow,
-    ));
-    expect(find.text('25°C'), findsOneWidget);
-    expect(find.text('Rain'), findsOneWidget);
-    expect(find.text('Near Lower Vale'), findsOneWidget);
-    expect(find.text('Last known location · 20m ago'), findsOneWidget);
-    expect(find.text('Weather updated 8m ago'), findsOneWidget);
-    expect(find.text('Wind 35 km/h · Gusts 25 km/h'), findsOneWidget);
-    expect(find.byType(WeatherArtwork), findsNWidgets(2));
-    final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-    expect(tooltip.message, contains('Fetched 2026-09-17T11:59:00.000Z'));
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'weather shows observation age, place and wind without replacing rain',
+    (tester) async {
+      final data = weatherTestData(condition: 'rain')
+        ..['windKph'] = 35
+        ..['locationObservedAt'] = weatherTestNow
+            .subtract(const Duration(minutes: 20))
+            .toIso8601String();
+      await _pump(
+        tester,
+        ProfileWeatherPanel(
+          weather: ProfileWeather.fromMap(data),
+          now: weatherTestNow,
+        ),
+      );
+      expect(find.text('25°C'), findsOneWidget);
+      expect(find.text('Rain'), findsOneWidget);
+      expect(find.text('Near Lower Vale'), findsOneWidget);
+      expect(find.text('Last known location · 20m ago'), findsOneWidget);
+      expect(find.text('Weather updated 8m ago'), findsOneWidget);
+      expect(find.text('Wind 35 km/h · Gusts 25 km/h'), findsOneWidget);
+      expect(find.byType(WeatherArtwork), findsNWidgets(2));
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, contains('Fetched 2026-09-17T11:59:00.000Z'));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('unavailable, expired and loading show no misleading condition artwork', (tester) async {
-    for (final sample in [
-      const ProfileWeatherPanel(),
-      const ProfileWeatherPanel(loading: true),
-      ProfileWeatherPanel(weather: ProfileWeather.fromMap(weatherTestData()),
-        now: weatherTestNow.add(const Duration(hours: 1))),
-    ]) {
-      await _pump(tester, sample);
-      expect(find.byType(WeatherArtwork), findsNothing);
-      expect(find.text('25°C'), findsNothing);
-      expect(find.text(sample.loading ? 'Updating weather…' : 'Weather unavailable'), findsOneWidget);
-    }
-  });
+  testWidgets(
+    'unavailable, expired and loading show no misleading condition artwork',
+    (tester) async {
+      for (final sample in [
+        const ProfileWeatherPanel(),
+        const ProfileWeatherPanel(loading: true),
+        ProfileWeatherPanel(
+          weather: ProfileWeather.fromMap(weatherTestData()),
+          now: weatherTestNow.add(const Duration(hours: 1)),
+        ),
+      ]) {
+        await _pump(tester, sample);
+        expect(find.byType(WeatherArtwork), findsNothing);
+        expect(find.text('25°C'), findsNothing);
+        expect(
+          find.text(
+            sample.loading ? 'Updating weather…' : 'Weather unavailable',
+          ),
+          findsOneWidget,
+        );
+      }
+    },
+  );
 
-  testWidgets('unknown day period and missing wind do not invent sun or calm', (tester) async {
-    await _pump(tester, ProfileWeatherPanel(
-      weather: ProfileWeather.fromMap(weatherTestData(condition: 'clear')
-        ..['isDay'] = null ..['windKph'] = null), now: weatherTestNow,
-    ));
+  testWidgets('unknown day period and missing wind do not invent sun or calm', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      ProfileWeatherPanel(
+        weather: ProfileWeather.fromMap(
+          weatherTestData(condition: 'clear')
+            ..['isDay'] = null
+            ..['windKph'] = null,
+        ),
+        now: weatherTestNow,
+      ),
+    );
     expect(find.text('Clear skies'), findsOneWidget);
     expect(find.byType(WeatherArtwork), findsNothing);
     expect(find.textContaining('Wind '), findsNothing);
@@ -88,38 +123,65 @@ void main() {
 
   for (final width in [320.0, 1280.0]) {
     for (final dark in [false, true]) {
-      testWidgets('profile weather fits $width px dark $dark at 2× and preserves actions', (tester) async {
-        final calls = <String>[];
-        final device = Device(
-          imei: 'sample', online: true, nickname: 'Alex Morgan With A Long Family Name',
-          connectionState: 'live', lastHeartbeatAt: DateTime.now(),
-          batteryPercent: 82, batteryUpdatedAt: DateTime.now(),
-        );
-        await _pump(tester, GuardianOverviewHeader(
-          device: device, helpEnabled: true,
-          onCall: () => calls.add('call'),
-          onJourney: () => calls.add('journey'),
-          onWatchStatus: () => calls.add('watch'),
-          onHelp: () => calls.add('help'),
-          watchCheckStatus: const Text('Scheduled check · readings received'),
-          weather: ProfileWeatherPanel(
-            weather: ProfileWeather.fromMap(weatherTestData(condition: 'thunderstorm')
-              ..['placeName'] = 'L’Espérance Trébuchet, Rivière du Rempart'),
-            now: weatherTestNow,
-          ),
-        ), width: width, scale: 2, dark: dark, highContrast: !dark);
-        expect(tester.takeException(), isNull);
-        expect(find.text('Thunderstorms'), findsOneWidget);
-        expect(find.text('Scheduled check · readings received'), findsOneWidget);
-        expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
-        for (final label in ['Watch connected', 'Call watch', 'View journey']) {
-          await tester.ensureVisible(find.text(label));
-          await tester.tap(find.text(label));
-          await tester.pump();
-        }
-        expect(calls, ['watch', 'call', 'journey']);
-        expect(tester.takeException(), isNull);
-      });
+      testWidgets(
+        'profile weather fits $width px dark $dark at 2× and preserves actions',
+        (tester) async {
+          final calls = <String>[];
+          final device = Device(
+            imei: 'sample',
+            online: true,
+            nickname: 'Alex Morgan With A Long Family Name',
+            connectionState: 'live',
+            lastHeartbeatAt: DateTime.now(),
+            batteryPercent: 82,
+            batteryUpdatedAt: DateTime.now(),
+          );
+          await _pump(
+            tester,
+            GuardianOverviewHeader(
+              device: device,
+              helpEnabled: true,
+              onCall: () => calls.add('call'),
+              onJourney: () => calls.add('journey'),
+              onWatchStatus: () => calls.add('watch'),
+              onHelp: () => calls.add('help'),
+              watchCheckStatus: const Text(
+                'Scheduled check · readings received',
+              ),
+              weather: ProfileWeatherPanel(
+                weather: ProfileWeather.fromMap(
+                  weatherTestData(condition: 'thunderstorm')
+                    ..['placeName'] =
+                        'L’Espérance Trébuchet, Rivière du Rempart',
+                ),
+                now: weatherTestNow,
+              ),
+            ),
+            width: width,
+            scale: 2,
+            dark: dark,
+            highContrast: !dark,
+          );
+          expect(tester.takeException(), isNull);
+          expect(find.text('Thunderstorms'), findsOneWidget);
+          expect(
+            find.text('Scheduled check · readings received'),
+            findsOneWidget,
+          );
+          expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
+          for (final label in [
+            'Watch connected',
+            'Call watch',
+            'View journey',
+          ]) {
+            await tester.ensureVisible(find.text(label));
+            await tester.tap(find.text(label));
+            await tester.pump();
+          }
+          expect(calls, ['watch', 'call', 'journey']);
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
 }

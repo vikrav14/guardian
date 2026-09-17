@@ -850,4 +850,3 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
   }
 }
-

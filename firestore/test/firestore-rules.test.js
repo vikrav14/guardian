@@ -112,7 +112,9 @@ beforeEach(async () => {
         localDate: '2026-08-23',
         displayable: true,
         reportedSteps: 4321,
-        lastObservedAt: new Date(now - 5 * 60 * 1000),
+        // This fixture represents today. Backdating by five minutes makes it
+        // yesterday immediately after midnight in Mauritius.
+        lastObservedAt: serverTimestamp(),
       },
     );
     await setDoc(

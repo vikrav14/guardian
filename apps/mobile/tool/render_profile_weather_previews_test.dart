@@ -160,10 +160,20 @@ void main() {
       final key = GlobalKey();
       final cases = [
         (label: 'Sunshine', condition: 'clear', night: false, wind: 12.0),
-        (label: 'Partly cloudy', condition: 'partly_cloudy', night: false, wind: 12.0),
+        (
+          label: 'Partly cloudy',
+          condition: 'partly_cloudy',
+          night: false,
+          wind: 12.0,
+        ),
         (label: 'Overcast', condition: 'cloudy', night: false, wind: 12.0),
         (label: 'Rain and wind', condition: 'rain', night: false, wind: 36.0),
-        (label: 'Thunderstorms', condition: 'thunderstorm', night: false, wind: 32.0),
+        (
+          label: 'Thunderstorms',
+          condition: 'thunderstorm',
+          night: false,
+          wind: 32.0,
+        ),
         (label: 'Windy sunshine', condition: 'clear', night: false, wind: 38.0),
         (label: 'Nighttime', condition: 'clear', night: true, wind: 8.0),
         (label: 'Mist', condition: 'mist', night: false, wind: 8.0),
@@ -210,10 +220,7 @@ void main() {
                         ],
                       ),
                     ),
-                  const SizedBox(
-                    width: 340,
-                    child: ProfileWeatherPanel(),
-                  ),
+                  const SizedBox(width: 340, child: ProfileWeatherPanel()),
                   const SizedBox(
                     width: 340,
                     child: ProfileWeatherPanel(loading: true),
@@ -243,11 +250,17 @@ ProfileWeather _weather(
   'state': 'available',
   'condition': condition,
   'isDay': !night,
-  'temperatureC': condition == 'snow' ? -2 : night ? 22 : 26,
+  'temperatureC': condition == 'snow'
+      ? -2
+      : night
+      ? 22
+      : 26,
   'windKph': wind,
   'gustKph': wind + 8,
   'placeName': 'Sample garden',
-  'locationObservedAt': now.subtract(Duration(minutes: locationAgeMinutes)).toIso8601String(),
+  'locationObservedAt': now
+      .subtract(Duration(minutes: locationAgeMinutes))
+      .toIso8601String(),
   'observedAt': now.subtract(const Duration(minutes: 5)).toIso8601String(),
   'fetchedAt': now.subtract(const Duration(minutes: 1)).toIso8601String(),
   'expiresAt': now.add(const Duration(minutes: 10)).toIso8601String(),
@@ -289,10 +302,9 @@ Widget _host({
       ),
     ),
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(scale),
-        highContrast: contrast,
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(scale), highContrast: contrast),
       child: child!,
     ),
     home: Scaffold(
@@ -311,10 +323,13 @@ Widget _host({
 
 Future<void> _loadFonts(WidgetTester tester) async {
   await tester.runAsync(() async {
-    final path = Platform.environment['DASHBOARD_PREVIEW_FONT'] ??
+    final path =
+        Platform.environment['DASHBOARD_PREVIEW_FONT'] ??
         '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
     final font = FontLoader('WeatherPreview')
-      ..addFont(Future.value(ByteData.sublistView(await File(path).readAsBytes())));
+      ..addFont(
+        Future.value(ByteData.sublistView(await File(path).readAsBytes())),
+      );
     await font.load();
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
@@ -325,13 +340,17 @@ Future<void> _loadFonts(WidgetTester tester) async {
 Future<void> _settleArtwork(WidgetTester tester) async {
   await tester.runAsync(() async {
     final context = tester.element(find.byType(ProfileWeatherPanel).first);
-    await precacheImage(const AssetImage('assets/weather/weather_atlas.webp'), context);
+    await precacheImage(
+      const AssetImage('assets/weather/weather_atlas.webp'),
+      context,
+    );
   });
   await tester.pumpAndSettle();
 }
 
 Future<void> _save(WidgetTester tester, GlobalKey key, String name) async {
-  final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  final boundary =
+      key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await tester.runAsync(() async {
     final image = await boundary.toImage(pixelRatio: 1);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);

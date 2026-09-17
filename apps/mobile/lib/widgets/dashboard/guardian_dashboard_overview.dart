@@ -788,4 +788,3 @@ ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
     context,
   ).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
 );
-

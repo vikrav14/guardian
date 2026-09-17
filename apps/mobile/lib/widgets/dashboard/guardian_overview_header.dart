@@ -106,45 +106,45 @@ class _OverviewIdentity extends StatelessWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final profile = Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ExcludeSemantics(
-                child: AvatarBubble(
-                  initials: initialsFor(device.displayName),
-                  color: colors.accent,
-                  size: desktop ? 52 : 48,
-                  ringWidth: 1,
-                  imageUrl: device.avatarUrl,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ExcludeSemantics(
+                  child: AvatarBubble(
+                    initials: initialsFor(device.displayName),
+                    color: colors.accent,
+                    size: desktop ? 52 : 48,
+                    ringWidth: 1,
+                    imageUrl: device.avatarUrl,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      device.displayName,
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontSize: desktop ? 22 : 18,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                        letterSpacing: -0.3,
-                        color: colors.textPrimary,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        device.displayName,
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontSize: desktop ? 22 : 18,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                          letterSpacing: -0.3,
+                          color: colors.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      profileLabel,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontSize: 14,
-                        color: colors.textSecondary,
+                      const SizedBox(height: 3),
+                      Text(
+                        profileLabel,
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontSize: 14,
+                          color: colors.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
+              ],
+            );
             final conditions = weather ?? const ProfileWeatherPanel();
             final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
             if (constraints.maxWidth >= 620 && textScale <= 1.3) {
@@ -446,4 +446,3 @@ class _ActionLabel extends StatelessWidget {
     );
   }
 }
-

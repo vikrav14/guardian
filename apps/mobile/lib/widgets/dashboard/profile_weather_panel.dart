@@ -38,7 +38,8 @@ class ProfileWeatherPanel extends StatelessWidget {
         colors.border == GuardianThemeColors.elderCare.border;
     final night = current.isDay == false;
     final storm = current.condition == 'thunderstorm';
-    final sunny = current.isDay == true &&
+    final sunny =
+        current.isDay == true &&
         (current.condition == 'clear' || current.condition == 'partly_cloudy');
     final tint = dark
         ? const Color(0xFF20394B)
@@ -159,7 +160,11 @@ class ProfileWeatherPanel extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: [illustration, const SizedBox(height: 6), information],
+                children: [
+                  illustration,
+                  const SizedBox(height: 6),
+                  information,
+                ],
               );
             }
             return Row(
