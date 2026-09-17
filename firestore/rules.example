@@ -68,18 +68,22 @@ service cloud.firestore {
     // Edition windows are Mauritius calendar days, including today. Keep the
     // local timestamp in a variable before calling date(); this avoids rules
     // evaluator type errors on timestamp arithmetic.
-    function wellnessHistoryAllowed(recordedAt) {
+    function wellnessCalendarWindowAllowed(recordedAt) {
       let localNow = request.time + duration.value(4, 'h');
       let today = localNow.date()
         - duration.value(4, 'h');
       let plan = serviceSubscription().get('plan', '');
       return recordedAt is timestamp
-        && recordedAt <= request.time
         && activePlanAtLeast('essential')
         && recordedAt < today + duration.value(1, 'd')
         && (plan == 'care'
           || (plan == 'family' && recordedAt >= today - duration.value(6, 'd'))
           || (plan == 'essential' && recordedAt >= today));
+    }
+
+    function wellnessHistoryAllowed(recordedAt) {
+      return wellnessCalendarWindowAllowed(recordedAt)
+        && recordedAt <= request.time;
     }
 
     function activeWellbeingConsent(imei) {
@@ -231,10 +235,18 @@ service cloud.firestore {
       // Care customers may read consented watch estimates within the Care
       // history window. The backend owns writes and wearing remains unconfirmed.
       match /wellbeingReadings/{readingId} {
-        allow read: if linkedTo(imei)
+        allow get: if linkedTo(imei)
           && activePlanAtLeast('care')
           && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.get('observedAt', null))
+          && activeWellbeingConsent(imei);
+        // Queries are constrained to the edition's calendar window by the
+        // query bounds. A list rule cannot additionally require <= request.time
+        // because a valid full-day query ends at the next calendar boundary.
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('care')
+          && resource.data.get('displayable', false) == true
+          && wellnessCalendarWindowAllowed(resource.data.get('observedAt', null))
           && activeWellbeingConsent(imei);
         allow write: if false;
       }
@@ -285,10 +297,14 @@ service cloud.firestore {
         allow read, write: if false;
       }
       match /activityDays/{localDate} {
-        allow read: if linkedTo(imei)
+        allow get: if linkedTo(imei)
           && activePlanAtLeast('essential')
           && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('essential')
+          && resource.data.get('displayable', false) == true
+          && wellnessCalendarWindowAllowed(resource.data.get('lastObservedAt', null));
         allow create, update, delete: if false;
       }
     }
