@@ -244,7 +244,7 @@ void main() {
     }
   }
 
-  testWidgets('overview keeps every supplied watch action reachable', (
+  testWidgets('overview keeps remaining watch actions reachable after chat removal', (
     tester,
   ) async {
     final calls = <String>[];
@@ -262,16 +262,17 @@ void main() {
 
     await _tap(tester, find.text('Call watch'));
     await _tap(tester, find.text('View journey'));
-    await _tap(tester, find.byTooltip('Open Guardian help'));
     await _tap(tester, find.text('Watch connected'));
     await _tap(tester, find.text('Location details'));
     await _tap(tester, find.text('Manage safe zones'));
 
-    expect(calls, ['call', 'journey', 'help', 'watch', 'location', 'zones']);
+    expect(calls, ['call', 'journey', 'watch', 'location', 'zones']);
+    expect(find.byTooltip('Open Guardian help'), findsNothing);
+    expect(find.text('Weather unavailable'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('locked help remains reachable for the existing plan flow', (
+  testWidgets('removed chat shortcut is absent on a locked plan too', (
     tester,
   ) async {
     var opened = 0;
@@ -284,13 +285,13 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline_rounded), findsNothing);
     expect(
       find.byTooltip('Guardian help requires a Family plan'),
-      findsOneWidget,
+      findsNothing,
     );
-    await _tap(tester, find.byTooltip('Guardian help requires a Family plan'));
-    expect(opened, 1);
+    expect(opened, 0);
+    expect(find.text('Weather unavailable'), findsOneWidget);
     expect(find.text('Guardian insight'), findsNothing);
   });
 
@@ -671,3 +672,4 @@ void main() {
     },
   );
 }
+

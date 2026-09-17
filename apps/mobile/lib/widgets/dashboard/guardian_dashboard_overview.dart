@@ -37,6 +37,7 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.serviceSections = const [],
     this.wellness,
     this.watchCheckStatus,
+    this.weather,
   });
 
   final Device? device;
@@ -66,6 +67,7 @@ class GuardianDashboardOverview extends StatelessWidget {
   final List<Widget> serviceSections;
   final Widget? wellness;
   final Widget? watchCheckStatus;
+  final Widget? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +131,7 @@ class GuardianDashboardOverview extends StatelessWidget {
             onHelp: onHelp,
             onWatchStatus: onWatchStatus,
             watchCheckStatus: watchCheckStatus,
+            weather: weather,
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
@@ -785,3 +788,4 @@ ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
     context,
   ).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
 );
+

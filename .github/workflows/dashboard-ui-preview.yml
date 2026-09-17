@@ -8,6 +8,13 @@ on:
       - 'apps/mobile/lib/widgets/dashboard/dashboard_section_icon.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_dashboard_overview.dart'
       - 'apps/mobile/lib/widgets/dashboard/guardian_overview_header.dart'
+      - 'apps/mobile/lib/widgets/dashboard/profile_weather_panel.dart'
+      - 'apps/mobile/lib/weather/**'
+      - 'apps/mobile/assets/weather/**'
+      - 'apps/mobile/test/profile_weather_test.dart'
+      - 'apps/mobile/test/profile_weather_panel_test.dart'
+      - 'apps/mobile/test/linked_profile_weather_test.dart'
+      - 'apps/mobile/tool/render_profile_weather_previews_test.dart'
       - 'apps/mobile/lib/widgets/dashboard/dashboard_wearing_status.dart'
       - 'apps/mobile/lib/widgets/dashboard/dashboard_reading_status.dart'
       - 'apps/mobile/lib/dashboard/wearing_presentation.dart'
@@ -103,6 +110,13 @@ jobs:
             lib/widgets/dashboard/dashboard_section_icon.dart \
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
             lib/widgets/dashboard/guardian_overview_header.dart \
+            lib/widgets/dashboard/profile_weather_panel.dart \
+            lib/weather/profile_weather.dart \
+            lib/weather/linked_profile_weather.dart \
+            test/profile_weather_test.dart \
+            test/profile_weather_panel_test.dart \
+            test/linked_profile_weather_test.dart \
+            tool/render_profile_weather_previews_test.dart \
             lib/widgets/dashboard/dashboard_wearing_status.dart \
             lib/widgets/dashboard/dashboard_reading_status.dart \
             lib/dashboard/wearing_presentation.dart \
@@ -146,6 +160,22 @@ jobs:
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
         run: flutter test test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/dashboard_reading_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
+
+      - name: Test profile weather freshness and presentation
+        if: ${{ !cancelled() }}
+        run: flutter test --no-pub test/profile_weather_test.dart test/profile_weather_panel_test.dart test/linked_profile_weather_test.dart
+
+      - name: Render profile weather previews
+        if: ${{ !cancelled() }}
+        run: flutter test --no-pub tool/render_profile_weather_previews_test.dart --dart-define=PROFILE_WEATHER_PREVIEWS=true
+
+      - name: Save profile weather review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-profile-weather-previews
+          path: apps/mobile/build/profile-weather-previews/*.png
+          if-no-files-found: error
 
       - name: Render synthetic dashboard previews
         if: ${{ !cancelled() }}
@@ -194,4 +224,5 @@ jobs:
           name: guardian-wellness-previews
           path: apps/mobile/build/wellness-previews/*.png
           if-no-files-found: error
+
 

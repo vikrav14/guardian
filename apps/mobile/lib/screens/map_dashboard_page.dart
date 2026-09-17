@@ -20,6 +20,7 @@ import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../wellness/wellness_panel.dart';
+import '../weather/linked_profile_weather.dart';
 import '../wellness/linked_wellness_stream.dart';
 import '../wellness/wellness_pilot_access.dart';
 import '../wellness/wellness_routine.dart';
@@ -709,6 +710,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
+      weather: selected == null
+          ? null
+          : LinkedProfileWeather(
+              key: ValueKey('profile-weather-${selected.imei}'),
+              imei: selected.imei,
+            ),
       watchCheckStatus:
           _wellnessPilotPreview &&
               selected != null &&
@@ -843,3 +850,4 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
   }
 }
+

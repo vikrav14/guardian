@@ -7,6 +7,7 @@ import '../../models/care_profile.dart';
 import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../guardian_widgets.dart';
+import 'profile_weather_panel.dart';
 
 /// A person-first overview. Connection status describes the watch connection;
 /// location provenance and freshness belong to the separate location card.
@@ -20,6 +21,7 @@ class GuardianOverviewHeader extends StatelessWidget {
     this.onHelp,
     this.onWatchStatus,
     this.watchCheckStatus,
+    this.weather,
   });
 
   final Device device;
@@ -29,6 +31,7 @@ class GuardianOverviewHeader extends StatelessWidget {
   final VoidCallback? onHelp;
   final VoidCallback? onWatchStatus;
   final Widget? watchCheckStatus;
+  final Widget? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -41,10 +44,9 @@ class GuardianOverviewHeader extends StatelessWidget {
         final identity = _OverviewIdentity(
           device: device,
           desktop: desktop,
-          helpEnabled: helpEnabled,
-          onHelp: onHelp,
           onWatchStatus: onWatchStatus,
           watchCheckStatus: watchCheckStatus,
+          weather: weather,
         );
         final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
 
@@ -78,16 +80,14 @@ class _OverviewIdentity extends StatelessWidget {
   const _OverviewIdentity({
     required this.device,
     required this.desktop,
-    required this.helpEnabled,
-    this.onHelp,
+    this.weather,
     this.onWatchStatus,
     this.watchCheckStatus,
   });
 
   final Device device;
   final bool desktop;
-  final bool helpEnabled;
-  final VoidCallback? onHelp;
+  final Widget? weather;
   final VoidCallback? onWatchStatus;
   final Widget? watchCheckStatus;
 
@@ -103,64 +103,65 @@ class _OverviewIdentity extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ExcludeSemantics(
-              child: AvatarBubble(
-                initials: initialsFor(device.displayName),
-                color: colors.accent,
-                size: desktop ? 52 : 48,
-                ringWidth: 1,
-                imageUrl: device.avatarUrl,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    device.displayName,
-                    style: textTheme.headlineSmall?.copyWith(
-                      fontSize: desktop ? 22 : 18,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                      letterSpacing: -0.3,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    profileLabel,
-                    style: textTheme.bodyMedium?.copyWith(
-                      fontSize: 14,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: helpEnabled
-                  ? 'Open Guardian help'
-                  : 'Guardian help requires a Family plan',
-              excludeFromSemantics: true,
-              child: IconButton(
-                onPressed: onHelp,
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                color: colors.textPrimary,
-                icon: Icon(
-                  helpEnabled
-                      ? Icons.chat_bubble_outline_rounded
-                      : Icons.lock_outline_rounded,
-                  size: 22,
-                  semanticLabel: 'Guardian help',
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final profile = Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ExcludeSemantics(
+                child: AvatarBubble(
+                  initials: initialsFor(device.displayName),
+                  color: colors.accent,
+                  size: desktop ? 52 : 48,
+                  ringWidth: 1,
+                  imageUrl: device.avatarUrl,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.displayName,
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontSize: desktop ? 22 : 18,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                        letterSpacing: -0.3,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      profileLabel,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+            final conditions = weather ?? const ProfileWeatherPanel();
+            final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            if (constraints.maxWidth >= 620 && textScale <= 1.3) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: profile),
+                  const SizedBox(width: 16),
+                  SizedBox(width: 296, child: conditions),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [profile, const SizedBox(height: 12), conditions],
+            );
+          },
         ),
         Divider(height: 24, color: colors.border),
         _OverviewWatchState(device: device, onWatchStatus: onWatchStatus),
@@ -445,3 +446,4 @@ class _ActionLabel extends StatelessWidget {
     );
   }
 }
+

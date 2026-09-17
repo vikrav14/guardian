@@ -52,6 +52,7 @@ const {
 const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
+const { startProfileWeather } = require('./profile-weather');
 const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { createWellbeingStore } = require('./care-wellbeing');
@@ -221,6 +222,7 @@ startHttpServer();
 if (!config.firestoreDisabled) {
   startMetricsFlusher(config.opsMetricsFlushMs);
   startReminderScheduler(getDb(), { checkIntervalMs: 60000 });
+  startProfileWeather({ db: getDb(), apiKey: config.openWeatherMapKey });
 }
 
 if (config.careWellbeingIngestEnabled) {

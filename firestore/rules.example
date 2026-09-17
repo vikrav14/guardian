@@ -203,6 +203,13 @@ service cloud.firestore {
         );
       allow create, delete: if false;
 
+      // Area weather for this profile. The gateway owns location selection,
+      // provider credentials and freshness; clients cannot forge conditions.
+      match /weather/{weatherId} {
+        allow read: if weatherId == 'current' && linkedTo(imei);
+        allow write: if false;
+      }
+
       match /locations/{locationId} {
         allow read: if linkedTo(imei)
           && historyAllowed(resource.data.recordedAt);
