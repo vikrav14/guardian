@@ -97,6 +97,19 @@ test('Manual remains available for stopping after consent/flag withdrawal, inclu
   assert.equal(f.state.phase, 'blocked');
 });
 
+test('cleanup stops a temperature-only legacy marker even without renewed access', async () => {
+  const f = fixture();
+  f.state = { temperatureMayBeRunning: true, mayBeRunning: false };
+  f.context.enabled = false;
+  f.context.authorized = false;
+  f.context.canStop = false;
+  f.device.bt = null;
+  await f.controller.tick();
+  assert.deepEqual(f.commands, ['hrtstart,0', 'bodytemp,0,12']);
+  assert.equal(f.state.temperatureMayBeRunning, false);
+  assert.equal(f.state.scheduleVerified, false);
+});
+
 test('a partial handoff is followed by stops and cannot silently restart without a fresh request', async () => {
   const f = fixture(); f.onSend = cmd => ({ ok: !cmd.startsWith('bodytemp,1') });
   await f.controller.tick(); assert.equal(f.state.phase, 'handoff_failed');

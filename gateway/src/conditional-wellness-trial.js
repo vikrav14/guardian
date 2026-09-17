@@ -56,18 +56,31 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
   let sequence = null, preparing = false, lockUntil = 0, generation = 0;
   const enabled = () => config.wellnessRoutinePilotEnabled === true &&
     config.careWellbeingRequestEnabled === true && config.careWellbeingIngestEnabled === true;
-  const contextAllowed = context => enabled() && validConsent(context?.consent, new Date(clock())) &&
-    (!context?.request?.routine || context.request.routine === 'manual') &&
+  const contextAllowed = (context, scheduled = false) => enabled() && validConsent(context?.consent, new Date(clock())) &&
+    (scheduled ? context?.request?.version === 2 && ['gentle', 'balanced'].includes(context.request.routine)
+      : !context?.request?.routine || context.request.routine === 'manual') &&
     context?.state?.mayBeRunning !== true && context?.state?.temperatureMayBeRunning !== true;
 
-  function boundedContext() {
+  function boundedOperation(operation) {
     let timer;
     return Promise.race([
-      Promise.resolve().then(readContext),
+      Promise.resolve().then(operation),
       new Promise((resolve, reject) => {
         timer = setTimeout(() => reject(new Error('context_unavailable')), CONTEXT_TIMEOUT_MS);
       }),
     ]).finally(() => clearTimeout(timer));
+  }
+  const boundedContext = () => boundedOperation(readContext);
+
+  function assertTemperatureReady(session, scheduled) {
+    if (scheduled) {
+      if (typeof temperatureTrial.assertScheduledReady !== 'function' ||
+          typeof temperatureTrial.requestScheduled !== 'function') {
+        throw new Error('Scheduled temperature support is unavailable.');
+      }
+      return temperatureTrial.assertScheduledReady({ expectedSession: session });
+    }
+    return temperatureTrial.assertReady({ expectedSession: session });
   }
 
   function matches(attempt, session = currentSession()) {
@@ -114,7 +127,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
       ...(valuesAllowed && value.values ? { values: { ...value.values } } : {}) } : null;
     return { attemptId: attempt.attemptId, phase: attempt.phase, outcome: attempt.outcome,
       terminal: attempt.terminal, operatorPosition: attempt.operatorPosition,
-      positionBasis: 'operator_reported', requestedAt: new Date(attempt.requestedAt).toISOString(),
+      positionBasis: attempt.positionBasis, requestedAt: new Date(attempt.requestedAt).toISOString(),
       opticalDeadlineAt: new Date(attempt.opticalDeadlineAt).toISOString(),
       cooldownUntil: new Date(attempt.lockUntil).toISOString(),
       optical: { heartBloodPressure: record(attempt.optical.heartBloodPressure),
@@ -126,29 +139,41 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
       timeBasis: 'gateway_receipt', correlationOnly: true };
   }
 
-  async function request(payload) {
-    const operation = parseConditionalWellnessOperation(payload);
+  async function execute(operation, isCurrent) {
+    const scheduled = operation.positionBasis === 'scheduled';
     if (!enabled()) throw new Error('Pilot, wellbeing request and ingestion must be enabled.');
+    if (scheduled && clock() >= operation.startDeadlineAt) {
+      throw new Error('The scheduled start window has ended; nothing sent.');
+    }
     if (isBusy()) throw new Error('A sequence or its capture cooldown is active; inspect it before another request.');
     const session = currentSession();
     if (!session || session.imei !== config.wifiHomePilotImei) {
       throw new Error('One connected configured pilot session is required.');
     }
-    temperatureTrial.assertReady({ expectedSession: session });
+    assertTemperatureReady(session, scheduled);
     const preparation = ++generation;
     const protocolId = session.protocolId;
     preparing = true;
     try {
       const context = await boundedContext();
+      if (scheduled && await boundedOperation(isCurrent) !== true) {
+        throw new Error('The scheduled reading is no longer authorized; nothing sent.');
+      }
       if (generation !== preparation) throw new Error('The sequence was cancelled; nothing sent.');
-      if (!contextAllowed(context)) throw new Error('Current consent, enabled pilot and Manual with no possibly running routine are required.');
+      if (!contextAllowed(context, scheduled)) {
+        throw new Error('Current consent, enabled pilot and an authorized routine with no possibly running native routine are required.');
+      }
       if (currentSession() !== session || session.imei !== config.wifiHomePilotImei || session.protocolId !== protocolId) {
         throw new Error('The pilot session changed; nothing sent.');
       }
-      temperatureTrial.assertReady({ expectedSession: session });
+      assertTemperatureReady(session, scheduled);
       const at = clock();
+      if (scheduled && at >= operation.startDeadlineAt) {
+        throw new Error('The scheduled start window has ended; nothing sent.');
+      }
       const attempt = { attemptId: uuid(), session, sessionImei: session.imei,
         sessionProtocolId: session.protocolId, operatorPosition: operation.operatorPosition,
+        positionBasis: operation.positionBasis, isCurrent,
         requestedAt: at, opticalDeadlineAt: at + OPTICAL_WINDOW_MS,
         lockUntil: at + OPTICAL_WINDOW_MS,
         valuesExpireAt: at + OPTICAL_WINDOW_MS + VALUE_RETENTION_MS,
@@ -167,8 +192,20 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
       else queueTemperature(attempt);
       return { outcome, attemptId: attempt.attemptId,
         requestedAt: new Date(at).toISOString(), opticalDeadlineAt: new Date(attempt.opticalDeadlineAt).toISOString(),
+        operatorPosition: attempt.operatorPosition, positionBasis: attempt.positionBasis,
         automaticRetry: false, readingConfirmed: false, wearingConfirmed: false, scheduleVerified: false };
     } finally { preparing = false; }
+  }
+
+  async function request(payload) {
+    return execute({ ...parseConditionalWellnessOperation(payload), positionBasis: 'operator_reported' });
+  }
+
+  async function requestScheduled({ isCurrent, startDeadlineAt } = {}) {
+    if (typeof isCurrent !== 'function' || typeof startDeadlineAt !== 'number' || !Number.isFinite(startDeadlineAt)) {
+      throw new TypeError('A trusted current-schedule guard and finite start deadline are required.');
+    }
+    return execute({ operatorPosition: 'unknown', positionBasis: 'scheduled', startDeadlineAt }, isCurrent);
   }
 
   function eligible(attempt) {
@@ -182,12 +219,15 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     try {
       const context = await boundedContext();
       if (!eligible(attempt)) return;
-      if (!contextAllowed(context)) { finish(attempt, 'consent_or_routine_changed'); return; }
-      temperatureTrial.assertReady({ expectedSession: attempt.session });
+      const scheduled = attempt.positionBasis === 'scheduled';
+      if (!contextAllowed(context, scheduled)) { finish(attempt, 'consent_or_routine_changed'); return; }
+      assertTemperatureReady(attempt.session, scheduled);
       if (!eligible(attempt)) return;
-      const result = await temperatureTrial.request({ action: 'single',
-        operatorPosition: attempt.operatorPosition, commandCase: 'uppercase' },
-      { expectedSession: attempt.session, shouldSend: () => eligible(attempt) });
+      const guard = { expectedSession: attempt.session, shouldSend: () => eligible(attempt) };
+      const result = scheduled
+        ? await temperatureTrial.requestScheduled({ ...guard, isCurrent: attempt.isCurrent })
+        : await temperatureTrial.request({ action: 'single',
+          operatorPosition: attempt.operatorPosition, commandCase: 'uppercase' }, guard);
       if (sequence !== attempt) return;
       // The helper may have handed off a command. Always retain that fact even
       // if a later observation cancels the sequence; never retry this branch.
@@ -283,7 +323,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     return { outcome: 'read_only', connected: Boolean(currentSession()), sequence: summary };
   }
 
-  return { request, status, observe, isBusy, cancel };
+  return { request, requestScheduled, status, observe, isBusy, cancel };
 }
 
 module.exports = { createConditionalWellnessTrial, parseConditionalWellnessOperation,

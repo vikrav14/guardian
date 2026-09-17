@@ -187,6 +187,11 @@ test('running pilot confines hardware operations to one session; firmware and re
       if (name === './wellness-hardware-evidence') return { createHardwareEvidence };
       if (name === './supervised-temperature-trial') return require('../src/supervised-temperature-trial');
       if (name === './conditional-wellness-trial') return require('../src/conditional-wellness-trial');
+      if (name === './daily-wellness-scheduler') return {
+        parseDailyRoutine: () => null,
+        createDailyWellnessScheduler: () => ({ tick: async () => {}, snapshot: () => ({}) }),
+      };
+      if (name === './daily-wellness-store') return { createDailyWellnessStore: () => ({}) };
       return require(name);
     },
   });
@@ -198,7 +203,7 @@ test('running pilot confines hardware operations to one session; firmware and re
   }
   assert.equal(parseRoutineOperation({ action: 'firmware_version', includeReply: true }).includeReply, true);
   assert.equal(parseRoutineOperation({ action: 'temperature_once' }).includeReply, false);
-  const runtime = module.exports.startWellnessRoutineRuntime({ db: ref,
+  const runtime = module.exports.startWellnessRoutineRuntime({ db: { ...ref, runTransaction: async () => null },
     config: { wifiHomePilotImei: pilot.imei, wellnessRoutinePilotEnabled: true, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     wearEvidence: { current: () => null } });
   runtime.observe(packet('CONFIG,BT:2,TM:1'), { imei: '861000000000002' });

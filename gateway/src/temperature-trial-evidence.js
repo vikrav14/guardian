@@ -97,7 +97,9 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       valuesExpireAt: new Date(trial.valuesExpireAt).toISOString(),
       sessionMatches: sameSession(session),
       sessionChangedAt: trial.sessionChangedAt === null ? null : new Date(trial.sessionChangedAt).toISOString(),
-      operatorPosition: trial.operatorPosition, operatorPositionIsManual: true,
+      operatorPosition: trial.operatorPosition,
+      positionBasis: trial.positionBasis,
+      operatorPositionIsManual: trial.positionBasis === 'operator_reported',
       ...(trial.operatorPosition === 'removed' ? { dataUse: 'engineering_trial_only' } : {}),
       modeBtAtRequest: trial.modeBt, fieldMeaning: 'unverified', timeBasis: 'gateway_receipt',
       settingsConfirmed: false, wearingConfirmed: false, scheduleVerified: false,
@@ -112,11 +114,12 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     };
   }
 
-  function start(session, { requestedAt = new Date(clock()), trialId = randomUUID(),
-    operatorPosition, modeBt = null, command = 'bodytemp2' } = {}) {
+  function startTrial(session, { requestedAt = new Date(clock()), trialId = randomUUID(),
+    operatorPosition, positionBasis, modeBt = null, command = 'bodytemp2' } = {}) {
     const atMs = timestamp(requestedAt), now = clock();
     if (!session || typeof session !== 'object' || atMs === null || atMs > now ||
-        !['worn', 'removed'].includes(operatorPosition) || ![null, 2].includes(modeBt) ||
+        !(positionBasis === 'operator_reported' && ['worn', 'removed'].includes(operatorPosition) ||
+          positionBasis === 'scheduled' && operatorPosition === 'unknown') || ![null, 2].includes(modeBt) ||
         !PROBE_COMMANDS.has(command) ||
         typeof trialId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(trialId)) {
       throw new TypeError('A session, valid request time, trial identifier and explicitly reported worn or removed position are required.');
@@ -126,12 +129,22 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
       throw new Error('A temperature trial is already observing this request.');
     }
     trial = { session, sessionImei: session.imei, sessionProtocolId: session.protocolId,
-      requestedAt: atMs, trialId, modeBt, command, operatorPosition,
+      requestedAt: atMs, trialId, modeBt, command, operatorPosition, positionBasis,
       captureExpiresAt: atMs + CAPTURE_WINDOW_MS,
       valuesExpireAt: atMs + CAPTURE_WINDOW_MS + VALUE_RETENTION_MS,
       handoff: 'pending', sessionChangedAt: null, valuesExpired: false,
       packets: [], keys: new Set(), counts: { replies: 0, uploads: 0, rejected: 0, duplicates: 0, dropped: 0 } };
     return current(session, { at: new Date(now) });
+  }
+
+  function start(session, options = {}) {
+    return startTrial(session, { ...options, positionBasis: 'operator_reported' });
+  }
+
+  // Only the trusted scheduler adapter uses this entry point. The public
+  // supervised start retains its required explicit worn/removed position.
+  function startScheduled(session, options = {}) {
+    return startTrial(session, { ...options, operatorPosition: 'unknown', positionBasis: 'scheduled' });
   }
 
   function markHandoff(outcome) {
@@ -170,7 +183,7 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     else trial.counts.uploads += 1;
   }
 
-  return { start, observe, markHandoff, current };
+  return { start, startScheduled, observe, markHandoff, current };
 }
 
 module.exports = { createTemperatureTrialEvidence, CAPTURE_WINDOW_MS, VALUE_RETENTION_MS,

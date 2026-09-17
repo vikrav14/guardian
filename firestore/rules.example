@@ -274,6 +274,14 @@ service cloud.firestore {
           && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
         allow list, write: if false;
       }
+      // Durable scheduler claims/counters are internal. The gateway copies
+      // only bounded, reading-free status to wellnessRoutine/current.
+      match /wellnessScheduleDays/{localDate} {
+        allow read, write: if false;
+      }
+      match /wellnessScheduleSlots/{slotId} {
+        allow read, write: if false;
+      }
       match /wearDiagnostics/{captureId} {
         allow read, write: if false;
       }
@@ -298,17 +306,53 @@ service cloud.firestore {
     }
 
     // Desired settings only. The gateway separately checks current consent,
-    // firmware mode, wearing evidence, session, feature gate and account access.
+    // session, feature gates, consent, account access and conditional uploads.
     // This does not let preview users forge device acceptance or raw commands.
     match /wellnessRoutineRequests/{imei} {
+      function validTime(time) {
+        return time is string && time.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
+      }
+      function minuteOfDay(time) {
+        return int(time[0:2]) * 60 + int(time[3:5]);
+      }
+      function spacedAfter(earlier, later) {
+        return minuteOfDay(later) - minuteOfDay(earlier) >= 5;
+      }
+      function midnightGap(first, last) {
+        return 1440 + minuteOfDay(first) - minuteOfDay(last) >= 5;
+      }
+      function validDailyTimes(data) {
+        let times = data.times;
+        return times is list && (
+          (data.routine == 'manual' && times.size() == 0)
+          || (data.routine == 'gentle' && times.size() == 2
+            && validTime(times[0]) && validTime(times[1])
+            && spacedAfter(times[0], times[1])
+            && midnightGap(times[0], times[1]))
+          || (data.routine == 'balanced' && times.size() == 3
+            && validTime(times[0]) && validTime(times[1]) && validTime(times[2])
+            && spacedAfter(times[0], times[1]) && spacedAfter(times[1], times[2])
+            && midnightGap(times[0], times[2]))
+        );
+      }
+      function validScheduleRequest() {
+        let data = request.resource.data;
+        return (
+          (data.version == 2
+            && data.keys().hasOnly(['version', 'routine', 'times', 'timeZone', 'requestedBy', 'updatedAt'])
+            && data.timeZone == 'Indian/Mauritius'
+            && validDailyTimes(data))
+          // Older app versions can still stop. Never restart an interval
+          // routine from a legacy request or infer daily times from it.
+          || (data.version == 1 && data.routine == 'manual'
+            && data.keys().hasOnly(['version', 'routine', 'requestedBy', 'updatedAt']))
+        ) && data.requestedBy == request.auth.uid
+          && data.updatedAt == request.time;
+      }
       allow get: if linkedTo(imei) && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
       allow create, update: if linkedTo(imei) && activePlanAtLeast('essential')
         && wellnessPilotAllowed(imei)
-        && request.resource.data.keys().hasOnly(['version', 'routine', 'requestedBy', 'updatedAt'])
-        && request.resource.data.version == 1
-        && request.resource.data.routine in ['manual', 'gentle', 'balanced']
-        && request.resource.data.requestedBy == request.auth.uid
-        && request.resource.data.updatedAt == request.time
+        && validScheduleRequest()
         && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
       allow list, delete: if false;
     }

@@ -100,13 +100,92 @@ function fixture(t) {
     env.observe('oxygen', ['1', '98']);
   };
   env.commands = () => env.sent.map(item => item.command);
+  env.documents = documents;
   return env;
 }
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+function selectDaily(env, times = ['08:00', '20:00']) {
+  env.documents.set(`wellnessRoutineRequests/${PILOT}`, {
+    version: 2, routine: 'gentle', times, timeZone: 'Indian/Mauritius',
+    requestedBy: 'caregiver', updatedAt: new Date(AT - 60_000),
+  });
+  env.documents.set('users/caregiver', { linkedImeis: [PILOT] });
+  env.documents.set(`wellnessPilots/${PILOT}`, {
+    version: 1, managedBy: 'guardian_admin', enabled: true, viewerUid: 'caregiver',
+    createdAt: new Date(AT - 60_000), expiresAt: new Date(AT + 3600_000),
+  });
+}
+
+test('a selected clock slot runs the conditional sequence with unknown position and durable result', async t => {
+  const env = fixture(t);
+  await env.runtime.tick();
+  selectDaily(env);
+  await env.runtime.tick();
+  assert.deepEqual(env.commands(), ['hrtstart,1']);
+  const sequence = (await env.runtime.wellnessSequenceStatus()).sequence;
+  assert.equal(sequence.operatorPosition, 'unknown');
+  assert.equal(sequence.positionBasis, 'scheduled');
+  env.advance(41_000);
+  env.opticalPair();
+  await settle();
+  assert.deepEqual(env.commands(), ['hrtstart,1', 'BODYTEMP2']);
+  env.advance(20_000);
+  env.observe('btemp2', ['1', '35.11']);
+  await env.runtime.tick();
+  const current = env.documents.get(`devices/${PILOT}/wellnessRoutine/current`);
+  assert.equal(current.lastAttempt.outcome, 'temperature_upload_observed');
+  assert.equal(current.lastAttempt.terminal, true);
+  assert.equal(current.wearingConfirmed, false);
+  assert.equal(JSON.stringify(current.lastAttempt).includes('35.11'), false);
+  await env.runtime.tick();
+  assert.deepEqual(env.commands(), ['hrtstart,1', 'BODYTEMP2']);
+});
+
+test('editing a scheduled request while optics run prevents its temperature stage', async t => {
+  const env = fixture(t);
+  await env.runtime.tick();
+  selectDaily(env);
+  await env.runtime.tick();
+  const request = env.documents.get(`wellnessRoutineRequests/${PILOT}`);
+  env.advance(41_000);
+  env.documents.set(`wellnessRoutineRequests/${PILOT}`, { ...request,
+    times: ['08:00', '21:00'], updatedAt: new Date(Date.now()) });
+  env.opticalPair();
+  await settle();
+  assert.deepEqual(env.commands(), ['hrtstart,1']);
+  assert.equal((await env.runtime.wellnessSequenceStatus()).sequence.terminal, true);
+});
+
+test('an offline due slot stays skipped after reconnect and does not catch up', async t => {
+  const env = fixture(t);
+  await env.runtime.tick();
+  selectDaily(env);
+  env.socket.destroyed = true;
+  await env.runtime.tick();
+  env.socket.destroyed = false;
+  env.advance(20_000);
+  await env.runtime.tick();
+  assert.deepEqual(env.commands(), []);
+  const slot = env.documents.get(`devices/${PILOT}/wellnessScheduleSlots/2026-09-17-2000`);
+  assert.equal(slot.reason, 'watch_offline');
+  assert.equal(slot.attemptConsumed, false);
+});
+
+test('retired native interval starts cannot bypass clock scheduling through operator commands', async t => {
+  const env = fixture(t);
+  await env.runtime.tick();
+  for (const command of ['hrtstart,43200', 'hrtstart,28800', 'bodytemp,1,12']) {
+    assert.throws(() => env.dispatchExternal(PILOT, command), /native interval starts/);
+  }
+  assert.doesNotThrow(() => env.dispatchExternal(PILOT, 'hrtstart,0'));
+  assert.doesNotThrow(() => env.dispatchExternal(PILOT, 'bodytemp,0,12'));
+});
+
 test('runtime excludes competing measurement paths while keeping other devices independent', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   await env.runtime.requestWellnessSequence(single);
   for (const command of ['hrtstart,1', 'hrtstart,300', 'bodytemp2', 'BODYTEMP2']) {
     assert.throws(() => env.dispatchExternal(PILOT, command), /sequence/i);
@@ -121,6 +200,7 @@ test('runtime excludes competing measurement paths while keeping other devices i
 
 test('explicit stop remains available and cancels the unsent temperature stage', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   await env.runtime.requestWellnessSequence(single);
   env.advance(41_000);
   env.observe('bphrt', ['101', '61', '71', '', '', '', '']);
@@ -135,6 +215,7 @@ test('explicit stop remains available and cancels the unsent temperature stage',
 
 test('a prior generic request reserves the same pilot cooldown before a sequence starts', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   env.dispatchExternal(PILOT, 'hrtstart,1');
   await assert.rejects(async () => env.runtime.requestWellnessSequence(single), /two minutes/i);
   env.advance(119_999);
@@ -146,6 +227,7 @@ test('a prior generic request reserves the same pilot cooldown before a sequence
 
 test('decoded runtime packets cause exactly one uppercase temperature request with removed-trial quarantine', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   await env.runtime.requestWellnessSequence({ ...single, operatorPosition: 'removed' });
   env.advance(41_000);
   const foreign = { imei: OTHER, protocolId: '2222222222', lastPacketAt: Date.now() };
@@ -173,6 +255,7 @@ test('decoded runtime packets cause exactly one uppercase temperature request wi
 
 test('the runtime packet hook stops the sequence on zeros despite a later oxygen packet', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   await env.runtime.requestWellnessSequence(single);
   env.advance(41_000);
   env.observe('bphrt', ['0', '0', '0', '', '', '', '']);
@@ -186,6 +269,7 @@ test('the runtime packet hook stops the sequence on zeros despite a later oxygen
 
 test('a temperature request preparing asynchronously prevents a competing sequence start', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   let release;
   env.beforeRead = path => path.startsWith('wellbeingConsents/')
     ? new Promise(resolve => { release = resolve; }) : undefined;
@@ -203,6 +287,7 @@ test('a temperature request preparing asynchronously prevents a competing sequen
 
 test('stop during the temperature consent read prevents the late second-stage handoff', async t => {
   const env = fixture(t);
+  await env.runtime.tick();
   await env.runtime.requestWellnessSequence({ ...single, operatorPosition: 'removed' });
   let consentReads = 0, release;
   env.beforeRead = path => {

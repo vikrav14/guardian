@@ -1,5 +1,9 @@
 # Wellness routines — 15 September 2026
 
+> Historical interval-based design. The [17 September daily-time implementation](wellness-daily-times-2026-09-17.md)
+> supersedes the selection and execution path below. Native intervals are retained
+> only for cleanup; the updated app saves editable daily clock times.
+
 Status: guarded private-pilot implementation; automatic temperature and physical
 wearing detection are not accepted on the exact watch yet. The operator confirmed
 the temperature preview displayed the saved result, not an automatic capture.

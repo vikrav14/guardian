@@ -9,6 +9,8 @@ const { sendDownlinkCommand } = require('./downlink');
 const { createHardwareEvidence } = require('./wellness-hardware-evidence');
 const { createSupervisedTemperatureTrial } = require('./supervised-temperature-trial');
 const { createConditionalWellnessTrial } = require('./conditional-wellness-trial');
+const { parseDailyRoutine, createDailyWellnessScheduler } = require('./daily-wellness-scheduler');
+const { createDailyWellnessStore } = require('./daily-wellness-store');
 
 let runtime;
 const date = value => value?.toDate?.() || (value == null ? null : new Date(value));
@@ -81,6 +83,9 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       throw new Error('A conditional wellness sequence is active or cooling down; inspect its result first.');
     }
     if (externalMeasurementPending) throw new Error('A wellbeing measurement is already being prepared.');
+    if (/^hrtstart,(?:[2-9]|\d{2,})(?:,|$)/i.test(command) || /^bodytemp,1(?:,|$)/i.test(command)) {
+      throw new Error('Use the daily Wellness routine times; native interval starts are disabled for this pilot.');
+    }
   }
   function noteExternalMeasurement(targetImei, command) {
     if (targetsPilot(targetImei) && /^(?:hrtstart|bodytemp2?)(?:,|$)/i.test(command)) {
@@ -121,7 +126,8 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       +date(grant.expiresAt) - +date(grant.createdAt) <= 86400_000;
     const linked = user?.linkedImeis?.includes(imei) === true && access?.serviceActive === true;
     const requestTime = date(request?.updatedAt);
-    const requestValid = request?.version === 1 && Number.isFinite(+requestTime) && requestTime != null &&
+    const requestValid = (request?.version === 1 || parseDailyRoutine(request)) &&
+      Number.isFinite(+requestTime) && requestTime != null &&
       +requestTime <= +now && typeof request?.routine === 'string';
     return { state, request: requestValid ? { ...request, revision: requestTime.toISOString() } : null,
       enabled: config.wellnessRoutinePilotEnabled && config.careWellbeingRequestEnabled && config.careWellbeingIngestEnabled,
@@ -139,14 +145,79 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       tx.set(stateRef, patch, { merge: true });
     });
   }
-  const controller = createRoutineController({ read, live, save,
+  // Native intervals are retired. This reconciler is retained only to stop
+  // old intervals, including a partial handoff saved by an older gateway.
+  const controller = createRoutineController({ read: async () => {
+    const context = await read();
+    if (!context) return null;
+    return { ...context, enabled: false,
+      request: context.request?.version === 2
+        ? { ...context.request, routine: 'manual' } : context.request };
+  }, live, save,
     send: command => {
       if (!live().connected) return { ok: false };
       assertMeasurementAvailable(imei, command);
       noteExternalMeasurement(imei, command);
       return sendDownlinkCommand(imei, command);
     } });
-  function tick() { return controller.tick().catch(() => console.warn('[wellness-routine] reconciliation_failed')); }
+  const dailyStore = createDailyWellnessStore({ db, imei, owner });
+  const externalBusy = () => externalMeasurementPending ||
+    (lastExternalMeasurementAt !== null && Date.now() - lastExternalMeasurementAt < 120_000);
+  async function dailyContext() {
+    const context = await read();
+    if (!context) return null;
+    const request = context.request;
+    const blockedReason = !context.enabled ? 'pilot_disabled'
+      : !context.authorized || +context.validUntil <= Date.now() ? 'access_or_consent_unavailable'
+      : request?.version !== 2 ? 'legacy_routine_requires_times'
+      : context.state.mayBeRunning || context.state.temperatureMayBeRunning ? 'native_schedule_stop_pending'
+      : temperatureTrialQuarantine?.isSuppressed(imei) ? 'diagnostic_quarantine_active'
+      : externalBusy() ? 'measurement_busy' : null;
+    return { ...context, revision: request?.revision, connected: live().connected,
+      lastAttempt: context.state.dailyLastAttempt || context.state.lastAttempt || null, blockedReason };
+  }
+  const dailyScheduler = createDailyWellnessScheduler({
+    read: dailyContext,
+    claim: dailyStore.claim,
+    save: patch => dailyStore.save(patch),
+    execute: async slot => {
+      // The durable slot is consumed before this point. A lost response is
+      // never retried, and scheduled execution never asserts manual wearing.
+      const isCurrent = async () => {
+        const context = await dailyContext();
+        return !!context && context.revision === slot.revision && !context.blockedReason &&
+          context.connected && context.request.routine !== 'manual';
+      };
+      if (Date.now() - +new Date(slot.scheduledAt) >= 60_000 || !await isCurrent()) {
+        throw new Error('schedule_preflight_changed');
+      }
+      return conditionalTrial.requestScheduled({ isCurrent,
+        startDeadlineAt: +new Date(slot.scheduledAt) + 60_000 });
+    },
+    status: () => conditionalTrial.status(),
+  });
+  let ticking;
+  async function reconcile() {
+    const context = await read();
+    if (!context) return;
+    // A changed/stopped/revoked request invalidates the asynchronous second
+    // stage through isCurrent; the next slot remains independent.
+    if (context.state.mayBeRunning || context.state.temperatureMayBeRunning ||
+        (context.request?.routine === 'manual' && context.canStop)) {
+      await controller.tick();
+    }
+    await dailyScheduler.tick();
+    const snapshot = dailyScheduler.snapshot();
+    await save({ ...snapshot, version: 2, intervalHours: null,
+      customerAccepted: false, scheduleVerified: false, wearingConfirmed: false,
+      updatedAt: new Date() });
+  }
+  function tick() {
+    if (!ticking) ticking = reconcile()
+      .catch(() => console.warn('[wellness-routine] reconciliation_failed'))
+      .finally(() => { ticking = null; });
+    return ticking;
+  }
   function observe(decoded, session) {
     if (session?.imei !== imei) return;
     hardware.observe(decoded, session);

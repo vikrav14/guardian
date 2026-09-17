@@ -73,7 +73,8 @@ function createRoutineController({ read, live, save, send, clock = () => new Dat
     // the session changes and fresh wearing/CONFIG evidence is required.
     const unchanged = prior.handoffKey === desiredKey;
     const explicitStop = requested === 'manual' && context.canStop;
-    const shouldSend = !unchanged && (!stop || prior.mayBeRunning === true || explicitStop);
+    const shouldSend = !unchanged && (!stop || prior.mayBeRunning === true ||
+      prior.temperatureMayBeRunning === true || explicitStop);
     const status = { version: 1, routine: valid ? requested : 'manual', revision,
       intervalHours: ROUTINES[requested] || null, temperatureBt: snapshot.bt ?? null,
       wearingStatus: wearAt(snapshot.wear, clock()).state,

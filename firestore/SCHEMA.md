@@ -227,6 +227,110 @@ During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
+## `wellnessRoutineRequests/{imei}`
+
+Desired daily Wellness times for the explicitly granted pilot. The request is
+not a watch command or evidence of a completed measurement. A linked, active
+Essential, Family or Care subscriber with a current backend-managed pilot grant
+may get, create or replace this one request; list and delete are denied.
+Starting Gentle or Balanced also requires current backend-managed wearer
+consent. Manual remains available after consent is revoked, while link, plan
+and pilot checks remain mandatory.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `2` for editable daily times. |
+| routine | string | `manual`, `gentle`, or `balanced`. |
+| times | string[] | Exactly 0, 2, or 3 entries respectively. Canonical 24-hour `HH:mm`, ascending and unique, with at least 5 minutes between adjacent slots and between the last slot and the first slot across midnight. |
+| timeZone | string | Exactly `Indian/Mauritius`; phone timezone never changes the schedule. |
+| requestedBy | string | Must equal the authenticated UID. |
+| updatedAt | timestamp | Must be the request's server timestamp (`request.time`). Defines the schedule revision. |
+
+These are the only allowed fields. Rules and gateway validation reject malformed
+times, unsorted/duplicate/overlapping slots, other timezones, extra command or
+result fields, and forged authority/timestamps. A compatibility request may use
+only `{ version: 1, routine: 'manual', requestedBy, updatedAt }` to stop an older
+routine. New version-1 Gentle/Balanced writes are denied; existing interval
+requests never acquire inferred daily times or restart native intervals.
+
+Daily slots are an application schedule. Saving times does not write a native
+watch interval. The gateway rechecks current authorization, feature gates,
+request revision, connection, measurement availability, and evidence at the
+execution boundary. Missed or blocked slots are skipped without catch-up or
+retries. Editing times does not reset the day's attempt count or resurrect a
+consumed slot. Manual stops future scheduled checks; it never erases a completed
+attempt or implies that an already handed-off watch command was undone.
+
+## `devices/{imei}/wellnessRoutine/current`
+
+Gateway-owned schedule summary. Only the current document is readable by the
+linked pilot on an active edition; all client writes and collection lists are
+denied. Consent revocation does not hide the status needed to request a stop.
+No reading values, health classifications, or raw tracker responses belong in
+this document.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `2` for the daily schedule summary. |
+| routine, times, timeZone | string, string[], string | Validated current desired schedule; Manual has an empty list. |
+| phase, reason | string, string or null | Bounded scheduler state and operational reason; never a claim that a watch measurement succeeded. |
+| nextCheckAt | timestamp or null | Next configured future slot, or null for Manual/invalid schedules. Still subject to execution-time checks. |
+| lastAttempt | map or null | Latest bounded slot metadata described below, including outcome and reason; contains no reading values. |
+| inFlight | boolean | Whether the gateway is awaiting this scheduled sequence's outcome. |
+| updatedAt | timestamp | Gateway summary write time. |
+
+Existing native-interval stop/lease bookkeeping may remain in this document
+during migration; it is backend-owned operational state. `intervalHours` is
+null for daily scheduling. Schedule status, slot outcome and a transport handoff
+must never promote device acceptance, wearer confirmation or customer reading
+eligibility.
+
+## `devices/{imei}/wellnessScheduleDays/{YYYY-MM-DD}`
+
+Private gateway ledger for one Mauritius calendar day. All client reads, lists,
+creates, updates and deletes are denied, including for the pilot. The Admin SDK
+updates the day and slot claim transactionally before dispatch so restarts,
+competing gateway instances, reconnects and schedule edits cannot duplicate a
+slot or reset the daily cap.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `1` for this internal ledger. |
+| date | string | Mauritius local day, matching the document ID. |
+| attempts | number | Shared count across edits and routine changes. Gentle may claim only below 2 attempts and Balanced only below 3. Slots skipped before an attempt claim do not consume the budget. Every claimed attempt remains consumed, including later preflight failures and ambiguous handoffs. |
+| lastAttempt | map | Latest slot metadata, containing no reading values. |
+| updatedAt | timestamp | Latest transaction/checkpoint time. |
+| expiresAt | timestamp | 30-day retention metadata; no automatic deletion is promised until the corresponding TTL policy is enabled. |
+
+## `devices/{imei}/wellnessScheduleSlots/{YYYY-MM-DD-HHmm}`
+
+Private durable slot claim and outcome. Client access is denied as for the day
+ledger. The key is based on local day and configured time, independent of request
+revision, so editing or changing routine cannot replay the same slot. The
+gateway may copy safe slot metadata into `wellnessRoutine/current.lastAttempt`.
+
+| Field | Type | Notes |
+|---|---|---|
+| version | number | `1` for the slot ledger. |
+| slotId, date, time | string | Stable slot ID, Mauritius day, and canonical `HH:mm`. |
+| scheduledAt | timestamp | Exact configured slot time. |
+| revision | string | Request `updatedAt` represented as an ISO timestamp. |
+| claimedAt, updatedAt | timestamp | Durable claim and latest checkpoint times. |
+| phase, outcome | string | Bounded execution/skip state; an optical request handoff is distinct from a measurement result. |
+| terminal | boolean | Whether this slot has reached its final scheduler outcome. |
+| attemptConsumed | boolean | Whether the slot counts toward the day's cap. Lost/unknown dispatch results are never retried. |
+| attemptId | string or null | Internal sequence correlation ID; no raw response or reading value. |
+| reason | string or null | Bounded operational skip/block/outcome reason. |
+| activeUntil | timestamp or null | Bounded in-flight deadline used to recover an interrupted attempt. |
+| startedAt, finishedAt | timestamp, optional | Operational attempt boundaries when known. |
+| temperatureRequested | boolean, optional | Whether the conditional temperature stage was requested; never temperature success or a health value. |
+| expiresAt | timestamp | 30-day retention metadata, subject to the same TTL policy requirement as the day ledger. |
+
+The gateway also retains `dailyLastAttempt`, `dailyActiveSlot` and
+`dailyActiveUntil` in its current routine state for recovery and status. These
+fields are not client-writable. A lost response or interrupted process never
+creates an automatic retry or invents a successful measurement.
+
 ## `devices/{imei}/activityDays/{localDate}`
 
 Gateway-owned daily activity. Linked users may read only `displayable=true`
