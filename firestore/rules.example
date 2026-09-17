@@ -66,12 +66,13 @@ service cloud.firestore {
     }
 
     // Edition windows are Mauritius calendar days, including today. Keep the
-    // local timestamp in a variable before calling date(); this avoids rules
-    // evaluator type errors on timestamp arithmetic.
+    // UTC day start separate from the hour adjustment; this avoids evaluator
+    // errors when date() is called on a timestamp arithmetic expression.
     function wellnessCalendarWindowAllowed(recordedAt) {
-      let localNow = request.time + duration.value(4, 'h');
-      let today = localNow.date()
-        - duration.value(4, 'h');
+      let utcDayStart = request.time.date();
+      let today = request.time.hours() >= 20
+        ? utcDayStart + duration.value(20, 'h')
+        : utcDayStart - duration.value(4, 'h');
       let plan = serviceSubscription().get('plan', '');
       return recordedAt is timestamp
         && activePlanAtLeast('essential')
@@ -82,8 +83,7 @@ service cloud.firestore {
     }
 
     function wellnessHistoryAllowed(recordedAt) {
-      return wellnessCalendarWindowAllowed(recordedAt)
-        && recordedAt <= request.time;
+      return wellnessCalendarWindowAllowed(recordedAt);
     }
 
     function activeWellbeingConsent(imei) {
