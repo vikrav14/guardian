@@ -41,9 +41,11 @@ const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
   defaultValue: false,
 );
 
+// Show the existing Wellness experience in ordinary app launches.
+// Server-owned access, consent and edition checks still govern its data.
 const bool _wellnessPilotPreview = bool.fromEnvironment(
   'GUARDIAN_WELLNESS_PILOT',
-  defaultValue: false,
+  defaultValue: true,
 );
 
 class MapDashboardPage extends StatefulWidget {
