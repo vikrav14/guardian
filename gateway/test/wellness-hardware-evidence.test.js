@@ -186,6 +186,7 @@ test('running pilot confines hardware operations to one session; firmware and re
         createRoutineController: () => ({ tick: async () => {} }) };
       if (name === './wellness-hardware-evidence') return { createHardwareEvidence };
       if (name === './supervised-temperature-trial') return require('../src/supervised-temperature-trial');
+      if (name === './conditional-wellness-trial') return require('../src/conditional-wellness-trial');
       return require(name);
     },
   });
