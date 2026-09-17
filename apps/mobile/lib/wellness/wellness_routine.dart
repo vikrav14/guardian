@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'linked_wellness_stream.dart';
 import 'wellness_card.dart';
+import 'wellness_control.dart';
 import 'wellness_pilot_access.dart';
 import '../services/guardian_entitlements.dart';
 import '../widgets/layout/guardian_page_frame.dart';
@@ -481,32 +482,54 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
           for (final option in wellnessRoutines.entries)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: OutlinedButton(
-                onPressed: !editable ? null : () => setState(() {
-                  _selected = option.key;
-                  _locallyEdited = true;
-                  _feedback = null;
-                }),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selected == option.key
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
+              child: Semantics(
+                selected: _selected == option.key,
+                child: WellnessControl(
+                  emphasized: _selected == option.key,
+                  enabled: editable,
+                  builder: (style) => OutlinedButton(
+                    style: style,
+                    onPressed: !editable
+                        ? null
+                        : () => setState(() {
+                            _selected = option.key;
+                            _locallyEdited = true;
+                            _feedback = null;
+                          }),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _selected == option.key
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  option.value.$1,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  option.value.$2,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(option.value.$1),
-                            Text(option.value.$2),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -522,11 +545,15 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
                 for (var index = 0; index < _times[_selected]!.length; index++)
                   Semantics(
                     label: 'Reading ${index + 1}, Mauritius time',
-                    child: OutlinedButton.icon(
-                      key: ValueKey('routine-time-$index'),
-                      onPressed: editable ? () => _pickTime(index) : null,
-                      icon: const Icon(Icons.schedule, size: 20),
-                      label: Text(_times[_selected]![index]),
+                    child: WellnessControl(
+                      enabled: editable,
+                      builder: (style) => OutlinedButton.icon(
+                        key: ValueKey('routine-time-$index'),
+                        style: style,
+                        onPressed: editable ? () => _pickTime(index) : null,
+                        icon: const Icon(Icons.schedule, size: 20),
+                        label: Text(_times[_selected]![index]),
+                      ),
                     ),
                   ),
               ],
@@ -542,11 +569,15 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
           ),
           const SizedBox(height: 16),
           if (widget.onSave != null)
-            FilledButton(
-              onPressed: !editable || timeError != null
-                  ? null
-                  : _save,
-              child: Text(_saving ? 'Saving…' : 'Apply routine'),
+            WellnessControl(
+              emphasized: true,
+              enabled: editable && timeError == null,
+              builder: (style) => FilledButton.icon(
+                style: style,
+                onPressed: !editable || timeError != null ? null : _save,
+                icon: const Icon(Icons.check_rounded, size: 20),
+                label: Text(_saving ? 'Saving…' : 'Apply routine'),
+              ),
             ),
           if (_feedback != null) ...[
             const SizedBox(height: 12),

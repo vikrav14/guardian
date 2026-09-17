@@ -4,6 +4,7 @@ import '../widgets/cards/guardian_surface.dart';
 import '../models/activity_day.dart';
 import '../theme/app_theme.dart';
 import 'wellness_card.dart';
+import 'wellness_control.dart';
 import 'wellness_chart.dart';
 import 'wellness_sample.dart';
 import 'wellness_trends.dart';
@@ -109,10 +110,14 @@ class _WellnessHistoryState extends State<WellnessHistory> {
                   style: TextStyle(color: colors.textSecondary),
                 ),
               if (widget.onRoutine != null)
-                OutlinedButton.icon(
-                  onPressed: widget.onRoutine,
-                  icon: const Icon(Icons.schedule, size: 18),
-                  label: const Text('Wellness routine'),
+                WellnessControl(
+                  emphasized: true,
+                  builder: (style) => OutlinedButton.icon(
+                    style: style,
+                    onPressed: widget.onRoutine,
+                    icon: const Icon(Icons.schedule, size: 18),
+                    label: const Text('Wellness routine'),
+                  ),
                 ),
             ],
           ),

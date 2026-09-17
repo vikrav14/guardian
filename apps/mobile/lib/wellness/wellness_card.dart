@@ -5,6 +5,7 @@ import '../models/activity_day.dart';
 import '../models/wear_status.dart';
 import '../theme/app_theme.dart';
 import 'wellness_sample.dart';
+import 'wellness_control.dart';
 import 'wellness_window.dart';
 
 class WellnessCard extends StatelessWidget {
@@ -209,18 +210,25 @@ class WellnessCard extends StatelessWidget {
           ),
           if (onRoutine != null) ...[
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onRoutine,
-              icon: const Icon(Icons.schedule),
-              label: const Text('Wellness routine'),
+            WellnessControl(
+              emphasized: true,
+              builder: (style) => OutlinedButton.icon(
+                style: style,
+                onPressed: onRoutine,
+                icon: const Icon(Icons.schedule),
+                label: const Text('Wellness routine'),
+              ),
             ),
           ],
           if (onOpen != null) ...[
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onOpen,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-              label: const Text('View wellness'),
+            WellnessControl(
+              builder: (style) => OutlinedButton.icon(
+                style: style,
+                onPressed: onOpen,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: const Text('View wellness'),
+              ),
             ),
           ],
         ],

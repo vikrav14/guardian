@@ -98,6 +98,7 @@ jobs:
             lib/alerts/alert_row.dart \
             lib/alerts/alert_detail.dart \
             lib/wellness/wellness_card.dart \
+            lib/wellness/wellness_control.dart \
             test/guardian_surface_test.dart \
             lib/widgets/dashboard/dashboard_section_icon.dart \
             lib/widgets/dashboard/guardian_dashboard_overview.dart \
