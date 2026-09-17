@@ -156,7 +156,9 @@ String? wellnessRoutineNextCheck(Map<String, dynamic> status, DateTime now) {
   if (next == null || next.isBefore(now)) return null;
   final updated = _routineDate(status['updatedAt']);
   if (updated == null || updated.isAfter(now) ||
-      now.difference(updated) > const Duration(minutes: 2)) return null;
+      now.difference(updated) > const Duration(minutes: 2)) {
+    return null;
+  }
   return 'Next check · ${_routineMoment(next, now)}';
 }
 
