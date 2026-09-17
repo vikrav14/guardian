@@ -30,7 +30,10 @@ void main() {
     expect(reading.displayable, isFalse);
     expect(reading.quality, 'transport_valid_unverified');
     expect(
-      WellbeingReading.fromMap(record(displayable: true), id: 'customer').displayable,
+      WellbeingReading.fromMap(
+        record(displayable: true),
+        id: 'customer',
+      ).displayable,
       isTrue,
     );
   });
@@ -115,7 +118,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Care history includes temperature as a normal estimate', (tester) async {
+  testWidgets('Care history includes temperature as a normal estimate', (
+    tester,
+  ) async {
     final subscription = GuardianSubscription.fromMap({
       'version': 1,
       'managedBy': 'guardian_admin',
@@ -182,11 +187,7 @@ void main() {
       'metricSet': 'heart_rate_blood_pressure',
       'displayable': true,
       'quality': 'transport_valid_unverified',
-      'values': {
-        'heartRateBpm': 72,
-        'systolicMmHg': 118,
-        'diastolicMmHg': 76,
-      },
+      'values': {'heartRateBpm': 72, 'systolicMmHg': 118, 'diastolicMmHg': 76},
       'observedAt': Timestamp.fromDate(recent),
     });
     final subscription = GuardianSubscription.fromMap({
@@ -201,7 +202,11 @@ void main() {
       now: DateTime.now(),
     );
     final samples = await service
-        .watchWellnessSamples('watch', subscription: subscription, window: window)
+        .watchWellnessSamples(
+          'watch',
+          subscription: subscription,
+          window: window,
+        )
         .firstWhere((v) => v.isNotEmpty)
         .timeout(const Duration(seconds: 5));
     expect(

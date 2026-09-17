@@ -50,7 +50,9 @@ void main() {
     );
   });
 
-  testWidgets('card labels customer estimates and keeps dates separate', (tester) async {
+  testWidgets('card labels customer estimates and keeps dates separate', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -87,7 +89,7 @@ void main() {
     expect(find.text('63'), findsOneWidget);
     expect(find.text('Steps today'), findsOneWidget);
     expect(
-      find.textContaining('Wearing at measurement time is unconfirmed'),
+      find.textContaining('wearing at measurement time is not confirmed'),
       findsOneWidget,
     );
     expect(find.text('73 bpm'), findsNothing);

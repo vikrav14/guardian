@@ -309,7 +309,11 @@ void main() {
       );
       await show(tester, available: false, initialActivity: false);
       expect(find.textContaining('34.56'), findsNothing);
-      expect(find.text('Heart rate over time'), findsOneWidget);
+      expect(
+        find.text('Wellbeing readings are not available yet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Heart rate over time'), findsNothing);
       await show(tester, error: true, initialActivity: false);
       expect(find.byType(WellnessChart), findsNothing);
       expect(find.text('72 bpm'), findsNothing);

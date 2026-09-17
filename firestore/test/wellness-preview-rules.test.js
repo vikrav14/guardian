@@ -59,6 +59,7 @@ test('wellbeing queries remain bounded by the Care calendar window', async () =>
     'devices', imei, 'wellbeingReadings');
   await assertSucceeds(getDocs(query(
     base,
+    where('displayable', '==', true),
     where('observedAt', '>=', today),
     where('observedAt', '<', new Date(+today + 86400_000)),
     orderBy('observedAt', 'desc'),

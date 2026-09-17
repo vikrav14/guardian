@@ -65,12 +65,17 @@ service cloud.firestore {
         );
     }
 
-    // Edition windows are Mauritius calendar days, including today.
+    // Edition windows are Mauritius calendar days, including today. Keep the
+    // local timestamp in a variable before calling date(); this avoids rules
+    // evaluator type errors on timestamp arithmetic.
     function wellnessHistoryAllowed(recordedAt) {
-      let today = (request.time + duration.value(4, 'h')).date()
+      let localNow = request.time + duration.value(4, 'h');
+      let today = localNow.date()
         - duration.value(4, 'h');
       let plan = serviceSubscription().get('plan', '');
-      return activePlanAtLeast('essential')
+      return recordedAt is timestamp
+        && recordedAt <= request.time
+        && activePlanAtLeast('essential')
         && recordedAt < today + duration.value(1, 'd')
         && (plan == 'care'
           || (plan == 'family' && recordedAt >= today - duration.value(6, 'd'))
@@ -229,7 +234,7 @@ service cloud.firestore {
         allow read: if linkedTo(imei)
           && activePlanAtLeast('care')
           && resource.data.get('displayable', false) == true
-          && wellnessHistoryAllowed(resource.data.observedAt)
+          && wellnessHistoryAllowed(resource.data.get('observedAt', null))
           && activeWellbeingConsent(imei);
         allow write: if false;
       }
@@ -283,7 +288,7 @@ service cloud.firestore {
         allow read: if linkedTo(imei)
           && activePlanAtLeast('essential')
           && resource.data.get('displayable', false) == true
-          && wellnessHistoryAllowed(resource.data.lastObservedAt);
+          && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
         allow create, update, delete: if false;
       }
     }
