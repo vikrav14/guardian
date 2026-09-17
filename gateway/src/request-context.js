@@ -88,6 +88,10 @@ function selectAllowedTools(intent) {
     tools.push('get_device_intelligence');
   }
 
+  if (intent.type === 'ACTIVITY_QUERY') {
+    tools.push('get_activity_summary');
+  }
+
   // Alert tools for alert queries (Phase 2)
   if (intent.type === 'RECENT_ALERTS') {
     tools.push('get_recent_alerts');
@@ -179,6 +183,13 @@ If tools fail, say you could not reach alert history.`;
 Use get_recent_journeys for the resolved wearer.
 Report only confirmed stored journeys and their recorded times and distance.
 Never infer a destination, purpose, route, arrival, or departure that is absent from the tool result.`;
+  }
+
+  if (intent.type === 'ACTIVITY_QUERY') {
+    return `${base}
+Use get_activity_summary for the resolved wearer.
+Report only accepted daily step totals and their freshness.
+Never infer calories, distance, fitness, illness, or medical status.`;
   }
 
   if (intent.type === 'WEATHER_QUERY') {

@@ -34,6 +34,7 @@ class GuardianDashboardOverview extends StatelessWidget {
     this.onSafeZones,
     this.onLinkWatch,
     this.serviceSections = const [],
+    this.wellness,
   });
 
   final Device? device;
@@ -61,6 +62,7 @@ class GuardianDashboardOverview extends StatelessWidget {
   /// Optional activity/Care panels, already authorized by the owning page.
   /// An empty list keeps unfinished service features absent from the dashboard.
   final List<Widget> serviceSections;
+  final Widget? wellness;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +143,13 @@ class GuardianDashboardOverview extends StatelessWidget {
                     geofences: geofences,
                     onManage: onSafeZones,
                   ),
-                  if (aiEnabled) ...[
+                  if (wellness != null &&
+                      constraints.maxWidth >= 960 &&
+                      MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
+                    const SizedBox(height: 20),
+                    wellness!,
+                  ],
+                  if (aiEnabled && wellness == null) ...[
                     const SizedBox(height: 20),
                     _InsightPanel(message: insight),
                   ],
@@ -156,6 +164,10 @@ class GuardianDashboardOverview extends StatelessWidget {
                   children: [
                     location,
                     SizedBox(height: compact ? 12 : 20),
+                    if (wellness != null) ...[
+                      wellness!,
+                      SizedBox(height: compact ? 12 : 20),
+                    ],
                     details,
                   ],
                 );

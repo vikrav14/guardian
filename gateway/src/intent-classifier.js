@@ -16,6 +16,7 @@ const KEYWORDS = {
   CRITICAL: ['sos', 'emergency', 'urgent', 'danger', 'hospital', 'police', 'urgence', 'sekour'],
   LOCATION: ['where', 'locate', 'localise', 'at', 'location', 'position', 'find', 'track', 'ou', 'kote', 'kot'],
   DEVICE_STATUS: ['battery', 'batterie', 'batri', 'signal', 'online', 'check', 'status', 'connected', 'connectee', 'heartbeat'],
+  ACTIVITY: ['step', 'steps', 'pedometer', 'walking', 'walked', 'activity', 'active'],
   RECENT_ALERTS: ['alert', 'alerts', 'alerte', 'alertes', 'warning', 'warnings', 'fall', 'geofence', 'event', 'incident', 'incidents', 'trigger'],
   JOURNEY: ['journey', 'journeys', 'trip', 'trips', 'outing', 'outings', 'trajet', 'voyage', 'sortie'],
   WEATHER: ['weather', 'forecast', 'rain', 'raining', 'temperature', 'meteo'],
@@ -60,8 +61,9 @@ function classifyIntent(text) {
     };
   }
 
-  // Whole-day factual summary. Check before alerts/journeys because these
-  // phrases intentionally aggregate several Guardian fact types.
+  // Whole-day factual summaries keep their broader Care meaning. Check this
+  // before the narrower steps intent so "how active was X today" still asks
+  // for the established multi-fact daily summary.
   const dailySummaryMatch =
     /\b(daily (?:summary|recap)|today'?s summary|yesterday summary)\b/.test(lower) ||
     /\bhow (?:was|active was)\b.+\b(day|today|yesterday)\b/.test(lower) ||
@@ -77,6 +79,20 @@ function classifyIntent(text) {
       urgency: 2,
       confidence: 0.90,
       matchedKeywords: ['daily_summary'],
+    };
+  }
+
+  // Direct step/walking questions use the accepted activity-day store.
+  const activityMatch = findKeywordMatch(lower, KEYWORDS.ACTIVITY);
+  const activityPhraseMatch =
+    /\bhow (?:many )?steps\b/.test(lower) ||
+    /\b(did|has)\b.+\b(walk|walked|active)\b/.test(lower);
+  if (activityMatch.found || activityPhraseMatch) {
+    return {
+      type: 'ACTIVITY_QUERY',
+      urgency: 1,
+      confidence: 0.90,
+      matchedKeywords: activityMatch.keywords,
     };
   }
 
@@ -286,6 +302,10 @@ function requiresCommand(intent) {
   return intent.type === 'DEVICE_COMMAND';
 }
 
+function requiresActivity(intent) {
+  return intent.type === 'ACTIVITY_QUERY';
+}
+
 module.exports = {
   classifyIntent,
   isCritical,
@@ -294,4 +314,5 @@ module.exports = {
   requiresAlerts,
   requiresReminder,
   requiresCommand,
+  requiresActivity,
 };

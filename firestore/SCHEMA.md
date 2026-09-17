@@ -124,6 +124,10 @@ Live device state. Document ID = device IMEI (digits only).
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
 
+The raw `stepsRaw` and `rollCountRaw` fields are diagnostic counters, not
+customer activity totals. Accepted daily totals are stored separately under
+`activityDays` so Family/Care rules can fail closed without placing a total on
+the broadly readable device document.
 ### `lastHomeWifiDetection` (map) — historical Home display
 
 Backend-owned qualified Home detection, stored atomically alongside a fresh v4
@@ -207,6 +211,55 @@ This prevents a WiFi/LBS radius from leaking into a later GPS observation.
 During rollout, the gateway performs one compatibility read per device process
 before its first new location write so a legacy current GPS location is copied
 to `lastSatelliteLocation` before an indoor fallback can replace `location`.
+
+## `devices/{imei}/activityDays/{localDate}`
+
+Gateway-owned daily activity. Linked users may read only `displayable=true`
+records within their active Wellness edition window: Essential today, Family
+seven local calendar days, Care available retained history. Clients cannot write.
+
+| Field | Type | Notes |
+|---|---|---|
+| schemaVersion | number | `2` for observed-increase accounting; legacy `daily_reset` records remain version `1`. |
+| imei, localDate, timeZone | string | Parent watch, local YYYY-MM-DD and configured IANA timezone. |
+| aggregation | string | `observed_delta` for v2. |
+| counterMode | string | `unverified`, accepted `observed_delta`, or legacy accepted `daily_reset`. |
+| recordedSteps, observedDeltaSteps | number | V2 sum of accepted increases assigned to this day, starting from zero at its first observation. |
+| displayable | boolean | V2 requires accepted observed-delta mode and customer opt-in. |
+| reportedSteps | number or null | V2 customer projection of recordedSteps; null while unverified/disabled. |
+| firstRaw, lastRaw | number | Observed raw counter values, not daily totals. |
+| firstObservedAt, lastObservedAt | timestamp | Receipt interval endpoints. |
+| sampleCount | number | Observations represented in persisted accounting; unchanged packets are throttled. |
+| resetCount, confirmedResetCount | number | Counter-decrease candidates and confirmed new baselines. No reset total is inferred. |
+| anomalyCount, gapCount | number | Implausible increases and observation gaps over 30 minutes. |
+| unallocatedSteps | number | Positive increase seen across a day boundary or long gap, recorded on the arrival-day diagnostic but excluded from either daily total. |
+| coverage, coverageReasons | string, array | `partial`, with reasons such as monitoring_started, counter_discontinuity or cross_midnight_unallocated. Never proves full-day coverage/inactivity. |
+| lastIntervalReason | string | Latest accounting decision. |
+| quality | string | V2 unverified or partial; legacy records may contain reset_recovered/anomalous. |
+| expiresAt, updatedAt | timestamp | Retention deadline and last persistence. |
+
+## `devices/{imei}/activityState/counter`
+
+Backend-only durable v2 counter baseline. Stores accepted `lastRaw`, `baselineAt`,
+`baselineLocalDate`, latest received raw/time/source, last device timestamp where
+available, segment number, pending discontinuity, mode and intervalSequence.
+One Firestore transaction commits this state, the day and any diagnostic interval.
+Receipt/device timestamp replay checks make retry idempotent across gateway
+restarts and concurrent instances. This is one bounded document per watch,
+retained with the device rather than expiring at a day boundary.
+
+## `devices/{imei}/activityIntervals/{slot}`
+
+Backend-only ring of at most 256 recent diagnostic intervals per watch, with a
+seven-day expiry handled by gateway cleanup. Each contains rawBefore/rawAfter,
+receipt-time from/to, source/deviceObservedAt when supplied, local dates,
+acceptedSteps, unallocatedSteps, segment and reason. Slots may be overwritten;
+this is recent diagnostic evidence, not promised complete hourly history.
+Unchanged heartbeat history is not written. Daily aggregates have their own
+retention and do not disappear when diagnostic intervals expire.
+
+No counter field is copied into current location, journeys, emergency alerts,
+active minutes, calories, distance or medical conclusions.
 
 ## `devices/{imei}/locations/{locationId}`
 
@@ -530,6 +583,7 @@ The gateway keeps a full in-memory GPS stream and writes to Firestore only on me
 | Moved ≥ `WRITE_GATE_MIN_METRES` (default 50 m) from last persisted location | Upsert `devices/{imei}.location`; optional history |
 | Battery integer change | Upsert `batteryPercent` and its independent receipt timestamp. |
 | Persisted V52 heartbeat/location/alarm | Store validated latest cellular signal and raw activity counters without creating extra history writes. |
+| Passive V52 step observation while activity ingestion is enabled | Upsert one protected local-day `activityDays` document; duplicate counters are throttled and no customer total is exposed in `unverified` mode. |
 | SOS / fall / low_battery / geofence enter/exit | Always upsert + alert |
 | Heartbeat cap (`WRITE_GATE_HEARTBEAT_MINUTES`, default 5 min) while stationary | Upsert `lastHeartbeatAt`, `online` |
 | First GPS fix after TCP connect | Always upsert location |

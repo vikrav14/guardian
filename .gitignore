@@ -47,3 +47,6 @@ gateway/logs/audit-*.jsonl
 
 # Durable device evidence and pending journey writes (private runtime data)
 gateway/data/
+
+# Private, read-only wearing-status pilot captures
+gateway/data/wear-checks/
