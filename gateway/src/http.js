@@ -1217,7 +1217,7 @@ function startHttpServer() {
         if (!(await requireStrictAdmin(req, res))) return;
         if (!config.careWellbeingRequestEnabled) {
           sendJson(res, 409, {
-            error: 'Care wellbeing request pilot is disabled',
+            error: 'Care wellbeing requests are disabled',
             requiredSetting: 'CARE_WELLBEING_REQUEST_ENABLED=true',
           });
           return;
@@ -1288,8 +1288,6 @@ function startHttpServer() {
           intervalSeconds: payload.action === 'schedule'
             ? Number(payload.intervalSeconds)
             : null,
-          pilotOnly: true,
-          customerVisible: false,
         });
         return;
       }

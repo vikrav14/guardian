@@ -9,8 +9,9 @@ function wellnessDayStart(now = new Date()) {
   if (!Number.isFinite(time)) throw new TypeError('Invalid wellness clock');
   return new Date(Math.floor((time + OFFSET_MS) / DAY_MS) * DAY_MS - OFFSET_MS);
 }
-function wellnessWindow(entitlements, { now = new Date(), days = 7 } = {}) {
+function wellnessWindow(entitlements, { now = new Date(), days = 7, minimumPlan = 'essential' } = {}) {
   if (!entitlements?.serviceActive || !['essential', 'family', 'care'].includes(entitlements.plan)) return null;
+  if (minimumPlan === 'care' && entitlements.plan !== 'care') return null;
   if (entitlements.accessUntil && new Date(entitlements.accessUntil) <= now) return null;
   const maximum = entitlements.plan === 'essential' ? 1 : entitlements.plan === 'family' ? 7 : 31;
   const count = Math.min(maximum, Math.max(1, Math.floor(Number(days) || 1)));

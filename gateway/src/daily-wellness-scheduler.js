@@ -78,7 +78,7 @@ function createDailyWellnessScheduler({ read, claim, save, execute, status, cloc
     remember(attempt);
   }
   function block(context) {
-    if (!context.enabled) return 'pilot_disabled';
+    if (!context.enabled) return 'routine_disabled';
     if (!context.authorized) return 'access_or_consent_unavailable';
     if (!context.connected) return 'watch_offline';
     return context.blockedReason || null;

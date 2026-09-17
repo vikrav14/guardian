@@ -30,7 +30,7 @@ function database(consent = granted) {
   return { docs, collection: name => ref(name) };
 }
 const store = (db, overrides = {}) => createWellbeingStore({ db, enabled: true,
-  temperaturePilotImei: IMEI, now: () => NOW, ...overrides });
+  now: () => NOW, ...overrides });
 
 test('wire upload preserves the bare ACK and decodes only the compared variant', () => {
   const payload = 'btemp2,1,34.56';
@@ -42,7 +42,7 @@ test('wire upload preserves the bare ACK and decodes only the compared variant',
   assert.deepEqual(reading.values, { skinTemperatureCelsius: 34.56 });
   assert.equal(reading.measurementType, null);
   assert.equal(reading.sourceVariant, '1');
-  assert.equal(reading.privatePreviewOnly, true);
+  assert.equal(reading.privatePreviewOnly, undefined);
 });
 
 test('unknown prefixes, extra fields, sentinels and non-decimal encodings fail closed', () => {
@@ -56,8 +56,8 @@ test('unknown prefixes, extra fields, sentinels and non-decimal encodings fail c
   assert.throws(() => buildWellbeingRequestCommand('skin_temperature'), /No confirmed/);
 });
 
-test('temperature requires the configured pilot, ingestion and current consent', async () => {
-  for (const options of [{ temperaturePilotImei: '' }, { temperaturePilotImei: '861000000000002' }, { enabled: false }]) {
+test('temperature requires ingestion and current consent, not a device grant', async () => {
+  for (const options of [{ enabled: false }]) {
     const db = database();
     assert.equal((await store(db, options).ingest(event(), AT)).ok, false);
     assert.equal(db.docs.size, 0);
@@ -69,19 +69,19 @@ test('temperature requires the configured pilot, ingestion and current consent',
   }
 });
 
-test('general device acceptance and wearing proof cannot promote temperature', async () => {
+test('temperature remains an estimate even when optical wearing proof exists', async () => {
   const db = database();
   const worn = { version: 1, state: 'worn', deviceAccepted: true, continuityId: 'test',
     observedAt: AT, expiresAt: new Date(+AT + 120_000) };
   const result = await store(db, { deviceMode: 'accepted', customerEnabled: true })
     .ingest({ ...event(), wearEvidence: worn }, AT);
   const data = [...db.docs.values()][0];
-  assert.equal(result.displayable, false);
+  assert.equal(result.displayable, true);
   assert.equal(data.deviceMode, 'unverified');
   assert.equal(data.quality, 'transport_valid_unverified');
-  assert.equal(data.privatePreviewOnly, true);
+  assert.equal(data.privatePreviewOnly, undefined);
   assert.equal(data.timeBasis, 'gateway_receipt_not_measurement_time');
-  assert.equal(formatWellbeingReply({ readings: [data] }).includes('34.56'), false);
+  assert.equal(formatWellbeingReply({ readings: [data] }).includes('34.56'), true);
 });
 
 test('import is dry by default, preserves receipt time, and repeated apply is idempotent', async () => {
@@ -124,13 +124,13 @@ test('temperature import CLI accepts quoted paths, never enables writes implicit
 });
 
 test('temperature diagnostics redact values by default and expose only their own field on request', () => {
-  const reading = { metricSet: 'skin_temperature', observedAt: AT, displayable: false,
+  const reading = { metricSet: 'skin_temperature', observedAt: AT, displayable: true,
     values: { skinTemperatureCelsius: 34.56, unrelated: 'private' } };
   const evidence = { consent: granted, readings: [reading] };
   assert.doesNotMatch(JSON.stringify(buildReport(evidence, {}, NOW)), /34.56|unrelated/);
   const report = buildReport(evidence, {}, NOW, { includeReadingValues: true });
   const metric = report.wellbeing.metrics.find(m => m.metricSet === 'skin_temperature');
   assert.equal(metric.uploads, 1);
-  assert.equal(metric.displayableUploads, 0);
+  assert.equal(metric.displayableUploads, 1);
   assert.deepEqual(metric.latestReadings[0].values, { skinTemperatureCelsius: 34.56 });
 });

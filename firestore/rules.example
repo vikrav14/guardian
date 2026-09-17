@@ -97,19 +97,6 @@ service cloud.firestore {
         );
     }
 
-    // Explicit, expiring permission to inspect this watch's diagnostic readings.
-    // It does not promote source records or authorize reports/notifications.
-    function wellnessPilotAllowed(imei) {
-      let grant = get(/databases/$(database)/documents/wellnessPilots/$(imei)).data;
-      return grant.get('version', 0) == 1
-        && grant.get('managedBy', '') == 'guardian_admin'
-        && grant.get('viewerUid', '') == request.auth.uid
-        && grant.get('enabled', false) == true
-        && grant.createdAt is timestamp && grant.createdAt <= request.time
-        && grant.expiresAt is timestamp && grant.expiresAt > request.time
-        && grant.expiresAt <= grant.createdAt + duration.value(1, 'd');
-    }
-
     function caregiverLimit() {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
@@ -236,20 +223,19 @@ service cloud.firestore {
         }
       }
 
-      // Customer reads require accepted evidence. A separately granted pilot
-      // may inspect shadow readings within the same consent and edition window.
-      // Admin SDK owns every write; preview never changes source acceptance.
+      // Care customers may read consented watch estimates within the Care
+      // history window. The backend owns writes and wearing remains unconfirmed.
       match /wellbeingReadings/{readingId} {
         allow read: if linkedTo(imei)
+          && activePlanAtLeast('care')
           && wellnessHistoryAllowed(resource.data.observedAt)
-          && activeWellbeingConsent(imei)
-          && (resource.data.displayable == true || wellnessPilotAllowed(imei));
+          && activeWellbeingConsent(imei);
         allow write: if false;
       }
 
-      // Gateway-owned V52 daily activity. A client must be linked, hold an
-      // active edition entitlement, and query accepted displayable records or
-      // have an explicit expiring pilot grant. Baselines remain backend-only.
+      // Gateway-owned V52 daily activity. A client must be linked and hold an
+      // active edition entitlement. The app only parses bounded display fields;
+      // raw counter baselines remain backend-only by convention.
       // Wearing data quality is available on every active edition. Raw
       // tracker bits and diagnostic captures remain backend-only.
       match /wearStatus/{statusId} {
@@ -278,7 +264,7 @@ service cloud.firestore {
       }
       match /wellnessRoutine/{statusId} {
         allow get: if statusId == 'current' && linkedTo(imei)
-          && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
+          && activePlanAtLeast('care');
         allow list, write: if false;
       }
       // Durable scheduler claims/counters are internal. The gateway copies
@@ -294,8 +280,8 @@ service cloud.firestore {
       }
       match /activityDays/{localDate} {
         allow read: if linkedTo(imei)
-          && wellnessHistoryAllowed(resource.data.lastObservedAt)
-          && (resource.data.displayable == true || wellnessPilotAllowed(imei));
+          && activePlanAtLeast('essential')
+          && wellnessHistoryAllowed(resource.data.lastObservedAt);
         allow create, update, delete: if false;
       }
     }
@@ -306,15 +292,8 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    match /wellnessPilots/{imei} {
-      allow get: if linkedTo(imei) && activePlanAtLeast('essential')
-        && resource.data.viewerUid == request.auth.uid;
-      allow list, create, update, delete: if false;
-    }
-
     // Desired settings only. The gateway separately checks current consent,
-    // session, feature gates, consent, account access and conditional uploads.
-    // This does not let preview users forge device acceptance or raw commands.
+    // session, feature gates, account access and conditional uploads.
     match /wellnessRoutineRequests/{imei} {
       function validTime(time) {
         return time is string && time.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
@@ -356,9 +335,8 @@ service cloud.firestore {
         ) && data.requestedBy == request.auth.uid
           && data.updatedAt == request.time;
       }
-      allow get: if linkedTo(imei) && activePlanAtLeast('essential') && wellnessPilotAllowed(imei);
-      allow create, update: if linkedTo(imei) && activePlanAtLeast('essential')
-        && wellnessPilotAllowed(imei)
+      allow get: if linkedTo(imei) && activePlanAtLeast('care');
+      allow create, update: if linkedTo(imei) && activePlanAtLeast('care')
         && validScheduleRequest()
         && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
       allow list, delete: if false;

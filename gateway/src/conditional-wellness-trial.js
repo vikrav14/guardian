@@ -54,8 +54,9 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     throw new TypeError('A temperature trial with readiness, request and status is required.');
   }
   let sequence = null, preparing = false, lockUntil = 0, generation = 0;
-  const enabled = () => config.wellnessRoutinePilotEnabled === true &&
-    config.careWellbeingRequestEnabled === true && config.careWellbeingIngestEnabled === true;
+  const enabled = () => config.wellnessRoutineEnabled === true &&
+    config.careWellbeingRequestEnabled === true &&
+    config.careWellbeingIngestEnabled === true;
   const contextAllowed = (context, scheduled = false) => enabled() && validConsent(context?.consent, new Date(clock())) &&
     (scheduled ? context?.request?.version === 2 && ['gentle', 'balanced'].includes(context.request.routine)
       : !context?.request?.routine || context.request.routine === 'manual') &&
@@ -105,7 +106,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     }
     if (attempt.terminal) return;
     if (at < attempt.requestedAt) finish(attempt, 'clock_changed');
-    else if (!enabled()) finish(attempt, 'pilot_disabled');
+    else if (!enabled()) finish(attempt, 'routine_disabled');
     else if (!matches(attempt)) finish(attempt, 'session_changed',
       attempt.temperature ? 'temperature_capture_ended' : 'temperature_skipped');
     else if (attempt.phase !== 'waiting_temperature' && at >= attempt.opticalDeadlineAt) {
@@ -141,7 +142,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
 
   async function execute(operation, isCurrent) {
     const scheduled = operation.positionBasis === 'scheduled';
-    if (!enabled()) throw new Error('Pilot, wellbeing request and ingestion must be enabled.');
+    if (!enabled()) throw new Error('Wellness routine, request and ingestion must be enabled.');
     if (scheduled && clock() >= operation.startDeadlineAt) {
       throw new Error('The scheduled start window has ended; nothing sent.');
     }
@@ -161,7 +162,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
       }
       if (generation !== preparation) throw new Error('The sequence was cancelled; nothing sent.');
       if (!contextAllowed(context, scheduled)) {
-        throw new Error('Current consent, enabled pilot and an authorized routine with no possibly running native routine are required.');
+        throw new Error('Current consent, enabled routine and an authorized schedule with no possibly running native routine are required.');
       }
       if (currentSession() !== session || session.imei !== config.wifiHomePilotImei || session.protocolId !== protocolId) {
         throw new Error('The pilot session changed; nothing sent.');

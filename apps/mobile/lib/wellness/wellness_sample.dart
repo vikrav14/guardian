@@ -1,7 +1,6 @@
 enum WellnessMetric { heartRate, bloodOxygen, bloodPressure, skinTemperature }
 
-/// Display adapter for accepted evidence and explicitly authorized previews.
-/// Skin temperature is restricted to the private pilot by its source adapter.
+/// Display adapter for backend-authorized watch estimates.
 class WellnessSample {
   const WellnessSample({
     required this.metric,

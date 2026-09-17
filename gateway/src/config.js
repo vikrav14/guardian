@@ -166,15 +166,17 @@ const config = {
     .filter(Boolean),
   opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
 
-  // V52 Care wellbeing. Health readings are sensitive and remain fail-closed:
-  // ingestion requires a backend-owned consent record, unverified readings
-  // are never displayable, and on-demand requests are a separate pilot gate.
-  // Process-local opt-in used by the private temperature capture launcher.
+  // V52 Care wellbeing. Health readings require a backend-owned consent record
+  // and remain informational watch estimates; operational ingestion/request
+  // switches are independent of account access.
+  // Process-local opt-in for automatic routine dispatch. Account access is
+  // still owned by the active Care subscription and wearer consent.
   temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
   wearCaptureEnabled: process.env.GUARDIAN_WEAR_CAPTURE === '1',
   wearSensorCaptureEnabled: process.env.GUARDIAN_WEAR_SENSOR_CAPTURE === '1',
   wearWireCaptureEnabled: process.env.GUARDIAN_WEAR_WIRE_CAPTURE === '1',
-  wellnessRoutinePilotEnabled: process.env.WELLNESS_ROUTINE_PILOT_ENABLED === 'true',
+  wellnessRoutineEnabled:
+    String(process.env.WELLNESS_ROUTINE_ENABLED || 'false').toLowerCase() === 'true',
   careWellbeingIngestEnabled:
     String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
   careWellbeingDeviceMode:

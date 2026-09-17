@@ -49,7 +49,7 @@ function parseV52Telemetry(fields) {
 // Includes commands confirmed in the V52 vendor protocol and companion
 // captures. 'profile'/'PROFILE' case variants are both listed because the
 // vendor examples are inconsistent about command case. `hrtstart` is retained
-// as a pilot-only V46/V52-compatible downlink; incoming `oxygen` and `bphrt`
+// as a supported V46/V52-compatible downlink; incoming `oxygen` and `bphrt`
 // are device uploads and are parsed below.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
@@ -394,7 +394,8 @@ function handlePacket(decoded, session) {
   } else if (command === 'btemp2') {
     // Observed V52 wrist-temperature upload. Preserve the previous bare ACK;
     // the supplier's ACK contract and the leading field's meaning are unknown.
-    // Only the configured private pilot may ingest the exact observed shape.
+    // The exact observed shape is accepted as an informational estimate;
+    // account access and consent are enforced by the wellbeing store/rules.
     acks.push(buildAckFrame(protocolId, 'btemp2'));
     events.push({ type: 'health_reading', ...eventMeta,
       metric: 'skin_temperature', sourceCommand: 'btemp2', args: [...args] });

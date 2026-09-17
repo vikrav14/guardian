@@ -9,7 +9,7 @@ function read(relative) {
   return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
 }
 
-test('Care wellbeing customer, ingestion and request gates default off', () => {
+test('Care wellbeing operational switches remain independently fail-closed', () => {
   const config = read('src/config.js');
   for (const name of [
     'CARE_WELLBEING_INGEST_ENABLED',
@@ -21,20 +21,21 @@ test('Care wellbeing customer, ingestion and request gates default off', () => {
   assert.match(config, /CARE_WELLBEING_DEVICE_MODE \|\| 'unverified'/);
 });
 
-test('Flutter customer panel also defaults off independently', () => {
+test('Flutter Wellness is entitlement-driven and has no pilot visibility flag', () => {
   const dashboard = fs.readFileSync(
     path.join(__dirname, '..', '..', 'apps', 'mobile', 'lib', 'screens', 'map_dashboard_page.dart'),
     'utf8',
   );
-  assert.match(dashboard, /GUARDIAN_CARE_WELLBEING_ENABLED/);
-  assert.match(dashboard, /defaultValue: false/);
+  assert.doesNotMatch(dashboard, /GUARDIAN_CARE_WELLBEING_ENABLED|GUARDIAN_WELLNESS_PILOT/);
+  assert.match(dashboard, /GuardianFeature\.activitySteps/);
+  assert.match(dashboard, /GuardianFeature\.wellnessReadings/);
 });
 
-test('temperature remains private and unsupported upload shapes remain blocked', () => {
+test('temperature estimate uploads are supported only for the captured shape', () => {
   const contract = read('src/service-backbones/care-wellbeing.js');
   const { normalizeWellbeingEvent } = require('../src/care-wellbeing');
   assert.equal(normalizeWellbeingEvent({ type: 'health_reading', imei: '861000000000001',
     metric: 'temperature', value: 34.56 }).reason, 'unsupported_metric');
-  assert.match(contract, /blockedUntilCaptured/);
-  assert.match(contract, /bodytemp2/);
+  assert.doesNotMatch(contract, /pilotOnlyUploads: Object\.freeze\(\['btemp2'\]\)/);
+  assert.match(contract, /btemp2/);
 });

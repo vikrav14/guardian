@@ -14,19 +14,19 @@ before(async () => {
 });
 after(async () => env?.cleanup());
 
-async function seed(plan = 'essential', {
-  consent = 'granted', grant = true, linked = true, status = 'active',
-  consentPatch = {}, grantPatch = {}, subscriptionPatch = {},
+async function seed(plan = 'care', {
+  consent = 'granted', linked = true, status = 'active',
+  consentPatch = {}, subscriptionPatch = {},
 } = {}) {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async c => {
     const db = c.firestore(), now = new Date();
     for (const uid of ['pilot', 'other']) {
-      await setDoc(doc(db, 'users', uid), { linkedImeis: linked ? [imei] : [] });
+      await setDoc(doc(db, 'users', uid), {
+        linkedImeis: uid === 'pilot' && linked ? [imei] : [],
+      });
       await setDoc(doc(db, 'serviceSubscriptions', uid), { version: 1, managedBy: 'guardian_admin', plan, status, ...subscriptionPatch });
     }
-    await setDoc(doc(db, 'wellnessPilots', imei), { version: 1, managedBy: 'guardian_admin',
-      viewerUid: 'pilot', enabled: grant, createdAt: now, expiresAt: new Date(+now + 3600_000), ...grantPatch });
     await setDoc(doc(db, 'wellbeingConsents', imei), { version: 1, managedBy: 'guardian_admin',
       status: consent, wearerAcknowledgedAt: now, ...consentPatch });
     await setDoc(doc(db, 'devices', imei, 'wellnessRoutine', 'current'), {
@@ -55,14 +55,16 @@ function legacy(routine = 'manual', patch = {}) {
   });
 }
 
-test('every active edition may create and edit exact daily schedules with explicit pilot access', async () => {
-  for (const plan of ['essential', 'family', 'care']) {
+test('only a linked Care customer may create and edit daily schedules', async () => {
+  await seed('care');
+  for (const routine of ['manual', 'gentle', 'balanced']) await assertSucceeds(write('pilot', { routine }));
+  await assertSucceeds(write('pilot', { routine: 'gentle', times: ['07:30', '21:15'] }));
+  await assertSucceeds(getDoc(doc(db(), 'wellnessRoutineRequests', imei)));
+  await assertFails(write('other'));
+  await assertFails(write(null));
+  for (const plan of ['essential', 'family']) {
     await seed(plan);
-    for (const routine of ['manual', 'gentle', 'balanced']) await assertSucceeds(write('pilot', { routine }));
-    await assertSucceeds(write('pilot', { routine: 'gentle', times: ['07:30', '21:15'] }));
-    await assertSucceeds(getDoc(doc(db(), 'wellnessRoutineRequests', imei)));
-    await assertFails(write('other'));
-    await assertFails(write(null));
+    await assertFails(write('pilot', { routine: 'gentle' }));
   }
 });
 
@@ -164,17 +166,13 @@ test('missing, revoked, expired, or untrusted consent blocks starts but permits 
   await assertSucceeds(write('pilot', { routine: 'manual' }));
 });
 
-test('link, active entitlement, and current trusted pilot permission remain mandatory even for stop', async () => {
+test('link and active Care entitlement remain mandatory even for stop', async () => {
   for (const options of [
-    { grant: false }, { linked: false }, { status: 'expired' },
-    { grantPatch: { expiresAt: new Date('2020-01-01') } },
-    { grantPatch: { expiresAt: new Date(Date.now() + 25 * 3600_000) } },
-    { grantPatch: { createdAt: new Date('2099-01-01') } },
-    { grantPatch: { viewerUid: 'other' } }, { grantPatch: { managedBy: 'client' } },
+    { linked: false }, { status: 'expired' },
     { subscriptionPatch: { managedBy: 'client' } },
     { subscriptionPatch: { currentPeriodEnd: new Date('2020-01-01') } },
   ]) {
-    await seed('family', options);
+    await seed('care', options);
     await assertFails(write());
     await assertFails(write('pilot', { routine: 'manual' }));
     await assertFails(legacy());
@@ -183,7 +181,7 @@ test('link, active entitlement, and current trusted pilot permission remain mand
   }
 });
 
-test('only current routine status is readable by the linked pilot; scheduler ledgers remain private', async () => {
+test('only current routine status is readable by the linked Care customer; scheduler ledgers remain private', async () => {
   await seed();
   await assertSucceeds(write());
   for (const uid of ['pilot', 'other', null]) {

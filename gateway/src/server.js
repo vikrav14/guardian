@@ -137,7 +137,6 @@ const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbe
   deviceMode: config.careWellbeingDeviceMode,
   customerEnabled: config.careWellbeingCustomerEnabled,
   retentionDays: config.careWellbeingRetentionDays,
-  temperaturePilotImei: config.wifiHomePilotImei,
   temperatureTrialQuarantine,
 }) : null;
 const temperatureCapture = config.temperatureCaptureEnabled === true
@@ -158,7 +157,7 @@ const wearEvidence = createWearEvidence({ db: getDb(),
   deviceMode: config.wearEvidenceDeviceMode, acceptedImeis: config.wearEvidenceAcceptedImeis,
   onError: error => console.warn(`[wear-evidence] persistence failed: ${error.message}`),
 });
-const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRoutinePilotEnabled
+const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRoutineEnabled
   ? require('./wellness-routine-runtime').startWellnessRoutineRuntime({
     db: getDb(), config, wearEvidence, temperatureTrialQuarantine,
   }) : null;

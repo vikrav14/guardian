@@ -4,15 +4,11 @@
 
 `activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be
 bounded by Mauritius calendar timestamps: Essential today, Family today plus six
-previous days, Care selected retained periods. Every query keeps `displayable == true`
-and the caller must have a trusted active subscription and linked device. Wellbeing
-also requires current backend-managed wearer consent. `wellness_readings` is a new
-basic entitlement; Care profile/medication/advanced summary permissions stay separate.
-Accepted Care records renew their `expiresAt` review deadline through cleanup after
-subscription/membership verification (and consent for wellbeing); old source times
-never change. Fixed-expiry shadow evidence is not renewed. This supersedes older
-Family/Care-only reading and fixed-retention descriptions below. No client writes
-or automatic TTL policy are introduced.
+previous days, and Care selected retained periods. The caller must have a trusted
+active subscription and linked device. Wellbeing readings additionally require an
+active Care plan and current backend-managed wearer consent. Activity is available
+to every active edition. There is no expiring viewer grant or client-side pilot
+flag. No client writes or automatic TTL policy are introduced.
 
 
 Collections used by the GT06 gateway and (later) the Flutter app.
@@ -229,13 +225,12 @@ to `lastSatelliteLocation` before an indoor fallback can replace `location`.
 
 ## `wellnessRoutineRequests/{imei}`
 
-Desired daily Wellness times for the explicitly granted pilot. The request is
-not a watch command or evidence of a completed measurement. A linked, active
-Essential, Family or Care subscriber with a current backend-managed pilot grant
-may get, create or replace this one request; list and delete are denied.
+Desired daily Wellness times for a linked Care customer. The request is not a
+watch command or evidence of a completed measurement. A linked, active Care
+subscriber may get, create or replace this one request; list and delete are denied.
 Starting Gentle or Balanced also requires current backend-managed wearer
-consent. Manual remains available after consent is revoked, while link, plan
-and pilot checks remain mandatory.
+consent. Manual remains available after consent is revoked, while link and plan
+checks remain mandatory.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -254,7 +249,7 @@ routine. New version-1 Gentle/Balanced writes are denied; existing interval
 requests never acquire inferred daily times or restart native intervals.
 
 Daily slots are an application schedule. Saving times does not write a native
-watch interval. The gateway rechecks current authorization, feature gates,
+watch interval. The gateway rechecks current authorization, operational gates,
 request revision, connection, measurement availability, and evidence at the
 execution boundary. Missed or blocked slots are skipped without catch-up or
 retries. Editing times does not reset the day's attempt count or resurrect a
@@ -264,8 +259,8 @@ attempt or implies that an already handed-off watch command was undone.
 ## `devices/{imei}/wellnessRoutine/current`
 
 Gateway-owned schedule summary. Only the current document is readable by the
-linked pilot on an active edition; all client writes and collection lists are
-denied. Consent revocation does not hide the status needed to request a stop.
+linked Care customer; all client writes and collection lists are denied. Consent
+revocation does not hide the status needed to request a stop.
 No reading values, health classifications, or raw tracker responses belong in
 this document.
 
@@ -288,7 +283,7 @@ eligibility.
 ## `devices/{imei}/wellnessScheduleDays/{YYYY-MM-DD}`
 
 Private gateway ledger for one Mauritius calendar day. All client reads, lists,
-creates, updates and deletes are denied, including for the pilot. The Admin SDK
+creates, updates and deletes are denied. The Admin SDK
 updates the day and slot claim transactionally before dispatch so restarts,
 competing gateway instances, reconnects and schedule edits cannot duplicate a
 slot or reset the daily cap.
@@ -333,7 +328,7 @@ creates an automatic retry or invents a successful measurement.
 
 ## `devices/{imei}/activityDays/{localDate}`
 
-Gateway-owned daily activity. Linked users may read only `displayable=true`
+Gateway-owned daily activity. Linked users with an active edition may read
 records within their active Wellness edition window: Essential today, Family
 seven local calendar days, Care available retained history. Clients cannot write.
 
@@ -344,8 +339,8 @@ seven local calendar days, Care available retained history. Clients cannot write
 | aggregation | string | `observed_delta` for v2. |
 | counterMode | string | `unverified`, accepted `observed_delta`, or legacy accepted `daily_reset`. |
 | recordedSteps, observedDeltaSteps | number | V2 sum of accepted increases assigned to this day, starting from zero at its first observation. |
-| displayable | boolean | V2 requires accepted observed-delta mode and customer opt-in. |
-| reportedSteps | number or null | V2 customer projection of recordedSteps; null while unverified/disabled. |
+| displayable | boolean | True for customer-enabled observed-delta estimates without an anomaly. |
+| reportedSteps | number or null | V2 customer projection of recordedSteps; null while disabled or anomalous. |
 | firstRaw, lastRaw | number | Observed raw counter values, not daily totals. |
 | firstObservedAt, lastObservedAt | timestamp | Receipt interval endpoints. |
 | sampleCount | number | Observations represented in persisted accounting; unchanged packets are throttled. |
@@ -387,24 +382,26 @@ Optional history (gateway throttles writes — see write gate below).
 ## `devices/{imei}/wellbeingReadings/{readingId}`
 
 Short-retention, backend-owned V52 wellbeing estimates. These records are
-sensitive. Clients can read only records with `displayable == true`, only when
-linked to the watch, and only with an active Guardian Care subscription.
-Unverified pilot evidence remains backend-only.
+sensitive. Clients can read them only when linked to the watch, holding an active
+Guardian Care subscription and current wearer consent. The app shows transport-
+valid unverified values as estimates; wearing is never inferred from a successful
+upload.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | schemaVersion | number | `1` |
 | imei | string | Device IMEI |
-| metricSet | string | `spo2` \| `heart_rate_blood_pressure` |
-| values | map | Confirmed packet fields only: `spo2Percent`, or `heartRateBpm`, `systolicMmHg`, `diastolicMmHg` |
+| metricSet | string | `spo2` \| `heart_rate_blood_pressure` \| `skin_temperature` |
+| values | map | Confirmed packet fields only: oxygen, heart/BP, or `skinTemperatureCelsius` for the supported `btemp2` variant. |
 | measurementType | string \| null | Vendor oxygen type field, retained without interpretation |
 | source | string | `v52_upload` |
-| sourceCommand | string | `oxygen` \| `bphrt` |
+| sourceCommand | string | `oxygen` \| `bphrt` \| `btemp2` |
 | observedAt | timestamp | Gateway receipt time; the packets do not supply a measurement timestamp |
 | receivedAt | timestamp | Same receipt evidence as `observedAt` |
 | quality | string | `transport_valid_unverified` \| `device_accepted` |
 | deviceMode | string | `unverified` \| `accepted` |
-| displayable | boolean | True only after device acceptance and customer release gates |
+| sourceVariant | string, optional | `1` for the supported `btemp2` response shape. |
+| displayable | boolean | True when the gateway customer-data switch is enabled; this does not confirm wearing. |
 | expiresAt | timestamp | Retention deadline, 30 days by default |
 
 These values are watch estimates, not medical measurements. No schema field

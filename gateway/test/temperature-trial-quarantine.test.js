@@ -50,7 +50,7 @@ test('off-wrist uploads never reach Firestore, including queued receipts after e
     get: async () => ({ exists: true, data: () => ({ version: 1, status: 'granted',
       managedBy: 'guardian_admin', wearerAcknowledgedAt: new Date(+AT - 60_000) }) }),
     create: async () => { writes++; } };
-  const store = createWellbeingStore({ db: ref, enabled: true, temperaturePilotImei: IMEI,
+  const store = createWellbeingStore({ db: ref, enabled: true,
     temperatureTrialQuarantine: guard, now: () => AT });
   guard.suppress();
   const events = [packet()]; guard.markEvents(events);
@@ -72,7 +72,7 @@ test('exclusion is checked again when a removed trial begins during consent read
     get: async () => { guard.suppress(); return { exists: true, data: () => ({ version: 1,
       status: 'granted', managedBy: 'guardian_admin', wearerAcknowledgedAt: new Date(+AT - 60_000) }) }; },
     create: async () => { writes++; } };
-  const store = createWellbeingStore({ db: ref, enabled: true, temperaturePilotImei: IMEI,
+  const store = createWellbeingStore({ db: ref, enabled: true,
     temperatureTrialQuarantine: guard, now: () => AT });
   assert.equal((await store.ingest(packet(), AT)).status, 'temperature_trial_excluded');
   assert.equal(writes, 0);

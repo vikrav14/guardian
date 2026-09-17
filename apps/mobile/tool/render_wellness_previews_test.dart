@@ -189,7 +189,6 @@ void main() {
                   ? WellnessRoutinePage(
                       imei: 'synthetic',
                       subscription: subscription,
-                      pilotPreview: false,
                     )
                   : WatchPreferencesPage(
                       device: const Device(
@@ -290,9 +289,9 @@ void main() {
                       days: days,
                       samples: samples,
                       now: now,
-                      readingsAvailable: true,
+                      readingsAvailable: plan == 'care',
                       onOpen: plan == 'essential' ? null : () {},
-                      onRoutine: () {},
+                      onRoutine: plan == 'care' ? () {} : null,
                     ),
                   ),
                 ),
@@ -379,14 +378,13 @@ void main() {
                       ],
                     ],
                     now: now,
-                    pilotPreview: true,
-                    readingsAvailable: true,
+                    readingsAvailable: plan == 'care',
                     onToday: () {},
                     onWeek: () {},
                     onPrevious: plan == 'care' ? () {} : null,
                     onChooseDate: plan == 'care' ? () {} : null,
                     onAsk: () {},
-                    onRoutine: () {},
+                    onRoutine: plan == 'care' ? () {} : null,
                     planDescription: subscription.wellnessHistoryDescription,
                   ),
                 ),

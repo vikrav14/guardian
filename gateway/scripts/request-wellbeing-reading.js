@@ -56,7 +56,6 @@ async function main() {
     action: payload.action,
     intervalSeconds: payload.intervalSeconds,
     sessions: payload.sessions,
-    pilotOnly: true,
   }, null, 2));
 }
 

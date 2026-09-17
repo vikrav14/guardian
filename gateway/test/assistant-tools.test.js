@@ -356,7 +356,7 @@ test('getWellbeingReadings queries only displayable readings for the selected wa
 
   const result = await getWellbeingReadings(
     db,
-    { devices: [{ imei: 'A', nickname: 'Jesh' }], entitlements: { serviceActive: true, plan: 'family' } },
+    { devices: [{ imei: 'A', nickname: 'Jesh' }], entitlements: { serviceActive: true, plan: 'care' } },
     { imei: 'A', limit: 6 },
   );
   assert.equal(result.name, 'Jesh');

@@ -39,13 +39,11 @@ function parseTemperatureMode(decoded) {
 }
 
 function routineBlock(context, live, now) {
-  if (!context.enabled) return 'routine_pilot_disabled';
+  if (!context.enabled) return 'routine_disabled';
   if (!context.authorized) return 'access_or_consent_unavailable';
   if (context.validUntil && +context.validUntil <= +now) return 'access_or_consent_unavailable';
   if (!live.connected) return 'watch_offline';
   if (live.bt !== 2) return 'temperature_mode_unconfirmed';
-  const wear = wearAt(live.wear, now);
-  if (!wear.eligible) return wear.state === 'removed' ? 'watch_removed' : 'wearing_unconfirmed';
   return null;
 }
 

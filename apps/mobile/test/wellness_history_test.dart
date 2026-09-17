@@ -114,7 +114,6 @@ void main() {
         window: window,
         samples: samples,
         now: now,
-        pilotPreview: false,
       );
       expect(series.points.map((p) => p.numericValue), [81, 72]);
       expect(series.range, '72–81 bpm');
@@ -132,7 +131,6 @@ void main() {
           window: today,
           samples: samples,
           now: midnight,
-          pilotPreview: false,
         ).readings,
         isEmpty,
       );
@@ -158,7 +156,6 @@ void main() {
           window: window,
           samples: rows,
           now: now,
-          pilotPreview: false,
         ).points,
         isEmpty,
       );
@@ -173,7 +170,6 @@ void main() {
           window: window,
           samples: samples,
           now: now,
-          pilotPreview: false,
         ).readings,
         isEmpty,
       );
@@ -214,7 +210,6 @@ void main() {
 
   Future<void> show(
     WidgetTester tester, {
-    bool preview = true,
     bool error = false,
     bool activityError = false,
     bool available = true,
@@ -251,7 +246,6 @@ void main() {
                 samples: readings ?? samples,
                 now: now,
                 readingsAvailable: available,
-                pilotPreview: preview,
                 readingError: error,
                 activityError: activityError,
                 onToday: onToday,
@@ -295,7 +289,7 @@ void main() {
   );
 
   testWidgets(
-    'temperature remains receipt-labelled and clears on preview/access loss',
+    'temperature remains receipt-labelled and clears when readings are unavailable',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -311,7 +305,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await show(tester, preview: false);
+      await show(tester, available: false);
       expect(find.textContaining('34.56'), findsNothing);
       expect(find.text('Heart rate over time'), findsOneWidget);
       await show(tester, error: true);

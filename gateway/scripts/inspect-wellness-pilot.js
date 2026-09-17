@@ -109,7 +109,7 @@ function buildReport(evidence, config, now = new Date(), { includeReadingValues 
         };
       }),
       scheduleState: 'not_proven_by_uploads',
-      skinTemperature: 'private_pilot_observed_variant_only',
+      skinTemperature: 'supported_unverified_variant',
       acceptance: 'manual_reliability_battery_and_consent_tests_still_required',
     },
   };

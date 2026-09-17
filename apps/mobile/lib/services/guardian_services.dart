@@ -537,7 +537,6 @@ class ActivityService {
     int limit = 7,
     DateTime? before,
     DateTime? now,
-    bool pilotPreview = false,
   }) {
     if (!subscription.has(GuardianFeature.activitySteps)) {
       return Stream.error(
@@ -555,9 +554,6 @@ class ActivityService {
         .collection('devices')
         .doc(imei)
         .collection('activityDays');
-    if (!pilotPreview) {
-      query = query.where('displayable', isEqualTo: true);
-    }
     return watchLinkedWellnessData(
       _db,
       _auth,
@@ -575,9 +571,7 @@ class ActivityService {
             final days = <ActivityDay>[];
             for (final doc in snapshot.docs) {
               try {
-                final day = pilotPreview
-                    ? ActivityDay.fromPilotMap(doc.data())
-                    : ActivityDay.fromDoc(doc);
+                final day = ActivityDay.fromDoc(doc);
                 if (window.includesDate(day.localDate) &&
                     window.contains(
                       day.lastObservedAt,
@@ -775,7 +769,6 @@ class WellbeingService {
     int limit = 12,
     WellnessWindow? window,
     DateTime? now,
-    bool pilotPreview = false,
   }) {
     if (!subscription.has(GuardianFeature.wellnessReadings)) {
       return Stream.error(
@@ -801,9 +794,6 @@ class WellbeingService {
         .collection('devices')
         .doc(imei)
         .collection('wellbeingReadings');
-    if (!pilotPreview) {
-      query = query.where('displayable', isEqualTo: true);
-    }
     return watchLinkedWellnessData(
       _db,
       _auth,
@@ -822,7 +812,6 @@ class WellbeingService {
               try {
                 final reading = WellbeingReading.fromDoc(
                   doc,
-                  pilotPreview: pilotPreview,
                 );
                 if (range.contains(
                   reading.observedAt,
@@ -843,13 +832,11 @@ class WellbeingService {
     String imei, {
     required GuardianSubscription subscription,
     required WellnessWindow window,
-    bool pilotPreview = false,
   }) =>
       watchRecentReadings(
         imei,
         subscription: subscription,
         window: window,
-        pilotPreview: pilotPreview,
       ).map(
         (readings) => [
           for (final r in readings) ...[
@@ -875,7 +862,7 @@ class WellbeingService {
                 secondaryValue: r.diastolicMmHg,
                 recordedAt: r.observedAt,
               ),
-            if (pilotPreview && r.skinTemperatureCelsius != null)
+            if (r.skinTemperatureCelsius != null)
               WellnessSample(
                 metric: WellnessMetric.skinTemperature,
                 value: '${r.skinTemperatureCelsius!.toStringAsFixed(2)} °C',

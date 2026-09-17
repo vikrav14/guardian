@@ -91,7 +91,7 @@ function normalizeWellbeingEvent(event, observedAt = new Date()) {
   }
 
   if (event.metric === 'skin_temperature') {
-    // A watch-display comparison established this one pilot variant only.
+    // A watch-display comparison established this supported V52 response shape.
     // Prefix "1" is opaque: it does not establish success, wearing or mode.
     const args = event.args;
     if (event.sourceCommand !== 'btemp2' || !Array.isArray(args) ||
@@ -101,7 +101,7 @@ function normalizeWellbeingEvent(event, observedAt = new Date()) {
     }
     return { ok: true, imei, metricSet: METRIC_SET.SKIN_TEMPERATURE,
       values: { skinTemperatureCelsius: Number(args[1]) }, measurementType: null,
-      sourceCommand: 'btemp2', sourceVariant: '1', privatePreviewOnly: true,
+      sourceCommand: 'btemp2', sourceVariant: '1',
       observedAt: receivedAt };
   }
 
@@ -156,7 +156,6 @@ function createWellbeingStore({
   deviceMode = DEVICE_MODE.UNVERIFIED,
   customerEnabled = false,
   retentionDays = 30,
-  temperaturePilotImei = '',
   temperatureTrialQuarantine,
   now = () => new Date(),
 } = {}) {
@@ -182,9 +181,6 @@ function createWellbeingStore({
     }
 
     const temperature = normalized.metricSet === METRIC_SET.SKIN_TEMPERATURE;
-    if (temperature && (!/^\d{15}$/.test(temperaturePilotImei) || normalized.imei !== temperaturePilotImei)) {
-      return { ok: false, status: 'temperature_pilot_only', metricSet: normalized.metricSet };
-    }
     if (temperature && (normalized.observedAt > now() ||
         normalized.observedAt <= new Date(+now() - safeRetentionDays * 86400_000))) {
       return { ok: false, status: 'outside_retention_window', metricSet: normalized.metricSet };
@@ -201,12 +197,16 @@ function createWellbeingStore({
         metricSet: normalized.metricSet,
       };
     }
-    // A trial may begin while consent is loading. Conversely, the event's
+    // A quarantine may begin while consent is loading. Conversely, the event's
     // receipt marker remains excluding even if a worn trial has since resumed.
     if (trialExcluded(event)) return { ok: false, status: 'temperature_trial_excluded' };
 
-    // General wellbeing acceptance can never promote this experimental variant.
-    const displayable = !temperature && deviceMode === DEVICE_MODE.ACCEPTED && customerEnabled === true && wearEvidence.eligible;
+    // Customer access is intentionally separate from wearing qualification.
+    // Values are displayed as estimates; consent, plan access and freshness
+    // remain enforced by the client and Firestore rules.
+    const displayable = customerEnabled === true;
+    const accepted = !temperature &&
+      deviceMode === DEVICE_MODE.ACCEPTED && wearEvidence.eligible;
     const id = readingIdFor(normalized);
     const ref = db
       .collection('devices')
@@ -221,10 +221,10 @@ function createWellbeingStore({
       measurementType: normalized.measurementType,
       source: 'v52_upload',
       sourceCommand: normalized.sourceCommand,
-      ...(temperature ? { privatePreviewOnly: true, sourceVariant: normalized.sourceVariant } : {}),
+      ...(temperature ? { sourceVariant: normalized.sourceVariant } : {}),
       observedAt: normalized.observedAt,
       receivedAt: normalized.observedAt,
-      quality: displayable ? 'device_accepted' : 'transport_valid_unverified',
+      quality: accepted ? 'device_accepted' : 'transport_valid_unverified',
       deviceMode: temperature ? DEVICE_MODE.UNVERIFIED : deviceMode,
       wearQualityVersion: 1, wearEvidence,
       wearQualified: wearEvidence.eligible,

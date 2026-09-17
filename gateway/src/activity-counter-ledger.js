@@ -151,9 +151,11 @@ function reduceCounterLedger(previousState, previousDay, observation, options = 
   // Coverage stays explicitly partial: no evidence claims a complete day or
   // that a silent interval proves inactivity. Customer activation is separate.
   day.quality = day.counterMode === 'observed_delta' ? 'partial' : 'unverified';
-  day.displayable = day.counterMode === 'observed_delta' && options.customerEnabled === true &&
-    day.lastWearQualifiedAt != null;
-  day.reportedSteps = day.displayable ? day.wearQualifiedSteps : null;
+  day.displayable = day.counterMode === 'observed_delta' &&
+    options.customerEnabled === true && day.anomalyCount === 0;
+  // Recorded deltas are estimates. They are intentionally not replaced by
+  // wear-qualified totals because the watch cannot prove wrist contact.
+  day.reportedSteps = day.displayable ? day.recordedSteps : null;
   return { status: 'stored', state, day, interval };
 }
 

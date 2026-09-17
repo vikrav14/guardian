@@ -30,7 +30,6 @@ class WellnessHistory extends StatefulWidget {
     this.readingError = false,
     this.activityError = false,
     this.loading = false,
-    this.pilotPreview = false,
     this.initialActivity,
     this.initialMetric = WellnessMetric.heartRate,
     this.onActivityChanged,
@@ -41,7 +40,7 @@ class WellnessHistory extends StatefulWidget {
   final List<WellnessSample> samples;
   final DateTime now;
   final bool activityAvailable, readingsAvailable, readingError, activityError;
-  final bool loading, pilotPreview;
+  final bool loading;
   final VoidCallback? onPrevious, onNext, onChooseDate, onToday, onWeek;
   final VoidCallback? onAsk, onRoutine;
   final String? planDescription;
@@ -56,11 +55,7 @@ class WellnessHistory extends StatefulWidget {
 
 class _WellnessHistoryState extends State<WellnessHistory> {
   late bool _activity = widget.initialActivity ?? !widget.readingsAvailable;
-  late WellnessMetric _metric =
-      !widget.pilotPreview &&
-          widget.initialMetric == WellnessMetric.skinTemperature
-      ? WellnessMetric.heartRate
-      : widget.initialMetric;
+  late WellnessMetric _metric = widget.initialMetric;
 
   void _selectActivity(bool activity) {
     setState(() => _activity = activity);
@@ -75,9 +70,6 @@ class _WellnessHistoryState extends State<WellnessHistory> {
   @override
   void didUpdateWidget(covariant WellnessHistory oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.pilotPreview && _metric == WellnessMetric.skinTemperature) {
-      _metric = WellnessMetric.heartRate;
-    }
   }
 
   WellnessTrend trend(WellnessMetric metric) => WellnessTrend(
@@ -87,7 +79,6 @@ class _WellnessHistoryState extends State<WellnessHistory> {
         ? const []
         : widget.samples,
     now: widget.now,
-    pilotPreview: widget.pilotPreview,
   );
 
   @override
@@ -205,24 +196,10 @@ class _WellnessHistoryState extends State<WellnessHistory> {
         ],
         if (_activity) _activityView(context) else _readingsView(context),
         const SizedBox(height: 16),
-        if (widget.pilotPreview)
-          _HistoryDisclosure(
-            childrenPadding: const EdgeInsets.only(bottom: 12),
-            title: Text(
-              'Private preview · Unverified readings',
-              style: TextStyle(fontSize: 13, color: colors.textSecondary),
-            ),
-            children: const [
-              Text(
-                'Wearing at measurement time is unconfirmed. These values are excluded from customer reports and alerts. Recorded ranges describe saved values, not medical reference ranges.',
-              ),
-            ],
-          )
-        else
-          Text(
-            'These are watch estimates, not medical measurements.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 12),
-          ),
+        Text(
+          'These are watch estimates, not medical measurements. Wearing at measurement time is not confirmed.',
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+        ),
         if (widget.onAsk != null) ...[
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -288,10 +265,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
                                 sample: trend(metrics[i]).latest,
                                 selected: _metric == metrics[i],
                                 now: widget.now,
-                                available:
-                                    widget.pilotPreview ||
-                                    metrics[i] !=
-                                        WellnessMetric.skinTemperature,
+                                available: true,
                                 loading: widget.loading,
                                 onTap: () => _selectMetric(metrics[i]),
                               ),
@@ -456,11 +430,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                includesToday
-                    ? widget.pilotPreview
-                          ? 'Recorded steps today'
-                          : 'Steps today'
-                    : 'Latest recorded day in this period',
+                includesToday ? 'Steps today' : 'Latest recorded day in this period',
                 style: TextStyle(color: colors.textSecondary),
               ),
               const SizedBox(height: 6),

@@ -1,18 +1,13 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'linked_wellness_stream.dart';
 import 'wellness_card.dart';
 import 'wellness_control.dart';
-import 'wellness_pilot_access.dart';
 import '../services/guardian_entitlements.dart';
 import '../widgets/layout/guardian_page_frame.dart';
-
-const wellnessPilotPreview = bool.fromEnvironment(
-  'GUARDIAN_WELLNESS_PILOT',
-  defaultValue: false,
-);
 
 const wellnessRoutines = <String, (String, String)>{
   'manual': ('Manual', 'Automatic readings off'),
@@ -114,7 +109,7 @@ String wellnessRoutineMessage(Map<String, dynamic> status, DateTime now) {
         : 'Stop commands sent. Check the watch to confirm measurements have stopped.';
   }
   return switch (status['reason']) {
-    'routine_pilot_disabled' || 'pilot_disabled' =>
+    'routine_disabled' =>
       'Automatic readings are not enabled on this gateway.',
     'native_schedule_stop_pending' =>
       'Preparing your routine · waiting for the previous watch schedule to stop.',
@@ -205,13 +200,9 @@ class WellnessRoutinePage extends StatelessWidget {
     super.key,
     required this.imei,
     required this.subscription,
-    this.pilotPreview = wellnessPilotPreview,
-    this.grants,
   });
   final String imei;
   final GuardianSubscription subscription;
-  final bool pilotPreview;
-  final Stream<List<WellnessPilotGrant>>? grants;
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Wellness routine')),
@@ -240,25 +231,16 @@ class WellnessRoutinePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            if (pilotPreview &&
-                subscription.has(GuardianFeature.wellnessReadings))
-              WellnessPilotAccess(
-                imei: imei,
-                grants: grants,
-                unavailableChild: const WellnessRoutineControls(
-                  status: {},
-                  unavailableReason:
-                      'Routine changes need current preview access. Automatic readings remain unconfirmed.',
-                ),
-                child: _ConnectedRoutine(imei: imei),
-              )
+            if (subscription.has(GuardianFeature.wellnessReadings) &&
+                Firebase.apps.isNotEmpty)
+              _ConnectedRoutine(imei: imei)
             else
               WellnessRoutineControls(
                 status: const {},
                 unavailableReason:
                     subscription.has(GuardianFeature.wellnessReadings)
-                    ? 'Automatic readings are not available for this watch yet. Available manual readings can still be taken on the watch.'
-                    : 'An active Guardian plan is needed to manage Wellness.',
+                    ? 'Wellness service is not connected yet.'
+                    : 'Automatic readings require Guardian Care.',
               ),
           ],
         ),
@@ -312,7 +294,7 @@ class _ConnectedRoutineState extends State<_ConnectedRoutine> {
             : snapshot.data?.firstOrNull ?? const {},
         request: requestSnapshot.data?.firstOrNull ?? const {},
         unavailableReason: snapshot.hasError || requestSnapshot.hasError
-            ? 'Could not load your routine. Check your connection and preview access.'
+            ? 'Could not load your routine. Check your connection and Care access.'
             : !snapshot.hasData || !requestSnapshot.hasData
             ? 'Loading your saved routine…'
             : null,
@@ -440,7 +422,7 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
       if (mounted) {
         setState(
           () => _feedback =
-              'Could not save the routine. Check your connection and preview access.',
+              'Could not save the routine. Check your connection and Care access.',
         );
       }
     } finally {
@@ -463,7 +445,7 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
             title: 'Automatic readings',
             subtitle: widget.onSave == null
                 ? 'Manual, Gentle or Balanced'
-                : 'Private watch trial',
+                : 'Choose when supported readings are requested',
           ),
           const SizedBox(height: 12),
           Text(

@@ -14,7 +14,7 @@ function deferred() {
 function fixture() {
   let at = 1_000_000, ready = true, nextId = 0;
   const session = { imei: '123456789012345', protocolId: '6789012345', lastPacketAt: at };
-  const config = { wifiHomePilotImei: session.imei, wellnessRoutinePilotEnabled: true,
+  const config = { wifiHomePilotImei: session.imei, wellnessRoutineEnabled: true,
     careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true };
   let current = session;
   const context = { consent: { version: 1, status: 'granted', managedBy: 'guardian_admin',
@@ -202,7 +202,7 @@ test('removal bit in a live location/alarm packet cancels the chain', async () =
   }
 });
 
-test('consent, pilot flags and running routines block initial optical dispatch', async () => {
+test('consent, operational flags and running routines block initial optical dispatch', async () => {
   for (const change of [f => { f.context.consent.status = 'revoked'; },
     f => { f.config.careWellbeingIngestEnabled = false; },
     f => { f.context.request.routine = 'gentle'; },
