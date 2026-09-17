@@ -79,7 +79,8 @@ class ProfileWeather {
       return false;
     }
     for (final at in [observedAt!, fetchedAt!]) {
-      if (now.difference(at) >= maxAge || at.difference(now) > futureTolerance) {
+      if (now.difference(at) >= maxAge ||
+          at.difference(now) > futureTolerance) {
         return false;
       }
     }

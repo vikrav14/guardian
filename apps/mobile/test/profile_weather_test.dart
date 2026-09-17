@@ -51,16 +51,23 @@ void main() {
       const Duration(hours: 23, minutes: 59),
     ]) {
       final data = weatherTestData()
-        ..['locationObservedAt'] = weatherTestNow.subtract(age).toIso8601String();
+        ..['locationObservedAt'] = weatherTestNow
+            .subtract(age)
+            .toIso8601String();
       final weather = ProfileWeather.fromMap(data);
       expect(weather.isAvailableAt(weatherTestNow), isTrue);
       expect(weather.locationIsRetainedAreaAt(weatherTestNow), isTrue);
     }
     for (final age in [const Duration(hours: 24), const Duration(hours: 25)]) {
       final data = weatherTestData()
-        ..['locationObservedAt'] = weatherTestNow.subtract(age).toIso8601String()
+        ..['locationObservedAt'] = weatherTestNow
+            .subtract(age)
+            .toIso8601String()
         ..['fetchedAt'] = weatherTestNow.toIso8601String();
-      expect(ProfileWeather.fromMap(data).isAvailableAt(weatherTestNow), isFalse);
+      expect(
+        ProfileWeather.fromMap(data).isAvailableAt(weatherTestNow),
+        isFalse,
+      );
     }
   });
 
