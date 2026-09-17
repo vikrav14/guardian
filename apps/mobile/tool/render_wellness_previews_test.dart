@@ -20,20 +20,50 @@ import '../test/support/dashboard_fixture.dart';
 const enabled = bool.fromEnvironment('WELLNESS_PREVIEWS');
 void main() {
   for (final preview in [
-    (name: 'light_390', width: 390.0, height: 1450.0,
-      colors: GuardianThemeColors.light, brightness: Brightness.light,
-      routine: 'gentle', scale: 1.0, highContrast: false),
-    (name: 'light_1280', width: 1280.0, height: 1050.0,
-      colors: GuardianThemeColors.light, brightness: Brightness.light,
-      routine: 'balanced', scale: 1.0, highContrast: false),
-    (name: 'dark_390', width: 390.0, height: 1450.0,
-      colors: GuardianThemeColors.dark, brightness: Brightness.dark,
-      routine: 'gentle', scale: 1.0, highContrast: false),
-    (name: 'high_contrast_320', width: 320.0, height: 3200.0,
-      colors: GuardianThemeColors.elderCare, brightness: Brightness.light,
-      routine: 'gentle', scale: 2.0, highContrast: true),
+    (
+      name: 'light_390',
+      width: 390.0,
+      height: 1450.0,
+      colors: GuardianThemeColors.light,
+      brightness: Brightness.light,
+      routine: 'gentle',
+      scale: 1.0,
+      highContrast: false,
+    ),
+    (
+      name: 'light_1280',
+      width: 1280.0,
+      height: 1050.0,
+      colors: GuardianThemeColors.light,
+      brightness: Brightness.light,
+      routine: 'balanced',
+      scale: 1.0,
+      highContrast: false,
+    ),
+    (
+      name: 'dark_390',
+      width: 390.0,
+      height: 1450.0,
+      colors: GuardianThemeColors.dark,
+      brightness: Brightness.dark,
+      routine: 'gentle',
+      scale: 1.0,
+      highContrast: false,
+    ),
+    (
+      name: 'high_contrast_320',
+      width: 320.0,
+      height: 3200.0,
+      colors: GuardianThemeColors.elderCare,
+      brightness: Brightness.light,
+      routine: 'gentle',
+      scale: 2.0,
+      highContrast: true,
+    ),
   ]) {
-    testWidgets('render enabled routine controls ${preview.name}', (tester) async {
+    testWidgets('render enabled routine controls ${preview.name}', (
+      tester,
+    ) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = Size(preview.width, preview.height);
       addTearDown(tester.view.resetPhysicalSize);
@@ -59,46 +89,52 @@ void main() {
           surface: preview.colors.surface,
         ),
       );
-      await tester.pumpWidget(MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: theme.copyWith(textTheme: theme.textTheme.apply(
-          bodyColor: preview.colors.textPrimary,
-          displayColor: preview.colors.textPrimary,
-        )),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            highContrast: preview.highContrast,
-            textScaler: TextScaler.linear(preview.scale),
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: theme.copyWith(
+            textTheme: theme.textTheme.apply(
+              bodyColor: preview.colors.textPrimary,
+              displayColor: preview.colors.textPrimary,
+            ),
           ),
-          child: child!,
-        ),
-        home: RepaintBoundary(
-          key: key,
-          child: Scaffold(
-            appBar: AppBar(title: const Text('Wellness routine')),
-            body: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Center(child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: WellnessRoutineControls(
-                  request: selection,
-                  status: {
-                    ...selection,
-                    'phase': 'scheduled',
-                    'updatedAt': now,
-                    'nextCheckAt': now.add(const Duration(hours: 8)),
-                    'lastAttempt': {
-                      'outcome': 'temperature_upload_observed',
-                      'finishedAt': now.subtract(const Duration(hours: 1)),
-                    },
-                  },
-                  onSave: (_) async {},
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              highContrast: preview.highContrast,
+              textScaler: TextScaler.linear(preview.scale),
+            ),
+            child: child!,
+          ),
+          home: RepaintBoundary(
+            key: key,
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Wellness routine')),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: WellnessRoutineControls(
+                      request: selection,
+                      status: {
+                        ...selection,
+                        'phase': 'scheduled',
+                        'updatedAt': now,
+                        'nextCheckAt': now.add(const Duration(hours: 8)),
+                        'lastAttempt': {
+                          'outcome': 'temperature_upload_observed',
+                          'finishedAt': now.subtract(const Duration(hours: 1)),
+                        },
+                      },
+                      onSave: (_) async {},
+                    ),
+                  ),
                 ),
-              )),
+              ),
             ),
           ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await save(tester, key, 'routine_controls_${preview.name}');
@@ -398,9 +434,15 @@ void main() {
 Future<void> loadPreviewFonts(WidgetTester tester) async {
   await tester.runAsync(() async {
     final font = FontLoader('WellnessPreview')
-      ..addFont(Future.value(ByteData.sublistView(await File(
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-      ).readAsBytes())));
+      ..addFont(
+        Future.value(
+          ByteData.sublistView(
+            await File(
+              '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            ).readAsBytes(),
+          ),
+        ),
+      );
     await font.load();
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
