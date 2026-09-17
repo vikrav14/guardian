@@ -101,7 +101,7 @@ void main() {
         now: start.add(const Duration(minutes: 6)),
         status: status,
       );
-      expect(old.title, 'Last check incomplete');
+      expect(old.title, 'Last wellness check incomplete');
       expect(old.tone, ReadingTone.neutral);
     }
     final timeout = ReadingPresentation.at(

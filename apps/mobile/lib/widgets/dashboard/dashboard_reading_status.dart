@@ -82,7 +82,7 @@ class ReadingPresentation {
     final reason = attempt['reason'];
     if (reason == 'unusable_heart_bp' || reason == 'unusable_oxygen') {
       return ReadingPresentation(
-        recent ? 'Check watch fit' : 'Last check incomplete',
+        recent ? 'Check watch fit' : 'Last wellness check incomplete',
         '$when · No usable readings',
         recent ? ReadingTone.attention : ReadingTone.neutral,
       );

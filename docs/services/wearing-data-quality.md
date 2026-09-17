@@ -29,7 +29,7 @@ context; it is no longer mounted by the Family overview.
 | Fresh active attempt with a live capture deadline | Checking readings |
 | Completed conditional sequence with temperature upload | Readings received, with the dated check time |
 | Recent unusable heart/BP or oxygen response | Check watch fit; no usable readings at the check time |
-| Older unusable response | Last check incomplete, with its date/time |
+| Older unusable response | Last wellness check incomplete, with its date/time |
 | Missing/late response | Readings incomplete |
 | Offline or missed slot | Check skipped, with its reason/time |
 | No attempt recorded | Awaiting first check |
