@@ -66,10 +66,10 @@ service cloud.firestore {
     }
 
     // Edition windows are Mauritius calendar days, including today. Keep the
-    // UTC day start separate from the hour adjustment; this avoids evaluator
-    // errors when date() is called on a timestamp arithmetic expression.
+    // UTC day start separate from the hour adjustment; using the time portion
+    // avoids evaluator errors around date() on timestamp expressions.
     function wellnessCalendarWindowAllowed(recordedAt) {
-      let utcDayStart = request.time.date();
+      let utcDayStart = request.time - request.time.time();
       let today = request.time.hours() >= 20
         ? utcDayStart + duration.value(20, 'h')
         : utcDayStart - duration.value(4, 'h');
