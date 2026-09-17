@@ -42,10 +42,13 @@ void main() {
     expect(find.text('Near Lower Vale'), findsNothing);
     expect(find.text('Weather unavailable'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
-    await first.close();
-    await second.close();
+    expect(first.hasListener, isFalse);
+    expect(second.hasListener, isFalse);
+    unawaited(first.close());
+    unawaited(second.close());
+    await tester.pump();
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('cached conditions expire without a further Firestore event', (tester) async {
     final events = StreamController<Map<String, dynamic>>();
@@ -64,7 +67,9 @@ void main() {
     expect(find.text('Weather unavailable'), findsOneWidget);
     expect(find.text('25°C'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
-    await events.close();
+    expect(events.hasListener, isFalse);
+    unawaited(events.close());
+    await tester.pump();
     expect(tester.takeException(), isNull);
-  });
+  }, timeout: const Timeout(Duration(seconds: 45)));
 }

@@ -53,6 +53,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
     './reminder-scheduler': { startReminderScheduler: noop },
+    './profile-weather': { startProfileWeather: noop },
     './ops-metrics': { incrementEvent: noop, startMetricsFlusher: noop },
     './sessions': { noteDeviceLocation: noop },
     './adaptive-reporting': { applyAdaptiveReporting: async () => ({}) },
