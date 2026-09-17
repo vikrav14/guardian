@@ -1,7 +1,7 @@
 'use strict';
 
 const { selectWeatherLocation } = require('../src/weather-reply');
-const { buildWeatherProjection } = require('../src/profile-weather');
+const { selectProfileWeatherLocation, MAX_AGE_MS, MAX_LOCATION_AGE_MS } = require('../src/profile-weather');
 
 function time(value) {
   if (value == null || value === '') return null;
@@ -23,14 +23,19 @@ function locationSummary(location, now, source = null) {
 }
 
 function buildReport({ device, weather, config, now = new Date() }) {
-  const selection = selectWeatherLocation(device || {}, { now });
-  const preflight = buildWeatherProjection({ device: device || {}, weather: null, now: +now });
+  const selection = selectProfileWeatherLocation(device || {}, +now);
+  // Keep the rejected observation's age visible when no usable area exists.
+  const evidence = selection.location ? selection : selectWeatherLocation(device || {}, { now });
   return {
     outcome: 'read_only',
     asOf: now.toISOString(),
     configurationSource: 'this_command_environment_not_running_gateway',
     weatherKeyConfiguredHere: Boolean(config.openWeatherMapKey),
     deviceFound: device != null,
+    policy: {
+      weatherMaxAgeMinutes: MAX_AGE_MS / 60_000,
+      lastKnownLocationMaxAgeHours: MAX_LOCATION_AGE_MS / 3_600_000,
+    },
     locations: {
       latestObservation: locationSummary(device?.lastLocationObservation, now, device?.accuracySource),
       currentLocation: locationSummary(device?.location, now, device?.accuracySource),
@@ -38,14 +43,16 @@ function buildReport({ device, weather, config, now = new Date() }) {
       lastApproximate: locationSummary(device?.lastApproximateLocation, now),
     },
     selectedLocation: {
-      ...locationSummary(selection.location, now, selection.source),
-      retainedSatellite: selection.retainedSatellite === true,
-      rejectionReason: preflight.reason.startsWith('location_') ? preflight.reason : null,
+      ...locationSummary(evidence.location, now, evidence.source),
+      retainedSatellite: evidence.retainedSatellite === true,
+      locationBasis: selection.locationBasis || null,
+      rejectionReason: selection.reason || null,
     },
     storedWeather: {
       exists: weather != null,
       state: weather?.state || null,
       reason: weather?.reason || null,
+      locationBasis: weather?.locationBasis || null,
       locationObservedAt: time(weather?.locationObservedAt)?.toISOString() || null,
       weatherObservedAt: time(weather?.observedAt)?.toISOString() || null,
       fetchedAt: time(weather?.fetchedAt)?.toISOString() || null,

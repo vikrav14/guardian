@@ -104,12 +104,10 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
     final deadlines = [
       weather.expiresAt!,
       weather.observedAt!.add(ProfileWeather.maxAge),
-      weather.locationObservedAt!.add(ProfileWeather.maxAge),
+      weather.locationObservedAt!.add(ProfileWeather.maxLocationAge),
       weather.fetchedAt!.add(ProfileWeather.maxAge),
     ]..sort();
-    // One microsecond also crosses the inclusive maximum-age boundary.
-    final remaining =
-        deadlines.first.difference(now) + const Duration(microseconds: 1);
+    final remaining = deadlines.first.difference(now);
     _expiryTimer = Timer(remaining, () {
       if (mounted) setState(() {});
     });

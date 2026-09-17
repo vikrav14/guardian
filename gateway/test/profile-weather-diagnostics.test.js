@@ -6,7 +6,7 @@ const { buildReport } = require('../scripts/inspect-profile-weather');
 const now = new Date('2026-09-17T20:30:00Z');
 const config = { openWeatherMapKey: 'private-key-must-never-be-printed' };
 
-test('weather diagnostics show actual stale location age without exposing keys', () => {
+test('weather diagnostics retain last-known age and distinguish the stored gateway result', () => {
   const recordedAt = new Date(+now - 75 * 60_000);
   const report = buildReport({ now, config,
     device: { lastHeartbeatAt: now, lastSatelliteLocation: {
@@ -16,7 +16,11 @@ test('weather diagnostics show actual stale location age without exposing keys',
       fetchedAt: '2026-09-17T20:16:15.969Z' },
   });
   assert.equal(report.selectedLocation.ageMinutes, 75);
-  assert.equal(report.selectedLocation.rejectionReason, 'location_stale_or_undated');
+  assert.equal(report.selectedLocation.rejectionReason, null);
+  assert.equal(report.selectedLocation.locationBasis, 'last_known');
+  assert.equal(report.storedWeather.reason, 'location_stale_or_undated');
+  assert.equal(report.policy.lastKnownLocationMaxAgeHours, 24);
+  assert.equal(report.policy.weatherMaxAgeMinutes, 60);
   assert.equal(report.locations.lastSatellite.observedAt, recordedAt.toISOString());
   assert.equal(report.storedWeather.fetchedAt, '2026-09-17T20:16:15.969Z');
   assert.equal(report.weatherKeyConfiguredHere, true);
@@ -37,4 +41,11 @@ test('weather diagnostics distinguish missing records and undated coordinates', 
   assert.equal(undated.locations.currentLocation.validCoordinates, true);
   assert.equal(undated.locations.currentLocation.ageMinutes, null);
   assert.equal(undated.selectedLocation.rejectionReason, 'location_stale_or_undated');
+
+  const expired = buildReport({ now, config, weather: null,
+    device: { lastHeartbeatAt: now, location: { lat: -20.028, lng: 57.596,
+      source: 'wifi', recordedAt: new Date(+now - 25 * 3_600_000) } },
+  });
+  assert.equal(expired.selectedLocation.ageMinutes, 1500);
+  assert.equal(expired.selectedLocation.rejectionReason, 'location_stale_or_undated');
 });

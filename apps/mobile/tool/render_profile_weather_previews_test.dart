@@ -43,6 +43,17 @@ void main() {
       ageMinutes: 3,
     ),
     (
+      name: 'profile_weather_last_known_390',
+      width: 390.0,
+      height: 1100.0,
+      dark: false,
+      scale: 1.0,
+      contrast: false,
+      condition: 'partly_cloudy',
+      night: false,
+      ageMinutes: 78,
+    ),
+    (
       name: 'profile_weather_large_text_320',
       width: 320.0,
       height: 1900.0,
@@ -84,7 +95,7 @@ void main() {
       contrast: false,
       condition: 'rain',
       night: false,
-      ageMinutes: 75,
+      ageMinutes: 1500,
     ),
   ]) {
     testWidgets('render ${preview.name}', (tester) async {
@@ -136,7 +147,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Watch connected'), findsOneWidget);
       expect(find.byTooltip('Open Guardian help'), findsNothing);
-      if (preview.ageMinutes > 60) {
+      if (preview.ageMinutes > 24 * 60) {
         expect(find.text('Weather unavailable'), findsOneWidget);
         expect(find.byType(WeatherArtwork), findsNothing);
       } else {

@@ -106,4 +106,42 @@ void main() {
     },
     timeout: const Timeout(Duration(seconds: 45)),
   );
+
+  testWidgets(
+    'last known area expires at 24h while weather is still fresh',
+    (tester) async {
+      final events = StreamController<Map<String, dynamic>>();
+      var clock = weatherTestNow;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LinkedProfileWeather(
+              imei: 'sample',
+              source: (_) => events.stream,
+              clock: () => clock,
+            ),
+          ),
+        ),
+      );
+      events.add(
+        weatherTestData()
+          ..['locationObservedAt'] = clock
+              .subtract(const Duration(hours: 23, minutes: 59, seconds: 50))
+              .toIso8601String(),
+      );
+      await _flushWeather(tester);
+      expect(find.text('Last known area · Lower Vale'), findsOneWidget);
+      expect(find.text('Weather updated 8m ago'), findsOneWidget);
+      clock = clock.add(const Duration(seconds: 11));
+      await tester.pump(const Duration(seconds: 11));
+      expect(find.text('Weather unavailable'), findsOneWidget);
+      expect(find.text('25°C'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(events.hasListener, isFalse);
+      unawaited(events.close());
+      await _flushWeather(tester);
+      expect(tester.takeException(), isNull);
+    },
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
 }

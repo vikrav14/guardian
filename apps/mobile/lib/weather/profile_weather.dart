@@ -1,5 +1,6 @@
 /// Server weather for an observed watch location. A fresh fetch or heartbeat
-/// cannot make an old location or weather observation current.
+/// cannot make old weather current. Locations may describe a last known area
+/// for up to 24 hours; their age remains independent of the weather.
 class ProfileWeather {
   const ProfileWeather({
     required this.available,
@@ -28,6 +29,7 @@ class ProfileWeather {
   final DateTime? expiresAt;
 
   static const maxAge = Duration(minutes: 60);
+  static const maxLocationAge = Duration(hours: 24);
   static const futureTolerance = Duration(minutes: 1);
   static const conditions = {
     'clear',
@@ -72,8 +74,12 @@ class ProfileWeather {
         !now.isBefore(expiresAt!)) {
       return false;
     }
-    for (final at in [locationObservedAt!, observedAt!, fetchedAt!]) {
-      if (now.difference(at) > maxAge || at.difference(now) > futureTolerance) {
+    if (now.difference(locationObservedAt!) >= maxLocationAge ||
+        locationObservedAt!.difference(now) > futureTolerance) {
+      return false;
+    }
+    for (final at in [observedAt!, fetchedAt!]) {
+      if (now.difference(at) >= maxAge || at.difference(now) > futureTolerance) {
         return false;
       }
     }
@@ -84,6 +90,10 @@ class ProfileWeather {
   bool locationIsLastKnownAt(DateTime now) =>
       locationObservedAt != null &&
       now.difference(locationObservedAt!) > const Duration(minutes: 8);
+
+  bool locationIsRetainedAreaAt(DateTime now) =>
+      locationObservedAt != null &&
+      now.difference(locationObservedAt!) >= const Duration(hours: 1);
 
   String get conditionLabel => switch (condition) {
     'clear' => isDay == false ? 'Clear night' : 'Clear skies',

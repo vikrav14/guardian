@@ -50,8 +50,11 @@ class ProfileWeatherPanel extends StatelessWidget {
         : const Color(0xFFDBF0F7);
     final artwork = current.artworkIndex;
     final place = current.placeName;
+    final retainedArea = current.locationIsRetainedAreaAt(clock);
     final locationLabel = place == null
-        ? 'Near last known location'
+        ? 'Weather at last known area'
+        : retainedArea
+        ? 'Last known area · $place'
         : 'Near $place';
     final lastKnown = current.locationIsLastKnownAt(clock);
     final observedAge = _age(current.observedAt!, clock);
@@ -118,9 +121,11 @@ class ProfileWeatherPanel extends StatelessWidget {
                     color: colors.textPrimary,
                   ),
                 ),
-                if (lastKnown && place != null)
+                if (lastKnown || place == null)
                   Text(
-                    'Last known location · ${_age(current.locationObservedAt!, clock)}',
+                    retainedArea || place == null
+                        ? 'Location updated ${_age(current.locationObservedAt!, clock)}'
+                        : 'Last known location · ${_age(current.locationObservedAt!, clock)}',
                     style: TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
                 if (current.windKph != null) ...[
@@ -183,7 +188,11 @@ class ProfileWeatherPanel extends StatelessWidget {
 
   static String _age(DateTime at, DateTime now) {
     final minutes = now.difference(at).inMinutes;
-    return minutes < 1 ? 'just now' : '${minutes}m ago';
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return '${minutes}m ago';
+    final hours = minutes ~/ 60;
+    final remainder = minutes % 60;
+    return remainder == 0 ? '${hours}h ago' : '${hours}h ${remainder}m ago';
   }
 
   static String _time(DateTime at) => at.toUtc().toIso8601String();

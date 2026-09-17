@@ -3,7 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const WeatherProvider = require('../src/context/weatherProvider');
-const { buildWeatherProjection, startProfileWeather, MAX_AGE_MS } = require('../src/profile-weather');
+const { buildWeatherProjection, selectProfileWeatherLocation, startProfileWeather,
+  MAX_AGE_MS, MAX_LOCATION_AGE_MS } = require('../src/profile-weather');
 const now = Date.parse('2026-09-17T12:00:00Z');
 const location = { lat: -20.028, lng: 57.596, source: 'gps', placeLabel: 'Lower Vale', recordedAt: new Date(now - 120_000) };
 const device = { lastLocationObservation: location, lastSatelliteLocation: location, lastHeartbeatAt: new Date(now) };
@@ -17,6 +18,7 @@ const project = (d = device, w = weather, time = now) => buildWeatherProjection(
 test('weather uses source observation age, day/night, exact wind conversion and location expiry', () => {
   const value = project();
   assert.equal(value.state, 'available');
+  assert.equal(value.locationBasis, 'recent');
   assert.equal(value.condition, 'partly_cloudy');
   assert.equal(value.isDay, true);
   assert.equal(value.windKph, 16.2);
@@ -34,7 +36,7 @@ test('weather uses source observation age, day/night, exact wind conversion and 
 });
 
 test('bad, absent, future and stale location timestamps never borrow a fresh heartbeat', () => {
-  for (const recordedAt of [null, 'bad', new Date(now - MAX_AGE_MS), new Date(now + 120_000)]) {
+  for (const recordedAt of [null, 'bad', new Date(now - MAX_LOCATION_AGE_MS), new Date(now + 120_000)]) {
     const fix = { ...location, recordedAt };
     assert.equal(project({ ...device, lastLocationObservation: fix, lastSatelliteLocation: fix }).state, 'unavailable');
   }
@@ -87,11 +89,61 @@ test('profile weather uses a fresh area despite expired or future GPS and keeps 
     assert.equal(value.state, 'available');
     assert.equal(value.location.source, 'wifi');
     assert.equal(value.locationObservedAt, wifi.recordedAt.toISOString());
-    assert.equal(value.expiresAt, new Date(now + 15 * 60_000).toISOString());
+    assert.equal(value.locationBasis, 'recent');
+    assert.equal(value.expiresAt, new Date(now + 50 * 60_000).toISOString());
   }
-  assert.equal(project({ lastSatelliteLocation: { ...location, recordedAt: new Date(now - 70 * 60_000) },
+  const lastKnown = project({ lastSatelliteLocation: { ...location, recordedAt: new Date(now - 70 * 60_000) },
     lastLocationObservation: { ...wifi, recordedAt: new Date(now - MAX_AGE_MS) },
-    lastHeartbeatAt: new Date(now) }).state, 'unavailable');
+    lastHeartbeatAt: new Date(now) });
+  assert.equal(lastKnown.state, 'available');
+  assert.equal(lastKnown.locationBasis, 'last_known');
+  assert.equal(lastKnown.location.source, 'wifi');
+});
+
+test('last-known area uses newer Wi-Fi over older GPS without refreshing either timestamp', () => {
+  const gps = { ...location, recordedAt: new Date(now - 133.1 * 60_000) };
+  const wifi = { ...location, source: 'wifi', placeLabel: 'Latest area', lat: -20.04,
+    recordedAt: new Date(now - 77.7 * 60_000) };
+  const value = project({ lastSatelliteLocation: gps, lastLocationObservation: wifi,
+    lastHeartbeatAt: new Date(now) });
+  assert.equal(value.state, 'available');
+  assert.equal(value.locationBasis, 'last_known');
+  assert.equal(value.location.source, 'wifi');
+  assert.equal(value.location.lat, wifi.lat);
+  assert.equal(value.location.retainedSatellite, false);
+  assert.equal(value.locationObservedAt, wifi.recordedAt.toISOString());
+  assert.equal(value.observedAt, weather.observedAt);
+  assert.equal(value.expiresAt, new Date(now + 50 * 60_000).toISOString());
+
+  const newerLbs = { ...wifi, source: 'lbs', recordedAt: new Date(now - 65 * 60_000) };
+  const stored = project({ lastSatelliteLocation: gps, lastLocationObservation: gps,
+    location: wifi, lastApproximateLocation: newerLbs });
+  assert.equal(stored.location.source, 'lbs');
+  assert.equal(stored.locationObservedAt, newerLbs.recordedAt.toISOString());
+});
+
+test('last-known area expires at 24 hours and cannot extend one-hour weather freshness', () => {
+  const nearExpiry = { ...location, recordedAt: new Date(now - MAX_LOCATION_AGE_MS + 60_000) };
+  const oldDevice = { lastLocationObservation: nearExpiry, lastHeartbeatAt: new Date(now) };
+  const allowed = project(oldDevice);
+  assert.equal(allowed.state, 'available');
+  assert.equal(allowed.locationBasis, 'last_known');
+  assert.equal(allowed.expiresAt, new Date(now + 60_000).toISOString());
+  assert.equal(project(oldDevice, weather, now + 60_000).state, 'unavailable');
+  const rejected = selectProfileWeatherLocation(oldDevice, now + 60_000);
+  assert.equal(rejected.reason, 'location_stale_or_undated');
+  assert.equal(rejected.location.recordedAt, nearExpiry.recordedAt);
+  assert.equal(rejected.locationBasis, null);
+  for (const stale of [{ ...weather, observedAt: new Date(now - MAX_AGE_MS).toISOString() },
+    { ...weather, fetchedAt: now - MAX_AGE_MS }]) {
+    const value = project(oldDevice, stale);
+    assert.equal(value.state, 'unavailable');
+    assert.equal(value.reason, 'weather_stale_or_undated');
+  }
+  const invalid = { lastLocationObservation: { ...location, recordedAt: new Date(now + 120_000) },
+    lastSatelliteLocation: { ...location, recordedAt: null }, lastHeartbeatAt: new Date(now) };
+  assert.equal(project(invalid).state, 'unavailable');
+  assert.equal(project(invalid).locationBasis, null);
 });
 
 function fakeDb(initial) {

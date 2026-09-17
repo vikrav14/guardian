@@ -102,6 +102,40 @@ void main() {
     },
   );
 
+  testWidgets(
+    'fresh weather at an older area keeps the location age explicit',
+    (tester) async {
+      final data = weatherTestData()
+        ..['locationObservedAt'] = weatherTestNow
+            .subtract(const Duration(minutes: 77, seconds: 42))
+            .toIso8601String();
+      await _pump(
+        tester,
+        ProfileWeatherPanel(
+          weather: ProfileWeather.fromMap(data),
+          now: weatherTestNow,
+        ),
+        width: 320,
+        scale: 2,
+      );
+      expect(find.text('Last known area · Lower Vale'), findsOneWidget);
+      expect(find.text('Location updated 1h 17m ago'), findsOneWidget);
+      expect(find.text('Weather updated 8m ago'), findsOneWidget);
+      expect(find.text('Near Lower Vale'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await _pump(
+        tester,
+        ProfileWeatherPanel(
+          weather: ProfileWeather.fromMap(data..['placeName'] = null),
+          now: weatherTestNow,
+        ),
+      );
+      expect(find.text('Weather at last known area'), findsOneWidget);
+      expect(find.text('Location updated 1h 17m ago'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('unknown day period and missing wind do not invent sun or calm', (
     tester,
   ) async {

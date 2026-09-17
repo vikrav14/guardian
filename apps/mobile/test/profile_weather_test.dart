@@ -30,13 +30,12 @@ void main() {
     expect(ProfileWeather.fromMap(data).isAvailableAt(weatherTestNow), isTrue);
   });
 
-  test('fresh fetch cannot resurrect expired weather or old location', () {
-    for (final key in ['observedAt', 'locationObservedAt']) {
+  test('fresh fetch cannot resurrect expired weather', () {
+    for (final key in ['observedAt', 'fetchedAt']) {
       final data = weatherTestData()
         ..[key] = weatherTestNow
             .subtract(const Duration(minutes: 61))
-            .toIso8601String()
-        ..['fetchedAt'] = weatherTestNow.toIso8601String();
+            .toIso8601String();
       expect(
         ProfileWeather.fromMap(data).isAvailableAt(weatherTestNow),
         isFalse,
@@ -44,6 +43,25 @@ void main() {
     }
     final weather = ProfileWeather.fromMap(weatherTestData());
     expect(weather.isAvailableAt(weather.expiresAt!), isFalse);
+  });
+
+  test('fresh weather can describe a recent last known area for up to 24h', () {
+    for (final age in [
+      const Duration(minutes: 77, seconds: 42),
+      const Duration(hours: 23, minutes: 59),
+    ]) {
+      final data = weatherTestData()
+        ..['locationObservedAt'] = weatherTestNow.subtract(age).toIso8601String();
+      final weather = ProfileWeather.fromMap(data);
+      expect(weather.isAvailableAt(weatherTestNow), isTrue);
+      expect(weather.locationIsRetainedAreaAt(weatherTestNow), isTrue);
+    }
+    for (final age in [const Duration(hours: 24), const Duration(hours: 25)]) {
+      final data = weatherTestData()
+        ..['locationObservedAt'] = weatherTestNow.subtract(age).toIso8601String()
+        ..['fetchedAt'] = weatherTestNow.toIso8601String();
+      expect(ProfileWeather.fromMap(data).isAvailableAt(weatherTestNow), isFalse);
+    }
   });
 
   test('rejects missing, malformed, future and contradictory timestamps', () {

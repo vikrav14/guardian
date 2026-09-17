@@ -2,8 +2,10 @@
 
 const WeatherProvider = require('./context/weatherProvider');
 const { selectWeatherLocation } = require('./weather-reply');
+const { normalizeLocationSource } = require('./location-provenance');
 
 const MAX_AGE_MS = 60 * 60_000;
+const MAX_LOCATION_AGE_MS = 24 * 60 * 60_000;
 const FUTURE_TOLERANCE_MS = 60_000;
 const REFRESH_MS = 5 * 60_000;
 
@@ -13,8 +15,8 @@ function dateMs(value) {
   return Number.isFinite(date?.getTime()) ? date.getTime() : null;
 }
 
-function fresh(value, now) {
-  return value != null && value <= now + FUTURE_TOLERANCE_MS && now - value < MAX_AGE_MS;
+function fresh(value, now, maxAgeMs = MAX_AGE_MS) {
+  return value != null && value <= now + FUTURE_TOLERANCE_MS && now - value < maxAgeMs;
 }
 
 function finite(value, min, max) {
@@ -39,24 +41,54 @@ function areaName(value) {
     : '';
 }
 
-function selectedLocation(device, now) {
+function selectedLocation(device, now = Date.now()) {
   const selection = selectWeatherLocation(device, { now: new Date(now) });
-  const location = selection.location;
-  const observedAt = dateMs(location?.recordedAt);
-  if (!location || !finite(location.lat, -90, 90) || !finite(location.lng, -180, 180) ||
-      (location.lat === 0 && location.lng === 0) || !['gps', 'wifi', 'lbs'].includes(selection.source)) {
-    return { reason: 'location_unavailable' };
+  const valid = ({ location, source }) => location && finite(location.lat, -90, 90) &&
+    finite(location.lng, -180, 180) && !(location.lat === 0 && location.lng === 0) &&
+    ['gps', 'wifi', 'lbs'].includes(source);
+  const observedAt = dateMs(selection.location?.recordedAt);
+  if (valid(selection) && fresh(observedAt, now)) {
+    return { ...selection, observedAt, locationBasis: 'recent' };
   }
-  // Never substitute lastHeartbeatAt/updatedAt for a location observation.
-  if (!fresh(observedAt, now)) return { reason: 'location_stale_or_undated' };
-  return { ...selection, observedAt };
+
+  // The profile may show current weather for a clearly labelled last-known
+  // area. Choose its newest real fix; an older GPS fix has no priority here.
+  // This does not change the stricter WhatsApp selector or the family map.
+  const candidates = [
+    { location: device?.lastLocationObservation,
+      source: normalizeLocationSource(device?.lastLocationObservation?.source || device?.accuracySource) },
+    { location: device?.location,
+      source: normalizeLocationSource(device?.location?.source || device?.accuracySource) },
+    { location: device?.lastSatelliteLocation,
+      source: normalizeLocationSource(device?.lastSatelliteLocation?.source || 'gps') },
+    { location: device?.lastApproximateLocation,
+      source: normalizeLocationSource(device?.lastApproximateLocation?.source) },
+  ].filter(valid);
+  const datedCandidates = candidates.map(candidate => ({ ...candidate,
+    observedAt: dateMs(candidate.location.recordedAt) }));
+  const lastKnown = datedCandidates
+    .filter(candidate => fresh(candidate.observedAt, now, MAX_LOCATION_AGE_MS))
+    .sort((left, right) => right.observedAt - left.observedAt)[0];
+  if (!lastKnown) {
+    // Retain rejected evidence for the read-only diagnostic; a reason always
+    // prevents the scheduler from fetching or publishing usable conditions.
+    const rejected = datedCandidates.filter(candidate => candidate.observedAt != null &&
+      candidate.observedAt <= now + FUTURE_TOLERANCE_MS)
+      .sort((left, right) => right.observedAt - left.observedAt)[0] || { ...selection, observedAt };
+    return { ...rejected, locationBasis: null,
+      reason: candidates.length > 0 ? 'location_stale_or_undated' : 'location_unavailable' };
+  }
+  // Never substitute heartbeat, fetch or updatedAt for the original fix time.
+  return { ...lastKnown, retainedSatellite: false,
+    latestObservation: device?.lastLocationObservation || device?.location || null,
+    locationBasis: 'last_known' };
 }
 
 function unavailable(reason, now) {
   return {
     schemaVersion: 1, state: 'unavailable', reason, condition: 'unknown',
     isDay: null, temperatureC: null, windKph: null, gustKph: null,
-    placeName: null, locationObservedAt: null, observedAt: null,
+    placeName: null, locationObservedAt: null, locationBasis: null, observedAt: null,
     fetchedAt: new Date(now).toISOString(), expiresAt: new Date(now).toISOString(),
     source: 'openweathermap', conditionCode: null, icon: null, location: null,
   };
@@ -89,9 +121,10 @@ function buildWeatherProjection({ device, weather, now = Date.now() }) {
     placeName: areaName(location.placeLabel || location.placeName) ||
       areaName(weather.location) || 'Recorded area',
     locationObservedAt: new Date(selection.observedAt).toISOString(),
+    locationBasis: selection.locationBasis,
     observedAt: new Date(observedAt).toISOString(),
     fetchedAt: new Date(fetchedAt).toISOString(),
-    expiresAt: new Date(Math.min(selection.observedAt + MAX_AGE_MS, observedAt + MAX_AGE_MS,
+    expiresAt: new Date(Math.min(selection.observedAt + MAX_LOCATION_AGE_MS, observedAt + MAX_AGE_MS,
       fetchedAt + MAX_AGE_MS)).toISOString(),
     source: 'openweathermap', conditionCode: weather.conditionCode, icon,
     location: {
@@ -172,4 +205,5 @@ function startProfileWeather({
   };
 }
 
-module.exports = { MAX_AGE_MS, REFRESH_MS, buildWeatherProjection, startProfileWeather, weatherCondition };
+module.exports = { MAX_AGE_MS, MAX_LOCATION_AGE_MS, REFRESH_MS, buildWeatherProjection,
+  selectProfileWeatherLocation: selectedLocation, startProfileWeather, weatherCondition };
