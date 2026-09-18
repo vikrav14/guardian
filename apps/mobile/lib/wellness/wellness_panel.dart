@@ -153,6 +153,8 @@ class _WellnessDataState extends State<_WellnessData>
   Stream<List<ActivityDay>>? _days;
   Stream<List<WellnessSample>>? _readings;
   Stream<WearStatus>? _wearStatus;
+  List<ActivityDay> _cachedDays = const [];
+  List<WellnessSample> _cachedReadings = const [];
   Timer? _timer;
   @override
   void initState() {
@@ -201,10 +203,17 @@ class _WellnessDataState extends State<_WellnessData>
   @override
   void didUpdateWidget(covariant _WellnessData oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.subscription != widget.subscription ||
+    // MapDashboardPage rebuilds this widget for normal device heartbeats. It
+    // creates a fresh readings callback each time, but that is not a data
+    // source change. Reconnecting here briefly clears the cards and is the
+    // visible dashboard "tilt" during ordinary live updates.
+    final readingsAvailabilityChanged =
+        (oldWidget.readingsSource == null) !=
+        (widget.readingsSource == null);
+    if (!_sameSubscription(oldWidget.subscription, widget.subscription) ||
         oldWidget.imei != widget.imei ||
         oldWidget.activityEnabled != widget.activityEnabled ||
-        oldWidget.readingsSource != widget.readingsSource) {
+        readingsAvailabilityChanged) {
       _connect();
     }
   }
@@ -270,20 +279,29 @@ class _WellnessDataState extends State<_WellnessData>
   }
 
   Widget _buildReadings(BuildContext context, WearStatus wearStatus) {
-    // Keys clear cached StreamBuilder data when day, plan, source or window changes.
+    // Keys replace streams when the day, plan, source or window changes;
+    // initialData keeps the last values visible during that handoff.
     return StreamBuilder<List<ActivityDay>>(
       key: ObjectKey(_days),
       stream: _days,
+      initialData: _cachedDays,
       builder: (context, activity) => StreamBuilder<List<WellnessSample>>(
         key: ObjectKey(_readings),
         stream: _readings,
+        initialData: _cachedReadings,
         builder: (context, readings) {
+          if (!activity.hasError && activity.hasData) {
+            _cachedDays = activity.data ?? const [];
+          }
+          if (!readings.hasError && readings.hasData) {
+            _cachedReadings = readings.data ?? const [];
+          }
           final days = activity.hasError
               ? <ActivityDay>[]
-              : activity.data ?? <ActivityDay>[];
+              : activity.data ?? _cachedDays;
           final samples = readings.hasError
               ? <WellnessSample>[]
-              : readings.data ?? <WellnessSample>[];
+              : readings.data ?? _cachedReadings;
           if (!widget.detail) {
             return WellnessCard(
               onRoutine:
@@ -358,4 +376,15 @@ class _WellnessDataState extends State<_WellnessData>
       ),
     );
   }
+}
+
+bool _sameSubscription(GuardianSubscription a, GuardianSubscription b) {
+  return a.serviceActive == b.serviceActive &&
+      a.plan == b.plan &&
+      a.status == b.status &&
+      a.reason == b.reason &&
+      a.ownerUid == b.ownerUid &&
+      a.accessUntil == b.accessUntil &&
+      a.features.length == b.features.length &&
+      a.features.every(b.features.contains);
 }
