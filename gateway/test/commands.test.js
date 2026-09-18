@@ -7,6 +7,7 @@ const {
   voiceMonitorCommand,
   ringToFindCommand,
   alarmModeCommand,
+  watchAlertProfileCommand,
   sendDeviceCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
@@ -56,6 +57,20 @@ test('alarmModeCommand rejects missing or out-of-range modes', () => {
   assert.throws(() => alarmModeCommand(1.5), /integer from 0 to 3/);
 });
 
+test('watchAlertProfileCommand builds the documented V52 alert profiles', () => {
+  assert.equal(watchAlertProfileCommand(1), 'profile,1');
+  assert.equal(watchAlertProfileCommand(2), 'profile,2');
+  assert.equal(watchAlertProfileCommand(3), 'profile,3');
+  assert.equal(watchAlertProfileCommand(4), 'profile,4');
+});
+
+test('watchAlertProfileCommand rejects missing or out-of-range modes', () => {
+  assert.throws(() => watchAlertProfileCommand(), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(0), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(5), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(1.5), /integer from 1 to 4/);
+});
+
 test('V52 runtime commands produce exact SG frames without SMS terminators', () => {
   assert.equal(
     buildAckFrame('9705254749', voiceMonitorCommand('+23058590100')).toString('ascii'),
@@ -68,6 +83,10 @@ test('V52 runtime commands produce exact SG frames without SMS terminators', () 
   assert.equal(
     buildAckFrame('9705254749', alarmModeCommand(3)).toString('ascii'),
     '[SG*9705254749*0005*MOD,3]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', watchAlertProfileCommand(2)).toString('ascii'),
+    '[SG*9705254749*0009*profile,2]'
   );
 });
 
@@ -187,14 +206,24 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
     {},
     transports
   );
+  const profile = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'set_watch_alert_profile',
+    { mode: 2 },
+    transports
+  );
 
   assert.equal(monitor.channel, 'tcp');
   assert.equal(monitor.text, 'MONITOR,+23058590100');
   assert.equal(find.channel, 'tcp');
   assert.equal(find.text, 'FIND');
+  assert.equal(profile.channel, 'tcp');
+  assert.equal(profile.text, 'profile,2');
   assert.deepEqual(calls, [
     { imei: '861397052547492', command: 'MONITOR,+23058590100' },
     { imei: '861397052547492', command: 'FIND' },
+    { imei: '861397052547492', command: 'profile,2' },
   ]);
 });
 
