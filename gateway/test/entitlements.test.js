@@ -64,13 +64,13 @@ test('active Essential receives SOS-only WhatsApp but no assistant or full safet
   assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
 });
 
-test('Family receives WhatsApp but not Care medication services', () => {
+test('Family receives WhatsApp and medication reminders, but not advanced Care services', () => {
   const result = evaluateSubscription(subscription(PLAN.FAMILY), { now: NOW });
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_WATCH_COMMANDS), true);
   assert.equal(hasEntitlement(result, FEATURE.ACTIVITY_STEPS), true);
   assert.equal(hasEntitlement(result, FEATURE.WELLNESS_READINGS), true);
-  assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
+  assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), true);
 });
 
 test('Care receives all inherited and care-only services', () => {
@@ -118,7 +118,7 @@ test('minimum plan is deterministic for every advertised feature', () => {
   assert.equal(minimumPlanFor(FEATURE.SOS_WHATSAPP_ALERTS), PLAN.ESSENTIAL);
   assert.equal(minimumPlanFor(FEATURE.WHATSAPP_QA), PLAN.FAMILY);
   assert.equal(minimumPlanFor(FEATURE.ACTIVITY_STEPS), PLAN.ESSENTIAL);
-  assert.equal(minimumPlanFor(FEATURE.MEDICATION_REMINDERS), PLAN.CARE);
+  assert.equal(minimumPlanFor(FEATURE.MEDICATION_REMINDERS), PLAN.FAMILY);
 });
 
 test('WhatsApp intent mapping protects Care-only summaries and reminders', () => {

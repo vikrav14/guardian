@@ -842,7 +842,7 @@ acknowledgement.
 
 ## Test 7 — medication reminder
 
-Medication reminders are Guardian Care only.
+Medication reminders are available on Guardian Family and Guardian Care.
 
 1. Create a reminder two or more minutes ahead using the app or confirmed WhatsApp action.
 2. Confirm one canonical `medicationReminders` record and one `set_medication_reminder` command.

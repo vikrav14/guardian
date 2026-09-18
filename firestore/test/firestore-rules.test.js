@@ -487,22 +487,22 @@ test('linked users can read only unexpired journey presentations', async () => {
   await assertFails(updateDoc(active, { attribution: 'forged' }));
 });
 
-test('medication data and commands require Guardian Care', async () => {
+test('medication data and commands require Guardian Family or Care', async () => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
       plan: 'family',
     });
   });
   const familyDb = authedDb('owner');
-  await assertFails(getDoc(doc(familyDb, 'medicationReminders', 'med-1')));
-  await assertFails(
+  await assertSucceeds(getDoc(doc(familyDb, 'medicationReminders', 'med-1')));
+  await assertSucceeds(
     setDoc(doc(familyDb, 'medicationReminders', 'med-family'), {
       imei: '000000000000001',
       text: 'Tablets',
       createdBy: 'owner',
     }),
   );
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(familyDb, 'deviceCommands', 'med-command-family'), {
       imei: '000000000000001',
       type: 'set_medication_reminder',
@@ -514,11 +514,20 @@ test('medication data and commands require Guardian Care', async () => {
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
-      plan: 'care',
+      plan: 'essential',
     });
   });
-  const careDb = authedDb('member');
-  await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
+  const essentialDb = authedDb('owner');
+  await assertFails(getDoc(doc(essentialDb, 'medicationReminders', 'med-1')));
+  await assertFails(
+    setDoc(doc(essentialDb, 'deviceCommands', 'med-command-essential'), {
+      imei: '000000000000001',
+      type: 'set_medication_reminder',
+      params: {},
+      status: 'pending',
+      createdBy: 'owner',
+    }),
+  );
 });
 
 test('linked Family and Care users can read consented displayable wellbeing readings', async () => {

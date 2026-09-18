@@ -46,18 +46,18 @@
   configured and keeps the in-app quick checks available.
 - Desktop **Call watch** explains that it is a carrier voice call and offers
   copy number/cancel instead of silently relying on a `tel:` handler.
-- Dashboard and settings do not present medication or Care wellbeing controls as active.
+- Dashboard and settings present Family medication reminders and keep Care wellbeing controls locked.
 - Retained journey dates older than seven days can be selected and read.
-- A Family client cannot create, toggle or delete medication reminders, including by direct Firestore SDK calls.
+- A Family client can create, toggle and delete medication reminders through the verified app path; direct Firestore SDK writes use the same Family entitlement gate.
 - Up to five unique caregivers can join; the sixth is rejected transactionally.
 
 ## Care acceptance
 
 - Account shows Guardian Care and a five-caregiver limit.
 - Family capabilities remain available.
-- Care profile, wellbeing/routine sections and medication reminders are available.
-- Creating a medication reminder writes the Care record and queues the matching watch command exactly once.
-- Family and Essential downgrades immediately lock Care controls and direct writes.
+- Care profile and wellbeing/routine sections are available.
+- Family and Care can create a medication reminder, which writes the canonical record and queues the matching watch command exactly once.
+- Essential downgrades immediately lock medication and Care controls; Family keeps medication reminders while advanced Care controls remain locked.
 - No Care panel claims a medication reminder is enabled unless a real reminder record exists.
 
 ## Two-account family acceptance
@@ -75,7 +75,7 @@ Use two distinct Firebase Auth accounts in separate browser profiles.
 
 ## Production rule deployment gate
 
-Deploy `firestore/rules.example` only after the emulator suite is green and the diff has been reviewed. After deployment, repeat one recent-history read, one denied Essential old-history read, one denied Family medication write and one allowed Care medication write against non-production test accounts.
+Deploy `firestore/rules.example` only after the emulator suite is green and the diff has been reviewed. After deployment, repeat one recent-history read, one denied Essential old-history read, one allowed Family medication write and one allowed Care medication write against non-production test accounts.
 
 ## Evidence to retain
 

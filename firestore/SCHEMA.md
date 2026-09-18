@@ -644,6 +644,11 @@ deleting also enqueues a matching `deviceCommands` entry
 | createdBy | string | uid |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
+| deviceCommandId | string \| null | Most recent V52 sync command for this reminder. |
+| deviceSyncStatus | string | `pending` \| `sent` \| `failed` \| `unknown`; transport status only. |
+| deviceSyncError | string \| null | Bounded V52 transport error, if the command failed. |
+| deviceSyncedAt | timestamp \| null | Last successful command handoff to the gateway transport. |
+| deletedAt | timestamp \| null | Tombstone time; the app hides the reminder while the off command is delivered. |
 | lastSentAt | timestamp \| null | Last accepted guardian reminder send, used to prevent duplicate scheduling. |
 | deliveryStatus | string | `pending` \| `accepted` \| `sent` \| `delivered` \| `read` \| `failed`; separate from wearer acknowledgement. |
 | lastDelivery | map \| null | Meta provider outcome, `wamid`, status timestamps and bounded errors without message contents. |

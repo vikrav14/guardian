@@ -42,7 +42,7 @@ void main() {
     expect(result.locationHistoryDays, 7);
   });
 
-  test('Family adds WhatsApp but not Care medication services', () {
+  test('Family adds WhatsApp and medication reminders', () {
     final result = GuardianSubscription.fromMap(
       subscription('family'),
       now: now,
@@ -50,7 +50,7 @@ void main() {
 
     expect(result.has(GuardianFeature.whatsappQuestionsAnswers), true);
     expect(result.has(GuardianFeature.activitySteps), true);
-    expect(result.has(GuardianFeature.medicationReminders), false);
+    expect(result.has(GuardianFeature.medicationReminders), true);
     expect(result.caregiverLimit, 5);
     expect(result.locationHistoryDays, isNull);
   });
@@ -165,9 +165,8 @@ void main() {
     expect(whatsapp.allowed, false);
     expect(whatsapp.state, GuardianEntitlementDecisionState.upgradeRequired);
     expect(whatsapp.message, contains('Guardian Family or Guardian Care'));
-    expect(medication.allowed, false);
-    expect(medication.minimumPlan, GuardianPlan.care);
-    expect(medication.message, contains('Guardian Care'));
+    expect(medication.allowed, true);
+    expect(medication.minimumPlan, GuardianPlan.family);
     expect(activity.allowed, true);
     expect(activity.minimumPlan, GuardianPlan.essential);
   });

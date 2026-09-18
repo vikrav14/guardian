@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/device.dart';
 import 'package:guardian/screens/watch_preferences_page.dart';
 import 'package:guardian/services/guardian_entitlements.dart';
+import 'package:guardian/widgets/care/care_profile_card.dart';
 import 'package:guardian/wellness/wellness_routine.dart';
 import 'package:guardian/wellness/wellness_settings_card.dart';
 
@@ -118,12 +119,36 @@ void main() {
         await tester.pageBack();
         await tester.pumpAndSettle();
         expect(find.byType(WatchPreferencesPage), findsOneWidget);
-        await tester.ensureVisible(find.text('Care extras'));
+        await tester.ensureVisible(find.text('Medication reminders'));
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },
     );
   }
+
+  testWidgets('Family sees medication reminders without Care profile controls', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WatchPreferencesPage(
+          device: const Device(
+            imei: 'synthetic',
+            nickname: 'Sample wearer',
+            online: false,
+          ),
+          subscription: subscriptionFor('family'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Medication reminders'), findsOneWidget);
+    expect(find.text('Guardian Care features'), findsOneWidget);
+    expect(find.byType(CareProfileCard), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('Essential shows routine choices but cannot apply them', (
     tester,
