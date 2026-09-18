@@ -371,7 +371,7 @@ void main() {
     });
 
     test(
-      'Family is rejected before a reminder or command is written',
+      'Essential is rejected before a reminder or command is written',
       () async {
         final db = FakeFirebaseFirestore();
         final auth = MockFirebaseAuth(
@@ -382,7 +382,7 @@ void main() {
 
         expect(
           () => service.create(
-            subscription: plan('family'),
+            subscription: plan('essential'),
             imei: 'AAA',
             time: '08:00',
             frequency: 2,
@@ -399,7 +399,7 @@ void main() {
     );
 
     test(
-      'Care can create a reminder and corresponding watch command',
+      'Family can create a reminder and corresponding watch command',
       () async {
         final db = FakeFirebaseFirestore();
         final auth = MockFirebaseAuth(
@@ -408,7 +408,7 @@ void main() {
         );
 
         await MedicationReminderService(db: db, auth: auth).create(
-          subscription: plan('care'),
+          subscription: plan('family'),
           imei: 'AAA',
           time: '08:00',
           frequency: 2,
@@ -423,6 +423,48 @@ void main() {
           (await db.collection('deviceCommands').get()).docs,
           hasLength(1),
         );
+        final reminder =
+            (await db.collection('medicationReminders').get()).docs.single;
+        final command = (await db.collection('deviceCommands').get()).docs.single;
+        expect(reminder.data()['deviceSyncStatus'], 'pending');
+        expect(command.data()['reminderId'], reminder.id);
+      },
+    );
+
+    test(
+      'deleting a reminder queues a device disable instead of orphaning the watch alert',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        final service = MedicationReminderService(db: db, auth: auth);
+        await service.create(
+          subscription: plan('care'),
+          imei: 'AAA',
+          time: '08:00',
+          frequency: 2,
+          text: 'Tablets',
+        );
+        final reminder =
+            (await db.collection('medicationReminders').get()).docs.single;
+
+        await service.delete(
+          reminder.id,
+          subscription: plan('care'),
+          imei: 'AAA',
+        );
+
+        final visible = await service.watchForDevice(
+          'AAA',
+          subscription: plan('care'),
+        ).first;
+        expect(visible, isEmpty);
+        final commands = await db.collection('deviceCommands').get();
+        expect(commands.docs, hasLength(2));
+        expect(commands.docs.last.data()['reminderId'], reminder.id);
+        expect(commands.docs.last.data()['params']['enabled'], false);
       },
     );
   });
@@ -694,7 +736,7 @@ void main() {
       expect(sub.serviceActive, true);
       expect(sub.plan, GuardianPlan.family);
       expect(sub.has(GuardianFeature.whatsappQuestionsAnswers), true);
-      expect(sub.has(GuardianFeature.medicationReminders), false);
+      expect(sub.has(GuardianFeature.medicationReminders), true);
     });
 
     test('watchSubscription follows a family service owner', () async {

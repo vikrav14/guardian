@@ -10,6 +10,10 @@ class MedicationReminder {
     required this.text,
     this.week,
     this.createdBy,
+    this.deviceCommandId,
+    this.deviceSyncStatus = 'unknown',
+    this.deviceSyncError,
+    this.deletedAt,
   });
 
   final String id;
@@ -20,6 +24,19 @@ class MedicationReminder {
   final String text;
   final String? week; // 7-digit Sun->Sat mask, only when frequency == 3
   final String? createdBy;
+  final String? deviceCommandId;
+  final String deviceSyncStatus; // pending=queued, sent=transport accepted, failed=not sent
+  final String? deviceSyncError;
+  final DateTime? deletedAt;
+
+  bool get isDeleted => deletedAt != null;
+
+  String get deviceSyncLabel => switch (deviceSyncStatus) {
+    'pending' => 'Waiting for the watch',
+    'sent' => 'Sent to the watch',
+    'failed' => 'Could not reach the watch',
+    _ => 'Watch sync not confirmed',
+  };
 
   String get frequencyLabel => switch (frequency) {
     1 => 'Once',
@@ -41,6 +58,10 @@ class MedicationReminder {
       text: (data['text'] as String?) ?? 'Take medication',
       week: data['week'] as String?,
       createdBy: data['createdBy'] as String?,
+      deviceCommandId: data['deviceCommandId'] as String?,
+      deviceSyncStatus: (data['deviceSyncStatus'] as String?) ?? 'unknown',
+      deviceSyncError: data['deviceSyncError'] as String?,
+      deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(),
     );
   }
 }

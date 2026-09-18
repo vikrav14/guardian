@@ -169,6 +169,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       feature: GuardianFeature.wellbeingActivitySummaries,
       subscription: subscription,
     );
+    final medicationDecision = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.medicationReminders,
+      subscription: subscription,
+    );
     return Scaffold(
       backgroundColor: colors.canvas,
       appBar: AppBar(
@@ -227,11 +231,11 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildFallDetectionCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
-                Text(
-                  'Care extras',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: GuardianSpacing.sm),
+                if (medicationDecision.allowed) ...[
+                  _buildMedicationCard(colors, subscription),
+                  if (careDecision.allowed)
+                    const SizedBox(height: GuardianSpacing.lg),
+                ],
                 if (careDecision.allowed) ...[
                   CareProfileCard(
                     device: widget.device,
@@ -241,7 +245,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   const SizedBox(height: GuardianSpacing.lg),
                   _buildAdaptiveCareSections(
                     colors,
-                    subscription: subscription,
                   ),
                 ] else
                   _PlanNotice(decision: careDecision),
@@ -253,10 +256,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     );
   }
 
-  Widget _buildAdaptiveCareSections(
-    GuardianThemeColors colors, {
-    required GuardianSubscription subscription,
-  }) {
+  Widget _buildAdaptiveCareSections(GuardianThemeColors colors) {
     final priorities = _adaptivePriorities;
 
     final widgets = <Widget>[];
@@ -282,10 +282,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
 
     if (priorities.contains(GuardianCarePriority.wellbeing)) {
       addSection(_buildWellbeingInfoCard(colors));
-    }
-
-    if (priorities.contains(GuardianCarePriority.medication)) {
-      addSection(_buildMedicationCard(colors, subscription));
     }
 
     if (priorities.contains(GuardianCarePriority.inactivity)) {
@@ -668,6 +664,16 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
             ],
           ),
           const SizedBox(height: GuardianSpacing.sm),
+          Text(
+            'The watch can alert the wearer. Guardian can confirm command delivery, '
+            'but not that medication was taken.',
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 11.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: GuardianSpacing.sm),
           StreamBuilder<List<MedicationReminder>>(
             stream: Firebase.apps.isEmpty
                 ? Stream<List<MedicationReminder>>.value(
@@ -761,6 +767,15 @@ class _ReminderTile extends StatelessWidget {
                 Text(
                   reminder.frequencyLabel,
                   style: TextStyle(color: colors.textMuted, fontSize: 11),
+                ),
+                Text(
+                  reminder.deviceSyncLabel,
+                  style: TextStyle(
+                    color: reminder.deviceSyncStatus == 'failed'
+                        ? GuardianColors.danger
+                        : colors.textMuted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -857,7 +872,7 @@ class _PlanNotice extends StatelessWidget {
                 Text(
                   decision.state ==
                           GuardianEntitlementDecisionState.upgradeRequired
-                      ? 'Care profile and medication reminders'
+                      ? 'Guardian Care features'
                       : decision.title,
                   style: TextStyle(
                     color: colors.textPrimary,
@@ -868,7 +883,7 @@ class _PlanNotice extends StatelessWidget {
                 Text(
                   decision.state ==
                           GuardianEntitlementDecisionState.upgradeRequired
-                      ? 'These extras require Guardian Care. Basic Wellness readings are included with every active plan.'
+                      ? 'Care profile, advanced wellbeing and other Care services require Guardian Care. Medication reminders are available with Guardian Family and Guardian Care.'
                       : decision.message,
                   style: TextStyle(
                     color: colors.textSecondary,

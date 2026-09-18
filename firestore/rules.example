@@ -389,13 +389,13 @@ service cloud.firestore {
 
     match /medicationReminders/{reminderId} {
       allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care');
+        && activePlanAtLeast('family');
       allow create: if signedIn()
         && linkedTo(request.resource.data.imei)
-        && activePlanAtLeast('care')
+        && activePlanAtLeast('family')
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care')
+        && activePlanAtLeast('family')
         && resource.data.createdBy == request.auth.uid;
     }
 
@@ -482,7 +482,7 @@ service cloud.firestore {
         && request.resource.data.get('type', '') != 'set_alarm_mode'
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
-          || activePlanAtLeast('care')
+          || activePlanAtLeast('family')
         );
       allow update, delete: if false; // gateway Admin SDK only
     }

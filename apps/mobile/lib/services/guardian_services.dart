@@ -663,14 +663,17 @@ class MedicationReminderService {
     String imei, {
     required GuardianSubscription subscription,
   }) {
-    _requireCare(subscription);
+    _requireMedicationAccess(subscription);
     return _db
         .collection('medicationReminders')
         .where('imei', isEqualTo: imei)
         .snapshots()
         .map(
           (snap) =>
-              snap.docs.map(MedicationReminder.fromDoc).toList()
+              snap.docs
+                  .map(MedicationReminder.fromDoc)
+                  .where((reminder) => !reminder.isDeleted)
+                  .toList()
                 ..sort((a, b) => a.time.compareTo(b.time)),
         );
   }
@@ -683,11 +686,12 @@ class MedicationReminderService {
     required String text,
     String? week,
   }) async {
-    _requireCare(subscription);
+    _requireMedicationAccess(subscription);
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
 
-    await _db.collection('medicationReminders').add({
+    final reminderRef = _db.collection('medicationReminders').doc();
+    await reminderRef.set({
       'imei': imei,
       'time': time,
       'frequency': frequency,
@@ -697,15 +701,31 @@ class MedicationReminderService {
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'deviceSyncStatus': 'pending',
+      'deviceSyncError': null,
     });
 
-    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
-      imei,
-      time: time,
-      frequency: frequency,
-      week: week,
-      text: text,
-    );
+    try {
+      final commandId = await DeviceCommandService(
+        db: _db,
+        auth: _auth,
+      ).setMedicationReminder(
+        imei,
+        time: time,
+        frequency: frequency,
+        week: week,
+        text: text,
+        reminderId: reminderRef.id,
+      );
+      await reminderRef.update({'deviceCommandId': commandId});
+    } catch (error) {
+      await reminderRef.update({
+        'deviceSyncStatus': 'failed',
+        'deviceSyncError': error.toString(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      rethrow;
+    }
   }
 
   Future<void> setEnabled(
@@ -713,20 +733,38 @@ class MedicationReminderService {
     bool enabled, {
     required GuardianSubscription subscription,
   }) async {
-    _requireCare(subscription);
+    _requireMedicationAccess(subscription);
     await _db.collection('medicationReminders').doc(reminder.id).update({
       'enabled': enabled,
+      'deviceSyncStatus': 'pending',
+      'deviceSyncError': null,
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(db: _db, auth: _auth).setMedicationReminder(
-      reminder.imei,
-      time: reminder.time,
-      frequency: reminder.frequency,
-      week: reminder.week,
-      text: reminder.text,
-      enabled: enabled,
-    );
+    try {
+      final commandId = await DeviceCommandService(
+        db: _db,
+        auth: _auth,
+      ).setMedicationReminder(
+        reminder.imei,
+        time: reminder.time,
+        frequency: reminder.frequency,
+        week: reminder.week,
+        text: reminder.text,
+        enabled: enabled,
+        reminderId: reminder.id,
+      );
+      await _db.collection('medicationReminders').doc(reminder.id).update({
+        'deviceCommandId': commandId,
+      });
+    } catch (error) {
+      await _db.collection('medicationReminders').doc(reminder.id).update({
+        'deviceSyncStatus': 'failed',
+        'deviceSyncError': error.toString(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      rethrow;
+    }
   }
 
   Future<void> delete(
@@ -734,24 +772,53 @@ class MedicationReminderService {
     required GuardianSubscription subscription,
     String? imei,
   }) async {
-    _requireCare(subscription);
-    // Delete from app's record
-    await _db.collection('medicationReminders').doc(id).delete();
+    _requireMedicationAccess(subscription);
+    final reminderRef = _db.collection('medicationReminders').doc(id);
+    final snapshot = await reminderRef.get();
+    if (!snapshot.exists) return;
+    final reminder = MedicationReminder.fromDoc(snapshot);
 
-    // Also delete from device's reminder collection (where scheduler reads from)
-    if (imei != null) {
-      await _db
-          .collection('devices')
-          .doc(imei)
-          .collection('reminders')
-          .doc(id)
-          .delete();
+    // Keep a tombstone until the gateway has had a chance to deliver the off
+    // command. V52 has no list/delete API, so deleting the app record first
+    // could leave the watch alerting indefinitely.
+    await reminderRef.update({
+      'enabled': false,
+      'deletedAt': FieldValue.serverTimestamp(),
+      'deviceSyncStatus': 'pending',
+      'deviceSyncError': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    try {
+      final commandId = await DeviceCommandService(
+        db: _db,
+        auth: _auth,
+      ).setMedicationReminder(
+        reminder.imei.isNotEmpty ? reminder.imei : (imei ?? ''),
+        time: reminder.time,
+        frequency: reminder.frequency,
+        week: reminder.week,
+        text: reminder.text,
+        enabled: false,
+        reminderId: reminder.id,
+      );
+      await reminderRef.update({'deviceCommandId': commandId});
+    } catch (error) {
+      await reminderRef.update({
+        'deletedAt': FieldValue.delete(),
+        'deviceSyncStatus': 'failed',
+        'deviceSyncError': error.toString(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      rethrow;
     }
   }
 
-  void _requireCare(GuardianSubscription subscription) {
+  void _requireMedicationAccess(GuardianSubscription subscription) {
     if (!subscription.has(GuardianFeature.medicationReminders)) {
-      throw StateError('Medication reminders require Guardian Care.');
+      throw StateError(
+        'Medication reminders require Guardian Family or Guardian Care.',
+      );
     }
   }
 }
@@ -1385,21 +1452,24 @@ class DeviceCommandService {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
-  Future<void> _enqueue(
+  Future<String> _enqueue(
     String imei,
     String type,
     Map<String, dynamic> params,
+    {String? reminderId}
   ) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
-    await _db.collection('deviceCommands').add({
+    final ref = await _db.collection('deviceCommands').add({
       'imei': imei,
       'type': type,
       'params': params,
       'status': 'pending',
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
+      if (reminderId != null) 'reminderId': reminderId,
     });
+    return ref.id;
   }
 
   Future<void> setCenterNumber(String imei, String phone) {
@@ -1473,6 +1543,7 @@ class DeviceCommandService {
     required String text,
     String? week,
     bool enabled = true,
+    String? reminderId,
   }) {
     return _enqueue(imei, 'set_medication_reminder', {
       'time': time,
@@ -1480,7 +1551,7 @@ class DeviceCommandService {
       'text': text.trim(),
       if (frequency == 3) 'week': week,
       'enabled': enabled,
-    });
+    }, reminderId: reminderId);
   }
 
   /// V52 only. Sets the watch's standing location-reporting

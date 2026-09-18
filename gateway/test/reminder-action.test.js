@@ -24,10 +24,10 @@ function writeDb() {
   };
 }
 
-test('confirmed WhatsApp reminder writes the canonical record and queued V52 command', async () => {
+test('confirmed Family WhatsApp reminder writes the canonical record and queued V52 command', async () => {
   const { db, records } = writeDb();
   const entitlements = evaluateSubscription({
-    version: 1, managedBy: 'guardian_admin', plan: 'care', status: 'active',
+    version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active',
   });
   const ctx = {
     uid: 'u1',

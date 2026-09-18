@@ -465,7 +465,21 @@ function startPendingAlertWatcher() {
   console.log('[notify] watching alerts with notifyStatus=pending');
 }
 
-async function deliverDeviceCommand(imei, type, params, commandId) {
+async function updateMedicationReminderSync(reminderId, patch) {
+  if (!reminderId) return;
+  try {
+    await db.collection('medicationReminders').doc(String(reminderId)).set(
+      patch,
+      { merge: true }
+    );
+  } catch (error) {
+    // Device command status remains authoritative if the optional app-side
+    // projection cannot be updated on the same pass.
+    console.error('[commands] medication reminder sync projection failed', error.message);
+  }
+}
+
+async function deliverDeviceCommand(imei, type, params, commandId, reminderId = null) {
   const ref = db.collection('deviceCommands').doc(commandId);
   try {
     const claimed = await db.runTransaction(async (tx) => {
@@ -487,12 +501,27 @@ async function deliverDeviceCommand(imei, type, params, commandId) {
       { status: 'sent', result: outcome, completedAt: nowTs() },
       { merge: true }
     );
+    if (type === 'set_medication_reminder' && reminderId) {
+      await updateMedicationReminderSync(reminderId, {
+        deviceSyncStatus: 'sent',
+        deviceSyncError: null,
+        deviceSyncedAt: nowTs(),
+        updatedAt: nowTs(),
+      });
+    }
   } catch (err) {
     console.error('[commands] failed', err.message);
     await ref.set(
       { status: 'failed', error: err.message, completedAt: nowTs() },
       { merge: true }
     );
+    if (type === 'set_medication_reminder' && reminderId) {
+      await updateMedicationReminderSync(reminderId, {
+        deviceSyncStatus: 'failed',
+        deviceSyncError: err.message,
+        updatedAt: nowTs(),
+      });
+    }
   }
 }
 
@@ -508,7 +537,13 @@ function startPendingCommandWatcher() {
           if (change.type !== 'added' && change.type !== 'modified') return;
           const data = change.doc.data() || {};
           if (data.status !== 'pending') return;
-          deliverDeviceCommand(data.imei, data.type, data.params, change.doc.id).catch((err) => {
+          deliverDeviceCommand(
+            data.imei,
+            data.type,
+            data.params,
+            change.doc.id,
+            data.reminderId || null,
+          ).catch((err) => {
             console.error('[commands] watcher error', err.message);
           });
         });

@@ -5,7 +5,7 @@ const { getWellbeingReadings, runTool } = require('../src/assistant/tools');
 const { evaluateSubscription, FEATURE, featureForWhatsAppIntent } = require('../src/entitlements');
 const config = require('../src/config');
 const entitlements = plan => evaluateSubscription({ version: 1, managedBy: 'guardian_admin', plan, status: 'active' });
-test('Family and Care receive readings but not other Care-only services', () => {
+test('Family and Care receive readings and medication reminders, but not advanced Care services', () => {
   for (const plan of ['essential']) {
     const ctx = entitlements(plan);
     assert.equal(ctx.features.includes(FEATURE.WELLNESS_READINGS), false);
@@ -14,7 +14,7 @@ test('Family and Care receive readings but not other Care-only services', () => 
   }
   assert.equal(entitlements('family').features.includes(FEATURE.WELLNESS_READINGS), true);
   assert.equal(entitlements('family').features.includes(FEATURE.WELLBEING_ACTIVITY_SUMMARIES), false);
-  assert.equal(entitlements('family').features.includes(FEATURE.MEDICATION_REMINDERS), false);
+  assert.equal(entitlements('family').features.includes(FEATURE.MEDICATION_REMINDERS), true);
   assert.equal(entitlements('care').features.includes(FEATURE.WELLNESS_READINGS), true);
   assert.equal(featureForWhatsAppIntent('WELLBEING_QUERY'), FEATURE.WHATSAPP_QA);
 });

@@ -8,6 +8,9 @@ const { evaluateSubscription } = require('../src/entitlements');
 const familyEntitlements = evaluateSubscription({
   version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active',
 });
+const essentialEntitlements = evaluateSubscription({
+  version: 1, managedBy: 'guardian_admin', plan: 'essential', status: 'active',
+});
 const careEntitlements = evaluateSubscription({
   version: 1, managedBy: 'guardian_admin', plan: 'care', status: 'active',
 });
@@ -142,7 +145,25 @@ test('voice monitoring is disabled before any action is staged', async () => {
   assert.equal(records.size, 0);
 });
 
-test('Family cannot stage a Care medication reminder', async () => {
+test('Essential cannot stage a Family medication reminder', async () => {
+  const { db, records } = memoryDb();
+  const result = await runTool(
+    db,
+    {
+      uid: 'u1',
+      linkedImeis: ['A'],
+      devices: [{ imei: 'A', nickname: 'Jesh' }],
+      entitlements: essentialEntitlements,
+    },
+    'schedule_reminder',
+    { medicine_name: 'Metformin', time: '20:00', imei: 'A' },
+  );
+  assert.equal(result.code, 'plan_required');
+  assert.match(result.error, /Guardian Family/);
+  assert.equal(records.size, 0);
+});
+
+test('Family can stage a medication reminder', async () => {
   const { db, records } = memoryDb();
   const result = await runTool(
     db,
@@ -155,7 +176,10 @@ test('Family cannot stage a Care medication reminder', async () => {
     'schedule_reminder',
     { medicine_name: 'Metformin', time: '20:00', imei: 'A' },
   );
-  assert.equal(result.code, 'plan_required');
-  assert.match(result.error, /Guardian Care/);
-  assert.equal(records.size, 0);
+  assert.equal(result.status, ACTION_STATUS.AWAITING);
+  assert.match(result.reply, /Reply YES to continue or CANCEL/);
+  assert.equal(
+    [...records.values()].some((record) => record.actionType === 'schedule_reminder'),
+    true,
+  );
 });

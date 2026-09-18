@@ -112,11 +112,11 @@ const _familyFeatures = <GuardianFeature>{
   GuardianFeature.voiceAssistant,
   GuardianFeature.whatsappWatchCommands,
   GuardianFeature.wellnessReadings,
+  GuardianFeature.medicationReminders,
 };
 
 const _careFeatures = <GuardianFeature>{
   ..._familyFeatures,
-  GuardianFeature.medicationReminders,
   GuardianFeature.reminderAcknowledgements,
   GuardianFeature.wellbeingActivitySummaries,
   GuardianFeature.weeklyCareSummaries,

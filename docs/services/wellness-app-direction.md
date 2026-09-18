@@ -26,4 +26,4 @@ The current rollout is a private hardware trial. Public/ungranted views show the
 
 Manual temperature upload and display are proven by the captured `btemp2,1,36.68` example. The two-label firmware reply is parsed. Neither proves automatic temperature support. Current-session temperature mode evidence and dependable exact-watch wearing evidence remain unresolved; all-zero worn/removed samples must not be reinterpreted as a validated wearing signal. An offline watch can retain an earlier native schedule until a stop reaches it.
 
-Care profile and medication preferences keep their existing entitlement checks. Weekly WhatsApp reports, advanced Wellness comparisons and personal-pattern notices are labelled planned. Basic readings must never be presented as a Care-only upsell.
+Medication preferences are available to Guardian Family and Guardian Care; care-profile editing remains Guardian Care-only. Weekly WhatsApp reports, advanced Wellness comparisons and personal-pattern notices are labelled planned. Basic readings must never be presented as a Care-only upsell.
