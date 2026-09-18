@@ -799,6 +799,7 @@ class WellbeingService {
       _auth,
       imei,
       () => query
+          .where('displayable', isEqualTo: true)
           .where(
             'observedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(range.start),
