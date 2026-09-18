@@ -521,7 +521,7 @@ test('medication data and commands require Guardian Care', async () => {
   await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
 });
 
-test('linked Family and Care users can read consented displayable wellbeing readings', async () => {
+test('linked Care users can read consented displayable wellbeing readings', async () => {
   const acceptedPath = [
     'devices', '000000000000001', 'wellbeingReadings', 'accepted',
   ];
@@ -534,7 +534,8 @@ test('linked Family and Care users can read consented displayable wellbeing read
       plan: 'family',
     });
   });
-  await assertSucceeds(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+  await assertFails(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+  await assertFails(getDoc(doc(authedDb('member'), ...acceptedPath)));
 });
 
 test('unverified wellbeing evidence and consent records remain backend-only', async () => {

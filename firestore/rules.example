@@ -245,8 +245,8 @@ service cloud.firestore {
         // because a valid full-day query ends at the next calendar boundary.
         allow list: if linkedTo(imei)
           && activePlanAtLeast('care')
-          && resource.data.get('displayable', false) == true
-          && wellnessCalendarWindowAllowed(resource.data.get('observedAt', null))
+          && resource.data.displayable == true
+          && wellnessCalendarWindowAllowed(resource.data.observedAt)
           && activeWellbeingConsent(imei);
         allow write: if false;
       }
@@ -303,8 +303,8 @@ service cloud.firestore {
           && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
         allow list: if linkedTo(imei)
           && activePlanAtLeast('essential')
-          && resource.data.get('displayable', false) == true
-          && wellnessCalendarWindowAllowed(resource.data.get('lastObservedAt', null));
+          && resource.data.displayable == true
+          && wellnessCalendarWindowAllowed(resource.data.lastObservedAt);
         allow create, update, delete: if false;
       }
     }
