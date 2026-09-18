@@ -1467,7 +1467,7 @@ class DeviceCommandService {
       'status': 'pending',
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
-      ?reminderId: reminderId,
+      ?'reminderId': reminderId,
     });
     return ref.id;
   }
