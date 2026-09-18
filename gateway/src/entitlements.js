@@ -4,6 +4,14 @@ const PLAN = Object.freeze({
   CARE: 'care',
 });
 
+// Essential remains a supported legacy entitlement so existing subscriptions
+// retain their core-safety access. It is no longer a new customer-facing plan.
+const CUSTOMER_PLANS = Object.freeze([PLAN.FAMILY, PLAN.CARE]);
+
+function isCustomerPlan(plan) {
+  return CUSTOMER_PLANS.includes(String(plan || '').trim().toLowerCase());
+}
+
 const FEATURE = Object.freeze({
   LIVE_GPS: 'live_gps',
   SOS_ALERTS: 'sos_alerts',
@@ -236,6 +244,7 @@ function planBoundaryReply(context, feature) {
 
 module.exports = {
   PLAN,
+  CUSTOMER_PLANS,
   FEATURE,
   PLAN_POLICY,
   asDate,
@@ -245,5 +254,6 @@ module.exports = {
   minimumPlanFor,
   featureForWhatsAppIntent,
   planBoundaryReply,
+  isCustomerPlan,
   verifiedFamilyMember,
 };
