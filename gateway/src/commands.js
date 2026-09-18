@@ -10,8 +10,8 @@ const { sendDownlinkCommand } = require('./downlink');
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
  * - TCP data commands: administrator-only PHBX phonebook provisioning plus
- *   monitor callback, alarm mode, ring/find, fall settings, medication reminders and
- *   upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
+ *   monitor callback, alarm mode, ring/find, fall settings, medication reminders,
+ *   alert profiles and upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
  *   watch's active gateway session. They deliberately have no guessed SMS
  *   fallback. PHBX is not exposed through the generic deviceCommands channel.
  *
@@ -62,6 +62,22 @@ function alarmModeCommand(mode) {
     throw new Error('Alarm mode must be an integer from 0 to 3');
   }
   return `MOD,${n}`;
+}
+
+/**
+ * V52 global alert scene.
+ *
+ * 1: sound + vibration, 2: sound, 3: vibration, 4: silent.
+ * This affects medication reminders and other watch alerts. The device has
+ * no supported read-back command, so a successful socket handoff is not proof
+ * that the firmware applied the scene.
+ */
+function watchAlertProfileCommand(mode) {
+  const n = Number(mode);
+  if (!Number.isInteger(n) || n < 1 || n > 4) {
+    throw new Error('Watch alert profile must be an integer from 1 to 4');
+  }
+  return `profile,${n}`;
 }
 
 function normalizeCallingPhone(phone) {
@@ -245,6 +261,7 @@ const TCP_ONLY_TYPES = new Set([
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
+  'set_watch_alert_profile',
   'set_upload_interval',
 ]);
 
@@ -258,6 +275,7 @@ const BUILDERS = {
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
   set_medication_reminder: (params) => medicationReminderCommand(params),
+  set_watch_alert_profile: ({ mode }) => watchAlertProfileCommand(mode),
   set_upload_interval: ({ seconds }) => uploadIntervalCommand(seconds),
 };
 
@@ -303,6 +321,7 @@ module.exports = {
   voiceMonitorCommand,
   ringToFindCommand,
   alarmModeCommand,
+  watchAlertProfileCommand,
   normalizeCallingPhone,
   phonebookNameHex,
   phonebookContactCommand,
