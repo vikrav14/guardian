@@ -43,6 +43,36 @@ void main() {
     expect(find.textContaining('Partial day'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('wellness tiles keep their footprint while a reading arrives', (
+    tester,
+  ) async {
+    Future<void> pumpTile({required String value, required String status}) {
+      return tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 180,
+              child: WellnessTile(
+                label: 'Heart rate',
+                icon: Icons.favorite_border_rounded,
+                tint: const Color(0xFFB85667),
+                value: value,
+                status: status,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await pumpTile(value: '— bpm', status: 'Could not load reading');
+    final waitingSize = tester.getSize(find.byType(WellnessTile));
+    await pumpTile(value: '93 bpm', status: '20m ago');
+    final loadedSize = tester.getSize(find.byType(WellnessTile));
+
+    expect(loadedSize, waitingSize);
+    expect(tester.takeException(), isNull);
+  });
   test(
     'Mauritius date changes at UTC 20:00; history is bounded per edition',
     () {
