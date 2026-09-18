@@ -131,6 +131,7 @@ Live device state. Document ID = device IMEI (digits only).
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
 | fallDetection | map \| null | App-cached V52 request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. |
+| watchAlertProfile | string \| null | App-cached V52 request, not confirmed device state: `sound` \| `sound_and_vibration` \| `vibration` \| `silent`. The global scene affects medication reminders and other watch alerts. |
 | locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
@@ -617,8 +618,8 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
-| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ seconds }`. Alarm modes: `0` platform only, `1` platform+SMS+call, `2` platform+call, `3` platform+SMS. |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_watch_alert_profile` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ mode: 1..4 }` for the V52 alert scene, `{ seconds }`. Alert modes: `1` sound + vibration, `2` sound, `3` vibration, `4` silent. |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |

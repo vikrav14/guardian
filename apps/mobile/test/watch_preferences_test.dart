@@ -144,6 +144,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Medication reminders'), findsOneWidget);
+    expect(find.text('Watch alert style'), findsOneWidget);
+    expect(find.text('Sound'), findsOneWidget);
+    expect(find.text('Sound + vibration'), findsOneWidget);
+    expect(find.text('Vibration'), findsOneWidget);
+    expect(find.text('Silent'), findsOneWidget);
     expect(find.text('Guardian Care features'), findsOneWidget);
     expect(find.byType(CareProfileCard), findsNothing);
     expect(tester.takeException(), isNull);

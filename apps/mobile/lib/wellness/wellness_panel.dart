@@ -208,8 +208,7 @@ class _WellnessDataState extends State<_WellnessData>
     // source change. Reconnecting here briefly clears the cards and is the
     // visible dashboard "tilt" during ordinary live updates.
     final readingsAvailabilityChanged =
-        (oldWidget.readingsSource == null) !=
-        (widget.readingsSource == null);
+        (oldWidget.readingsSource == null) != (widget.readingsSource == null);
     if (!_sameSubscription(oldWidget.subscription, widget.subscription) ||
         oldWidget.imei != widget.imei ||
         oldWidget.activityEnabled != widget.activityEnabled ||

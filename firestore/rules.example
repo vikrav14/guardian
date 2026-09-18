@@ -186,6 +186,7 @@ service cloud.firestore {
               'avatarUrl',
               'simNumber',
               'fallDetection',
+              'watchAlertProfile',
               'locationReportingIntervalSeconds',
               'locationReportingMode',
               'careProfile',
@@ -196,6 +197,11 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['careProfile', 'carePriorities'])
           || activePlanAtLeast('care')
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['watchAlertProfile'])
+          || activePlanAtLeast('family')
         );
       allow create, delete: if false;
 
@@ -480,6 +486,14 @@ service cloud.firestore {
         // administrator-only through the Admin SDK/local provisioning route.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && request.resource.data.get('type', '') != 'set_alarm_mode'
+        && (
+          request.resource.data.get('type', '') != 'set_watch_alert_profile'
+          || (
+            request.resource.data.get('params', {}).keys().hasOnly(['mode'])
+            && request.resource.data.params.get('mode', 0) in [1, 2, 3, 4]
+            && activePlanAtLeast('family')
+          )
+        )
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
           || activePlanAtLeast('family')

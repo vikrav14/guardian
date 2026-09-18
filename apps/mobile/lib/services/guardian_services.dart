@@ -12,6 +12,7 @@ import '../models/device.dart';
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../models/medication_reminder.dart';
+import '../models/watch_alert_profile.dart';
 import '../models/wellbeing_reading.dart';
 import '../wellness/wellness_sample.dart';
 import '../journey/journey_models.dart';
@@ -224,6 +225,30 @@ class DeviceService {
 
     final commands = DeviceCommandService(db: _db, auth: _auth);
     await commands.setUploadInterval(imei, seconds);
+  }
+
+  /// Caches the requested V52 alert scene and queues the matching live TCP
+  /// command. The watch has no supported scene read-back command, so the
+  /// stored value is the last requested setting, not confirmed device state.
+  Future<void> updateWatchAlertProfile(
+    String imei, {
+    required WatchAlertProfile profile,
+    required GuardianSubscription subscription,
+  }) async {
+    if (!subscription.has(GuardianFeature.medicationReminders)) {
+      throw StateError(
+        'Watch alert profiles require Guardian Family or Guardian Care.',
+      );
+    }
+    await _db.collection('devices').doc(imei).update({
+      'watchAlertProfile': profile.wireValue,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await DeviceCommandService(db: _db, auth: _auth).setWatchAlertProfile(
+      imei,
+      profile,
+    );
   }
 
   /// Links a watch IMEI to the signed-in guardian's account.
@@ -1467,7 +1492,7 @@ class DeviceCommandService {
       'status': 'pending',
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
-      if (reminderId != null) 'reminderId': reminderId,
+      'reminderId': ?reminderId,
     });
     return ref.id;
   }
@@ -1560,5 +1585,16 @@ class DeviceCommandService {
   /// is a UX guardrail (10-3600), not a vendor-documented limit.
   Future<void> setUploadInterval(String imei, int seconds) {
     return _enqueue(imei, 'set_upload_interval', {'seconds': seconds});
+  }
+
+  /// V52 only. Changes the global watch scene used by medication reminders
+  /// and other watch alerts. The device must have a live TCP connection.
+  Future<void> setWatchAlertProfile(
+    String imei,
+    WatchAlertProfile profile,
+  ) {
+    return _enqueue(imei, 'set_watch_alert_profile', {
+      'mode': profile.mode,
+    });
   }
 }

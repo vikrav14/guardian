@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_wifi_presence.dart';
+import 'watch_alert_profile.dart';
 
 class DeviceLocation {
   const DeviceLocation({
@@ -168,6 +169,7 @@ class Device {
     this.fallDetectionSensitivity,
     this.locationReportingIntervalSeconds,
     this.locationReportingMode = 'automatic',
+    this.watchAlertProfile,
     this.careProfile,
     this.carePriorities = const <String>[],
     this.capabilities = const <String>[],
@@ -343,6 +345,11 @@ class Device {
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
   final String locationReportingMode;
+
+  /// Last alert profile requested by a guardian. The V52 has no supported
+  /// profile read-back command, so this is a request cache, not confirmed
+  /// device state.
+  final WatchAlertProfile? watchAlertProfile;
 
   /// Person context used by Guardian Intelligence. Never hard-code by IMEI.
   final String? careProfile;
@@ -584,6 +591,9 @@ class Device {
               ?.toInt(),
       locationReportingIntervalSeconds:
           (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
+      watchAlertProfile: data['watchAlertProfile'] is String
+          ? WatchAlertProfile.fromWire(data['watchAlertProfile'] as String)
+          : null,
       careProfile: data['careProfile'] as String?,
       carePriorities:
           (data['carePriorities'] as List?)?.whereType<String>().toList(
