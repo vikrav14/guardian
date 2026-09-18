@@ -69,10 +69,10 @@ service cloud.firestore {
     // because Firestore's rules evaluator cannot reliably execute timezone
     // calendar methods. They cover the app's Mauritius-day query bounds with
     // a small boundary margin.
-    function wellnessCalendarWindowAllowed(recordedAt) {
+    function wellnessHistoryAllowed(recordedAt) {
       let plan = serviceSubscription().get('plan', '');
       return recordedAt is timestamp
-        && recordedAt < request.time + duration.value(26, 'h')
+        && recordedAt <= request.time
         && activePlanAtLeast('essential')
         && (plan == 'care'
           || (plan == 'family'
@@ -81,9 +81,9 @@ service cloud.firestore {
             && recordedAt >= request.time - duration.value(25, 'h')));
     }
 
-    function wellnessHistoryAllowed(recordedAt) {
-      return wellnessCalendarWindowAllowed(recordedAt)
-        && recordedAt <= request.time;
+    function wellnessQueryUpperAllowed(recordedAt) {
+      return recordedAt is timestamp
+        && recordedAt < request.time + duration.value(26, 'h');
     }
 
     function activeWellbeingConsent(imei) {
@@ -246,7 +246,7 @@ service cloud.firestore {
         allow list: if linkedTo(imei)
           && activePlanAtLeast('care')
           && resource.data.displayable == true
-          && wellnessCalendarWindowAllowed(resource.data.observedAt)
+          && resource.data.observedAt < request.time + duration.value(26, 'h')
           && activeWellbeingConsent(imei);
         allow write: if false;
       }
@@ -302,9 +302,19 @@ service cloud.firestore {
           && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
         allow list: if linkedTo(imei)
+          && activePlanAtLeast('care')
+          && resource.data.displayable == true
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.displayable == true
+          && resource.data.lastObservedAt >= request.time - duration.value(169, 'h')
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
+        allow list: if linkedTo(imei)
           && activePlanAtLeast('essential')
           && resource.data.displayable == true
-          && wellnessCalendarWindowAllowed(resource.data.lastObservedAt);
+          && resource.data.lastObservedAt >= request.time - duration.value(25, 'h')
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
         allow create, update, delete: if false;
       }
     }
