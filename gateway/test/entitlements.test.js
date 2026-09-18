@@ -69,6 +69,7 @@ test('Family receives WhatsApp but not Care medication services', () => {
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_WATCH_COMMANDS), true);
   assert.equal(hasEntitlement(result, FEATURE.ACTIVITY_STEPS), true);
+  assert.equal(hasEntitlement(result, FEATURE.WELLNESS_READINGS), true);
   assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
 });
 

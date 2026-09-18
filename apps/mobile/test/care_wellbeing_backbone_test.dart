@@ -6,7 +6,7 @@ void main() {
     expect(CareWellbeingBackbone.lifecycle, 'customer_estimate');
     expect(CareWellbeingBackbone.enabledByDefault, isFalse);
     expect(CareWellbeingBackbone.customerVisible, isTrue);
-    expect(CareWellbeingBackbone.minimumPlan, 'care');
+    expect(CareWellbeingBackbone.minimumPlan, 'family');
     expect(CareWellbeingBackbone.protocolCommands, isNotEmpty);
     expect(CareWellbeingBackbone.acceptedUploads, <String>[
       'bphrt',

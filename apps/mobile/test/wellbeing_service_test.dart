@@ -15,7 +15,7 @@ GuardianSubscription plan(String value, {String status = 'active'}) =>
 void main() {
   final now = DateTime.utc(2026, 9, 14, 12);
   test(
-    'Care streams customer estimates within its calendar window',
+    'Family streams customer estimates within its calendar window',
     () async {
       final db = FakeFirebaseFirestore();
       final auth = MockFirebaseAuth(
@@ -45,7 +45,7 @@ void main() {
       await add('future', now.add(const Duration(hours: 1)));
       await add('shadow', now, displayable: false);
       final result = await WellbeingService(db: db, auth: auth)
-          .watchRecentReadings('AAA', subscription: plan('care'), now: now)
+          .watchRecentReadings('AAA', subscription: plan('family'), now: now)
           .firstWhere((values) => values.isNotEmpty);
       expect(
         result.map((reading) => reading.id),
@@ -53,22 +53,20 @@ void main() {
       );
     },
   );
-  for (final edition in ['essential', 'family']) {
-    test('$edition cannot initialize wellbeing readings', () async {
-      final service = WellbeingService(
-        db: FakeFirebaseFirestore(),
-        auth: MockFirebaseAuth(),
-      );
-      await expectLater(
-        service.watchRecentReadings(
-          'AAA',
-          subscription: plan(edition),
-          now: now,
-        ),
-        emitsError(isA<StateError>()),
-      );
-    });
-  }
+  test('Essential cannot initialize wellbeing readings', () async {
+    final service = WellbeingService(
+      db: FakeFirebaseFirestore(),
+      auth: MockFirebaseAuth(),
+    );
+    await expectLater(
+      service.watchRecentReadings(
+        'AAA',
+        subscription: plan('essential'),
+        now: now,
+      ),
+      emitsError(isA<StateError>()),
+    );
+  });
   test(
     'inactive subscription cannot initialize the wellbeing source',
     () async {

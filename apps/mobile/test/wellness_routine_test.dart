@@ -212,7 +212,7 @@ void main() {
   testWidgets('unavailable access disables both time editing and applying', (tester) async {
     await tester.pumpWidget(controls(status: {
       'routine': 'gentle', 'times': ['08:00', '20:00'], 'timeZone': 'Indian/Mauritius',
-    }, onSave: (_) async {}, unavailableReason: 'Care access unavailable.'));
+    }, onSave: (_) async {}, unavailableReason: 'Family or Care access unavailable.'));
     final timeButton = tester.widget<OutlinedButton>(find.byKey(const ValueKey('routine-time-0')));
     final applyButton = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Apply routine'));
     expect(timeButton.onPressed, isNull);

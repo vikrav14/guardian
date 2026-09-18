@@ -23,7 +23,7 @@ class WellnessSettingsCard extends StatelessWidget {
         Text(subscription.wellnessHistoryDescription),
         const SizedBox(height: 8),
         const Text(
-          'Today’s steps are on Home. Guardian Care also includes watch estimates and automatic reading routines; steps record independently.',
+          'Today’s steps are on Home. Family and Care can use watch estimates and automatic reading routines; steps record independently.',
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(

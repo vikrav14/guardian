@@ -55,14 +55,16 @@ function legacy(routine = 'manual', patch = {}) {
   });
 }
 
-test('only a linked Care customer may create and edit daily schedules', async () => {
+test('only a linked Family or Care customer may create and edit daily schedules', async () => {
   await seed('care');
   for (const routine of ['manual', 'gentle', 'balanced']) await assertSucceeds(write('pilot', { routine }));
   await assertSucceeds(write('pilot', { routine: 'gentle', times: ['07:30', '21:15'] }));
   await assertSucceeds(getDoc(doc(db(), 'wellnessRoutineRequests', imei)));
   await assertFails(write('other'));
   await assertFails(write(null));
-  for (const plan of ['essential', 'family']) {
+  await seed('family');
+  await assertSucceeds(write('pilot', { routine: 'gentle' }));
+  for (const plan of ['essential']) {
     await seed(plan);
     await assertFails(write('pilot', { routine: 'gentle' }));
   }
@@ -166,13 +168,13 @@ test('missing, revoked, expired, or untrusted consent blocks starts but permits 
   await assertSucceeds(write('pilot', { routine: 'manual' }));
 });
 
-test('link and active Care entitlement remain mandatory even for stop', async () => {
+test('link and active Family or Care entitlement remain mandatory even for stop', async () => {
   for (const options of [
     { linked: false }, { status: 'expired' },
     { subscriptionPatch: { managedBy: 'client' } },
     { subscriptionPatch: { currentPeriodEnd: new Date('2020-01-01') } },
   ]) {
-    await seed('care', options);
+    await seed('family', options);
     await assertFails(write());
     await assertFails(write('pilot', { routine: 'manual' }));
     await assertFails(legacy());
@@ -181,8 +183,8 @@ test('link and active Care entitlement remain mandatory even for stop', async ()
   }
 });
 
-test('only current routine status is readable by the linked Care customer; scheduler ledgers remain private', async () => {
-  await seed();
+test('only current routine status is readable by the linked Family or Care customer; scheduler ledgers remain private', async () => {
+  await seed('family');
   await assertSucceeds(write());
   for (const uid of ['pilot', 'other', null]) {
     const client = db(uid), current = doc(client, 'devices', imei, 'wellnessRoutine', 'current');

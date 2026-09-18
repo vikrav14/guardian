@@ -65,7 +65,7 @@ void main() {
     expect(result.has(GuardianFeature.activitySteps), true);
   });
 
-  test('Wellness activity is available on every edition but readings are Care-only', () {
+  test('Wellness activity and basic readings are available to Family and Care', () {
     final essential = GuardianSubscription.fromMap(
       subscription('essential'),
       now: now,
@@ -77,9 +77,9 @@ void main() {
     expect(family.has(GuardianFeature.activitySteps), true);
     expect(care.has(GuardianFeature.activitySteps), true);
     expect(essential.has(GuardianFeature.wellnessReadings), false);
-    expect(family.has(GuardianFeature.wellnessReadings), false);
+    expect(family.has(GuardianFeature.wellnessReadings), true);
     expect(care.has(GuardianFeature.wellnessReadings), true);
-    expect(GuardianFeature.wellnessReadings.minimumPlan, GuardianPlan.care);
+    expect(GuardianFeature.wellnessReadings.minimumPlan, GuardianPlan.family);
   });
 
   test('bounded statuses expire deterministically', () {

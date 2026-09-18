@@ -8,11 +8,11 @@ launch flag or expiring viewer grant.
 |---|---|
 | Service ID | `care-wellbeing` |
 | Activity minimum plan | Essential |
-| Watch-reading minimum plan | Care |
+| Watch-reading minimum plan | Family |
 | Lifecycle | `customer_estimate` |
 | Customer wording | Watch estimates; not medical measurements |
 | Wearing claim | None. A successful upload does not confirm the watch is worn. |
-| Consent | Backend-owned wearer consent is required before persistence and Care reads. |
+| Consent | Backend-owned wearer consent is required before persistence and Family/Care reads. |
 
 The app shows recorded activity and supported watch readings with their own
 receipt times. Missing, stale, malformed and unavailable values remain explicit.
@@ -38,7 +38,7 @@ than guessed. `BTTIMESET` remains blocked until its behavior is captured.
 ## Access and operational controls
 
 Customer access is determined by the linked user, active subscription/edition,
-Care entitlement for readings, history window and current consent. It does not
+Family entitlement for basic readings, history window and current consent. It does not
 depend on `wellnessPilots/{imei}`, an IMEI-specific viewer grant or a Flutter
 `--dart-define`.
 
@@ -60,8 +60,8 @@ consent, plan access, quality labels or the no-wearing-confirmation rule.
 
 ## Daily routines
 
-Care customers can choose Manual, Gentle (two daily times) or Balanced (three
-daily times), using `Indian/Mauritius` and exact `HH:mm` slots. Times are saved as
+Family and Care customers can choose Manual, Gentle (two daily times) or Balanced
+(three daily times), using `Indian/Mauritius` and exact `HH:mm` slots. Times are saved as
 an application schedule; the gateway claims each slot transactionally, skips
 missed slots without catch-up, and rechecks access, consent, connection and
 measurement state immediately before dispatch.

@@ -394,7 +394,7 @@ async function getWellbeingReadings(
   if (!device) return { error: 'No matching watch.' };
   if (!db) return { error: 'Wellbeing storage is unavailable.' };
   const now = new Date();
-  const window = wellnessWindow(ctx.entitlements, { now, days, minimumPlan: 'care' });
+  const window = wellnessWindow(ctx.entitlements, { now, days, minimumPlan: 'family' });
   if (!window) return { error: 'Active service required.' };
   const consent = await db.collection('wellbeingConsents').doc(device.imei).get();
   if (!consent.exists || !validConsent(consent.data(), now)) {
