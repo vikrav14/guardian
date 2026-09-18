@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  PLAN, FEATURE, PLAN_POLICY, evaluateSubscription, loadEntitlementsForUser,
-  hasEntitlement, minimumPlanFor, featureForWhatsAppIntent,
+  PLAN, CUSTOMER_PLANS, FEATURE, PLAN_POLICY, evaluateSubscription, loadEntitlementsForUser,
+  hasEntitlement, minimumPlanFor, featureForWhatsAppIntent, isCustomerPlan,
 } = require('../src/entitlements');
 
 const NOW = new Date('2026-08-14T00:00:00Z');
@@ -41,6 +41,13 @@ test('plan catalogue exactly inherits advertised services and limits', () => {
   for (const feature of PLAN_POLICY.family.features) {
     assert.equal(PLAN_POLICY.care.features.includes(feature), true, feature);
   }
+});
+
+test('customer plan choices expose Family and Care while preserving Essential internally', () => {
+  assert.deepEqual(CUSTOMER_PLANS, [PLAN.FAMILY, PLAN.CARE]);
+  assert.equal(isCustomerPlan(PLAN.ESSENTIAL), false);
+  assert.equal(isCustomerPlan(PLAN.FAMILY), true);
+  assert.equal(isCustomerPlan(PLAN.CARE), true);
 });
 
 test('missing and legacy client-writable subscriptions fail closed', () => {
