@@ -18,7 +18,7 @@ function deferred() {
 function fixture() {
   const f = { now: AT, sent: [], current: true, guardCalls: 0,
     suppressed: false, resumeCalls: 0, beforeRead: null, beforeGuard: null,
-    config: { wifiHomePilotImei: '111111111111111', wellnessRoutinePilotEnabled: true,
+    config: { wifiHomePilotImei: '111111111111111', wellnessRoutineEnabled: true,
       careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     session: { imei: '111111111111111', protocolId: '1111111111', lastPacketAt: AT },
     context: { consent: { version: 1, status: 'granted', managedBy: 'guardian_admin',
@@ -99,7 +99,7 @@ test('public requests cannot spoof scheduled position or bypass the Manual requi
   assert.deepEqual(f.sent, []);
 });
 
-test('trusted callback does not bypass consent, pilot flags, legacy schedules or native cleanup', async () => {
+test('trusted callback does not bypass consent, operational flags, legacy schedules or native cleanup', async () => {
   for (const change of [
     f => { f.context.consent.status = 'revoked'; },
     f => { f.config.careWellbeingIngestEnabled = false; },

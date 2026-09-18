@@ -22,7 +22,6 @@ import '../theme/app_theme.dart';
 import '../wellness/wellness_panel.dart';
 import '../weather/linked_profile_weather.dart';
 import '../wellness/linked_wellness_stream.dart';
-import '../wellness/wellness_pilot_access.dart';
 import '../wellness/wellness_routine.dart';
 import '../widgets/dashboard/guardian_help_sheet.dart';
 import '../widgets/dashboard/guardian_dashboard_overview.dart';
@@ -30,23 +29,6 @@ import '../widgets/dashboard/dashboard_reading_status.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
-
-const bool _careWellbeingCustomerEnabled = bool.fromEnvironment(
-  'GUARDIAN_CARE_WELLBEING_ENABLED',
-  defaultValue: false,
-);
-
-const bool _activityStepsCustomerEnabled = bool.fromEnvironment(
-  'GUARDIAN_ACTIVITY_STEPS_ENABLED',
-  defaultValue: false,
-);
-
-// Show the existing Wellness experience in ordinary app launches.
-// Server-owned access, consent and edition checks still govern its data.
-const bool _wellnessPilotPreview = bool.fromEnvironment(
-  'GUARDIAN_WELLNESS_PILOT',
-  defaultValue: true,
-);
 
 class MapDashboardPage extends StatefulWidget {
   const MapDashboardPage({super.key});
@@ -719,37 +701,27 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               imei: selected.imei,
             ),
       watchCheckStatus:
-          _wellnessPilotPreview &&
-              selected != null &&
+          selected != null &&
               entitlementScope.subscription != null &&
               entitlementScope
                   .decision(GuardianFeature.wellnessReadings)
                   .allowed
-          ? WellnessPilotAccess(
+          ? DashboardReadingStatus(
               key: ValueKey('reading-status-${selected.imei}'),
               imei: selected.imei,
-              loadingChild: const SizedBox.shrink(),
-              unavailableChild: const SizedBox.shrink(),
-              child: DashboardReadingStatus(
-                imei: selected.imei,
-                watchStatus: _watchRoutineStatus,
-                onTap: () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder: (_) => WellnessRoutinePage(
-                      imei: selected.imei,
-                      subscription: entitlementScope.subscription!,
-                      pilotPreview: true,
-                    ),
+              watchStatus: _watchRoutineStatus,
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => WellnessRoutinePage(
+                    imei: selected.imei,
+                    subscription: entitlementScope.subscription!,
                   ),
                 ),
               ),
             )
           : null,
       wellness:
-          (_activityStepsCustomerEnabled ||
-                  _careWellbeingCustomerEnabled ||
-                  _wellnessPilotPreview) &&
-              selected != null &&
+          selected != null &&
               entitlementScope
                   .decision(GuardianFeature.activitySteps)
                   .allowed &&
@@ -758,14 +730,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               imei: selected.imei,
               name: selected.displayName,
               subscription: entitlementScope.subscription!,
-              activityEnabled:
-                  _activityStepsCustomerEnabled || _wellnessPilotPreview,
-              pilotPreview: _wellnessPilotPreview,
+              activityEnabled: true,
               readingsSource:
-                  _careWellbeingCustomerEnabled &&
-                      entitlementScope
-                          .decision(GuardianFeature.wellnessReadings)
-                          .allowed
+                  entitlementScope
+                      .decision(GuardianFeature.wellnessReadings)
+                      .allowed
                   ? (window, subscription) =>
                         _wellbeingService.watchWellnessSamples(
                           selected.imei,

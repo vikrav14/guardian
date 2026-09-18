@@ -84,7 +84,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     }
     if (externalMeasurementPending) throw new Error('A wellbeing measurement is already being prepared.');
     if (/^hrtstart,(?:[2-9]|\d{2,})(?:,|$)/i.test(command) || /^bodytemp,1(?:,|$)/i.test(command)) {
-      throw new Error('Use the daily Wellness routine times; native interval starts are disabled for this pilot.');
+      throw new Error('Use the daily Wellness routine times; native interval starts are disabled for this schedule.');
     }
   }
   function noteExternalMeasurement(targetImei, command) {
@@ -99,11 +99,10 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     finally { externalMeasurementPending = false; }
   }
   async function read() {
-    const [requestDoc, grantDoc, consentDoc] = await Promise.all([
-      requestRef.get(), db.collection('wellnessPilots').doc(imei).get(),
-      db.collection('wellbeingConsents').doc(imei).get(),
+    const [requestDoc, consentDoc] = await Promise.all([
+      requestRef.get(), db.collection('wellbeingConsents').doc(imei).get(),
     ]);
-    const request = requestDoc.data(), grant = grantDoc.data(), consent = consentDoc.data();
+    const request = requestDoc.data(), consent = consentDoc.data();
     const at = new Date();
     const state = await db.runTransaction(async tx => {
       const prior = (await tx.get(stateRef)).data() || {};
@@ -120,22 +119,20 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     const user = userDoc?.data();
     const access = user ? await loadEntitlementsForUser(db, { ...user, uid }, { now: new Date() }) : null;
     const now = new Date();
-    const grantValid = grant?.version === 1 && grant.managedBy === 'guardian_admin' &&
-      grant.enabled === true && grant.viewerUid === uid &&
-      +date(grant.createdAt) <= +now && +date(grant.expiresAt) > +now &&
-      +date(grant.expiresAt) - +date(grant.createdAt) <= 86400_000;
     const linked = user?.linkedImeis?.includes(imei) === true && access?.serviceActive === true;
     const requestTime = date(request?.updatedAt);
     const requestValid = (request?.version === 1 || parseDailyRoutine(request)) &&
       Number.isFinite(+requestTime) && requestTime != null &&
       +requestTime <= +now && typeof request?.routine === 'string';
     return { state, request: requestValid ? { ...request, revision: requestTime.toISOString() } : null,
-      enabled: config.wellnessRoutinePilotEnabled && config.careWellbeingRequestEnabled && config.careWellbeingIngestEnabled,
-      canStop: linked && grantValid,
-      authorized: linked && grantValid && validConsent(consent, now),
-      validUntil: new Date(Math.min(+date(grant?.expiresAt) || 0,
+      enabled: config.wellnessRoutineEnabled === true &&
+        config.careWellbeingRequestEnabled && config.careWellbeingIngestEnabled,
+      canStop: linked,
+      authorized: linked && validConsent(consent, now),
+      validUntil: new Date(Math.min(
         +(access?.accessUntil || new Date('9999-01-01')),
-        +(date(consent?.expiresAt) || new Date('9999-01-01')))),
+        +(date(consent?.expiresAt) || new Date('9999-01-01')),
+      )),
     };
   }
   async function save(patch) {
@@ -167,7 +164,7 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     const context = await read();
     if (!context) return null;
     const request = context.request;
-    const blockedReason = !context.enabled ? 'pilot_disabled'
+    const blockedReason = !context.enabled ? 'routine_disabled'
       : !context.authorized || +context.validUntil <= Date.now() ? 'access_or_consent_unavailable'
       : request?.version !== 2 ? 'legacy_routine_requires_times'
       : context.state.mayBeRunning || context.state.temperatureMayBeRunning ? 'native_schedule_stop_pending'
@@ -237,12 +234,12 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
   let removalEnableAt = 0;
   function requestRemovalTest(enabled) {
     if (typeof enabled !== 'boolean') throw new Error('A boolean removal-test setting is required.');
-    if (!currentSession()) throw new Error('One connected pilot watch session is required.');
+    if (!currentSession()) throw new Error('One connected watch session is required.');
     const at = Date.now();
     if (enabled && at - removalEnableAt < 120_000) throw new Error('Wait two minutes before another enable request. Disable remains available.');
     if (enabled) removalEnableAt = at;
     // Strict-admin, explicitly supervised test of supplier II.18. Check and
-    // write synchronously to the running gateway's configured pilot only.
+    // Write synchronously to the running gateway's configured watch only.
     // No timer, SMS command, consent/acceptance change or background retry.
     const command = `REMOVE,${enabled ? 1 : 0}`;
     conditionalTrial.cancel('removal_setting_changed');
@@ -307,7 +304,9 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
         connected: device.connected, temperatureBt: device.bt ?? null,
         temperatureTm: device.tm ?? null, observedModeFrom: 'current_gateway_session',
         ...hardware.current(currentSession()),
-        routinePilotEnabled: config.wellnessRoutinePilotEnabled === true };
+        routineEnabled: config.wellnessRoutineEnabled === true
+          && config.careWellbeingRequestEnabled === true
+          && config.careWellbeingIngestEnabled === true };
     },
     close: () => { conditionalTrial.cancel('gateway_stopped'); clearInterval(timer); },
   };

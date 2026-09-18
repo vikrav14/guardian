@@ -100,7 +100,6 @@ const _essentialFeatures = <GuardianFeature>{
   GuardianFeature.batteryAlerts,
   GuardianFeature.familyCaregivers,
   GuardianFeature.activitySteps,
-  GuardianFeature.wellnessReadings,
   GuardianFeature.sosWhatsappAlerts,
 };
 
@@ -116,6 +115,7 @@ const _familyFeatures = <GuardianFeature>{
 
 const _careFeatures = <GuardianFeature>{
   ..._familyFeatures,
+  GuardianFeature.wellnessReadings,
   GuardianFeature.medicationReminders,
   GuardianFeature.reminderAcknowledgements,
   GuardianFeature.wellbeingActivitySummaries,
@@ -182,9 +182,9 @@ class GuardianSubscription {
       ? 'An active Guardian plan is needed for Wellness readings.'
       : switch (plan) {
           GuardianPlan.essential =>
-            'Today’s activity and watch readings on your dashboard.',
+            'Today’s activity is available on your dashboard. Watch readings require Guardian Care.',
           GuardianPlan.family =>
-            'Seven days of activity and watch-reading history, including today.',
+            'Seven days of activity history, including today. Watch readings require Guardian Care.',
           GuardianPlan.care =>
             'All available activity and watch-reading history during active service.',
           null => 'Wellness access is being checked.',

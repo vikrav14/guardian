@@ -29,9 +29,9 @@ test('formats factual watch estimates with freshness and no clinical judgment', 
   assert.doesNotMatch(reply, /normal|abnormal|safe reading/i);
 });
 
-test('reports no accepted readings without inventing a value', () => {
+test('reports no readings without inventing a value', () => {
   assert.match(
     formatWellbeingReply({ name: 'Alex', readings: [] }),
-    /No accepted watch wellbeing readings/,
+    /No watch wellbeing readings/,
   );
 });

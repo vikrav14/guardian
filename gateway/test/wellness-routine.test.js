@@ -38,13 +38,11 @@ test('only CONFIG establishes BT mode; duplicates are ambiguous and unrelated fi
   assert.deepEqual(parseTemperatureMode({ command: 'CONFIG', args: ['BT:2', 'BT:2', 'TM:invalid'] }), { bt: null, tm: null });
 });
 
-test('start requires every precondition; missing or removed wearing is never inferred from connectivity', async () => {
+test('start requires access, connection and temperature-mode preconditions', async () => {
   for (const modify of [
     f => { f.context.enabled = false; }, f => { f.context.authorized = false; },
     f => { f.context.validUntil = AT; }, f => { f.device.connected = false; },
-    f => { f.device.bt = null; }, f => { f.device.wear = null; },
-    f => { f.device.wear.state = 'removed'; }, f => { f.device.wear.deviceAccepted = false; },
-    f => { f.device.wear.expiresAt = AT; },
+    f => { f.device.bt = null; },
   ]) {
     const f = fixture(); modify(f); await f.controller.tick();
     assert.deepEqual(f.commands, []); assert.equal(f.state.phase, 'blocked');
@@ -61,9 +59,8 @@ test('checkpoint precedes starts; subsequent polls do not reset native intervals
   await f.controller.tick(); assert.deepEqual(f.commands.slice(2), routineCommands('gentle'));
 });
 
-test('removal, uncertainty, consent/flag expiry stop both; offline never claims a completed stop', async () => {
-  for (const block of [f => { f.device.wear.state = 'removed'; },
-    f => { f.device.wear = null; }, f => { f.context.authorized = false; },
+test('access or routine expiry stops both; offline never claims a completed stop', async () => {
+  for (const block of [f => { f.context.authorized = false; },
     f => { f.context.enabled = false; }]) {
     const f = fixture(); await f.controller.tick(); block(f);
     f.device.connected = false; await f.controller.tick();
@@ -124,8 +121,8 @@ test('lost lease and failed durable checkpoint cannot start a watch schedule', a
   f.skipLease = false; f.failSave = true; await assert.rejects(f.controller.tick()); assert.deepEqual(f.commands, []);
 });
 
-test('recheck wearing, authorization, session and desired revision after asynchronous checkpoint', async () => {
-  for (const change of [f => { f.device.wear = null; }, f => { f.context.authorized = false; },
+test('recheck authorization, session and desired revision after asynchronous checkpoint', async () => {
+  for (const change of [f => { f.context.authorized = false; },
     f => { f.device.sessionId = 'new'; }, f => { f.context.request.revision = 'replaced'; }]) {
     const f = fixture(); f.onSave = patch => { if (patch.phase === 'sending') change(f); };
     await f.controller.tick(); assert.deepEqual(f.commands, []);

@@ -18,7 +18,7 @@ function fixture(t) {
     session: { imei: PILOT, protocolId: PROTOCOL_ID, lastPacketAt: AT,
       wellnessTemperatureMode: { bt: 2, tm: 0 } },
     socket: { destroyed: false },
-    config: { wifiHomePilotImei: PILOT, wellnessRoutinePilotEnabled: true,
+    config: { wifiHomePilotImei: PILOT, wellnessRoutineEnabled: true,
       careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
   };
   const documents = new Map([
@@ -112,10 +112,6 @@ function selectDaily(env, times = ['08:00', '20:00']) {
     requestedBy: 'caregiver', updatedAt: new Date(AT - 60_000),
   });
   env.documents.set('users/caregiver', { linkedImeis: [PILOT] });
-  env.documents.set(`wellnessPilots/${PILOT}`, {
-    version: 1, managedBy: 'guardian_admin', enabled: true, viewerUid: 'caregiver',
-    createdAt: new Date(AT - 60_000), expiresAt: new Date(AT + 3600_000),
-  });
 }
 
 test('a selected clock slot runs the conditional sequence with unknown position and durable result', async t => {

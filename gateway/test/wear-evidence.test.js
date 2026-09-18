@@ -87,7 +87,7 @@ test('reconnect/restart requires new evidence and old socket close cannot clear 
   assert.equal(pilot().capture(170).state, 'unknown');
 });
 
-test('raw midnight diagnostics continue; off-wrist increments never enter wearer reports on restoration', () => {
+test('raw midnight diagnostics continue; off-wrist increments remain unqualified estimates', () => {
   const { capture } = pilot(); capture(0);
   let state, day;
   const record = (seconds, raw, wear) => {
@@ -101,9 +101,9 @@ test('raw midnight diagnostics continue; off-wrist increments never enter wearer
   record(100, 1110, capture(100, '00100000'));
   record(160, 1140, capture(160, '00100000'));
   capture(170); record(230, 1200, capture(230));
-  assert.equal(day.reportedSteps, 98); // restoration is a fresh baseline
+  assert.equal(day.reportedSteps, 200); // customer totals retain observed deltas
   record(260, 1220, capture(260));
-  assert.equal(day.reportedSteps, 118); assert.equal(day.recordedSteps, 220);
+  assert.equal(day.reportedSteps, 220); assert.equal(day.recordedSteps, 220);
   assert.equal(day.wearExcludedSteps, 102);
   assert.equal(day.coverage, 'partial');
 });

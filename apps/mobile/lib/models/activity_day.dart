@@ -17,28 +17,6 @@ class ActivityDay {
   final int resetCount;
   final bool partialCoverage;
 
-  /// Private pilot diagnostics. Never substitutes these totals for accepted data.
-  factory ActivityDay.fromPilotMap(Map<String, dynamic> data) {
-    final steps = data['recordedSteps'];
-    final date = data['localDate'];
-    final at = _asDateTime(data['lastObservedAt']);
-    if (data['schemaVersion'] != 2 ||
-        steps is! int ||
-        steps < 0 ||
-        date is! String ||
-        !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
-        at == null) {
-      throw const FormatException('Invalid pilot activity evidence');
-    }
-    return ActivityDay(
-      localDate: date,
-      steps: steps,
-      lastObservedAt: at,
-      quality: 'pilot_unverified',
-      partialCoverage: true,
-    );
-  }
-
   factory ActivityDay.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? const <String, dynamic>{};
     return ActivityDay.fromMap(data, fallbackDate: doc.id);
@@ -49,27 +27,31 @@ class ActivityDay {
     String? fallbackDate,
   }) {
     final localDate = (data['localDate'] as String?)?.trim();
-    final steps = (data['reportedSteps'] as num?)?.toInt();
+    final reportedSteps = (data['reportedSteps'] as num?)?.toInt();
+    final observedSteps = (data['recordedSteps'] as num?)?.toInt();
+    final steps = reportedSteps ?? observedSteps;
     final observedAt = _asDateTime(
-      data[data['wearQualityVersion'] == 1
-          ? 'lastWearQualifiedAt'
-          : 'lastObservedAt'],
+      data['lastObservedAt'],
     );
-    if (data['displayable'] != true ||
+    final legacyEstimate = data['displayable'] != true &&
+        data['schemaVersion'] == 2 &&
+        data['aggregation'] == 'observed_delta' &&
+        observedSteps != null;
+    if ((data['displayable'] != true && !legacyEstimate) ||
         ((localDate?.isNotEmpty != true) &&
             (fallbackDate?.isNotEmpty != true)) ||
         steps == null ||
         steps < 0 ||
         observedAt == null) {
-      throw const FormatException('Activity day is not customer-displayable');
+      throw const FormatException('Activity day is not displayable');
     }
     return ActivityDay(
       localDate: localDate?.isNotEmpty == true ? localDate! : fallbackDate!,
       steps: steps,
       lastObservedAt: observedAt,
-      quality: (data['quality'] as String?)?.trim() ?? 'partial',
+      quality: (data['quality'] as String?)?.trim() ?? 'unverified',
       resetCount: (data['resetCount'] as num?)?.toInt() ?? 0,
-      partialCoverage: data['coverage'] == 'partial',
+      partialCoverage: data['coverage'] == 'partial' || legacyEstimate,
     );
   }
 

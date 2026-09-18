@@ -1,9 +1,9 @@
 # Daily Wellness times — 17 September 2026
 
-This replaces the private pilot's native 12-hour / 8-hour routine selection with
-gateway-controlled daily clock times. The existing edition, linked-user, preview
-grant, consent, configured-device and request/ingestion flags still apply. It does
-not enable customer data qualification, alerts, or positive wearing detection.
+This replaces the earlier native 12-hour / 8-hour routine selection with
+gateway-controlled daily clock times. The routine is available to linked Care
+customers with active consent; it has no viewer grant or Flutter pilot flag. It
+does not enable alerts or positive wearing detection.
 
 | Routine | Daily slots | Initial suggestions |
 |---|---:|---|
@@ -32,7 +32,7 @@ Scheduled requests record position `unknown`, with basis `scheduled`. Neither
 nonzero readings nor successful temperature follow-up establish wrist contact.
 The confirmed tabletop counterexample remains relevant; sensor-up storage advice
 does not turn this availability filter into wearing detection. Existing reading
-qualification and private-preview labeling remain in force.
+quality labeling and estimate wording remain in force.
 
 The 20-second gateway poll has a one-minute start window. Offline or missed slots
 are recorded as skipped and are never replayed on reconnect. A slot key is its
@@ -55,7 +55,7 @@ the updated app. They are not silently converted or started. The native routine
 controller is retained for stop reconciliation only. Tracked possible native
 cycles are stopped before new daily execution; partial or offline cleanup blocks
 the new sequence. Stop handoff is not proof the firmware applied a setting.
-Strict-admin interval-start commands for this pilot are rejected to prevent an
+Strict-admin interval-start commands for this schedule are rejected to prevent an
 untracked native cycle from overlapping the daily schedule. Explicit stops and
 supervised one-shot diagnostics remain available.
 
@@ -64,8 +64,8 @@ checks. Return to Manual and finish the supervised worn-trial cleanup before
 applying the routine again; scheduled execution never clears that marker itself.
 
 Deploy `firestore/rules.example`, restart the updated gateway with
-`WELLNESS_ROUTINE_PILOT_ENABLED=true` and the existing pilot/request/ingestion
-configuration, and rebuild Flutter with `GUARDIAN_WELLNESS_PILOT=true`. Keep the
+`WELLNESS_ROUTINE_ENABLED=true` and the existing request/ingestion configuration.
+No Flutter launch flag is required. Keep the
 gateway host awake and ngrok connected for scheduled slots. No new index is
 required. Day/slot ledgers contain operational metadata only and declare a
 30-day `expiresAt`; Firestore TTL must be configured separately for deletion.

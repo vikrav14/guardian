@@ -114,7 +114,7 @@ test('consent requires durable wearer acknowledgement and trusted management', (
   assert.equal(validConsent(consent({ expiresAt: NOW }), NOW), false);
 });
 
-test('request command is limited to the supplier-guided heart/BP pilot', () => {
+test('request command remains limited to the supplier-guided heart/BP path', () => {
   assert.equal(
     buildWellbeingRequestCommand(METRIC_SET.HEART_RATE_BLOOD_PRESSURE),
     'hrtstart,1',
@@ -158,7 +158,7 @@ test('store fails closed while disabled or consent is absent', async () => {
   });
 });
 
-test('unverified readings persist as protected and non-displayable', async () => {
+test('customer-enabled unverified readings persist as visible estimates', async () => {
   const db = fakeDb();
   const store = createWellbeingStore({
     db, enabled: true, deviceMode: 'unverified', customerEnabled: true,
@@ -169,25 +169,26 @@ test('unverified readings persist as protected and non-displayable', async () =>
   }, NOW);
 
   assert.equal(result.status, 'stored');
-  assert.equal(result.displayable, false);
+  assert.equal(result.displayable, true);
   const payload = db.readings.get(result.id);
   assert.equal(payload.quality, 'transport_valid_unverified');
-  assert.equal(payload.displayable, false);
+  assert.equal(payload.displayable, true);
   assert.equal(payload.expiresAt.toISOString(), '2026-09-22T14:00:00.000Z');
 });
 
 const worn = { version: 1, state: 'worn', deviceAccepted: true,
   continuityId: 'fixture-worn-period', observedAt: NOW, expiresAt: new Date(+NOW + 120_000) };
 
-test('accepted customer-enabled readings also require fresh wearing evidence', async () => {
+test('customer-visible readings retain wearing evidence separately', async () => {
   const event = { type: 'health_reading', imei: IMEI, metric: 'spo2', value: 98 };
   for (const wearEvidence of [undefined, { ...worn, state: 'removed' },
     { ...worn, expiresAt: NOW }, { ...worn, deviceAccepted: false }]) {
     const db = fakeDb();
     const store = createWellbeingStore({ db, enabled: true, deviceMode: 'accepted', customerEnabled: true, now: () => NOW });
     const result = await store.ingest({ ...event, wearEvidence }, NOW);
-    assert.equal(result.displayable, false);
+    assert.equal(result.displayable, true);
     assert.equal(db.readings.get(result.id).wearQualified, false);
+    assert.equal(db.readings.get(result.id).quality, 'transport_valid_unverified');
   }
 });
 
@@ -209,6 +210,6 @@ test('an off-wrist value cannot suppress a later equal qualified value in the sa
   const excluded = await store.ingest(event, NOW);
   const accepted = await store.ingest({ ...event, wearEvidence: worn }, new Date(+NOW + 1000));
   assert.notEqual(excluded.id, accepted.id);
-  assert.equal(db.readings.get(excluded.id).displayable, false);
+  assert.equal(db.readings.get(excluded.id).displayable, true);
   assert.equal(db.readings.get(accepted.id).displayable, true);
 });

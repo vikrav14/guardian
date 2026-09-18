@@ -29,14 +29,12 @@ class WellnessTrend {
     required this.window,
     required List<WellnessSample> samples,
     required DateTime now,
-    required bool pilotPreview,
   }) : readings =
            samples
                .where(
                  (s) =>
                      s.metric == metric &&
-                     window.contains(s.recordedAt, now: now) &&
-                     (pilotPreview || metric != WellnessMetric.skinTemperature),
+                     window.contains(s.recordedAt, now: now),
                )
                .toList()
              ..sort((a, b) => a.recordedAt.compareTo(b.recordedAt));

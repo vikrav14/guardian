@@ -204,7 +204,7 @@ test('running pilot confines hardware operations to one session; firmware and re
   assert.equal(parseRoutineOperation({ action: 'firmware_version', includeReply: true }).includeReply, true);
   assert.equal(parseRoutineOperation({ action: 'temperature_once' }).includeReply, false);
   const runtime = module.exports.startWellnessRoutineRuntime({ db: { ...ref, runTransaction: async () => null },
-    config: { wifiHomePilotImei: pilot.imei, wellnessRoutinePilotEnabled: true, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
+    config: { wifiHomePilotImei: pilot.imei, wellnessRoutineEnabled: true, careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     wearEvidence: { current: () => null } });
   runtime.observe(packet('CONFIG,BT:2,TM:1'), { imei: '861000000000002' });
   assert.equal((await runtime.status()).configurationEvidence.state, 'no_config_received');

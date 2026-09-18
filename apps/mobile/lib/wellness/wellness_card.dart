@@ -22,7 +22,6 @@ class WellnessCard extends StatelessWidget {
     this.onOpen,
     this.onRoutine,
     this.wearStatus = const WearStatus(),
-    this.pilotPreview = false,
   });
   final List<ActivityDay> days;
   final List<WellnessSample> samples;
@@ -34,7 +33,6 @@ class WellnessCard extends StatelessWidget {
       loading;
   final VoidCallback? onOpen, onRoutine;
   final WearStatus wearStatus;
-  final bool pilotPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -59,9 +57,7 @@ class WellnessCard extends StatelessWidget {
     final heart = latest(WellnessMetric.heartRate);
     final oxygen = latest(WellnessMetric.bloodOxygen);
     final pressure = latest(WellnessMetric.bloodPressure);
-    final temperature = pilotPreview
-        ? latest(WellnessMetric.skinTemperature)
-        : null;
+    final temperature = latest(WellnessMetric.skinTemperature);
     String status(bool available, bool error, DateTime? at) => !available
         ? 'Not available yet'
         : error
@@ -78,12 +74,10 @@ class WellnessCard extends StatelessWidget {
             subtitle: 'Today’s watch readings',
           ),
           const SizedBox(height: 8),
-          if (pilotPreview) ...[
-            const Text(
-              'Private preview · watch readings are unverified. Wearing at measurement time is unconfirmed.',
-            ),
-            const SizedBox(height: 8),
-          ],
+          const Text(
+            'Watch estimates · wearing at measurement time is not confirmed.',
+          ),
+          const SizedBox(height: 8),
           Text(
             wearStatus.labelAt(now),
             style: TextStyle(
@@ -109,9 +103,7 @@ class WellnessCard extends StatelessWidget {
                   SizedBox(
                     width: width,
                     child: WellnessTile(
-                      label: pilotPreview
-                          ? 'Recorded steps today'
-                          : 'Steps today',
+                      label: 'Steps today',
                       icon: Icons.directions_walk_rounded,
                       tint: const Color(0xFF15956F),
                       value:
@@ -169,20 +161,15 @@ class WellnessCard extends StatelessWidget {
                       label: 'Skin temperature',
                       icon: Icons.thermostat_outlined,
                       tint: const Color(0xFF7860AA),
-                      value: pilotPreview && readingsAvailable && !readingsError
+                      value: readingsAvailable && !readingsError
                           ? temperature?.value ?? '— °C'
                           : '— °C',
                       status:
-                          pilotPreview &&
-                              readingsAvailable &&
+                          readingsAvailable &&
                               !readingsError &&
                               temperature != null
                           ? 'Received ${wellnessAge(temperature.recordedAt, now)}'
-                          : status(
-                              pilotPreview && readingsAvailable,
-                              readingsError,
-                              null,
-                            ),
+                          : status(readingsAvailable, readingsError, null),
                     ),
                   ),
                 ],

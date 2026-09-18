@@ -6,7 +6,7 @@ const { createSupervisedTemperatureTrial, parseTemperatureTrialOperation } = req
 const AT = Date.parse('2026-09-15T19:30:00Z');
 const action = { action: 'single', operatorPosition: 'worn' };
 function fixture({ quarantineStore } = {}) {
-  const env = { now: AT, sent: [], config: { wellnessRoutinePilotEnabled: true,
+  const env = { now: AT, sent: [], config: { wellnessRoutineEnabled: true,
     careWellbeingRequestEnabled: true, careWellbeingIngestEnabled: true },
     context: { consent: { version: 1, status: 'granted', managedBy: 'guardian_admin',
       wearerAcknowledgedAt: new Date(AT - 60_000), expiresAt: new Date(AT + 3600_000) },
@@ -71,7 +71,7 @@ test('missing CONFIG allows only one supervised lowercase request, without upgra
 
 test('disabled flags, consent, stale/disconnected session and reported incompatible mode reject before dispatch', async () => {
   const cases = [
-    env => { env.config.wellnessRoutinePilotEnabled = false; },
+    env => { env.config.wellnessRoutineEnabled = false; },
     env => { env.config.careWellbeingRequestEnabled = false; },
     env => { env.config.careWellbeingIngestEnabled = false; },
     env => { env.context.consent.revokedAt = new Date(AT); },

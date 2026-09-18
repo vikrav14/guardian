@@ -45,16 +45,16 @@ async function importCapture(text, { db, imei, enabled, retentionDays = 30,
   // Validate the entire file before any write; never stamp old data as new.
   const packets = parseCapture(text, imei, { now: now(), retentionDays });
   if (!apply) return { outcome: 'dry_run', packets: packets.length,
-    receiptTimes: packets.map(p => p.observedAt.toISOString()), privatePreviewOnly: true };
-  const store = createWellbeingStore({ db, enabled, temperaturePilotImei: imei,
-    deviceMode: 'unverified', customerEnabled: false, retentionDays, now });
+    receiptTimes: packets.map(p => p.observedAt.toISOString()) };
+  const store = createWellbeingStore({ db, enabled,
+    deviceMode: 'unverified', customerEnabled: true, retentionDays, now });
   const results = [];
   for (const { event, observedAt } of packets) {
     const result = await store.ingest(event, observedAt);
     results.push({ status: result.status });
-    if (!result.ok) return { outcome: 'stopped', results, privatePreviewOnly: true };
+    if (!result.ok) return { outcome: 'stopped', results };
   }
-  return { outcome: 'imported', results, privatePreviewOnly: true };
+  return { outcome: 'imported', results };
 }
 
 async function main() {

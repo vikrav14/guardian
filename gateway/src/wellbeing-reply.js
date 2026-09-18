@@ -23,6 +23,11 @@ function readingLine(reading, now) {
     if (![heart, systolic, diastolic].every(Number.isInteger)) return null;
     return `• Heart rate: ${heart} bpm · blood pressure estimate: ${systolic}/${diastolic} mmHg${received}`;
   }
+  if (reading.metricSet === 'skin_temperature') {
+    const value = Number(reading.values?.skinTemperatureCelsius);
+    if (!Number.isFinite(value)) return null;
+    return `• Skin temperature estimate: ${value.toFixed(2)} °C${received}`;
+  }
   return null;
 }
 
@@ -34,7 +39,7 @@ function formatWellbeingReply(result, { now = new Date() } = {}) {
     .map((reading) => readingLine(reading, now))
     .filter(Boolean);
   if (lines.length === 0) {
-    return `No accepted watch wellbeing readings are available for ${result.name || 'the wearer'} yet. Take a reading on the watch.`;
+    return `No watch wellbeing readings are available for ${result.name || 'the wearer'} yet. Take a reading on the watch.`;
   }
   return [
     `*${result.name || 'Wearer'} — latest watch wellbeing readings:*`,

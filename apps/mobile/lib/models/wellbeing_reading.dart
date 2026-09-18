@@ -36,18 +36,15 @@ class WellbeingReading {
   };
 
   factory WellbeingReading.fromDoc(
-    DocumentSnapshot<Map<String, dynamic>> doc, {
-    bool pilotPreview = false,
-  }) => WellbeingReading.fromMap(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) => WellbeingReading.fromMap(
     doc.data() ?? <String, dynamic>{},
     id: doc.id,
-    pilotPreview: pilotPreview,
   );
 
   factory WellbeingReading.fromMap(
     Map<String, dynamic> data, {
     required String id,
-    bool pilotPreview = false,
   }) {
     final metric = switch (data['metricSet']) {
       'spo2' => WellbeingMetricSet.spo2,
@@ -63,21 +60,23 @@ class WellbeingReading {
       throw StateError('Missing wellbeing receipt time');
     }
     final displayable = data['displayable'] == true;
+    final quality = (data['quality'] as String?)?.trim() ?? 'unknown';
+    final legacyEstimate = !displayable &&
+        quality == 'transport_valid_unverified';
     final temperature = metric == WellbeingMetricSet.skinTemperature;
     final temperatureValue = values['skinTemperatureCelsius'];
     if (temperature &&
-        (!pilotPreview || displayable || data['privatePreviewOnly'] != true ||
-            data['sourceCommand'] != 'btemp2' || data['sourceVariant'] != '1' ||
+        (data['sourceCommand'] != 'btemp2' || data['sourceVariant'] != '1' ||
             temperatureValue is! num || !temperatureValue.isFinite ||
             temperatureValue <= 0 || temperatureValue > 60 ||
             (temperatureValue * 100 - (temperatureValue * 100).round()).abs() > 0.000001)) {
-      throw StateError('Unsupported private temperature evidence');
+      throw StateError('Unsupported temperature evidence');
     }
     bool inRange(String key, int min, int max) =>
         values[key] is int &&
         (values[key] as int) >= min &&
         (values[key] as int) <= max;
-    if (pilotPreview && !temperature &&
+    if (!temperature &&
         !(metric == WellbeingMetricSet.spo2
             ? inRange('spo2Percent', 1, 100)
             : inRange('heartRateBpm', 20, 250) &&
@@ -85,9 +84,9 @@ class WellbeingReading {
                   inRange('diastolicMmHg', 20, 200) &&
                   (values['systolicMmHg'] as int) >
                       (values['diastolicMmHg'] as int))) {
-      throw StateError('Invalid pilot reading values');
+      throw StateError('Invalid wellbeing reading values');
     }
-    if (!displayable && !pilotPreview) {
+    if (!displayable && !legacyEstimate) {
       throw StateError('Protected wellbeing evidence is not displayable');
     }
 
@@ -95,9 +94,7 @@ class WellbeingReading {
       id: id,
       metricSet: metric,
       observedAt: observedAt,
-      quality: pilotPreview
-          ? 'pilot_unverified'
-          : (data['quality'] as String?) ?? 'unknown',
+      quality: quality,
       displayable: displayable,
       spo2Percent: (values['spo2Percent'] as num?)?.toInt(),
       heartRateBpm: (values['heartRateBpm'] as num?)?.toInt(),

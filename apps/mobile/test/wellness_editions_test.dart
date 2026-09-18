@@ -146,8 +146,7 @@ void main() {
           expect(find.text('130/80 mmHg'), findsNothing);
           expect(find.text('124/78 mmHg'), findsOneWidget);
           expect(find.text('Watch estimate'), findsOneWidget);
-          expect(find.text('No reading today'), findsNWidgets(3));
-          expect(find.text('Not available yet'), findsOneWidget);
+          expect(find.text('No reading today'), findsNWidgets(4));
           expect(find.text('View wellness'), findsNothing);
           expect(tester.takeException(), isNull);
         },

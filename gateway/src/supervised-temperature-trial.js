@@ -39,8 +39,9 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
     try { return quarantine.isSuppressed() !== false; }
     catch { return true; }
   }
-  const enabled = () => config.wellnessRoutinePilotEnabled === true &&
-    config.careWellbeingRequestEnabled === true && config.careWellbeingIngestEnabled === true;
+  const enabled = () => config.wellnessRoutineEnabled === true &&
+    config.careWellbeingRequestEnabled === true &&
+    config.careWellbeingIngestEnabled === true;
 
   function boundedOperation(operation) {
     let timer;
@@ -70,7 +71,7 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
   // Readiness is also used before the optical stage of a conditional trial.
   // It never arms evidence, changes quarantine or sends a watch command.
   function assertReady({ expectedSession } = {}) {
-    if (!enabled()) throw new Error('Pilot, wellbeing request and ingestion must be enabled.');
+    if (!enabled()) throw new Error('Wellness routine, request and ingestion must be enabled.');
     if (busy) throw new Error('A temperature test is already being prepared.');
     if (lastAttemptAt !== null && clock() - lastAttemptAt < 120_000) {
       throw new Error('Wait two minutes before another temperature test; inspect the existing result first.');

@@ -26,24 +26,28 @@ before(async () => {
 });
 after(async () => env?.cleanup());
 const read = (plan, id) => getDoc(doc(env.authenticatedContext(plan).firestore(), 'devices', imei, 'wellbeingReadings', id));
-test('all editions can read consented today; only their permitted history is accessible', async () => {
-  for (const plan of ['essential', 'family', 'care']) {
-    await assertSucceeds(read(plan, 'today'));
-    await assertFails(read(plan, 'shadow'));
-  }
+test('Care can read consented history; lower editions cannot read wellbeing', async () => {
+  await assertSucceeds(read('care', 'today'));
+  await assertFails(read('care', 'shadow'));
+  await assertFails(read('essential', 'today'));
+  await assertFails(read('family', 'today'));
   await assertFails(read('essential', 'yesterday'));
-  await assertSucceeds(read('family', 'seventh'));
+  await assertFails(read('family', 'seventh'));
   await assertFails(read('family', 'eighth'));
   await assertSucceeds(read('care', 'old'));
   await assertFails(read('unlinked', 'today'));
 });
-test('actual date-bounded queries work for all editions and cannot widen the range', async () => {
-  for (const [plan, offset] of [['essential', 0], ['family', -6], ['care', -400]]) {
-    const base = collection(env.authenticatedContext(plan).firestore(), 'devices', imei, 'wellbeingReadings');
-    await assertSucceeds(getDocs(query(base, where('displayable', '==', true),
-      where('observedAt', '>=', new Date(+today + offset * 86_400_000)),
+test('Care date-bounded queries work and lower editions remain blocked', async () => {
+  const base = collection(env.authenticatedContext('care').firestore(), 'devices', imei, 'wellbeingReadings');
+  await assertSucceeds(getDocs(query(base, where('displayable', '==', true),
+      where('observedAt', '>=', new Date(+today - 400 * 86_400_000)),
       where('observedAt', '<', new Date(+today + 86_400_000)), orderBy('observedAt', 'desc'))));
-    await assertFails(getDocs(query(base, where('displayable', '==', true))));
+  await assertFails(getDocs(query(base, where('displayable', '==', true))));
+  for (const plan of ['essential', 'family']) {
+    const lowerDb = collection(env.authenticatedContext(plan).firestore(), 'devices', imei, 'wellbeingReadings');
+    await assertFails(getDocs(query(lowerDb, where('displayable', '==', true),
+      where('observedAt', '>=', today), where('observedAt', '<', new Date(+today + 86_400_000)),
+      orderBy('observedAt', 'desc'))));
   }
 });
 test('consent revocation closes every edition and clients cannot restore it', async () => {

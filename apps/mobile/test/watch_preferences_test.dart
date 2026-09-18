@@ -16,9 +16,10 @@ GuardianSubscription subscriptionFor(String plan, {String status = 'active'}) =>
 
 void main() {
   const descriptions = {
-    'essential': 'Today’s activity and watch readings on your dashboard.',
+    'essential':
+        'Today’s activity is available on your dashboard. Watch readings require Guardian Care.',
     'family':
-        'Seven days of activity and watch-reading history, including today.',
+        'Seven days of activity history, including today. Watch readings require Guardian Care.',
     'care':
         'All available activity and watch-reading history during active service.',
   };
@@ -44,14 +45,13 @@ void main() {
                 find.widgetWithText(OutlinedButton, 'Wellness routine'),
               )
               .onPressed,
-          isNotNull,
+          plan == 'care' ? isNotNull : isNull,
         );
         await tester.pumpWidget(
           MaterialApp(
             home: WellnessRoutinePage(
               imei: 'synthetic',
               subscription: subscription,
-              pilotPreview: false,
             ),
           ),
         );
@@ -60,7 +60,11 @@ void main() {
         expect(find.text('Balanced rhythm'), findsOneWidget);
         expect(find.text('Apply routine'), findsNothing);
         expect(
-          find.textContaining('not available for this watch yet'),
+          find.textContaining(
+            plan == 'care'
+                ? 'Wellness service is not connected yet.'
+                : 'Automatic readings require Guardian Care.',
+          ),
           findsOneWidget,
         );
         for (final button in tester.widgetList<OutlinedButton>(
@@ -76,7 +80,7 @@ void main() {
 
   for (final width in [320.0, 390.0, 1280.0]) {
     testWidgets(
-      'Family preferences and routine route work at $width with large text',
+      'Care preferences and routine route work at $width with large text',
       (tester) async {
         tester.view.physicalSize = Size(width, 900);
         tester.view.devicePixelRatio = 1;
@@ -96,7 +100,7 @@ void main() {
                 nickname: 'Sample wearer',
                 online: false,
               ),
-              subscription: subscriptionFor('family'),
+              subscription: subscriptionFor('care'),
             ),
           ),
         );
@@ -121,7 +125,7 @@ void main() {
     );
   }
 
-  testWidgets('expired preview shows choices but cannot apply a routine', (
+  testWidgets('non-Care plan shows routine choices but cannot apply them', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -129,13 +133,11 @@ void main() {
         home: WellnessRoutinePage(
           imei: 'synthetic',
           subscription: subscriptionFor('family'),
-          pilotPreview: true,
-          grants: Stream.value([]),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('current preview access'), findsOneWidget);
+    expect(find.text('Automatic readings require Guardian Care.'), findsOneWidget);
     expect(find.text('Balanced rhythm'), findsOneWidget);
     expect(find.text('Apply routine'), findsNothing);
     expect(tester.takeException(), isNull);
