@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import '../models/care_profile.dart';
 import '../models/device.dart';
 import '../models/medication_reminder.dart';
+import '../models/watch_alert_profile.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
@@ -43,6 +44,9 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
   late int _uploadIntervalSeconds;
   bool _savingInterval = false;
 
+  late WatchAlertProfile _watchAlertProfile;
+  bool _savingWatchAlertProfile = false;
+
   static const _uploadIntervalPresets = [60, 300, 600, 900];
 
   @override
@@ -62,6 +66,9 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
         ? savedInterval!
         : 60;
+    _watchAlertProfile =
+        widget.device.watchAlertProfile ??
+        WatchAlertProfile.soundAndVibration;
   }
 
   Future<void> _saveFallDetection() async {
@@ -131,6 +138,61 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       );
     } finally {
       if (mounted) setState(() => _savingInterval = false);
+    }
+  }
+
+  Future<void> _selectWatchAlertProfile(WatchAlertProfile profile) async {
+    if (profile == WatchAlertProfile.silent) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Use Silent mode?'),
+          content: const Text(
+            'Silent mode removes sound and vibration from this watch. '
+            'That includes medication reminders and other watch alerts.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Use Silent'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() => _watchAlertProfile = profile);
+  }
+
+  Future<void> _saveWatchAlertProfile(
+    GuardianSubscription subscription,
+  ) async {
+    setState(() => _savingWatchAlertProfile = true);
+    try {
+      await DeviceService().updateWatchAlertProfile(
+        widget.device.imei,
+        profile: _watchAlertProfile,
+        subscription: subscription,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_watchAlertProfile.label} request sent to the watch',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not reach watch: $e')));
+    } finally {
+      if (mounted) setState(() => _savingWatchAlertProfile = false);
     }
   }
 
@@ -229,6 +291,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildLocationUpdatesCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
+                if (medicationDecision.allowed) ...[
+                  _buildWatchAlertProfileCard(colors, subscription),
+                  const SizedBox(height: GuardianSpacing.lg),
+                ],
                 _buildFallDetectionCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
                 if (medicationDecision.allowed) ...[
@@ -735,6 +801,189 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildWatchAlertProfileCard(
+    GuardianThemeColors colors,
+    GuardianSubscription subscription,
+  ) {
+    return GuardianCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: colors.accentMuted,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _watchAlertProfile == WatchAlertProfile.vibration
+                      ? Icons.vibration_rounded
+                      : Icons.volume_up_rounded,
+                  color: colors.accent,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: GuardianSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Watch alert style',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'Choose how the watch alerts the wearer',
+                      style: TextStyle(color: colors.textMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GuardianSpacing.sm),
+          Text(
+            'This applies to medication reminders and other watch alerts. '
+            'Changes need a current watch connection.',
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 11.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          Column(
+            children: [
+              for (final profile in WatchAlertProfile.values) ...[
+                _WatchAlertProfileOption(
+                  profile: profile,
+                  selected: profile == _watchAlertProfile,
+                  onTap: _savingWatchAlertProfile
+                      ? null
+                      : () => _selectWatchAlertProfile(profile),
+                ),
+                if (profile != WatchAlertProfile.values.last)
+                  const SizedBox(height: GuardianSpacing.sm),
+              ],
+            ],
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: _savingWatchAlertProfile
+                  ? null
+                  : () => _saveWatchAlertProfile(subscription),
+              child: _savingWatchAlertProfile
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Save alert style'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WatchAlertProfileOption extends StatelessWidget {
+  const _WatchAlertProfileOption({
+    required this.profile,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final WatchAlertProfile profile;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final foreground = selected ? Colors.white : colors.textPrimary;
+    final secondary = selected
+        ? Colors.white.withValues(alpha: .78)
+        : colors.textMuted;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected ? const Color(0xFF28785E) : const Color(0xFF86BDA2),
+          width: selected ? 1.5 : 1,
+        ),
+        gradient: selected
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF145F4C), Color(0xFF1B7E62)],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE8F6EC), Color(0xFFBAE5CE)],
+              ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: foreground,
+                  size: 21,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.label,
+                        style: TextStyle(
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        profile.description,
+                        style: TextStyle(color: secondary, fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
