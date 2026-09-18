@@ -1536,7 +1536,7 @@ class DeviceCommandService {
 
   /// V52 only. [time] is 'HH:MM'; [frequency] is 1 (once), 2
   /// (daily), or 3 (weekly, requires [week] as a 7-digit Sun->Sat mask).
-  Future<void> setMedicationReminder(
+  Future<String> setMedicationReminder(
     String imei, {
     required String time,
     required int frequency,
