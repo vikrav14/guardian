@@ -18,6 +18,8 @@ void main() {
       });
       var cancelled = 0;
       var sawReading = false;
+      var expectClear = false;
+      var clearedUnexpectedly = false;
       final received = Completer<void>();
       final cleared = Completer<void>();
       final source = StreamController<List<int>>(onCancel: () => cancelled++);
@@ -31,12 +33,23 @@ void main() {
         if (values.isNotEmpty) {
           sawReading = true;
           if (!received.isCompleted) received.complete();
-        } else if (sawReading && !cleared.isCompleted) {
-          cleared.complete();
+        } else if (sawReading) {
+          if (expectClear && !cleared.isCompleted) {
+            cleared.complete();
+          } else {
+            clearedUnexpectedly = true;
+          }
         }
       });
       source.add([72]);
       await received.future.timeout(const Duration(seconds: 5));
+      await db.collection('users').doc('owner').update({
+        'fcmTokens': ['unrelated-profile-update'],
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(clearedUnexpectedly, false);
+      expect(cancelled, 0);
+      expectClear = true;
       await db.collection('users').doc('owner').update({'linkedImeis': []});
       await cleared.future.timeout(const Duration(seconds: 5));
       await auth.signOut();
