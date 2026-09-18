@@ -14,6 +14,7 @@ Stream<List<T>> watchLinkedWellnessData<T>(
   StreamSubscription<User?>? authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userSub;
   StreamSubscription<List<T>>? dataSub;
+  List<String>? activeLinkedImeis;
   var authGeneration = 0;
   var dataGeneration = 0;
   var closed = false;
@@ -23,6 +24,7 @@ Stream<List<T>> watchLinkedWellnessData<T>(
         (user) async {
           final generation = ++authGeneration;
           ++dataGeneration;
+          activeLinkedImeis = null;
           controller.add(<T>[]);
           await userSub?.cancel();
           await dataSub?.cancel();
@@ -33,16 +35,28 @@ Stream<List<T>> watchLinkedWellnessData<T>(
               .snapshots()
               .listen(
                 (snap) async {
+                  final linked =
+                      (snap.data()?['linkedImeis'] as List?)
+                          ?.whereType<String>()
+                          .toList(growable: false) ??
+                      const <String>[];
+                  // The owner document also contains unrelated fields such as
+                  // FCM tokens and profile data. Those updates must not tear
+                  // down live Wellness streams or blank the current cards.
+                  if (activeLinkedImeis != null &&
+                      _sameLinkedImeis(activeLinkedImeis!, linked)) {
+                    return;
+                  }
+                  activeLinkedImeis = linked;
                   final dataToken = ++dataGeneration;
-                  controller.add(<T>[]);
                   await dataSub?.cancel();
                   if (closed ||
                       generation != authGeneration ||
                       dataToken != dataGeneration) {
                     return;
                   }
-                  final linked = snap.data()?['linkedImeis'];
-                  if (linked is! List || !linked.contains(imei)) return;
+                  controller.add(<T>[]);
+                  if (!linked.contains(imei)) return;
                   dataSub = query().listen(
                     (values) {
                       if (!closed && dataToken == dataGeneration) {
@@ -66,6 +80,7 @@ Stream<List<T>> watchLinkedWellnessData<T>(
         onError: (Object error, StackTrace stack) {
           ++authGeneration;
           ++dataGeneration;
+          activeLinkedImeis = null;
           dataSub?.cancel();
           if (!closed) controller.addError(error, stack);
         },
@@ -81,4 +96,10 @@ Stream<List<T>> watchLinkedWellnessData<T>(
     },
   );
   return controller.stream;
+}
+
+bool _sameLinkedImeis(List<String> a, List<String> b) {
+  final left = a.toSet();
+  final right = b.toSet();
+  return left.length == right.length && left.containsAll(right);
 }
