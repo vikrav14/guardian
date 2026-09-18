@@ -511,6 +511,29 @@ test('medication data and commands require Guardian Family or Care', async () =>
       createdBy: 'owner',
     }),
   );
+  await assertSucceeds(
+    setDoc(doc(familyDb, 'deviceCommands', 'profile-command-family'), {
+      imei: '000000000000001',
+      type: 'set_watch_alert_profile',
+      params: { mode: 2 },
+      status: 'pending',
+      createdBy: 'owner',
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(familyDb, 'devices', '000000000000001'), {
+      watchAlertProfile: 'sound',
+    }),
+  );
+  await assertFails(
+    setDoc(doc(familyDb, 'deviceCommands', 'profile-command-invalid'), {
+      imei: '000000000000001',
+      type: 'set_watch_alert_profile',
+      params: { mode: 5 },
+      status: 'pending',
+      createdBy: 'owner',
+    }),
+  );
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(doc(context.firestore(), 'serviceSubscriptions', 'owner'), {
@@ -526,6 +549,20 @@ test('medication data and commands require Guardian Family or Care', async () =>
       params: {},
       status: 'pending',
       createdBy: 'owner',
+    }),
+  );
+  await assertFails(
+    setDoc(doc(essentialDb, 'deviceCommands', 'profile-command-essential'), {
+      imei: '000000000000001',
+      type: 'set_watch_alert_profile',
+      params: { mode: 2 },
+      status: 'pending',
+      createdBy: 'owner',
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(essentialDb, 'devices', '000000000000001'), {
+      watchAlertProfile: 'silent',
     }),
   );
 });
