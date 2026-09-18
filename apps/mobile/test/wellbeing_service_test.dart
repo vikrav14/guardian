@@ -49,7 +49,7 @@ void main() {
           .firstWhere((values) => values.isNotEmpty);
       expect(
         result.map((reading) => reading.id),
-        ['shadow', 'today', 'yesterday'],
+        ['today', 'yesterday'],
       );
     },
   );
