@@ -69,9 +69,10 @@ class WellnessCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const WellnessHeading(
+          WellnessHeading(
             title: 'Wellness',
             subtitle: 'Today’s watch readings',
+            loading: loading,
           ),
           const SizedBox(height: 8),
           const Text(
@@ -80,15 +81,13 @@ class WellnessCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             wearStatus.labelAt(now),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 12,
               color: context.guardianColors.textSecondary,
             ),
           ),
-          if (loading) ...[
-            const SizedBox(height: 12),
-            const LinearProgressIndicator(minHeight: 2),
-          ],
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, size) {
@@ -232,57 +231,72 @@ class _BloodPressureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     const tint = Color(0xFFAA7845);
     final colors = context.guardianColors;
-    return GuardianSurface(
-      padding: const EdgeInsets.all(14),
-      radius: 16,
-      tint: tint,
-      tonal: true,
-      elevation: 0,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.speed_outlined, color: tint, size: 25),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Blood pressure',
-                  style: TextStyle(fontSize: 13, color: colors.textSecondary),
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 104),
+      child: GuardianSurface(
+        padding: const EdgeInsets.all(14),
+        radius: 16,
+        tint: tint,
+        tonal: true,
+        elevation: 0,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.speed_outlined, color: tint, size: 25),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Blood pressure',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
-                    Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Watch estimate',
-                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Watch estimate',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -313,42 +327,54 @@ class WellnessTile extends StatelessWidget {
   final IconData icon;
   final Color tint;
   @override
-  Widget build(BuildContext context) => GuardianSurface(
-    padding: const EdgeInsets.all(14),
-    radius: 16,
-    tint: tint,
-    tonal: true,
-    elevation: 0,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: tint, size: 25),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: context.guardianColors.textSecondary,
+  Widget build(BuildContext context) => ConstrainedBox(
+    // Keep every tile's footprint stable while a snapshot changes from
+    // placeholder -> value -> timestamp. The max-lines guards also prevent
+    // a long error/status string from making a row reflow.
+    constraints: const BoxConstraints(minHeight: 144),
+    child: GuardianSurface(
+      padding: const EdgeInsets.all(14),
+      radius: 16,
+      tint: tint,
+      tonal: true,
+      elevation: 0,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: tint, size: 25),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: context.guardianColors.textSecondary,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: context.guardianColors.textPrimary,
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: context.guardianColors.textPrimary,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          status,
-          style: TextStyle(
-            fontSize: 12,
-            color: context.guardianColors.textSecondary,
+          const SizedBox(height: 4),
+          Text(
+            status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: context.guardianColors.textSecondary,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -358,8 +384,10 @@ class WellnessHeading extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.loading = false,
   });
   final String title, subtitle;
+  final bool loading;
   @override
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,6 +419,23 @@ class WellnessHeading extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+      const SizedBox(width: 10),
+      SizedBox(
+        width: 22,
+        height: 22,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          child: loading
+              ? CircularProgressIndicator(
+                  key: const ValueKey('wellness-loading'),
+                  strokeWidth: 2.2,
+                  color: context.guardianColors.accent,
+                )
+              : const SizedBox(key: ValueKey('wellness-idle')),
         ),
       ),
     ],
