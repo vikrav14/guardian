@@ -19,9 +19,9 @@ void main() {
     'essential':
         'Today’s activity is available on your dashboard. Watch readings require Guardian Care.',
     'family':
-        'Seven days of activity history, including today. Watch readings require Guardian Care.',
+        'Seven days of activity history and basic watch estimates, including today. Automatic reading routines require consent and gateway availability.',
     'care':
-        'All available activity and watch-reading history during active service.',
+        'All available activity and watch-reading history during active service, plus advanced Care services.',
   };
   for (final plan in descriptions.keys) {
     testWidgets(
@@ -45,7 +45,7 @@ void main() {
                 find.widgetWithText(OutlinedButton, 'Wellness routine'),
               )
               .onPressed,
-          plan == 'care' ? isNotNull : isNull,
+          plan == 'essential' ? isNull : isNotNull,
         );
         await tester.pumpWidget(
           MaterialApp(
@@ -61,9 +61,9 @@ void main() {
         expect(find.text('Apply routine'), findsNothing);
         expect(
           find.textContaining(
-            plan == 'care'
-                ? 'Wellness service is not connected yet.'
-                : 'Automatic readings require Guardian Care.',
+            plan == 'essential'
+                ? 'Automatic readings require Guardian Family or Guardian Care.'
+                : 'Wellness service is not connected yet.',
           ),
           findsOneWidget,
         );
@@ -125,19 +125,19 @@ void main() {
     );
   }
 
-  testWidgets('non-Care plan shows routine choices but cannot apply them', (
+  testWidgets('Essential shows routine choices but cannot apply them', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: WellnessRoutinePage(
           imei: 'synthetic',
-          subscription: subscriptionFor('family'),
+          subscription: subscriptionFor('essential'),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Automatic readings require Guardian Care.'), findsOneWidget);
+    expect(find.text('Automatic readings require Guardian Family or Guardian Care.'), findsOneWidget);
     expect(find.text('Balanced rhythm'), findsOneWidget);
     expect(find.text('Apply routine'), findsNothing);
     expect(tester.takeException(), isNull);

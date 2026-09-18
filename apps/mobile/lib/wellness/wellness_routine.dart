@@ -240,7 +240,7 @@ class WellnessRoutinePage extends StatelessWidget {
                 unavailableReason:
                     subscription.has(GuardianFeature.wellnessReadings)
                     ? 'Wellness service is not connected yet.'
-                    : 'Automatic readings require Guardian Care.',
+                    : 'Automatic readings require Guardian Family or Guardian Care.',
               ),
           ],
         ),
@@ -294,7 +294,7 @@ class _ConnectedRoutineState extends State<_ConnectedRoutine> {
             : snapshot.data?.firstOrNull ?? const {},
         request: requestSnapshot.data?.firstOrNull ?? const {},
         unavailableReason: snapshot.hasError || requestSnapshot.hasError
-            ? 'Could not load your routine. Check your connection and Care access.'
+            ? 'Could not load your routine. Check your connection and Family or Care access.'
             : !snapshot.hasData || !requestSnapshot.hasData
             ? 'Loading your saved routine…'
             : null,
@@ -422,7 +422,7 @@ class _WellnessRoutineControlsState extends State<WellnessRoutineControls> {
       if (mounted) {
         setState(
           () => _feedback =
-              'Could not save the routine. Check your connection and Care access.',
+              'Could not save the routine. Check your connection and Family or Care access.',
         );
       }
     } finally {

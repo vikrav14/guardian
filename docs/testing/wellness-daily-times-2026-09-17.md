@@ -1,8 +1,8 @@
 # Daily Wellness times — 17 September 2026
 
 This replaces the earlier native 12-hour / 8-hour routine selection with
-gateway-controlled daily clock times. The routine is available to linked Care
-customers with active consent; it has no viewer grant or Flutter pilot flag. It
+gateway-controlled daily clock times. The routine is available to linked Family
+and Care customers with active consent; it has no viewer grant or Flutter pilot flag. It
 does not enable alerts or positive wearing detection.
 
 | Routine | Daily slots | Initial suggestions |

@@ -1,7 +1,8 @@
 # Guardian service promise and entitlement contract
 
-> Current Wellness edition decision (14 September 2026): all editions share the
-> dashboard; Essential sees today, Family seven days, Care retained history.
+> Current Wellness edition decision (18 September 2026): all editions share the
+> dashboard; Essential sees activity today, Family sees seven days plus basic
+> watch estimates and routines, Care retains history and advanced services.
 > Basic reading access is distinct from Care-only advanced summaries, medication
 > and care profiles. Customer/device acceptance gates remain off. See
 > [the implemented contract](design/wellness-editions-2026-09-14.md).
@@ -38,8 +39,8 @@ Plans inherit upward. A Care family receives Family and Essential services; a Fa
 | Plan | Included capability group | Caregiver limit | Location-history window |
 |---|---|---:|---:|
 | Essential | Core watch safety | 1 | 7 rolling days |
-| Family | Essential + Guardian AI, WhatsApp and smart notifications | 5 | No product time limit; retention/fair-use policy required |
-| Care | Family + medication, wellbeing, reports and routine care | 5 | No product time limit; retention/fair-use policy required |
+| Family | Essential + Guardian AI, WhatsApp, smart notifications and basic Wellness estimates/routines | 5 | No product time limit; retention/fair-use policy required |
+| Care | Family + advanced wellbeing summaries, medication, reports and routine care | 5 | No product time limit; retention/fair-use policy required |
 
 The versioned backend catalogue is implemented in `gateway/src/entitlements.js`. UI labels are not authorization. All backend writes, reads, notification fan-out and assistant tools must check the same effective entitlement.
 
@@ -74,6 +75,7 @@ that exception into the Family/Care WhatsApp contract.
 | Proactive smart notifications | Push/WhatsApp policy and deterministic escalation rules exist. | Partial | Scenario matrix, quiet-hour policy, rate limits and real delivery tests. |
 | Unlimited location history | Family/Care bypass the Essential query/rule window and the app exposes retained dates. | Partial | Publish a retention/fair-use definition and prove restore/export and downgrade behaviour. |
 | Steps and daily activity | Passive V52 ingestion, local-day aggregation, anomaly/reset handling, protected Family reads, app day/week card and deterministic WhatsApp answers are implemented behind default-off gates. | Implemented, disabled | Prove counter reset/midnight/reboot semantics and controlled walks on the exact firmware; then enable ingestion, accepted counter mode and both customer surfaces. |
+| Basic Wellness estimates and scheduled routines | Consent-gated heart/BP and oxygen estimates, conditional temperature follow-up, bounded Family history and Manual/Gentle/Balanced routine choices are available with explicit freshness and unconfirmed-wearing wording. | Partial — disabled by operational switches | Complete exact-device reliability, battery, missing-reading, reconnect and consent tests before broader rollout. |
 | Voice assistant | No verified voice-assistant product exists. Voice monitoring/listen is intentionally prohibited. | Not implemented | Define a safe product separately and implement it, or remove/reword this promise. |
 | Up to 5 family caregivers | Gateway transactions, Firestore invite rules, Flutter service checks and adaptive account UI enforce five caregivers for the verified owner. | Partial | Concurrent live acceptance, revocation and owner/member lifecycle. |
 
@@ -152,6 +154,6 @@ No release decision may be based only on a green unit-test count.
   primary-contact WhatsApp delivery for physical-watch SOS, a seven-day history
   selector and one caregiver slot. Guardian AI, WhatsApp service actions, other
   WhatsApp safety alerts and Care observations are not presented as active.
-- Family adds Guardian AI, deterministic Guardian-help actions, optional WhatsApp continuation, smart-notification presentation, retained history and five caregiver slots. Care-only medication and advanced care controls remain locked.
-- Care adds medication, wellbeing and routine-care surfaces. Medication and care-profile writes require the verified Care subscription in Flutter services and Firestore rules.
+- Family adds Guardian AI, deterministic Guardian-help actions, optional WhatsApp continuation, smart-notification presentation, retained history, basic Wellness estimates/routines and five caregiver slots. Care-only medication, advanced wellbeing and care controls remain locked.
+- Care adds advanced wellbeing, medication, reports and routine-care surfaces. Medication and care-profile writes require the verified Care subscription in Flutter services and Firestore rules.
 - Loading, permission/network error, inactive, excluded and allowed states use different deterministic copy. Restricted services fail closed while the plan is unverified.

@@ -232,11 +232,12 @@ service cloud.firestore {
         }
       }
 
-      // Care customers may read consented watch estimates within the Care
-      // history window. The backend owns writes and wearing remains unconfirmed.
+      // Family and Care customers may read consented watch estimates within
+      // their edition's history window. The backend owns writes and wearing
+      // remains unconfirmed.
       match /wellbeingReadings/{readingId} {
         allow get: if linkedTo(imei)
-          && activePlanAtLeast('care')
+          && activePlanAtLeast('family')
           && resource.data.get('displayable', false) == true
           && wellnessHistoryAllowed(resource.data.get('observedAt', null))
           && activeWellbeingConsent(imei);
@@ -244,8 +245,10 @@ service cloud.firestore {
         // query bounds. A list rule cannot additionally require <= request.time
         // because a valid full-day query ends at the next calendar boundary.
         allow list: if linkedTo(imei)
-          && activePlanAtLeast('care')
+          && activePlanAtLeast('family')
           && resource.data.displayable == true
+          && (activePlanAtLeast('care')
+            || resource.data.observedAt >= request.time - duration.value(169, 'h'))
           && resource.data.observedAt < request.time + duration.value(26, 'h')
           && activeWellbeingConsent(imei);
         allow write: if false;
@@ -282,7 +285,7 @@ service cloud.firestore {
       }
       match /wellnessRoutine/{statusId} {
         allow get: if statusId == 'current' && linkedTo(imei)
-          && activePlanAtLeast('care');
+          && activePlanAtLeast('family');
         allow list, write: if false;
       }
       // Durable scheduler claims/counters are internal. The gateway copies
@@ -368,8 +371,8 @@ service cloud.firestore {
         ) && data.requestedBy == request.auth.uid
           && data.updatedAt == request.time;
       }
-      allow get: if linkedTo(imei) && activePlanAtLeast('care');
-      allow create, update: if linkedTo(imei) && activePlanAtLeast('care')
+      allow get: if linkedTo(imei) && activePlanAtLeast('family');
+      allow create, update: if linkedTo(imei) && activePlanAtLeast('family')
         && validScheduleRequest()
         && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
       allow list, delete: if false;

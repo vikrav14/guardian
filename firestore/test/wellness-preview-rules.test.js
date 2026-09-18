@@ -44,17 +44,17 @@ const read = (uid, kind, id) => getDoc(doc(
   env.authenticatedContext(uid).firestore(), 'devices', imei, kind, id,
 ));
 
-test('Care access is permanent and requires only the linked active plan plus consent', async () => {
+test('Family and Care access requires the linked active plan plus consent', async () => {
   await assertSucceeds(read('care', 'wellbeingReadings', 'estimate'));
+  await assertSucceeds(read('family', 'wellbeingReadings', 'estimate'));
   await assertSucceeds(read('care', 'activityDays', 'today'));
-  await assertFails(read('family', 'wellbeingReadings', 'estimate'));
   await assertFails(read('essential', 'wellbeingReadings', 'estimate'));
   await assertSucceeds(read('family', 'activityDays', 'today'));
   await assertSucceeds(read('essential', 'activityDays', 'today'));
   await assertSucceeds(read('other', 'wellbeingReadings', 'estimate'));
 });
 
-test('wellbeing queries remain bounded by the Care calendar window', async () => {
+test('wellbeing queries remain bounded by the Family or Care calendar window', async () => {
   const base = collection(env.authenticatedContext('care').firestore(),
     'devices', imei, 'wellbeingReadings');
   await assertSucceeds(getDocs(query(
@@ -64,6 +64,16 @@ test('wellbeing queries remain bounded by the Care calendar window', async () =>
     where('observedAt', '<', new Date(+today + 86400_000)),
     orderBy('observedAt', 'desc'),
   )));
+  const familyBase = collection(env.authenticatedContext('family').firestore(),
+    'devices', imei, 'wellbeingReadings');
+  await assertSucceeds(getDocs(query(
+    familyBase,
+    where('displayable', '==', true),
+    where('observedAt', '>=', today),
+    where('observedAt', '<', new Date(+today + 86400_000)),
+    orderBy('observedAt', 'desc'),
+  )));
+  await assertFails(getDocs(familyBase));
   await assertFails(getDocs(base));
 });
 

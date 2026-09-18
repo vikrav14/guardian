@@ -5,13 +5,16 @@ const { getWellbeingReadings, runTool } = require('../src/assistant/tools');
 const { evaluateSubscription, FEATURE, featureForWhatsAppIntent } = require('../src/entitlements');
 const config = require('../src/config');
 const entitlements = plan => evaluateSubscription({ version: 1, managedBy: 'guardian_admin', plan, status: 'active' });
-test('Care readings do not grant other Care-only services', () => {
-  for (const plan of ['essential', 'family']) {
+test('Family and Care receive readings but not other Care-only services', () => {
+  for (const plan of ['essential']) {
     const ctx = entitlements(plan);
     assert.equal(ctx.features.includes(FEATURE.WELLNESS_READINGS), false);
     assert.equal(ctx.features.includes(FEATURE.WELLBEING_ACTIVITY_SUMMARIES), false);
     assert.equal(ctx.features.includes(FEATURE.MEDICATION_REMINDERS), false);
   }
+  assert.equal(entitlements('family').features.includes(FEATURE.WELLNESS_READINGS), true);
+  assert.equal(entitlements('family').features.includes(FEATURE.WELLBEING_ACTIVITY_SUMMARIES), false);
+  assert.equal(entitlements('family').features.includes(FEATURE.MEDICATION_REMINDERS), false);
   assert.equal(entitlements('care').features.includes(FEATURE.WELLNESS_READINGS), true);
   assert.equal(featureForWhatsAppIntent('WELLBEING_QUERY'), FEATURE.WHATSAPP_QA);
 });
@@ -25,7 +28,7 @@ test('admin-SDK WhatsApp read checks consent before querying sensitive records',
   assert.equal(result.code, 'consent_required');
   assert.equal(reads, 1);
 });
-test('Essential has no wellness WhatsApp Q&A and the customer gate protects tool execution', async () => {
+test('Essential has no wellness readings and the customer gate protects tool execution', async () => {
   const base = { devices: [{ imei: 'test-watch' }] };
   assert.equal((await runTool(null, { ...base, entitlements: entitlements('essential') }, 'get_wellbeing_readings', {})).code, 'plan_required');
   const original = config.careWellbeingCustomerEnabled;

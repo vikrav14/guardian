@@ -111,11 +111,11 @@ const _familyFeatures = <GuardianFeature>{
   GuardianFeature.proactiveSmartNotifications,
   GuardianFeature.voiceAssistant,
   GuardianFeature.whatsappWatchCommands,
+  GuardianFeature.wellnessReadings,
 };
 
 const _careFeatures = <GuardianFeature>{
   ..._familyFeatures,
-  GuardianFeature.wellnessReadings,
   GuardianFeature.medicationReminders,
   GuardianFeature.reminderAcknowledgements,
   GuardianFeature.wellbeingActivitySummaries,
@@ -184,9 +184,9 @@ class GuardianSubscription {
           GuardianPlan.essential =>
             'Today’s activity is available on your dashboard. Watch readings require Guardian Care.',
           GuardianPlan.family =>
-            'Seven days of activity history, including today. Watch readings require Guardian Care.',
+            'Seven days of activity history and basic watch estimates, including today. Automatic reading routines require consent and gateway availability.',
           GuardianPlan.care =>
-            'All available activity and watch-reading history during active service.',
+            'All available activity and watch-reading history during active service, plus advanced Care services.',
           null => 'Wellness access is being checked.',
         };
 

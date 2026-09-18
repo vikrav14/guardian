@@ -18,7 +18,7 @@ before(async () => {
       await setDoc(doc(db, 'serviceSubscriptions', plan), { version: 1, managedBy: 'guardian_admin', status: 'active', plan });
     }
     await setDoc(doc(db, 'wellbeingConsents', imei), { version: 1, managedBy: 'guardian_admin', status: 'granted', wearerAcknowledgedAt: new Date(+today - 86_400_000) });
-    for (const [id, offset] of [['today', 0], ['yesterday', -1], ['seventh', -6], ['eighth', -7], ['old', -400]]) {
+    for (const [id, offset] of [['today', 0], ['yesterday', -1], ['seventh', -6], ['eighth', -8], ['old', -400]]) {
       await setDoc(doc(db, 'devices', imei, 'wellbeingReadings', id), { displayable: true, observedAt: new Date(+today + offset * 86_400_000) });
     }
     await setDoc(doc(db, 'devices', imei, 'wellbeingReadings', 'shadow'), { displayable: false, observedAt: today });
@@ -26,24 +26,24 @@ before(async () => {
 });
 after(async () => env?.cleanup());
 const read = (plan, id) => getDoc(doc(env.authenticatedContext(plan).firestore(), 'devices', imei, 'wellbeingReadings', id));
-test('Care can read consented history; lower editions cannot read wellbeing', async () => {
+test('Family and Care can read consented history within their edition window', async () => {
   await assertSucceeds(read('care', 'today'));
+  await assertSucceeds(read('family', 'today'));
+  await assertSucceeds(read('family', 'seventh'));
   await assertFails(read('care', 'shadow'));
   await assertFails(read('essential', 'today'));
-  await assertFails(read('family', 'today'));
   await assertFails(read('essential', 'yesterday'));
-  await assertFails(read('family', 'seventh'));
   await assertFails(read('family', 'eighth'));
   await assertSucceeds(read('care', 'old'));
   await assertFails(read('unlinked', 'today'));
 });
-test('Care date-bounded queries work and lower editions remain blocked', async () => {
+test('Family and Care date-bounded queries work and Essential remains blocked', async () => {
   const base = collection(env.authenticatedContext('care').firestore(), 'devices', imei, 'wellbeingReadings');
   await assertSucceeds(getDocs(query(base, where('displayable', '==', true),
       where('observedAt', '>=', new Date(+today - 400 * 86_400_000)),
       where('observedAt', '<', new Date(+today + 86_400_000)), orderBy('observedAt', 'desc'))));
   await assertFails(getDocs(query(base, where('displayable', '==', true))));
-  for (const plan of ['essential', 'family']) {
+  for (const plan of ['essential']) {
     const lowerDb = collection(env.authenticatedContext(plan).firestore(), 'devices', imei, 'wellbeingReadings');
     await assertFails(getDocs(query(lowerDb, where('displayable', '==', true),
       where('observedAt', '>=', today), where('observedAt', '<', new Date(+today + 86_400_000)),

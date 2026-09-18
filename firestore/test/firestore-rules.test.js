@@ -521,7 +521,7 @@ test('medication data and commands require Guardian Care', async () => {
   await assertSucceeds(getDoc(doc(careDb, 'medicationReminders', 'med-1')));
 });
 
-test('linked Care users can read consented displayable wellbeing readings', async () => {
+test('linked Family and Care users can read consented displayable wellbeing readings', async () => {
   const acceptedPath = [
     'devices', '000000000000001', 'wellbeingReadings', 'accepted',
   ];
@@ -534,8 +534,8 @@ test('linked Care users can read consented displayable wellbeing readings', asyn
       plan: 'family',
     });
   });
-  await assertFails(getDoc(doc(authedDb('owner'), ...acceptedPath)));
-  await assertFails(getDoc(doc(authedDb('member'), ...acceptedPath)));
+  await assertSucceeds(getDoc(doc(authedDb('owner'), ...acceptedPath)));
+  await assertSucceeds(getDoc(doc(authedDb('member'), ...acceptedPath)));
 });
 
 test('unverified wellbeing evidence and consent records remain backend-only', async () => {
@@ -564,7 +564,7 @@ test('unverified wellbeing evidence and consent records remain backend-only', as
   )));
 });
 
-test('Care clients can query only readings constrained to displayable evidence', async () => {
+test('Family and Care clients can query only readings constrained to displayable evidence', async () => {
   const readings = collection(
     authedDb('owner'), 'devices', '000000000000001', 'wellbeingReadings',
   );

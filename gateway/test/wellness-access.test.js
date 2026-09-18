@@ -20,4 +20,7 @@ test('edition windows use Mauritius midnight and include today', () => {
 test('inactive and unknown plans cannot acquire a wellness query window', () => {
   assert.equal(wellnessWindow({ serviceActive: false, plan: 'care' }), null);
   assert.equal(wellnessWindow({ serviceActive: true, plan: 'invented' }), null);
+  assert.equal(wellnessWindow(context('essential'), { now, minimumPlan: 'family' }), null);
+  assert.ok(wellnessWindow(context('family'), { now, minimumPlan: 'family' }));
+  assert.ok(wellnessWindow(context('care'), { now, minimumPlan: 'family' }));
 });
