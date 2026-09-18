@@ -685,6 +685,19 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   ),
             builder: (context, snapshot) {
               final reminders = snapshot.data ?? const <MedicationReminder>[];
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Could not load medication reminders. Check your connection and Family access.',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 12.5,
+                      height: 1.35,
+                    ),
+                  ),
+                );
+              }
               if (!snapshot.hasData) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
