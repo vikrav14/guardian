@@ -1,9 +1,9 @@
 # Steps and daily activity
 
-> **14 September 2026 implementation update:** the shared Wellness edition design
-> supersedes older Care-only/Family-only reading access described below. Essential
-> gets today, Family seven days, and Care retained history. All device/customer
-> acceptance gates remain off by default. See
+> **20 September 2026 implementation update:** the shared Wellness edition design
+> exposes recorded step increases as explicitly labelled estimates. Essential gets
+> today, Family seven days, and Care retained history. Midnight/reset semantics and
+> wearing remain unconfirmed. See
 > [the current edition contract](../design/wellness-editions-2026-09-14.md).
 
 
@@ -11,14 +11,15 @@
 |---|---|
 | Service ID | `activity-steps` |
 | Minimum package | Essential (today); Family (7 days); Care (retained history) |
-| Current state | Implementation complete; disabled pending physical acceptance |
-| Customer-visible | Only after acceptance |
+| Current state | Implementation complete; observed estimates enabled; physical acceptance still pending |
+| Customer-visible | Observed estimates with Partial day and unconfirmed-wearing wording |
 | Protocol surface | passive `LK`/position step field; optional `PEDO`, `WALKTIME` configuration |
 
-The backend and app surfaces are implemented, but ingestion, counter acceptance
-and customer display remain gated by default. The gateway sends no pedometer command, the app compiles without the card,
-and WhatsApp does not advertise or expose this feature until acceptance is
-recorded.
+The backend and app surfaces are implemented. The gateway passively aggregates
+counter increases and exposes them as recorded estimates; it sends no pedometer
+command. The app and deterministic WhatsApp surface retain Partial day and
+unconfirmed-wearing wording. This does not claim proven midnight/reset semantics
+or that the watch was worn during an interval.
 
 ## What the V52 documentation establishes
 
@@ -82,11 +83,13 @@ in the documented V52 counter and are deliberately not derived or advertised.
 
 Backend and app gates prevent accidental exposure:
 
-1. `ACTIVITY_STEPS_INGEST_ENABLED=false` prevents daily aggregation.
-2. `ACTIVITY_STEPS_COUNTER_MODE=unverified` makes every stored day
-   non-displayable even if shadow ingestion is enabled.
-3. `ACTIVITY_STEPS_CUSTOMER_ENABLED=false` prevents publishing displayable days and blocks WhatsApp reads.
-4. The Flutter build flag `GUARDIAN_ACTIVITY_STEPS_ENABLED=false` omits the app card.
+1. `ACTIVITY_STEPS_INGEST_ENABLED=true` enables passive aggregation.
+2. `ACTIVITY_STEPS_COUNTER_MODE=observed_delta` publishes recorded increases
+   as partial-day estimates without treating them as a proven daily total.
+3. `ACTIVITY_STEPS_CUSTOMER_ENABLED=true` publishes the bounded estimate to
+   entitled app/WhatsApp surfaces.
+4. The Flutter build flag `GUARDIAN_ACTIVITY_STEPS_ENABLED=false` still omits
+   the app card when an operator explicitly disables the feature.
 
 Shadow collection may begin by enabling ingestion while keeping the other
 three values unchanged. In `unverified` mode, schema-v2 daily `recordedSteps`
@@ -108,9 +111,10 @@ for reset handling, boundary uncertainty, migration and the read-only capture co
 - [ ] test midnight timezone and reboot resets
 - [ ] measure battery and data impact
 
-The customer flags must remain off until every acceptance gate has evidence
-attached to this pull request. A backend write, command acknowledgement or unit
-test is not physical counter acceptance.
+Customer display is enabled for the estimate mode, but the feature remains
+Partial until the exact-device midnight, reboot, controlled-walk and battery
+evidence is complete. A backend write, command acknowledgement or unit test is
+not physical counter acceptance.
 
 
 ## Historical QA handoff — counter accuracy and merge block
