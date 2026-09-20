@@ -153,6 +153,28 @@ test('handlePacket ACKs CONFIG with CONFIG,1 per vendor spec', () => {
   assert.equal(acks[0].toString('ascii'), '[SG*9700000000*0008*CONFIG,1]');
 });
 
+test('handlePacket preserves fall-setting readback arguments without ACKing them', () => {
+  const alarm = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'FON', '1')),
+    {}
+  );
+  const fall = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'FALLDOWN', '1,0')),
+    {}
+  );
+  const sensitivity = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'LSSET', '3+6')),
+    {}
+  );
+
+  assert.deepEqual(alarm.events[0].args, ['1']);
+  assert.deepEqual(fall.events[0].args, ['1', '0']);
+  assert.deepEqual(sensitivity.events[0].args, ['3+6']);
+  assert.equal(alarm.acks.length, 0);
+  assert.equal(fall.acks.length, 0);
+  assert.equal(sensitivity.acks.length, 0);
+});
+
 test('buildAckFrame uses the protocol id the device expects in replies', () => {
   const ack = buildAckFrame('9700000000', 'LK');
   assert.equal(ack.toString('ascii'), '[SG*9700000000*0002*LK]');
@@ -240,21 +262,16 @@ test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
   assert.equal(acks.length, 1);
 });
 
-test('handlePacket parses V52 fall alarm from bit 22', () => {
-  const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload('00400000'));
-  const { events } = handlePacket(decodeFrame(frame), {});
+test('handlePacket parses documented and compatibility-candidate V52 fall bits', () => {
+  for (const trackerState of ['00200000', '00400000']) {
+    const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload(trackerState));
+    const { events } = handlePacket(decodeFrame(frame), {});
 
-  assert.equal(events[0].type, 'alarm');
-  assert.equal(events[0].alarmType, 'fall');
-  assert.equal(events[0].severity, 'critical');
-});
-
-test('handlePacket rejects bit 21 as a V52 fall alarm', () => {
-  const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload('00200000'));
-  const { events } = handlePacket(decodeFrame(frame), {});
-
-  assert.equal(events[0].alarmCode, '00200000');
-  assert.equal(events[0].alarmType, 'other');
+    assert.equal(events[0].type, 'alarm');
+    assert.equal(events[0].alarmCode, trackerState);
+    assert.equal(events[0].alarmType, 'fall');
+    assert.equal(events[0].severity, 'critical');
+  }
 });
 
 test('handlePacket uses V52 bits 18 and 19 for safe-zone transitions', () => {

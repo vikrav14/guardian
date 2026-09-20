@@ -56,6 +56,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './adaptive-reporting': { activateSosOverride: async () => { failIf('reporting'); } },
     './connection-live': { buildSessionPersistPatch: (_s, patch) => patch },
     './location-provenance': provenance,
+    './fall-location-snapshot': require('../src/fall-location-snapshot'),
     './sos-location-snapshot': snapshotApi,
     './fleet-hemisphere': { correctFleetHemisphere: event => event },
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
@@ -93,6 +94,29 @@ test('SOS dispatcher does not depend on GPS journal availability or the location
   await run.apply([alarm()], {});
   assert.equal(run.alerts.length, 1);
   assert.deepEqual(run.errors, []);
+});
+
+test('fall dispatcher still creates the alert when tracking side effects fail', async () => {
+  for (const failAt of ['persistence', 'history', 'intelligence']) {
+    const run = dispatcher(fixtures[0].device, { failAt });
+    const event = alarm({
+      alarmType: 'fall',
+      alarmCode: '00400000',
+      severity: 'critical',
+    });
+
+    await run.apply([event], {});
+
+    assert.equal(run.alerts.length, 1, `${failAt}: ${JSON.stringify(run.errors)}`);
+    assert.equal(run.alerts[0].type, 'fall', failAt);
+    assert.equal(run.alerts[0].severity, 'critical', failAt);
+    assert.ok(run.alerts[0].payload.locationSnapshot, failAt);
+    assert.equal(
+      run.errors.filter(([message]) => String(message).startsWith('[gateway]')).length,
+      0,
+      failAt
+    );
+  }
 });
 
 function alarm(overrides = {}) {

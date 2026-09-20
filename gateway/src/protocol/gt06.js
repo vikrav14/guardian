@@ -202,9 +202,11 @@ function classifyV52Alarm(alarmCode) {
   if (!Number.isFinite(stateBits)) return 'other';
 
   // ReachFar V52 Appendix I: alarm flags occupy the high 16 bits.
-  // Bit 21 belongs to a different model and is intentionally not decoded.
+  // The documented V52 mapping uses bit 22. Bit 21 is a compatibility
+  // candidate for the pilot's previously unclassified fall alarms; retain
+  // the raw state to verify it. Bit 20 remains reserved for bracelet removal.
   if ((stateBits & (1 << 16)) !== 0) return 'sos';
-  if ((stateBits & (1 << 22)) !== 0) return 'fall';
+  if ((stateBits & ((1 << 21) | (1 << 22))) !== 0) return 'fall';
   if ((stateBits & (1 << 17)) !== 0) return 'low_battery';
   if ((stateBits & (1 << 18)) !== 0) return 'geofence_exit';
   if ((stateBits & (1 << 19)) !== 0) return 'geofence_enter';
@@ -443,8 +445,17 @@ function handlePacket(decoded, session) {
   } else if (SERVER_ONLY_COMMANDS.has(command)) {
     // Device echoed back a command we sent it (e.g. CR). These are
     // server->tracker only; acking the echo would just bounce it back
-    // again and loop forever, so drop it silently.
-    events.push({ type: 'command_echo', ...eventMeta, command });
+    // again and loop forever, so do not ACK it. Preserve the arguments for the
+    // documented fall setting readbacks; otherwise the gateway cannot
+    // distinguish a bare echo from a value-bearing response.
+    events.push({
+      type: 'command_echo',
+      ...eventMeta,
+      command,
+      ...(command === 'FON' || command === 'FALLDOWN' || command === 'LSSET'
+        ? { args: [...args] }
+        : {}),
+    });
   } else {
     // Unknown command — still ACK for compatibility
     acks.push(buildAckFrame(protocolId, command));

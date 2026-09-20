@@ -618,8 +618,8 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | Field | Type | Notes |
 |-------|------|-------|
 | imei | string | Target device |
-| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_watch_alert_profile` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
-| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ mode: 1..4 }` for the V52 alert scene, `{ seconds }`. Alert modes: `1` sound + vibration, `2` sound, `3` vibration, `4` silent. |
+| type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_alarm` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_watch_alert_profile` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
+| params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled }` for the separate V52 fall-alert switch, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ mode: 1..4 }` for the V52 alert scene, `{ seconds }`. Alert modes: `1` sound + vibration, `2` sound, `3` vibration, `4` silent. |
 | status | string | `pending` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |

@@ -822,7 +822,9 @@ Pass: a real threshold crossing, one alert per policy window, and no stale perce
 Only perform a manufacturer-approved safe test. Never ask a person to fall.
 
 1. On Guardian Care, enable fall detection and choose the intended sensitivity.
-2. Confirm the related command is `sent` over TCP while the watch is connected.
+2. Confirm the separate fall-alert switch, detector setting and sensitivity
+   commands (`FON,1`, `FALLDOWN,1,0`, `LSSET,<level>+6`) are `sent` over TCP
+   while the watch is connected. Auto-dial remains off for this acceptance.
 3. Use the vendor-approved method with the watch secured to an object, not a wearer.
 4. Confirm one real `fall` alert with a versioned event-time
    `payload.locationSnapshot` and configured delivery outcomes.
@@ -839,6 +841,29 @@ Pass: configuration dispatch, one real V52 fall event, immutable event-time
 location evidence, honest template selection, and Meta-confirmed delivery.
 Command `sent` alone is insufficient because this flow has no read-back
 acknowledgement.
+
+### Recorded fall delivery evidence — 21 September 2026 (Mauritius)
+
+The operator supplied the read-only acceptance output and screenshots from a
+physical V52 test on PR #137, after the decoder compatibility update:
+
+- Event time: **20 September 2026, 20:46:40 UTC / 21 September, 00:46:40 MUT**.
+- The persisted alert is `type: fall`, `severity: critical`.
+- Guardian's Alerts screen shows **Possible fall detected** at 00:46 MUT.
+- The recipient's WhatsApp screenshot shows the matching possible-fall message
+  at 00:46 MUT. Its location is explicitly described as approximate cell-tower
+  positioning; the screenshot does not establish GPS accuracy or map-pin accuracy.
+- The inspector records one contact and Meta API acceptance. At inspection time
+  `deliveredAt` and `readAt` are null, so machine acceptance remains `partial`.
+  The screenshot supplies manual handset-receipt evidence, not a signed webhook
+  receipt. SMS was skipped because no sender was configured.
+
+This establishes app presentation and manual WhatsApp receipt for this pilot
+event. It does not establish automatic delivery receipts, location immutability
+after later movement, repeatability, or the false-alarm rate. No raw tracker-state
+value accompanies this result, so it does not identify whether bit 21 or bit 22
+was set. Earlier generic `other` alerts remain historical records and are not
+reclassified from screenshots.
 
 ## Test 7 — medication reminder
 

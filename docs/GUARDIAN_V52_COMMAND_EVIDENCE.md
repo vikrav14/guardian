@@ -50,6 +50,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Ring/find watch | `FIND` | Documented | Confirm sound, duration and how it stops. Do not claim a 60-second auto-stop. |
 | SOS alarm delivery mode | `MOD,<0..3>` | Documented; `MOD,0` platform-only behavior rejected on pilot firmware | Vendor descriptions: `0` platform only; `1` platform+SMS+call; `2` platform+call; `3` platform+SMS. On 24 August 2026, the exact V52 acknowledged `MOD,0` but still displayed **Calling...** and sent a carrier SMS. No completed call was observed, but the pilot SIM already blocks outbound calls. The watch acknowledged restoration to `MOD,1`. Mode `3` remains unverified. Do not promote another mode combination or claim screen-text control without supplier evidence and separate acceptance. |
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
+| Fall alert switch | `FON,<0\|1>` | Documented; now dispatched with fall preferences | Keep the separate fall-alert switch aligned with the detector. Confirm local alert behaviour and a real `AL_LTE` event on the exact firmware. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
@@ -74,8 +75,14 @@ The V52 datasheet lists the sensors, but a sensor claim does not establish a com
 
 The V52 alarm state is the eight-character hexadecimal field at argument index
 15 of the full LTE layout. Production mappings are SOS bit 16, low battery 17,
-safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. Bit 21 and
-shortened older-model layouts are rejected by tests.
+safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. Guardian also
+accepts bit 21 as a compatibility candidate for the pilot's previously
+unclassified fall alarms. The 21 September app/WhatsApp receipt result confirms
+the user-facing path after this change, but the supplied result has no raw state
+value; bit 21 is not independently proven by that evidence. Preserve the raw
+alarm code for confirmation. Bit 20 remains removal, and shortened older-model
+layouts are still rejected by tests. See the recorded fall evidence in
+[real-device acceptance](GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-fall-delivery-evidence--21-september-2026-mauritius).
 
 ## V52 telemetry field use
 

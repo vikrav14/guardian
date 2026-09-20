@@ -148,6 +148,16 @@ function fallDetectionCommand({ enabled, dialMonitorOnFall = false }) {
 }
 
 /**
+ * V52's separate fall-alert switch. `FALLDOWN` configures the fall-down
+ * detector and its optional dial behaviour; `FON` controls the fall alert
+ * switch itself. Keep this separate so enabling fall detection cannot leave
+ * the watch's local fall alarm disabled.
+ */
+function fallAlarmCommand({ enabled }) {
+  return `FON,${enabled ? 1 : 0}`;
+}
+
+/**
  * Fall detection sensitivity, 0-6. Second value is a vendor-fixed constant
  * (always 6) per protocol doc section 25 -- not a real second parameter, so
  * this doesn't expose it. Confirmed in example captures as `LSSET,5+6` and
@@ -258,6 +268,7 @@ const TCP_ONLY_TYPES = new Set([
   'voice_monitor',
   'ring_to_find',
   'set_alarm_mode',
+  'set_fall_alarm',
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
@@ -272,6 +283,7 @@ const BUILDERS = {
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
   set_alarm_mode: ({ mode }) => alarmModeCommand(mode),
+  set_fall_alarm: (params) => fallAlarmCommand(params),
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
   set_medication_reminder: (params) => medicationReminderCommand(params),
@@ -326,6 +338,7 @@ module.exports = {
   phonebookNameHex,
   phonebookContactCommand,
   fallDetectionCommand,
+  fallAlarmCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
   uploadIntervalCommand,
