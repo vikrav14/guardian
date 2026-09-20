@@ -584,6 +584,7 @@ class ActivityService {
       _auth,
       imei,
       () => query
+          .where('displayable', isEqualTo: true)
           .where(
             'lastObservedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(window.start),
