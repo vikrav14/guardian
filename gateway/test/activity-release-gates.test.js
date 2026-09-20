@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-test('activity release gates default to fully disabled', () => {
+test('activity defaults expose observed step estimates without daily-reset claims', () => {
   const configPath = path.join(__dirname, '..', 'src', 'config');
   const script = `
     delete process.env.ACTIVITY_STEPS_INGEST_ENABLED;
@@ -26,8 +26,8 @@ test('activity release gates default to fully disabled', () => {
     encoding: 'utf8',
   });
   assert.deepEqual(JSON.parse(output), {
-    ingest: false,
-    customer: false,
-    mode: 'unverified',
+    ingest: true,
+    customer: true,
+    mode: 'observed_delta',
   });
 });

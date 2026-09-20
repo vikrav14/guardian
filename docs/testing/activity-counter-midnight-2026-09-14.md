@@ -35,10 +35,10 @@ recorded in the supplier-validation ledger. No nightly device reset is used.
 - Timestamped old/future uploads are rejected. Duplicate timestamped observations
   and receipt replays cannot consume or reset the baseline. LK has no source time,
   so receipt intervals and partial-coverage qualifications remain necessary.
-- Customer activation is separate: `unverified` keeps reportedSteps null and
-  displayable false; accepted `observed_delta` plus explicit customer enablement
-  exposes recordedSteps with **Partial day** in app and WhatsApp. No flags change
-  automatically. Legacy physically accepted `daily_reset` remains supported.
+- Customer activation uses the estimate mode: `observed_delta` plus customer
+  enablement exposes recordedSteps with **Recorded estimate · Partial day** in app
+  and WhatsApp. The estimate never proves wearing or daily reset semantics.
+  Legacy physically accepted `daily_reset` remains supported but is not selected.
 - During migration, the first v2 report starts a new partial-day baseline. Old v1
   raw values are not backfilled into accepted totals. Previous dates stay stored.
 - Daily records retain their existing edition/retention policy. Raw diagnostics

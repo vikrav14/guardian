@@ -87,7 +87,7 @@ void main() {
       ),
     );
     expect(find.text('63'), findsOneWidget);
-    expect(find.text('Steps today'), findsOneWidget);
+    expect(find.text('Recorded steps today'), findsOneWidget);
     expect(
       find.textContaining('wearing at measurement time is not confirmed'),
       findsOneWidget,
