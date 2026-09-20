@@ -14,7 +14,7 @@ class GuardianWelcomeLayout extends StatelessWidget {
   final Widget form;
   final bool registerMode;
 
-  static const familyImage = 'assets/images/guardian_family_welcome.webp';
+  static const familyImage = 'assets/images/guardian_family_welcome_watch.webp';
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +191,7 @@ class _FamilyPhoto extends StatelessWidget {
     final photo = Image.asset(
       GuardianWelcomeLayout.familyImage,
       fit: BoxFit.cover,
-      alignment: const Alignment(0, -0.7),
+      alignment: Alignment.center,
       excludeFromSemantics: true,
       // The form and copy remain usable if an asset cannot be decoded.
       errorBuilder: (context, error, stackTrace) => ColoredBox(
@@ -211,7 +211,7 @@ class _FamilyPhoto extends StatelessWidget {
           ? LayoutBuilder(
               builder: (context, constraints) => SizedBox(
                 width: double.infinity,
-                height: (constraints.maxWidth / 2.2).clamp(150.0, 240.0),
+                height: (constraints.maxWidth / 1.7).clamp(180.0, 420.0),
                 child: photo,
               ),
             )
