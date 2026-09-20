@@ -24,17 +24,18 @@ const config = {
   wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
     .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
 
-  // V52 activity is passive and fail-closed. Raw counters continue to be
-  // retained on devices/{imei}; shadow deltas use a durable cross-day baseline.
-  // Customer exposure still requires exact-device acceptance and opt-in.
+  // V52 activity is passive. Raw counters continue to be retained on
+  // devices/{imei}; observed deltas use a durable cross-day baseline.
+  // Customer exposure is an explicitly labelled estimate; daily-reset semantics
+  // remain unavailable until the exact device proves them.
   activityStepsIngestEnabled:
-    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'true').toLowerCase() === 'true',
   activityStepsCustomerEnabled:
-    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'true').toLowerCase() === 'true',
   activityStepsCounterMode:
     ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
       ? process.env.ACTIVITY_STEPS_COUNTER_MODE
-      : 'unverified',
+      : 'observed_delta',
   activityStepsTimeZone:
     process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
   activityStepsRetentionDays: finiteAtLeast(
