@@ -822,7 +822,9 @@ Pass: a real threshold crossing, one alert per policy window, and no stale perce
 Only perform a manufacturer-approved safe test. Never ask a person to fall.
 
 1. On Guardian Care, enable fall detection and choose the intended sensitivity.
-2. Confirm the related command is `sent` over TCP while the watch is connected.
+2. Confirm the separate fall-alert switch, detector setting and sensitivity
+   commands (`FON,1`, `FALLDOWN,1,0`, `LSSET,<level>+6`) are `sent` over TCP
+   while the watch is connected. Auto-dial remains off for this acceptance.
 3. Use the vendor-approved method with the watch secured to an object, not a wearer.
 4. Confirm one real `fall` alert with a versioned event-time
    `payload.locationSnapshot` and configured delivery outcomes.

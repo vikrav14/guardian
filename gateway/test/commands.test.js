@@ -9,6 +9,7 @@ const {
   alarmModeCommand,
   watchAlertProfileCommand,
   sendDeviceCommand,
+  fallAlarmCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
@@ -71,6 +72,11 @@ test('watchAlertProfileCommand rejects missing or out-of-range modes', () => {
   assert.throws(() => watchAlertProfileCommand(1.5), /integer from 1 to 4/);
 });
 
+test('fallAlarmCommand builds the separate V52 fall-alert switch', () => {
+  assert.equal(fallAlarmCommand({ enabled: true }), 'FON,1');
+  assert.equal(fallAlarmCommand({ enabled: false }), 'FON,0');
+});
+
 test('V52 runtime commands produce exact SG frames without SMS terminators', () => {
   assert.equal(
     buildAckFrame('9705254749', voiceMonitorCommand('+23058590100')).toString('ascii'),
@@ -83,6 +89,10 @@ test('V52 runtime commands produce exact SG frames without SMS terminators', () 
   assert.equal(
     buildAckFrame('9705254749', alarmModeCommand(3)).toString('ascii'),
     '[SG*9705254749*0005*MOD,3]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', fallAlarmCommand({ enabled: true })).toString('ascii'),
+    '[SG*9705254749*0005*FON,1]'
   );
   assert.equal(
     buildAckFrame('9705254749', watchAlertProfileCommand(2)).toString('ascii'),
@@ -213,6 +223,13 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
     { mode: 2 },
     transports
   );
+  const fallAlarm = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'set_fall_alarm',
+    { enabled: true },
+    transports
+  );
 
   assert.equal(monitor.channel, 'tcp');
   assert.equal(monitor.text, 'MONITOR,+23058590100');
@@ -220,10 +237,13 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
   assert.equal(find.text, 'FIND');
   assert.equal(profile.channel, 'tcp');
   assert.equal(profile.text, 'profile,2');
+  assert.equal(fallAlarm.channel, 'tcp');
+  assert.equal(fallAlarm.text, 'FON,1');
   assert.deepEqual(calls, [
     { imei: '861397052547492', command: 'MONITOR,+23058590100' },
     { imei: '861397052547492', command: 'FIND' },
     { imei: '861397052547492', command: 'profile,2' },
+    { imei: '861397052547492', command: 'FON,1' },
   ]);
 });
 

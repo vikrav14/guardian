@@ -153,6 +153,28 @@ test('handlePacket ACKs CONFIG with CONFIG,1 per vendor spec', () => {
   assert.equal(acks[0].toString('ascii'), '[SG*9700000000*0008*CONFIG,1]');
 });
 
+test('handlePacket preserves fall-setting readback arguments without ACKing them', () => {
+  const alarm = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'FON', '1')),
+    {}
+  );
+  const fall = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'FALLDOWN', '1,0')),
+    {}
+  );
+  const sensitivity = handlePacket(
+    decodeFrame(asciiFrame('3G', '9700000000', 'LSSET', '3+6')),
+    {}
+  );
+
+  assert.deepEqual(alarm.events[0].args, ['1']);
+  assert.deepEqual(fall.events[0].args, ['1', '0']);
+  assert.deepEqual(sensitivity.events[0].args, ['3+6']);
+  assert.equal(alarm.acks.length, 0);
+  assert.equal(fall.acks.length, 0);
+  assert.equal(sensitivity.acks.length, 0);
+});
+
 test('buildAckFrame uses the protocol id the device expects in replies', () => {
   const ack = buildAckFrame('9700000000', 'LK');
   assert.equal(ack.toString('ascii'), '[SG*9700000000*0002*LK]');

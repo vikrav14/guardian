@@ -170,8 +170,8 @@ class DeviceService {
   }
 
   /// V52 TCP downlink; requires the device to currently hold
-  /// a live connection to the gateway (see DeviceCommandService.setFallDetection
-  /// and setFallSensitivity). Caches the requested state on the device doc
+  /// a live connection to the gateway (see DeviceCommandService.setFallAlarm,
+  /// setFallDetection and setFallSensitivity). Caches the requested state on the device doc
   /// since the device has no read-back command; the cache reflects what was
   /// last *asked for*, not confirmed device state.
   Future<void> updateFallDetectionPrefs(
@@ -190,6 +190,7 @@ class DeviceService {
     });
 
     final commands = DeviceCommandService(db: _db, auth: _auth);
+    await commands.setFallAlarm(imei, enabled: enabled);
     await commands.setFallDetection(
       imei,
       enabled: enabled,
@@ -1553,6 +1554,13 @@ class DeviceCommandService {
       'enabled': enabled,
       'dialMonitorOnFall': dialMonitorOnFall,
     });
+  }
+
+  /// V52 only. Controls the watch's separate fall-alert switch. This is
+  /// intentionally separate from [setFallDetection], which configures the
+  /// detector and optional monitor dialing.
+  Future<void> setFallAlarm(String imei, {required bool enabled}) {
+    return _enqueue(imei, 'set_fall_alarm', {'enabled': enabled});
   }
 
   /// V52 only. [level] is 0-6.

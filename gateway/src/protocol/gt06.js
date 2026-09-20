@@ -443,8 +443,17 @@ function handlePacket(decoded, session) {
   } else if (SERVER_ONLY_COMMANDS.has(command)) {
     // Device echoed back a command we sent it (e.g. CR). These are
     // server->tracker only; acking the echo would just bounce it back
-    // again and loop forever, so drop it silently.
-    events.push({ type: 'command_echo', ...eventMeta, command });
+    // again and loop forever, so do not ACK it. Preserve the arguments for the
+    // documented fall setting readbacks; otherwise the gateway cannot
+    // distinguish a bare echo from a value-bearing response.
+    events.push({
+      type: 'command_echo',
+      ...eventMeta,
+      command,
+      ...(command === 'FON' || command === 'FALLDOWN' || command === 'LSSET'
+        ? { args: [...args] }
+        : {}),
+    });
   } else {
     // Unknown command — still ACK for compatibility
     acks.push(buildAckFrame(protocolId, command));

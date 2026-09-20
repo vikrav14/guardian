@@ -1242,9 +1242,13 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
       } else if (event.type === 'command_echo') {
 
+        const readbackArgs = Array.isArray(event.args) && event.args.length
+          ? ` args=${event.args.join(',')}`
+          : '';
+
         console.log(
 
-          `[gateway] ${event.protocolId || event.imei} echoed back ${event.command} (dropped, not re-acking)`
+          `[gateway] ${event.protocolId || event.imei} echoed back ${event.command}${readbackArgs} (dropped, not re-acking)`
 
         );
 
