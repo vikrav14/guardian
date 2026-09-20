@@ -414,15 +414,17 @@ async function resolveGeolocation(event) {
 
 
 
-// Tracking/reporting failures must not prevent a physical SOS from reaching
-// createAlert. Keep the original error behavior for every other event type.
+// Tracking/reporting failures must not prevent a physical SOS or fall alarm
+// from reaching createAlert. Keep the original error behavior for every other
+// event type.
 // Alert persistence and delivery are deliberately NOT wrapped by this helper.
 async function runTrackingSideEffect(event, stage, operation) {
   try {
     return await operation();
   } catch (err) {
-    if (event.type !== 'alarm' || event.alarmType !== 'sos') throw err;
-    console.error(`[sos] ${stage} failed; continuing emergency alert:`, err.message);
+    if (event.type !== 'alarm' || !['sos', 'fall'].includes(event.alarmType)) throw err;
+    const label = event.alarmType === 'fall' ? 'fall' : 'sos';
+    console.error(`[${label}] ${stage} failed; continuing emergency alert:`, err.message);
     return null;
   }
 }
@@ -958,6 +960,12 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         }
       } else if (event.type === 'alarm') {
 
+        console.log(
+          `[alarm] received ${event.imei} type=${event.alarmType || 'other'} ` +
+            `command=${event.alarmCommand || 'unknown'} ` +
+            `state=${event.alarmCode || 'unknown'} fields=${event.alarmArgCount ?? 'unknown'}`
+        );
+
         // Capture pre-alarm evidence before geolocation/reporting/persistence
         // can yield to a later watch observation. Never read it at send time.
         let sosDeviceAtReceipt = null;
@@ -1338,6 +1346,15 @@ const server = net.createServer((socket) => {
     for (const frame of frames) {
 
       const decoded = decodeFrame(frame);
+
+      if (decoded.error) {
+        const frameText = frame.toString('ascii');
+        const commandMatch = frameText.match(/^\[[^*]*\*[^*]*\*([^*]*)\*([^,\]]+)/);
+        console.warn(
+          `[gateway] frame rejected error=${decoded.error} bytes=${frame.length} ` +
+            `declared=${commandMatch?.[1] || 'unknown'} command=${commandMatch?.[2] || 'unknown'}`
+        );
+      }
 
       const { acks, events } = handlePacket(decoded, session);
 
