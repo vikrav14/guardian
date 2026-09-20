@@ -75,6 +75,7 @@ class WellnessCard extends StatelessWidget {
         wellnessAge(today.lastObservedAt, now),
       ].join(' · ');
     }
+
     return WellnessSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
