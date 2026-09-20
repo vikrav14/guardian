@@ -14,7 +14,7 @@ class GuardianWelcomeLayout extends StatelessWidget {
   final Widget form;
   final bool registerMode;
 
-  static const familyImage = 'assets/images/guardian_family_welcome_watch.webp';
+  static const familyImage = 'assets/images/guardian_family_welcome_dual_watch.webp';
 
   @override
   Widget build(BuildContext context) {
