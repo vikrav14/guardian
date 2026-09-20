@@ -20,7 +20,7 @@ class CareRemindersBackbone {
     'quiet hours and rate limits',
     'caregiver change audit',
     'no claim that reminders prove adherence',
-    'no device command until exact-V52 acceptance',
+    'no automatic device command until exact-V52 acceptance',
   ];
   static const List<String> frontendMilestones = <String>[
     'hidden schedule presentation model',

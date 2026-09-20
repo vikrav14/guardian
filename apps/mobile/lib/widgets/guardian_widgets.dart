@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'cards/guardian_surface.dart';
 import '../services/avatar_image_loader.dart';
 import '../services/avatar_image_strategy.dart';
 import '../services/avatar_storage_urls.dart';
@@ -402,21 +403,9 @@ class GuardianListGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: GuardianColors.forest.withValues(alpha: 0.055),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+    return GuardianSurface(
+      radius: 20,
+      padding: EdgeInsets.zero,
       child: Column(children: children),
     );
   }
@@ -549,13 +538,12 @@ class StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Container(
+    return GuardianSurface(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceMuted,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
+      radius: 12,
+      tint: iconColor,
+      tonal: true,
+      elevation: 0,
       child: Column(
         children: [
           Icon(icon, size: 18, color: iconColor ?? colors.textSecondary),

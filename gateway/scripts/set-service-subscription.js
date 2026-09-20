@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { initFirestore, getDb } = require('../src/firestore');
-const { PLAN } = require('../src/entitlements');
+const { PLAN, CUSTOMER_PLANS } = require('../src/entitlements');
 
 function valueAfter(flag, args) {
   const index = args.indexOf(flag);
@@ -10,7 +10,8 @@ function valueAfter(flag, args) {
 
 function usage() {
   console.log('Usage:');
-  console.log('  node scripts/set-service-subscription.js --uid <firebase-uid> --plan <essential|family|care> --status <active|trialing|grace_period|past_due|cancelled> [--until <ISO>] --confirm');
+  console.log('  node scripts/set-service-subscription.js --uid <firebase-uid> --plan <family|care> --status <active|trialing|grace_period|past_due|cancelled> [--until <ISO>] --confirm');
+  console.log('  Existing legacy Essential records can be managed explicitly with --legacy-essential.');
   console.log('');
   console.log('Without --confirm this command performs a read-only preview.');
 }
@@ -31,6 +32,13 @@ function subscriptionPatch({ plan, status, until }) {
   return patch;
 }
 
+function assertAllowedPlan(plan, legacyEssential = false) {
+  if (!CUSTOMER_PLANS.includes(plan) && !(plan === PLAN.ESSENTIAL && legacyEssential)) {
+    usage();
+    throw new Error('New customer subscriptions may use Guardian Family or Guardian Care. Use --legacy-essential only for an existing Essential record.');
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help')) return usage();
@@ -39,11 +47,13 @@ async function main() {
   const status = String(valueAfter('--status', args) || 'active').trim().toLowerCase();
   const untilRaw = valueAfter('--until', args);
   const confirmed = args.includes('--confirm');
+  const legacyEssential = args.includes('--legacy-essential');
 
   if (!uid || !Object.values(PLAN).includes(plan)) {
     usage();
     throw new Error('A Firebase UID and canonical plan are required.');
   }
+  assertAllowedPlan(plan, legacyEssential);
   if (!['active', 'trialing', 'grace_period', 'past_due', 'cancelled'].includes(status)) {
     throw new Error(`Unsupported subscription status: ${status}`);
   }
@@ -81,4 +91,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { subscriptionPatch };
+module.exports = { subscriptionPatch, assertAllowedPlan };

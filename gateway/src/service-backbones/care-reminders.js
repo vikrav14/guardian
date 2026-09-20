@@ -15,7 +15,7 @@ const SERVICE_CONTRACT = Object.freeze({
     'quiet hours and rate limits',
     'caregiver change audit',
     'no claim that reminders prove adherence',
-    'no device command until exact-V52 acceptance',
+    'no automatic device command until exact-V52 acceptance',
   ]),
   backendMilestones: Object.freeze([
     'canonical schedule validation',

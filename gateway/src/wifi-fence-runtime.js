@@ -1,0 +1,78 @@
+'use strict';
+
+const config = require('./config');
+const { createWifiFenceCapture } = require('./wifi-fence-validation');
+const { createSingleRouterTrial } = require('./wifi-fence-single-router-trial');
+
+let capture;
+let capturePilot;
+const singleRouterTrial = createSingleRouterTrial({ getConfig: () => config,
+  getCapture: () => capturePilot === config.wifiHomePilotImei ? capture : null,
+  findSessions: imei => require('./sessions').findSocketsForDevice(imei) });
+
+function configured() {
+  return config.wifiHomeObserveEnabled === true && /^\d{15}$/.test(config.wifiHomePilotImei || '') &&
+    /^[0-9a-f]{64}$/i.test(config.wifiHomeRouterHash || '') &&
+    /^[0-9a-f]{64}$/i.test(config.wifiHomeHashKey || '');
+}
+
+function getWifiFenceValidation(nowMs = Date.now(), timeline = false) {
+  const { findSocketsForDevice } = require('./sessions');
+  const trial = singleRouterTrial.status();
+  return { version: 1, configured: configured(),
+    sessionConnected: configured() && findSocketsForDevice(config.wifiHomePilotImei)
+      .some(({ socket }) => !socket.destroyed),
+    liveProvisioningAvailable: configured() && !trial.attempted,
+    provisioningMode: 'experimental_single_router_only',
+    singleRouterTrial: trial,
+    capture: capturePilot === config.wifiHomePilotImei ? capture?.snapshot(nowMs, timeline) || null : null,
+  };
+}
+
+function sendSingleRouterTrial(input, nowMs = Date.now()) {
+  const result = singleRouterTrial.send(input, nowMs);
+  console.log('[wifi-fence-trial]', JSON.stringify({ phase: result.phase,
+    captureRecorded: result.captureRecorded, settingsApplied: null, rollbackKnown: false }));
+  return result;
+}
+
+function controlWifiFenceValidation({ action, captureId, marker }, nowMs = Date.now()) {
+  if (!configured()) throw new Error('Private observer configuration required.');
+  if (action === 'start') {
+    if (capture?.snapshot(nowMs).phase === 'recording') throw new Error('A capture is already running.');
+    capture = createWifiFenceCapture({ imei: config.wifiHomePilotImei,
+      routerHash: config.wifiHomeRouterHash, hashKey: config.wifiHomeHashKey, startedAtMs: nowMs });
+    capturePilot = config.wifiHomePilotImei;
+  } else {
+    if (!capture || capturePilot !== config.wifiHomePilotImei || capture.snapshot(nowMs).captureId !== captureId) {
+      throw new Error('Capture changed; read the current status before retrying.');
+    }
+    if (action === 'mark') capture.mark(marker, nowMs);
+    else if (action === 'stop') capture.stop(nowMs);
+    else throw new Error('Unknown capture operation.');
+  }
+  return getWifiFenceValidation(nowMs);
+}
+
+// These hooks must never propagate a diagnostic failure into ACK, SOS, downlink
+// or tracking work. Nothing is collected until an administrator starts a window.
+function observeWifiFencePacket(decoded, events, nowMs = Date.now()) {
+  try {
+    if (!configured() || capturePilot !== config.wifiHomePilotImei || !capture) return;
+    for (const event of events) {
+      capture.recordPacket(event, { command: decoded.command,
+        trackerState: decoded.args?.[15] ?? null, args: decoded.args }, nowMs);
+    }
+  } catch { /* Diagnostics are never on the safety delivery path. */ }
+}
+
+function noteWifiFenceDownlink(command, sessions, nowMs = Date.now()) {
+  try {
+    if (!configured() || capturePilot !== config.wifiHomePilotImei || !capture ||
+        !sessions.some(({ session }) => session.imei === capturePilot)) return;
+    capture.recordCommand(command, nowMs);
+  } catch { /* A diagnostic failure must not cause a command retry. */ }
+}
+
+module.exports = { getWifiFenceValidation, controlWifiFenceValidation,
+  observeWifiFencePacket, noteWifiFenceDownlink, sendSingleRouterTrial };

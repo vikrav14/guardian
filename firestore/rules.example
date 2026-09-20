@@ -65,11 +65,55 @@ service cloud.firestore {
         );
     }
 
+    // Retention envelopes are deliberately expressed relative to request.time
+    // because Firestore's rules evaluator cannot reliably execute timezone
+    // calendar methods. They cover the app's Mauritius-day query bounds with
+    // a small boundary margin.
+    function wellnessHistoryAllowed(recordedAt) {
+      let plan = serviceSubscription().get('plan', '');
+      return recordedAt is timestamp
+        && recordedAt <= request.time
+        && activePlanAtLeast('essential')
+        && (plan == 'care'
+          || (plan == 'family'
+            && recordedAt >= request.time - duration.value(169, 'h'))
+          || (plan == 'essential'
+            && recordedAt >= request.time - duration.value(25, 'h')));
+    }
+
+    function wellnessQueryUpperAllowed(recordedAt) {
+      return recordedAt is timestamp
+        && recordedAt < request.time + duration.value(26, 'h');
+    }
+
+    function activeWellbeingConsent(imei) {
+      let consent = get(
+        /databases/$(database)/documents/wellbeingConsents/$(imei)
+      ).data;
+      return consent.get('version', 0) == 1
+        && consent.get('status', '') == 'granted'
+        && consent.get('managedBy', '') in ['guardian_admin', 'migration']
+        && consent.wearerAcknowledgedAt is timestamp
+        && consent.wearerAcknowledgedAt <= request.time
+        && (
+          !('expiresAt' in consent)
+          || consent.expiresAt == null
+          || consent.expiresAt > request.time
+        )
+        && (
+          !('revokedAt' in consent)
+          || consent.revokedAt == null
+        );
+    }
+
     function caregiverLimit() {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
 
     function historyAllowed(recordedAt) {
+      // Family and Care have retained history, so their collection queries do
+      // not need a per-document time predicate. Essential remains restricted
+      // to records inside its seven-day window.
       return activePlanAtLeast('family')
         || (
           activePlanAtLeast('essential')
@@ -117,6 +161,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Backend-owned source of truth for Essential / Family / Care. The app
+    // may display only its verified effective family plan. Admin SDK billing,
+    // migration and support tools bypass these client rules for writes.
     match /serviceSubscriptions/{ownerUid} {
       allow read: if verifiedServiceMember(ownerUid);
       allow create, update, delete: if false;
@@ -124,6 +171,12 @@ service cloud.firestore {
 
     match /devices/{imei} {
       allow read: if linkedTo(imei);
+      // Gateway (Admin SDK) owns telemetry. Clients may identify the wearer,
+      // set the wearable's SIM number (used for calls / SMS commands), and
+      // cache the last fall-detection / location-reporting-interval
+      // preference they asked the pendant for (V46/V48/V52 only -- the
+      // device has no read-back command, so this is a request cache, not
+      // confirmed device state; see commands.js).
       allow update: if linkedTo(imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
@@ -133,6 +186,7 @@ service cloud.firestore {
               'avatarUrl',
               'simNumber',
               'fallDetection',
+              'watchAlertProfile',
               'locationReportingIntervalSeconds',
               'locationReportingMode',
               'careProfile',
@@ -143,8 +197,20 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['careProfile', 'carePriorities'])
           || activePlanAtLeast('care')
+        )
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['watchAlertProfile'])
+          || activePlanAtLeast('family')
         );
       allow create, delete: if false;
+
+      // Area weather for this profile. The gateway owns location selection,
+      // provider credentials and freshness; clients cannot forge conditions.
+      match /weather/{weatherId} {
+        allow read: if weatherId == 'current' && linkedTo(imei);
+        allow write: if false;
+      }
 
       match /locations/{locationId} {
         allow read: if linkedTo(imei)
@@ -171,6 +237,151 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      // Family and Care customers may read consented watch estimates within
+      // their edition's history window. The backend owns writes and wearing
+      // remains unconfirmed.
+      match /wellbeingReadings/{readingId} {
+        allow get: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.get('displayable', false) == true
+          && wellnessHistoryAllowed(resource.data.get('observedAt', null))
+          && activeWellbeingConsent(imei);
+        // Queries are constrained to the edition's calendar window by the
+        // query bounds. A list rule cannot additionally require <= request.time
+        // because a valid full-day query ends at the next calendar boundary.
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.displayable == true
+          && (activePlanAtLeast('care')
+            || resource.data.observedAt >= request.time - duration.value(169, 'h'))
+          && resource.data.observedAt < request.time + duration.value(26, 'h')
+          && activeWellbeingConsent(imei);
+        allow write: if false;
+      }
+
+      // Gateway-owned V52 daily activity. A client must be linked and hold an
+      // active edition entitlement. The app only parses bounded display fields;
+      // raw counter baselines remain backend-only by convention.
+      // Wearing data quality is available on every active edition. Raw
+      // tracker bits and diagnostic captures remain backend-only.
+      match /wearStatus/{statusId} {
+        allow read: if statusId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow write: if false;
+      }
+      // Manual observations are separate from gateway-owned wearing evidence.
+      // Require a current, server-acknowledged check; never accept queued old
+      // checks, client eligibility fields or a forged recorder identity.
+      match /wearChecks/{checkId} {
+        function validCheck() {
+          let data = request.resource.data;
+          return checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential')
+            && data.keys().hasOnly(['version', 'state', 'observedAt', 'recordedAt', 'recordedBy'])
+            && data.version == 1 && data.state in ['worn', 'removed']
+            && data.recordedBy == request.auth.uid
+            && data.recordedAt == request.time
+            && data.observedAt is timestamp
+            && data.observedAt >= request.time - duration.value(60, 's')
+            && data.observedAt <= request.time + duration.value(60, 's');
+        }
+        allow get: if checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow create: if validCheck();
+        allow update: if validCheck() && request.resource.data.observedAt >= resource.data.observedAt;
+        allow list, delete: if false;
+      }
+      match /wellnessRoutine/{statusId} {
+        allow get: if statusId == 'current' && linkedTo(imei)
+          && activePlanAtLeast('family');
+        allow list, write: if false;
+      }
+      // Durable scheduler claims/counters are internal. The gateway copies
+      // only bounded, reading-free status to wellnessRoutine/current.
+      match /wellnessScheduleDays/{localDate} {
+        allow read, write: if false;
+      }
+      match /wellnessScheduleSlots/{slotId} {
+        allow read, write: if false;
+      }
+      match /wearDiagnostics/{captureId} {
+        allow read, write: if false;
+      }
+      match /activityDays/{localDate} {
+        allow get: if linkedTo(imei)
+          && activePlanAtLeast('essential')
+          && resource.data.get('displayable', false) == true
+          && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('care')
+          && resource.data.displayable == true
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('family')
+          && resource.data.displayable == true
+          && resource.data.lastObservedAt >= request.time - duration.value(169, 'h')
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
+        allow list: if linkedTo(imei)
+          && activePlanAtLeast('essential')
+          && resource.data.displayable == true
+          && resource.data.lastObservedAt >= request.time - duration.value(25, 'h')
+          && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
+        allow create, update, delete: if false;
+      }
+    }
+
+    // Durable wearer-consent authority is backend-only. It must never be
+    // readable or forgeable through a mobile/web client.
+    match /wellbeingConsents/{imei} {
+      allow read, write: if false;
+    }
+
+    // Desired settings only. The gateway separately checks current consent,
+    // session, feature gates, account access and conditional uploads.
+    match /wellnessRoutineRequests/{imei} {
+      function validTime(time) {
+        return time is string && time.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
+      }
+      function minuteOfDay(time) {
+        return int(time[0:2]) * 60 + int(time[3:5]);
+      }
+      function spacedAfter(earlier, later) {
+        return minuteOfDay(later) - minuteOfDay(earlier) >= 5;
+      }
+      function midnightGap(first, last) {
+        return 1440 + minuteOfDay(first) - minuteOfDay(last) >= 5;
+      }
+      function validDailyTimes(data) {
+        let times = data.times;
+        return times is list && (
+          (data.routine == 'manual' && times.size() == 0)
+          || (data.routine == 'gentle' && times.size() == 2
+            && validTime(times[0]) && validTime(times[1])
+            && spacedAfter(times[0], times[1])
+            && midnightGap(times[0], times[1]))
+          || (data.routine == 'balanced' && times.size() == 3
+            && validTime(times[0]) && validTime(times[1]) && validTime(times[2])
+            && spacedAfter(times[0], times[1]) && spacedAfter(times[1], times[2])
+            && midnightGap(times[0], times[2]))
+        );
+      }
+      function validScheduleRequest() {
+        let data = request.resource.data;
+        return (
+          (data.version == 2
+            && data.keys().hasOnly(['version', 'routine', 'times', 'timeZone', 'requestedBy', 'updatedAt'])
+            && data.timeZone == 'Indian/Mauritius'
+            && validDailyTimes(data))
+          // Older app versions can still stop. Never restart an interval
+          // routine from a legacy request or infer daily times from it.
+          || (data.version == 1 && data.routine == 'manual'
+            && data.keys().hasOnly(['version', 'routine', 'requestedBy', 'updatedAt']))
+        ) && data.requestedBy == request.auth.uid
+          && data.updatedAt == request.time;
+      }
+      allow get: if linkedTo(imei) && activePlanAtLeast('family');
+      allow create, update: if linkedTo(imei) && activePlanAtLeast('family')
+        && validScheduleRequest()
+        && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
+      allow list, delete: if false;
     }
 
     match /geofences/{geofenceId} {
@@ -184,13 +395,13 @@ service cloud.firestore {
 
     match /medicationReminders/{reminderId} {
       allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care');
+        && activePlanAtLeast('family');
       allow create: if signedIn()
         && linkedTo(request.resource.data.imei)
-        && activePlanAtLeast('care')
+        && activePlanAtLeast('family')
         && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care')
+        && activePlanAtLeast('family')
         && resource.data.createdBy == request.auth.uid;
     }
 
@@ -246,6 +457,7 @@ service cloud.firestore {
       allow update: if linkedTo(resource.data.imei)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
+      // App "Send help alert" â€” gateway still owns device-originated alerts.
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.type == 'sos'
         && request.resource.data.severity == 'critical'
@@ -285,6 +497,9 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
     }
 
+    // Joining a family is a backend-verified workflow. The requester may only
+    // enqueue the code. The gateway validates expiry, active plan and caregiver
+    // capacity before it writes serviceOwnerUid, memberUids or linked watches.
     match /familyJoinRequests/{requestId} {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
@@ -305,7 +520,7 @@ service cloud.firestore {
 
     match /notificationLogs/{logId} {
       allow read: if linkedTo(resource.data.imei);
-      allow write: if false;
+      allow write: if false; // gateway Admin SDK only
     }
 
     match /deviceCommands/{commandId} {
@@ -313,12 +528,24 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
+        // Phonebook entries control who may ring a wearer's watch. Until the
+        // authenticated contact-management backend is complete, PHBX remains
+        // administrator-only through the Admin SDK/local provisioning route.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
+        && request.resource.data.get('type', '') != 'set_alarm_mode'
+        && (
+          request.resource.data.get('type', '') != 'set_watch_alert_profile'
+          || (
+            request.resource.data.get('params', {}).keys().hasOnly(['mode'])
+            && request.resource.data.params.get('mode', 0) in [1, 2, 3, 4]
+            && activePlanAtLeast('family')
+          )
+        )
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
-          || activePlanAtLeast('care')
+          || activePlanAtLeast('family')
         );
-      allow update, delete: if false;
+      allow update, delete: if false; // gateway Admin SDK only
     }
   }
 }

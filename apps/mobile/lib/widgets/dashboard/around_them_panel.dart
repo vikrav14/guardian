@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/care_profile.dart';
 import '../../models/device.dart';
 import '../../models/geofence.dart';
+import '../../dashboard/device_formatters.dart';
 import '../../theme/app_theme.dart';
 
 class AroundThemPanel extends StatelessWidget {
@@ -34,8 +35,10 @@ class AroundThemPanel extends StatelessWidget {
         .where((zone) => zone.imei == d.imei && zone.active)
         .toList(growable: false);
 
-    final place = d.displayLocation?.placeLabel?.trim();
-    final locationValue = place != null && place.isNotEmpty
+    final place = d.mapDisplayLocation?.placeLabel?.trim();
+    final locationValue = d.hasHomeWifiConflict
+        ? 'Location uncertain'
+        : place != null && place.isNotEmpty
         ? place
         : d.isDisplayingRetainedSatelliteLocation
         ? 'Last satellite location'
@@ -45,7 +48,13 @@ class AroundThemPanel extends StatelessWidget {
         ? 'Last known location'
         : 'Locating';
 
-    final locationDetail = d.isDisplayingRetainedSatelliteLocation
+    final locationDetail = d.hasHomeWifiConflict
+        ? 'Home Wi-Fi detected · GPS does not confirm Home'
+        : d.hasRememberedHomeWifiDisplay
+        ? '${deviceLastHomeWifiFixLabel(d)}. Current presence unconfirmed.'
+        : d.hasHomeWifiDisplay
+        ? deviceHomeWifiFixLabel(d)
+        : d.isDisplayingRetainedSatelliteLocation
         ? 'Precise GPS unavailable indoors'
         : d.hasApproximateLocation
         ? 'Approximate network fix'
@@ -98,9 +107,9 @@ class AroundThemPanel extends StatelessWidget {
         const _ContextCard(
           icon: Icons.favorite_rounded,
           color: Color(0xFF8058BE),
-          title: 'Wellbeing',
-          value: 'Care observations available',
-          detail: 'Trends and context, not diagnosis',
+          title: 'Care insights',
+          value: 'Advanced insights planned',
+          detail: 'Today’s Wellness readings are on Home',
         ),
       );
     }
@@ -112,7 +121,7 @@ class AroundThemPanel extends StatelessWidget {
           color: Color(0xFFD19B16),
           title: 'Medication',
           value: 'Reminder support available',
-          detail: 'Configure reminders in Care settings',
+          detail: 'Configure reminders in Watch preferences',
         ),
       );
     }

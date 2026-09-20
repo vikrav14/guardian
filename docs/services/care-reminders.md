@@ -9,7 +9,16 @@
 | Protocol surface | `SEDENTARY`, `REMIND`, `HSW` |
 | Accepted V52 reminder commands | None |
 
-This draft implements the safe software boundary for Care routines without activating a V52 command, exposing a customer menu, or claiming that a reminder proves adherence.
+PR #118 now focuses on the remaining `SEDENTARY`, `REMIND` and `HSW` work.
+Wellness routines (#120/#127) and Family/Care medication reminders using
+`TAKEPILLS` (#131) already reached main; they are not outstanding in this PR.
+
+The Care-only automatic scheduling boundary remains disabled and hidden.
+An explicit operator CLI prepares a controlled `REMIND` trial. `SEDENTARY`
+and `HSW` have supplier examples but remain preview-only until their missing
+semantics are resolved. No real-watch acceptance is claimed.
+
+See [supplier evidence, Windows trial and closure checklist](../testing/care-reminder-command-acceptance.md).
 
 ## Implemented software boundary
 
@@ -44,7 +53,7 @@ Flutter remains compiled out by default:
 GUARDIAN_CARE_REMINDERS_ENABLED=false
 ```
 
-`CARE_REMINDERS_DEVICE_MODE=accepted` by itself does not start request processing or expose customers. The request watcher requires its own explicit gate. This PR contains no `SEDENTARY`, `REMIND` or `HSW` dispatcher.
+`CARE_REMINDERS_DEVICE_MODE=accepted` by itself does not start request processing or expose customers. The request watcher requires its own explicit gate. No automatic or customer dispatcher is enabled. The isolated operator trial can send `REMIND` only, after explicit three-clock replacement confirmation.
 
 ## Firestore ownership
 
@@ -72,7 +81,12 @@ Immutable backend-owned caregiver-change evidence. Eligible linked Care members 
 
 ## Protocol boundary
 
-The repository recognizes `SEDENTARY`, `REMIND` and `HSW` as server-to-watch protocol surfaces, but Guardian does not yet have accepted syntax and semantics for the production V52. They therefore remain non-dispatchable.
+The supplier protocol defines `REMIND` clocks and the example confirms three
+slots. The operator trial supports one once-only clock and disabling all three
+slots. `SEDENTARY,1,26` is a documented literal without field units or an off
+command. `HSW,0` is documented, but its one-shot versus switch semantics conflict
+between the protocol and example. Those two commands cannot be sent by the trial.
+None of the three is accepted on Guardian's real V52 yet.
 
 `TAKEPILLS` has a separate documented builder in the existing command layer. That evidence does not prove that `SEDENTARY`, `REMIND` or `HSW` share its fields, schedule limits, display behaviour or acknowledgement semantics.
 
@@ -99,7 +113,9 @@ The repository recognizes `SEDENTARY`, `REMIND` and `HSW` as server-to-watch pro
 
 ### Real-device acceptance
 
-- [ ] obtain exact V52 syntax/field definitions for `SEDENTARY`, `REMIND` and `HSW`
+- [x] retrieve supplier command examples and document evidence gaps
+- [x] implement preview-first operator `REMIND` once/off trial with tests
+- [ ] resolve `SEDENTARY` units/fields/off and `HSW` polarity/behavior
 - [ ] confirm command limits and accepted time/day encodings
 - [ ] verify display, sound and vibration behaviour on the exact production firmware
 - [ ] verify enable/change/delete behaviour and reboot persistence
@@ -109,4 +125,4 @@ The repository recognizes `SEDENTARY`, `REMIND` and `HSW` as server-to-watch pro
 
 ## Current release rule
 
-Keep the feature customer-hidden and do not add these commands to the generic `deviceCommands` dispatcher. No watch reminder command should be sent from this PR until exact-device evidence establishes a safe payload and explicit acceptance is attached.
+Keep the feature customer-hidden and do not add these commands to the generic `deviceCommands` dispatcher. Only the documented `REMIND` operator trial may send after an explicit three-clock replacement confirmation. It records socket handoff separately from hardware acceptance. `SEDENTARY` and `HSW` remain blocked pending supplier clarification. Product rollout requires the remaining acceptance checklist.

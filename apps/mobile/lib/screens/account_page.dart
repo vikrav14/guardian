@@ -16,7 +16,6 @@ import '../widgets/cards/guardian_card.dart';
 import '../widgets/guardian_widgets.dart';
 import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
-import 'care_settings_page.dart';
 import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
@@ -186,6 +185,19 @@ class AccountPage extends StatelessWidget {
     final whatsappAlertsDecision = entitlementScope.decision(
       GuardianFeature.whatsappSafetyAlerts,
     );
+    final sosWhatsappDecision = entitlementScope.decision(
+      GuardianFeature.sosWhatsappAlerts,
+    );
+    final alertDeliveryLabel = whatsappAlertsDecision.allowed
+        ? 'WhatsApp / SMS alerts'
+        : sosWhatsappDecision.allowed
+        ? 'SOS app & WhatsApp alerts'
+        : 'App / SMS alerts';
+    final alertDeliveryDescription = whatsappAlertsDecision.allowed
+        ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
+        : sosWhatsappDecision.allowed
+        ? 'Guardian Essential sends a physical watch SOS to the app and to one primary emergency contact on WhatsApp. WhatsApp questions, routine alerts, fall alerts, AI, and watch commands require Guardian Family or Guardian Care. Delivery still depends on notification permission, active provider configuration, and approved Meta templates.'
+        : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require an active eligible Guardian plan.';
     final accountRole = subscription?.serviceActive == true
         ? subscription!.ownerUid == user?.uid
               ? 'Family account owner'
@@ -400,19 +412,13 @@ class AccountPage extends StatelessWidget {
               children: [
                 GuardianSettingsRow(
                   icon: Icons.sms_rounded,
-                  label: whatsappAlertsDecision.allowed
-                      ? 'WhatsApp / SMS alerts'
-                      : 'App / SMS alerts',
+                  label: alertDeliveryLabel,
                   onTap: () {
                     showDialog<void>(
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text('Alert delivery'),
-                        content: Text(
-                          whatsappAlertsDecision.allowed
-                              ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
-                              : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require Guardian Family or Guardian Care.',
-                        ),
+                        content: Text(alertDeliveryDescription),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(ctx),
@@ -693,7 +699,7 @@ class _DeviceRow extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
-            tooltip: 'Person and device settings',
+            tooltip: 'Watch settings',
             onPressed: () {
               final verifiedSubscription = subscription;
               if (verifiedSubscription == null) {
@@ -945,16 +951,16 @@ Future<void> _showDeviceSettingsDialog(
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.favorite_outline),
-                    title: const Text('Care settings'),
+                    title: const Text('Watch settings'),
                     subtitle: const Text(
-                      'Fall detection & medication reminders — V52',
+                      'Wellness routine, location, safety and watch details',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => CareSettingsPage(
+                          builder: (_) => WatchSettingsPage(
                             device: device,
                             subscription: subscription,
                           ),

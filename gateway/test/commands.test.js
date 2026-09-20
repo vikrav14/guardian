@@ -6,7 +6,10 @@ const {
   statusCommand,
   voiceMonitorCommand,
   ringToFindCommand,
+  alarmModeCommand,
+  watchAlertProfileCommand,
   sendDeviceCommand,
+  fallAlarmCommand,
   fallDetectionCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
@@ -41,6 +44,39 @@ test('ringToFindCommand builds the V52 TCP data command', () => {
   assert.equal(ringToFindCommand(), 'FIND');
 });
 
+test('alarmModeCommand matches all documented V52 alarm modes', () => {
+  assert.equal(alarmModeCommand(0), 'MOD,0');
+  assert.equal(alarmModeCommand(1), 'MOD,1');
+  assert.equal(alarmModeCommand(2), 'MOD,2');
+  assert.equal(alarmModeCommand(3), 'MOD,3');
+});
+
+test('alarmModeCommand rejects missing or out-of-range modes', () => {
+  assert.throws(() => alarmModeCommand(), /integer from 0 to 3/);
+  assert.throws(() => alarmModeCommand(''), /integer from 0 to 3/);
+  assert.throws(() => alarmModeCommand(4), /integer from 0 to 3/);
+  assert.throws(() => alarmModeCommand(1.5), /integer from 0 to 3/);
+});
+
+test('watchAlertProfileCommand builds the documented V52 alert profiles', () => {
+  assert.equal(watchAlertProfileCommand(1), 'profile,1');
+  assert.equal(watchAlertProfileCommand(2), 'profile,2');
+  assert.equal(watchAlertProfileCommand(3), 'profile,3');
+  assert.equal(watchAlertProfileCommand(4), 'profile,4');
+});
+
+test('watchAlertProfileCommand rejects missing or out-of-range modes', () => {
+  assert.throws(() => watchAlertProfileCommand(), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(0), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(5), /integer from 1 to 4/);
+  assert.throws(() => watchAlertProfileCommand(1.5), /integer from 1 to 4/);
+});
+
+test('fallAlarmCommand builds the separate V52 fall-alert switch', () => {
+  assert.equal(fallAlarmCommand({ enabled: true }), 'FON,1');
+  assert.equal(fallAlarmCommand({ enabled: false }), 'FON,0');
+});
+
 test('V52 runtime commands produce exact SG frames without SMS terminators', () => {
   assert.equal(
     buildAckFrame('9705254749', voiceMonitorCommand('+23058590100')).toString('ascii'),
@@ -49,6 +85,18 @@ test('V52 runtime commands produce exact SG frames without SMS terminators', () 
   assert.equal(
     buildAckFrame('9705254749', ringToFindCommand()).toString('ascii'),
     '[SG*9705254749*0004*FIND]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', alarmModeCommand(3)).toString('ascii'),
+    '[SG*9705254749*0005*MOD,3]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', fallAlarmCommand({ enabled: true })).toString('ascii'),
+    '[SG*9705254749*0005*FON,1]'
+  );
+  assert.equal(
+    buildAckFrame('9705254749', watchAlertProfileCommand(2)).toString('ascii'),
+    '[SG*9705254749*0009*profile,2]'
   );
 });
 
@@ -168,14 +216,59 @@ test('sendDeviceCommand sends V52 monitor and find commands only over TCP', asyn
     {},
     transports
   );
+  const profile = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'set_watch_alert_profile',
+    { mode: 2 },
+    transports
+  );
+  const fallAlarm = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'set_fall_alarm',
+    { enabled: true },
+    transports
+  );
 
   assert.equal(monitor.channel, 'tcp');
   assert.equal(monitor.text, 'MONITOR,+23058590100');
   assert.equal(find.channel, 'tcp');
   assert.equal(find.text, 'FIND');
+  assert.equal(profile.channel, 'tcp');
+  assert.equal(profile.text, 'profile,2');
+  assert.equal(fallAlarm.channel, 'tcp');
+  assert.equal(fallAlarm.text, 'FON,1');
   assert.deepEqual(calls, [
     { imei: '861397052547492', command: 'MONITOR,+23058590100' },
     { imei: '861397052547492', command: 'FIND' },
+    { imei: '861397052547492', command: 'profile,2' },
+    { imei: '861397052547492', command: 'FON,1' },
+  ]);
+});
+
+test('sendDeviceCommand sends V52 alarm mode only over the live TCP session', async () => {
+  const calls = [];
+  const result = await sendDeviceCommand(
+    {},
+    '861397052547492',
+    'set_alarm_mode',
+    { mode: 3 },
+    {
+      sendDownlinkCommand: (imei, command) => {
+        calls.push({ imei, command });
+        return { ok: true, sessions: 1 };
+      },
+      sendSms: async () => {
+        throw new Error('V52 alarm mode must not use SMS');
+      },
+    }
+  );
+
+  assert.equal(result.channel, 'tcp');
+  assert.equal(result.text, 'MOD,3');
+  assert.deepEqual(calls, [
+    { imei: '861397052547492', command: 'MOD,3' },
   ]);
 });
 

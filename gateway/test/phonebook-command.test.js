@@ -4,7 +4,9 @@ const {
   normalizeCallingPhone,
   phonebookNameHex,
   phonebookContactCommand,
+  pedometerCommand,
   sendDeviceCommand,
+  walkTimeCommand,
 } = require('../src/commands');
 
 const SYNTHETIC_PHONE = '+99912345678';
@@ -56,5 +58,31 @@ test('generic deviceCommands cannot provision the administrator-only phonebook',
       transports
     ),
     /Unknown device command type/
+  );
+
+  await assert.rejects(
+    sendDeviceCommand(
+      {},
+      '999999999999999',
+      'set_pedometer',
+      { enabled: true },
+      transports
+    ),
+    /Unknown device command type/
+  );
+});
+
+test('pedometer builders follow the documented V52 command forms', () => {
+  assert.equal(pedometerCommand(true), 'PEDO,1');
+  assert.equal(pedometerCommand(false), 'PEDO,0');
+  assert.equal(
+    walkTimeCommand(['00:00-23:59', '00:00-00:00', '00:00-00:00']),
+    'WALKTIME,00:00-23:59,00:00-00:00,00:00-00:00'
+  );
+  assert.throws(() => pedometerCommand(1), /boolean/);
+  assert.throws(() => walkTimeCommand(['00:00-23:59']), /Exactly three/);
+  assert.throws(
+    () => walkTimeCommand(['23:00-01:00', '00:00-00:00', '00:00-00:00']),
+    /end must be after/
   );
 });

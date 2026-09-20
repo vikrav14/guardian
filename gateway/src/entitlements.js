@@ -4,6 +4,14 @@ const PLAN = Object.freeze({
   CARE: 'care',
 });
 
+// Essential remains a supported legacy entitlement so existing subscriptions
+// retain their core-safety access. It is no longer a new customer-facing plan.
+const CUSTOMER_PLANS = Object.freeze([PLAN.FAMILY, PLAN.CARE]);
+
+function isCustomerPlan(plan) {
+  return CUSTOMER_PLANS.includes(String(plan || '').trim().toLowerCase());
+}
+
 const FEATURE = Object.freeze({
   LIVE_GPS: 'live_gps',
   SOS_ALERTS: 'sos_alerts',
@@ -12,12 +20,15 @@ const FEATURE = Object.freeze({
   SAFE_ZONES: 'safe_zones',
   BATTERY_ALERTS: 'battery_alerts',
   FAMILY_CAREGIVERS: 'family_caregivers',
+  SOS_WHATSAPP_ALERTS: 'sos_whatsapp_alerts',
   GUARDIAN_AI: 'guardian_ai',
   WHATSAPP_QA: 'whatsapp_questions_answers',
   WHATSAPP_SAFETY_ALERTS: 'whatsapp_safety_alerts',
   PROACTIVE_SMART_NOTIFICATIONS: 'proactive_smart_notifications',
   VOICE_ASSISTANT: 'voice_assistant',
   WHATSAPP_WATCH_COMMANDS: 'whatsapp_watch_commands',
+  ACTIVITY_STEPS: 'activity_steps',
+  WELLNESS_READINGS: 'wellness_readings',
   MEDICATION_REMINDERS: 'medication_reminders',
   REMINDER_ACKNOWLEDGEMENTS: 'reminder_acknowledgements',
   WELLBEING_ACTIVITY_SUMMARIES: 'wellbeing_activity_summaries',
@@ -35,6 +46,8 @@ const ESSENTIAL_FEATURES = Object.freeze([
   FEATURE.SAFE_ZONES,
   FEATURE.BATTERY_ALERTS,
   FEATURE.FAMILY_CAREGIVERS,
+  FEATURE.ACTIVITY_STEPS,
+  FEATURE.SOS_WHATSAPP_ALERTS,
 ]);
 
 const FAMILY_FEATURES = Object.freeze([
@@ -45,11 +58,13 @@ const FAMILY_FEATURES = Object.freeze([
   FEATURE.PROACTIVE_SMART_NOTIFICATIONS,
   FEATURE.VOICE_ASSISTANT,
   FEATURE.WHATSAPP_WATCH_COMMANDS,
+  FEATURE.WELLNESS_READINGS,
+  FEATURE.MEDICATION_REMINDERS,
 ]);
 
 const CARE_FEATURES = Object.freeze([
   ...FAMILY_FEATURES,
-  FEATURE.MEDICATION_REMINDERS,
+  FEATURE.WELLNESS_READINGS,
   FEATURE.REMINDER_ACKNOWLEDGEMENTS,
   FEATURE.WELLBEING_ACTIVITY_SUMMARIES,
   FEATURE.WEEKLY_CARE_SUMMARIES,
@@ -62,17 +77,17 @@ const PLAN_POLICY = Object.freeze({
   [PLAN.ESSENTIAL]: Object.freeze({
     label: 'Guardian Essential',
     features: ESSENTIAL_FEATURES,
-    limits: Object.freeze({ caregivers: 1, locationHistoryDays: 7 }),
+    limits: Object.freeze({ caregivers: 1, locationHistoryDays: 7, wellnessHistoryDays: 1 }),
   }),
   [PLAN.FAMILY]: Object.freeze({
     label: 'Guardian Family',
     features: FAMILY_FEATURES,
-    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null }),
+    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null, wellnessHistoryDays: 7 }),
   }),
   [PLAN.CARE]: Object.freeze({
     label: 'Guardian Care',
     features: CARE_FEATURES,
-    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null }),
+    limits: Object.freeze({ caregivers: 5, locationHistoryDays: null, wellnessHistoryDays: null }),
   }),
 });
 
@@ -208,8 +223,10 @@ function minimumPlanFor(feature) {
 
 function featureForWhatsAppIntent(intentType) {
   const type = String(intentType || '').trim().toUpperCase();
+  if (type === 'ACTIVITY_QUERY') return FEATURE.ACTIVITY_STEPS;
   if (type === 'REMINDER_REQUEST') return FEATURE.MEDICATION_REMINDERS;
   if (type === 'DAILY_SUMMARY') return FEATURE.WELLBEING_ACTIVITY_SUMMARIES;
+  if (type === 'WELLBEING_QUERY') return FEATURE.WHATSAPP_QA;
   if (type === 'DEVICE_COMMAND' || type === 'VOICE_MONITOR') {
     return FEATURE.WHATSAPP_WATCH_COMMANDS;
   }
@@ -228,6 +245,7 @@ function planBoundaryReply(context, feature) {
 
 module.exports = {
   PLAN,
+  CUSTOMER_PLANS,
   FEATURE,
   PLAN_POLICY,
   asDate,
@@ -237,5 +255,6 @@ module.exports = {
   minimumPlanFor,
   featureForWhatsAppIntent,
   planBoundaryReply,
+  isCustomerPlan,
   verifiedFamilyMember,
 };
