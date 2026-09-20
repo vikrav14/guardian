@@ -65,6 +65,16 @@ class WellnessCard extends StatelessWidget {
         : at == null
         ? 'No reading today'
         : wellnessAge(at, now);
+    String activityStatus() {
+      if (!activityAvailable) return 'Not available yet';
+      if (activityError) return 'Could not load reading';
+      if (today == null) return 'No reading today';
+      return [
+        if (today.quality == 'unverified') 'Recorded estimate',
+        if (today.partialCoverage) 'Partial day',
+        wellnessAge(today.lastObservedAt, now),
+      ].join(' · ');
+    }
     return WellnessSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -102,24 +112,14 @@ class WellnessCard extends StatelessWidget {
                   SizedBox(
                     width: width,
                     child: WellnessTile(
-                      label: 'Steps today',
+                      label: 'Recorded steps today',
                       icon: Icons.directions_walk_rounded,
                       tint: const Color(0xFF15956F),
                       value:
                           activityAvailable && !activityError && today != null
                           ? NumberFormat.decimalPattern().format(today.steps)
                           : '—',
-                      status:
-                          (today?.partialCoverage == true &&
-                                  activityAvailable &&
-                                  !activityError
-                              ? 'Partial day · '
-                              : '') +
-                          status(
-                            activityAvailable,
-                            activityError,
-                            today?.lastObservedAt,
-                          ),
+                      status: activityStatus(),
                     ),
                   ),
                   SizedBox(
