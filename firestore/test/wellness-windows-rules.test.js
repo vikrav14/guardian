@@ -7,9 +7,11 @@ const { doc, setDoc, updateDoc, getDoc, getDocs, collection, query, where, order
 const { wellnessDayStart } = require('../../gateway/src/wellness-access');
 const imei = '359633100123456';
 const day = 86_400_000;
+const hour = 3_600_000;
 let env, today, tomorrow;
 before(async () => {
-  today = wellnessDayStart();
+  const now = new Date();
+  today = wellnessDayStart(now);
   tomorrow = new Date(+today + day);
   env = await initializeTestEnvironment({ projectId: 'guardian-wellness-window-test',
     firestore: { rules: fs.readFileSync(path.join(__dirname, '..', 'rules.example'), 'utf8') } });
@@ -24,17 +26,29 @@ before(async () => {
       await setDoc(doc(db, 'devices', imei, 'activityDays', id), { displayable: true,
         reportedSteps: 100, lastObservedAt: new Date(+today + offset * day) });
     }
+    // Rules use 25/169-hour envelopes around the app's calendar queries.
+    // Yesterday and day -7 are inside those envelopes just after Mauritius
+    // midnight, so use clock-relative fixtures to test the authorization limit.
+    for (const [id, ageHours] of [
+      ['insideEssentialEnvelope', 24], ['outsideEssentialEnvelope', 26],
+      ['insideFamilyEnvelope', 168], ['outsideFamilyEnvelope', 170],
+    ]) {
+      await setDoc(doc(db, 'devices', imei, 'activityDays', id), { displayable: true,
+        reportedSteps: 100, lastObservedAt: new Date(+now - ageHours * hour) });
+    }
     await setDoc(doc(db, 'devices', imei, 'activityDays', 'shadow'), { displayable: false, lastObservedAt: today });
   });
 });
 after(async () => env?.cleanup());
 const dbFor = user => env.authenticatedContext(user).firestore();
 const record = (user, id) => getDoc(doc(dbFor(user), 'devices', imei, 'activityDays', id));
-test('Essential today, Family seven calendar days, Care older retained data', async () => {
+test('activity reads enforce legacy Essential and Family retention envelopes; Care retains history', async () => {
   await assertSucceeds(record('essential', 'today'));
-  await assertFails(record('essential', 'yesterday'));
+  await assertSucceeds(record('essential', 'insideEssentialEnvelope'));
+  await assertFails(record('essential', 'outsideEssentialEnvelope'));
   await assertSucceeds(record('family', 'oldestFamily'));
-  await assertFails(record('family', 'tooOldFamily'));
+  await assertSucceeds(record('family', 'insideFamilyEnvelope'));
+  await assertFails(record('family', 'outsideFamilyEnvelope'));
   await assertSucceeds(record('care', 'oldCare'));
   for (const plan of ['essential', 'family', 'care']) {
     await assertFails(record(plan, 'future'));

@@ -842,6 +842,29 @@ location evidence, honest template selection, and Meta-confirmed delivery.
 Command `sent` alone is insufficient because this flow has no read-back
 acknowledgement.
 
+### Recorded fall delivery evidence — 21 September 2026 (Mauritius)
+
+The operator supplied the read-only acceptance output and screenshots from a
+physical V52 test on PR #137, after the decoder compatibility update:
+
+- Event time: **20 September 2026, 20:46:40 UTC / 21 September, 00:46:40 MUT**.
+- The persisted alert is `type: fall`, `severity: critical`.
+- Guardian's Alerts screen shows **Possible fall detected** at 00:46 MUT.
+- The recipient's WhatsApp screenshot shows the matching possible-fall message
+  at 00:46 MUT. Its location is explicitly described as approximate cell-tower
+  positioning; the screenshot does not establish GPS accuracy or map-pin accuracy.
+- The inspector records one contact and Meta API acceptance. At inspection time
+  `deliveredAt` and `readAt` are null, so machine acceptance remains `partial`.
+  The screenshot supplies manual handset-receipt evidence, not a signed webhook
+  receipt. SMS was skipped because no sender was configured.
+
+This establishes app presentation and manual WhatsApp receipt for this pilot
+event. It does not establish automatic delivery receipts, location immutability
+after later movement, repeatability, or the false-alarm rate. No raw tracker-state
+value accompanies this result, so it does not identify whether bit 21 or bit 22
+was set. Earlier generic `other` alerts remain historical records and are not
+reclassified from screenshots.
+
 ## Test 7 — medication reminder
 
 Medication reminders are available on Guardian Family and Guardian Care.

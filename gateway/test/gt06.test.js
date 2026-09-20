@@ -262,7 +262,7 @@ test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
   assert.equal(acks.length, 1);
 });
 
-test('handlePacket parses V52 fall alarms from both observed firmware bits', () => {
+test('handlePacket parses documented and compatibility-candidate V52 fall bits', () => {
   for (const trackerState of ['00200000', '00400000']) {
     const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload(trackerState));
     const { events } = handlePacket(decodeFrame(frame), {});
