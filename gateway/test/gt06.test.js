@@ -262,21 +262,16 @@ test('handlePacket parses bphrt (heart rate + blood pressure) upload', () => {
   assert.equal(acks.length, 1);
 });
 
-test('handlePacket parses V52 fall alarm from bit 22', () => {
-  const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload('00400000'));
-  const { events } = handlePacket(decodeFrame(frame), {});
+test('handlePacket parses V52 fall alarms from both observed firmware bits', () => {
+  for (const trackerState of ['00200000', '00400000']) {
+    const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload(trackerState));
+    const { events } = handlePacket(decodeFrame(frame), {});
 
-  assert.equal(events[0].type, 'alarm');
-  assert.equal(events[0].alarmType, 'fall');
-  assert.equal(events[0].severity, 'critical');
-});
-
-test('handlePacket rejects bit 21 as a V52 fall alarm', () => {
-  const frame = asciiFrame('3G', '9700000000', 'AL_LTE', v52AlarmPayload('00200000'));
-  const { events } = handlePacket(decodeFrame(frame), {});
-
-  assert.equal(events[0].alarmCode, '00200000');
-  assert.equal(events[0].alarmType, 'other');
+    assert.equal(events[0].type, 'alarm');
+    assert.equal(events[0].alarmCode, trackerState);
+    assert.equal(events[0].alarmType, 'fall');
+    assert.equal(events[0].severity, 'critical');
+  }
 });
 
 test('handlePacket uses V52 bits 18 and 19 for safe-zone transitions', () => {

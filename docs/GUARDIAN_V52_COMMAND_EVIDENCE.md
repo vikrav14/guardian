@@ -75,8 +75,10 @@ The V52 datasheet lists the sensors, but a sensor claim does not establish a com
 
 The V52 alarm state is the eight-character hexadecimal field at argument index
 15 of the full LTE layout. Production mappings are SOS bit 16, low battery 17,
-safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. Bit 21 and
-shortened older-model layouts are rejected by tests.
+safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. The exact pilot
+firmware has also emitted the adjacent bit 21 for fall; Guardian accepts both
+fall variants while retaining the bit-20 removal mapping. Shortened older-model
+layouts are still rejected by tests.
 
 ## V52 telemetry field use
 

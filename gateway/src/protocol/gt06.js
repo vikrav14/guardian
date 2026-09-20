@@ -202,9 +202,11 @@ function classifyV52Alarm(alarmCode) {
   if (!Number.isFinite(stateBits)) return 'other';
 
   // ReachFar V52 Appendix I: alarm flags occupy the high 16 bits.
-  // Bit 21 belongs to a different model and is intentionally not decoded.
+  // The documented V52 mapping uses bit 22. The exact pilot firmware has
+  // also emitted the adjacent bit 21 for its fall alarm, so accept both
+  // firmware variants while keeping bit 20 reserved for bracelet removal.
   if ((stateBits & (1 << 16)) !== 0) return 'sos';
-  if ((stateBits & (1 << 22)) !== 0) return 'fall';
+  if ((stateBits & ((1 << 21) | (1 << 22))) !== 0) return 'fall';
   if ((stateBits & (1 << 17)) !== 0) return 'low_battery';
   if ((stateBits & (1 << 18)) !== 0) return 'geofence_exit';
   if ((stateBits & (1 << 19)) !== 0) return 'geofence_enter';

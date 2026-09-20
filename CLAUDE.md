@@ -125,11 +125,12 @@ LTE layout. It is not the last LTE-tail value.
 | 18 | Safe-zone exit |
 | 19 | Safe-zone entry |
 | 20 | Bracelet removal |
+| 21 | Fall alarm (exact pilot firmware variant) |
 | 22 | Fall alarm |
 
-`gateway/src/protocol/gt06.js` deliberately rejects bit 21 as fall and rejects
-shortened legacy alarm layouts. Do not weaken these guards to accommodate a
-mixed-generation example document.
+`gateway/src/protocol/gt06.js` accepts bits 21 and 22 as fall variants for the
+exact pilot firmware, while bit 20 remains bracelet removal. It still rejects
+shortened legacy alarm layouts. Do not import other mixed-generation mappings.
 
 ### Commands: TCP vs SMS Routing
 
