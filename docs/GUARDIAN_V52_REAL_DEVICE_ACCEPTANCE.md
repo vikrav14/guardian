@@ -1157,3 +1157,46 @@ No runtime change or live command is made by this evidence update. PR #115
 remains draft. The helper/runtime head `bc38754` passed
 [Guardian release gates run 35648407320](https://github.com/vikrav14/guardian/actions/runs/35648407320);
 software CI does not validate the physical answer-mode behavior.
+
+## Manual reboot comparison — 21 September 2026, 20:16 UTC
+
+The operator supplied the Manual helper output, the subsequent RESET helper
+output and startup logs. The Manual request was made at
+`2026-09-21T20:06:21.456Z`, handed to two sessions and replied to at
+`20:06:23.059Z` in the earlier capture. RESET was requested at
+`20:13:49.251Z` and handed to one session with the documented frame.
+
+The watch then connected at `20:16:11.009Z`, supplied its full pilot IMEI and
+fresh telemetry, and emitted this configuration evidence at `20:16:11.061Z`:
+
+```json
+{"jtField":"valid","reportedJt":0,"meaningVerified":false,"appliedStateVerified":false}
+```
+
+| Requested mode before RESET | Startup configuration (UTC) | Reported JT |
+| --- | --- | --- |
+| Auto, APPLOCK,JT-0 | 20:04:11.834 | 0 |
+| Manual, APPLOCK,JT-1 | 20:16:11.061 | 0 |
+
+The field is unchanged across the two requested modes. This comparison does
+**not validate JT as an applied answer-mode readback**. It does not prove that
+Auto is active, that Manual was ignored, or that the firmware lacks auto-answer.
+A static/default field and a setting that is ignored or does not persist remain
+possible explanations; these observations do not distinguish them.
+
+The startup socket ended at `20:16:40.619Z` without a socket error or logged
+gateway-initiated close, and a new connection arrived at `20:17:01.015Z` with
+fresh session persistence. This is connection evidence, not evidence of an
+answer-mode change or the cause of the failed automatic call.
+
+Manual is the last requested mode. The physical incoming-call result after this
+latest restart has not yet been supplied, so final Manual restoration remains
+awaiting that observation. No additional Auto, Manual or RESET command is
+needed merely to repeat this comparison.
+
+Auto-answer remains not passed. The documented mapping, exact frame, bare replies,
+stored SOS1 match, visible caller recognition and reboot comparison are now
+recorded. Further command variations require new V52-specific evidence; there
+is no demonstrated formatting fix or supported applied-state query to implement.
+Keep customer auto-answer controls disabled and PR #115 draft. This update
+changes evidence documentation only and sends no live device command.
