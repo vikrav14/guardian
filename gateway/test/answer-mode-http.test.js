@@ -8,6 +8,7 @@ const { startHttpServer } = require('../src/http');
 const { stopContextRuntimeForTests } = require('../src/context/contextRuntime');
 const { registerSession, unregisterSession } = require('../src/sessions');
 const { runTrial } = require('../scripts/trial-answer-mode');
+const { runReset } = require('../scripts/send-reset');
 
 test('supplier-frame trial crosses authenticated HTTP and reaches the socket; invalid requests write nothing', async t => {
   const saved = Object.fromEntries(['host', 'httpPort', 'adminApiKey', 'contextIntelligenceEnabled',
@@ -48,4 +49,19 @@ test('supplier-frame trial crosses authenticated HTTP and reaches the socket; in
   assert.deepEqual(writes[0], Buffer.from('[SG*9700000000*000c*APPLOCK,JT-0]', 'ascii'));
   assert.equal(output[0].outcome, 'socket_handoff');
   assert.equal(output[0].appliedStateVerified, false);
+
+  // The restart helper used by this trial must authenticate and send only RESET.
+  const restartOutput = [];
+  const resetConfig = { ...config, httpPort: server.address().port };
+  assert.equal(await runReset({ args: ['--imei', imei, '--send'],
+    config: { ...resetConfig, adminApiKey: 'incorrect-key' },
+    print: value => restartOutput.push(JSON.parse(value)) }), 1);
+  assert.equal(restartOutput[0].httpStatus, 401);
+  assert.equal(writes.length, 1);
+  assert.equal(await runReset({ args: ['--imei', imei, '--send'], config: resetConfig,
+    print: value => restartOutput.push(JSON.parse(value)) }), 0);
+  assert.equal(writes.length, 2);
+  assert.deepEqual(writes[1], Buffer.from('[SG*9700000000*0005*RESET]', 'ascii'));
+  assert.equal(restartOutput[1].outcome, 'socket_handoff');
+  assert.equal(restartOutput[1].watchRestartVerified, false);
 });

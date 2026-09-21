@@ -249,3 +249,57 @@ answering is not accepted.
 The diagnostic runtime commit `d1d37b4` passed
 [Guardian release gates run 35645517019](https://github.com/vikrav14/guardian/actions/runs/35645517019).
 That software result does not change the failed physical outcome.
+
+## Reboot comparison prepared — 21 September 2026
+
+After the request to restore Manual and verify a call, the operator reported
+"done". No new command output or detailed call observation accompanied that
+completion report. The operator then asked what else could be tried.
+
+The supplied Communication Protocol, section 43, documents `RESET` as a
+device restart. Section 42 separately documents `FACTORY`; this trial never
+sends FACTORY. The V52 user guide also documents remote reboot, but does **not**
+say that answering-mode changes require it. Testing behavior across a restart
+is a new diagnostic condition, not a known remedy or an established prerequisite.
+
+The existing `gateway/scripts/send-reset.js` did not attach the admin header
+required by the current gateway. The helper now:
+
+- Requires an explicit device identifier and previews unless `--send` is present.
+- Uses the configured HTTP port and admin key with one authenticated loopback POST.
+- Sends only the documented RESET command; it cannot override the command or host.
+- Bounds the request to ten seconds, rejects redirects, and never retries automatically.
+- Verifies the returned command/frame and keeps `watchRestartVerified: false`.
+- Requires the operator to observe a reboot and subsequent live telemetry.
+
+This changes the helper CLI: prior no-argument sends and --host/--port overrides
+are removed; explicit positional 10/15-digit identifiers remain supported.
+No runtime server change or gateway restart is required for this helper update.
+The assistant has not sent a live watch command.
+
+### Supervised comparison
+
+Keep the watch beside the informed operator; end any call and keep gateway and
+ngrok running. Pull the draft branch in a second terminal.
+
+1. Send Auto once with `trial-answer-mode.js --imei <pilot-imei> --mode auto --framing supplier --send`.
+2. Capture the APPLOCK reply and leave the watch idle for 30 seconds.
+3. Send `node scripts/send-reset.js --imei <pilot-imei> --send` once.
+4. Observe whether the watch visibly restarts; wait for its new identified TCP
+   session and fresh heartbeat. A socket-handoff result alone is not a reboot.
+   If handoff is uncertain or no restart is observed, inspect logs and stop this
+   comparison rather than retrying automatically.
+5. After reconnection, leave the watch idle for a minute, then call from the same
+   confirmed SOS1 contact and leave it untouched for up to 30 seconds. Record
+   local time, ring count, answer behavior and two-way audio if it answers.
+   Do not resend Auto after reboot: that would change what this test measures.
+6. End the call, send Manual using the same supplier framing, capture the reply,
+   wait 30 seconds and restart once with the same RESET helper. Wait for the new
+   session/heartbeat and verify that a call requires a manual answer. If it
+   answers automatically, report that result rather than claiming restoration.
+
+Retain APPLOCK, RESET, TCP connection and any `answer-mode-config` lines,
+without publishing contact data. This tests the requested modes across reboot;
+it cannot directly read the stored mode. A failure does not establish unsupported
+firmware. No caller-list, safe-mode, SOS-slot or server-setting change is part of
+the comparison. Auto-answer remains unaccepted and PR #115 stays draft.
