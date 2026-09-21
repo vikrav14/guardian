@@ -1200,3 +1200,18 @@ recorded. Further command variations require new V52-specific evidence; there
 is no demonstrated formatting fix or supported applied-state query to implement.
 Keep customer auto-answer controls disabled and PR #115 draft. This update
 changes evidence documentation only and sends no live device command.
+
+## Official app investigation — 21 September 2026
+
+Static inspection of the official AnyTracking 5.2.94 APK found an ANS
+app-to-server request. Its translation to a watch command and the pilot's app
+model branch are not established; this is not evidence for changing JT semantics
+or transmitting ANS over TCP/SMS. Guardian's unknown startup commands already get
+bare same-command ACKs. No missing handshake or wire correction was demonstrated.
+
+See [the source record and proposed reference-platform comparison](services/watch-answer-reference-comparison.md).
+A same-watch/SIM/caller test through the supplier platform is prepared but not
+executed. Owner agreement is required before temporarily sending watch telemetry
+to that platform; the procedure preserves contacts/restrictions and prepares the
+return server SMS first. A physical pass, both-direction audio and manual/routing
+restoration remain required. **Auto-answer is not passed; PR #115 remains draft.**

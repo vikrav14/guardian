@@ -398,3 +398,22 @@ recorded. Further command variations require new V52-specific evidence; there
 is no demonstrated formatting fix or supported applied-state query to implement.
 Keep customer auto-answer controls disabled and PR #115 draft. This update
 changes evidence documentation only and sends no live device command.
+
+## Official app investigation — 21 September 2026
+
+Read-only analysis of the official AnyTracking 5.2.94 Android app found an
+app-to-server ANS command abstraction for Answer mode and an ans settings field.
+This is not a discovered V52 TCP command: the supplier server's translation and
+the pilot's model-specific app path remain unknown. No JT value should be reversed
+and no ANS TCP/SMS command should be guessed from those API values.
+
+Startup review also confirms that Guardian's unknown-command fallback already
+ACKs appcontacttel, APPANDFNREPORT and eicard; their log wording does not establish
+a missing handshake. No runtime correction is justified by this audit alone.
+
+The [reference-platform comparison](watch-answer-reference-comparison.md) records
+source provenance, reproducible static-analysis findings, a proposed operator
+trial and an explicit return-to-Guardian path. It requires owner agreement before
+routing telemetry to the supplier. It has not been executed. No live command,
+account access, caller-list change or new data forwarding occurred. PR #115 stays
+draft and auto-answer remains not passed.
