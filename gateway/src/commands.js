@@ -9,10 +9,11 @@ const { sendDownlinkCommand } = require('./downlink');
  * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
- * - TCP data commands: monitor callback, ring/find, fall settings, medication
- *   reminders and upload interval. These are sent as `[SG*protocolId*LEN*...]`
- *   over the watch's active gateway session. They deliberately have no guessed
- *   SMS fallback.
+ * - TCP data commands: administrator-only PHBX phonebook provisioning plus
+ *   monitor callback, alarm mode, ring/find, fall settings, medication reminders,
+ *   alert profiles and upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
+ *   watch's active gateway session. They deliberately have no guessed SMS
+ *   fallback. PHBX is not exposed through the generic deviceCommands channel.
  *
  * A documented command is not automatically an accepted product capability.
  * Each user-visible feature still requires V52 real-device acceptance.
@@ -41,6 +42,89 @@ function ringToFindCommand() {
   return 'FIND';
 }
 
+/**
+ * V52 alarm-delivery mode from vendor protocol section 41.
+ *
+ * 0: upload to platform only
+ * 1: upload, then SMS, then call
+ * 2: upload, then call
+ * 3: upload, then SMS
+ *
+ * Socket handoff or a bare MOD echo does not prove the firmware applied
+ * the mode or establish what the wearer sees on the watch.
+ */
+function alarmModeCommand(mode) {
+  if (mode == null || String(mode).trim() === '') {
+    throw new Error('Alarm mode must be an integer from 0 to 3');
+  }
+  const n = Number(mode);
+  if (!Number.isInteger(n) || n < 0 || n > 3) {
+    throw new Error('Alarm mode must be an integer from 0 to 3');
+  }
+  return `MOD,${n}`;
+}
+
+/**
+ * V52 global alert scene.
+ *
+ * 1: sound + vibration, 2: sound, 3: vibration, 4: silent.
+ * This affects medication reminders and other watch alerts. The device has
+ * no supported read-back command, so a successful socket handoff is not proof
+ * that the firmware applied the scene.
+ */
+function watchAlertProfileCommand(mode) {
+  const n = Number(mode);
+  if (!Number.isInteger(n) || n < 1 || n > 4) {
+    throw new Error('Watch alert profile must be an integer from 1 to 4');
+  }
+  return `profile,${n}`;
+}
+
+function normalizeCallingPhone(phone) {
+  const normalized = String(phone || '')
+    .trim()
+    .replace(/[\s().-]/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+    throw new Error('Calling phone must use E.164 format, for example +23057123456');
+  }
+  return normalized;
+}
+
+/**
+ * V52 PHBX contact names are sent as UTF-16BE hexadecimal. This mirrors the
+ * vendor example (`0045007a0075006e`) without copying a real person's data.
+ */
+function phonebookNameHex(name) {
+  const normalized = String(name || '').trim();
+  const characters = Array.from(normalized);
+  if (characters.length === 0 || characters.length > 20) {
+    throw new Error('Phonebook name must contain 1-20 characters');
+  }
+  if (/[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error('Phonebook name contains unsupported control characters');
+  }
+  return Buffer.from(normalized, 'utf16le').swap16().toString('hex').toUpperCase();
+}
+
+/**
+ * Set one V52 phonebook entry over the live TCP session. Safe replacement and
+ * deletion remain unproven and must not be inferred from this builder.
+ *
+ * Vendor form:
+ *   PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
+ *
+ * Guardian deliberately leaves the optional picture field empty during the
+ * first real-device acceptance. Slots 1-15 are a conservative Guardian
+ * guardrail until the exact V52 capacity is confirmed on the target firmware.
+ */
+function phonebookContactCommand({ slot, name, phone }) {
+  const serial = Number(slot);
+  if (!Number.isInteger(serial) || serial < 1 || serial > 15) {
+    throw new Error('Phonebook slot must be an integer between 1 and 15');
+  }
+  return `PHBX,${serial},${phonebookNameHex(name)},${normalizeCallingPhone(phone)},`;
+}
+
 /** UTF-16BE hex encoding, 4 hex chars per character, no separators -- the
  * format TAKEPILLS reminder text uses. Confirmed against the vendor's own
  * example captures: "00660066"->"ff" is a placeholder-looking test string,
@@ -61,6 +145,16 @@ function textToHexUtf16(text) {
  */
 function fallDetectionCommand({ enabled, dialMonitorOnFall = false }) {
   return `FALLDOWN,${enabled ? 1 : 0},${dialMonitorOnFall ? 1 : 0}`;
+}
+
+/**
+ * V52's separate fall-alert switch. `FALLDOWN` configures the fall-down
+ * detector and its optional dial behaviour; `FON` controls the fall alert
+ * switch itself. Keep this separate so enabling fall detection cannot leave
+ * the watch's local fall alarm disabled.
+ */
+function fallAlarmCommand({ enabled }) {
+  return `FON,${enabled ? 1 : 0}`;
 }
 
 /**
@@ -131,14 +225,54 @@ function uploadIntervalCommand(seconds) {
   return `UPLOAD,${n}`;
 }
 
+function pedometerCommand(enabled) {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Pedometer enabled must be a boolean');
+  }
+  return `PEDO,${enabled ? 1 : 0}`;
+}
+
+function normalizeWalkTimeWindow(value) {
+  const window = String(value || '').trim();
+  const match = window.match(
+    /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/
+  );
+  if (!match) {
+    throw new Error('Pedometer window must use HH:MM-HH:MM in 24-hour time');
+  }
+
+  const startMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const endMinutes = Number(match[3]) * 60 + Number(match[4]);
+  const disabledWindow = startMinutes === 0 && endMinutes === 0;
+  if (!disabledWindow && endMinutes <= startMinutes) {
+    throw new Error('Pedometer window end must be after its start');
+  }
+  return window;
+}
+
+/**
+ * The V52 accepts exactly three counting windows. Unused vendor windows are
+ * represented by 00:00-00:00. This builder deliberately does not infer a
+ * timezone or silently widen a supplied schedule.
+ */
+function walkTimeCommand(windows) {
+  if (!Array.isArray(windows) || windows.length !== 3) {
+    throw new Error('Exactly three pedometer windows are required');
+  }
+  return `WALKTIME,${windows.map(normalizeWalkTimeWindow).join(',')}`;
+}
+
 // Types dispatched over the live TCP session (./downlink) instead of SMS.
 // No SMS equivalent exists for these in the vendor's SMS command sheet.
 const TCP_ONLY_TYPES = new Set([
   'voice_monitor',
   'ring_to_find',
+  'set_alarm_mode',
+  'set_fall_alarm',
   'set_fall_detection',
   'set_fall_sensitivity',
   'set_medication_reminder',
+  'set_watch_alert_profile',
   'set_upload_interval',
 ]);
 
@@ -148,9 +282,12 @@ const BUILDERS = {
   check_status: () => statusCommand(),
   voice_monitor: ({ phone }) => voiceMonitorCommand(phone),
   ring_to_find: () => ringToFindCommand(),
+  set_alarm_mode: ({ mode }) => alarmModeCommand(mode),
+  set_fall_alarm: (params) => fallAlarmCommand(params),
   set_fall_detection: (params) => fallDetectionCommand(params),
   set_fall_sensitivity: ({ level }) => fallSensitivityCommand(level),
   set_medication_reminder: (params) => medicationReminderCommand(params),
+  set_watch_alert_profile: ({ mode }) => watchAlertProfileCommand(mode),
   set_upload_interval: ({ seconds }) => uploadIntervalCommand(seconds),
 };
 
@@ -195,9 +332,17 @@ module.exports = {
   statusCommand,
   voiceMonitorCommand,
   ringToFindCommand,
+  alarmModeCommand,
+  watchAlertProfileCommand,
+  normalizeCallingPhone,
+  phonebookNameHex,
+  phonebookContactCommand,
   fallDetectionCommand,
+  fallAlarmCommand,
   fallSensitivityCommand,
   medicationReminderCommand,
   uploadIntervalCommand,
+  pedometerCommand,
+  walkTimeCommand,
   textToHexUtf16,
 };

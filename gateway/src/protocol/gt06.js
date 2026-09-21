@@ -47,17 +47,22 @@ function parseV52Telemetry(fields) {
 // Commands only ever sent server->tracker (section II of the protocol doc).
 // If one shows up as an *incoming* command, the device echoed it back.
 // Includes commands confirmed in the V52 vendor protocol and companion
-// captures. 'profile'/'PROFILE' and 'oxygen'/'hrtstart' case variants are
-// both listed because the vendor examples are inconsistent about ack case.
+// captures. 'profile'/'PROFILE' case variants are both listed because the
+// vendor examples are inconsistent about command case. `hrtstart` is retained
+// as a supported V46/V52-compatible downlink; incoming `oxygen` and `bphrt`
+// are device uploads and are parsed below.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
   // Additional commands documented for the V52 data protocol/captures.
-  'hrtstart', 'SEDENTARY', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
+  'hrtstart', 'SEDENTARY', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
+  // ReachFar V48 integration evidence uses this spelling. Recognize its reply
+  // without ACK for the explicit pilot comparison; this does not enable it.
+  'BODYTEMP2',
 ]);
 
 function parseLocationData(fields) {
@@ -197,9 +202,11 @@ function classifyV52Alarm(alarmCode) {
   if (!Number.isFinite(stateBits)) return 'other';
 
   // ReachFar V52 Appendix I: alarm flags occupy the high 16 bits.
-  // Bit 21 belongs to a different model and is intentionally not decoded.
+  // The documented V52 mapping uses bit 22. Bit 21 is a compatibility
+  // candidate for the pilot's previously unclassified fall alarms; retain
+  // the raw state to verify it. Bit 20 remains reserved for bracelet removal.
   if ((stateBits & (1 << 16)) !== 0) return 'sos';
-  if ((stateBits & (1 << 22)) !== 0) return 'fall';
+  if ((stateBits & ((1 << 21) | (1 << 22))) !== 0) return 'fall';
   if ((stateBits & (1 << 17)) !== 0) return 'low_battery';
   if ((stateBits & (1 << 18)) !== 0) return 'geofence_exit';
   if ((stateBits & (1 << 19)) !== 0) return 'geofence_enter';
@@ -283,6 +290,20 @@ function decodeFrame(frame) {
   };
 }
 
+function summarizeAppLockReply(args) {
+  // APPLOCK can cover other settings too. Never log arbitrary arguments (which
+  // may contain contact data), and never equate a reply with applied state.
+  const safeTokens = new Set(['JT-0', 'JT-1', 'OK', 'ERROR', 'FAIL', '0', '1']);
+  const limit = 8;
+  return {
+    kind: args.length === 0 ? 'bare' : 'parameterized',
+    argumentCount: args.length,
+    arguments: args.slice(0, limit).map(arg => safeTokens.has(arg) ? arg : '[redacted]'),
+    truncated: args.length > limit,
+    appliedStateVerified: false,
+  };
+}
+
 function handlePacket(decoded, session) {
   const { imei: rawId, command, args, payload } = decoded;
   const acks = [];
@@ -354,8 +375,9 @@ function handlePacket(decoded, session) {
     // status code: 1=normal, 0=process disorderly, 2=parameter error.
     const [oxyType, oxyValue] = args;
     const oxy = parseFloat(oxyValue);
-    acks.push(buildAckFrame(protocolId, `oxygen,${Number.isNaN(oxy) ? 2 : 1}`));
-    if (!Number.isNaN(oxy)) {
+    const validOxy = Number.isInteger(oxy) && oxy >= 1 && oxy <= 100;
+    acks.push(buildAckFrame(protocolId, `oxygen,${validOxy ? 1 : 2}`));
+    if (validOxy) {
       events.push({
         type: 'health_reading',
         ...eventMeta,
@@ -365,7 +387,8 @@ function handlePacket(decoded, session) {
       });
     }
   } else if (command === 'bphrt') {
-    // V52: heart rate + blood pressure upload after `hrtstart`.
+    // Heart-rate + blood-pressure upload. V46/V52 command parity is supplier
+    // guidance; the exact V52 request/response still requires device evidence.
     // Only 3 leading fields are confirmed from the vendor's example
     // (systolic, diastolic, heart rate); trailing fields are unconfirmed
     // and left unparsed rather than guessed. No documented ack for this
@@ -384,6 +407,14 @@ function handlePacket(decoded, session) {
       systolic: Number.isNaN(sys) ? null : sys,
       diastolic: Number.isNaN(dia) ? null : dia,
     });
+  } else if (command === 'btemp2') {
+    // Observed V52 wrist-temperature upload. Preserve the previous bare ACK;
+    // the supplier's ACK contract and the leading field's meaning are unknown.
+    // The exact observed shape is accepted as an informational estimate;
+    // account access and consent are enforced by the wellbeing store/rules.
+    acks.push(buildAckFrame(protocolId, 'btemp2'));
+    events.push({ type: 'health_reading', ...eventMeta,
+      metric: 'skin_temperature', sourceCommand: 'btemp2', args: [...args] });
   } else if (command.startsWith('AL')) {
     // V52 Annex I fixes tracker state at positioning field 15. LTE, cell,
     // WiFi, delay, and voltage fields follow it, so the final argument is
@@ -428,8 +459,18 @@ function handlePacket(decoded, session) {
   } else if (SERVER_ONLY_COMMANDS.has(command)) {
     // Device echoed back a command we sent it (e.g. CR). These are
     // server->tracker only; acking the echo would just bounce it back
-    // again and loop forever, so drop it silently.
-    events.push({ type: 'command_echo', ...eventMeta, command });
+    // again and loop forever, so do not ACK it. Preserve the arguments for the
+    // documented fall setting readbacks; otherwise the gateway cannot
+    // distinguish a bare echo from a value-bearing response.
+    events.push({
+      type: 'command_echo',
+      ...eventMeta,
+      command,
+      ...(command === 'FON' || command === 'FALLDOWN' || command === 'LSSET'
+        ? { args: [...args] }
+        : {}),
+      ...(command === 'APPLOCK' ? { replyEvidence: summarizeAppLockReply(args) } : {}),
+    });
   } else {
     // Unknown command — still ACK for compatibility
     acks.push(buildAckFrame(protocolId, command));

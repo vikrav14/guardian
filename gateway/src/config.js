@@ -1,6 +1,11 @@
 require('dotenv').config();
 const path = require('path');
 
+function finiteAtLeast(value, fallback, minimum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 9000),
@@ -10,6 +15,49 @@ const config = {
     ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
     : '',
   writeLocationHistory: String(process.env.WRITE_LOCATION_HISTORY || 'false').toLowerCase() === 'true',
+  journeyJournalEnabled: String(process.env.JOURNEY_JOURNAL_ENABLED || 'true').toLowerCase() === 'true',
+  journeyJournalDirectory: path.resolve(process.env.JOURNEY_JOURNAL_DIRECTORY || path.join(__dirname, '../data/journeys')),
+
+  // Interpretation is separately accepted per exact device/firmware. The
+  // passive observer runs alongside activity/wellbeing without watch commands.
+  wearEvidenceDeviceMode: process.env.WEAR_EVIDENCE_DEVICE_MODE || 'unverified',
+  wearEvidenceAcceptedImeis: String(process.env.WEAR_EVIDENCE_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value)),
+
+  // V52 activity is passive. Raw counters continue to be retained on
+  // devices/{imei}; observed deltas use a durable cross-day baseline.
+  // Customer exposure is an explicitly labelled estimate; daily-reset semantics
+  // remain unavailable until the exact device proves them.
+  activityStepsIngestEnabled:
+    String(process.env.ACTIVITY_STEPS_INGEST_ENABLED || 'true').toLowerCase() === 'true',
+  activityStepsCustomerEnabled:
+    String(process.env.ACTIVITY_STEPS_CUSTOMER_ENABLED || 'true').toLowerCase() === 'true',
+  activityStepsCounterMode:
+    ['daily_reset', 'observed_delta'].includes(process.env.ACTIVITY_STEPS_COUNTER_MODE)
+      ? process.env.ACTIVITY_STEPS_COUNTER_MODE
+      : 'observed_delta',
+  activityStepsTimeZone:
+    process.env.ACTIVITY_STEPS_TIME_ZONE || 'Indian/Mauritius',
+  activityStepsRetentionDays: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_RETENTION_DAYS,
+    90,
+    7,
+  ),
+  activityStepsWriteMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_WRITE_MINUTES,
+    15,
+    1,
+  ),
+  activityStepsMaxPerMinute: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_MAX_PER_MINUTE,
+    300,
+    30,
+  ),
+  activityStepsCleanupMinutes: finiteAtLeast(
+    process.env.ACTIVITY_STEPS_CLEANUP_MINUTES,
+    360,
+    60,
+  ),
 
   // Event-driven write gate (Phase 0.5) — Firestore mirrors meaningful state changes only
   writeGateMinMetres: Number(process.env.WRITE_GATE_MIN_METRES || 50),
@@ -42,6 +90,25 @@ const config = {
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
+  // Pilot-only: both values must match a device before Guardian selects the
+  // SOS templates whose static Meta phone button calls that watch. Leave both
+  // empty until the templates are approved and the real-device test passes.
+  metaWhatsAppSosCallbackPilotImei:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppSosCallbackPilotNumber:
+    process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
+
+  // Private, read-only router observation. Never enables customer Home presence.
+  wifiHomeObserveEnabled:
+    String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',
+  wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
+  wifiHomeRouterHash: process.env.WIFI_HOME_ROUTER_HASH || '',
+  wifiHomeHashKey: process.env.WIFI_HOME_HASH_KEY || '',
+  wifiHomeDisplayPilotEnabled:
+    String(process.env.WIFI_HOME_DISPLAY_PILOT_ENABLED || 'false').toLowerCase() === 'true',
+  // Separate, unaccepted walk-recovery experiment; Home display never opts in.
+  wifiHomeWalkRecoveryExperimentEnabled:
+    String(process.env.WIFI_HOME_WALK_RECOVERY_EXPERIMENT_ENABLED || 'false').toLowerCase() === 'true',
 
   // HTTP (WhatsApp webhook + /dev/chat)
   httpPort: Number(process.env.HTTP_PORT || 9001),
@@ -99,6 +166,30 @@ const config = {
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),
   opsMetricsFlushMs: Number(process.env.OPS_METRICS_FLUSH_MS || 60_000),
+
+  // V52 Care wellbeing. Health readings require a backend-owned consent record
+  // and remain informational watch estimates; operational ingestion/request
+  // switches are independent of account access.
+  // Process-local opt-in for automatic routine dispatch. Account access is
+  // still owned by the active Care subscription and wearer consent.
+  temperatureCaptureEnabled: process.env.GUARDIAN_TEMPERATURE_CAPTURE === '1',
+  wearCaptureEnabled: process.env.GUARDIAN_WEAR_CAPTURE === '1',
+  wearSensorCaptureEnabled: process.env.GUARDIAN_WEAR_SENSOR_CAPTURE === '1',
+  wearWireCaptureEnabled: process.env.GUARDIAN_WEAR_WIRE_CAPTURE === '1',
+  wellnessRoutineEnabled:
+    String(process.env.WELLNESS_ROUTINE_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingIngestEnabled:
+    String(process.env.CARE_WELLBEING_INGEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingDeviceMode:
+    String(process.env.CARE_WELLBEING_DEVICE_MODE || 'unverified').toLowerCase(),
+  careWellbeingCustomerEnabled:
+    String(process.env.CARE_WELLBEING_CUSTOMER_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRequestEnabled:
+    String(process.env.CARE_WELLBEING_REQUEST_ENABLED || 'false').toLowerCase() === 'true',
+  careWellbeingRetentionDays: Math.min(
+    365,
+    Math.max(1, Number(process.env.CARE_WELLBEING_RETENTION_DAYS || 30))
+  ),
 
   // Google Geolocation API — resolves gps=V WiFi/LBS packets to lat/lng
   googleGeolocationApiKey: process.env.GOOGLE_GEOLOCATION_API_KEY || '',

@@ -1,4 +1,5 @@
 const DEFAULT_TIME_ZONE = 'Indian/Mauritius';
+const { hasJourneyGpsEvidence } = require('./journey-source-evidence');
 
 function asDate(value) {
   if (value == null) return null;
@@ -132,6 +133,11 @@ function analyzeJourney(journey = {}) {
     : (Array.isArray(journey.legs) ? journey.legs.length : 0);
   const startTrigger = inferStartTrigger(journey);
   const reasons = [];
+  const unconfirmedSources = Number(journey.evidenceVersion) >= 3 &&
+    !hasJourneyGpsEvidence(journey);
+  if (unconfirmedSources) {
+    reasons.push('fewer than two valid satellite observations with aligned source evidence; network estimates cannot confirm travel');
+  }
 
   // Diagnostic-only heuristics. These never alter or delete journey data.
   if (duration >= 2 * 60 * 60 * 1000 && distanceKm <= 1) {
@@ -180,7 +186,7 @@ function analyzeJourney(journey = {}) {
     stopDurationMs: stopDurationMs(journey),
     events: listEvents(journey),
     assessment:
-      reasons.length === 0
+      unconfirmedSources ? 'unconfirmed_source_evidence' : reasons.length === 0
         ? 'ok'
         : (likelyStationaryDrift ? 'likely_stationary_drift' : 'review'),
     reasons,
@@ -228,6 +234,7 @@ function formatJourneyDiagnostic(journey, options = {}) {
     ok: 'OK',
     review: 'REVIEW',
     likely_stationary_drift: 'LIKELY STATIONARY DRIFT',
+    unconfirmed_source_evidence: 'TRIP NOT CONFIRMED BY LOCATION SOURCES',
   }[analysis.assessment] || analysis.assessment;
 
   lines.push(`  Assessment: ${assessmentLabel}`);

@@ -3,11 +3,22 @@ import '../models/device.dart';
 
 String alertDisplayTitle(GuardianAlert alert, {Device? device}) {
   final storedTitle = alert.title?.trim();
-  if (storedTitle != null && storedTitle.isNotEmpty) return storedTitle;
+  if (storedTitle != null &&
+      storedTitle.isNotEmpty &&
+      !_isTechnicalSos(storedTitle)) {
+    return storedTitle;
+  }
 
   final person = device?.displayName ?? 'Your loved one';
   return switch (alert.type.toLowerCase()) {
-    'sos' => alert.message.isNotEmpty ? alert.message : 'SOS alert',
+    'sos' =>
+      alert.payload?['source'] == 'app'
+          ? 'Help requested for $person'
+          : _isTechnicalSos(alert.message)
+          ? '$person pressed SOS'
+          : alert.message.isNotEmpty
+          ? alert.message
+          : 'SOS alert for $person',
     'fall' => 'Possible fall detected',
     'geofence_exit' => 'Left safe zone',
     'geofence_enter' => 'Entered safe zone',
@@ -20,6 +31,12 @@ String alertDisplayTitle(GuardianAlert alert, {Device? device}) {
 String alertDisplayBody(GuardianAlert alert) {
   final message = alert.message.trim();
   if (message.isEmpty) return '';
+  if (alert.type.toLowerCase() == 'sos' && _isTechnicalSos(message)) {
+    if (alert.payload?['source'] == 'app') {
+      return 'Help was requested from the Guardian app. Please check on the wearer.';
+    }
+    return 'The SOS button on the watch was pressed. Please check on the wearer.';
+  }
 
   // Legacy gateway alerts stored technical inference as the message.
   if (_looksLikeLegacyOfflineMessage(message)) {
@@ -27,6 +44,11 @@ String alertDisplayBody(GuardianAlert alert) {
   }
   return message;
 }
+
+bool _isTechnicalSos(String message) => RegExp(
+  r'^device alarm:\s*sos$',
+  caseSensitive: false,
+).hasMatch(message.trim());
 
 String alertDisplaySubtitle(
   GuardianAlert alert, {

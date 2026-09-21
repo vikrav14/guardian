@@ -1,5 +1,34 @@
 const { buildAckFrame } = require('./protocol/gt06');
 const { findSocketsForDevice } = require('./sessions');
+const { noteWifiFenceDownlink } = require('./wifi-fence-runtime');
+
+function redactPhone(value) {
+  const phone = String(value || '');
+  return phone.length <= 4 ? '***' : `***${phone.slice(-4)}`;
+}
+
+/** Keep contact data and call destinations out of routine gateway logs. */
+function redactDownlinkCommand(command) {
+  const text = String(command || '');
+  if (/^WIFIFENCE(?:,|$)/i.test(text)) return 'WIFIFENCE,<radios-redacted>';
+  if (text.startsWith('PHBX,')) {
+    const fields = text.split(',');
+    return [
+      'PHBX',
+      fields[1] || '',
+      '<name-redacted>',
+      redactPhone(fields[3]),
+      fields[4] ? '<picture-redacted>' : '',
+    ].join(',');
+  }
+
+  const phoneCommand = text.match(/^(CALL|MONITOR|CENTER|SOS[123]),(.+)$/);
+  if (phoneCommand) {
+    return `${phoneCommand[1]},${redactPhone(phoneCommand[2])}`;
+  }
+
+  return text;
+}
 
 /**
  * Write a downlink command frame on every active TCP session for the device.
@@ -24,8 +53,12 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
     socket.write(frame);
   }
 
+  noteWifiFenceDownlink(command, matches);
+
+  const safeCommand = redactDownlinkCommand(command);
+  const frameLog = safeCommand === command ? `: ${frameStr}` : ' (frame redacted)';
   console.log(
-    `[downlink] sent ${command} to ${protocolId} (${matches.length} session(s)): ${frameStr}`
+    `[downlink] sent ${safeCommand} to ${protocolId} (${matches.length} session(s))${frameLog}`
   );
 
   return {
@@ -39,10 +72,13 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
 }
 
 function sendContinuousReporting(imeiOrProtocolId) {
+  // Historical helper name. Supplier section II.2 describes a temporary GPS
+  // wake-up: reports every 30 seconds for about three minutes, not indefinitely.
   return sendDownlinkCommand(imeiOrProtocolId, 'CR');
 }
 
 module.exports = {
+  redactDownlinkCommand,
   sendDownlinkCommand,
   sendContinuousReporting,
 };

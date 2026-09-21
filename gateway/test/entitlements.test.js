@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  PLAN, FEATURE, PLAN_POLICY, evaluateSubscription, loadEntitlementsForUser,
-  hasEntitlement, minimumPlanFor, featureForWhatsAppIntent,
+  PLAN, CUSTOMER_PLANS, FEATURE, PLAN_POLICY, evaluateSubscription, loadEntitlementsForUser,
+  hasEntitlement, minimumPlanFor, featureForWhatsAppIntent, isCustomerPlan,
 } = require('../src/entitlements');
 
 const NOW = new Date('2026-08-14T00:00:00Z');
@@ -43,23 +43,34 @@ test('plan catalogue exactly inherits advertised services and limits', () => {
   }
 });
 
+test('customer plan choices expose Family and Care while preserving Essential internally', () => {
+  assert.deepEqual(CUSTOMER_PLANS, [PLAN.FAMILY, PLAN.CARE]);
+  assert.equal(isCustomerPlan(PLAN.ESSENTIAL), false);
+  assert.equal(isCustomerPlan(PLAN.FAMILY), true);
+  assert.equal(isCustomerPlan(PLAN.CARE), true);
+});
+
 test('missing and legacy client-writable subscriptions fail closed', () => {
   assert.equal(evaluateSubscription(null, { now: NOW }).serviceActive, false);
   assert.equal(evaluateSubscription({ tier: 'premium', status: 'active' }, { now: NOW }).reason, 'untrusted_legacy_subscription');
 });
 
-test('active Essential receives core services but no WhatsApp', () => {
+test('active Essential receives SOS-only WhatsApp but no assistant or full safety feed', () => {
   const result = evaluateSubscription(subscription(PLAN.ESSENTIAL), { now: NOW });
   assert.equal(hasEntitlement(result, FEATURE.LIVE_GPS), true);
+  assert.equal(hasEntitlement(result, FEATURE.SOS_WHATSAPP_ALERTS), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), false);
+  assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_SAFETY_ALERTS), false);
   assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
 });
 
-test('Family receives WhatsApp but not Care medication services', () => {
+test('Family receives WhatsApp and medication reminders, but not advanced Care services', () => {
   const result = evaluateSubscription(subscription(PLAN.FAMILY), { now: NOW });
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_QA), true);
   assert.equal(hasEntitlement(result, FEATURE.WHATSAPP_WATCH_COMMANDS), true);
-  assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), false);
+  assert.equal(hasEntitlement(result, FEATURE.ACTIVITY_STEPS), true);
+  assert.equal(hasEntitlement(result, FEATURE.WELLNESS_READINGS), true);
+  assert.equal(hasEntitlement(result, FEATURE.MEDICATION_REMINDERS), true);
 });
 
 test('Care receives all inherited and care-only services', () => {
@@ -104,12 +115,15 @@ test('forged service owner relationship fails closed', async () => {
 
 test('minimum plan is deterministic for every advertised feature', () => {
   assert.equal(minimumPlanFor(FEATURE.LIVE_GPS), PLAN.ESSENTIAL);
+  assert.equal(minimumPlanFor(FEATURE.SOS_WHATSAPP_ALERTS), PLAN.ESSENTIAL);
   assert.equal(minimumPlanFor(FEATURE.WHATSAPP_QA), PLAN.FAMILY);
-  assert.equal(minimumPlanFor(FEATURE.MEDICATION_REMINDERS), PLAN.CARE);
+  assert.equal(minimumPlanFor(FEATURE.ACTIVITY_STEPS), PLAN.ESSENTIAL);
+  assert.equal(minimumPlanFor(FEATURE.MEDICATION_REMINDERS), PLAN.FAMILY);
 });
 
 test('WhatsApp intent mapping protects Care-only summaries and reminders', () => {
   assert.equal(featureForWhatsAppIntent('LOCATION_REQUEST'), FEATURE.WHATSAPP_QA);
+  assert.equal(featureForWhatsAppIntent('ACTIVITY_QUERY'), FEATURE.ACTIVITY_STEPS);
   assert.equal(featureForWhatsAppIntent('DEVICE_COMMAND'), FEATURE.WHATSAPP_WATCH_COMMANDS);
   assert.equal(featureForWhatsAppIntent('REMINDER_REQUEST'), FEATURE.MEDICATION_REMINDERS);
   assert.equal(featureForWhatsAppIntent('DAILY_SUMMARY'), FEATURE.WELLBEING_ACTIVITY_SUMMARIES);

@@ -1,0 +1,1124 @@
+[
+  {
+    "name": "quiet Home retains a newer past router detection",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "expired v4 plus historical record retains Home",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "expiresAt": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        }
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "heartbeat cannot renew the Home observation",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi",
+      "lastHeartbeatAt": "2026-09-14T00:20:00.000Z",
+      "updatedAt": "2026-09-14T00:20:00.000Z"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "offline watch keeps historical Home with its original age",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi",
+      "online": false
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "fresh Home takes precedence over historical presentation",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:19:30.000Z",
+        "expiresAt": "2026-09-14T00:20:30.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        }
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "legacy expired presence alone never invents history",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "homeWifiPresence": {
+        "version": 4,
+        "policy": "enrolled_home_radio_v4",
+        "pilot": true,
+        "state": "matched",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "expiresAt": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        }
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "accepted GPS after Home replaces the historical pin",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-14T00:15:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "newer GPS stays selected even after both observations age",
+    "now": "2026-09-16T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-14T00:15:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "GPS marked invalid cannot erase the historical detection",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": false,
+        "recordedAt": "2026-09-14T00:20:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "future GPS cannot erase historical detection",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-15T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "invalid GPS coordinates cannot erase historical detection",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": 99,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-14T00:20:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "GPS on legacy location field also supersedes Home",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-14T00:15:00.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "gps"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "new network estimate without retained GPS does not erase Home",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "equal instant GPS with timezone offset does not erase Home",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-14T04:10:00+04:00"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": true
+  },
+  {
+    "name": "fresh legacy conflict prevents historical Home presentation",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": {
+        "version": 3,
+        "policy": "enrolled_home_radio_v3",
+        "pilot": true,
+        "state": "conflict",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:19:30.000Z",
+        "expiresAt": "2026-09-14T00:20:30.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "conflictReason": "gps_outside_home"
+      },
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "unknown history policy",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "unknown",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "invalid binding hash",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "bad"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "future Home timestamp",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-15T00:00:00Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "oversized qualification window",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:30:00Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "reversed qualification window",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:09:00Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "invalid saved pin",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": 99,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "missing Home radius",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  },
+  {
+    "name": "conflict is not a qualified detection",
+    "now": "2026-09-14T00:20:00.000Z",
+    "device": {
+      "lastHomeWifiDetection": {
+        "version": 1,
+        "policy": "last_detected_home_v1",
+        "source": "home_wifi",
+        "observedAt": "2026-09-14T00:10:00.000Z",
+        "qualifiedUntil": "2026-09-14T00:12:00.000Z",
+        "anchor": {
+          "geofenceId": "synthetic-home",
+          "label": "Home",
+          "lat": -20.15,
+          "lng": 57.15,
+          "radiusMeters": 50
+        },
+        "bindingHash": "7e871757803242ca72d3f242df25de5488fef2d6c33ca52fb85bac163234e9e5",
+        "conflictReason": "gps_outside_home"
+      },
+      "homeWifiPresence": null,
+      "lastSatelliteLocation": {
+        "lat": -20.17,
+        "lng": 57.17,
+        "source": "gps",
+        "gpsValid": true,
+        "recordedAt": "2026-09-13T00:00:00.000Z"
+      },
+      "location": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "lastLocationObservation": {
+        "lat": -20.18,
+        "lng": 57.18,
+        "source": "wifi",
+        "gpsValid": false,
+        "accuracyMeters": 577,
+        "recordedAt": "2026-09-14T00:19:40.000Z"
+      },
+      "accuracySource": "wifi"
+    },
+    "expectedRemembered": false
+  }
+]

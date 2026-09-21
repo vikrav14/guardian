@@ -2,7 +2,7 @@
  * Guardian cost model — all amounts in Mauritian Rupees (MUR).
  * Edit this file (or replace with pricing.mur.json loader) — never hardcode in UI.
  *
- * Rates are planning estimates based on Firebase/Twilio/Anthropic list pricing
+ * Rates are planning estimates based on Firebase/Meta/Anthropic list pricing
  * converted at murPerUsd. Reconcile against actual invoices periodically.
  */
 module.exports = {
@@ -26,8 +26,8 @@ module.exports = {
   },
 
   whatsapp: {
-    /** MUR per outbound/inbound WhatsApp session message (Twilio MU estimate) */
-    perMessageMur: 0.35,
+    /** Conservative MUR budget per delivered Meta utility template. */
+    perMessageMur: 0.50,
   },
 
   claude: {
@@ -50,9 +50,12 @@ module.exports = {
     annualMur: 1500,
     /** Monthly equivalent for projections */
     monthlyMur: 125,
-    basicMonthlyMur: 299,
-    familyMonthlyMur: 499,
-    careMonthlyMur: 799,
+    /** Guardian Essential renewal from month 13. */
+    essentialMonthlyMur: 199,
+    /** Compatibility alias for older dashboard code. */
+    basicMonthlyMur: 199,
+    familyMonthlyMur: 399,
+    careMonthlyMur: 699,
   },
 
   device: {

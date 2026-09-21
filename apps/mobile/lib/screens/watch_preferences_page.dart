@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/care_profile.dart';
 import '../models/device.dart';
 import '../models/medication_reminder.dart';
+import '../models/watch_alert_profile.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
 import '../widgets/layout/guardian_page_frame.dart';
+import '../wellness/wellness_routine.dart';
+import '../wellness/wellness_settings_card.dart';
 
 /// V52 only. Fall detection and medication reminders are TCP
 /// downlink commands with no SMS fallback -- the device must currently
 /// hold a live connection to the gateway for either to actually reach it.
 /// See gateway/src/commands.js and firestore/SCHEMA.md.
-class CareSettingsPage extends StatefulWidget {
-  const CareSettingsPage({
+class WatchPreferencesPage extends StatefulWidget {
+  const WatchPreferencesPage({
     super.key,
     required this.device,
     required this.subscription,
@@ -24,10 +28,10 @@ class CareSettingsPage extends StatefulWidget {
   final GuardianSubscription subscription;
 
   @override
-  State<CareSettingsPage> createState() => _CareSettingsPageState();
+  State<WatchPreferencesPage> createState() => _WatchPreferencesPageState();
 }
 
-class _CareSettingsPageState extends State<CareSettingsPage> {
+class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
   late GuardianCareProfile _adaptiveProfile;
   late Set<String> _adaptivePriorities;
 
@@ -40,17 +44,14 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   late int _uploadIntervalSeconds;
   bool _savingInterval = false;
 
-  static const _uploadIntervalPresets = [30, 60, 120, 300];
+  late WatchAlertProfile _watchAlertProfile;
+  bool _savingWatchAlertProfile = false;
+
+  static const _uploadIntervalPresets = [60, 300, 600, 900];
 
   @override
   void initState() {
     super.initState();
-    _adaptiveProfile = GuardianCareProfileX.fromValue(
-      widget.device.careProfile,
-    );
-    _adaptivePriorities = widget.device.carePriorities.isEmpty
-        ? {...GuardianCarePriority.defaultsFor(_adaptiveProfile)}
-        : {...widget.device.carePriorities};
     _adaptiveProfile = GuardianCareProfileX.fromValue(
       widget.device.careProfile,
     );
@@ -65,6 +66,9 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
         ? savedInterval!
         : 60;
+    _watchAlertProfile =
+        widget.device.watchAlertProfile ??
+        WatchAlertProfile.soundAndVibration;
   }
 
   Future<void> _saveFallDetection() async {
@@ -137,6 +141,61 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     }
   }
 
+  Future<void> _selectWatchAlertProfile(WatchAlertProfile profile) async {
+    if (profile == WatchAlertProfile.silent) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Use Silent mode?'),
+          content: const Text(
+            'Silent mode removes sound and vibration from this watch. '
+            'That includes medication reminders and other watch alerts.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Use Silent'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() => _watchAlertProfile = profile);
+  }
+
+  Future<void> _saveWatchAlertProfile(
+    GuardianSubscription subscription,
+  ) async {
+    setState(() => _savingWatchAlertProfile = true);
+    try {
+      await DeviceService().updateWatchAlertProfile(
+        widget.device.imei,
+        profile: _watchAlertProfile,
+        subscription: subscription,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_watchAlertProfile.label} request sent to the watch',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not reach watch: $e')));
+    } finally {
+      if (mounted) setState(() => _savingWatchAlertProfile = false);
+    }
+  }
+
   Future<void> _showAddReminderDialog(GuardianSubscription subscription) async {
     await showDialog<void>(
       context: context,
@@ -172,12 +231,16 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
       feature: GuardianFeature.wellbeingActivitySummaries,
       subscription: subscription,
     );
+    final medicationDecision = GuardianEntitlementDecision.resolve(
+      feature: GuardianFeature.medicationReminders,
+      subscription: subscription,
+    );
     return Scaffold(
       backgroundColor: colors.canvas,
       appBar: AppBar(
         backgroundColor: colors.canvas,
         elevation: 0,
-        title: Text('${widget.device.displayName} - Care'),
+        title: Text('${widget.device.displayName} · Watch preferences'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -188,7 +251,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'PROACTIVE WELLBEING',
+                  'WATCH PREFERENCES',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: 11,
@@ -198,16 +261,15 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Care settings',
+                  'Safety and Wellness',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'These need the watch to be online right now to take '
-                  'effect - there is no SMS fallback for fall detection or '
-                  'medication reminders.',
+                  'Choose when readings are taken and how location and safety features work. '
+                  'Changes sent to the watch need a current connection.',
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12.5,
@@ -215,20 +277,43 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
                   ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
-                if (careDecision.allowed)
+                WellnessSettingsCard(
+                  subscription: subscription,
+                  onOpen: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => WellnessRoutinePage(
+                        imei: widget.device.imei,
+                        subscription: subscription,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: GuardianSpacing.lg),
+                _buildLocationUpdatesCard(colors),
+                const SizedBox(height: GuardianSpacing.lg),
+                if (medicationDecision.allowed) ...[
+                  _buildWatchAlertProfileCard(colors, subscription),
+                  const SizedBox(height: GuardianSpacing.lg),
+                ],
+                _buildFallDetectionCard(colors),
+                const SizedBox(height: GuardianSpacing.lg),
+                if (medicationDecision.allowed) ...[
+                  _buildMedicationCard(colors, subscription),
+                  if (careDecision.allowed)
+                    const SizedBox(height: GuardianSpacing.lg),
+                ],
+                if (careDecision.allowed) ...[
                   CareProfileCard(
                     device: widget.device,
                     subscription: subscription,
                     onChanged: _onCareDraftChanged,
-                  )
-                else
+                  ),
+                  const SizedBox(height: GuardianSpacing.lg),
+                  _buildAdaptiveCareSections(
+                    colors,
+                  ),
+                ] else
                   _PlanNotice(decision: careDecision),
-                const SizedBox(height: GuardianSpacing.lg),
-                _buildAdaptiveCareSections(
-                  colors,
-                  careEnabled: careDecision.allowed,
-                  subscription: subscription,
-                ),
               ],
             ),
           ),
@@ -237,41 +322,17 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
     );
   }
 
-  Widget _buildAdaptiveCareSections(
-    GuardianThemeColors colors, {
-    required bool careEnabled,
-    required GuardianSubscription? subscription,
-  }) {
+  Widget _buildAdaptiveCareSections(GuardianThemeColors colors) {
     final priorities = _adaptivePriorities;
 
-    final widgets = <Widget>[
-      _buildLocationUpdatesCard(colors),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildFallDetectionCard(colors),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildPriorityInfoCard(
-        colors,
-        icon: Icons.location_on_outlined,
-        title: 'Safe zones',
-        subtitle:
-            'Important places Guardian can watch for arrivals and departures.',
-      ),
-      const SizedBox(height: GuardianSpacing.lg),
-      _buildPriorityInfoCard(
-        colors,
-        icon: Icons.route_outlined,
-        title: 'Journeys',
-        subtitle:
-            'Follow recorded movement between places. History length adapts to the family plan.',
-      ),
-    ];
+    final widgets = <Widget>[];
 
     void addSection(Widget section) {
-      widgets.add(const SizedBox(height: GuardianSpacing.lg));
+      if (widgets.isNotEmpty) {
+        widgets.add(const SizedBox(height: GuardianSpacing.lg));
+      }
       widgets.add(section);
     }
-
-    if (!careEnabled || subscription == null) return Column(children: widgets);
 
     if (priorities.contains(GuardianCarePriority.unusualStops)) {
       addSection(
@@ -280,17 +341,13 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.pause_circle_outline_rounded,
           title: 'Unusual stops',
           subtitle:
-              'Surface unexpected pauses or stops when they matter in context.',
+              'Planned · insights about unusual stops need verified movement history.',
         ),
       );
     }
 
     if (priorities.contains(GuardianCarePriority.wellbeing)) {
       addSection(_buildWellbeingInfoCard(colors));
-    }
-
-    if (priorities.contains(GuardianCarePriority.medication)) {
-      addSection(_buildMedicationCard(colors, subscription));
     }
 
     if (priorities.contains(GuardianCarePriority.inactivity)) {
@@ -300,7 +357,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.hourglass_empty_rounded,
           title: 'Inactivity',
           subtitle:
-              'Surface unusually long periods without meaningful movement.',
+              'Planned · personal activity patterns need sufficient readings and confirmed wearing.',
         ),
       );
     }
@@ -312,11 +369,20 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           icon: Icons.directions_walk_rounded,
           title: 'Wandering',
           subtitle:
-              'Watch for movement that looks unusual for the personâ€™s routine.',
+              'Planned · personal routine notices need verified movement history.',
         ),
       );
     }
 
+    addSection(
+      _buildPriorityInfoCard(
+        colors,
+        icon: Icons.summarize_outlined,
+        title: 'Weekly reports and advanced insights',
+        subtitle:
+            'Planned for Guardian Care · weekly WhatsApp reports, longer-term comparisons and optional personal-pattern notices.',
+      ),
+    );
     return Column(children: widgets);
   }
 
@@ -343,9 +409,9 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
         icon: Icons.favorite_border_rounded,
         iconColor: colors.accent,
         iconBackground: colors.accentMuted,
-        title: 'Wellbeing context',
+        title: 'Care insights',
         subtitle:
-            'Guardian may use supported watch signals to explain patterns, but never as a medical diagnosis.',
+            'Planned · insights from recorded Wellness history. Today’s watch readings are available on Home across all plans.',
       ),
     );
   }
@@ -461,7 +527,7 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
   }
 
   Widget _buildLocationUpdatesCard(GuardianThemeColors colors) {
-    const presets = <int>[60, 300, 600, 900];
+    const presets = _uploadIntervalPresets;
 
     String labelFor(int seconds) => switch (seconds) {
       60 => '1 min',
@@ -517,30 +583,25 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             ],
           ),
           const SizedBox(height: GuardianSpacing.md),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment<String>(
-                value: 'automatic',
-                icon: Icon(Icons.auto_awesome_rounded, size: 16),
-                label: Text('Automatic'),
-              ),
-              ButtonSegment<String>(
-                value: 'manual',
-                icon: Icon(Icons.tune_rounded, size: 16),
-                label: Text('Manual'),
-              ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mode in ['automatic', 'manual'])
+                ChoiceChip(
+                  label: Text(mode == 'automatic' ? 'Automatic' : 'Manual'),
+                  selected: _locationReportingMode == mode,
+                  onSelected: _savingInterval
+                      ? null
+                      : (_) {
+                          if (mode == 'automatic') {
+                            _enableAutomaticLocationReporting();
+                          } else {
+                            setState(() => _locationReportingMode = 'manual');
+                          }
+                        },
+                ),
             ],
-            selected: {_locationReportingMode},
-            onSelectionChanged: _savingInterval
-                ? null
-                : (selection) {
-                    final mode = selection.first;
-                    if (mode == 'automatic') {
-                      _enableAutomaticLocationReporting();
-                    } else {
-                      setState(() => _locationReportingMode = 'manual');
-                    }
-                  },
           ),
           const SizedBox(height: GuardianSpacing.md),
           if (automatic)
@@ -614,9 +675,8 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
           ],
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'Reporting frequency controls how often the watch is asked to send '
-            'updates. It does not change GPS A/V interpretation and does not '
-            'guarantee a satellite GPS fix.',
+            'This controls location updates. Heart rate, oxygen, blood pressure '
+            'and temperature use the separate Wellness routine.',
             style: TextStyle(
               color: colors.textMuted,
               fontSize: 11,
@@ -670,13 +730,40 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             ],
           ),
           const SizedBox(height: GuardianSpacing.sm),
-          StreamBuilder<List<MedicationReminder>>(
-            stream: MedicationReminderService().watchForDevice(
-              widget.device.imei,
-              subscription: subscription,
+          Text(
+            'The watch can alert the wearer. Guardian can confirm command delivery, '
+            'but not that medication was taken.',
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 11.5,
+              height: 1.35,
             ),
+          ),
+          const SizedBox(height: GuardianSpacing.sm),
+          StreamBuilder<List<MedicationReminder>>(
+            stream: Firebase.apps.isEmpty
+                ? Stream<List<MedicationReminder>>.value(
+                    const <MedicationReminder>[],
+                  )
+                : MedicationReminderService().watchForDevice(
+                    widget.device.imei,
+                    subscription: subscription,
+                  ),
             builder: (context, snapshot) {
               final reminders = snapshot.data ?? const <MedicationReminder>[];
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Could not load medication reminders. Check your connection and Family access.',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 12.5,
+                      height: 1.35,
+                    ),
+                  ),
+                );
+              }
               if (!snapshot.hasData) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
@@ -714,6 +801,189 @@ class _CareSettingsPageState extends State<CareSettingsPage> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildWatchAlertProfileCard(
+    GuardianThemeColors colors,
+    GuardianSubscription subscription,
+  ) {
+    return GuardianCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: colors.accentMuted,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _watchAlertProfile == WatchAlertProfile.vibration
+                      ? Icons.vibration_rounded
+                      : Icons.volume_up_rounded,
+                  color: colors.accent,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: GuardianSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Watch alert style',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'Choose how the watch alerts the wearer',
+                      style: TextStyle(color: colors.textMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GuardianSpacing.sm),
+          Text(
+            'This applies to medication reminders and other watch alerts. '
+            'Changes need a current watch connection.',
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 11.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          Column(
+            children: [
+              for (final profile in WatchAlertProfile.values) ...[
+                _WatchAlertProfileOption(
+                  profile: profile,
+                  selected: profile == _watchAlertProfile,
+                  onTap: _savingWatchAlertProfile
+                      ? null
+                      : () => _selectWatchAlertProfile(profile),
+                ),
+                if (profile != WatchAlertProfile.values.last)
+                  const SizedBox(height: GuardianSpacing.sm),
+              ],
+            ],
+          ),
+          const SizedBox(height: GuardianSpacing.md),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: _savingWatchAlertProfile
+                  ? null
+                  : () => _saveWatchAlertProfile(subscription),
+              child: _savingWatchAlertProfile
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Save alert style'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WatchAlertProfileOption extends StatelessWidget {
+  const _WatchAlertProfileOption({
+    required this.profile,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final WatchAlertProfile profile;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final foreground = selected ? Colors.white : colors.textPrimary;
+    final secondary = selected
+        ? Colors.white.withValues(alpha: .78)
+        : colors.textMuted;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected ? const Color(0xFF28785E) : const Color(0xFF86BDA2),
+          width: selected ? 1.5 : 1,
+        ),
+        gradient: selected
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF145F4C), Color(0xFF1B7E62)],
+              )
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE8F6EC), Color(0xFFBAE5CE)],
+              ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: foreground,
+                  size: 21,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.label,
+                        style: TextStyle(
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        profile.description,
+                        style: TextStyle(color: secondary, fontSize: 11.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -759,6 +1029,15 @@ class _ReminderTile extends StatelessWidget {
                 Text(
                   reminder.frequencyLabel,
                   style: TextStyle(color: colors.textMuted, fontSize: 11),
+                ),
+                Text(
+                  reminder.deviceSyncLabel,
+                  style: TextStyle(
+                    color: reminder.deviceSyncStatus == 'failed'
+                        ? GuardianColors.danger
+                        : colors.textMuted,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -853,7 +1132,10 @@ class _PlanNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  decision.title,
+                  decision.state ==
+                          GuardianEntitlementDecisionState.upgradeRequired
+                      ? 'Guardian Care features'
+                      : decision.title,
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -861,7 +1143,10 @@ class _PlanNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  decision.message,
+                  decision.state ==
+                          GuardianEntitlementDecisionState.upgradeRequired
+                      ? 'Care profile, advanced wellbeing and other Care services require Guardian Care. Medication reminders are available with Guardian Family and Guardian Care.'
+                      : decision.message,
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: 12,
@@ -870,7 +1155,7 @@ class _PlanNotice extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'Core location, safe-zone, journey and fall-safety settings remain available below.',
+                  'Your Wellness history follows your plan. Location and safety controls are above.',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: 11,

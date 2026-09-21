@@ -78,6 +78,18 @@ test('single linked wearer is attached to a daily summary', () => {
   assert.equal(result.wearer.imei, 'A');
 });
 
+test('single linked wearer is attached to an activity query', () => {
+  const controller = new ConversationController();
+  const result = controller.resolveWearer(
+    '+2301',
+    'steps today?',
+    'ACTIVITY_QUERY',
+    [devices[0]],
+  );
+  assert.equal(result.text, 'steps today? for Jesh');
+  assert.equal(result.wearer.imei, 'A');
+});
+
 test('standalone wearer gets a focused deterministic question', () => {
   const controller = new ConversationController();
   const result = controller.standaloneWearerReply('+2301', 'Jesh', devices);

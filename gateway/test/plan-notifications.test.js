@@ -61,11 +61,12 @@ test('only active service accounts contribute emergency contacts', async () => {
   assert.deepEqual(contacts.map((contact) => contact.name), ['Active']);
 });
 
-test('Essential safety contacts do not receive WhatsApp entitlement', async () => {
+test('Essential safety contacts receive only the SOS WhatsApp entitlement', async () => {
   const [contact] = await findContactsForImei(fakeDb([{
     subscription: sub('essential'),
     emergencyContacts: [{ name: 'Contact', phone: '+23057111111' }],
   }]), 'A');
   assert.equal(contact.entitlements.features.includes(FEATURE.SOS_ALERTS), true);
+  assert.equal(contact.entitlements.features.includes(FEATURE.SOS_WHATSAPP_ALERTS), true);
   assert.equal(contact.entitlements.features.includes(FEATURE.WHATSAPP_SAFETY_ALERTS), false);
 });

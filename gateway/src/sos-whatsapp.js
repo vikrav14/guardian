@@ -7,6 +7,8 @@ const {
 const {
   sendMetaTemplate,
 } = require('./whatsapp-meta');
+const config = require('./config');
+const { buildSosSafetyContext } = require('./sos-location-snapshot');
 
 const SOS_TEMPLATE_LANGUAGE = 'en';
 
@@ -20,11 +22,34 @@ function resetSafetyNarrationProviderForTests() {
   // Retained as a compatibility no-op for existing tests/callers.
 }
 
+function phoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function callbackTemplatesEnabledForDevice(device = {}, pilot = config) {
+  const configuredImei = String(
+    pilot.metaWhatsAppSosCallbackPilotImei || ''
+  ).trim();
+  const configuredNumber = phoneDigits(
+    pilot.metaWhatsAppSosCallbackPilotNumber
+  );
+  const deviceImei = String(device.imei || '').trim();
+  const deviceNumber = phoneDigits(device.simNumber);
+
+  return Boolean(
+    configuredImei
+      && configuredNumber
+      && deviceImei === configuredImei
+      && deviceNumber === configuredNumber
+  );
+}
+
 async function prepareSosWhatsApp({
   device = {},
   alert = {},
   now = new Date(),
   provider = undefined,
+  callbackTemplatesEnabled = undefined,
 } = {}) {
   const narrationProvider =
     provider === undefined ? getSafetyNarrationProvider() : provider;
@@ -35,6 +60,7 @@ async function prepareSosWhatsApp({
     alert,
     now,
     provider: narrationProvider,
+    context: buildSosSafetyContext({ device, alert, now }),
   });
 
   const plan = buildSosTemplatePlan({
@@ -42,6 +68,10 @@ async function prepareSosWhatsApp({
     alert,
     composeResult,
     now,
+    callbackTemplatesEnabled:
+      callbackTemplatesEnabled === undefined
+        ? callbackTemplatesEnabledForDevice(device)
+        : Boolean(callbackTemplatesEnabled),
   });
 
   return {
@@ -69,7 +99,8 @@ function renderSosFallbackText(prepared) {
     watchValue || 'Watch status unavailable',
   ];
 
-  const mapUrl = prepared?.composeResult?.context?.mapsUrl || null;
+  const mapUrl = plan.buttonUrlParameter
+    ? `https://maps.google.com/?q=${plan.buttonUrlParameter}` : null;
   if (mapUrl && plan.locationState !== 'unavailable') {
     lines.push(
       '',
@@ -128,6 +159,7 @@ module.exports = {
   SOS_TEMPLATE_LANGUAGE,
   getSafetyNarrationProvider,
   resetSafetyNarrationProviderForTests,
+  callbackTemplatesEnabledForDevice,
   prepareSosWhatsApp,
   renderSosFallbackText,
   sendPreparedSosWhatsApp,

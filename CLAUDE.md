@@ -125,28 +125,37 @@ LTE layout. It is not the last LTE-tail value.
 | 18 | Safe-zone exit |
 | 19 | Safe-zone entry |
 | 20 | Bracelet removal |
+| 21 | Fall compatibility candidate (raw pilot state confirmation pending) |
 | 22 | Fall alarm |
 
-`gateway/src/protocol/gt06.js` deliberately rejects bit 21 as fall and rejects
-shortened legacy alarm layouts. Do not weaken these guards to accommodate a
-mixed-generation example document.
+`gateway/src/protocol/gt06.js` accepts bits 21 and 22 as fall variants, while bit
+20 remains bracelet removal. The 21 September pilot confirms app and WhatsApp
+receipt after this change, but its supplied evidence omits the raw alarm state;
+do not claim that it proves bit 21. Shortened legacy alarm layouts remain
+rejected. Do not import other mixed-generation mappings.
 
 ### Commands: TCP vs SMS Routing
 
-- **TCP-only V52 commands:** `MONITOR`, `FIND`, fall settings, medication
-  reminders and reporting interval. A live connection is mandatory.
+- **TCP-only V52 commands:** live-proven administrator-only `PHBX`, plus
+  documented `MONITOR`, `FIND`, fall settings, medication reminders and
+  reporting interval. A live connection is mandatory. PHBX is an incoming
+  allowlist on Guardian's current SIM; never promise wearer-originated calls.
 - **Live-proven SMS provisioning:** center number, SOS slots and `ts#` status.
 
 See `gateway/src/commands.js` for the `TCP_ONLY_TYPES` set and dispatch logic.
 
 ### Remaining V52 Acceptance Items
 
-1. Trigger a real fall and confirm bit 22 plus frozen event-location delivery.
+1. Preserve the 21 September fall app/WhatsApp receipt result; capture the raw
+   tracker state, signed delivery receipt and frozen event-location evidence.
 2. Verify `MONITOR,<phone>` callback behaviour and consent UX on the real V52.
 3. Verify `FIND` sound, duration and stop behaviour on the real V52.
 4. Test a canonical medication reminder end-to-end on the watch.
 5. Tune safe-zone hysteresis using outdoor/indoor V52 walks; approximate
    Wi-Fi/LBS observations must not create false boundary transitions.
+6. Repeat PHBX provisioning, approved incoming calling and unknown-caller
+   rejection on a second production V52/SIM; confirm replacement/removal with
+   ReachFar before customer contact management is enabled.
 
 Record results in `docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`. A vendor claim
 or unit test alone never marks a hardware promise Proven.

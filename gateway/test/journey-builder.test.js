@@ -14,7 +14,7 @@ function emptyState() {
 
 function movingPoint(latOffset = 0, at = '2026-07-22T08:00:00Z') {
   const recordedAt = new Date(at);
-  return {
+  return { source: 'gps', gpsValid: true,
     lat: -20.2642 + latOffset,
     lng: 57.4791,
     speedKmh: 12,
@@ -55,7 +55,7 @@ test('trackJourneyPoint closes generic journey after idle timeout', () => {
   const idleAt = new Date('2026-07-22T08:20:00Z');
   const result = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2632,
       lng: 57.4791,
       speedKmh: 0,
@@ -73,7 +73,7 @@ test('trackJourneyPoint closes generic journey after idle timeout', () => {
 
 test('geofence exit starts an outing and records its origin', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const exitAt = new Date('2026-07-22T09:05:00Z');
   const result = trackJourneyPoint(
@@ -282,7 +282,7 @@ test('geofence exit never flushes an already-active outing', () => {
 
 test('origin outing survives a long stop away from home', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const exitAt = new Date('2026-07-22T10:00:00Z');
   trackJourneyPoint(
@@ -303,7 +303,7 @@ test('origin outing survives a long stop away from home', () => {
   const stoppedAt = new Date('2026-07-22T10:25:00Z');
   const stopped = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2622,
       lng: 57.4791,
       speedKmh: 0,
@@ -319,7 +319,7 @@ test('origin outing survives a long stop away from home', () => {
 
 test('Home to stop to Home closes as one confirmed outing', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const exitAt = new Date('2026-07-22T11:00:00Z');
   trackJourneyPoint(
@@ -339,7 +339,7 @@ test('Home to stop to Home closes as one confirmed outing', () => {
   const stopAt = new Date('2026-07-22T11:15:00Z');
   const stopped = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2622,
       lng: 57.4791,
       speedKmh: 0,
@@ -353,7 +353,7 @@ test('Home to stop to Home closes as one confirmed outing', () => {
   const enterAt = new Date('2026-07-22T11:30:00Z');
   const entered = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2641,
       lng: 57.4791,
       speedKmh: 0,
@@ -371,7 +371,7 @@ test('Home to stop to Home closes as one confirmed outing', () => {
   const oneMinuteLater = new Date('2026-07-22T11:31:00Z');
   const waiting = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.26415,
       lng: 57.4791,
       speedKmh: 0,
@@ -387,7 +387,7 @@ test('Home to stop to Home closes as one confirmed outing', () => {
   const confirmedAt = new Date('2026-07-22T11:32:05Z');
   const confirmed = trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.26418,
       lng: 57.4791,
       speedKmh: 0,
@@ -416,7 +416,7 @@ test('Home to stop to Home closes as one confirmed outing', () => {
 
 test('brief origin re-entry followed by exit does not close outing', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   trackJourneyPoint(
     state,
@@ -428,7 +428,7 @@ test('brief origin re-entry followed by exit does not close outing', () => {
   const enterAt = new Date('2026-07-22T12:10:00Z');
   trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2641,
       lng: 57.4791,
       speedKmh: 0,
@@ -488,12 +488,12 @@ test('journeyDistanceKm matches decoded polyline path', () => {
 
   trackJourneyPoint(
     state,
-    { lat: -20.2642, lng: 57.4791, speedKmh: 10, recordedAt: start },
+    { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791, speedKmh: 10, recordedAt: start },
     start
   );
   trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2652,
       lng: 57.4791,
       speedKmh: 10,
@@ -503,7 +503,7 @@ test('journeyDistanceKm matches decoded polyline path', () => {
   );
   trackJourneyPoint(
     state,
-    {
+    { source: 'gps', gpsValid: true,
       lat: -20.2662,
       lng: 57.4791,
       speedKmh: 10,
@@ -657,7 +657,7 @@ test('sequential closed journeys cannot overlap', () => {
 });
 test('active safe zone context blocks drift-only generic journey start', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const now = new Date('2026-08-11T08:00:00Z');
   const result = trackJourneyPoint(
@@ -685,7 +685,7 @@ test('active safe zone context blocks drift-only generic journey start', () => {
 
 test('confirmed safe-zone exit still starts outing when active zones are configured', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const exitAt = new Date('2026-08-11T09:00:00Z');
   const result = trackJourneyPoint(
@@ -705,7 +705,7 @@ test('confirmed safe-zone exit still starts outing when active zones are configu
 });
 test('active safe zone configured but currently outside still allows generic journey start', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
 
   const now = new Date('2026-08-11T10:00:00Z');
   const result = trackJourneyPoint(
@@ -725,7 +725,7 @@ test('active safe zone configured but currently outside still allows generic jou
 
 test('uncertain safe-zone presence blocks a drift-only generic journey start', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.029234, lng: 57.5957028 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.029234, lng: 57.5957028 };
   const now = new Date('2026-08-17T08:10:00Z');
 
   const result = trackJourneyPoint(
@@ -845,7 +845,7 @@ test('completed journey stores real point timing, provenance, and route gaps', (
 
 test('journey events retain the geofence observation evidence used for transitions', () => {
   const state = emptyState();
-  state.lastPersistedLocation = { lat: -20.2642, lng: 57.4791 };
+  state.lastPersistedLocation = { source: 'gps', gpsValid: true, lat: -20.2642, lng: 57.4791 };
   const at = new Date('2026-08-17T09:00:00Z');
   const evidence = {
     classification: 'outside',

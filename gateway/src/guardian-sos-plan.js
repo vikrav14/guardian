@@ -1,4 +1,8 @@
-const { buildSafetyContext } = require('./safety-message');
+const {
+  readSosLocationSnapshot,
+  buildSosSafetyContext,
+  formatSosLocationValue,
+} = require('./sos-location-snapshot');
 const {
   buildDeterministicNarration,
   buildWatchTemplateValue,
@@ -7,7 +11,6 @@ const {
   buildGuardianSafetyTemplateComponents,
 } = require('./whatsapp-meta');
 const {
-  classifySosLocation,
   formatLocationAge,
 } = require('./sos-location-policy');
 
@@ -16,6 +19,19 @@ const SOS_TEMPLATE_NAMES = Object.freeze({
   last_known: 'guardian_sos_last_location_v1',
   unavailable: 'guardian_sos_unavailable_v1',
 });
+
+// These templates add a static Meta PHONE_NUMBER button at index 0. The
+// fresh/last-known variants retain the dynamic map URL at index 1.
+const SOS_CALLBACK_TEMPLATE_NAMES = Object.freeze({
+  fresh: 'guardian_sos_callback_alert_v1',
+  last_known: 'guardian_sos_callback_last_location_v1',
+  unavailable: 'guardian_sos_callback_unavailable_v1',
+});
+
+function buildCallbackNarration(ctx) {
+  const name = ctx.wearerName || 'Loved one';
+  return `${name} pressed SOS and is requesting help. Please call ${name}'s watch now.`;
+}
 
 function mapButtonSuffix(ctx) {
   const prefix = 'https://maps.google.com/?q=';
@@ -90,9 +106,17 @@ function buildSosTemplatePlan({
   alert = {},
   composeResult = null,
   now = new Date(),
+  callbackTemplatesEnabled = false,
 } = {}) {
-  const ctx = composeResult?.context || buildSafetyContext({ device, alert, now });
-  const locationDecision = classifySosLocation({ device, now });
+  // The composer (or a later device read) cannot override incident coordinates.
+  const snapshot = readSosLocationSnapshot(alert);
+  const ctx = buildSosSafetyContext({ device, alert, now });
+  const locationDecision = snapshot || {
+    state: 'unavailable',
+    reason: 'sos_snapshot_missing_or_invalid',
+    ageSeconds: null,
+    location: null,
+  };
 
   let narration = String(composeResult?.narration || '').trim();
   let narrationSource = composeResult?.source || 'fallback';
@@ -122,14 +146,13 @@ function buildSosTemplatePlan({
     narrationOverrideReason = 'location_claim_without_coordinates';
   }
 
-  let locationValue;
-  if (locationDecision.state === 'fresh') {
-    locationValue = buildFreshLocationValue(ctx);
-  } else if (locationDecision.state === 'last_known') {
-    locationValue = buildLastKnownLocationValue(ctx, locationDecision);
-  } else {
-    locationValue = 'Current location unavailable';
+  if (callbackTemplatesEnabled) {
+    narration = buildCallbackNarration(ctx);
+    narrationSource = 'fallback';
+    narrationOverrideReason = 'callback_action_required';
   }
+
+  const locationValue = formatSosLocationValue(snapshot);
 
   const bodyParameters = [
     narration,
@@ -138,15 +161,20 @@ function buildSosTemplatePlan({
     buildWatchTemplateValue(ctx),
   ];
 
-  const templateName = SOS_TEMPLATE_NAMES[locationDecision.state];
+  const templateNames = callbackTemplatesEnabled
+    ? SOS_CALLBACK_TEMPLATE_NAMES
+    : SOS_TEMPLATE_NAMES;
+  const templateName = templateNames[locationDecision.state];
   const buttonUrlParameter =
     locationDecision.state === 'unavailable' ? null : mapButtonSuffix(ctx);
+  const locationButtonIndex = callbackTemplatesEnabled ? 1 : 0;
 
   let components;
   if (buttonUrlParameter) {
     components = buildGuardianSafetyTemplateComponents({
       bodyParameters,
       buttonUrlParameter,
+      buttonIndex: locationButtonIndex,
     });
   } else {
     // guardian_sos_unavailable_v1 has no location button.
@@ -155,6 +183,9 @@ function buildSosTemplatePlan({
 
   return {
     templateName,
+    callbackTemplatesEnabled,
+    callButtonIncluded: callbackTemplatesEnabled,
+    locationButtonIndex: buttonUrlParameter ? locationButtonIndex : null,
     locationState: locationDecision.state,
     locationDecision,
     narration,
@@ -168,6 +199,8 @@ function buildSosTemplatePlan({
 
 module.exports = {
   SOS_TEMPLATE_NAMES,
+  SOS_CALLBACK_TEMPLATE_NAMES,
+  buildCallbackNarration,
   mapButtonSuffix,
   buildFreshLocationValue,
   buildLastKnownLocationValue,
