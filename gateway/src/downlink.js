@@ -34,7 +34,15 @@ function redactDownlinkCommand(command) {
  * Write a downlink command frame on every active TCP session for the device.
  * Uses the 10-digit protocol id in the frame (e.g. CR → [SG*9705314117*0002*CR]).
  */
-function sendDownlinkCommand(imeiOrProtocolId, command) {
+function sendDownlinkCommand(imeiOrProtocolId, command, { frameFormat = 'default' } = {}) {
+  // Explicit operator comparison only. Keep normal framing and every other
+  // command unchanged; do not expose an arbitrary raw-frame override.
+  if (!['default', 'applock-example'].includes(frameFormat)) {
+    return { ok: false, error: 'unsupported_frame_format' };
+  }
+  if (frameFormat === 'applock-example' && !/^APPLOCK,JT-[01]$/.test(command)) {
+    return { ok: false, error: 'frame_format_command_rejected' };
+  }
   const matches = findSocketsForDevice(imeiOrProtocolId);
   if (matches.length === 0) {
     return { ok: false, error: 'no_active_session', imeiOrProtocolId, command };
@@ -46,7 +54,14 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
       ? String(imeiOrProtocolId).slice(3, 13)
       : String(imeiOrProtocolId));
 
-  const frame = buildAckFrame(protocolId, command);
+  if (frameFormat === 'applock-example' && !/^\d{10}$/.test(protocolId)) {
+    return { ok: false, error: 'invalid_protocol_id' };
+  }
+  // Supplier Communication Example, page 2: literal lowercase "000c".
+  // This changes one header byte, never JT polarity or the payload.
+  const frame = frameFormat === 'applock-example'
+    ? Buffer.from(`[SG*${protocolId}*000c*${command}]`, 'ascii')
+    : buildAckFrame(protocolId, command);
   const frameStr = frame.toString('ascii');
 
   for (const { socket } of matches) {
@@ -67,6 +82,7 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
     protocolId,
     command,
     frame: frameStr,
+    ...(frameFormat === 'applock-example' ? { frameFormat } : {}),
     sessions: matches.length,
   };
 }

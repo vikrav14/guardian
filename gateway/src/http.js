@@ -1425,6 +1425,13 @@ function startHttpServer() {
           return;
         }
         const command = url.searchParams.get('command') || 'CR';
+        const frameFormat = url.searchParams.get('frameFormat') || 'default';
+        if (frameFormat !== 'default' && (req.method !== 'POST' ||
+            url.pathname !== '/dev/downlink' || frameFormat !== 'applock-example' ||
+            !/^APPLOCK,JT-[01]$/.test(command))) {
+          sendJson(res, 400, { error: 'Only POST APPLOCK,JT-0/1 supports frameFormat=applock-example.' });
+          return;
+        }
         const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
         try {
           const routine = getWellnessRoutineRuntime();
@@ -1437,7 +1444,7 @@ function startHttpServer() {
         const result =
           command === 'CR'
             ? sendContinuousReporting(imei)
-            : sendDownlinkCommand(imei, command);
+            : sendDownlinkCommand(imei, command, { frameFormat });
 
         // Auto-stop ring after 60 seconds (device firmware doesn't auto-stop as documented)
         if (command === 'find#' && result.ok) {

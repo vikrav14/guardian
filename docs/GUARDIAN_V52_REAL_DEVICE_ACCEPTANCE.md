@@ -993,3 +993,19 @@ would not resolve the remaining uncertainty.
 The diagnostic commit `3eabb7d` passed Guardian release gates run
 [35641384531](https://github.com/vikrav14/guardian/actions/runs/35641384531).
 CI success validates the software checks, not physical auto-answer behavior.
+
+## 2026-09-21 — Exact-example answer-mode comparison prepared
+
+Further audit found a single byte difference between the prior APPLOCK frame and
+the supplied example: uppercase 000C versus lowercase 000c in the hexadecimal
+length. Both mean 12; causation is unproven. An opt-in exact-example sender and
+passive, redacted CONFIG JT observation are now available in draft PR #115.
+
+The script and HTTP/TCP path were verified using synthetic local sessions.
+No live watch command was sent by this investigation and no new physical success
+is claimed. Next compare the supplier frame while idle, observe incoming
+caller-ID recognition, and restore/verify manual answering. See
+[watch modes](services/watch-modes.md#deeper-protocol-audit--21-september-2026)
+for the audit, exact commands, limits and controlled trial procedure.
+
+Subsequent operator helper output reports a Manual (APPLOCK,JT-1) socket handoff to one session after the failed Auto test. A new Manual reply and untouched-call result have not yet been supplied.

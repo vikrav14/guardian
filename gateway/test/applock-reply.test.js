@@ -66,3 +66,24 @@ test('documented APPLOCK commands use the live protocol ID and twelve-byte paylo
       `[SG*9700000000*000C*APPLOCK,JT-${value}]`);
   }
 });
+
+test('CONFIG JT observation is bounded, passive, and never asserted to be an applied answer mode', () => {
+  for (const [payload, jtField, reportedJt] of [
+    ['JT:0,PHONE:+15550123456,PW:secret', 'valid', 0],
+    ['JT:1', 'valid', 1],
+    ['BT:2', 'missing', null],
+    ['JT:0,JT:1', 'duplicate', null],
+    ['JT:+15550123456', 'invalid', null],
+    ['JT:2', 'invalid', null],
+  ]) {
+    const content = `CONFIG,${payload}`;
+    const length = Buffer.byteLength(content).toString(16).padStart(4, '0');
+    const { acks, events } = handlePacket(decodeFrame(Buffer.from(`[3G*9700000000*${length}*${content}]`)), {});
+    assert.equal(acks.length, 1);
+    assert.equal(acks[0].toString('ascii'), '[SG*9700000000*0008*CONFIG,1]');
+    const event = events.find(value => value.type === 'answer_mode_config');
+    assert.deepEqual(event.evidence, { jtField, reportedJt, meaningVerified: false, appliedStateVerified: false });
+    assert.ok(!JSON.stringify(event).includes('+15550123456'));
+    assert.ok(!JSON.stringify(event).includes('secret'));
+  }
+});

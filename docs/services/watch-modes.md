@@ -128,3 +128,82 @@ CI success validates the software checks, not physical auto-answer behavior.
 - Silent-mode acceptance and any explicitly designed expiry/restoration behavior.
 - Reconcile the old service contracts with implemented main-branch controls.
 - Real-device acceptance of reboot behavior and any claimed persistent settings.
+
+## Deeper protocol audit — 21 September 2026
+
+The operator requested further investigation before supplier escalation. Re-read
+the supplied Communication Protocol, the full five-page Communication Example,
+SMS provisioning sheet and V52 guide, and traced the helper -> authenticated HTTP
+-> downlink -> TCP path.
+
+| Check | Finding |
+| --- | --- |
+| Command mapping | Supplier example page 2: JT-0 automatic; JT-1 press-to-answer |
+| Target | Live session protocol ID; never the example device ID |
+| Prefix / punctuation | SG, brackets, asterisks, comma and ASCII hyphen match the example |
+| Payload | Exactly 12 ASCII bytes; no BOM, space, CR/LF, NUL, checksum or terminator added after the closing bracket |
+| Full frame | 33 bytes for the 10-digit protocol ID |
+| Exact remaining byte difference | Offset 18 (zero-based): current builder uses C (0x43), supplier example c (0x63) in the length field |
+| Queue / overwrite | Direct TCP path bypasses Firestore command queuing; no automatic JT-1 overwrite found in production |
+| Reply | The instrumented pilot reply is bare APPLOCK; no applied mode or error detail |
+| Caller data | Operator confirmed SOS1 via ts#; incoming caller-ID recognition and exact displayed number format have not been observed |
+| Additional observation | Supplier example page 3 includes JT:0 in CONFIG; it does not define whether this is capability, default or applied mode for the pilot V52 |
+
+Both 000C and 000c represent 12. The protocol itself uses uppercase hexadecimal
+examples elsewhere. Uppercase is **not established as invalid**, and the new
+comparison is **not a confirmed fix**. The independent
+[Traccar Watch encoder](https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/protocol/WatchProtocolEncoder.java)
+also uses a lowercase hexadecimal length and maps an incoming 3G manufacturer to
+outbound SG; it is corroborating implementation evidence, not pilot acceptance.
+
+### Exact-example comparison
+
+The operator-only script `gateway/scripts/trial-answer-mode.js` defaults to
+preview and requires an explicit mode and framing choice. With --send it makes
+one authenticated local POST, without automatic retries. It checks that the
+gateway reports the expected exact frame, detecting older gateways that ignore
+the formatting option. It never queries or changes contacts, safe mode, SOS slots,
+wellness schedules, or command polarity.
+
+The optional `frameFormat=applock-example` is restricted to POST /dev/downlink
+and exactly APPLOCK,JT-0 or APPLOCK,JT-1. Normal framing remains unchanged.
+Regression tests exercise the real local TCP bytes and the script -> authenticated
+HTTP -> downlink path, reject other commands/GET/unauthenticated requests, and
+cover timeout ambiguity, preview and old-server mismatches.
+
+Passive CONFIG logging retains only the JT field's presence/validity and a
+single 0/1 value. Other CONFIG contents are discarded from this diagnostic.
+Meaning and applied-state verification remain false. No CONFIG request command
+is invented or sent; the pilot may never emit that packet.
+
+### Next physical check
+
+1. Update this branch and restart the gateway while preserving ngrok.
+2. Keep the watch beside the informed operator. End any call, return to the watch
+   face, and leave it idle for a minute. The V52 guide explicitly identifies a
+   busy watch (including a call) as a reason settings can fail.
+3. From a second PowerShell window in gateway, send exactly once:
+
+   `node scripts/trial-answer-mode.js --imei <pilot-imei> --mode auto --framing supplier --send`
+
+4. Confirm socket_handoff and literal lowercase 000c in the displayed frame.
+   Wait for the APPLOCK reply and allow 30 seconds with the watch idle, then call
+   from the already verified SOS1 number. Leave the watch untouched for up to
+   30 seconds. Record answering/ring count, two-way audio if answered, and whether
+   the incoming screen displays the saved contact name, a number, or Unknown.
+   Describe number formatting only (local / +230 / 230 / 00230), not the full
+   private number. Do not modify the stored contact while checking.
+5. End the call and restore using the same exact-example framing:
+
+   `node scripts/trial-answer-mode.js --imei <pilot-imei> --mode manual --framing supplier --send`
+
+   Capture the reply and verify that another untouched call waits for manual
+   answering. Record the actual outcome even if it differs from the documented label.
+6. Preserve the APPLOCK and any answer-mode-config lines plus physical results.
+   If auto-answer works, compare current versus supplier framing under the same
+   idle/timing/caller conditions before attributing the result to the header case.
+   The script supports --framing current for that explicit later comparison.
+
+No result for this new comparison has been supplied yet. Customer auto-answer
+controls remain unaccepted. Supplier contact is not required before completing
+these concrete local checks.

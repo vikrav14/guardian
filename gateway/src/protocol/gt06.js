@@ -304,6 +304,19 @@ function summarizeAppLockReply(args) {
   };
 }
 
+function summarizeAnswerModeConfig(args) {
+  // The mixed-family supplier CONFIG example includes JT:0. Observe only;
+  // it is not established as a V52 applied-mode readback or capability flag.
+  const fields = args.filter(value => typeof value === 'string' && value.trim().startsWith('JT:'));
+  const valid = fields.length === 1 && /^JT:[01]$/.test(fields[0].trim());
+  return {
+    jtField: !fields.length ? 'missing' : fields.length > 1 ? 'duplicate' : valid ? 'valid' : 'invalid',
+    reportedJt: valid ? Number(fields[0].trim().slice(3)) : null,
+    meaningVerified: false,
+    appliedStateVerified: false,
+  };
+}
+
 function handlePacket(decoded, session) {
   const { imei: rawId, command, args, payload } = decoded;
   const acks = [];
@@ -447,6 +460,7 @@ function handlePacket(decoded, session) {
     // Device firmware self-test packet — contains device state including UL (upload interval).
     // Per the V52 vendor protocol: reply CONFIG,1 (not bare CONFIG).
     acks.push(buildAckFrame(protocolId, 'CONFIG,1'));
+    events.push({ type: 'answer_mode_config', ...eventMeta, evidence: summarizeAnswerModeConfig(args) });
     if (fullImeiHint && isFullImei(fullImeiHint)) {
       events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
     }

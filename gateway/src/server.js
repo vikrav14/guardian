@@ -1248,6 +1248,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
         );
 
+      } else if (event.type === 'answer_mode_config') {
+        console.log(`[answer-mode-config] ${event.protocolId || event.imei} ` +
+          `receivedAt=${(receivedAt || new Date()).toISOString()} ${JSON.stringify(event.evidence)}`);
       } else if (event.type === 'command_echo') {
 
         const readbackArgs = Array.isArray(event.args) && event.args.length
