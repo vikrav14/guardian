@@ -1009,3 +1009,45 @@ caller-ID recognition, and restore/verify manual answering. See
 for the audit, exact commands, limits and controlled trial procedure.
 
 Subsequent operator helper output reports a Manual (APPLOCK,JT-1) socket handoff to one session after the failed Auto test. A new Manual reply and untouched-call result have not yet been supplied.
+
+## Exact supplier-frame result — 21 September 2026, 19:37 UTC
+
+The operator ran the exact-example Auto trial at `2026-09-21T19:37:28.514Z`.
+Its output reported one live session and the expected 33-byte frame with a
+12-byte payload and lowercase `000c`. The subsequent attachment
+`Pasted text(20260921-194115).txt` independently contains:
+
+```text
+[downlink] sent APPLOCK,JT-0 to 9705254749 (1 session(s)): [SG*9705254749*000c*APPLOCK,JT-0]
+[gateway] 9705254749 echoed back APPLOCK receivedAt=2026-09-21T19:37:28.889Z replyEvidence={"kind":"bare","argumentCount":0,"arguments":[],"truncated":false,"appliedStateVerified":false} (dropped, not re-acking)
+```
+
+The operator reports that automatic answering **did not work**. This is a failed
+physical Auto test despite the exact supplier framing and a matching bare reply.
+Both uppercase and lowercase trials have now failed to produce automatic answering;
+the header-case change is not a demonstrated fix. The reply contains no applied
+mode or error information, so the reason for failure remains unknown.
+
+This excerpt contains no `answer-mode-config` observation and no subsequent
+`APPLOCK,JT-1` restoration. Neither absence establishes unsupported firmware.
+A later TCP connection at `19:39:56.078Z` does not establish why the call failed.
+The operator subsequently confirmed that the incoming screen displayed the saved
+contact. Combined with the prior SOS1 readback confirmation, this supplies evidence
+of visible caller recognition. It does not establish that the firmware uses the same
+internal matching rule for automatic answering. The precise call time, duration and
+ring count were not provided; do not infer them from the instructed test procedure.
+
+Next: end the call and restore Manual using the same supplier framing, capture
+its reply, then verify that a fresh untouched call waits for manual answering.
+The already-confirmed SMS SOS1 match and visible saved-contact recognition need
+not be repeated. The evidence does not yet distinguish ignored mode application,
+additional firmware prerequisites or an implementation defect; none is established
+as the cause. No documented V52 applied-mode readback has been identified.
+
+Do not repeat Auto without a new diagnostic reason or change contacts, caller
+restrictions or undocumented command values. PR #115 remains draft; automatic
+answering is not accepted.
+
+The diagnostic runtime commit `d1d37b4` passed
+[Guardian release gates run 35645517019](https://github.com/vikrav14/guardian/actions/runs/35645517019).
+That software result does not change the failed physical outcome.
