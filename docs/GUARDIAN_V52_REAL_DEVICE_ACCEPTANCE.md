@@ -1105,3 +1105,55 @@ without publishing contact data. This tests the requested modes across reboot;
 it cannot directly read the stored mode. A failure does not establish unsupported
 firmware. No caller-list, safe-mode, SOS-slot or server-setting change is part of
 the comparison. Auto-answer remains unaccepted and PR #115 stays draft.
+
+## Reboot trial result — 21 September 2026, 20:02–20:08 UTC
+
+Source: operator attachment `Pasted text(20260921-200849).txt` and the report
+"did not work" following the supervised Auto/reboot/call procedure. Automatic
+answering remains **not passed**.
+
+| Observed event | Evidence |
+| --- | --- |
+| Auto request | Exact supplier `APPLOCK,JT-0` frame with `000c`, handed to one session |
+| Auto response | Bare APPLOCK reply at `2026-09-21T20:02:37.767Z`; no returned mode/error |
+| Restart request | One `RESET` downlink to one session, after Auto; its exact send time is not printed |
+| New startup traffic | TCP connection at `20:04:11.795Z`, followed by configuration, full pilot IMEI and fresh persistence |
+| New configuration evidence | At `20:04:11.834Z`: `jtField: valid`, `reportedJt: 0`, `meaningVerified: false`, `appliedStateVerified: false` |
+| Manual request | Exact supplier `APPLOCK,JT-1` frame, handed to two registered sessions |
+| Manual response | Bare APPLOCK reply at `20:06:23.059Z` |
+| Post-Manual restart/configuration | Not present in the supplied excerpt |
+
+The startup sequence after RESET is consistent with a device restart. The
+operator did not separately describe the visible boot sequence, exact call time,
+ring count or post-restoration call outcome. The reported failure must not be
+turned into a claim that the stored answer mode has been read back.
+
+This is the **first captured JT configuration value from the pilot** in this
+investigation. Parser review confirms it is extracted from a received `JT:0`
+field, not a default substituted for missing data. Its meaning remains unknown:
+it could describe a setting or another firmware property. The same-named field
+in the mixed-family supplier example does not establish the V52 meaning.
+
+Next complete the already-planned **Manual/reboot** half of the comparison.
+Manual has already been handed off and replied to; do not resend Auto. If a
+restart after that Manual reply has already happened, obtain its configuration
+line instead of requesting another restart. Otherwise, with no call active,
+send RESET once using the updated helper, observe the watch startup and wait
+for identified reconnection/fresh telemetry. Retain the next
+`[answer-mode-config]` line and verify an incoming call waits for a manual answer.
+
+If JT changes to 1, that supplies evidence of a relationship between the request
+and startup configuration on this pilot; it still does not prove successful
+automatic answering. If it remains 0, that does not by itself distinguish a
+static field, ignored setting or a setting that does not persist. If no field
+arrives, record that absence without inferring a firmware capability.
+
+The excerpt also logs unhandled `appcontacttel`, `APPANDFNREPORT` and `eicard`
+during startup. It does not establish their semantics or a causal link to the
+failed call; do not fabricate server responses. The multiple registered TCP
+sessions likewise do not establish a cause of the Auto failure.
+
+No runtime change or live command is made by this evidence update. PR #115
+remains draft. The helper/runtime head `bc38754` passed
+[Guardian release gates run 35648407320](https://github.com/vikrav14/guardian/actions/runs/35648407320);
+software CI does not validate the physical answer-mode behavior.
