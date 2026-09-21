@@ -959,3 +959,37 @@ a supplied fresh mode-2 downlink. Silent, expiry and reboot behavior remain unve
 See [watch modes](services/watch-modes.md) for supplier mappings, exact firmware
 labels, evidence limits and the next enable/call/restore trial. No real phone
 numbers or raw SOS status messages are included.
+
+## Instrumented follow-up — 21 September 2026, 19:08 UTC
+
+The operator supplied `Pasted text(20260921-191154).txt` (100 lines) after running
+the diagnostic gateway. It records one `APPLOCK,JT-0` downlink to one live session,
+followed by an APPLOCK reply at `2026-09-21T19:08:32.909Z` (23:08:32.909 MUT):
+
+```json
+{"kind":"bare","argumentCount":0,"arguments":[],"truncated":false,"appliedStateVerified":false}
+```
+
+This capture establishes that **this reply was bare**, matching the supplied
+communication example. It contains no returned mode or error detail; it still
+does not establish that automatic answering was applied. The earlier captures
+remain uninterpretable as to argument shape.
+
+The operator reported that the call from the confirmed on-watch SOS1 number,
+left untouched for the instructed 15–20 seconds, **kept ringing**. Auto-answer
+therefore remains **not passed**. The exact call timestamp/ring count is not
+present in the log. The excerpt contains no JT-1 downlink or verified manual
+restoration after this final Auto trial. Earlier helper outputs reported
+Auto -> Manual -> Auto socket handoffs; their exact timestamps were not supplied.
+
+Next action: end the call, restore `APPLOCK,JT-1`, capture the reply, and confirm
+manual answering. Ask the supplier to confirm support and prerequisites for
+`JT-0` on the two recorded firmware labels, including any caller-number format
+requirements and a supported way to read back answer mode. Keep caller
+restrictions unchanged. Do not infer unsupported firmware or change JT mappings
+from this result. Repeating the same enable/call trial without new information
+would not resolve the remaining uncertainty.
+
+The diagnostic commit `3eabb7d` passed Guardian release gates run
+[35641384531](https://github.com/vikrav14/guardian/actions/runs/35641384531).
+CI success validates the software checks, not physical auto-answer behavior.
