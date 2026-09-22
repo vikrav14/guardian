@@ -1,11 +1,56 @@
-# PR #115 paused handoff — 22 September 2026
+# PR #115 investigation handoff — 22 September 2026
 
-> **Later 22 September update:** The operator resumed answer-mode investigation
-> after trying a separate new watch on AnyTracking and losing access to their
-> HTTP inspection tool. PR #115 remains a draft. A standalone, locally tested
-> reference-server relay is now prepared; no capture routing or new Jesh command
-> has been executed. Read the [current checkpoint and operator procedure](../testing/answer-mode-reference-relay.md).
-> The paused state and resume sequence below are the earlier historical handoff.
+## Latest: Sound + vibration baseline confirmed; Auto still rings
+
+The operator resumed a controlled trial on the existing Guardian pilot after
+restarting the laptop. PR #115 remains an open draft. This checkpoint supersedes
+the historical paused state below; the separate AnyTracking reference capture
+is still on hold because its server/return-SMS path is unconfirmed.
+
+- Guardian HTTP health passed and the pilot diagnostic reported connected:true.
+  The wellness routine remained enabled. This is connection evidence, not
+  automatic-answer acceptance.
+- A fresh profile,1 downlink was supplied for one live session. The operator
+  confirmed ringing, vibration, manual answering and audio in both directions
+  on the baseline call. This fills the earlier missing-downlink gap for the
+  Sound + vibration incoming-call observation.
+- The proposed supplier-framing helper could not run: trial-answer-mode.js was
+  absent from the Windows checkout (MODULE_NOT_FOUND). That invocation sent
+  nothing. The running branch and commit have not been reported.
+- A temporary PowerShell Set-GuardianAnswerMode function used the existing
+  authenticated loopback HTTP endpoint, keeping the live gateway running.
+  It sends only documented APPLOCK,JT-0/1 with normal gateway framing (000C),
+  validates the returned target, command, frame and positive session count,
+  and makes no automatic retry. Its admin key stays local.
+- Auto (APPLOCK,JT-0) then returned socket_handoff for one live session.
+  The operator supplied the corresponding downlink with length field 000C
+  and reported that the incoming call kept ringing.
+- The latest excerpt contains no APPLOCK response. Do not borrow an older
+  response as evidence for this request or infer that the watch never replied.
+  Individual command/call timestamps and the actual wait duration were not
+  supplied; twenty seconds was the requested procedure, not a measured result.
+- The supplier-framing (000c) trial planned for this session did not occur.
+  Earlier tests of both frame variants remain historical evidence.
+- A Manual restore was requested after the call, but its latest handoff,
+  response and physical result have not been supplied. Current applied answer
+  mode remains unverified; keep customer automatic-answer controls disabled.
+
+**Conclusion:** Confirmed Sound + vibration did not resolve automatic answering
+in this trial. This does not establish unsupported firmware or a new command
+mapping. No supported replacement for APPLOCK,JT-0 was found in the repository
+evidence; AnyTracking's ANS API label still does not establish a TCP command.
+
+**Next:** Request the documented Manual restore, confirm a subsequent call waits
+for an answer, and collect the current gateway branch/commit plus any APPLOCK
+response associated with the failed Auto request. Compare any new evidence
+before repeating a call trial. Do not reroute either watch for the blocked
+reference capture or change contacts/caller restrictions.
+
+This update records operator evidence only. It changes no gateway, Flutter,
+watch-control or relay implementation. The already prepared relay's software
+validation is recorded in the PR; it has not been run against a real watch.
+
+## Historical paused handoff (superseded where the latest checkpoint differs)
 
 **State:** Paused at the operator's request. Keep PR #115 open as a draft; do not
 merge, activate customer answer-mode controls, or continue physical tests while

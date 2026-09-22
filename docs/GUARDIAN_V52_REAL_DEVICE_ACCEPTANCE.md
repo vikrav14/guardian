@@ -1260,3 +1260,32 @@ for preflight, a confirmed return SMS, temporary routing and cleanup.
 Jesh remains the Guardian pilot. No replacement for APPLOCK,JT-0 has been
 established, and no customer answer-mode behavior is enabled by this work.
 PR #115 remains draft; physical auto-answer acceptance is still outstanding.
+
+## 22 September 2026 — Auto trial after confirmed Sound + vibration
+
+A fresh profile,1 downlink to one live pilot session was supplied. The operator
+confirmed ringing and vibration, manual answering, and audio both ways. This
+closes the earlier missing-downlink gap for that incoming-call profile trial;
+it does not prove other reminder outputs, silent mode or temporary expiry.
+
+The supplier-framing trial helper was absent from the Windows checkout and
+failed with MODULE_NOT_FOUND before sending anything. A temporary PowerShell
+helper then used the existing authenticated local HTTP downlink endpoint and
+normal gateway framing. APPLOCK,JT-0 was handed off to one live session with
+length field 000C; the operator supplied the matching downlink and reported
+that the call kept ringing. The latest excerpt contains no APPLOCK response.
+The twenty-second wait was instructed, but an actual duration, ring count and
+individual call/command timestamps were not supplied.
+
+Result: Sound + vibration alone did not resolve Auto in this trial. Hardware
+automatic answering remains unproven. Do not count this as a new exact-supplier
+000c test, a verified applied mode or proof that this firmware is unsupported.
+Previous response/framing/reboot evidence remains separate historical evidence.
+
+Manual restoration was requested after the trial; its latest handoff, response
+and subsequent physical call result are still outstanding. The running Windows
+branch/commit is unknown. Next collect that version and the current APPLOCK
+response, and confirm Manual behavior before a different documented trial.
+The AnyTracking reference capture remains on hold. PR #115 stays draft;
+customer auto-answer controls stay disabled. No runtime change accompanies this
+evidence update. See the [current handoff](services/watch-modes-paused-handoff.md).
