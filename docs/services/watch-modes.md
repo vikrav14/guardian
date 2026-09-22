@@ -1,5 +1,9 @@
 # Watch alert styles and call answering
 
+> **Paused 22 September 2026:** Read the [PR #115 handoff](watch-modes-paused-handoff.md)
+> before resuming. Earlier trial instructions below are history/prepared work,
+> not a request to execute them while this PR is paused. Work moves to PR #118.
+
 ## Current scope
 
 Alert-style controls already exist on main. The app queues `set_watch_alert_profile`;

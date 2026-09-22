@@ -1,5 +1,9 @@
 # V52 auto-answer: official-platform comparison
 
+> **Paused 22 September 2026:** Read the [PR #115 handoff](watch-modes-paused-handoff.md)
+> before resuming. Earlier trial instructions below are history/prepared work,
+> not a request to execute them while this PR is paused. Work moves to PR #118.
+
 **Status:** Research and proposed operator test; no physical pass or wire-command
 correction established. PR #115 remains draft. Customer auto-answer stays disabled.
 

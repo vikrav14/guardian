@@ -1215,3 +1215,24 @@ executed. Owner agreement is required before temporarily sending watch telemetry
 to that platform; the procedure preserves contacts/restrictions and prepares the
 return server SMS first. A physical pass, both-direction audio and manual/routing
 restoration remain required. **Auto-answer is not passed; PR #115 remains draft.**
+
+## PR #115 paused — 22 September 2026
+
+The operator paused watch-modes/auto-answer work and selected PR #118 next after
+reporting a supplier reply. The [full resume checkpoint](services/watch-modes-paused-handoff.md)
+preserves all trial outcomes, diagnostic code, CI provenance, the AnyTracking
+analysis, known unknowns and the proposed native-platform comparison.
+
+Latest correction: **the watch works normally with Guardian; the access/connection
+problem concerns AnyTracking.** Login/server failure versus an offline-device
+screen has not been clarified. The supplied AnyTracking screenshot exposes Press
+to answer and Handsfree auto answer, with Press selected; this is UI evidence,
+not a fresh watch-state readback. No reference-platform test has occurred.
+
+Auto-answer remains not passed. Manual was last requested, but the final physical
+Manual result after the latest reboot was not separately supplied. JT:0 after
+both requested modes remains unverified as applied state. No device command,
+routing, caller restriction, routine or runtime change accompanies this pause.
+PR #115 stays open as a draft, with customer answer-mode controls disabled. Earlier
+next-test instructions are suspended. The supplier reply for #118 is reported
+received by the operator, but its contents have not yet been provided here.
