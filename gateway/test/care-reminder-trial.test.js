@@ -32,21 +32,77 @@ test('REMIND requires explicit valid slots and rejects delimiter injection and a
   }
 });
 
-test('every command previews without contacting a watch; literal examples do not invent semantics', async () => {
+test('every command previews without contacting a watch or claiming acceptance', async () => {
   const send = () => assert.fail('preview dispatched');
-  for (const action of ['remind-once', 'remind-off', 'hsw-zero', 'sedentary-example']) {
+  for (const action of ['remind-once', 'remind-off', 'hsw-zero', 'sedentary-example',
+    'hsw-on', 'hsw-off', 'sedentary-on', 'sedentary-off']) {
     const result = await runCareReminderTrial({ imei, action, ...(action === 'remind-once' ? { time: '12:34' } : {}) }, send);
     assert.equal(result.status, 'preview');
     assert.equal(result.commandSent, false);
     assert.equal(result.hardwareAccepted, false);
+    assert.equal(result.appliedStateVerified, false);
   }
   assert.equal(buildCareReminderTrial({ imei, action: 'hsw-zero' }).command, 'HSW,0');
   assert.equal(buildCareReminderTrial({ imei, action: 'sedentary-example' }).command, 'SEDENTARY,1,26');
 });
 
-test('unclear HSW and SEDENTARY meanings cannot be bypassed by send or replacement confirmation', async () => {
+test('legacy example actions remain preview-only even with send and replacement confirmation', async () => {
   for (const action of ['hsw-zero', 'sedentary-example']) {
     await assert.rejects(runCareReminderTrial({ imei, action, send: true, confirmReplaceClocks: true }, () => assert.fail('blocked command dispatched')));
+  }
+});
+
+test('supplier switches send only their defined payload and computed frame without replacing clocks', async () => {
+  const cases = [
+    ['hsw-on', 'HSW,1', '0005'], ['hsw-off', 'HSW,0', '0005'],
+    ['sedentary-on', 'SEDENTARY,1,26', '000E'], ['sedentary-off', 'SEDENTARY,0,26', '000E'],
+  ];
+  for (const [action, expected, length] of cases) {
+    const calls = [];
+    const result = await runCareReminderTrial({ imei, action, send: true }, async (target, command) => {
+      calls.push([target, buildAckFrame('9705000296', command).toString('ascii')]);
+      return { ok: true, protocolId: '9705000296', sessions: 1 };
+    });
+    assert.deepEqual(calls, [[imei, `[SG*9705000296*${length}*${expected}]`]]);
+    assert.equal(result.command, expected);
+    assert.equal(result.replacesAllClockSlots, false);
+    assert.equal(result.requestedEnabled, action.endsWith('-on'));
+    assert.equal(result.settingMayPersist, true);
+    assert.equal(result.hardwareAccepted, false);
+    assert.equal(result.appliedStateVerified, false);
+    assert.equal(result.wearerAcknowledgement, 'unavailable');
+    assert.equal(result.disableCommand, action.startsWith('hsw-') ? 'HSW,0' : 'SEDENTARY,0,26');
+    assert.equal(Number.isNaN(Date.parse(result.requestedAt)), false);
+    if (action.startsWith('sedentary-')) assert.equal(result.intervalMinutes, 26);
+  }
+});
+
+test('switch actions reject clock-time input, unsupported interval flags and injected action values', async () => {
+  for (const action of ['hsw-on', 'hsw-off', 'sedentary-on', 'sedentary-off']) {
+    await assert.rejects(runCareReminderTrial({ imei, action, time: '12:00', send: true },
+      () => assert.fail('invalid options sent')), /time is only valid/);
+  }
+  for (const action of ['HSW,1', 'hsw-on,RESET', 'sedentary-on,10', 'toString', '__proto__']) {
+    assert.throws(() => buildCareReminderTrial({ imei, action }));
+  }
+  assert.throws(() => parseArgs(['--action', 'sedentary-on', '--interval', '10']), /Unknown/);
+  assert.throws(() => parseArgs(['--action', 'hsw-on', '--command', 'RESET']), /Unknown/);
+});
+
+test('switch handoff needs a live-session result and never retries an uncertain send', async () => {
+  for (const action of ['hsw-on', 'hsw-off', 'sedentary-on', 'sedentary-off']) {
+    for (const result of [null, { ok: false }, { ok: true },
+      { ok: true, protocolId: '9705000296', sessions: 0 },
+      { ok: true, protocolId: '9705000296', sessions: '1' },
+      { ok: true, protocolId: 'invalid', sessions: 1 }, 'timeout']) {
+      let calls = 0;
+      await assert.rejects(runCareReminderTrial({ imei, action, send: true }, async () => {
+        calls++;
+        if (result === 'timeout') throw new Error('timeout');
+        return result;
+      }));
+      assert.equal(calls, 1);
+    }
   }
 });
 

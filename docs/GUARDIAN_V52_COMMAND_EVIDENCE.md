@@ -53,9 +53,9 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall alert switch | `FON,<0\|1>` | Documented; now dispatched with fall preferences | Keep the separate fall-alert switch aligned with the detector. Confirm local alert behaviour and a real `AL_LTE` event on the exact firmware. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
-| Clock alarms | `REMIND,<slot1>,<slot2>,<slot3>` | Documented; operator-only once/off trial | Protocol II.20 and example p2; no real V52 result. Verify three-slot replacement/off, timing, weekday ordering, audio and reboot. Customer dispatch disabled. |
-| Sedentary reminder | `SEDENTARY,1,26` | Documented literal; sending blocked | Example p2 only. Meaning of `1`, units/range of `26`, disable/restore and inactivity semantics unconfirmed. Never infer minutes. |
-| Talking clock | `HSW,0` | Documented literal; sending blocked | Protocol II.21 says speak time; example p3 calls it a switch. Polarity, persistence, alternate states and restore unconfirmed. |
+| Clock alarms | `REMIND,<slot1>,<slot2>,<slot3>` | Partial pilot result; operator once/off | Once-only sound and subsequent visible clearing confirmed. Future cancellation, daily/weekly, all slots, vibration and reboot remain open. Customer dispatch disabled. |
+| Sedentary reminder | `SEDENTARY,1,26` / `SEDENTARY,0,26` | Supplier-defined switch/minutes; operator trial | Jett defines 1 on / 0 off, 26 minutes, no detected movement and sound. Off retains interval using that flag. Local speech observed; remote execution, range, repeat/reset, effective off and reboot remain unverified. |
+| Talking clock | `HSW,0` / `HSW,1` | Supplier-defined off/on; operator trial | Jett defines 0 off / 1 on. Speech trigger, physical behavior, effective off/restoration and reboot remain unverified. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
 | Enable/disable pedometer | `PEDO,1|0` | Live-proven on one V52 for enable | `PEDO,1`, following the full-day sheet, changed the inactive Steps screen into a working counter. `PEDO,0` remains documented only. This configures counting; it does not upload a total. |
 | Configure counting windows | `WALKTIME,...` | Live-proven on one V52 as part of enable sequence | The vendor example's full-day sheet plus `PEDO,1` activated counting. The time-sheet command's independent effect and alternate windows remain unproven. |
@@ -121,3 +121,6 @@ only after all required real-device and notification checks pass.
 [Supplier comparison and Windows test runbook](testing/care-reminder-command-acceptance.md)
 separates already-delivered wellbeing/medication software from `REMIND`,
 `SEDENTARY` and `HSW`. Hardware acceptance remains open for all three.
+
+Source and inference limits: [supplier reply received 22 September](testing/care-reminder-supplier-reply-2026-09-22.md).
+These helpers do not establish full hardware/customer acceptance.

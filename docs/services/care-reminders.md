@@ -7,16 +7,20 @@
 | Current state | Software path implemented; device sync disabled |
 | Customer-visible | No |
 | Protocol surface | `SEDENTARY`, `REMIND`, `HSW` |
-| Accepted V52 reminder commands | None |
+| Accepted V52 reminder commands | Full release acceptance incomplete; partial pilot results recorded below |
 
 PR #118 now focuses on the remaining `SEDENTARY`, `REMIND` and `HSW` work.
 Wellness routines (#120/#127) and Family/Care medication reminders using
 `TAKEPILLS` (#131) already reached main; they are not outstanding in this PR.
 
 The Care-only automatic scheduling boundary remains disabled and hidden.
-An explicit operator CLI prepares a controlled `REMIND` trial. `SEDENTARY`
-and `HSW` have supplier examples but remain preview-only until their missing
-semantics are resolved. No real-watch acceptance is claimed.
+An explicit operator CLI supports REMIND once/off, HSW on/off and a fixed
+26-minute SEDENTARY on/off trial. All preview by default. REMIND once-only
+sound/visible clearing and local SEDENTARY speech were observed; remote
+SEDENTARY and HSW execution remain unverified.
+
+[Jett's reply received 22 September](../testing/care-reminder-supplier-reply-2026-09-22.md)
+defines sedentary inactivity/minutes/switch polarity and HSW off/on.
 
 See [supplier evidence, Windows trial and closure checklist](../testing/care-reminder-command-acceptance.md).
 
@@ -53,7 +57,7 @@ Flutter remains compiled out by default:
 GUARDIAN_CARE_REMINDERS_ENABLED=false
 ```
 
-`CARE_REMINDERS_DEVICE_MODE=accepted` by itself does not start request processing or expose customers. The request watcher requires its own explicit gate. No automatic or customer dispatcher is enabled. The isolated operator trial can send `REMIND` only, after explicit three-clock replacement confirmation.
+`CARE_REMINDERS_DEVICE_MODE=accepted` by itself does not start request processing or expose customers. The request watcher requires its own explicit gate. No automatic or customer dispatcher is enabled. The isolated operator trial can send the bounded commands with --send; REMIND additionally requires explicit three-clock replacement confirmation.
 
 ## Firestore ownership
 
@@ -83,10 +87,10 @@ Immutable backend-owned caregiver-change evidence. Eligible linked Care members 
 
 The supplier protocol defines `REMIND` clocks and the example confirms three
 slots. The operator trial supports one once-only clock and disabling all three
-slots. `SEDENTARY,1,26` is a documented literal without field units or an off
-command. `HSW,0` is documented, but its one-shot versus switch semantics conflict
-between the protocol and example. Those two commands cannot be sent by the trial.
-None of the three is accepted on Guardian's real V52 yet.
+slots. Jett now defines SEDENTARY 1 as on, 0 as off and 26 as minutes of no
+detected movement, producing sound. The first remote trial retains 26 on/off;
+no arbitrary wire range is assumed. HSW,0 is off and HSW,1 is on, with speech
+trigger and reboot persistence still unknown. Full acceptance remains incomplete.
 
 `TAKEPILLS` has a separate documented builder in the existing command layer. That evidence does not prove that `SEDENTARY`, `REMIND` or `HSW` share its fields, schedule limits, display behaviour or acknowledgement semantics.
 
@@ -115,7 +119,8 @@ None of the three is accepted on Guardian's real V52 yet.
 
 - [x] retrieve supplier command examples and document evidence gaps
 - [x] implement preview-first operator `REMIND` once/off trial with tests
-- [ ] resolve `SEDENTARY` units/fields/off and `HSW` polarity/behavior
+- [x] supplier defines SEDENTARY switch/minutes/inactivity and HSW off/on
+- [ ] verify remote SEDENTARY on/off and HSW speech trigger/effective disable
 - [ ] confirm command limits and accepted time/day encodings
 - [ ] verify display, sound and vibration behaviour on the exact production firmware
 - [ ] verify enable/change/delete behaviour and reboot persistence
@@ -125,4 +130,4 @@ None of the three is accepted on Guardian's real V52 yet.
 
 ## Current release rule
 
-Keep the feature customer-hidden and do not add these commands to the generic `deviceCommands` dispatcher. Only the documented `REMIND` operator trial may send after an explicit three-clock replacement confirmation. It records socket handoff separately from hardware acceptance. `SEDENTARY` and `HSW` remain blocked pending supplier clarification. Product rollout requires the remaining acceptance checklist.
+Keep the feature customer-hidden and do not add these commands to the generic `deviceCommands` dispatcher. Only the bounded operator trial may send with --send. REMIND still requires three-clock replacement confirmation. HSW on/off and fixed-26-minute SEDENTARY on/off use the supplier definitions; legacy example actions remain preview-only. Socket handoff is separate from physical acceptance. Product rollout requires the remaining acceptance checklist.

@@ -1,8 +1,9 @@
 # PR #118: remaining V52 reminder commands
 
-Status: software preparation only; no real-watch result for these commands has
-been recorded. PR #118 remains draft. Customer flags and automatic watch sync
-remain off. Wellness routines (#120/#127) and Family/Care medication reminders
+Status: REMIND once-only sound/visible clearing and local SEDENTARY speech were
+observed. Remote SEDENTARY and HSW execution remain unverified. New supplier
+definitions support bounded operator trials. PR #118 remains draft; customer
+flags and automatic watch sync remain off. Wellness routines (#120/#127) and Family/Care medication reminders
 using `TAKEPILLS` (#131) already reached main and are outside this acceptance.
 
 ## Supplier evidence
@@ -15,13 +16,15 @@ Sources supplied by the operator and confirmed applicable to V52:
 - `3. V46-V48-V52 Communication Example(1).pdf`, pages 2-3.
   Source inventory SHA-256: `976b5721fbde52959a62d9f8975b9faf4bf6263e4b057d1eaa72950820e73e2b`.
 - V52 datasheet and user guide advertise sedentary reminders, clock alarms and
-  talking clock; they do not resolve the missing wire-field definitions below.
+  talking clock; the new reply resolves only the fields listed below.
+- [Jett's reply received 22 September](care-reminder-supplier-reply-2026-09-22.md):
+  source fingerprint, definitions, pending questions and pilot observations.
 
 | Command | What the source establishes | What remains open | Current action |
 |---|---|---|---|
-| `REMIND` | Three clock slots, `HH:MM-on/off-frequency`; 1 once, 2 daily, 3 weekly plus seven-bit mask. Bare `REMIND` reply. | Exact firmware execution, replacement, disabling, local time, weekly day ordering and persistence. | Operator-only once/off trial available; preview by default. |
-| `SEDENTARY` | Example page 2 sends `SEDENTARY,1,26`, receives `SEDENTARY`. Caption: set time interval. | Meaning of `1`, units/range of `26`, disable/restore command, activity reset and active-hour behavior. | Preserve exact literal as preview; sending blocked. Do not label `26` minutes or invent `SEDENTARY,0,...`. |
-| `HSW` | Protocol II.21 and example page 3 both send `HSW,0`, receive `HSW`. | Protocol says the tracker says the time; example calls it a switch, guide says on/off. Polarity, persistence, readback/restore and `HSW,1` are unconfirmed. | Preserve `HSW,0` as preview; sending blocked pending clarification. |
+| `REMIND` | Three slots; once-only sound and visible clearing observed. | Future cancellation, daily/weekly/day mapping, all slots, vibration and persistence. | Existing once/off operator trial; extended tests/UI deferred. |
+| `SEDENTARY` | Supplier confirms 1 on / 0 off, 26 minutes, no detected movement and sound. | Range, motion/reset/repeat rules, active hours, physical remote on/off and persistence. | sedentary-on/off uses fixed interval 26; off uses the defined flag with interval retained. |
+| `HSW` | Supplier explicitly defines HSW,0 off / HSW,1 on. | Speech trigger, readback, physical on/off, restoration and reboot persistence. | hsw-on/off operator trial; no promise of immediate speech. |
 
 Example clock body:
 
@@ -37,7 +40,102 @@ The protocol describes Monday-to-Sunday selection, but the example's all-days
 mask cannot independently prove ordering. Do not borrow the `TAKEPILLS` code's
 Sun-to-Sat convention. Weekly customer scheduling remains gated.
 
-## First controlled REMIND test on Windows
+## Current next test: HSW, then SEDENTARY
+
+Keep the existing gateway and ngrok running. These are client-script changes;
+no gateway restart, customer flag, wellness change or AnyTracking connection
+is required. Use a second PowerShell window:
+
+```powershell
+cd C:\Users\MSI\repos\guardian
+git status --short
+git fetch origin
+git switch feat/v52-care-reminders
+git pull --ff-only origin feat/v52-care-reminders
+cd gateway
+
+```
+
+If Git refuses because of local work, preserve it and inspect the message;
+do not reset/clean. The untracked news-review file is unrelated.
+
+### Talking clock
+
+Record any current talking-clock behavior/setting first. Keep the watch nearby
+during an awake period with no call or other trial active. This trial finishes
+with talking clock requested off; that is not restoration to an unknown prior
+setting.
+
+Preview, then explicitly send on once:
+
+```powershell
+node scripts/trial-care-reminders.js --imei 861397052547492 --action hsw-on
+node scripts/trial-care-reminders.js --imei 861397052547492 --action hsw-on --send
+
+```
+
+Retain the outgoing HSW,1 line/reply if logged and actual local time. Listen
+when enabling, then wake the screen normally and note any spoken time.
+Waking is an observation to test, not a supplier-defined trigger. Do not hold
+SOS or initiate a call. A brief silent window is inconclusive because the
+speech trigger is still unknown; do not repeatedly resend or leave it enabled
+waiting indefinitely.
+
+Finish with off, then repeat the same ordinary observation:
+
+```powershell
+node scripts/trial-care-reminders.js --imei 861397052547492 --action hsw-off --send
+
+```
+
+If a reproducible speech trigger was found, check that it stops after off.
+Otherwise record off handoff separately and leave effective disable unverified.
+Report any speech continuing after off.
+
+### Sedentary: documented 26-minute interval
+
+Run separately after HSW cleanup. Record the original Open/Close/interval and
+watch time. An off request does not restore an earlier enabled setting or
+interval automatically.
+
+Preview on/off:
+
+```powershell
+node scripts/trial-care-reminders.js --imei 861397052547492 --action sedentary-on
+node scripts/trial-care-reminders.js --imei 861397052547492 --action sedentary-off
+
+```
+
+The off body is SEDENTARY,0,26, retaining the documented interval and changing
+the supplier-defined flag. Do not substitute interval 0 or a guessed range.
+
+Send once:
+
+```powershell
+node scripts/trial-care-reminders.js --imei 861397052547492 --action sedentary-on --send
+
+```
+
+Capture the actual time and outgoing frame/reply. Reopen the local menu and
+record its displayed state; do not Save a rounded interval if the UI cannot
+display 26. Record when handling ends because it can affect detected movement.
+
+Observe up to 30 minutes during ordinary quiet activity. Record actual prompt
+times, words, sound/vibration, movement/handling and interruptions. Do not remain
+motionless beyond what is comfortable. A no-alert window is inconclusive.
+Stop after a prompt or at the window limit, then send:
+
+```powershell
+node scripts/trial-care-reminders.js --imei 861397052547492 --action sedentary-off --send
+
+```
+
+Inspect the saved menu state. If remote off is ineffective, use the watch's
+known Close/Save control and record the fallback. Observe during normal use for
+later prompts. A reply or short silent window alone cannot prove effective
+disable. Cadence, movement reset, range and reboot need separate evidence.
+
+## Existing REMIND test (extended testing deferred)
 
 This changes native clock alarms, not medication reminders. Check the watch's
 three clock slots first. Only proceed when all three are empty or disposable:
@@ -95,23 +193,24 @@ existing clocks. Test during an agreed awake period with the watch nearby.
    effective, stop the test and disable the trial alarms using the watch UI.
    Timeouts and errors are not safe-to-retry signals: inspect the watch first.
 
-## Preview the unresolved supplier examples
+## Legacy example previews
 
 ```powershell
 node scripts/trial-care-reminders.js --imei 861397052547492 --action sedentary-example
 node scripts/trial-care-reminders.js --imei 861397052547492 --action hsw-zero
 ```
 
-`--send` is rejected for both. There is no guessed polarity, timer range,
-alternate payload or automatic restore command in this tool.
+`--send` is still rejected for these legacy actions. Use the explicit on/off
+actions above for sends. Old previews do not silently gain permission; no
+arbitrary interval or automatic restore is implemented.
 
 ## Closure criteria
 
 | Item | Required evidence before closing as complete |
 |---|---|
 | `REMIND` | Once/daily/weekly behavior; Monday and Sunday mapping; change/off of each slot; reboot/reconnect; sound/vibration and overlaps with `TAKEPILLS`; no unsupported wearer-acknowledgement claim. |
-| `SEDENTARY` | Supplier field definitions and supported off/restore, then timed watch test, activity reset, quiet-hour behavior, disable and reboot. |
-| `HSW` | Supplier clarification of one-shot versus persistent switch, both supported states and restore, then audible/visible behavior and persistence on the watch. |
+| `SEDENTARY` | Polarity/units are supplier-defined; verify range, timed execution, activity reset, quiet hours, effective disable and reboot. |
+| `HSW` | Off/on is supplier-defined; observe speech trigger, both states, effective disable/restoration and reboot persistence. |
 | Customer activation | Accessible configuration, wearer-visible schedules, enforceable quiet hours/rate limits, correct Care entitlement and audit, second production-equivalent V52 acceptance. Separate reviewed rollout. |
 
 The current trial does not prove quiet hours for persistent native alarms. The
@@ -131,5 +230,7 @@ retain its disabled state rather than marking it proven.
 - Observed display/audio/vibration and timing: pending
 - Change/off result and final three-clock state: pending
 - Persistence/reconnect, weekly mapping and overlap: pending
-- Supplier clarification for `SEDENTARY` / `HSW`: pending
-- Real-device acceptance: **not yet performed**
+- Supplier definitions: received 22 September; see linked source record.
+- Existing observations: REMIND once-only sound/visible clearing; three local SEDENTARY announcements with unknown timing.
+- New remote SEDENTARY / HSW trial: **not yet performed**.
+- Full customer/hardware acceptance: **incomplete**.

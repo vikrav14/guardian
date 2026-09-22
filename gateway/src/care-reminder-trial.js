@@ -38,23 +38,43 @@ function buildCareReminderTrial({ imei, action, time }) {
   if (typeof imei !== 'string' || !/^\d{10}(?:\d{5})?$/.test(imei)) {
     throw new Error('Use the watch 10-digit protocol ID or 15-digit hardware IMEI');
   }
-  const base = { imei, action, hardwareAccepted: false, wearerAcknowledgement: 'unavailable' };
+  const base = { imei, action, hardwareAccepted: false, appliedStateVerified: false,
+    wearerAcknowledgement: 'unavailable' };
+  if (action !== 'remind-once' && time !== undefined) {
+    throw new Error('time is only valid for remind-once');
+  }
+  // Jett's 22 September 2026 reply defines these switches. Keep the initial
+  // sedentary trial at the documented 26 minutes; no wire range was supplied.
+  // Do not expose these operator-only commands through customer dispatch.
+  const switches = {
+    'hsw-on': { command: 'HSW,1', requestedEnabled: true, disableCommand: 'HSW,0' },
+    'hsw-off': { command: 'HSW,0', requestedEnabled: false, disableCommand: 'HSW,0' },
+    'sedentary-on': { command: 'SEDENTARY,1,26', requestedEnabled: true,
+      intervalMinutes: 26, disableCommand: 'SEDENTARY,0,26' },
+    'sedentary-off': { command: 'SEDENTARY,0,26', requestedEnabled: false,
+      intervalMinutes: 26, disableCommand: 'SEDENTARY,0,26' },
+  };
+  if (Object.hasOwn(switches, action)) {
+    return {
+      ...base, ...switches[action], sendAllowed: true, replacesAllClockSlots: false,
+      settingMayPersist: true,
+      reason: action.startsWith('hsw-')
+        ? 'Supplier-defined talking-clock switch. Speech trigger and persistence still require watch observation; off must be checked separately.'
+        : 'Supplier-defined inactivity reminder. Off retains the documented 26-minute field; verify the saved watch setting, timing and disable effect.',
+    };
+  }
   if (action === 'hsw-zero' || action === 'sedentary-example') {
-    if (time !== undefined) throw new Error('time is only valid for remind-once');
     return {
       ...base,
       command: action === 'hsw-zero' ? 'HSW,0' : 'SEDENTARY,1,26',
       sendAllowed: false,
       reason: action === 'hsw-zero'
-        ? 'Supplier protocol says speak time; example says switch. Polarity and restore behavior need confirmation.'
-        : 'Only this literal example is documented. Field meanings, interval units/range and disable/restore payload are unknown.',
+        ? 'Legacy example action remains preview-only. Use hsw-on or hsw-off for the supplier-defined operator trial.'
+        : 'Legacy example action remains preview-only. Use sedentary-on or sedentary-off for the fixed 26-minute operator trial.',
     };
   }
   if (!['remind-once', 'remind-off'].includes(action)) {
-    throw new Error('Choose remind-once, remind-off, hsw-zero, or sedentary-example');
-  }
-  if (action === 'remind-off' && time !== undefined) {
-    throw new Error('time is only valid for remind-once');
+    throw new Error('Choose remind-once, remind-off, hsw-on, hsw-off, sedentary-on, sedentary-off, hsw-zero, or sedentary-example');
   }
   const slots = Array.from({ length: 3 }, () => ({ time: '00:00', enabled: false, frequency: 1 }));
   if (action === 'remind-once') slots[0] = { time, enabled: true, frequency: 1 };
@@ -72,20 +92,23 @@ async function runCareReminderTrial(options, send) {
   const plan = buildCareReminderTrial(options);
   if (options.send !== true) return { ...plan, status: 'preview', commandSent: false };
   if (!plan.sendAllowed) throw new Error(plan.reason);
-  if (options.confirmReplaceClocks !== true) {
+  if (plan.replacesAllClockSlots && options.confirmReplaceClocks !== true) {
     throw new Error('Sending replaces all three clock slots; first inspect the watch, then use --confirm-replace-clocks');
   }
+  const requestedAt = new Date().toISOString();
   const result = await send(plan.imei, plan.command);
-  if (result?.ok !== true) {
+  if (result?.ok !== true || !/^\d{10}$/.test(result.protocolId || '')
+      || !Number.isInteger(result.sessions) || result.sessions < 1) {
     throw new Error('Gateway did not confirm socket handoff. Inspect the watch before retrying.');
   }
   return {
     ...plan,
     status: 'socket_handoff',
     commandSent: true,
+    requestedAt,
     protocolId: result.protocolId,
     sessions: result.sessions,
-    note: 'Socket handoff is not a device acknowledgement or proof that a clock rang. Record the watch result separately.',
+    note: 'Socket handoff is not applied-state or physical-execution proof. Record the watch output and disable result separately.',
   };
 }
 

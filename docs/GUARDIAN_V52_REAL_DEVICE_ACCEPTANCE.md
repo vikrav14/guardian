@@ -939,13 +939,45 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ## Native clock, sedentary and talking-clock reminders (PR #118)
 
-All three remain unaccepted on the real V52. Follow the
-[scoped supplier evidence and controlled trial](testing/care-reminder-command-acceptance.md).
-`REMIND` has an operator-only once/off trial; `SEDENTARY` and `HSW` remain
-preview-only pending supplier definitions. Keep these distinct from existing
-wellbeing routines and Family/Care `TAKEPILLS` medication reminders.
+Follow the [Windows trial](testing/care-reminder-command-acceptance.md) and
+[supplier reply](testing/care-reminder-supplier-reply-2026-09-22.md).
+Customer controls/automatic dispatch stay disabled. Existing wellness routines
+and Family/Care TAKEPILLS medication reminders are separate.
 
-- [ ] Observe REMIND once/daily/weekly timing, weekday mapping, slot replacement/off and reboot.
-- [ ] Resolve SEDENTARY fields, interval units/range and disable/restore; then test behavior.
-- [ ] Resolve HSW one-shot versus switch, polarity and restore; then test behavior.
-- [ ] Record actual watch responses separately from socket handoff and wearer acknowledgement.
+### Existing pilot evidence — 21 September 2026
+
+- REMIND,02:05-1-1,00:00-0-1,00:00-0-1 was handed off; the once-only entry
+  appeared and the operator confirmed sound, correcting the no-sound report.
+  Vibration and exact firing time were not captured.
+- After REMIND,00:00-0-1,00:00-0-1,00:00-0-1, the operator confirmed the entry
+  disappeared. It had already rung; future cancellation remains untested.
+- The local Sedentary UI offered Open/Close and steps 10–200. Initial silent
+  on-wrist windows were followed by three spoken "Sedentary reminder: do some
+  exercise!" prompts. Times/gaps, detected movement, final state and cleanup
+  remain unknown. Gateway timestamps cannot supply the announcement times.
+- Both VERNO labels are in the linked supplier source record. No HSW physical
+  execution result has been provided.
+
+### Supplier reply received 22 September 2026
+
+Jett defines the sedentary trigger as no detected movement over the set period;
+1 on / 0 off and 26 minutes in SEDENTARY,1,26, with sound when triggered.
+HSW,0 disables and HSW,1 enables talking time.
+
+The helper now supports explicit HSW on/off and SEDENTARY on/off at fixed 26.
+The complete sedentary off body retains 26 and changes the defined flag; Jett
+did not separately paste that complete frame. Range, motion/reset/repeat rules,
+active hours, vibration, HSW speech trigger and reboot persistence remain open.
+
+All trials preview by default and require --send for one authenticated local
+handoff. No watch command was sent during implementation. PR #118 stays draft;
+PR #115 remains paused.
+
+- [x] Record REMIND once-only sound and visible clearing.
+- [x] Record local SEDENTARY speech and supplier inactivity/minutes/flag definitions.
+- [x] Record supplier HSW off/on polarity.
+- [ ] Observe remote SEDENTARY saved setting, timed output and effective off.
+- [ ] Observe HSW speech trigger, both states and effective disable.
+- [ ] Verify REMIND future cancellation, daily/weekly/day mapping, slots and reboot.
+- [ ] Verify ranges, reset/repeat, quiet hours and persistence where applicable.
+- [ ] Keep physical results separate from socket handoff and acknowledgement.
