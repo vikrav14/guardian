@@ -1,5 +1,57 @@
 # PR #115 investigation handoff — 22 September 2026
 
+## Latest: exact supplier framing replied; Auto still rings
+
+The operator completed the requested lowercase-frame trial. PR #115 remains an
+open draft; physical automatic answering has not passed.
+
+| Evidence, 22 September 2026 | Observed result |
+| --- | --- |
+| Fresh gateway session | Connected at 19:28:51.207 UTC |
+| Auto helper request | 19:29:15.456 UTC; APPLOCK,JT-0; supplier framing; length 000c; 12 payload bytes; one live session |
+| Watch reply | 19:29:16.749 UTC, 1.293 seconds after the helper request |
+| Reply content | Bare APPLOCK; zero arguments; not truncated; appliedStateVerified:false |
+| Physical incoming call | Operator reports the watch kept ringing; no automatic answer |
+| Manual restoration after this call | Requested, but no new handoff/reply or physical result supplied |
+
+The earlier Windows checkout was identified as feat/v52-care-reminders at
+93ef8f0. Its source lacked the applock-example override. The operator was then
+instructed to switch to the draft watch-modes branch and restart only the
+gateway. The later helper, actual lowercase downlink and diagnostic reply prove
+those trial capabilities were available; the post-switch Git HEAD itself was
+not pasted.
+
+Sound + vibration, manual answering and audio both ways were physically
+confirmed earlier in this testing sequence after a fresh profile,1 downlink.
+The operator was instructed to keep that profile unchanged. A second profile
+capture/physical baseline immediately after the gateway restart was not supplied.
+The uppercase and lowercase trials therefore also span a gateway branch/runtime
+change; do not describe them as a strict experiment changing only one byte.
+
+The exact lowercase frame reached a responding watch. Bare APPLOCK is a protocol
+response without a returned setting value or execution result. It is not proof
+that Auto was applied. The supplied excerpt continues with live telemetry and a
+later TCP connection at 19:33:12.612 UTC; no causal link from that connection to
+the unanswered call is established. Actual call time, wait duration and ring
+count were not measured in the supplied evidence.
+
+**Conclusion:** The exact supplier example did not produce automatic answering.
+Both length-field cases have now failed in the reported trials. Repeated case
+changes are not a demonstrated fix. This still does not establish unsupported
+firmware, a need to reverse JT polarity, or an ANS TCP command.
+
+**Next:** Restore documented Manual with the existing trial helper, capture its
+reply and confirm a subsequent incoming call waits for the wearer to answer.
+Further Auto work needs new evidence about this firmware's applied setting or
+the official platform's actual command/setup sequence. The separate reference
+watch capture remains blocked by its unconfirmed server and return-SMS path.
+Keep customer Auto controls disabled and preserve caller restrictions.
+
+This checkpoint changes documentation only. No runtime, dependency, gateway
+routing or watch setting was changed by the repository update.
+
+## Previous checkpoints (superseded where the latest result differs)
+
 ## Latest: Sound + vibration baseline confirmed; Auto still rings
 
 The operator resumed a controlled trial on the existing Guardian pilot after

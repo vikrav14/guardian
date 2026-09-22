@@ -1289,3 +1289,32 @@ response, and confirm Manual behavior before a different documented trial.
 The AnyTracking reference capture remains on hold. PR #115 stays draft;
 customer auto-answer controls stay disabled. No runtime change accompanies this
 evidence update. See the [current handoff](services/watch-modes-paused-handoff.md).
+
+## 22 September 2026 — Exact lowercase Auto framing still fails physically
+
+Following the current-framing test above, the operator identified the Windows
+checkout as feat/v52-care-reminders at 93ef8f0, without the applock-example
+override. Instructions were provided to switch to the draft watch-modes branch
+and restart the gateway while retaining ngrok and the Sound + vibration profile.
+
+The supplier-framing helper requested APPLOCK,JT-0 at 19:29:15.456 UTC, reporting
+lengthField:000c, payloadBytes:12 and one live session. The matching gateway
+downlink was supplied. At 19:29:16.749 UTC the watch returned a bare APPLOCK
+response with zero arguments and no truncation (1.293 seconds after the helper
+request). appliedStateVerified remained false. The operator then reported that
+the incoming call kept ringing.
+
+The Sound + vibration/manual-answer/two-way-audio baseline was physically
+confirmed earlier in the sequence. A second baseline immediately after this
+gateway branch/runtime change was not supplied, so this is not a strict
+one-variable comparison with the earlier uppercase trial. Exact call time,
+measured wait duration and ring count were not supplied. Continued telemetry
+and a later TCP connection do not establish call behavior or a causal failure.
+
+Outcome: exact supplier framing responded at protocol level but did not produce
+automatic answering. Lowercase 000c is not a demonstrated fix; do not infer
+unsupported firmware, reverse JT polarity or fabricate an ANS wire command.
+The requested Manual restore after this call remains unreported. Capture its
+handoff/reply and physical behavior before another materially different trial.
+PR #115 stays draft, customer Auto stays disabled, and reference capture remains
+on hold. This evidence update changes no executable code.
