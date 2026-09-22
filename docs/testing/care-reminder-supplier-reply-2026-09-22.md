@@ -51,7 +51,7 @@ Handoff includes requestedAt; it does not prove receipt, execution or disable.
 The switches may persist. Requesting off does not restore an unknown earlier
 setting. Uncertain/offline sends never retry automatically.
 
-## Remaining questions and physical checkpoint
+## Checkpoint when the supplier reply was received (before the HSW test)
 
 | Item | Established | Still pending |
 | --- | --- | --- |
@@ -69,3 +69,14 @@ No live command was sent during this implementation. Customer flags stay off,
 PR #118 remains draft, and PR #115 remains paused.
 
 Follow the [Windows runbook](care-reminder-command-acceptance.md), one feature at a time.
+
+## Subsequent pilot result — HSW wake-screen on/off passed
+
+After the recorded HSW,1 handoff and reply, the operator confirmed that the
+watch spoke the time during the instructed observation. They then reported
+running the off command, waking the watch and hearing no spoken time.
+This confirms the observed wake-screen on/off behavior on this pilot; it does
+not add a supplier promise about every trigger, hourly speech or persistence.
+The off command's CLI/downlink excerpt and exact physical timestamps were not
+supplied. No additional command is needed just to repeat this successful trial.
+See [the canonical result](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#hsw-physical-wake-screen-result--22-september-2026).

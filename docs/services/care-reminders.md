@@ -16,8 +16,9 @@ Wellness routines (#120/#127) and Family/Care medication reminders using
 The Care-only automatic scheduling boundary remains disabled and hidden.
 An explicit operator CLI supports REMIND once/off, HSW on/off and a fixed
 26-minute SEDENTARY on/off trial. All preview by default. REMIND once-only
-sound/visible clearing and local SEDENTARY speech were observed; remote
-SEDENTARY and HSW execution remain unverified.
+sound/visible clearing and local SEDENTARY speech were observed. HSW spoken-time
+on/off passed the operator's wake-screen test on the pilot on 22 September;
+remote SEDENTARY execution remains unverified.
 
 [Jett's reply received 22 September](../testing/care-reminder-supplier-reply-2026-09-22.md)
 defines sedentary inactivity/minutes/switch polarity and HSW off/on.
@@ -89,8 +90,10 @@ The supplier protocol defines `REMIND` clocks and the example confirms three
 slots. The operator trial supports one once-only clock and disabling all three
 slots. Jett now defines SEDENTARY 1 as on, 0 as off and 26 as minutes of no
 detected movement, producing sound. The first remote trial retains 26 on/off;
-no arbitrary wire range is assumed. HSW,0 is off and HSW,1 is on, with speech
-trigger and reboot persistence still unknown. Full acceptance remains incomplete.
+no arbitrary wire range is assumed. HSW,0 is off and HSW,1 is on. The pilot's
+wake-screen test produced speech while enabled and silence after the operator
+ran off. Reboot persistence, other triggers and broader repeatability remain
+unverified. Full customer acceptance remains incomplete.
 
 `TAKEPILLS` has a separate documented builder in the existing command layer. That evidence does not prove that `SEDENTARY`, `REMIND` or `HSW` share its fields, schedule limits, display behaviour or acknowledgement semantics.
 
@@ -120,7 +123,8 @@ trigger and reboot persistence still unknown. Full acceptance remains incomplete
 - [x] retrieve supplier command examples and document evidence gaps
 - [x] implement preview-first operator `REMIND` once/off trial with tests
 - [x] supplier defines SEDENTARY switch/minutes/inactivity and HSW off/on
-- [ ] verify remote SEDENTARY on/off and HSW speech trigger/effective disable
+- [x] operator confirms HSW spoken-time on/off in the pilot wake-screen test
+- [ ] verify remote SEDENTARY on/off; verify HSW repeatability and reboot behavior
 - [ ] confirm command limits and accepted time/day encodings
 - [ ] verify display, sound and vibration behaviour on the exact production firmware
 - [ ] verify enable/change/delete behaviour and reboot persistence

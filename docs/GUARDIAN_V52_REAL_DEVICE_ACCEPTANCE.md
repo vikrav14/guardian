@@ -977,7 +977,44 @@ PR #115 remains paused.
 - [x] Record local SEDENTARY speech and supplier inactivity/minutes/flag definitions.
 - [x] Record supplier HSW off/on polarity.
 - [ ] Observe remote SEDENTARY saved setting, timed output and effective off.
-- [ ] Observe HSW speech trigger, both states and effective disable.
+- [x] Operator confirms HSW speech during the enabled wake-screen test and silence after running off; transport limits recorded below.
 - [ ] Verify REMIND future cancellation, daily/weekly/day mapping, slots and reboot.
 - [ ] Verify ranges, reset/repeat, quiet hours and persistence where applicable.
 - [ ] Keep physical results separate from socket handoff and acknowledgement.
+
+### HSW physical wake-screen result — 22 September 2026
+
+**Passed for the observed on/off wake-screen behavior on the pilot.**
+
+The operator ran hsw-on through the prepared CLI. Its request time was
+2026-09-22T09:07:29.440Z (13:07:29.440 Mauritius); it reported HSW,1,
+socket_handoff, commandSent:true and one live session. The supplied gateway
+excerpt confirms the five-byte HSW,1 frame and an HSW command-echo reply.
+The reply line has no standalone timestamp and retains no parameters; do not
+infer an exact response time, a bare response or an applied-state readback.
+
+In response to the instructed physical test, the operator reported that the
+watch says the time aloud. They then explicitly reported running the feature-off
+command and waking the watch, after which it did not say the time aloud.
+
+| Stage | Evidence | Result |
+| --- | --- | --- |
+| Enable | HSW,1 request/downlink and an HSW reply; operator's enabled wake-test observation | Spoken time confirmed by operator |
+| Disable | Operator reports running the instructed hsw-off command, then waking the watch | No spoken time on that wake, confirmed by operator |
+
+The hsw-off CLI result/downlink and exact speech/off times were not supplied.
+The physical result is accepted as an operator observation; do not fabricate
+an independently captured HSW,0 frame, reply or off timestamp. Last reported
+action is off, with silence verified on the subsequent wake. It is not proof of
+restoration to an unknown setting from before the trial.
+
+Do not infer immediate-on-enable speech, every wake/other trigger, hourly speech,
+spoken-time accuracy, reboot/reconnect persistence, durable readback, vibration
+or second-watch acceptance from this one comparison. The helper's
+hardwareAccepted:false and appliedStateVerified:false remain correct automated
+evidence fields; the manual physical result is recorded here separately.
+
+The supplier's off/on interpretation now has a successful pilot physical result.
+No runtime or flag change accompanies this evidence update. PR #118 remains
+draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
+enable/observe/off procedure; no additional HSW test is required now.

@@ -1,7 +1,8 @@
 # PR #118: remaining V52 reminder commands
 
 Status: REMIND once-only sound/visible clearing and local SEDENTARY speech were
-observed. Remote SEDENTARY and HSW execution remain unverified. New supplier
+observed. HSW passed the pilot wake-screen on/off test on 22 September; remote
+SEDENTARY execution remains unverified. New supplier
 definitions support bounded operator trials. PR #118 remains draft; customer
 flags and automatic watch sync remain off. Wellness routines (#120/#127) and Family/Care medication reminders
 using `TAKEPILLS` (#131) already reached main and are outside this acceptance.
@@ -24,7 +25,7 @@ Sources supplied by the operator and confirmed applicable to V52:
 |---|---|---|---|
 | `REMIND` | Three slots; once-only sound and visible clearing observed. | Future cancellation, daily/weekly/day mapping, all slots, vibration and persistence. | Existing once/off operator trial; extended tests/UI deferred. |
 | `SEDENTARY` | Supplier confirms 1 on / 0 off, 26 minutes, no detected movement and sound. | Range, motion/reset/repeat rules, active hours, physical remote on/off and persistence. | sedentary-on/off uses fixed interval 26; off uses the defined flag with interval retained. |
-| `HSW` | Supplier explicitly defines HSW,0 off / HSW,1 on. | Speech trigger, readback, physical on/off, restoration and reboot persistence. | hsw-on/off operator trial; no promise of immediate speech. |
+| `HSW` | Supplier defines HSW,0 off / HSW,1 on; pilot wake-screen speech followed by silence after off is operator-confirmed. | Readback, repeated trials, other triggers, restoration of an unknown prior setting and reboot persistence. | Wake-screen on/off passed on pilot; next focus is SEDENTARY. |
 
 Example clock body:
 
@@ -40,7 +41,7 @@ The protocol describes Monday-to-Sunday selection, but the example's all-days
 mask cannot independently prove ordering. Do not borrow the `TAKEPILLS` code's
 Sun-to-Sat convention. Weekly customer scheduling remains gated.
 
-## Current next test: HSW, then SEDENTARY
+## Operator procedures: HSW passed; SEDENTARY is next
 
 Keep the existing gateway and ngrok running. These are client-script changes;
 no gateway restart, customer flag, wellness change or AnyTracking connection
@@ -59,7 +60,10 @@ cd gateway
 If Git refuses because of local work, preserve it and inspect the message;
 do not reset/clean. The untracked news-review file is unrelated.
 
-### Talking clock
+### Talking clock (completed pilot procedure; retained for repeat testing)
+
+The operator has completed this wake-screen test successfully. Continue with
+SEDENTARY below; no additional HSW command is required now.
 
 Record any current talking-clock behavior/setting first. Keep the watch nearby
 during an awake period with no call or other trial active. This trial finishes
@@ -210,7 +214,7 @@ arbitrary interval or automatic restore is implemented.
 |---|---|
 | `REMIND` | Once/daily/weekly behavior; Monday and Sunday mapping; change/off of each slot; reboot/reconnect; sound/vibration and overlaps with `TAKEPILLS`; no unsupported wearer-acknowledgement claim. |
 | `SEDENTARY` | Polarity/units are supplier-defined; verify range, timed execution, activity reset, quiet hours, effective disable and reboot. |
-| `HSW` | Off/on is supplier-defined; observe speech trigger, both states, effective disable/restoration and reboot persistence. |
+| `HSW` | Pilot wake-screen on/off is confirmed; verify repeatability, other triggers, applied-state readback and reboot persistence before wider acceptance. |
 | Customer activation | Accessible configuration, wearer-visible schedules, enforceable quiet hours/rate limits, correct Care entitlement and audit, second production-equivalent V52 acceptance. Separate reviewed rollout. |
 
 The current trial does not prove quiet hours for persistent native alarms. The
@@ -232,5 +236,8 @@ retain its disabled state rather than marking it proven.
 - Persistence/reconnect, weekly mapping and overlap: pending
 - Supplier definitions: received 22 September; see linked source record.
 - Existing observations: REMIND once-only sound/visible clearing; three local SEDENTARY announcements with unknown timing.
-- New remote SEDENTARY / HSW trial: **not yet performed**.
+- HSW wake-screen on/off: **passed on pilot, operator-confirmed 22 September**; see the canonical evidence below.
+- Remote SEDENTARY trial: **not yet performed**.
 - Full customer/hardware acceptance: **incomplete**.
+
+See [the canonical HSW result](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#hsw-physical-wake-screen-result--22-september-2026) for transport evidence, the operator's observations and the remaining limits.
