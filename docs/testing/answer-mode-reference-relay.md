@@ -1,12 +1,12 @@
 # Answer-mode reference capture without an HTTP inspection tool
 
-> This procedure remains specific to the separate reference watch. A distinct
-> [same-watch comparison](answer-mode-same-watch-capture.md) is now prepared for
-> an existing Guardian pilot, using explicit Guardian return-route options.
-> That comparison needs separate operator agreement because it changes the
-> pilot's telemetry destination. Neither live capture has been executed.
+> This procedure remains specific to the separate reference watch. The distinct
+> [same-watch comparison](answer-mode-reference-success.md) was approved and run
+> on the Guardian pilot: the operator reports automatic answering and two-way
+> audio through AnyTracking. Exact Guardian control mapping remains pending.
+> The older checkpoint below describes the separate watch and earlier failures.
 
-## Current checkpoint — 22 September 2026
+## Earlier checkpoint — 22 September 2026
 
 PR #115 remains a draft. The operator has resumed investigation after losing
 access to the HTTP capture tool. Automatic answering is still **not passed**.

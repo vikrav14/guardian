@@ -1,18 +1,19 @@
 # PR #115 investigation handoff — 22 September 2026
 
-> **Latest engineering follow-up:** The operator asked for a concrete solution
-> path beyond repeated APPLOCK trials. Public app model-dispatch and contact
-> setup were rechecked; no replacement wire command or proven prerequisite was
-> found. A [same-watch capture with Guardian return routing](../testing/answer-mode-same-watch-capture.md)
-> is now prepared and locally tested. It uses the existing pilot's working
-> calling/SMS path, subject to operator agreement to temporary supplier routing.
-> No live capture, routing change or physical pass has occurred. Manual restore
-> after the last failed call is still unreported.
+> **Latest physical result:** The operator reports automatic answering and
+> two-way audio after setting Answer mode through AnyTracking on the same
+> pilot watch. The relay observed ACALL with one redacted argument; its mapping
+> to the UI action is not yet established. SOS/PHBX writes were deliberate
+> operator actions. The Guardian return SMS was sent; fresh Guardian telemetry
+> and Manual restoration remain unreported. Read the
+> [reference success and exact-capture follow-up](../testing/answer-mode-reference-success.md).
+> Earlier sections below are historical checkpoints. PR #115 remains draft;
+> no verified Guardian replacement command has been implemented.
 
-## Latest: exact supplier framing replied; Auto still rings
+## Earlier Guardian trial: exact supplier framing replied; Auto still rings
 
 The operator completed the requested lowercase-frame trial. PR #115 remains an
-open draft; physical automatic answering has not passed.
+open draft; this Guardian trial did not pass physical automatic answering.
 
 | Evidence, 22 September 2026 | Observed result |
 | --- | --- |

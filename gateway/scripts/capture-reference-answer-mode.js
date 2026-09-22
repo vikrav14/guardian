@@ -4,13 +4,60 @@
 // The relay does not create commands or ACKs. Only the reference server and
 // watch generate traffic. No Firebase, application config or credentials load.
 const net = require('node:net');
+const fs = require('node:fs');
+const path = require('node:path');
 const { Transform } = require('node:stream');
 
 const REFERENCE_HOST = 'a.igps123.com';
 const REFERENCE_PORT = 7720;
 const MAX_FRAME = 65556;
 const MAX_ROWS = 2000;
-const USAGE = 'Use --protocol-id <10 digits> [--listen-port 9002] [--minutes 15] [--guardian-return-host <host> --guardian-return-port <port>] [--run].';
+const PRIVATE_ANSWER_COMMANDS = new Set(['ACALL', 'APPLOCK', 'ANS']);
+const MAX_PRIVATE_FRAMES = 64;
+const MAX_PRIVATE_FRAME_BYTES = 512;
+const USAGE = 'Use --protocol-id <10 digits> [--listen-port 9002] [--minutes 15] [--guardian-return-host <host> --guardian-return-port <port>] [--private-answer-file <absolute new file path>] [--run].';
+
+// Exact candidate exchanges stay in an explicitly selected local file, never
+// in shareable console logs. This is capture only, not a command sender.
+function createPrivateAnswerCapture(filePath, { write = fs.writeSync } = {}) {
+  if (!path.isAbsolute(filePath)) throw new Error('An absolute private capture path is required.');
+  const fd = fs.openSync(filePath, 'wx', 0o600); // refuse existing files/symlinks
+  let recordsSaved = 0, limited = false, failed = false, fileClosed = false;
+  const status = () => ({ recordsSaved, limited, failed, fileClosed });
+  const close = () => {
+    if (!fileClosed) {
+      try { fs.closeSync(fd); } catch { failed = true; }
+      fileClosed = true;
+    }
+    return status();
+  };
+  const record = (frame, row) => {
+    if (fileClosed || failed || limited || !PRIVATE_ANSWER_COMMANDS.has(row.command) ||
+        !['server_to_watch', 'watch_to_server'].includes(row.direction)) return null;
+    if (frame.length > MAX_PRIVATE_FRAME_BYTES || recordsSaved >= MAX_PRIVATE_FRAMES) {
+      limited = true;
+      return { status: 'limit_reached', recordsSaved };
+    }
+    const data = Buffer.from(JSON.stringify({ event: 'private_answer_frame', at: row.at,
+      session: row.session, direction: row.direction, command: row.command,
+      prefix: row.prefix, lengthField: row.lengthField, frameHex: frame.toString('hex'),
+      appliedStateVerified: false }) + '\n');
+    try {
+      for (let offset = 0; offset < data.length;) {
+        const written = write(fd, data, offset, data.length - offset);
+        if (!Number.isInteger(written) || written <= 0 || written > data.length - offset) throw new Error('Capture write failed.');
+        offset += written;
+      }
+      recordsSaved++;
+      return { status: 'saved', recordNumber: recordsSaved };
+    } catch {
+      failed = true;
+      close();
+      return { status: 'write_failed', recordsSaved };
+    }
+  };
+  return { record, close, status };
+}
 
 function restorationPlan(options) {
   const target = options.guardianReturn;
@@ -38,7 +85,7 @@ function parseArguments(args) {
   const values = {};
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
-    if (!['--protocol-id', '--listen-port', '--minutes', '--guardian-return-host', '--guardian-return-port', '--run'].includes(key) || key in values) throw new Error(USAGE);
+    if (!['--protocol-id', '--listen-port', '--minutes', '--guardian-return-host', '--guardian-return-port', '--private-answer-file', '--run'].includes(key) || key in values) throw new Error(USAGE);
     if (key === '--run') values[key] = true;
     else {
       const value = args[++i];
@@ -58,6 +105,10 @@ function parseArguments(args) {
     if (!/^\d+$/.test(values['--guardian-return-port'])) throw new Error(USAGE);
     options.guardianReturn = { host: values['--guardian-return-host'], port: Number(values['--guardian-return-port']) };
     restorationPlan(options);
+  }
+  if (values['--private-answer-file']) {
+    if (!path.isAbsolute(values['--private-answer-file'])) throw new Error('Use an absolute path for the new private answer capture file.');
+    options.privateAnswerFile = values['--private-answer-file'];
   }
   return options;
 }
@@ -93,10 +144,11 @@ function frameSummary(frame, protocolId, direction) {
 }
 
 class FrameObserver {
-  constructor({ protocolId, direction, emit }) {
+  constructor({ protocolId, direction, emit, captureFrame }) {
     this.protocolId = protocolId;
     this.direction = direction;
     this.emit = emit;
+    this.captureFrame = captureFrame;
     this.buffer = Buffer.alloc(0);
     this.disabled = false;
   }
@@ -127,6 +179,7 @@ class FrameObserver {
         const summary = frameSummary(frame, this.protocolId, this.direction);
         this.emit(summary ? { event: 'frame', direction: this.direction, ...summary }
           : { event: 'frame_redacted', direction: this.direction, reason: 'unexpected_identity' });
+        if (summary && this.captureFrame) this.captureFrame(frame, { direction: this.direction, ...summary });
       }
       if (this.buffer.length > MAX_FRAME) {
         this.disabled = true;
@@ -147,6 +200,7 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
   now = () => new Date(), durationMs = options.minutes * 60000, identifyTimeoutMs = 10000,
   connectTimeoutMs = 10000 } = {}) {
   const restoration = restorationPlan(options);
+  const privateCapture = options.privateAnswerFile ? createPrivateAnswerCapture(options.privateAnswerFile) : null;
   const sockets = new Set();
   const observers = new Set();
   let rows = 0, sequence = 0, stopping = false, timer;
@@ -195,7 +249,12 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
         clearTimeout(connectTimer);
         sessionLog({ event: 'reference_connected' });
         const tap = direction => {
-          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog });
+          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog,
+            captureFrame: privateCapture ? (frame, row) => {
+              const result = privateCapture.record(frame, { at: now().toISOString(), session, ...row });
+              if (result) sessionLog({ event: 'private_answer_capture', command: row.command,
+                direction, ...result });
+            } : undefined });
           observers.add(observer); pairObservers.push(observer);
           return new Transform({ transform(chunk, encoding, done) {
             observer.push(chunk);
@@ -220,20 +279,28 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
     observers.clear();
     for (const socket of sockets) socket.destroy();
     sockets.clear();
+    const privateCaptureStatus = privateCapture?.close();
     await new Promise(resolve => server.close(resolve));
     // Always print restoration guidance, even if capture reached its row cap.
     emit({ at: now().toISOString(), event: 'relay_stopped', reason, ...restoration,
+      ...(privateCaptureStatus ? { privateCapture: privateCaptureStatus } : {}),
       note: 'Send the prepared return SMS and verify fresh telemetry at the original server. Stopping or expiry does not restore routing.' });
   };
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(options.listenPort, '127.0.0.1', () => { server.off('error', reject); resolve(); });
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(options.listenPort, '127.0.0.1', () => { server.off('error', reject); resolve(); });
+    });
+  } catch (error) {
+    privateCapture?.close();
+    throw error;
+  }
   server.on('error', () => { void stop('listener_error'); });
   timer = setTimeout(() => { void stop('capture_window_ended'); }, durationMs);
   log({ event: 'relay_listening', protocolId: options.protocolId, address: server.address(),
     referenceHost: REFERENCE_HOST, referencePort: REFERENCE_PORT, minutes: options.minutes,
     ...restoration, appliedStateVerified: false,
+    privateAnswerCaptureEnabled: Boolean(privateCapture),
     note: options.guardianReturn
       ? 'Same-watch comparison requires operator agreement to temporary supplier routing and a verified Guardian return SMS. Supplier traffic reaches the watch unchanged.'
       : 'Only use after confirming the reference watch already uses this server and preparing its return SMS.' });
@@ -245,6 +312,7 @@ async function main(args) {
   if (!options.run) {
     console.log(JSON.stringify({ outcome: 'preview', ...options, referenceHost: REFERENCE_HOST,
       referencePort: REFERENCE_PORT, networkOpened: false, commandsGenerated: false,
+      privateFileCreated: false, privateAnswerCaptureEnabled: Boolean(options.privateAnswerFile),
       ...restorationPlan(options),
       note: options.guardianReturn
         ? 'Prepared comparison only. Confirm owner agreement, AnyTracking access and the current Guardian return route before changing routing. Read docs/testing/answer-mode-same-watch-capture.md.'
@@ -260,4 +328,4 @@ if (require.main === module) main(process.argv.slice(2)).catch(() => {
   console.error('Capture failed. Check arguments/listen port. If routing was changed, restore the watch to its original server using the prepared SMS.');
   process.exitCode = 1;
 });
-module.exports = { parseArguments, restorationPlan, frameSummary, FrameObserver, startRelay, main };
+module.exports = { parseArguments, restorationPlan, frameSummary, FrameObserver, startRelay, main, createPrivateAnswerCapture };

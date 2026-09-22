@@ -1,13 +1,13 @@
 # Same-watch answer-mode comparison with a Guardian return route
 
-## Prepared, not run
+## Reference call passed; exact control capture pending
 
-PR #115 remains draft. The operator asked for a concrete way to investigate how
-AnyTracking makes answer mode work. The new reference watch has unresolved voice
-and SMS issues; the existing Guardian pilot has working incoming calls, two-way
-audio and a recently successful server-change SMS. Use of the pilot for this
-comparison has been prepared, but **temporary supplier routing still requires
-the operator's agreement**. No watch routing or account access has occurred.
+PR #115 remains draft. The operator approved and ran the same-watch comparison
+on 22 September, and reports that auto-answer with two-way audio worked through
+AnyTracking. The Guardian return SMS has been sent; fresh Guardian telemetry
+and Manual restoration remain unreported. See the
+[reference result and exact-capture follow-up](answer-mode-reference-success.md).
+The separate new watch's voice/SMS issues remain separate from this pilot.
 
 The latest Guardian trial sent exact APPLOCK,JT-0 with lowercase 000c, received
 a bare APPLOCK reply, and still rang. The requested Manual restore remains
@@ -64,9 +64,10 @@ and routingRestored/returnRouteVerified always remain false.
 ## Prepare without changing the watch
 
 Keep Guardian and its ngrok agent running. Use AnyTracking on the owner's phone
-to confirm access to the correct pilot device and its Answer mode page. It may
-show offline while its TCP server is Guardian. Do not save a supplier setting
-yet. Login failure or a missing device must be resolved before routing.
+to confirm access to the correct pilot device. It may show offline and refuse
+to open Answer mode while its TCP server is Guardian; that alone does not block
+the prepared comparison. Open Answer mode after the reference connection and
+fresh online status. Login failure or a missing device must be resolved first.
 
 In a separate PowerShell window, with the updated draft branch available:
 
@@ -98,7 +99,9 @@ do not replace it blindly. If the account rejects another endpoint, stop before
 changing the watch. Keep the original TCP and WhatsApp HTTPS endpoints running.
 Obtain the capture endpoint's actual public URL, and prepare its server-change
 SMS separately from the Guardian return SMS. This endpoint alone does not route
-the watch or send telemetry to the supplier.
+the watch or send telemetry to the supplier. On the tested ngrok 3.39.9 agent,
+set inspect:false and use upstream.url "127.0.0.1:9002" without a tcp:// prefix;
+omitting that flag or using the prefixed upstream caused creation errors.
 
 Show both concrete routes to the operator. Obtain agreement to the temporary
 supplier telemetry/control path before the next section. The existing
@@ -142,13 +145,17 @@ that and resolve routing before treating the test as complete.
 | Supplier device stays offline or capture is incomplete | Inconclusive. Restore Guardian; do not invent the missing exchange. |
 
 This tool provides evidence needed to build a correction; it does not itself
-make an incoming carrier call answer. No live comparison has been executed.
+make an incoming carrier call answer. The first live comparison has now been
+reported as a physical pass; the exact Guardian control path remains pending.
 
 ## Verification
 
-Twelve focused relay tests passed locally, including default network-free
+Seventeen focused relay tests passed locally, including default network-free
 preview, invalid/incomplete return routes, target checks, unchanged byte
 forwarding, redaction, time limits and correct Guardian return guidance on both
 manual stop and expiry. Tests used local fake TCP peers, no real watch or
 supplier account. No customer feature or firmware command was enabled.
-The full gateway suite also passed: 1,292 tests, zero failures.
+The additional tests cover private-file preview/no-overwrite, exact candidate
+bytes without public disclosure, bounded recording, short writes/write errors,
+file closure and retained Guardian restoration guidance.
+The full gateway suite also passed: 1,297 tests, zero failures.

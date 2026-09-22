@@ -4,6 +4,12 @@
 **Device under test:** One production-equivalent V52 watch and SIM
 **Rule:** Unit tests prove code paths. This runbook proves what the real watch, carrier and configured notification providers actually do.
 
+**22 September reference result:** The operator reports that the existing pilot
+auto-answered after an AnyTracking Answer mode change, with audio both ways.
+This is a successful reference-platform call; Guardian's own enable/disable
+path remains unverified. The same session included intentional supplier SOS
+and phonebook writes. See the [captured evidence and remaining checks](testing/answer-mode-reference-success.md).
+
 ## Evidence semantics
 
 Guardian must not collapse different forms of evidence into one green label:

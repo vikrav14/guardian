@@ -5,7 +5,9 @@ const net = require('node:net');
 const { once } = require('node:events');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-const { parseArguments, restorationPlan, FrameObserver, frameSummary, startRelay } = require('../scripts/capture-reference-answer-mode');
+const fs = require('node:fs');
+const os = require('node:os');
+const { parseArguments, restorationPlan, FrameObserver, frameSummary, startRelay, createPrivateAnswerCapture } = require('../scripts/capture-reference-answer-mode');
 
 const ID = '1234567890';
 const frame = (body, id = ID) => {
@@ -225,4 +227,108 @@ test('same-watch expiry retains the Guardian return route and never claims to re
   assert.equal(stopped.restoreCommand, 'ip,guardian.example.test,23456#');
   assert.equal(stopped.returnRouteVerified, false);
   assert.equal(stopped.routingRestored, false);
+});
+
+function privateFile(t) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'guardian-answer-test-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  return path.join(directory, 'answer.jsonl');
+}
+
+test('private capture preview creates no file, requires an absolute path and never overwrites a file', t => {
+  const file = privateFile(t);
+  assert.throws(() => parseArguments(['--protocol-id', ID, '--private-answer-file', 'relative.jsonl']));
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/capture-reference-answer-mode.js'),
+    '--protocol-id', ID, '--private-answer-file', file], { encoding: 'utf8', timeout: 3000, env: {} });
+  assert.equal(result.status, 0);
+  const preview = JSON.parse(result.stdout);
+  assert.equal(preview.networkOpened, false);
+  assert.equal(preview.privateFileCreated, false);
+  assert.equal(preview.privateAnswerCaptureEnabled, true);
+  assert.equal(fs.existsSync(file), false);
+  fs.writeFileSync(file, 'keep existing evidence');
+  assert.throws(() => createPrivateAnswerCapture(file));
+  assert.equal(fs.readFileSync(file, 'utf8'), 'keep existing evidence');
+});
+
+test('private capture preserves candidate bytes through fragmented TCP forwarding while public logs stay redacted', { timeout: 5000 }, async t => {
+  const file = privateFile(t);
+  const f = await fixture(t, {}, { privateAnswerFile: file,
+    guardianReturn: { host: 'guardian.example.test', port: 23456 } });
+  f.watch.write(frame('LK,0,0,90'));
+  await until(() => f.referenceSockets.length === 1);
+  const returned = [];
+  f.watch.on('data', data => returned.push(data));
+  // Synthetic argument only; no real ACALL mode syntax is inferred here.
+  const candidate = Buffer.from(frame('ACALL,TEST_ARGUMENT').toString().replace('[SG*', '[3G*'));
+  const contacts = frame('PHBX,1,Private Name,+23050000000');
+  const unrelated = frame('CONFIG,JT:0,phone:+23050000000');
+  const otherWatch = frame('ACALL,OTHER_PRIVATE', '9999999999');
+  const input = Buffer.concat([candidate, contacts, unrelated, otherWatch]);
+  f.referenceSockets[0].write(input.subarray(0, 11));
+  f.referenceSockets[0].write(input.subarray(11));
+  await until(() => Buffer.concat(returned).length === input.length);
+  assert.deepEqual(Buffer.concat(returned), input);
+  f.watch.write(frame('ACALL'));
+  await until(() => f.rows.filter(row => row.event === 'private_answer_capture' && row.status === 'saved').length === 2);
+  await f.relay.stop();
+  const captured = fs.readFileSync(file, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(captured.length, 2);
+  assert.equal(captured[0].frameHex, candidate.toString('hex'));
+  assert.equal(captured[0].prefix, '3G');
+  assert.equal(captured[0].direction, 'server_to_watch');
+  assert.equal(captured[0].appliedStateVerified, false);
+  assert.equal(captured[1].frameHex, frame('ACALL').toString('hex'));
+  const publicLog = JSON.stringify(f.rows);
+  for (const privateValue of ['TEST_ARGUMENT', 'OTHER_PRIVATE', 'Private Name', '+23050000000', candidate.toString('hex')]) {
+    assert.equal(publicLog.includes(privateValue), false);
+  }
+  const stopped = f.rows.find(row => row.event === 'relay_stopped');
+  assert.equal(stopped.privateCapture.fileClosed, true);
+  assert.equal(stopped.privateCapture.recordsSaved, 2);
+  assert.equal(stopped.routingRestored, false);
+});
+
+test('private capture is bounded by frame count and frame size and excludes other commands', t => {
+  const file = privateFile(t);
+  const writer = createPrivateAnswerCapture(file);
+  const row = { at: '2026-01-01T00:00:00.000Z', session: 1, direction: 'server_to_watch', command: 'ACALL' };
+  assert.equal(writer.record(frame('PHBX,private'), { ...row, command: 'PHBX' }), null);
+  for (let i = 0; i < 64; i++) assert.equal(writer.record(frame('ACALL,TEST_ARGUMENT'), row).status, 'saved');
+  assert.equal(writer.record(frame('ACALL,TEST_ARGUMENT'), row).status, 'limit_reached');
+  assert.equal(writer.record(frame('ACALL,TEST_ARGUMENT'), row), null);
+  assert.equal(writer.close().limited, true);
+  assert.equal(fs.readFileSync(file, 'utf8').trim().split('\n').length, 64);
+  const oversized = createPrivateAnswerCapture(file + '.large');
+  assert.equal(oversized.record(frame('ACALL,' + 'x'.repeat(512)), row).status, 'limit_reached');
+  oversized.close();
+  assert.equal(fs.statSync(file + '.large').size, 0);
+});
+
+test('short writes preserve every byte; write failures report once without throwing into the forwarding path', t => {
+  const file = privateFile(t);
+  const row = { direction: 'server_to_watch', command: 'ACALL' };
+  const content = frame('ACALL,TEST_ARGUMENT');
+  const short = createPrivateAnswerCapture(file, { write: (fd, buffer, offset, length) =>
+    fs.writeSync(fd, buffer, offset, Math.min(length, 7)) });
+  assert.equal(short.record(content, row).status, 'saved');
+  short.close();
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).frameHex, content.toString('hex'));
+  const failing = createPrivateAnswerCapture(file + '.failed', { write: () => { throw new Error('private internal failure'); } });
+  assert.deepEqual(failing.record(content, row), { status: 'write_failed', recordsSaved: 0 });
+  assert.equal(failing.record(content, row), null);
+  assert.deepEqual(failing.status(), { recordsSaved: 0, limited: false, failed: true, fileClosed: true });
+});
+
+test('expiry closes the private file and retains Guardian restoration guidance', { timeout: 5000 }, async t => {
+  const file = privateFile(t);
+  const f = await fixture(t, { durationMs: 200 }, { privateAnswerFile: file,
+    guardianReturn: { host: 'guardian.example.test', port: 23456 } });
+  f.watch.write(frame('LK,0,0,90'));
+  await until(() => f.rows.some(row => row.event === 'reference_connected'));
+  await until(() => f.rows.some(row => row.event === 'relay_stopped'));
+  const stopped = f.rows.find(row => row.event === 'relay_stopped');
+  assert.equal(stopped.privateCapture.fileClosed, true);
+  assert.equal(stopped.restoreCommand, 'ip,guardian.example.test,23456#');
+  fs.renameSync(file, file + '.closed');
 });

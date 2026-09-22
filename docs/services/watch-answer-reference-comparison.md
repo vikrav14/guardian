@@ -1,20 +1,21 @@
 # V52 auto-answer: official-platform comparison
 
-> **Latest prepared path:** The [same-watch capture procedure](../testing/answer-mode-same-watch-capture.md)
-> can use the existing Guardian pilot's working voice/SMS path. The relay now
-> accepts an explicit Guardian return hostname/port and retains it on preview,
-> stop and expiry. This is evidence collection, not an auto-answer fix. It has
-> not been run; temporary supplier routing still needs operator agreement.
+> **Latest result:** The operator approved and ran the same-watch comparison,
+> and reports that AnyTracking enabled automatic answering with two-way audio
+> on the pilot. The relay observed a candidate ACALL exchange with a redacted
+> argument. Read the [reference result and next capture step](../testing/answer-mode-reference-success.md).
+> A Guardian enable/disable mapping remains unverified; PR #115 stays draft.
 
-> **Research resumed 22 September 2026:** A separate new watch produced AnyTracking
+> **Earlier research checkpoint, 22 September 2026:** A separate new watch produced AnyTracking
 > ANS history, but calls on its new SIM are blocked. Jesh remains on Guardian.
 > A standalone reference-server relay is prepared to inspect actual downlinks
 > without the unavailable HTTP capture tool. Read the
 > [current checkpoint and relay procedure](../testing/answer-mode-reference-relay.md).
 > The same-watch platform comparison below remains a separate, unexecuted plan.
 
-**Status:** Research and proposed operator test; no physical pass or wire-command
-correction established. PR #115 remains draft. Customer auto-answer stays disabled.
+**Status:** Reference call physically passed per operator report; Guardian
+wire-command correction pending. PR #115 remains draft. Customer auto-answer
+stays disabled. The analysis and original test plan below predate that result.
 
 ## Why this comparison is next
 
