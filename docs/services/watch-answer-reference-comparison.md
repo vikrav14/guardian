@@ -1,8 +1,11 @@
 # V52 auto-answer: official-platform comparison
 
-> **Paused 22 September 2026:** Read the [PR #115 handoff](watch-modes-paused-handoff.md)
-> before resuming. Earlier trial instructions below are history/prepared work,
-> not a request to execute them while this PR is paused. Work moves to PR #118.
+> **Research resumed 22 September 2026:** A separate new watch produced AnyTracking
+> ANS history, but calls on its new SIM are blocked. Jesh remains on Guardian.
+> A standalone reference-server relay is prepared to inspect actual downlinks
+> without the unavailable HTTP capture tool. Read the
+> [current checkpoint and relay procedure](../testing/answer-mode-reference-relay.md).
+> The same-watch platform comparison below remains a separate, unexecuted plan.
 
 **Status:** Research and proposed operator test; no physical pass or wire-command
 correction established. PR #115 remains draft. Customer auto-answer stays disabled.
@@ -135,7 +138,9 @@ telemetry or full screenshots containing them.
 | Still rings after an established mode request | Preserve the controlled result; compare device/firmware, caller/SIM eligibility and supplier-side configuration. Do not declare all V52 units unsupported. |
 | Mode absent, device unavailable or request never reaches it | Treat the comparison as inconclusive; restore Guardian and resolve platform access/model support before another call trial. |
 
-No relay, interception service, API credential use or server forwarding has been
-implemented or enabled by this research. Capturing a future reference exchange
-requires a separate, concrete capture setup with bounded, redacted retention.
-Only an observed or V52-documented wire difference should change the gateway.
+A bounded, redacting relay has now been implemented as a separate operator script;
+it has not been enabled against a real watch or supplier server. No API credential
+use or watch routing change has been performed by this research. The new runbook
+requires the separate watch's existing endpoint and return SMS to be confirmed
+before routing. Only an observed or V52-documented wire difference should change
+the gateway's answer-mode implementation.

@@ -1236,3 +1236,27 @@ routing, caller restriction, routine or runtime change accompanies this pause.
 PR #115 stays open as a draft, with customer answer-mode controls disabled. Earlier
 next-test instructions are suspended. The supplier reply for #118 is reported
 received by the operator, but its contents have not yet been provided here.
+
+## PR #115 reference investigation resumed — later 22 September 2026
+
+The operator clarified that the ANS history was collected from a **separate new
+watch on AnyTracking**, not Jesh. It contains ten sent/responded entries,
+alternating five Set:0 and five Set:1, with 1–6-second response delays. Its latest
+entry reports Set:0 at 16:07:49; the history's timezone is not specified. The new
+watch's SIM currently cannot complete the reported voice-call checks. This is
+neither a physical auto-answer pass nor a new failure of Jesh's calling path.
+Model and firmware equivalence remain unknown. Device/account IDs and private
+request URLs are not republished here.
+
+After the HTTP inspection tool became unavailable, the operator requested that
+investigation continue. A standalone reference TCP relay is prepared and tested
+with local fake sockets; no real-device capture or routing change has happened.
+It can observe the supplier's actual command bytes using the new watch's data
+connection even while voice calls are blocked. It generates no watch commands
+or ACKs, redacts private payloads, targets one explicit protocol ID and has a
+bounded lifetime. Read the [capture runbook](testing/answer-mode-reference-relay.md)
+for preflight, a confirmed return SMS, temporary routing and cleanup.
+
+Jesh remains the Guardian pilot. No replacement for APPLOCK,JT-0 has been
+established, and no customer answer-mode behavior is enabled by this work.
+PR #115 remains draft; physical auto-answer acceptance is still outstanding.

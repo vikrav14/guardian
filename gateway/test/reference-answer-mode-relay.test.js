@@ -1,0 +1,163 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const net = require('node:net');
+const { once } = require('node:events');
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+const { parseArguments, FrameObserver, frameSummary, startRelay } = require('../scripts/capture-reference-answer-mode');
+
+const ID = '1234567890';
+const frame = (body, id = ID) => {
+  const content = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  return Buffer.concat([Buffer.from(`[SG*${id}*${content.length.toString(16).padStart(4, '0')}*`), content, Buffer.from(']')]);
+};
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test('CLI is preview-only by default, requires explicit identity and cannot replace live gateway ports or upstream', () => {
+  assert.deepEqual(parseArguments(['--protocol-id', ID]), { protocolId: ID, listenPort: 9002, minutes: 15, run: false });
+  for (const args of [[], ['--protocol-id', '123'], ['--protocol-id', ID, '--listen-port', '9000'],
+    ['--protocol-id', ID, '--listen-port', '9001'], ['--protocol-id', ID, '--minutes', '21'],
+    ['--protocol-id', ID, '--minutes', '1.5'], ['--protocol-id', ID, '--upstream', 'localhost'],
+    ['--protocol-id', ID, '--run', '--run']]) assert.throws(() => parseArguments(args));
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/capture-reference-answer-mode.js'), '--protocol-id', ID],
+    { encoding: 'utf8', timeout: 3000, env: {} });
+  assert.equal(result.status, 0);
+  const preview = JSON.parse(result.stdout);
+  assert.equal(preview.networkOpened, false);
+  assert.equal(preview.commandsGenerated, false);
+  assert.equal(preview.referenceHost, 'a.igps123.com');
+  assert.equal(preview.referencePort, 7720);
+});
+
+test('observer handles fragmentation, coalescing and binary delimiters without leaking private payloads', () => {
+  const rows = [];
+  const observer = new FrameObserver({ protocolId: ID, direction: 'server_to_watch', emit: row => rows.push(row) });
+  const control = frame('APPLOCK,JT-0');
+  const privateData = frame('PHBX,1,Private Name,+23050000000');
+  const binary = frame(Buffer.from([0x50, 0x49, 0x43, 0x2c, 0x5d, 0xff, 0x5b, 0, 0x2a]));
+  const data = Buffer.concat([control, privateData, binary, frame('OTHERFLAG,1'), frame('CONFIG,JT:0,phone:+23050000000')]);
+  for (let i = 0; i < data.length; i += 7) observer.push(data.subarray(i, i + 7));
+  observer.finish();
+  assert.deepEqual(rows.map(row => row.command), ['APPLOCK', 'PHBX', 'PIC', 'OTHERFLAG', 'CONFIG']);
+  assert.equal(rows[0].frameHex, control.toString('hex'));
+  assert.equal(rows[0].lengthField, '000c');
+  assert.equal(rows[0].appliedStateVerified, false);
+  assert.equal(rows[1].frame, undefined);
+  assert.equal(rows[2].frame, undefined);
+  assert.equal(rows[3].frame, frame('OTHERFLAG,1').toString());
+  assert.equal(rows[4].reportedJt, 0);
+  assert.equal(JSON.stringify(rows).includes('Private Name'), false);
+  assert.equal(JSON.stringify(rows).includes('+23050000000'), false);
+});
+
+test('uplink telemetry and parameterized replies remain redacted; high-bit input cannot become ASCII control', () => {
+  for (const body of ['UD_LTE,010126,123456,A,-20.123,57.456', 'APPLOCK,JT-0,+23050000000', 'VERNO,private-version']) {
+    const row = frameSummary(frame(body), ID, 'watch_to_server');
+    assert.equal(row.argumentsRedacted, true);
+    assert.equal(row.frame, undefined);
+  }
+  assert.equal(frameSummary(frame('APPLOCK'), ID, 'watch_to_server').argumentsRedacted, false);
+  const altered = Buffer.from('APPLOCK,JT-0'); altered[0] += 128;
+  assert.equal(frameSummary(frame(altered), ID, 'server_to_watch').frame, undefined);
+  assert.equal(frameSummary(frame('APPLOCK,JT-0', '9999999999'), ID, 'server_to_watch'), null);
+});
+
+test('framing loss stops inspection without guessing subsequent frames; incomplete captures are explicit', () => {
+  const rows = [];
+  const observer = new FrameObserver({ protocolId: ID, direction: 'server_to_watch', emit: row => rows.push(row) });
+  observer.push(Buffer.from(`[SG*${ID}*0001*APPLOCK,JT-0]`));
+  observer.push(frame('APPLOCK,JT-1'));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].reason, 'invalid_frame_boundary');
+  assert.equal(observer.buffer.length, 0);
+  const partial = new FrameObserver({ protocolId: ID, direction: 'watch_to_server', emit: row => rows.push(row) });
+  partial.push(frame('APPLOCK').subarray(0, 24)); partial.finish();
+  assert.equal(rows[1].event, 'observation_incomplete');
+});
+
+async function fixture(t, overrides = {}) {
+  const received = [], rows = [], referenceSockets = [];
+  let connected = 0;
+  const reference = net.createServer(socket => {
+    referenceSockets.push(socket);
+    socket.on('error', () => {});
+    socket.on('data', data => received.push(data));
+  });
+  reference.listen(0, '127.0.0.1'); await once(reference, 'listening');
+  const relay = await startRelay({ protocolId: ID, listenPort: 0, minutes: 1 }, {
+    emit: row => rows.push(row),
+    connect: () => { connected++; return net.createConnection(reference.address().port, '127.0.0.1'); },
+    ...overrides,
+  });
+  const watch = net.createConnection(relay.server.address().port, '127.0.0.1');
+  watch.on('error', () => {});
+  await once(watch, 'connect');
+  t.after(async () => {
+    watch.destroy(); await relay.stop();
+    for (const socket of referenceSockets) socket.destroy();
+    await new Promise(resolve => reference.close(resolve));
+  });
+  return { received, rows, referenceSockets, relay, watch, connectionCount: () => connected };
+}
+
+async function until(predicate) {
+  for (let i = 0; i < 100; i++) { if (predicate()) return; await pause(10); }
+  assert.fail('Timed out waiting for local relay result');
+}
+
+test('relay forwards exact bytes in both directions, generates no ACKs, and preserves forwarding after observation loss', { timeout: 5000 }, async t => {
+  const f = await fixture(t);
+  const input = Buffer.concat([frame('LK,42,0,80'), frame(Buffer.from('PHOTO,\x00]binary[\xff', 'latin1'))]);
+  f.watch.write(input.subarray(0, 6));
+  await pause(20);
+  assert.equal(f.connectionCount(), 0, 'upstream must wait for target identification');
+  f.watch.write(input.subarray(6));
+  await until(() => Buffer.concat(f.received).length === input.length);
+  assert.deepEqual(Buffer.concat(f.received), input);
+  const returned = [];
+  f.watch.on('data', data => returned.push(data));
+  const reply = frame('APPLOCK,JT-0');
+  f.referenceSockets[0].write(reply.subarray(0, 8)); f.referenceSockets[0].write(reply.subarray(8));
+  await until(() => Buffer.concat(returned).length === reply.length);
+  assert.deepEqual(Buffer.concat(returned), reply);
+  assert.equal(f.rows.some(row => row.frame === reply.toString()), true);
+  assert.deepEqual(Buffer.concat(f.received), input, 'relay must not generate an ACK to APPLOCK');
+  const malformed = Buffer.from(`[SG*${ID}*0001*APPLOCK,JT-1]`);
+  f.referenceSockets[0].write(malformed);
+  await until(() => Buffer.concat(returned).length === reply.length + malformed.length);
+  assert.deepEqual(Buffer.concat(returned), Buffer.concat([reply, malformed]));
+  assert.equal(f.rows.some(row => row.event === 'observation_stopped'), true);
+  await f.relay.stop();
+  assert.equal(f.rows.some(row => row.event === 'relay_stopped' && row.routingRestored === false), true);
+});
+
+test('wrong watch never opens a reference connection', { timeout: 5000 }, async t => {
+  const f = await fixture(t);
+  const closed = once(f.watch, 'close');
+  f.watch.write(frame('LK,0,0,90', '9999999999'));
+  await closed;
+  assert.equal(f.connectionCount(), 0);
+  assert.equal(f.rows.some(row => row.reason === 'identity_not_allowed'), true);
+  assert.equal(JSON.stringify(f.rows).includes('9999999999'), false);
+});
+
+test('unidentified sockets expire without opening a reference connection', { timeout: 5000 }, async t => {
+  const f = await fixture(t, { identifyTimeoutMs: 30, durationMs: 150 });
+  await once(f.watch, 'close');
+  assert.equal(f.connectionCount(), 0);
+  assert.equal(f.rows.some(row => row.reason === 'identification_timeout'), true);
+  await until(() => f.rows.some(row => row.event === 'relay_stopped'));
+  assert.equal(f.rows.find(row => row.event === 'relay_stopped').reason, 'capture_window_ended');
+  assert.equal(f.rows.find(row => row.event === 'relay_stopped').routingRestored, false);
+});
+
+test('capture expiry closes a connected watch and reference socket', { timeout: 5000 }, async t => {
+  const f = await fixture(t, { durationMs: 300 });
+  f.watch.write(frame('LK,0,0,90'));
+  await until(() => f.rows.some(row => row.event === 'reference_connected'));
+  await once(f.watch, 'close');
+  await until(() => f.rows.some(row => row.event === 'relay_stopped'));
+  assert.equal(f.relay.server.listening, false);
+  assert.equal(f.rows.find(row => row.event === 'relay_stopped').routingRestored, false);
+});

@@ -1,5 +1,12 @@
 # PR #115 paused handoff — 22 September 2026
 
+> **Later 22 September update:** The operator resumed answer-mode investigation
+> after trying a separate new watch on AnyTracking and losing access to their
+> HTTP inspection tool. PR #115 remains a draft. A standalone, locally tested
+> reference-server relay is now prepared; no capture routing or new Jesh command
+> has been executed. Read the [current checkpoint and operator procedure](../testing/answer-mode-reference-relay.md).
+> The paused state and resume sequence below are the earlier historical handoff.
+
 **State:** Paused at the operator's request. Keep PR #115 open as a draft; do not
 merge, activate customer answer-mode controls, or continue physical tests while
 work moves to PR #118. This checkpoint supersedes earlier "next test" instructions.
