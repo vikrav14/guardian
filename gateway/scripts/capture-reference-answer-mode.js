@@ -10,13 +10,35 @@ const REFERENCE_HOST = 'a.igps123.com';
 const REFERENCE_PORT = 7720;
 const MAX_FRAME = 65556;
 const MAX_ROWS = 2000;
-const USAGE = 'Use --protocol-id <10 digits> [--listen-port 9002] [--minutes 15] [--run].';
+const USAGE = 'Use --protocol-id <10 digits> [--listen-port 9002] [--minutes 15] [--guardian-return-host <host> --guardian-return-port <port>] [--run].';
+
+function restorationPlan(options) {
+  const target = options.guardianReturn;
+  if (target) {
+    const host = target.host;
+    const validHost = typeof host === 'string' && host.length <= 253 && host.includes('.') &&
+      host.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) &&
+      !host.toLowerCase().endsWith('.localhost') && !/^127\./.test(host) && host !== '0.0.0.0' &&
+      (!/^[\d.]+$/.test(host) || net.isIP(host) === 4);
+    if (!validHost || !Number.isInteger(target.port) || target.port < 1 || target.port > 65535) {
+      throw new Error('Provide the verified public Guardian return hostname and TCP port.');
+    }
+  }
+  const returnHost = target ? target.host : REFERENCE_HOST;
+  const returnPort = target ? target.port : REFERENCE_PORT;
+  return {
+    captureMode: target ? 'same_watch_comparison' : 'reference_watch',
+    returnHost, returnPort, restoreCommand: `ip,${returnHost},${returnPort}#`,
+    returnRouteVerified: false, routingRestored: false,
+    guardianTelemetryPausedDuringComparison: Boolean(target),
+  };
+}
 
 function parseArguments(args) {
   const values = {};
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
-    if (!['--protocol-id', '--listen-port', '--minutes', '--run'].includes(key) || key in values) throw new Error(USAGE);
+    if (!['--protocol-id', '--listen-port', '--minutes', '--guardian-return-host', '--guardian-return-port', '--run'].includes(key) || key in values) throw new Error(USAGE);
     if (key === '--run') values[key] = true;
     else {
       const value = args[++i];
@@ -29,7 +51,15 @@ function parseArguments(args) {
   if (!/^\d{10}$/.test(values['--protocol-id'] || '') || !/^\d+$/.test(portText) || !/^\d+$/.test(minuteText)) throw new Error(USAGE);
   const listenPort = Number(portText), minutes = Number(minuteText);
   if (listenPort < 1024 || listenPort > 65535 || [9000, 9001].includes(listenPort) || minutes < 1 || minutes > 20) throw new Error(USAGE);
-  return { protocolId: values['--protocol-id'], listenPort, minutes, run: values['--run'] === true };
+  const options = { protocolId: values['--protocol-id'], listenPort, minutes, run: values['--run'] === true };
+  const hasHost = '--guardian-return-host' in values, hasPort = '--guardian-return-port' in values;
+  if (hasHost !== hasPort) throw new Error('Both Guardian return options are required.');
+  if (hasHost) {
+    if (!/^\d+$/.test(values['--guardian-return-port'])) throw new Error(USAGE);
+    options.guardianReturn = { host: values['--guardian-return-host'], port: Number(values['--guardian-return-port']) };
+    restorationPlan(options);
+  }
+  return options;
 }
 
 function frameSummary(frame, protocolId, direction) {
@@ -116,6 +146,7 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
   connect = () => net.createConnection({ host: REFERENCE_HOST, port: REFERENCE_PORT }),
   now = () => new Date(), durationMs = options.minutes * 60000, identifyTimeoutMs = 10000,
   connectTimeoutMs = 10000 } = {}) {
+  const restoration = restorationPlan(options);
   const sockets = new Set();
   const observers = new Set();
   let rows = 0, sequence = 0, stopping = false, timer;
@@ -191,9 +222,8 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
     sockets.clear();
     await new Promise(resolve => server.close(resolve));
     // Always print restoration guidance, even if capture reached its row cap.
-    emit({ at: now().toISOString(), event: 'relay_stopped', reason, routingRestored: false,
-      restoreCommand: `ip,${REFERENCE_HOST},${REFERENCE_PORT}#`,
-      note: 'Restore the reference watch to its preflight-confirmed server. This program cannot restore SMS routing.' });
+    emit({ at: now().toISOString(), event: 'relay_stopped', reason, ...restoration,
+      note: 'Send the prepared return SMS and verify fresh telemetry at the original server. Stopping or expiry does not restore routing.' });
   };
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -203,7 +233,10 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
   timer = setTimeout(() => { void stop('capture_window_ended'); }, durationMs);
   log({ event: 'relay_listening', protocolId: options.protocolId, address: server.address(),
     referenceHost: REFERENCE_HOST, referencePort: REFERENCE_PORT, minutes: options.minutes,
-    appliedStateVerified: false, note: 'Only use after confirming the reference watch already uses this server and preparing its return SMS.' });
+    ...restoration, appliedStateVerified: false,
+    note: options.guardianReturn
+      ? 'Same-watch comparison requires operator agreement to temporary supplier routing and a verified Guardian return SMS. Supplier traffic reaches the watch unchanged.'
+      : 'Only use after confirming the reference watch already uses this server and preparing its return SMS.' });
   return { server, stop };
 }
 
@@ -212,8 +245,10 @@ async function main(args) {
   if (!options.run) {
     console.log(JSON.stringify({ outcome: 'preview', ...options, referenceHost: REFERENCE_HOST,
       referencePort: REFERENCE_PORT, networkOpened: false, commandsGenerated: false,
-      restoreCommand: `ip,${REFERENCE_HOST},${REFERENCE_PORT}#`,
-      note: 'For the separate reference watch only. Confirm its existing server matches before --run. Read docs/testing/answer-mode-reference-relay.md.' }, null, 2));
+      ...restorationPlan(options),
+      note: options.guardianReturn
+        ? 'Prepared comparison only. Confirm owner agreement, AnyTracking access and the current Guardian return route before changing routing. Read docs/testing/answer-mode-same-watch-capture.md.'
+        : 'For the separate reference watch only. Confirm its existing server matches before --run. Read docs/testing/answer-mode-reference-relay.md.' }, null, 2));
     return;
   }
   const relay = await startRelay(options);
@@ -222,7 +257,7 @@ async function main(args) {
 }
 
 if (require.main === module) main(process.argv.slice(2)).catch(() => {
-  console.error('Reference capture failed. Check arguments/listen port. If routing was changed, restore the reference watch using the prepared SMS.');
+  console.error('Capture failed. Check arguments/listen port. If routing was changed, restore the watch to its original server using the prepared SMS.');
   process.exitCode = 1;
 });
-module.exports = { parseArguments, frameSummary, FrameObserver, startRelay, main };
+module.exports = { parseArguments, restorationPlan, frameSummary, FrameObserver, startRelay, main };

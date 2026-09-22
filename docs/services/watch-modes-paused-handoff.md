@@ -1,5 +1,14 @@
 # PR #115 investigation handoff — 22 September 2026
 
+> **Latest engineering follow-up:** The operator asked for a concrete solution
+> path beyond repeated APPLOCK trials. Public app model-dispatch and contact
+> setup were rechecked; no replacement wire command or proven prerequisite was
+> found. A [same-watch capture with Guardian return routing](../testing/answer-mode-same-watch-capture.md)
+> is now prepared and locally tested. It uses the existing pilot's working
+> calling/SMS path, subject to operator agreement to temporary supplier routing.
+> No live capture, routing change or physical pass has occurred. Manual restore
+> after the last failed call is still unreported.
+
 ## Latest: exact supplier framing replied; Auto still rings
 
 The operator completed the requested lowercase-frame trial. PR #115 remains an

@@ -1,5 +1,11 @@
 # Answer-mode reference capture without an HTTP inspection tool
 
+> This procedure remains specific to the separate reference watch. A distinct
+> [same-watch comparison](answer-mode-same-watch-capture.md) is now prepared for
+> an existing Guardian pilot, using explicit Guardian return-route options.
+> That comparison needs separate operator agreement because it changes the
+> pilot's telemetry destination. Neither live capture has been executed.
+
 ## Current checkpoint — 22 September 2026
 
 PR #115 remains a draft. The operator has resumed investigation after losing

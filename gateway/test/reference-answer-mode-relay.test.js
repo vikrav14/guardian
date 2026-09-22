@@ -5,7 +5,7 @@ const net = require('node:net');
 const { once } = require('node:events');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
-const { parseArguments, FrameObserver, frameSummary, startRelay } = require('../scripts/capture-reference-answer-mode');
+const { parseArguments, restorationPlan, FrameObserver, frameSummary, startRelay } = require('../scripts/capture-reference-answer-mode');
 
 const ID = '1234567890';
 const frame = (body, id = ID) => {
@@ -28,6 +28,38 @@ test('CLI is preview-only by default, requires explicit identity and cannot repl
   assert.equal(preview.commandsGenerated, false);
   assert.equal(preview.referenceHost, 'a.igps123.com');
   assert.equal(preview.referencePort, 7720);
+});
+
+test('same-watch preview retains a distinct Guardian return route without opening a network', () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/capture-reference-answer-mode.js'),
+    '--protocol-id', ID, '--guardian-return-host', 'guardian.example.test', '--guardian-return-port', '23456'],
+  { encoding: 'utf8', timeout: 3000, env: {} });
+  assert.equal(result.status, 0);
+  const preview = JSON.parse(result.stdout);
+  assert.equal(preview.networkOpened, false);
+  assert.equal(preview.commandsGenerated, false);
+  assert.equal(preview.captureMode, 'same_watch_comparison');
+  assert.equal(preview.referenceHost, 'a.igps123.com');
+  assert.equal(preview.referencePort, 7720);
+  assert.equal(preview.restoreCommand, 'ip,guardian.example.test,23456#');
+  assert.equal(preview.returnRouteVerified, false);
+  assert.equal(preview.routingRestored, false);
+  assert.equal(preview.guardianTelemetryPausedDuringComparison, true);
+  assert.equal(restorationPlan({}).restoreCommand, 'ip,a.igps123.com,7720#');
+});
+
+test('return options must be paired and cannot inject another SMS command or use malformed endpoints', () => {
+  const base = ['--protocol-id', ID];
+  assert.throws(() => parseArguments([...base, '--guardian-return-host', 'guardian.example.test']));
+  assert.throws(() => parseArguments([...base, '--guardian-return-port', '23456']));
+  for (const host of ['https://guardian.example.test', 'x.test,1#RESET', 'x.test\n', 'x..test',
+    '-x.test', 'x-.test', 'localhost', 'x.localhost', '127.0.0.1', '0.0.0.0', '999.1.1.1', 'x.test:123',
+    'a'.repeat(64) + '.test']) {
+    assert.throws(() => parseArguments([...base, '--guardian-return-host', host, '--guardian-return-port', '23456']));
+  }
+  for (const port of ['0', '65536', '2.5', '1,2#', '1e3']) {
+    assert.throws(() => parseArguments([...base, '--guardian-return-host', 'guardian.example.test', '--guardian-return-port', port]));
+  }
 });
 
 test('observer handles fragmentation, coalescing and binary delimiters without leaking private payloads', () => {
@@ -76,7 +108,7 @@ test('framing loss stops inspection without guessing subsequent frames; incomple
   assert.equal(rows[1].event, 'observation_incomplete');
 });
 
-async function fixture(t, overrides = {}) {
+async function fixture(t, overrides = {}, options = {}) {
   const received = [], rows = [], referenceSockets = [];
   let connected = 0;
   const reference = net.createServer(socket => {
@@ -85,7 +117,7 @@ async function fixture(t, overrides = {}) {
     socket.on('data', data => received.push(data));
   });
   reference.listen(0, '127.0.0.1'); await once(reference, 'listening');
-  const relay = await startRelay({ protocolId: ID, listenPort: 0, minutes: 1 }, {
+  const relay = await startRelay({ protocolId: ID, listenPort: 0, minutes: 1, ...options }, {
     emit: row => rows.push(row),
     connect: () => { connected++; return net.createConnection(reference.address().port, '127.0.0.1'); },
     ...overrides,
@@ -160,4 +192,37 @@ test('capture expiry closes a connected watch and reference socket', { timeout: 
   await until(() => f.rows.some(row => row.event === 'relay_stopped'));
   assert.equal(f.relay.server.listening, false);
   assert.equal(f.rows.find(row => row.event === 'relay_stopped').routingRestored, false);
+});
+
+test('same-watch stop prints Guardian restoration and continues forwarding supplier commands unchanged', { timeout: 5000 }, async t => {
+  const f = await fixture(t, {}, { guardianReturn: { host: 'guardian.example.test', port: 23456 } });
+  const uplink = frame('LK,0,0,90');
+  f.watch.write(uplink);
+  await until(() => Buffer.concat(f.received).length === uplink.length);
+  const returned = [];
+  f.watch.on('data', data => returned.push(data));
+  const downlink = frame('APPLOCK,JT-0');
+  f.referenceSockets[0].write(downlink);
+  await until(() => Buffer.concat(returned).length === downlink.length);
+  assert.deepEqual(Buffer.concat(returned), downlink);
+  assert.deepEqual(Buffer.concat(f.received), uplink);
+  assert.equal(f.rows[0].referenceHost, 'a.igps123.com');
+  assert.equal(f.rows[0].returnHost, 'guardian.example.test');
+  await f.relay.stop();
+  const stopped = f.rows.find(row => row.event === 'relay_stopped');
+  assert.equal(stopped.restoreCommand, 'ip,guardian.example.test,23456#');
+  assert.equal(stopped.routingRestored, false);
+});
+
+test('same-watch expiry retains the Guardian return route and never claims to restore it', { timeout: 5000 }, async t => {
+  const f = await fixture(t, { durationMs: 200 }, { guardianReturn: { host: 'guardian.example.test', port: 23456 } });
+  f.watch.write(frame('LK,0,0,90'));
+  await until(() => f.rows.some(row => row.event === 'reference_connected'));
+  await once(f.watch, 'close');
+  await until(() => f.rows.some(row => row.event === 'relay_stopped'));
+  const stopped = f.rows.find(row => row.event === 'relay_stopped');
+  assert.equal(stopped.reason, 'capture_window_ended');
+  assert.equal(stopped.restoreCommand, 'ip,guardian.example.test,23456#');
+  assert.equal(stopped.returnRouteVerified, false);
+  assert.equal(stopped.routingRestored, false);
 });

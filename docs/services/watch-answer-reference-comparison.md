@@ -1,5 +1,11 @@
 # V52 auto-answer: official-platform comparison
 
+> **Latest prepared path:** The [same-watch capture procedure](../testing/answer-mode-same-watch-capture.md)
+> can use the existing Guardian pilot's working voice/SMS path. The relay now
+> accepts an explicit Guardian return hostname/port and retains it on preview,
+> stop and expiry. This is evidence collection, not an auto-answer fix. It has
+> not been run; temporary supplier routing still needs operator agreement.
+
 > **Research resumed 22 September 2026:** A separate new watch produced AnyTracking
 > ANS history, but calls on its new SIM are blocked. Jesh remains on Guardian.
 > A standalone reference-server relay is prepared to inspect actual downlinks
