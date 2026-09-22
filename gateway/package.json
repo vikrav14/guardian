@@ -9,6 +9,7 @@
     "dev": "node --watch src/server.js",
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
+    "care:trial": "node scripts/trial-care-reminders.js",
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "activity:provision": "node scripts/provision-activity-steps.js",
     "wear:check": "node scripts/inspect-wear-evidence.js",

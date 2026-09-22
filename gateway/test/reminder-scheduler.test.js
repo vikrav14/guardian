@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { runReminderCheck } = require('../src/reminder-scheduler');
+const { runReminderCheck, startReminderScheduler } = require('../src/reminder-scheduler');
 const { evaluateSubscription } = require('../src/entitlements');
 
 function fakeDb() {
@@ -60,4 +60,30 @@ test('scheduler reads the canonical reminder store and records actual delivery o
   assert.equal(updates[0].lastDelivery.provider, 'meta');
   assert.equal(updates[0].lastDelivery.messageId, 'wamid.reminder');
   assert(updates[0].lastSentAt instanceof Date);
+});
+
+test('Care request watcher stays off by default and starts only with its explicit gate', () => {
+  const { db } = fakeDb();
+  let starts = 0;
+  let stops = 0;
+
+  const disabled = startReminderScheduler(db, {
+    checkIntervalMs: 60_000,
+    careReminderRuntime: { requestsEnabled: false },
+    startCareReminderRequestWatcher: () => { starts += 1; },
+    stopCareReminderRequestWatcher: () => { stops += 1; },
+  });
+  disabled.stop();
+  assert.equal(starts, 0);
+  assert.equal(stops, 0);
+
+  const enabled = startReminderScheduler(db, {
+    checkIntervalMs: 60_000,
+    careReminderRuntime: { requestsEnabled: true },
+    startCareReminderRequestWatcher: () => { starts += 1; },
+    stopCareReminderRequestWatcher: () => { stops += 1; },
+  });
+  enabled.stop();
+  assert.equal(starts, 1);
+  assert.equal(stops, 1);
 });

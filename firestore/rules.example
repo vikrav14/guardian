@@ -405,6 +405,53 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
     }
 
+    // Care routines use an audited request -> backend-owned canonical record
+    // workflow. Clients can never author canonical state or audit evidence.
+    match /careReminderRequests/{requestId} {
+      allow create: if signedIn()
+        && activePlanAtLeast('care')
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.action in ['upsert', 'delete']
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly([
+          'action',
+          'imei',
+          'requestedBy',
+          'status',
+          'createdAt',
+          'scheduleId',
+          'schedule'
+        ])
+        && request.resource.data.imei is string
+        && request.resource.data.imei.size() == 15
+        && request.resource.data.scheduleId is string
+        && request.resource.data.scheduleId.size() >= 1
+        && request.resource.data.scheduleId.size() <= 80
+        && (
+          request.resource.data.action == 'delete'
+          || request.resource.data.schedule is map
+        );
+      allow read: if signedIn()
+        && resource.data.requestedBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /careReminderSchedules/{scheduleId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care')
+        && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
+      allow create, update, delete: if false;
+    }
+
+    match /careReminderAudit/{auditId} {
+      allow read: if linkedTo(resource.data.imei)
+        && activePlanAtLeast('care')
+        && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
+      allow create, update, delete: if false;
+    }
+
     match /alerts/{alertId} {
       allow read: if linkedTo(resource.data.imei);
       allow update: if linkedTo(resource.data.imei)

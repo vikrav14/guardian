@@ -936,3 +936,85 @@ Temperature remains blocked until the exact V52 upload shape is captured. Passin
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
 `releaseReady` remains false in the collector by design. Release also requires PR checks, Meta acceptance, Android smoke testing, billing lifecycle, privacy/retention review and resolution or rewording of every Partial/Not implemented promise in the service matrix.
+
+## Native clock, sedentary and talking-clock reminders (PR #118)
+
+Follow the [Windows trial](testing/care-reminder-command-acceptance.md) and
+[supplier reply](testing/care-reminder-supplier-reply-2026-09-22.md).
+Customer controls/automatic dispatch stay disabled. Existing wellness routines
+and Family/Care TAKEPILLS medication reminders are separate.
+
+### Existing pilot evidence — 21 September 2026
+
+- REMIND,02:05-1-1,00:00-0-1,00:00-0-1 was handed off; the once-only entry
+  appeared and the operator confirmed sound, correcting the no-sound report.
+  Vibration and exact firing time were not captured.
+- After REMIND,00:00-0-1,00:00-0-1,00:00-0-1, the operator confirmed the entry
+  disappeared. It had already rung; future cancellation remains untested.
+- The local Sedentary UI offered Open/Close and steps 10–200. Initial silent
+  on-wrist windows were followed by three spoken "Sedentary reminder: do some
+  exercise!" prompts. Times/gaps, detected movement, final state and cleanup
+  remain unknown. Gateway timestamps cannot supply the announcement times.
+- Both VERNO labels are in the linked supplier source record. No HSW physical
+  execution result has been provided.
+
+### Supplier reply received 22 September 2026
+
+Jett defines the sedentary trigger as no detected movement over the set period;
+1 on / 0 off and 26 minutes in SEDENTARY,1,26, with sound when triggered.
+HSW,0 disables and HSW,1 enables talking time.
+
+The helper now supports explicit HSW on/off and SEDENTARY on/off at fixed 26.
+The complete sedentary off body retains 26 and changes the defined flag; Jett
+did not separately paste that complete frame. Range, motion/reset/repeat rules,
+active hours, vibration, HSW speech trigger and reboot persistence remain open.
+
+All trials preview by default and require --send for one authenticated local
+handoff. No watch command was sent during implementation. PR #118 stays draft;
+PR #115 remains paused.
+
+- [x] Record REMIND once-only sound and visible clearing.
+- [x] Record local SEDENTARY speech and supplier inactivity/minutes/flag definitions.
+- [x] Record supplier HSW off/on polarity.
+- [ ] Observe remote SEDENTARY saved setting, timed output and effective off.
+- [x] Operator confirms HSW speech during the enabled wake-screen test and silence after running off; transport limits recorded below.
+- [ ] Verify REMIND future cancellation, daily/weekly/day mapping, slots and reboot.
+- [ ] Verify ranges, reset/repeat, quiet hours and persistence where applicable.
+- [ ] Keep physical results separate from socket handoff and acknowledgement.
+
+### HSW physical wake-screen result — 22 September 2026
+
+**Passed for the observed on/off wake-screen behavior on the pilot.**
+
+The operator ran hsw-on through the prepared CLI. Its request time was
+2026-09-22T09:07:29.440Z (13:07:29.440 Mauritius); it reported HSW,1,
+socket_handoff, commandSent:true and one live session. The supplied gateway
+excerpt confirms the five-byte HSW,1 frame and an HSW command-echo reply.
+The reply line has no standalone timestamp and retains no parameters; do not
+infer an exact response time, a bare response or an applied-state readback.
+
+In response to the instructed physical test, the operator reported that the
+watch says the time aloud. They then explicitly reported running the feature-off
+command and waking the watch, after which it did not say the time aloud.
+
+| Stage | Evidence | Result |
+| --- | --- | --- |
+| Enable | HSW,1 request/downlink and an HSW reply; operator's enabled wake-test observation | Spoken time confirmed by operator |
+| Disable | Operator reports running the instructed hsw-off command, then waking the watch | No spoken time on that wake, confirmed by operator |
+
+The hsw-off CLI result/downlink and exact speech/off times were not supplied.
+The physical result is accepted as an operator observation; do not fabricate
+an independently captured HSW,0 frame, reply or off timestamp. Last reported
+action is off, with silence verified on the subsequent wake. It is not proof of
+restoration to an unknown setting from before the trial.
+
+Do not infer immediate-on-enable speech, every wake/other trigger, hourly speech,
+spoken-time accuracy, reboot/reconnect persistence, durable readback, vibration
+or second-watch acceptance from this one comparison. The helper's
+hardwareAccepted:false and appliedStateVerified:false remain correct automated
+evidence fields; the manual physical result is recorded here separately.
+
+The supplier's off/on interpretation now has a successful pilot physical result.
+No runtime or flag change accompanies this evidence update. PR #118 remains
+draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
+enable/observe/off procedure; no additional HSW test is required now.
