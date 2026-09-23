@@ -6,17 +6,16 @@
 
 **22 September reference result:** The operator reports that the existing pilot
 auto-answered after an AnyTracking Answer mode change, with audio both ways.
-This is a successful reference-platform call; Guardian's own enable/disable
-path remains unverified. The same session included intentional supplier SOS
+This was a successful reference-platform call; Guardian's own enable/disable
+path was still unverified at that checkpoint. The same session included intentional supplier SOS
 and phonebook writes. See the [captured evidence and remaining checks](testing/answer-mode-reference-success.md).
 
 **23 September Manual physical result:** AnyTracking sent 3G APPLOCK,JT-0 then
 3G ACALL,0 for the operator's Manual selection; bare replies and four saved
 private records were observed. After reported Guardian return, the operator
 confirms that a call kept ringing until manually answered, with audio both ways.
-This is a physical reference Manual pass. Both Guardian-generated transitions
-remain unverified; fresh return telemetry is
-still absent. See the [exact exchange](testing/answer-mode-manual-capture-20260923.md)
+This was a physical reference Manual pass. Guardian-generated transitions
+were not yet verified and fresh return telemetry was absent at that checkpoint. See the [exact exchange](testing/answer-mode-manual-capture-20260923.md)
 and [proposed app/SOS policy](services/watch-answer-sos-design.md).
 
 **23 September subsequent Auto/Manual run:** The operator reports Auto at
@@ -26,11 +25,23 @@ frame (0013, 19 payload bytes, argument redacted) and reply; Manual repeats
 3G APPLOCK,JT-0 then 3G ACALL,0 and replies. Six private writes were saved.
 The private six-record file was subsequently supplied and decoded: Auto sends
 3G ACALL with the captured guardian number in international `00…` format.
-Its exact value and hex are private. The authenticated Guardian replay is ready
-for [physical Auto and Manual testing](testing/answer-mode-captured-trial.md).
+Its exact value and hex are private. The authenticated Guardian replay and
+[physical acceptance record](testing/answer-mode-captured-trial.md) are documented.
 All 1,306 gateway tests pass, including exact-byte HTTP/TCP and privacy tests.
-Caller exclusivity, guaranteed expiry and both Guardian-generated physical
-transitions remain unverified. Customer release readiness is unchanged.
+Caller exclusivity and guaranteed expiry remain unverified. The subsequent
+Guardian physical result below updates the transition acceptance only.
+
+**23 September Guardian-generated physical pass:** The operator ran the new
+captured-answer helper for Auto (one frame, one session), then Manual (two
+frames, one session), both with `socket_handoff` for protocol ID 9705254749,
+and confirmed **both tests passed with the expected outcome**. This accepts
+the Guardian-controlled Auto and Manual transitions on this pilot with the
+tested approved caller. Manual was tested last. Exact call times, delays and
+ring durations were not supplied. The script cannot observe voice calls and
+correctly retains `appliedStateVerified:false`; the physical pass is based on
+operator observation. Implementation CI run 331 passed all release gates.
+Customer UI, caller exclusivity, persistence and SOS-window restoration remain
+separate acceptance items. See the [trial result](testing/answer-mode-captured-trial.md).
 
 ## Evidence semantics
 

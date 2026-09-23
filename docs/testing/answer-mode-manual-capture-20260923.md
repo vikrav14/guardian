@@ -3,8 +3,9 @@
 > **Latest checkpoint:** All six private records have now been supplied and
 > decoded. Auto uses 3G ACALL with the captured guardian number in `00…`
 > format; Manual uses 3G APPLOCK,JT-0 then 3G ACALL,0. Reference Auto and
-> Manual worked physically. A restricted Guardian replay is implemented;
-> its physical transitions remain pending. See the
+> Manual worked physically. The operator subsequently tested the restricted
+> Guardian replay and confirmed both expected call outcomes; Manual was last.
+> See the
 > [Guardian trial instructions](answer-mode-captured-trial.md).
 
 ## First Manual result
@@ -18,7 +19,8 @@ auto-answer, and two-way audio worked after manual answering.
 Record **operator-confirmed physical Manual behavior after this reference
 selection and reported return**. The call timestamp and ring duration were not
 measured in the supplied evidence. Fresh post-return Guardian telemetry is still
-not supplied. This does not yet prove a Guardian-generated command transition.
+not supplied at that checkpoint. That reference test alone did not prove a
+Guardian-generated transition; the subsequent Guardian test is recorded below.
 PR #115 remains draft; no production setter is enabled.
 
 ## First Manual exchange
@@ -57,8 +59,8 @@ with no returned mode or execution result.
 | Physical result | Operator reported continued automatic answering | Operator confirms ringing until manual answer, then two-way audio, after reported Guardian return |
 
 This is evidence that the observed reference sequence differs from the tested
-Guardian implementation. It is **not yet a demonstrated fix** or proof that
-one particular difference caused the failure. The supplied communication
+Guardian implementation. The later Guardian replay passed both modes, but
+that does not isolate which individual difference caused the earlier failure. The supplied communication
 example labels JT-1 Manual and JT-0 Auto; the observed pair must therefore be
 retained as a pair associated with the operator's Manual selection, rather
 than reinterpreting JT alone as a proven inverse mapping.
@@ -117,15 +119,27 @@ The uploaded normal log is UTF-16, contains 35 JSON records through
 relay-stopped event. The two accompanying dd_BackgroundDownload files are
 Visual Studio installer logs and contain no answer-mode evidence.
 
-## Next evidence
+## Subsequent Guardian result
 
-1. Run the [restricted Guardian trial](answer-mode-captured-trial.md) using the
-   existing private capture file. No new AnyTracking capture is required.
-2. Record fresh Guardian telemetry and physical Auto then Manual call results.
-3. Test caller scope separately: the number-bearing command suggests a caller
+After the private capture was decoded and the restricted Guardian helper was
+implemented, the operator supplied successful Auto and Manual handoff outputs
+and confirmed **both tests passed with the expected outcome**. Auto handed
+off one frame on one session; Manual handed off two frames on one session,
+both targeting protocol ID 9705254749. These are Guardian-generated physical
+passes on the same pilot, distinct from the earlier AnyTracking passes.
+
+Manual was the last tested state. No exact timestamps or ring durations were
+supplied for these calls. The helper's `appliedStateVerified:false` remains
+correct: physical results come from the operator, not carrier-call telemetry.
+
+## Remaining evidence
+
+1. Preserve the successful [Guardian trial record](answer-mode-captured-trial.md).
+   No further Auto/Manual reference capture is needed.
+2. Test caller scope separately: the number-bearing command suggests a caller
    selection but does not prove exclusivity or rejection of other callers.
-4. Keep emergency-only behavior, expiry and offline restoration separate from
-   the reference pass; see the [app/SOS proposal](../services/watch-answer-sos-design.md).
+3. Keep emergency-only behavior, expiry and offline restoration separate from
+   this pilot pass; see the [app/SOS proposal](../services/watch-answer-sos-design.md).
 
 ## Connection recovery during this run
 
@@ -146,6 +160,7 @@ separate Guardian gateway. Obtain fresh gateway telemetry separately.
 
 The exact private capture is now decoded. A strictly authenticated operator
 replay and tests have been added; no customer control or SOS switching is
-enabled. Reference physical passes remain distinct from Guardian-generated
-acceptance, which the next two calls must establish.
+enabled. Reference physical passes and the subsequent Guardian-generated
+physical passes are recorded separately. Customer rollout and SOS-only
+acceptance remain incomplete.
 

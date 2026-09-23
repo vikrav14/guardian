@@ -19,8 +19,10 @@ not treat proposed defaults, duration or UI copy as approved final behavior.
   been decoded: the Auto argument is the configured guardian number in `00…`
   format, matching the earlier center/SOS1 report. The exact private value
   remains outside the repository. An authenticated captured-frame Guardian
-  trial is implemented; both Guardian-generated physical transitions remain
-  pending. No ACALL value is inferred by inversion.
+  trial is implemented. The operator subsequently ran Auto then Manual through
+  Guardian and confirmed both expected call outcomes. Manual was tested last.
+  No exact call timestamps/durations were supplied for that Guardian run.
+  No ACALL value is inferred by inversion.
 - The observed Manual pair contains no caller identity, SOS incident identifier or
   expiry parameter. Treat a device-wide persistent switch as the conservative
   working assumption until firmware behavior is tested. A per-caller or
@@ -125,8 +127,9 @@ The product must resolve and explicitly describe this behavior before promising
 
 1. Completed: decode and validate the six saved private records. The narrow
    operator replay is available in the [Guardian trial runbook](../testing/answer-mode-captured-trial.md).
-2. Reproduce the observed Auto and Manual sequences through Guardian and verify
-   both transitions on the pilot without changing approved contacts.
+2. Completed on the existing pilot: the operator ran Guardian's exact captured
+   Auto then Manual sequences and confirmed both expected physical outcomes.
+   This does not establish every firmware, initial state or caller restriction.
 3. Verify the selected caller scope and unknown-caller rejection in both modes.
 4. Test a real supervised SOS callback, duplicates, immediate/late calls,
    expiry during an ongoing call, disconnect, restart and restoration failure.
