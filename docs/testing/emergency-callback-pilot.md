@@ -1,8 +1,11 @@
 # SOS and fall handsfree callback pilot
 
 Implemented on draft PR #115; hardware acceptance remains open. Normal app
-Auto/Manual and the two-caller comparison have passed on Jesh. An actual SOS
-or fall triggering this new five-minute policy has not yet been tested.
+Auto/Manual and the two-caller comparison have passed on Jesh. The first real
+SOS test delivered WhatsApp but did not enable Auto: the original connection
+failed its preflight, and the watch reconnected after the gateway had already
+started Manual recovery. The bounded reconnect fix below still needs a physical
+retest. Emergency fall activation has not yet been tested.
 
 ## What is built
 
@@ -11,6 +14,11 @@ or fall triggering this new five-minute policy has not yet been tested.
 - A fresh decoded V52 SOS or fall opens one five-minute window for the existing
   captured Auto number. The owner's primary alert contact must match that
   number. Other alert recipients and phonebook permissions are unchanged.
+- Before writing Auto, the gateway can wait for a newly identified connection
+  within the original thirty-second start deadline. It probes at most two
+  different sockets, requires a firmware reply on the chosen socket and checks
+  current authorization/cancellation before writing. It never repeats Auto
+  after any setting write or extends the five-minute incident window.
 - The watch cannot distinguish an alert-button call from another call by that
   same number. All its incoming calls during the window can auto-answer.
 - Duplicate alarms do not extend the window. An explicit **Send Manual setting**
@@ -82,11 +90,48 @@ cannot open a window. A queued Auto attempt expires after thirty seconds.
 App-created alerts never enable this device setting. No synthetic live alert is
 sent by installation or setup.
 
+## First SOS attempt: 24 September, 01:53 MUT
+
+The operator received the existing SOS WhatsApp message and called the watch;
+the app did not show Auto, and the untouched watch kept ringing. Supplied logs
+identify the failure before any Auto write:
+
+| UTC on 23 September | Evidence |
+| --- | --- |
+| 21:53:15–16 | Full-layout `AL_LTE` SOS, state `00010000`; emergency outcome `admitted` |
+| 21:53:16.944 | Auto starts read-only connection check on connection 1 |
+| 21:53:20.945 | No firmware reply within four seconds; `connection_unconfirmed`, `reply_timeout` |
+| 21:53:22–26 | Manual recovery also fails preflight on connection 1 |
+| 21:53:38.379 | New watch connection 2 arrives, about 23 seconds after SOS receipt |
+| 21:53:43–45 | Connection 2 replies to the check, then both Manual commands |
+
+This is a preflight/reconnect gap, not a rejected Auto setting: there is no Auto
+`awaiting_watch_replies` or Auto ACALL write in this attempt. The logs do not
+establish why the first connection stopped replying. The fix waits for that
+replacement connection only before a setting write and within the already
+authorized start deadline. A regression models the 23-second replacement and
+checks one captured Auto write on the checked replacement socket, expiry,
+cancellation, identity mismatches and no replay after uncertain delivery.
+
+Retest after pulling and restarting the gateway. No Flutter rebuild, database
+redeploy, preference reconfiguration or template replacement is required for
+this fix. Keep emergency answering enabled and verify its ready status, then
+trigger one fresh SOS. Look for `waiting_for_connection` if preflight fails,
+followed by `connection_checked`, `awaiting_watch_replies` and `watch_replied`
+for Auto. Record the physical primary/second caller result and Manual expiry
+result separately. Notification delivery must continue while preflight waits.
+
 ## WhatsApp fall call button
 
 Existing approved SOS callback templates and notification recipient selection
 remain unchanged. All entitled recipients can still receive alerts; only the
 configured callback number was proven to auto-answer in the two-phone pilot.
+The 01:53 MUT test confirms the existing SOS message and Call watch button are
+delivered. Auto is triggered by watch alarm ingress, not template selection or
+the button tap. New templates are not required for handsfree answering itself.
+If suitable fall templates with a Call watch button already exist, verify their
+approved names and component layout before mapping them instead of submitting
+duplicate variants. The live Meta inventory has not been inspected here.
 
 The following **fall variants are implemented but not claimed Meta-approved**:
 

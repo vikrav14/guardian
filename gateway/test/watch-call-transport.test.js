@@ -188,3 +188,68 @@ test('cancelled emergency intent is checked after the probe and cannot write Aut
   assert.equal(checked, 1); assert.equal(result.outcome, 'not_sent'); assert.equal(result.reason, 'superseded');
   assert.equal(row.writes.length, 1); assert.match(row.writes[0].toString(), /VERNO/);
 });
+
+test('emergency Auto waits for the 23-second SOS handover and writes once on the new checked socket', async () => {
+  let now = clock;
+  const old = candidate(1, () => { now = clock + 4000; });
+  const latest = candidate(2, respond);
+  const logs = [];
+  const result = await sendWatchCallWithReplies(input('auto'), {
+    ...options([]), now: () => now, deadlineAt: clock + 30000, waitForNewConnection: true,
+    findSessions: () => now >= clock + 23000 ? [old, latest] : [old],
+    sleep: async ms => { now += ms; }, log: line => logs.push(line),
+  });
+  assert.equal(result.outcome, 'device_replied');
+  assert.equal(now, clock + 23000);
+  assert.deepEqual(old.writes, [buildAckFrame(protocolId, 'VERNO')]);
+  assert.deepEqual(latest.writes, [buildAckFrame(protocolId, 'VERNO'), prepareCapturedAnswerTrial(input('auto')).bytes]);
+  assert.equal(logs.filter(line => line.includes('waiting_for_connection')).length, 1);
+});
+
+test('emergency reconnect wait expires without setting bytes and never accepts a late connection', async () => {
+  for (const initialConnection of [false, true]) {
+    let now = clock;
+    const old = candidate(1), late = candidate(2, respond);
+    const result = await sendWatchCallWithReplies(input('auto'), {
+      ...options([]), now: () => now, deadlineAt: clock + 30000, waitForNewConnection: true,
+      findSessions: () => now >= clock + 30000 ? [late] : initialConnection ? [old] : [],
+      sleep: async ms => { now += ms; },
+    });
+    assert.equal(result.outcome, 'not_sent'); assert.equal(result.reason, 'expired_before_handoff');
+    assert.equal(now, clock + 30000);
+    assert.equal(old.writes.length, initialConnection ? 1 : 0); assert.equal(late.writes.length, 0);
+    // Expiry releases the transport lock so Manual recovery can proceed.
+    assert.equal((await sendWatchCallWithReplies(input('manual'), options([late]))).outcome, 'device_replied');
+  }
+});
+
+test('emergency wait still checks cancellation and device identity before Auto', async () => {
+  for (const scenario of ['cancelled', 'wrong_identity']) {
+    let now = clock;
+    const old = candidate(1), latest = candidate(2, respond);
+    if (scenario === 'wrong_identity') latest.session.protocolId = '9700000001';
+    const result = await sendWatchCallWithReplies(input('auto'), {
+      ...options([]), now: () => now, deadlineAt: clock + 30000, waitForNewConnection: true,
+      findSessions: () => now >= clock + 23000 ? [old, latest] : [old],
+      sleep: async ms => { now += ms; }, beforeWrite: async () => false,
+    });
+    assert.equal(result.outcome, 'not_sent');
+    assert.equal(result.reason, scenario === 'cancelled' ? 'superseded' : 'capture_device_mismatch');
+    assert.equal(old.writes.length, 1);
+    assert.equal(latest.writes.length, scenario === 'cancelled' ? 1 : 0);
+  }
+});
+
+test('emergency Auto is never retried after a setting write even if a new connection appears', async () => {
+  const latest = candidate(2, respond), rows = [];
+  const old = candidate(1, (bytes, row) => queueMicrotask(() => {
+    if (bytes.includes('VERNO')) reply(row, 'VERNO', [version]);
+    else rows.push(latest); // Auto was written, but its receipt is unknown.
+  }));
+  rows.push(old);
+  const result = await sendWatchCallWithReplies(input('auto'), {
+    ...options(rows), waitForNewConnection: true, sleep: async () => assert.fail('must not wait after setting write'),
+  });
+  assert.equal(result.outcome, 'handoff_unknown');
+  assert.equal(old.writes.length, 2); assert.equal(latest.writes.length, 0);
+});

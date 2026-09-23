@@ -212,7 +212,13 @@ async function reconcileEmergencyCall(db, imei, { now = Date.now, send = sendWat
   let result;
   try {
     result = now() >= claim.deadlineAt ? { outcome: 'not_sent' } :
-      await send({ imei, mode: claim.mode, capture: claim.capture }, { deadlineAt: claim.deadlineAt, now, beforeWrite });
+      await send({ imei, mode: claim.mode, capture: claim.capture }, {
+        deadlineAt: claim.deadlineAt, now, beforeWrite,
+        // SOS can arrive on a connection that stops answering before its
+        // replacement opens. Wait only BEFORE Auto has been written, and
+        // only within this incident's original 30-second start deadline.
+        waitForNewConnection: claim.mode === 'auto',
+      });
   } catch { result = { outcome: 'handoff_unknown' }; }
   const replied = result?.outcome === 'device_replied';
   await db.runTransaction(async tx => {

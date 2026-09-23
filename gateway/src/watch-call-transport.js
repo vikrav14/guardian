@@ -58,11 +58,14 @@ function exchangeOnSocket(candidate, input, protocolId, bytes, commands, timeout
 /** Read-only preflight, then ONE exact captured write; never replay mode bytes.
  * Up to two different sockets can be probed during a handover, before any
  * setting is sent. The request/lease deadline also fences the post-probe write.
+ * Emergency Auto may wait for a newly identified socket within that deadline;
+ * it never re-probes an unresponsive socket or waits after a setting write.
  * Bare replies demonstrate receipt only, never applied settings or call audio.
  */
 async function sendCheckedFrames(input, prepared, expectedReplies, {
   deadlineAt = Date.now() + 25_000, now = Date.now, findSessions = findSocketsForDevice,
   probeTimeoutMs = 4000, replyTimeoutMs = 8000, log = console.log, beforeWrite = null,
+  waitForNewConnection = false, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
 } = {}) {
   const { bytes, metadata } = prepared;
   const result = (outcome, reason, receivedReplies = []) => ({
@@ -87,24 +90,33 @@ async function sendCheckedFrames(input, prepared, expectedReplies, {
   try {
     const attempted = new Set();
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (now() >= deadlineAt) return result('not_sent', 'expired_before_handoff');
-      const rows = candidates();
-      if (!rows.length) return result('not_sent', 'no_fresh_identified_session');
-      if (!usable(rows)) return result('not_sent', 'capture_device_mismatch');
-      selected = rows[0];
-      if (attempted.has(selected.socket) || pending.has(selected.socket)) return result('not_sent', 'connection_unconfirmed');
+      let waitingLogged = false;
+      for (;;) {
+        if (now() >= deadlineAt) return result('not_sent', 'expired_before_handoff');
+        const rows = candidates();
+        if (rows.length && !usable(rows)) return result('not_sent', 'capture_device_mismatch');
+        if (rows.length && !attempted.has(rows[0].socket) && !pending.has(rows[0].socket)) {
+          selected = rows[0];
+          break;
+        }
+        if (!waitForNewConnection) return result('not_sent', rows.length ? 'connection_unconfirmed' : 'no_fresh_identified_session');
+        if (!waitingLogged) { trace('waiting_for_connection'); waitingLogged = true; }
+        await sleep(Math.min(500, deadlineAt - now()));
+      }
       attempted.add(selected.socket);
       trace('checking_connection');
       const probe = await exchangeOnSocket(selected, input, metadata.protocolId,
         buildAckFrame(metadata.protocolId, 'VERNO'), ['VERNO'], Math.max(1, Math.min(probeTimeoutMs, deadlineAt - now())), true);
       if (now() >= deadlineAt) return result('not_sent', 'expired_before_handoff');
       const latest = candidates();
+      if (!latest.length && waitForNewConnection) continue;
       if (!usable(latest)) return result('not_sent', 'connection_unconfirmed');
       // A new identified connection supersedes the earlier one even when a
       // delayed old packet gives the older socket a more recent packet time.
       if (latest[0].socket !== selected.socket) { trace('connection_changed'); continue; }
       if (probe.reason) {
         trace('connection_unconfirmed', { reason: probe.reason });
+        if (waitForNewConnection) continue;
         return result('not_sent', 'connection_unconfirmed');
       }
       trace('connection_checked');

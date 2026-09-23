@@ -44,6 +44,7 @@ for (const kind of ['sos', 'fall']) test(`${kind}: one durable window, same prov
   const send = async (input, options) => {
     assert.equal(db.get(jobPath).active, true); // durable restoration precedes Auto
     assert.equal(await options.beforeWrite(), true);
+    assert.equal(options.waitForNewConnection, input.mode === 'auto');
     writes.push(input.mode); return replied();
   };
   assert.equal((await admitWatchEmergency(db, alarm(start, kind), new Date(start), { now: () => start })).outcome, 'admitted');
@@ -93,6 +94,22 @@ test('a restart during Auto uncertainty restores Manual, never replays Auto', as
   assert.equal(db.get(jobPath).phase, 'sending_auto');
   await reconcileEmergencyCall(db, imei, { now: () => start + 31000, send: input => { assert.equal(input.mode, 'manual'); return replied(); } });
   assert.equal(db.get(jobPath).active, false);
+});
+
+test('connection wait retains the original deadline and unknown Auto delivery restores Manual', async () => {
+  const db = fixture(); await armed(db);
+  await admitWatchEmergency(db, alarm(), new Date(start), { now: () => start });
+  await reconcileEmergencyCall(db, imei, { now: () => start + 23000, send: async (input, options) => {
+    assert.equal(input.mode, 'auto'); assert.equal(options.waitForNewConnection, true);
+    assert.equal(options.deadlineAt, start + 30000);
+    assert.equal(db.get(jobPath).endsAt.getTime(), start + WINDOW_MS);
+    return { outcome: 'handoff_unknown' };
+  } });
+  assert.equal(db.get(statePath).status, 'restoration_pending');
+  await reconcileEmergencyCall(db, imei, { now: () => start + 24000, send: (input, options) => {
+    assert.equal(input.mode, 'manual'); assert.equal(options.waitForNewConnection, false); return replied();
+  } });
+  assert.equal(db.get(statePath).status, 'manual_replied');
 });
 
 test('expired Auto start after a busy phonebook lease restores without ever sending Auto', async () => {

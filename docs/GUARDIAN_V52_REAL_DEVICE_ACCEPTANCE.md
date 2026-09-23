@@ -1499,3 +1499,20 @@ activation, both callers during the window, expiry/restoration, restart/offline
 recovery and active-call interaction remain to test. Fall call-button variants
 are implemented behind a separate exact-IMEI/SIM gate; Meta approval is not
 confirmed. See `docs/testing/emergency-callback-pilot.md` for the runnable sequence.
+
+### 24 September MUT — First emergency callback attempt blocked before Auto write
+
+At 01:53 MUT, the physical watch SOS generated the existing WhatsApp alert with
+Call watch. The app did not show Auto and the primary's incoming call kept
+ringing. Logs show `outcome=admitted`, then a four-second read-only connection
+check timeout. No Auto setting write followed. A replacement connection arrived
+about 23 seconds after SOS receipt; the gateway had already moved to Manual
+recovery and received both Manual replies on that new connection.
+
+Draft PR #115 now waits for a newly identified connection before Auto, bounded
+by the original thirty-second start deadline and the same five-minute window.
+Same-socket verification and authorization checks remain; uncertain Auto is
+never replayed. Regression coverage reproduces the delayed replacement without
+real device commands. Physical SOS/fall activation and expiry acceptance remain
+open. See `docs/testing/emergency-callback-pilot.md` for the timestamped evidence
+and retest. No new SOS template is needed for this transport fix.
