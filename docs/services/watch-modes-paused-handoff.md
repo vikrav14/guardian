@@ -1,22 +1,25 @@
 # PR #115 investigation handoff — 23 September 2026
 
-> **Current checkpoint: app Auto passed; app Manual restoration failed.**
-> The tested Auto/Manual adapter now has a Calls screen and dedicated
-> short-lived Firestore request path. Manual is the default choice; Auto
-> requires confirmation, trusted Family/Care access and a backend-provisioned
-> capture. Clients cannot supply a caller number or raw command.
-> Both helper transitions passed earlier, but the subsequent app Manual test
-> still auto-answered despite socket_handoff. No corresponding replies appear
-> in the supplied logs. A reconnect coincided with dispatch; exact cause is
-> unproven. The operator has not run the helper restoration. Treat Auto as active.
-> The draft now checks a selected socket with read-only VERNO, then waits for
-> the captured commands' replies without replaying settings. Pull/restart
-> gateway and Flutter, then test Manual only. Existing policy/rules/index setup
-> is retained. See [procedure and evidence](watch-calls-app.md).
-> No new reference capture or routing change is needed.
-> Local gateway tests: 1,325 passed. CI also covers Firestore authorization
-> and Flutter. SOS-only behavior and automatic restoration remain gated.
-> Physical Manual restoration through the updated app remains pending. PR stays draft.
+> **Current checkpoint: updated app Manual/Auto retest passed on Jesh.**
+> The operator reported "it works!!!" after the connection-validation update.
+> On 23 September, Manual checked connection 2 (peer 57614) and received both
+> APPLOCK/ACALL replies at 18:46:18.771 UTC; Auto checked connection 3
+> (peer 54262) and received ACALL at 18:47:06.455 UTC. Both app requests ended
+> device_replied. Physical success is operator-reported; replies alone remain
+> receipt evidence, not a firmware state readback.
+> This supersedes the earlier app Manual failure as the latest test result.
+> It does not prove the exact cause of that earlier failure.
+> **Auto was requested last.** A subsequent final Manual restoration is not
+> recorded. Return to Manual through Calls for normal tap-to-answer use.
+> Existing policy, rules, index and routing are retained; no new capture is
+> required. See [the current evidence and procedure](watch-calls-app.md).
+> Implementation d0f4bfb passed 1,325 gateway tests and release CI run 335
+> (gateway, Firestore authorization, Flutter analysis/tests, Chrome regression,
+> Web build); Dashboard UI review also passed. This update is documentation only.
+> The app retains linked-guardian authorization, Auto consent and Family/Care
+> entitlement checks, private capture policy and bounded requests. Caller
+> exclusivity, persistence and SOS-only automatic restoration remain separate
+> gates. Keep PR #115 draft; no merge or automatic SOS behavior is introduced.
 > Wiki publishing is unavailable through this connection; repository runbooks
 > are the current QA handoff. Historical material below is superseded where
 > this checkpoint differs.

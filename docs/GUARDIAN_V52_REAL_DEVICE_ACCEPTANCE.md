@@ -52,22 +52,44 @@ physical adapter pass does not substitute for the new
 [app-to-watch acceptance](services/watch-calls-app.md). Local gateway tests:
 1,314 passed; require emulator and Flutter CI before pilot deployment.
 
-**Latest app acceptance failed for Manual (23 September):** The operator reports
+**Earlier app acceptance failed for Manual (23 September, superseded below):** The operator reports
 Auto answered, then Manual was selected/sent but the next call still
 auto-answered. Both app requests have gateway socket_handoff records; only the
 Auto ACALL reply appears in the provided excerpt. Manual coincided with a new
 TCP connection at 18:22:45.244 UTC. The selected socket is not logged, so a
 handover race is a supported hypothesis, not an established root cause.
-The operator explicitly has not run the suggested helper restoration yet.
-Current Manual restoration is unverified; do not carry forward the earlier
-helper trial's final Manual state as the current state.
+At that checkpoint the operator had not run the suggested helper restoration,
+so Manual restoration remained unverified until the subsequent app retest.
 
 The draft now checks the selected connection with the already-proven read-only
 VERNO query, preserves the captured setting bytes, and waits for expected
 socket-specific replies. Missing replies remain uncertain with no automatic
-mode resend. Local gateway tests pass 1,325 cases. The updated app still needs
-one physical Manual-only restoration check after restart; see the
-[current procedure](services/watch-calls-app.md). PR #115 remains draft.
+mode resend. Local gateway tests pass 1,325 cases. Implementation d0f4bfb passed
+all release gates in [CI run 335](https://github.com/vikrav14/guardian/actions/runs/35903829878),
+including Firestore authorization and Flutter; Dashboard UI review also passed.
+
+**Latest app retest passed (23 September, 18:46–18:47 UTC / 22:46–22:47 MUT):**
+The operator reports "it works!!!" after the update and supplies the following
+app-to-watch evidence:
+
+| Mode | Request ID | Checked connection | Expected replies received | Outcome |
+| --- | --- | --- | --- | --- |
+| Manual | 49tjN1xqpEoheuHyot0u | Connection 2, peer 57614; 18:46:17.869 UTC | APPLOCK and ACALL by 18:46:18.771 UTC | device_replied |
+| Auto | xdOjymVuaL4RvzJ9LioS | Connection 3, peer 54262; 18:47:05.367 UTC | ACALL at 18:47:06.455 UTC | device_replied |
+
+Record this as operator-reported successful app behavior on the existing Jesh
+pilot and tested caller, supported by receipt evidence on each selected socket.
+This supersedes the prior app Manual failure as the latest result. No precise
+call times, ring duration or fresh two-way-audio details were separately
+reported. Bare replies still leave appliedStateVerified false; the physical
+result is recorded here rather than inferred by the gateway.
+
+**Auto was requested last** in this excerpt; final Manual restoration afterward
+is not reported. Caller exclusivity, restart persistence, offline restoration
+and SOS-only automatic switching remain separate gates. The earlier failed
+request's exact cause is not retrospectively proven by this successful retest.
+See [the current procedure](services/watch-calls-app.md). PR #115 remains draft;
+this evidence update changes no executable code or watch setting.
 
 ## Evidence semantics
 

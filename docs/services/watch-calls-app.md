@@ -7,11 +7,29 @@ V52 pilot on 23 September 2026. The new **Watch settings → Calls** screen uses
 that exact captured adapter through a dedicated authenticated request path.
 It does not enable SOS-only answering or claim caller exclusivity.
 
-**Latest app trial, 23 September:** Auto physically answered. The subsequent
-Manual request reported socket_handoff, but the next call still auto-answered.
-No subsequent APPLOCK/ACALL reply appears in the supplied excerpt. The operator
-has not run the proposed helper restoration. Treat Auto as still active until
-an observed Manual restoration; the earlier helper pass is a separate trial.
+**Latest app retest passed, 23 September:** After the connection-validation
+update, the operator reported "it works!!!" and supplied the app's Manual then
+Auto exchanges. This records a successful operator-reported app retest on Jesh
+with the existing tested caller. Receipt evidence is summarized below; physical
+behavior comes from the operator, not the bare protocol replies.
+
+| Mode | Connection check (UTC) | Expected replies received (UTC) | App request outcome |
+| --- | --- | --- | --- |
+| Manual | 18:46:17.869, connection 2 / peer 57614 | APPLOCK and ACALL by 18:46:18.771 | device_replied |
+| Auto | 18:47:05.367, connection 3 / peer 54262 | ACALL at 18:47:06.455 | device_replied |
+
+Manual request: `49tjN1xqpEoheuHyot0u`. Auto request:
+`xdOjymVuaL4RvzJ9LioS`. Mauritius local times are UTC +04:00.
+The final request in this excerpt is **Auto**; a later return to Manual is not
+recorded. Exact call times, answer delay and a new two-way-audio observation were
+not separately supplied. The earlier two-way-audio results remain historical.
+Caller exclusivity, persistence and SOS-only switching are not established by
+this retest. No claim of a firmware state readback is added.
+
+**Earlier app trial, superseded by the successful retest:** Auto physically
+answered, but the subsequent Manual request reported socket_handoff and the
+next call still auto-answered. No subsequent APPLOCK/ACALL reply appeared in
+that excerpt. The operator had not run the proposed helper restoration.
 
 Manual handoff coincided with a new TCP connection at 18:22:45.244 UTC. That
 connection later closed with only 47 bytes written, less than the complete
@@ -128,14 +146,16 @@ No new gateway URL, app secret or Dart define is needed.
 
 ## App acceptance
 
-For the latest failed Manual trial, pull the fix and restart gateway/Flutter;
-the already-deployed rules/index and private policy do not need provisioning
-again. End any active call. Send **Manual only**, wait for **Watch replied to
-Manual**, then make one call and verify it waits for your touch. If the result
-is unconfirmed/not sent, retain the new watch-calls-transport log and do not
-count it as restored. No new AnyTracking capture or routing SMS is needed.
+The requested Manual restoration retest is complete: the operator reported
+success, and both Manual replies were recorded through the checked connection.
+Auto was subsequently requested and also received its expected reply. For
+normal manual answering, end the call and select/send Manual from Calls; wait
+for Watch replied to Manual and check the next call waits for a tap. A final
+restoration after the latest Auto request has not yet been reported.
 
-The full initial acceptance sequence is retained below:
+No new setup, supplier capture or routing SMS is required. The full initial
+acceptance procedure below is retained for future pilots, not a request to
+repeat the already-passed transition tests:
 
 1. Open Jesh → Watch settings → Calls. Manual is initially selected; no command
    should be sent by opening the screen.
@@ -157,6 +177,12 @@ Supervised SOS callbacks, persistence after restart and offline restoration
 remain separate gates in the [SOS proposal](watch-answer-sos-design.md).
 
 ## Software checks
+
+Implementation commit `d0f4bfb` passed all release gates in
+[CI run 335](https://github.com/vikrav14/guardian/actions/runs/35903829878):
+gateway, Firestore authorization, Flutter analysis/tests, Chrome regression
+and Web release build. Dashboard UI review also passed. This acceptance update
+changes documentation only.
 
 The local gateway suite passes 1,325 tests. Added coverage includes stale intent,
 identity/plan/consent validation, duplicate claims, device leases, uncertain writes
