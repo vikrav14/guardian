@@ -5,7 +5,7 @@
 | Service ID | `approved-calling` |
 | Minimum package | Essential |
 | Current state | Add-only app pilot after verified inventory; full lifecycle withheld |
-| Customer-visible | Watch contacts; additions require designated-manager setup |
+| Customer-visible | Contacts; call additions require designated-manager setup |
 | Supported direction | Approved guardian calls the watch |
 | Live-proven protocol | `PHBX` |
 | Documented but not product-accepted | `DEVREFUSEPHONESWITCH` |
@@ -15,7 +15,7 @@ The physical pilot proved clear two-way audio after an approved guardian calls
 and the wearer answers. “Two-way audio” does not mean the wearer can originate
 a call: Guardian's current Machine 500 MB SIM does not permit outbound calls.
 
-This branch includes an add-only Watch contacts screen. Additions remain disabled
+This branch includes one Contacts screen with alert and watch-calling controls. Additions remain disabled
 until an operator verifies the existing phonebook and available slots.
 
 ## Safety controls
@@ -49,7 +49,7 @@ until an operator verifies the existing phonebook and available slots.
 ## Legacy unmanaged-device provisioning
 
 Use this only before managed inventory setup, with slot 1 physically verified
-empty. Managed watches use the Watch contacts workflow below.
+empty. Managed watches use the Contacts workflow below.
 
 The watch must already have a live Guardian TCP session. Configure a strong
 `ADMIN_API_KEY` in private `gateway/.env`, restart the gateway, then run from
@@ -122,11 +122,20 @@ watch until replacement/removal is confirmed.
 ## 2026-09-23: authenticated add-only app pilot
 
 The designated linked contact manager can now add callers through **Watch
-settings → Watch contacts**, after operator-verified slot inventory. Notification
-contacts remain separate. The backend reserves slots before PHBX, checks a live
+settings → Contacts**, after operator-verified slot inventory. Each person has
+independent alert and calling permissions on one card. The backend reserves slots before PHBX, checks a live
 session, waits for receipt, and preserves uncertainty without replay. Generic
 commands and the legacy admin writer cannot bypass a managed inventory.
 
 Replacement/removal and general availability remain withheld. Read the setup,
 recovery boundaries and pending second-caller test in
 [Watch contacts acceptance](../testing/watch-contacts-app.md).
+
+### Documentary correction and unified Contacts
+
+The V52 manual page 2 confirms **15 family numbers**; the earlier description
+of this count as only a conservative software limit is superseded. See
+[the original-document evidence](../reference/V52-PHONEBOOK.md). The capacity
+does not reveal which numbered entries are already occupied on an existing
+watch. Customer contact management is now a single Contacts screen; backend
+notification and phonebook permissions remain independently enforced.

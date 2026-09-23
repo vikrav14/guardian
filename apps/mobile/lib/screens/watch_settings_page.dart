@@ -12,7 +12,6 @@ import '../wellness/wellness_routine.dart';
 import '../wellness/wellness_settings_card.dart';
 import 'emergency_contacts_page.dart';
 import 'watch_calls_page.dart';
-import 'watch_contacts_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
   const WatchSettingsPage({
@@ -274,12 +273,14 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
           const Divider(height: 1),
           _SettingsTile(
             icon: Icons.contact_phone_rounded,
-            title: 'Emergency contacts',
-            subtitle: 'People Guardian can contact when something matters',
+            title: 'Contacts',
+            subtitle: 'Safety alerts and who can call the watch',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const EmergencyContactsPage(),
+                  builder: (_) => EmergencyContactsPage(
+                    imei: widget.device.imei, wearerName: widget.device.displayName,
+                  ),
                 ),
               );
             },
@@ -293,11 +294,14 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                 return _SettingsTile(
                   icon: Icons.sos_rounded,
                   title: 'Primary SOS contact',
-                  subtitle: 'Add an emergency contact first',
+                  subtitle: 'Add a contact and enable safety alerts first',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const EmergencyContactsPage(),
+                        builder: (_) => EmergencyContactsPage(
+                          imei: widget.device.imei,
+                          wearerName: widget.device.displayName,
+                        ),
                       ),
                     );
                   },
@@ -355,18 +359,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SettingsTile(
-            icon: Icons.contacts_outlined,
-            title: 'Watch contacts',
-            subtitle: 'People who can ring this watch',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => WatchContactsPage(
-                imei: widget.device.imei,
-                wearerName: widget.device.displayName,
-              ),
-            )),
-          ),
-          const Divider(height: 24),
           _SettingsTile(
             icon: Icons.phone_in_talk_outlined,
             title: 'Calls',

@@ -872,3 +872,23 @@ not a client-accessible Firestore collection.
 
 These records contain private contact data and must not be copied to public logs.
 Rules and the `imei ASC, createdAt DESC` request index must deploy with the app.
+
+
+### Unified contact directory (23 September 2026)
+
+`users/{uid}.contactDirectory` is the account owner's address book (name, phone,
+optional WhatsApp), written under existing owner-only profile rules. It confers
+no device, assistant or notification authority. Contacts merges it with legacy
+`emergencyContacts` and the selected watch's backend-owned phonebook entries by
+canonical international phone (`00` and `+` compare equivalently). No migration
+or watch command is triggered by reading the screen.
+
+`emergencyContacts` remains the gateway-compatible projection of contacts whose
+**Receive safety alerts** choice is enabled. Turning it off preserves the
+address-book entry and watch access. Primary alert-recipient behavior remains
+compatible with the existing gateway. An optional call-access request and profile
+changes commit in one client transaction; request rules and the backend still
+validate the designated manager, immutable deadline and verified slot inventory.
+No permission is inferred from fields inside `contactDirectory`. Watch access
+is per watch; notification recipients remain scoped to the linked account as
+before. Neither contact option changes the watch SOS number or Auto-answer.

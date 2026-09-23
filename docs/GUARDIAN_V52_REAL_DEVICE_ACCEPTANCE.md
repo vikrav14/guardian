@@ -1419,3 +1419,18 @@ ringing/audio, compare original vs second approved caller under Auto, then
 restore/test Manual for both. Caller exclusivity and emergency automation remain
 unaccepted. Setup, exact acceptance sequence and recovery are in
 [watch-contacts-app.md](testing/watch-contacts-app.md).
+
+
+## 2026-09-23: capacity verified and contact UX unified
+
+Original V52 manual page 2 explicitly documents **15 family numbers**. The
+protocol page 5 uses numbered PHBX entries; no occupancy/read-back or automatic
+append operation was found. See [source evidence](reference/V52-PHONEBOOK.md).
+The earlier software-only interpretation of the 15-contact limit is corrected.
+
+The two contact pages are replaced by one **Contacts** screen. Legacy recipients
+and managed watch entries merge by phone, with independent safety-alert and
+watch-call choices. Combined saves are atomic; no entry becomes an alert
+recipient or approved caller merely by opening the screen. Existing watch
+reservations, receipt uncertainty and unavailable removal stay intact. The
+second-phone physical caller-scope test remains pending.

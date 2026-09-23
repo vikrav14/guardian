@@ -72,3 +72,21 @@ test('real transactions allocate once and reject another change while holding th
   assert.equal(state.contacts.length, 2); assert.equal(state.contacts[1].status, 'device_replied');
   assert.equal(state.contacts[1].appliedStateVerified, false);
 });
+
+test('a combined profile/contact-request save is atomic and cannot turn directory fields into watch authority', async () => {
+  const { writeBatch } = require('firebase/firestore');
+  const viewer = client('viewer');
+  const batch = writeBatch(viewer);
+  batch.update(doc(viewer, 'users', 'viewer'), {
+    contactDirectory: [{ name: 'Friend', phone: '+23050000003', allowCalls: true }],
+    emergencyContacts: [{ name: 'Friend', phone: '+23050000003' }],
+  });
+  batch.set(doc(viewer, 'watchPhonebookRequests', 'combined-forged'), input('viewer'));
+  await assertFails(batch.commit());
+  assert.equal((await db.doc('users/viewer').get()).data().contactDirectory, undefined);
+  await assertSucceeds(updateDoc(doc(viewer, 'users', 'viewer'), {
+    contactDirectory: [{ name: 'Friend', phone: '+23050000003' }],
+  }));
+  assert.equal((await db.doc('watchPhonebookRequests/combined-forged').get()).exists, false);
+  await assertFails(updateDoc(doc(client('outsider'), 'users', 'viewer'), { contactDirectory: [] }));
+});

@@ -1,16 +1,21 @@
-# Watch contacts: add-only pilot and second-caller acceptance
+# Contacts: unified management and second-caller acceptance
 
 2026-09-23. PR #115 remains draft. The Calls Auto/Manual pilot already passed on
 Jesh; caller-number exclusivity and SOS/fall automation are not established.
 
 ## Delivered change
 
-Watch settings → **Watch contacts** lets the designated linked contact manager
-enter a name and an international phone number and explicitly send an addition.
-Linked viewers can read status but cannot grant caller access. The notification
-contact screen now explains its separate purpose. Neither adding nor removing a
-notification contact changes the watch phonebook. Adding a watch contact does
-not set an SOS slot, subscribe it to messages, or enable Auto-answer.
+Account and Watch settings → **Contacts** open one address book. Existing
+notification and watch entries merge by canonical phone number. Each person has
+**Receive safety alerts** and **Call <wearer>** controls on one card. New contacts
+are entered once. Saving both choices writes the directory, notification
+projection and optional call request atomically; it grants no Auto-answer or SOS
+setting. Turning alerts off retains the contact and any existing watch access.
+Only the designated linked manager can request a watch addition.
+
+The V52 manual documents **15 family numbers** (page 2). See the
+[verified source note](../reference/V52-PHONEBOOK.md). That is capacity evidence,
+not a query of occupied serial numbers on Jesh.
 
 This uses the existing physically exercised PHBX add builder (UTF-16BE name,
 E.164 phone, empty picture field). A single freshly identified connection must
@@ -77,8 +82,9 @@ in their existing terminals; their old process will not gain the new watcher.
 
 1. Restore **Manual** using Calls. Wait for the watch reply and establish a
    baseline call from the original approved number.
-2. In Watch contacts, add the second phone with its actual outgoing caller-ID
-   number in international format. Wait for **Watch replied**. Check the entry
+2. In Contacts, add the second phone once with its actual outgoing caller-ID
+   number in international format. Select **Call <wearer>**; choose **Receive
+   safety alerts** only if desired, then **Save and send to watch**. Wait for **Watch replied**. Check the entry
    on the watch. If the entry is absent, retain evidence; do not blindly retry.
 3. Call from the second phone. It should ring and wait for wearer acceptance;
    answer and check audio both ways. Record result/time. If blocked, investigate
@@ -111,7 +117,7 @@ protocol identity and free slots are backend-only. Generic `deviceCommands`
 cannot set phonebook contacts.
 
 Automated coverage: backend identity/manager validation, immutable short-lived
-requests, concurrency/duplicate/reservation behavior, crash uncertainty,
+requests, merged existing contacts, independent permission changes, atomic saves, concurrency/duplicate/reservation behavior, crash uncertainty,
 existing Calls regression, same-socket PHBX receipt, rules emulator transactions,
 and Flutter request flow/status/accessibility widths. No physical phonebook or
 second-caller outcome is claimed by those tests. This file is also the repository
