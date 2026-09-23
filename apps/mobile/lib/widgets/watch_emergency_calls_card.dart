@@ -17,6 +17,9 @@ String emergencyCallStatus(Map<String, dynamic>? settings, DateTime now) {
       final seconds = expiry.difference(now).inSeconds;
       return 'Watch replied to Auto. Returning to Manual in ${seconds ~/ 60}m ${seconds % 60}s. Call to check the wearer.';
     case 'manual_replied':
+      if (settings?['ready'] == false) {
+        return 'Watch replied to Manual. Emergency answering is paused; review the primary contact, service and call setup.';
+      }
       return 'Watch replied to Manual. Ready for the next SOS or fall. Make a test call to confirm normal answering.';
     case 'disabled':
       return 'Emergency answering is off.';
@@ -54,7 +57,7 @@ class _WatchEmergencyCallsCardState extends State<WatchEmergencyCallsCard> {
         title: const Text('Allow emergency handsfree calls?'),
         content: Text('${settings['callerHint'] ?? 'Your primary contact'} can call handsfree for five minutes after '
           'a fresh SOS or fall reaches Guardian. During that time, any call from this number may auto-answer. '
-          'Other approved callers should ring normally, as tested on this watch. '
+          'Other approved callers should ring normally. '
           'Make sure the wearer agrees. Guardian needs a connection to turn Auto off; '
           'a lost connection can leave it on for longer.'),
         actions: [

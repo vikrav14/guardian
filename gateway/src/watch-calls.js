@@ -89,6 +89,11 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
       // Durable cancellation is accepted even while an emergency Auto write is
       // in flight. The worker keeps the lease and then restores Manual. Its
       // post-probe guard suppresses Auto whenever cancellation precedes it.
+      if (validId(job.manualRequestId) && job.manualRequestId !== requestId) {
+        tx.update(db.collection('watchCallRequests').doc(job.manualRequestId), {
+          status: 'not_sent', reason: 'superseded', completedAt: new Date(clock),
+        });
+      }
       tx.set(stateRef, { latestRequestedAt: request.createdAt }, { merge: true });
       tx.update(jobRef, { cancel: true, endsAt: new Date(clock), retryAt: new Date(clock), manualRequestId: requestId });
       tx.update(ref, { status: 'restoration_pending', startedAt: new Date(clock) });

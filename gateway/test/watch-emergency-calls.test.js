@@ -174,3 +174,25 @@ test('stale or forged preference requests cannot change policy, including arbitr
     assert.equal(db.get(jobPath), undefined);
   }
 });
+
+test('changed primary during a window restores Manual but does not advertise readiness', async () => {
+  const db = fixture(); await armed(db);
+  await admitWatchEmergency(db, alarm(), new Date(start), { now: () => start });
+  await reconcileEmergencyCall(db, imei, { now: () => start, send: replied });
+  db.seed('users/owner', { ...user(), emergencyContacts: [{ phone: '+23050000001', isPrimary: true }] });
+  await reconcileEmergencyCall(db, imei, { now: () => start + 1, send: input => { assert.equal(input.mode, 'manual'); return replied(); } });
+  assert.equal(db.get(statePath).ready, false);
+  assert.equal(db.get(statePath).reason, 'primary_contact_mismatch');
+});
+
+test('a newer Manual cancellation supersedes the earlier request without losing restoration', async () => {
+  const db = fixture(); await armed(db);
+  await admitWatchEmergency(db, alarm(), new Date(start), { now: () => start });
+  for (const [id, offset] of [['a', 1], ['b', 2]]) {
+    db.seed(`watchCallRequests/${id}`, callRequest('manual', start + offset));
+    await processWatchCallRequest(db, id, { now: () => start + offset, send: never });
+  }
+  assert.equal(db.get('watchCallRequests/a').reason, 'superseded');
+  await reconcileEmergencyCall(db, imei, { now: () => start + 3, send: replied });
+  assert.equal(db.get('watchCallRequests/b').status, 'device_replied');
+});

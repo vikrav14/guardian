@@ -217,6 +217,9 @@ async function reconcileEmergencyCall(db, imei, { now = Date.now, send = sendWat
     const job = (await tx.get(jobRef)).data();
     const state = (await tx.get(callRef)).data();
     const settings = (await tx.get(settingsRef)).data() || {};
+    const policy = (await tx.get(ref(db, 'watchEmergencyPolicies', imei))).data();
+    const { calls, user, subscription } = await authority(tx, db, imei, policy);
+    const readinessReason = settings.enabled ? eligible(imei, policy, calls, user, subscription, now()) : null;
     if (job?.token !== claim.token || state?.emergencyToken !== claim.token) return;
     const clock = now(), done = claim.mode === 'manual' && replied;
     const active = claim.mode === 'auto' && replied && !job.cancel && ms(job.endsAt) > clock && settings.enabled;
@@ -226,7 +229,8 @@ async function reconcileEmergencyCall(db, imei, { now = Date.now, send = sendWat
       ...(done ? { quietUntil: new Date(clock + (job.type ? 60_000 : 0)) } : {}) });
     tx.set(callRef, { leaseUntil: null, emergencyToken: null, emergencyRestorationPending: !done,
       ...(replied ? { lastHandoffMode: claim.mode, lastHandoffAt: new Date(clock) } : {}) }, { merge: true });
-    tx.set(settingsRef, { ready: done ? settings.enabled === true : settings.ready === true,
+    tx.set(settingsRef, { ready: done ? settings.enabled === true && !readinessReason : settings.ready === true,
+      reason: readinessReason,
       status: done ? (settings.enabled ? 'manual_replied' : 'disabled') : active ? 'auto_replied' : 'restoration_pending',
       deviceReplyObserved: replied, appliedStateVerified: false, automaticExpiry: false,
       ...(done ? { windowEndsAt: null } : {}), updatedAt: new Date(clock) }, { merge: true });
