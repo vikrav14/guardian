@@ -476,6 +476,42 @@ service cloud.firestore {
       allow write: if false; // gateway Admin SDK only
     }
 
+    // Phonebook authority and empty-slot inventory are operator-owned. A
+    // notification contact or linked family viewer is not a contact manager.
+    match /watchPhonebookPolicies/{imei} {
+      allow read, write: if false;
+    }
+    match /watchPhonebookSettings/{imei} {
+      allow read: if linkedTo(imei);
+      allow write: if false;
+    }
+    match /watchPhonebookRequests/{requestId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if request.resource.data.keys().hasOnly([
+          'imei', 'name', 'phone', 'requestedBy', 'createdAt', 'expiresAt', 'status', 'policyRevision'
+        ])
+        && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && request.resource.data.imei is string
+        && request.resource.data.imei.matches('^[0-9]{15}$')
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 20
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[+][1-9][0-9]{7,14}$')
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(90, 's')
+        && get(/databases/$(database)/documents/watchPhonebookPolicies/$(request.resource.data.imei)).data.version == 1
+        && get(/databases/$(database)/documents/watchPhonebookPolicies/$(request.resource.data.imei)).data.managedBy == 'guardian_admin'
+        && get(/databases/$(database)/documents/watchPhonebookPolicies/$(request.resource.data.imei)).data.managerUid == request.auth.uid
+        && get(/databases/$(database)/documents/watchPhonebookPolicies/$(request.resource.data.imei)).data.revision == request.resource.data.policyRevision;
+      allow update, delete: if false;
+    }
+
     // Call authority and captured phone/frame data are backend-owned.
     match /watchCallPolicies/{imei} {
       allow read, write: if false;
@@ -519,9 +555,8 @@ service cloud.firestore {
       allow create: if linkedTo(request.resource.data.imei)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
-        // Phonebook entries control who may ring a wearer's watch. Until the
-        // authenticated contact-management backend is complete, PHBX remains
-        // administrator-only through the Admin SDK/local provisioning route.
+        // Phonebook additions use the dedicated authenticated request service;
+        // generic commands cannot bypass its slot inventory or authority.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && request.resource.data.get('type', '') != 'set_alarm_mode'
         && request.resource.data.get('type', '') != 'set_watch_answer_mode'

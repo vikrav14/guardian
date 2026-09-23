@@ -64,6 +64,7 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
     const user = (await tx.get(db.collection('users').doc(request.requestedBy))).data();
     const stateRef = db.collection('watchCallSettings').doc(request.imei);
     const state = (await tx.get(stateRef)).data() || {};
+    const phonebook = (await tx.get(db.collection('watchPhonebookSettings').doc(request.imei))).data();
     if (!Array.isArray(user?.linkedImeis) || !user.linkedImeis.includes(request.imei)) return reject('not_authorized');
     if (policy?.version !== 1 || policy.managedBy !== 'guardian_admin') return reject('not_configured');
     if (policy.revision !== request.policyRevision) return reject('settings_changed');
@@ -79,7 +80,7 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
       if ((ownerUid !== request.requestedBy && !verifiedFamilyMember(owner, request.requestedBy)) ||
           !entitlement.serviceActive || !['family', 'care'].includes(entitlement.plan)) return reject('service_unavailable');
     }
-    if (milliseconds(state.leaseUntil) > clock) return reject('change_in_progress');
+    if (milliseconds(state.leaseUntil) > clock || milliseconds(phonebook?.leaseUntil) > clock) return reject('change_in_progress');
     if (milliseconds(state.latestRequestedAt) > milliseconds(request.createdAt)) return reject('superseded');
     let prepared;
     try { prepared = prepareCapturedAnswerTrial({ imei: request.imei, mode: request.mode, capture: policy.capture }); }

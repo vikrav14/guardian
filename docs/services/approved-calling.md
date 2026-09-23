@@ -112,3 +112,15 @@ Do not use “wearer can call family”, “outgoing calls”, or an unqualified
 The manufacturer material supplied to Guardian does not document a PHBX
 delete/clear form. Use only an approved number that may safely remain on the
 watch until replacement/removal is confirmed.
+
+## 2026-09-23: authenticated add-only app pilot
+
+The designated linked contact manager can now add callers through **Watch
+settings → Watch contacts**, after operator-verified slot inventory. Notification
+contacts remain separate. The backend reserves slots before PHBX, checks a live
+session, waits for receipt, and preserves uncertainty without replay. Generic
+commands and the legacy admin writer cannot bypass a managed inventory.
+
+Replacement/removal and general availability remain withheld. Read the setup,
+recovery boundaries and pending second-caller test in
+[Watch contacts acceptance](../testing/watch-contacts-app.md).

@@ -155,3 +155,28 @@ test('actual TCP receives exact Manual bytes only after version response and bot
   assert.equal(observed[0], buildAckFrame(protocolId, 'VERNO').toString());
   assert.equal(observed.slice(1).join(''), prepareCapturedAnswerTrial(input('manual')).bytes.toString());
 });
+
+test('phonebook add uses the same checked socket and receipt boundary without exposing name or phone in diagnostics', async () => {
+  const { sendPhonebookWithReplies } = require('../src/watch-call-transport');
+  const { phonebookContactCommand } = require('../src/commands');
+  const contact = { imei, protocolId, slot: 2, name: 'Éva', phone: '+23050000000' };
+  const logs = [];
+  const row = candidate(1, (bytes, row) => queueMicrotask(() => {
+    if (bytes.includes('VERNO')) reply(row, 'VERNO', [version]); else reply(row, 'PHBX');
+  }));
+  const result = await sendPhonebookWithReplies(contact, { ...options([row]), log: line => logs.push(line) });
+  assert.equal(result.outcome, 'device_replied'); assert.equal(result.appliedStateVerified, false);
+  assert.deepEqual(row.writes[1], buildAckFrame(protocolId, phonebookContactCommand(contact)));
+  assert.deepEqual(result.receivedReplies, ['PHBX']);
+  assert.ok(!JSON.stringify([result, logs]).includes(contact.phone));
+  assert.ok(!JSON.stringify([result, logs]).includes(contact.name));
+});
+
+test('Calls and phonebook share the same transport exclusion and cannot steal each other’s version replies', async () => {
+  const { sendPhonebookWithReplies } = require('../src/watch-call-transport');
+  const row = candidate(1);
+  const first = sendWatchCallWithReplies(input('manual'), options([row]));
+  const second = await sendPhonebookWithReplies({ imei, protocolId, slot: 2, name: 'Test', phone: '+23050000000' }, options([row]));
+  assert.equal(second.reason, 'transport_busy'); await first;
+  assert.equal(row.writes.length, 1);
+});

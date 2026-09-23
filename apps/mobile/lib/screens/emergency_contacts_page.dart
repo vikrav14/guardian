@@ -73,7 +73,7 @@ class EmergencyContactsPage extends StatelessWidget {
                 value: makePrimary,
                 title: const Text('Primary SOS contact'),
                 subtitle: const Text(
-                  'Guardian Essential sends SOS WhatsApp to this contact.',
+                  'Receives Guardian safety notifications.',
                 ),
                 onChanged: (value) =>
                     setDialogState(() => makePrimary = value == true),
@@ -174,7 +174,11 @@ class EmergencyContactsPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: GuardianSpacing.lg),
-              const GuardianSectionTitle('Your contacts'),
+              const GuardianSectionTitle('Notification contacts'),
+              const SizedBox(height: GuardianSpacing.sm),
+              const Text(
+                'These contacts receive Guardian alerts. To let someone ring the watch, open Watch settings → Watch contacts. Removing a notification contact does not remove their number from the watch.',
+              ),
               const SizedBox(height: GuardianSpacing.sm),
               if (contacts.isEmpty)
                 GuardianCard(

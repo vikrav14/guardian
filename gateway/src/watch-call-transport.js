@@ -3,10 +3,11 @@
 const { prepareCapturedAnswerTrial } = require('./captured-answer-mode-trial');
 const { findSocketsForDevice } = require('./sessions');
 const { buildAckFrame } = require('./protocol/gt06');
+const { phonebookContactCommand } = require('./commands');
 
 const pending = new Map();
 const activeDevices = new Set();
-const REPLY_COMMANDS = new Set(['APPLOCK', 'ACALL']);
+const REPLY_COMMANDS = new Set(['APPLOCK', 'ACALL', 'PHBX']);
 
 /** Called synchronously after decoding/identity binding, before Firestore awaits.
  * Only an active exchange on this exact socket sees the packet. Nothing is
@@ -59,12 +60,11 @@ function exchangeOnSocket(candidate, input, protocolId, bytes, commands, timeout
  * setting is sent. The request/lease deadline also fences the post-probe write.
  * Bare replies demonstrate receipt only, never applied settings or call audio.
  */
-async function sendWatchCallWithReplies(input, {
+async function sendCheckedFrames(input, prepared, expectedReplies, {
   deadlineAt = Date.now() + 25_000, now = Date.now, findSessions = findSocketsForDevice,
   probeTimeoutMs = 4000, replyTimeoutMs = 8000, log = console.log,
 } = {}) {
-  const { bytes, metadata } = prepareCapturedAnswerTrial(input);
-  const expectedReplies = input.mode === 'manual' ? ['APPLOCK', 'ACALL'] : ['ACALL'];
+  const { bytes, metadata } = prepared;
   const result = (outcome, reason, receivedReplies = []) => ({
     outcome, reason, expectedReplies, receivedReplies: receivedReplies.filter(command => REPLY_COMMANDS.has(command)),
     deviceReplyObserved: outcome === 'device_replied', appliedStateVerified: false,
@@ -73,7 +73,7 @@ async function sendWatchCallWithReplies(input, {
   activeDevices.add(input.imei);
   let selected;
   const trace = (stage, extra = {}) => {
-    try { log(`[watch-calls-transport] ${JSON.stringify({ at: new Date(now()).toISOString(),
+    try { log(`[${input.operation || 'watch-calls'}-transport] ${JSON.stringify({ at: new Date(now()).toISOString(),
       mode: input.mode, stage, connectionId: selected?.session.connectionId ?? null,
       peerPort: Number.isInteger(selected?.socket.remotePort) ? selected.socket.remotePort : null,
       ...extra })}`); } catch { /* diagnostics cannot change delivery */ }
@@ -124,4 +124,18 @@ async function sendWatchCallWithReplies(input, {
   } finally { activeDevices.delete(input.imei); }
 }
 
-module.exports = { observeWatchCallPacket, sendWatchCallWithReplies };
+function sendWatchCallWithReplies(input, options) {
+  return sendCheckedFrames(input, prepareCapturedAnswerTrial(input),
+    input.mode === 'manual' ? ['APPLOCK', 'ACALL'] : ['ACALL'], options);
+}
+
+function sendPhonebookWithReplies(input, options) {
+  if (!/^\d{15}$/.test(input.imei) || !/^\d{10}$/.test(input.protocolId)) throw new Error('invalid_identity');
+  const command = phonebookContactCommand(input);
+  return sendCheckedFrames({ ...input, operation: 'watch-contacts' }, {
+    bytes: buildAckFrame(input.protocolId, command),
+    metadata: { protocolId: input.protocolId, frameCount: 1 },
+  }, ['PHBX'], options);
+}
+
+module.exports = { observeWatchCallPacket, sendWatchCallWithReplies, sendPhonebookWithReplies };

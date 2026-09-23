@@ -19,7 +19,7 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
-const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { provisionUnmanagedPhonebook } = require('./watch-phonebook');
 const { MAX_CAPTURE_BYTES, sendCapturedAnswerTrial } = require('./captured-answer-mode-trial');
 const {
   buildWellbeingRequestCommand,
@@ -1217,7 +1217,7 @@ function startHttpServer() {
 
         let result;
         try {
-          result = provisionPhonebookContact(payload);
+          result = await provisionUnmanagedPhonebook(getDb(), payload);
         } catch (error) {
           sendJson(res, 400, { error: error.message });
           return;

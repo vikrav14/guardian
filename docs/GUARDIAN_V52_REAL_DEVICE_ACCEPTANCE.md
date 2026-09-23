@@ -1406,3 +1406,16 @@ handoff/reply and physical behavior before another materially different trial.
 PR #115 stays draft, customer Auto stays disabled, and reference capture remains
 on hold. This evidence update changes no executable code.
 
+## 2026-09-23: app watch-contact additions prepared, hardware test pending
+
+PR #115 now includes a designated-manager **Watch contacts** add-only screen,
+backend-owned slot allocation, expiring immutable requests and same-socket PHBX
+receipt. Existing contacts require a verified inventory before enabling adds;
+unknown or uncertain slots are never reused. Notification recipients, SOS slots
+and Auto-answer are unchanged. Editing/removal remain unavailable.
+
+Next pilot gate: add the second caller from the app, physically verify Manual
+ringing/audio, compare original vs second approved caller under Auto, then
+restore/test Manual for both. Caller exclusivity and emergency automation remain
+unaccepted. Setup, exact acceptance sequence and recovery are in
+[watch-contacts-app.md](testing/watch-contacts-app.md).

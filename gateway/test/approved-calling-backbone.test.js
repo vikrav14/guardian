@@ -10,6 +10,8 @@ test('approved-calling remains a disabled service backbone', () => {
   assert.equal(SERVICE_CONTRACT.enabledByDefault, false);
   assert.equal(SERVICE_CONTRACT.customerVisible, false);
   assert.equal(SERVICE_CONTRACT.minimumPlan, 'essential');
+  assert.equal(SERVICE_CONTRACT.contactManagementLifecycle, 'pilot-add-only');
+  assert.equal(SERVICE_CONTRACT.contactManagementRequiresInventory, true);
   assert.equal(SERVICE_CONTRACT.callDirection, 'approved-guardian-to-watch-only');
   assert.deepEqual(SERVICE_CONTRACT.protocolCommands, ['PHBX']);
   assert.ok(!SERVICE_CONTRACT.protocolCommands.includes('CALL'));

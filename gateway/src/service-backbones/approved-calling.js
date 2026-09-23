@@ -6,13 +6,15 @@ const SERVICE_CONTRACT = Object.freeze({
   minimumPlan: 'essential',
   lifecycle: 'backbone',
   enabledByDefault: false,
-  customerVisible: false,
+  customerVisible: false, // Full lifecycle is still withheld; configured pilot below.
+  contactManagementLifecycle: 'pilot-add-only',
+  contactManagementRequiresInventory: true,
   callDirection: 'approved-guardian-to-watch-only',
   protocolCommands: Object.freeze(['PHBX']),
   pendingProtocolCommands: Object.freeze(['DEVREFUSEPHONESWITCH']),
   safetyControls: Object.freeze([
     'incoming approved-contact allowlist',
-    'administrator-only phonebook provisioning',
+    'designated linked manager and operator-verified empty slots',
     'unknown callers blocked',
     'wearer outbound calling unavailable',
     'carrier voice-cost disclosure',
@@ -25,7 +27,7 @@ const SERVICE_CONTRACT = Object.freeze({
   ]),
   backendMilestones: Object.freeze([
     'persist approved contacts without client-written commands',
-    'sync V52 phonebook through administrator-only provisioning',
+    'add contacts through short-lived authenticated requests; retain uncertain reservations',
     'verify safe-mode state on each new watch',
     'record provisioning and physical acceptance outcomes',
   ]),

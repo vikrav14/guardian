@@ -848,3 +848,27 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
+
+### Watch phonebook add-only pilot (2026-09-23)
+
+- `watchPhonebookPolicies/{imei}`: backend-only v1 `guardian_admin` authority,
+  designated `managerUid`, bound `protocolId`, revision and verified `emptySlots`.
+  One-time inventory includes occupied contacts; unknown slots are not available.
+  Unmanaged legacy provisioning uses a short backend-only lease here and cannot
+  write a configured watch. Setup cannot reset a configured inventory.
+- `watchPhonebookSettings/{imei}`: linked readers, backend writes. Manager UID,
+  revision, available-slot count, bounded contacts (slot/name/E.164 phone/status,
+  request/lease and receipt evidence), current request lease. Imported entries
+  are marked `imported`; no receipt claims physical application.
+- `watchPhonebookRequests/{id}`: immutable create by the designated linked
+  manager only. `imei`, `name`, `phone`, `requestedBy`, `createdAt`, `expiresAt`,
+  `status: pending`, `policyRevision`. Client cannot set slots or wire commands.
+  Deadline 1–90 seconds after receipt; gateway validates again before claiming.
+  Backend statuses: sending, device_replied, not_sent, handoff_unknown. Every
+  write claim reserves a slot first. Pre-write failures alone may retry the same
+  unchanged contact. Ambiguous writes/crashes permanently retain reservations.
+  No automatic replay, replacement, deletion or client status editing. Current
+  phonebook and Calls leases are mutually checked in transactions.
+
+These records contain private contact data and must not be copied to public logs.
+Rules and the `imei ASC, createdAt DESC` request index must deploy with the app.
