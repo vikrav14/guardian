@@ -1,14 +1,15 @@
-# PR #115 investigation handoff — 22 September 2026
+# PR #115 investigation handoff — 23 September 2026
 
-> **Latest physical result:** The operator reports automatic answering and
-> two-way audio after setting Answer mode through AnyTracking on the same
-> pilot watch. The relay observed ACALL with one redacted argument; its mapping
-> to the UI action is not yet established. SOS/PHBX writes were deliberate
-> operator actions. The Guardian return SMS was sent; fresh Guardian telemetry
-> and Manual restoration remain unreported. Read the
-> [reference success and exact-capture follow-up](../testing/answer-mode-reference-success.md).
-> Earlier sections below are historical checkpoints. PR #115 remains draft;
-> no verified Guardian replacement command has been implemented.
+> **Latest capture:** The operator reports selecting Manual in AnyTracking.
+> The supplier sent `3G / APPLOCK,JT-0 / 000c`, then
+> `3G / ACALL,0 / 0007`; the watch replied to both and the private recorder
+> saved four frames. This differs from Guardian's failed SG / APPLOCK,JT-1
+> Manual trial. The post-selection physical call result is still unreported.
+> Guardian routing restoration is operator-reported; fresh return telemetry
+> is not yet supplied. See the [exact Manual exchange and next check](../testing/answer-mode-manual-capture-20260923.md).
+> Earlier auto-answer with two-way audio on the reference configuration remains
+> operator-confirmed. PR #115 stays draft; no new setter or Auto mapping is claimed.
+> Sections below are historical checkpoints, superseded where this capture differs.
 
 ## Earlier Guardian trial: exact supplier framing replied; Auto still rings
 

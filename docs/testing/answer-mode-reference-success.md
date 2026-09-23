@@ -1,5 +1,11 @@
 # V52 answer mode: successful reference call, 22 September 2026
 
+> **23 September update:** The Manual selection now has an exact reference
+> exchange: 3G APPLOCK,JT-0 followed by 3G ACALL,0, with bare replies and four
+> private records saved. Physical Manual behavior is still awaiting the
+> operator's call result. Read the [new capture](answer-mode-manual-capture-20260923.md);
+> this page preserves the earlier 22 September reference-call evidence.
+
 ## What changed
 
 The operator reports that the existing Guardian pilot watch automatically

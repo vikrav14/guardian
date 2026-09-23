@@ -10,6 +10,12 @@ This is a successful reference-platform call; Guardian's own enable/disable
 path remains unverified. The same session included intentional supplier SOS
 and phonebook writes. See the [captured evidence and remaining checks](testing/answer-mode-reference-success.md).
 
+**23 September Manual capture:** After the operator-reported AnyTracking Manual
+selection, the supplier sent 3G APPLOCK,JT-0 followed by 3G ACALL,0; bare replies
+and four saved private records were observed. Physical disabling and the exact
+Auto counterpart remain unverified. Guardian return routing is operator-reported,
+awaiting fresh telemetry. See the [exact exchange and acceptance boundary](testing/answer-mode-manual-capture-20260923.md).
+
 ## Evidence semantics
 
 Guardian must not collapse different forms of evidence into one green label:
