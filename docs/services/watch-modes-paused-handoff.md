@@ -1,17 +1,21 @@
 # PR #115 investigation handoff — 23 September 2026
 
-> **Latest physical reference results:** Auto at approximately 21:04 Mauritius
-> time answered with two-way audio. Manual at 21:05 kept ringing. Guardian
-> return at 21:07 is operator-reported; fresh return telemetry is not supplied.
-> Auto produced a 3G ACALL frame (0013, 19 payload bytes, argument redacted),
-> then a bare reply. Manual again produced 3G APPLOCK,JT-0 then 3G ACALL,0
-> and bare replies. All six private frame writes were saved.
-> **Next:** inspect the existing private file ending 210251-301.jsonl;
-> do not ask for another capture before reading it or infer Auto's argument.
-> The literal Auto value, its caller scope and both Guardian-generated
-> transitions remain unverified. See the [capture evidence](../testing/answer-mode-manual-capture-20260923.md)
-> and [proposed app/SOS policy](watch-answer-sos-design.md).
-> PR stays draft. Sections below are historical, superseded where this differs.
+> **Current checkpoint:** The private six-record capture is decoded. Auto
+> sends 3G ACALL with the captured guardian number in international `00…`
+> form (0013); Manual sends 3G APPLOCK,JT-0 (000c) then 3G ACALL,0 (0007).
+> The number and its encoded frame are not published. Reference Auto and
+> Manual physically passed; both Guardian-generated transitions remain pending.
+> **Ready next:** use `trial-captured-answer-mode.js` with the existing private
+> file ending 210251-301.jsonl. Update/restart only the gateway, keep Guardian
+> routing, then test Auto and restore/test Manual. No more reference capture
+> is needed. [Commands and verification](../testing/answer-mode-captured-trial.md).
+> The trial requires strict admin auth and a fresh matching identified session,
+> sends exact bytes on one socket, and never retries uncertain writes. All
+> 1,306 gateway tests pass. Caller scope and hard expiry are still unverified;
+> the [SOS design](watch-answer-sos-design.md) remains a proposal. PR #115 stays
+> draft. Wiki publishing is unavailable through this connection; these repository
+> runbooks are the current QA handoff. Historical sections below are superseded
+> where this checkpoint differs.
 
 ## Earlier Guardian trial: exact supplier framing replied; Auto still rings
 
@@ -279,3 +283,4 @@ Existing #118 checkpoint: REMIND once-only sound and visible clearing passed;
 local SEDENTARY speech was heard three times with unknown timing; HSW remains
 untested. Review the supplier's actual response against the exact pilot firmware
 before defining remote enable/change/off tests. Leave #115 paused meanwhile.
+

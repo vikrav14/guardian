@@ -14,8 +14,8 @@ and phonebook writes. See the [captured evidence and remaining checks](testing/a
 3G ACALL,0 for the operator's Manual selection; bare replies and four saved
 private records were observed. After reported Guardian return, the operator
 confirms that a call kept ringing until manually answered, with audio both ways.
-This is a physical reference Manual pass. The exact Auto counterpart and both
-Guardian-generated transitions remain unverified; fresh return telemetry is
+This is a physical reference Manual pass. Both Guardian-generated transitions
+remain unverified; fresh return telemetry is
 still absent. See the [exact exchange](testing/answer-mode-manual-capture-20260923.md)
 and [proposed app/SOS policy](services/watch-answer-sos-design.md).
 
@@ -24,10 +24,13 @@ and [proposed app/SOS policy](services/watch-answer-sos-design.md).
 Guardian routing was restored at 21:07. Logs correlate Auto with a 3G ACALL
 frame (0013, 19 payload bytes, argument redacted) and reply; Manual repeats
 3G APPLOCK,JT-0 then 3G ACALL,0 and replies. Six private writes were saved.
-Inspect the existing private file ending 210251-301.jsonl before any further
-capture. Auto's literal argument, caller scope, guaranteed expiry and both
-Guardian-generated transitions remain unverified. This updates physical
-reference acceptance, not customer release readiness.
+The private six-record file was subsequently supplied and decoded: Auto sends
+3G ACALL with the captured guardian number in international `00…` format.
+Its exact value and hex are private. The authenticated Guardian replay is ready
+for [physical Auto and Manual testing](testing/answer-mode-captured-trial.md).
+All 1,306 gateway tests pass, including exact-byte HTTP/TCP and privacy tests.
+Caller exclusivity, guaranteed expiry and both Guardian-generated physical
+transitions remain unverified. Customer release readiness is unchanged.
 
 ## Evidence semantics
 
@@ -1343,3 +1346,4 @@ The requested Manual restore after this call remains unreported. Capture its
 handoff/reply and physical behavior before another materially different trial.
 PR #115 stays draft, customer Auto stays disabled, and reference capture remains
 on hold. This evidence update changes no executable code.
+

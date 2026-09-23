@@ -53,6 +53,8 @@ function parseV52Telemetry(fields) {
 // are device uploads and are parsed below.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
+  // V52 same-watch reference capture, 23 September 2026: bare ACALL reply.
+  'ACALL',
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',

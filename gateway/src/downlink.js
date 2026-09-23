@@ -10,6 +10,7 @@ function redactPhone(value) {
 /** Keep contact data and call destinations out of routine gateway logs. */
 function redactDownlinkCommand(command) {
   const text = String(command || '');
+  if (/^ACALL(?:,|$)/i.test(text)) return 'ACALL,<argument-redacted>';
   if (/^WIFIFENCE(?:,|$)/i.test(text)) return 'WIFIFENCE,<radios-redacted>';
   if (text.startsWith('PHBX,')) {
     const fields = text.split(',');

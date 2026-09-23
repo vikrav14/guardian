@@ -15,11 +15,12 @@ not treat proposed defaults, duration or UI copy as approved final behavior.
   ringing until manual answering, then audio worked both ways.
 - A subsequent reference run at approximately 21:04/21:05 Mauritius time
   passed Auto (two-way audio) and Manual (kept ringing) respectively. Auto
-  sent a 3G ACALL frame with 19 payload bytes; its argument is redacted in
-  the console, but the recorder saved all six relevant frames privately.
-  Inspect the existing private file ending 210251-301.jsonl before any new
-  trial. A decoded exact Auto argument and both Guardian-generated transitions
-  remain unavailable. No ACALL value is inferred by inversion.
+  sent a 3G ACALL frame with 19 payload bytes. All six private records have now
+  been decoded: the Auto argument is the configured guardian number in `00…`
+  format, matching the earlier center/SOS1 report. The exact private value
+  remains outside the repository. An authenticated captured-frame Guardian
+  trial is implemented; both Guardian-generated physical transitions remain
+  pending. No ACALL value is inferred by inversion.
 - The observed Manual pair contains no caller identity, SOS incident identifier or
   expiry parameter. Treat a device-wide persistent switch as the conservative
   working assumption until firmware behavior is tested. A per-caller or
@@ -85,8 +86,9 @@ mode or change carrier/caller configuration to make this test pass.
 
 ## Two constraints that must stay visible
 
-**Caller scope:** Nothing captured so far proves auto-answer can be limited to
-one named guardian or distinguish an emergency call from an ordinary SIM call.
+**Caller scope:** Auto's number-bearing argument suggests a selected caller,
+but the one successful call does not prove exclusivity. It does not distinguish
+an emergency call from an ordinary SIM call from that same number.
 Other firmware-eligible approved callers might also auto-connect during the
 window. Retain approved-caller restrictions and test their interaction with
 Auto. Do not temporarily open the watch to unknown callers or change its
@@ -100,7 +102,7 @@ claim a guaranteed hard expiry without a proven device-enforced timeout.
 The product must resolve and explicitly describe this behavior before promising
 "normal calls are always manual outside SOS".
 
-## Implementation outline after the missing capture
+## Product implementation after Guardian hardware acceptance
 
 - Add a typed, authorized answer-mode command path under the watch-modes work,
   with exact observed protocol frames confined to the V52 adapter. No raw
@@ -121,9 +123,8 @@ The product must resolve and explicitly describe this behavior before promising
 
 ## Verification order
 
-1. Review the saved private frame file from the now-successful reference
-   Auto/Manual run. Verify Auto's exact argument and its source; no additional
-   reference test is needed before reading this existing evidence.
+1. Completed: decode and validate the six saved private records. The narrow
+   operator replay is available in the [Guardian trial runbook](../testing/answer-mode-captured-trial.md).
 2. Reproduce the observed Auto and Manual sequences through Guardian and verify
    both transitions on the pilot without changing approved contacts.
 3. Verify the selected caller scope and unknown-caller rejection in both modes.
@@ -133,3 +134,4 @@ The product must resolve and explicitly describe this behavior before promising
    durable reconciliation in software tests. Physical gates remain separate.
 6. Implement the final approved app copy and expose the feature only with its
    tested limitations. No customer control is enabled by this document.
+

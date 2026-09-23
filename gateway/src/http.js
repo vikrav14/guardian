@@ -20,6 +20,7 @@ const {
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
 const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { MAX_CAPTURE_BYTES, sendCapturedAnswerTrial } = require('./captured-answer-mode-trial');
 const {
   buildWellbeingRequestCommand,
   buildWellbeingScheduleCommand,
@@ -1156,6 +1157,44 @@ function startHttpServer() {
       }
 
       if (await handleOpsHttpRequest(req, res, url)) {
+        return;
+      }
+
+      if (url.pathname === '/admin/watch-answer-trial') {
+        res.setHeader('Cache-Control', 'no-store');
+        if (!(await requireStrictAdmin(req, res))) return;
+        if (req.method !== 'POST') { sendJson(res, 405, { error: 'POST required' }); return; }
+        if (url.search) { sendJson(res, 400, { error: 'Body parameters only' }); return; }
+        if (Number(req.headers['content-length']) > MAX_CAPTURE_BYTES) {
+          sendJson(res, 413, { ok: false, outcome: 'not_sent', reason: 'invalid_reference_capture' }); return;
+        }
+        let payload, result;
+        try {
+          let size = 0;
+          const chunks = [];
+          for await (const chunk of req) {
+            size += Buffer.byteLength(chunk);
+            if (size > MAX_CAPTURE_BYTES) throw new Error('body_too_large');
+            chunks.push(Buffer.from(chunk));
+          }
+          payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          result = sendCapturedAnswerTrial(payload);
+        } catch {
+          // JSON errors can contain the private Auto number/frame. Never echo.
+          sendJson(res, 400, { ok: false, outcome: 'not_sent', reason: 'invalid_reference_capture' });
+          return;
+        }
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({ requestId: generateRequestId(), phase: 'device_provisioning',
+              imei: payload.imei, data: { operation: 'captured_answer_mode_trial', mode: result.mode,
+                outcome: result.outcome, sessions: result.sessions, frameCount: result.frameCount } });
+            auditRecorded = true;
+          }
+        } catch { console.error('[answer-mode-trial] audit unavailable after trial; do not retry blindly'); }
+        console.log(`[answer-mode-trial] mode=${result.mode} outcome=${result.outcome} protocolId=${result.protocolId} sessions=${result.sessions}`);
+        sendJson(res, result.ok ? 200 : 409, { ...result, auditRecorded });
         return;
       }
 

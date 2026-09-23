@@ -1,10 +1,11 @@
 # V52 answer modes: successful reference transitions, 23 September 2026
 
-> **Latest checkpoint:** The subsequent 21:04 Auto call auto-answered with
-> two-way audio; the 21:05 Manual call kept ringing. Six private frame writes
-> were saved. Auto's exact argument remains redacted in the supplied console
-> log; inspect the existing private file next. Guardian return at 21:07 is
-> operator-reported. Both Guardian-generated transitions remain unverified.
+> **Latest checkpoint:** All six private records have now been supplied and
+> decoded. Auto uses 3G ACALL with the captured guardian number in `00…`
+> format; Manual uses 3G APPLOCK,JT-0 then 3G ACALL,0. Reference Auto and
+> Manual worked physically. A restricted Guardian replay is implemented;
+> its physical transitions remain pending. See the
+> [Guardian trial instructions](answer-mode-captured-trial.md).
 
 ## First Manual result
 
@@ -64,7 +65,8 @@ than reinterpreting JT alone as a proven inverse mapping.
 
 ACALL,0 is now an observed literal command for this reference action, rather
 than a guessed replacement. Its independent behavior, any prerequisite, the
-necessity of either command, and the Auto counterpart remain unverified.
+necessity of either command remain unverified. The later private records below
+now establish the Auto counterpart for that run.
 The earlier 22 September ACALL with length 0013 and a redacted argument remains
 a distinct exchange; this capture cannot reconstruct its missing argument.
 Do not infer ACALL,1 or an Auto sequence by flipping values.
@@ -103,28 +105,27 @@ this does not establish that ACALL alone initializes every watch configuration.
 Manual repeats the earlier exact pair and now has a second reported physical
 disable result.
 
-All six private writes report saved. The private file
-`guardian-answer-private-20260923-210251-301.jsonl` has not yet been uploaded.
-Its first frameHex record is the next required evidence, not another live
-capture. The public log redacts Auto's argument. After the literal ACALL,
-prefix within the payload, 13 payload bytes remain; this does not identify
-their content, type, caller scope or semantics. In particular, the observed
-19-byte payload is not the seven-byte ACALL,1. Do not reconstruct it from
-phone numbers, prior settings or guesses.
+All six private records were subsequently pasted by the operator and decoded.
+They match this run's timestamps, protocol ID, directions and frame lengths.
+Auto is 3G `ACALL,<captured guardian number>`, length `0013`. The argument
+has 13 ASCII digits in international `00…` form and matches the earlier
+center/SOS1 report. The number and frame hex are retained privately, not in
+this repository. Manual's two frames are exactly as listed above.
+
+The uploaded normal log is UTF-16, contains 35 JSON records through
+17:08:47.814 UTC and confirms six successful private writes. It has no
+relay-stopped event. The two accompanying dd_BackgroundDownload files are
+Visual Studio installer logs and contain no answer-mode evidence.
 
 ## Next evidence
 
-1. Inspect the already-saved private file from the successful Auto/Manual run.
-   Decode and validate its exact target, direction, length, bytes and replies
-   privately; do not publish any private argument. No new reference test is
-   needed before this file is reviewed.
-2. Retain the complete normal log and fresh Guardian telemetry separately.
-3. Implement only the observed sequences in a bounded Guardian operator trial,
-   preserving prefix, payloads, ordering and length fields. Verify both
-   transitions from Guardian physically.
-4. Keep the proposed emergency-only policy separate from this reference pass:
-   caller scope, expiry and offline restoration remain unverified. See the
-   [proposed app and SOS policy](../services/watch-answer-sos-design.md).
+1. Run the [restricted Guardian trial](answer-mode-captured-trial.md) using the
+   existing private capture file. No new AnyTracking capture is required.
+2. Record fresh Guardian telemetry and physical Auto then Manual call results.
+3. Test caller scope separately: the number-bearing command suggests a caller
+   selection but does not prove exclusivity or rejection of other callers.
+4. Keep emergency-only behavior, expiry and offline restoration separate from
+   the reference pass; see the [app/SOS proposal](../services/watch-answer-sos-design.md).
 
 ## Connection recovery during this run
 
@@ -143,7 +144,8 @@ separate Guardian gateway. Obtain fresh gateway telemetry separately.
 
 ## Scope of this update
 
-Documentation only. No new watch command was sent by the repository update,
-no runtime or customer control changed. The physical Auto/Manual reference passes above are the
-operator's observations; they are not software-test results or Guardian
-implementation passes.
+The exact private capture is now decoded. A strictly authenticated operator
+replay and tests have been added; no customer control or SOS switching is
+enabled. Reference physical passes remain distinct from Guardian-generated
+acceptance, which the next two calls must establish.
+
