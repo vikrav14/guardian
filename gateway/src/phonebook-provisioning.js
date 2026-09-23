@@ -15,8 +15,8 @@ function normalizeDeviceIdentifier(value) {
  * Provision one incoming-call allowlist entry over a live V52 session.
  *
  * This deliberately bypasses the generic Firestore device-command channel.
- * Until Guardian has an authenticated contact-management service, only the
- * strict administrator HTTP route and local technician script may call it.
+ * Legacy unmanaged-watch helper only. The HTTP wrapper interlocks with
+ * managed inventory; app additions use watch-phonebook and checked transport.
  */
 function provisionPhonebookContact(
   payload,

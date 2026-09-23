@@ -9,7 +9,7 @@ const { sendDownlinkCommand } = require('./downlink');
  * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
- * - TCP data commands: administrator-only PHBX phonebook provisioning plus
+ * - TCP data commands: guarded PHBX phonebook additions plus
  *   monitor callback, alarm mode, ring/find, fall settings, medication reminders,
  *   alert profiles and upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
  *   watch's active gateway session. They deliberately have no guessed SMS
