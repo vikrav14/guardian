@@ -120,7 +120,7 @@ class _ContactsBodyState extends State<_ContactsBody> {
   Future<void> _edit(Map<String, dynamic>? settings, List<ContactEntry> entries,
       {ContactEntry? entry, bool requestCall = false}) async {
     final name = TextEditingController(text: requestCall
-        ? entry?.watch?['name'] as String? ?? entry?.name ?? '' : entry?.name ?? '');
+        ? ((entry?.watch?['name'] as String?) ?? entry?.name ?? '') : entry?.name ?? '');
     final phone = TextEditingController(text: entry?.phone ?? '+230');
     final whatsapp = TextEditingController(text: entry?.whatsapp ?? '');
     var alerts = entry?.receivesAlerts ?? true;
@@ -175,7 +175,7 @@ class _ContactsBodyState extends State<_ContactsBody> {
     try {
       await widget.service.saveContact(name: label, phone: number, whatsapp: wa, receivesAlerts: alerts,
         callImei: allowCalls ? widget.imei : null,
-        policyRevision: allowCalls ? settings?['policyRevision'] as String? : null);
+        policyRevision: allowCalls ? (settings?['policyRevision'] as String?) : null);
     } catch (_) { _error(); }
     finally { if (mounted) setState(() => _saving = false); }
   }

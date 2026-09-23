@@ -94,7 +94,8 @@ class ContactsService {
       final key = contactKey(normalized);
       final prior = alerts.where((row) => contactKey(row['phone'] as String? ?? '') == key);
       final primary = makePrimary || prior.any((row) => row['isPrimary'] == true);
-      final person = <String, dynamic>{'name': label, 'phone': normalized, if (wa != null) 'whatsapp': wa};
+      final person = <String, dynamic>{'name': label, 'phone': normalized};
+      if (wa != null) person['whatsapp'] = wa;
       directory.removeWhere((row) => contactKey(row['phone'] as String? ?? '') == key);
       directory.add(person);
       alerts.removeWhere((row) => contactKey(row['phone'] as String? ?? '') == key);
