@@ -100,3 +100,30 @@ Eighteen recorder tests pass, including fragmented/coalesced PHBX writes,
 separate slot values, name/number/image redaction, malformed/unexpected slot
 forms, bare replies, byte-transparent forwarding and the existing bounded
 answer-mode capture. No real watch command or routing SMS is sent by this update.
+
+## 2026-09-23: AnyTracking second-contact write addressed slot 2
+
+The operator reports adding a second contact in AnyTracking during the
+same-watch recorder session. The supplied normal log establishes:
+
+| UTC time, 23 September | Observed exchange |
+| --- | --- |
+| 20:44:47.040 | Reference connection established; watch and supplier heartbeat replies followed |
+| 20:45:55.873 | Supplier-to-watch PHBX, prefix 3G, length 0038 (56 bytes), three arguments, phonebookSlot 2 |
+| 20:45:57.210 | Same session watch-to-server bare PHBX reply, prefix 3G, length 0004; 1.337 seconds after the write |
+
+The write occurred at 00:45:55 MUT on 24 September. Names, numbers and exact
+payload bytes remain redacted. The operator's action correlates the second
+contact with addressed serial 2. Treat serial 2 as used/reserved by this write;
+do not allocate it as empty. The ACK establishes receipt, not a read-back of
+stored contact details or an incoming-call result. Other occupied/free serials,
+slot 1's mapping, and optional argument contents are not established here.
+
+Next: inspect the watch phonebook, restore the printed Guardian route and verify
+fresh Guardian telemetry, request Manual through Calls, and test ringing/manual
+answering/two-way audio from the second phone. Then compare the two approved
+callers under Auto and restore/test Manual. No physical second-caller outcome
+or Guardian route restoration was supplied with this capture. This is supplier
+provisioning evidence, not acceptance of the Guardian add-contact UI. No live
+inventory was imported or modified by this documentation update. PR #115 remains
+draft.
