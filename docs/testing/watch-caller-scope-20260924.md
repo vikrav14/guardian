@@ -45,8 +45,9 @@ form has provisioned a number. No live managed inventory was imported here.
 - New call timestamps, second-caller manual pickup/two-way audio, and a fresh
   original-caller audio check were not supplied. Earlier audio acceptance is
   separate; do not silently extend it to this new caller.
-- Final tested mode is Auto. Final Manual restoration after this comparison
-  is pending; send Manual and verify the original caller waits for a tap.
+- Follow-up: the operator confirms Manual has already been set after this
+  comparison. Record the final setting as operator-reported Manual; do not ask
+  them to reapply it. A separate post-restoration call result was not supplied.
 - Not established: whether primary/SOS role is an additional Auto prerequisite,
   unknown-caller rejection specifically while Auto is on,
   multiple simultaneous Auto-answer numbers, changing the configured caller,

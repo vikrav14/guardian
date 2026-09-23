@@ -37,8 +37,9 @@ not treat proposed defaults, duration or UI copy as approved final behavior.
   Enabling Auto from the second handset still uses the original backend-owned
   caller configuration. See the [physical record](../testing/watch-caller-scope-20260924.md).
   A call-end hook, multiple Auto numbers and device-enforced expiry remain
-  unestablished. The final mode in that comparison is Auto; restoration remains
-  pending.
+  unestablished. A subsequent operator update confirms Manual has already been
+  set; no repeat Manual request is needed. No separate post-restoration call
+  result was supplied with that update.
 
 Detailed evidence: [Manual capture](../testing/answer-mode-manual-capture-20260923.md).
 
@@ -265,7 +266,8 @@ must survive gateway sleep/crash and remain visible until reconciled.
    This does not establish every firmware, initial state or caller restriction.
 3. Completed for the original vs second approved caller on the pilot: both ring
    in Manual, only the original auto-answers in Auto. Unknown-caller rejection
-   under Auto, final Manual restoration, and second-caller audio remain pending.
+   under Auto and second-caller audio remain pending. Manual has subsequently
+   been set according to the operator; do not ask for a duplicate setting change.
 4. Test real supervised SOS and fall callbacks, duplicates, immediate/late calls,
    expiry during an ongoing call, disconnect, restart and restoration failure.
 5. Validate authorization, stale-command rejection, transition ordering and

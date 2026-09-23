@@ -1474,7 +1474,10 @@ caller-specific Auto behavior for the two tested numbers on this pilot.
 The operator notes that the original number is also primary. This test does
 not isolate primary/SOS-role eligibility from the configured Auto number; the
 second number was never retargeted as the Auto caller. Selecting Auto from
-another handset does not change the backend-configured caller. The final observed mode is Auto; final Manual restoration is pending.
+another handset does not change the backend-configured caller. In a subsequent
+update the operator confirms Manual has already been set. Record Manual as the
+reported final setting; no repeat setting change is requested. A separate
+post-restoration call result was not supplied.
 No new call timestamps, gateway excerpts or second-caller audio result were
 provided. This does not accept Guardian contact provisioning (AnyTracking made
 the addition), unknown-caller behavior under Auto, SOS/fall automation, or a

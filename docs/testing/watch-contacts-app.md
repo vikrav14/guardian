@@ -104,7 +104,8 @@ in their existing terminals; their old process will not gain the new watcher.
 
 Step 4 now has a positive differentiated result for the two tested callers;
 the second entry was provisioned in AnyTracking rather than the Guardian form.
-Final Manual restoration and second-caller audio are still pending. Do not
+The operator confirms Manual has already been set afterward; no repeat setting
+request is needed. Second-caller audio has not yet been reported. Do not
 label this SOS-only or generalize to every approved caller. Do not make real
 SOS/fall events or send Meta messages for this contact test.
 
