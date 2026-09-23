@@ -25,16 +25,22 @@ String watchCallRequestMessage(Map<String, dynamic>? request, DateTime now) {
           : 'Waiting to send $mode. This request expires shortly.';
     case 'sending':
       return lease != null && lease.isAfter(now)
-          ? 'Sending $mode to the watch…'
+          ? 'Checking the connection and waiting for the watch to reply to $mode…'
           : 'Could not confirm $mode. Check the watch before trying again.';
+    case 'device_replied':
+      return 'Watch replied to $mode. Make a test call to confirm the watch’s behavior.';
     case 'socket_handoff':
-      return '$mode sent. Make a test call to confirm the watch’s behavior.';
+      return '$mode handed to the connection; watch receipt is unconfirmed. Make a test call to check.';
     case 'handoff_unknown':
-      return 'Could not confirm $mode. The watch may have changed. Check it before trying again.';
+      return request['reason'] == 'watch_reply_missing'
+          ? 'The watch did not reply to every $mode command. The setting is unconfirmed; check the watch.'
+          : 'Could not confirm $mode. The watch may have changed. Check it before trying again.';
     case 'not_sent':
       return switch (request['reason']) {
         'no_fresh_identified_session' => '$mode was not sent. Wait for the watch to reconnect, then try again.',
         'change_in_progress' => '$mode was not sent. Another change is in progress.',
+        'connection_unconfirmed' || 'connection_changed' => '$mode was not sent because the watch connection could not be confirmed. Wait for reconnection, then try again.',
+        'transport_busy' => '$mode was not sent. Another call-setting change is in progress.',
         'expired' || 'expired_before_handoff' => '$mode request expired. It will not be sent later.',
         'superseded' => '$mode was not sent because a newer change was requested.',
         'settings_changed' => '$mode was not sent. Call settings changed; review them and try again.',

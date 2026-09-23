@@ -137,3 +137,34 @@ test('lost result after handoff is not replayed, while a later explicit Manual c
   await processWatchCallRequest(db, 'request2', { now: () => clock + 31000, send });
   assert.equal(sends, 2); assert.equal(db.get(`watchCallSettings/${imei}`).lastHandoffMode, 'manual');
 });
+
+test('app request holds its lease while awaiting transport replies and stores only bounded evidence', async () => {
+  const db = fixture('manual');
+  let complete, entered;
+  const started = new Promise(resolve => { entered = resolve; });
+  const run = processWatchCallRequest(db, 'request1', { now: () => clock, send: async (input, options) => {
+    assert.equal(input.mode, 'manual'); assert.equal(options.deadlineAt, clock + 30000);
+    entered(); return new Promise(resolve => { complete = resolve; });
+  } });
+  await started;
+  assert.equal(db.get('watchCallRequests/request1').status, 'sending');
+  assert.equal(db.get(`watchCallSettings/${imei}`).leaseUntil.getTime(), clock + 30000);
+  complete({ outcome: 'device_replied', receivedReplies: ['APPLOCK', phone, 'ACALL', 'ACALL'], frame: phone });
+  await run;
+  const request = db.get('watchCallRequests/request1');
+  assert.equal(request.status, 'device_replied'); assert.equal(request.appliedStateVerified, false);
+  assert.deepEqual(request.receivedReplies, ['APPLOCK', 'ACALL']); assert.equal(request.deviceReplyObserved, true);
+  assert.equal(db.get(`watchCallSettings/${imei}`).lastHandoffMode, 'manual');
+  assert.ok(!JSON.stringify(request).includes(phone));
+});
+
+test('missing watch reply cannot become a confirmed reply or replace last handed-off mode', async () => {
+  const db = fixture('manual'); db.seed(`watchCallSettings/${imei}`, { lastHandoffMode: 'auto' });
+  await processWatchCallRequest(db, 'request1', { now: () => clock, send: async () => ({
+    outcome: 'handoff_unknown', reason: 'watch_reply_missing', receivedReplies: ['APPLOCK'],
+  }) });
+  const request = db.get('watchCallRequests/request1');
+  assert.equal(request.status, 'handoff_unknown'); assert.equal(request.deviceReplyObserved, false);
+  assert.deepEqual(request.expectedReplies, ['APPLOCK', 'ACALL']);
+  assert.equal(db.get(`watchCallSettings/${imei}`).lastHandoffMode, 'auto');
+});

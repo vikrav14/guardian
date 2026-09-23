@@ -52,6 +52,23 @@ physical adapter pass does not substitute for the new
 [app-to-watch acceptance](services/watch-calls-app.md). Local gateway tests:
 1,314 passed; require emulator and Flutter CI before pilot deployment.
 
+**Latest app acceptance failed for Manual (23 September):** The operator reports
+Auto answered, then Manual was selected/sent but the next call still
+auto-answered. Both app requests have gateway socket_handoff records; only the
+Auto ACALL reply appears in the provided excerpt. Manual coincided with a new
+TCP connection at 18:22:45.244 UTC. The selected socket is not logged, so a
+handover race is a supported hypothesis, not an established root cause.
+The operator explicitly has not run the suggested helper restoration yet.
+Current Manual restoration is unverified; do not carry forward the earlier
+helper trial's final Manual state as the current state.
+
+The draft now checks the selected connection with the already-proven read-only
+VERNO query, preserves the captured setting bytes, and waits for expected
+socket-specific replies. Missing replies remain uncertain with no automatic
+mode resend. Local gateway tests pass 1,325 cases. The updated app still needs
+one physical Manual-only restoration check after restart; see the
+[current procedure](services/watch-calls-app.md). PR #115 remains draft.
+
 ## Evidence semantics
 
 Guardian must not collapse different forms of evidence into one green label:
@@ -1366,5 +1383,4 @@ The requested Manual restore after this call remains unreported. Capture its
 handoff/reply and physical behavior before another materially different trial.
 PR #115 stays draft, customer Auto stays disabled, and reference capture remains
 on hold. This evidence update changes no executable code.
-
 

@@ -1,6 +1,7 @@
 'use strict';
 
-const { prepareCapturedAnswerTrial, sendCapturedAnswerTrial } = require('./captured-answer-mode-trial');
+const { prepareCapturedAnswerTrial } = require('./captured-answer-mode-trial');
+const { sendWatchCallWithReplies } = require('./watch-call-transport');
 const { evaluateSubscription, verifiedFamilyMember } = require('./entitlements');
 const { randomUUID } = require('node:crypto');
 
@@ -45,7 +46,7 @@ async function configureWatchCalls(db, { imei, capture, autoEnabled = true }) {
  * device across gateway instances. Claimed requests are never replayed after
  * a crash, and a socket handoff is never promoted to physical confirmation.
  */
-async function processWatchCallRequest(db, requestId, { now = Date.now, send = sendCapturedAnswerTrial } = {}) {
+async function processWatchCallRequest(db, requestId, { now = Date.now, send = sendWatchCallWithReplies } = {}) {
   if (!db || !validId(requestId)) return { outcome: 'invalid_request' };
   const ref = db.collection('watchCallRequests').doc(requestId);
   const claim = await db.runTransaction(async tx => {
@@ -96,22 +97,28 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
   let result;
   if (now() >= claim.leaseUntil) result = { outcome: 'not_sent', reason: 'expired_before_handoff' };
   else {
-    try { result = send({ imei: claim.request.imei, mode: claim.request.mode, capture: claim.capture }); }
+    try { result = await send({ imei: claim.request.imei, mode: claim.request.mode, capture: claim.capture },
+      { deadlineAt: claim.leaseUntil, now }); }
     catch { result = { outcome: 'handoff_unknown', reason: 'socket_write_uncertain' }; }
   }
   // Explicit allowlist: never persist a raw transport result or private frame.
-  const status = ['socket_handoff', 'not_sent', 'handoff_unknown'].includes(result?.outcome) ? result.outcome : 'handoff_unknown';
-  const reason = ['no_fresh_identified_session', 'capture_device_mismatch', 'socket_write_uncertain', 'expired_before_handoff']
+  const status = ['device_replied', 'socket_handoff', 'not_sent', 'handoff_unknown'].includes(result?.outcome) ? result.outcome : 'handoff_unknown';
+  const reason = ['no_fresh_identified_session', 'capture_device_mismatch', 'socket_write_uncertain', 'expired_before_handoff',
+    'connection_unconfirmed', 'connection_changed', 'transport_busy', 'watch_reply_missing']
     .includes(result?.reason) ? result.reason : null;
   const completion = { status, reason, completedAt: new Date(now()), appliedStateVerified: false,
-    callerScopeVerified: false, automaticExpiry: false };
+    callerScopeVerified: false, automaticExpiry: false,
+    deviceReplyObserved: status === 'device_replied',
+    expectedReplies: claim.request.mode === 'manual' ? ['APPLOCK', 'ACALL'] : ['ACALL'],
+    receivedReplies: ['APPLOCK', 'ACALL'].filter(command => Array.isArray(result?.receivedReplies) && result.receivedReplies.includes(command)),
+  };
   try {
     await db.runTransaction(async tx => {
       const state = (await tx.get(claim.stateRef)).data() || {};
       tx.update(ref, completion);
       if (state.requestId === requestId) {
         tx.set(claim.stateRef, { ...completion, leaseUntil: null, updatedAt: completion.completedAt,
-          ...(status === 'socket_handoff' ? { lastHandoffMode: claim.request.mode, lastHandoffAt: completion.completedAt } : {}) }, { merge: true });
+          ...(['device_replied', 'socket_handoff'].includes(status) ? { lastHandoffMode: claim.request.mode, lastHandoffAt: completion.completedAt } : {}) }, { merge: true });
       }
     });
   } catch {

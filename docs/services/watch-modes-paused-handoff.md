@@ -1,18 +1,22 @@
 # PR #115 investigation handoff — 23 September 2026
 
-> **Current checkpoint: Calls app integration implemented in draft PR #115.**
+> **Current checkpoint: app Auto passed; app Manual restoration failed.**
 > The tested Auto/Manual adapter now has a Calls screen and dedicated
 > short-lived Firestore request path. Manual is the default choice; Auto
 > requires confirmation, trusted Family/Care access and a backend-provisioned
 > capture. Clients cannot supply a caller number or raw command.
-> Both command transitions physically passed on Jesh; the new app path still
-> needs its UI-to-watch acceptance. See [setup and checks](watch-calls-app.md).
-> No new reference capture is needed. Deploy the checked rules/index, provision
-> the existing private capture once, restart the gateway and Flutter, then
-> test from Watch settings → Calls. Setup itself sends no watch command.
-> Local gateway tests: 1,314 passed. CI also covers Firestore authorization
+> Both helper transitions passed earlier, but the subsequent app Manual test
+> still auto-answered despite socket_handoff. No corresponding replies appear
+> in the supplied logs. A reconnect coincided with dispatch; exact cause is
+> unproven. The operator has not run the helper restoration. Treat Auto as active.
+> The draft now checks a selected socket with read-only VERNO, then waits for
+> the captured commands' replies without replaying settings. Pull/restart
+> gateway and Flutter, then test Manual only. Existing policy/rules/index setup
+> is retained. See [procedure and evidence](watch-calls-app.md).
+> No new reference capture or routing change is needed.
+> Local gateway tests: 1,325 passed. CI also covers Firestore authorization
 > and Flutter. SOS-only behavior and automatic restoration remain gated.
-> The last reported physical state is Manual. PR stays draft.
+> Physical Manual restoration through the updated app remains pending. PR stays draft.
 > Wiki publishing is unavailable through this connection; repository runbooks
 > are the current QA handoff. Historical material below is superseded where
 > this checkpoint differs.
@@ -283,5 +287,4 @@ Existing #118 checkpoint: REMIND once-only sound and visible clearing passed;
 local SEDENTARY speech was heard three times with unknown timing; HSW remains
 untested. Review the supplier's actual response against the exact pilot firmware
 before defining remote enable/change/off tests. Leave #115 paused meanwhile.
-
 

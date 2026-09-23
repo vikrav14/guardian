@@ -642,10 +642,16 @@ Manual requires consent=false and remains available to linked guardians after
 Auto/plan disablement. The expiry is 60 seconds from the app action (rules bound
 it to at most 90 seconds); offline intent cannot arrive with a refreshed deadline.
 
-Backend-only fields: `status:pending|sending|socket_handoff|not_sent|handoff_unknown`,
+Backend-only fields: `status:pending|sending|device_replied|socket_handoff|not_sent|handoff_unknown`,
 `startedAt`, `leaseUntil`, `completedAt`, bounded `reason`,
 `appliedStateVerified:false`, `callerScopeVerified:false`,
-`automaticExpiry:false`. Client updates/deletes are denied.
+`automaticExpiry:false`, `deviceReplyObserved`, `expectedReplies`,
+`receivedReplies` (only APPLOCK/ACALL, never arguments). `device_replied` means
+the expected bare replies were observed on the selected socket after the write;
+it does not prove applied settings. Legacy socket_handoff records lack that
+receipt evidence. Missing/partial replies become handoff_unknown with reason
+watch_reply_missing; failed read-only connection checks are not_sent.
+Client updates/deletes are denied.
 Query index: imei ascending + createdAt descending for the latest request.
 
 A transaction serializes dispatch using a lease in watchCallSettings. Sending
@@ -842,4 +848,3 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
-

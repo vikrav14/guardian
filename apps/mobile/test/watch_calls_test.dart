@@ -40,6 +40,9 @@ void main() {
   test('handoff, uncertainty, stale pending data and rejection retain honest status wording', () {
     final now = DateTime.now();
     expect(watchCallRequestMessage({'status': 'socket_handoff', 'mode': 'auto'}, now), contains('test call'));
+    expect(watchCallRequestMessage({'status': 'device_replied', 'mode': 'manual'}, now), contains('Watch replied to Manual'));
+    expect(watchCallRequestMessage({'status': 'handoff_unknown', 'mode': 'manual', 'reason': 'watch_reply_missing'}, now), contains('setting is unconfirmed'));
+    expect(watchCallRequestMessage({'status': 'not_sent', 'mode': 'manual', 'reason': 'connection_unconfirmed'}, now), contains('was not sent'));
     expect(watchCallRequestMessage({'status': 'sending', 'mode': 'auto', 'leaseUntil': now.subtract(const Duration(seconds: 1))}, now), contains('Could not confirm'));
     expect(watchCallRequestMessage({'status': 'pending', 'mode': 'auto', 'expiresAt': now.subtract(const Duration(seconds: 1))}, now), contains('Check the watch'));
     expect(watchCallRequestMessage({'status': 'not_sent', 'mode': 'manual', 'reason': 'no_fresh_identified_session'}, now), contains('was not sent'));
@@ -60,8 +63,17 @@ void main() {
     await tester.tap(find.text('Enable Auto')); await tester.pumpAndSettle();
     final request = (await db.collection('watchCallRequests').get()).docs.single;
     expect(request.data()['mode'], 'auto'); expect(request.data()['consentAccepted'], isTrue);
-    await request.reference.update({'status': 'socket_handoff'}); await tester.pumpAndSettle();
-    expect(find.textContaining('Auto sent. Make a test call'), findsOneWidget);
+    await request.reference.update({'status': 'device_replied'}); await tester.pumpAndSettle();
+    expect(find.textContaining('Watch replied to Auto. Make a test call'), findsOneWidget);
+    await tester.ensureVisible(find.text('Manual'));
+    await tester.tap(find.text('Manual')); await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Send Manual setting'));
+    await tester.tap(find.text('Send Manual setting')); await tester.pumpAndSettle();
+    final manual = (await db.collection('watchCallRequests').where('mode', isEqualTo: 'manual').get()).docs.single;
+    expect(manual.data()['consentAccepted'], isFalse);
+    await manual.reference.update({'status': 'handoff_unknown', 'reason': 'watch_reply_missing'});
+    await tester.pumpAndSettle();
+    expect(find.textContaining('setting is unconfirmed'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

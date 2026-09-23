@@ -2,6 +2,7 @@
 const config = require('./config');
 
 const sessions = new Map();
+let nextConnectionId = 0;
 const MIN_IDLE_MS = 60_000;
 
 function positiveNumber(value) {
@@ -185,6 +186,7 @@ function registerSession(socket, initial = {}) {
     outingActive: false,
     packetRecoveryProbeAt: null,
     ...initial,
+    connectionId: ++nextConnectionId,
   };
   sessions.set(socket, session);
   if (typeof socket.setKeepAlive === 'function') {

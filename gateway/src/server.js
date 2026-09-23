@@ -9,6 +9,7 @@ const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offlin
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
 
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
+const { observeWatchCallPacket } = require('./watch-call-transport');
 
 const {
 
@@ -1363,6 +1364,10 @@ const server = net.createServer((socket) => {
       }
 
       const { acks, events } = handlePacket(decoded, session);
+
+      // Socket-specific Calls evidence must precede asynchronous persistence.
+      try { observeWatchCallPacket(socket, decoded, session); }
+      catch { console.warn('[watch-calls] reply observation unavailable'); }
 
       wearWireCapture?.observeIdentity(socket, session);
 
