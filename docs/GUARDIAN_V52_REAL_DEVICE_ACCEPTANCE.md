@@ -1516,3 +1516,20 @@ never replayed. Regression coverage reproduces the delayed replacement without
 real device commands. Physical SOS/fall activation and expiry acceptance remain
 open. See `docs/testing/emergency-callback-pilot.md` for the timestamped evidence
 and retest. No new SOS template is needed for this transport fix.
+
+### 24 September MUT — SOS callback and five-minute Manual restoration passed on Jesh
+
+After the `aa41f37` reconnect fix, the operator received the SOS WhatsApp message
+and reported that calling the watch automatically answered. The screenshot
+shows the emergency card at `Watch replied to Auto` with 2m 39s remaining. Its
+separate everyday Manual selection did not represent that emergency state.
+In the requested follow-up call after five minutes, the operator reports that
+the watch kept ringing. This physically verifies return to normal ringing for
+the tested caller after the SOS window, alongside SOS-triggered Auto.
+
+Scope: this Jesh/caller pilot only; no exact retest timestamps or new two-way
+audio confirmation were supplied. Fall-triggered Auto, second-caller behavior
+inside an actual incident window, offline/restart recovery and expiry during
+an ongoing call remain open. No device-enforced timeout is proven. PR #115
+stays draft. The proposed simplified Calls customer screen is documented but
+has not been implemented as part of this evidence update.

@@ -1,11 +1,11 @@
 # SOS and fall handsfree callback pilot
 
-Implemented on draft PR #115; hardware acceptance remains open. Normal app
-Auto/Manual and the two-caller comparison have passed on Jesh. The first real
-SOS test delivered WhatsApp but did not enable Auto: the original connection
-failed its preflight, and the watch reconnected after the gateway had already
-started Manual recovery. The bounded reconnect fix below still needs a physical
-retest. Emergency fall activation has not yet been tested.
+Implemented on draft PR #115. After the bounded reconnect fix in `aa41f37`, the
+operator confirmed SOS WhatsApp delivery, automatic answering on the callback,
+and normal ringing on a call after five minutes. This accepts that SOS cycle on
+Jesh for the tested caller. Normal app Auto/Manual and the earlier two-caller
+comparison also passed. Emergency fall activation and broader recovery checks
+remain open. See the first-attempt failure and successful retest below.
 
 ## What is built
 
@@ -113,13 +113,38 @@ authorized start deadline. A regression models the 23-second replacement and
 checks one captured Auto write on the checked replacement socket, expiry,
 cancellation, identity mismatches and no replay after uncertain delivery.
 
-Retest after pulling and restarting the gateway. No Flutter rebuild, database
+For further retests, pull and restart the gateway. No Flutter rebuild, database
 redeploy, preference reconfiguration or template replacement is required for
 this fix. Keep emergency answering enabled and verify its ready status, then
 trigger one fresh SOS. Look for `waiting_for_connection` if preflight fails,
 followed by `connection_checked`, `awaiting_watch_replies` and `watch_replied`
 for Auto. Record the physical primary/second caller result and Manual expiry
 result separately. Notification delivery must continue while preflight waits.
+
+## Successful SOS retest: 24 September MUT
+
+Following the reconnect fix, the operator reported that the SOS WhatsApp
+message arrived and the callback automatically answered. The supplied Calls
+screenshot shows `Watch replied to Auto. Returning to Manual in 2m 39s` in
+the emergency card. The everyday Manual selection remained selected below;
+that selection was not the emergency state. The operator subsequently reported:
+`it works. after 5 mins, the watch kept ringing` in response to the planned
+post-window primary-phone call. Record normal ringing after the window as a
+physical observation, not an inference from a command reply.
+
+Accepted for this Jesh pilot: real SOS notification, handsfree callback and
+return to normal ringing after approximately five minutes. Exact retest/call
+timestamps and two-way audio for this particular emergency call were not
+provided. The earlier two-phone scope test remains separate; the second caller
+was not retested within this SOS window. Fall activation, offline/restart
+restoration and a window expiring during an ongoing call still need acceptance.
+This does not establish a device-side expiry when Guardian cannot reconnect.
+
+UI follow-up proposed, not implemented: replace the confusing everyday
+Manual/Auto controls and duplicate request-status card in the customer flow
+with one emergency preference, a single callback-window status, and an End
+handsfree now action that restores Manual while preserving future emergency
+opt-in. Retain an honest restoration-pending state if the watch is offline.
 
 ## WhatsApp fall call button
 
