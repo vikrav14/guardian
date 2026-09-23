@@ -7,9 +7,10 @@ const config = require('./config');
 const FALL_TEMPLATE_LANGUAGE = 'en';
 function fallCallbackTemplatesEnabledForDevice(device = {}, pilot = config) {
   const digits = value => String(value || '').replace(/\D/g, '');
-  return Boolean(pilot.metaWhatsAppFallCallbackPilotImei && pilot.metaWhatsAppFallCallbackPilotNumber &&
+  const number = digits(pilot.metaWhatsAppFallCallbackPilotNumber);
+  return Boolean(pilot.metaWhatsAppFallCallbackPilotImei && number &&
     device.imei === pilot.metaWhatsAppFallCallbackPilotImei &&
-    digits(device.simNumber) === digits(pilot.metaWhatsAppFallCallbackPilotNumber));
+    digits(device.simNumber) === number);
 }
 
 
