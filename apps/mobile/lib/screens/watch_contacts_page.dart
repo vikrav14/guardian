@@ -65,8 +65,10 @@ class _WatchContactsPageState extends State<WatchContactsPage> {
       await _service.addContact(widget.imei, name: contactName, phone: contactPhone,
         policyRevision: settings['policyRevision'] as String);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:
-        Text('Could not confirm the request. Check the latest status before trying again.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:
+          Text('Could not confirm the request. Check the latest status before trying again.')));
+      }
     } finally { if (mounted) setState(() => _submitting = false); }
   }
 
