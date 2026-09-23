@@ -610,6 +610,49 @@ so repeated RSS polls and gateway restarts cannot manufacture a second match.
 It records only current-proximity or active-journey-approach evidence;
 `deliveryEligible=false` and `deliverySent=false` are mandatory in this phase.
 
+## Watch call answering
+
+These collections implement the per-device Calls pilot. See
+[Calls setup and acceptance](../docs/services/watch-calls-app.md).
+They do not implement automatic SOS windows.
+
+### `watchCallPolicies/{imei}` — private, administrator-owned
+
+`version:1`, `managedBy:guardian_admin`, `protocolId`, random `revision`,
+`autoEnabled`, validated six-record `capture`, `updatedAt`.
+The capture includes private phone/frame data. All client reads/writes are
+denied. Only a trusted operator provisions it after same-watch acceptance.
+
+### `watchCallSettings/{imei}` — backend projection
+
+Linked guardians may read; clients cannot write. Fields include `configured`,
+`autoAvailable`, `policyRevision`, masked `callerHint`, `requestId`,
+`requestedMode`, `requestedBy`, `latestRequestedAt`, `status`,
+`leaseUntil`, `lastHandoffMode`, `lastHandoffAt`, `updatedAt` and bounded
+completion evidence. No raw phone, capture, or frame is projected.
+Requested and last-handoff modes are not applied-state proof.
+
+### `watchCallRequests/{requestId}` — immutable intent and audit
+
+Client-created fields are exactly:
+`imei`, `mode:auto|manual`, `requestedBy`, `policyRevision`,
+`consentAccepted`, `createdAt:serverTimestamp`, `expiresAt`, `status:pending`.
+Auto requires consent=true and active trusted Family/Care access.
+Manual requires consent=false and remains available to linked guardians after
+Auto/plan disablement. The expiry is 60 seconds from the app action (rules bound
+it to at most 90 seconds); offline intent cannot arrive with a refreshed deadline.
+
+Backend-only fields: `status:pending|sending|socket_handoff|not_sent|handoff_unknown`,
+`startedAt`, `leaseUntil`, `completedAt`, bounded `reason`,
+`appliedStateVerified:false`, `callerScopeVerified:false`,
+`automaticExpiry:false`. Client updates/deletes are denied.
+Query index: imei ascending + createdAt descending for the latest request.
+
+A transaction serializes dispatch using a lease in watchCallSettings. Sending
+requests are never replayed after a crash. Lease expiry does not switch off
+handsfree answering on the device. `set_watch_answer_mode` is explicitly
+rejected by generic deviceCommands rules; the dispatcher has no such builder.
+
 ## `deviceCommands/{commandId}`
 
 App-originated V52 commands delivered through the model-supported carrier SMS
@@ -799,3 +842,4 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
+

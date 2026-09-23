@@ -11,6 +11,7 @@ import 'watch_preferences_page.dart';
 import '../wellness/wellness_routine.dart';
 import '../wellness/wellness_settings_card.dart';
 import 'emergency_contacts_page.dart';
+import 'watch_calls_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
   const WatchSettingsPage({
@@ -353,6 +354,19 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _SettingsTile(
+            icon: Icons.phone_in_talk_outlined,
+            title: 'Calls',
+            subtitle: 'Manual or handsfree answering',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => WatchCallsPage(
+                imei: widget.device.imei,
+                wearerName: widget.device.displayName,
+                subscription: widget.subscription,
+              ),
+            )),
+          ),
+          const Divider(height: 24),
           TextField(
             controller: _sim,
             keyboardType: TextInputType.phone,

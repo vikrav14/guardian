@@ -1,18 +1,27 @@
 # Watch alert styles and call answering
 
-> **Paused 22 September 2026:** Read the [PR #115 handoff](watch-modes-paused-handoff.md)
-> before resuming. Earlier trial instructions below are history/prepared work,
-> not a request to execute them while this PR is paused. Work moves to PR #118.
+> **23 September 2026:** Guardian Auto and Manual both physically passed on
+> the existing pilot. A per-device Calls screen and authorized request path
+> are now implemented in draft PR #115. See the [app runbook](watch-calls-app.md)
+> and [current handoff](watch-modes-paused-handoff.md).
+> Earlier APPLOCK-only mappings/procedures below are historical and must not
+> be used to enable Auto or restore Manual.
 
 ## Current scope
 
-Alert-style controls already exist on main. The app queues `set_watch_alert_profile`;
-the gateway sends `profile,<1..4>` on a live connection. Displayed settings are last
-requested values, not verified watch state. Silent requires confirmation; automatic
-expiry/restoration is not implemented.
+Watch settings → Calls offers Manual by default and an explicit Auto choice
+with confirmation. Availability is provisioned per tested watch by an operator.
+The app sends immutable, short-lived requests; the backend validates linked
+access, entitlement, consent, policy revision and a fresh matching session.
+It sends the physically tested captured 3G ACALL sequence and exact Manual pair.
+Displayed request/handoff state is separate from physical verification.
 
-PR #115 remains draft. Its old service contracts stay disabled. This branch adds
-bounded APPLOCK reply diagnostics, not customer-facing auto-answer controls.
+The Calls path leaves alert-style controls, contacts, wellness and SOS unchanged.
+SOS-only answering, caller exclusivity, persistence and automatic restoration
+remain separate acceptance gates. PR #115 stays draft.
+
+The service backbone remains disabled by default for unconfigured devices;
+partial pilot implementation is not a fleet-wide service acceptance.
 
 ## V52 sources and command mapping
 
@@ -421,3 +430,4 @@ trial and an explicit return-to-Guardian path. It requires owner agreement befor
 routing telemetry to the supplier. It has not been executed. No live command,
 account access, caller-list change or new data forwarding occurred. PR #115 stays
 draft and auto-answer remains not passed.
+

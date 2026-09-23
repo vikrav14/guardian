@@ -1,25 +1,20 @@
 # PR #115 investigation handoff — 23 September 2026
 
-> **Current checkpoint: Guardian Auto and Manual physically passed.**
-> On 23 September the operator ran `trial-captured-answer-mode.js` through
-> Guardian and confirmed both expected call outcomes. Auto reported one frame
-> and one session; Manual reported two frames and one session. Manual was
-> tested last. Exact call timestamps/durations were not supplied.
-> Auto uses captured 3G ACALL with the guardian number in `00…` format (0013).
-> Manual uses 3G APPLOCK,JT-0 (000c), then 3G ACALL,0 (0007). The private
-> number and frame hex remain outside the repository.
-> The CLI's false verification flags remain honest machine evidence: physical
-> acceptance is the operator's report, not an inferred firmware readback.
-> All 1,306 local gateway tests and implementation CI run 331 passed, including
-> Firestore authorization and Flutter analysis/tests/web build.
-> **Next:** productize the verified adapter behind authorized Calls settings;
-> verify caller scope, unknown-caller rejection and restart behavior. The
-> [SOS proposal](watch-answer-sos-design.md) still needs supervised callback
-> and restoration acceptance. No additional reference capture is required.
-> PR #115 stays draft; customer controls remain disabled. See the
-> [physical result and runbook](../testing/answer-mode-captured-trial.md).
+> **Current checkpoint: Calls app integration implemented in draft PR #115.**
+> The tested Auto/Manual adapter now has a Calls screen and dedicated
+> short-lived Firestore request path. Manual is the default choice; Auto
+> requires confirmation, trusted Family/Care access and a backend-provisioned
+> capture. Clients cannot supply a caller number or raw command.
+> Both command transitions physically passed on Jesh; the new app path still
+> needs its UI-to-watch acceptance. See [setup and checks](watch-calls-app.md).
+> No new reference capture is needed. Deploy the checked rules/index, provision
+> the existing private capture once, restart the gateway and Flutter, then
+> test from Watch settings → Calls. Setup itself sends no watch command.
+> Local gateway tests: 1,314 passed. CI also covers Firestore authorization
+> and Flutter. SOS-only behavior and automatic restoration remain gated.
+> The last reported physical state is Manual. PR stays draft.
 > Wiki publishing is unavailable through this connection; repository runbooks
-> are the current QA handoff. Historical sections below are superseded where
+> are the current QA handoff. Historical material below is superseded where
 > this checkpoint differs.
 
 ## Earlier Guardian trial: exact supplier framing replied; Auto still rings
@@ -288,4 +283,5 @@ Existing #118 checkpoint: REMIND once-only sound and visible clearing passed;
 local SEDENTARY speech was heard three times with unknown timing; HSW remains
 untested. Review the supplier's actual response against the exact pilot firmware
 before defining remote enable/change/off tests. Leave #115 paused meanwhile.
+
 

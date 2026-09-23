@@ -43,6 +43,15 @@ operator observation. Implementation CI run 331 passed all release gates.
 Customer UI, caller exclusivity, persistence and SOS-window restoration remain
 separate acceptance items. See the [trial result](testing/answer-mode-captured-trial.md).
 
+**Calls app integration (draft PR #115):** Watch settings → Calls and a dedicated
+authorized, short-lived request path now use the tested adapter. Availability
+is provisioned per tested device; Auto requires explicit confirmation and
+active Family/Care access, while Manual restoration remains available to linked
+guardians after plan expiry. No SOS-only behavior is enabled. The earlier
+physical adapter pass does not substitute for the new
+[app-to-watch acceptance](services/watch-calls-app.md). Local gateway tests:
+1,314 passed; require emulator and Flutter CI before pilot deployment.
+
 ## Evidence semantics
 
 Guardian must not collapse different forms of evidence into one green label:
@@ -1357,4 +1366,5 @@ The requested Manual restore after this call remains unreported. Capture its
 handoff/reply and physical behavior before another materially different trial.
 PR #115 stays draft, customer Auto stays disabled, and reference capture remains
 on hold. This evidence update changes no executable code.
+
 

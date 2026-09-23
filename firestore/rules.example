@@ -476,6 +476,44 @@ service cloud.firestore {
       allow write: if false; // gateway Admin SDK only
     }
 
+    // Call authority and captured phone/frame data are backend-owned.
+    match /watchCallPolicies/{imei} {
+      allow read, write: if false;
+    }
+    match /watchCallSettings/{imei} {
+      allow read: if linkedTo(imei);
+      allow write: if false;
+    }
+    match /watchCallRequests/{requestId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if request.resource.data.keys().hasOnly([
+          'imei', 'mode', 'requestedBy', 'createdAt', 'expiresAt', 'status', 'consentAccepted', 'policyRevision'
+        ])
+        && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && request.resource.data.imei is string
+        && request.resource.data.imei.matches('^[0-9]{15}$')
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        // Client-supplied deadline prevents offline queued Auto writes from
+        // becoming fresh requests when serverTimestamp resolves on reconnect.
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(90, 's')
+        && get(/databases/$(database)/documents/watchCallPolicies/$(request.resource.data.imei)).data.version == 1
+        && get(/databases/$(database)/documents/watchCallPolicies/$(request.resource.data.imei)).data.managedBy == 'guardian_admin'
+        && request.resource.data.policyRevision == get(/databases/$(database)/documents/watchCallPolicies/$(request.resource.data.imei)).data.revision
+        && (
+          (request.resource.data.mode == 'manual' && request.resource.data.consentAccepted == false)
+          || (request.resource.data.mode == 'auto'
+            && request.resource.data.consentAccepted == true
+            && activePlanAtLeast('family')
+            && get(/databases/$(database)/documents/watchCallPolicies/$(request.resource.data.imei)).data.autoEnabled == true)
+        );
+      allow update, delete: if false;
+    }
+
     match /deviceCommands/{commandId} {
       allow read: if linkedTo(resource.data.imei);
       allow create: if linkedTo(request.resource.data.imei)
@@ -486,6 +524,7 @@ service cloud.firestore {
         // administrator-only through the Admin SDK/local provisioning route.
         && request.resource.data.get('type', '') != 'set_phonebook_contact'
         && request.resource.data.get('type', '') != 'set_alarm_mode'
+        && request.resource.data.get('type', '') != 'set_watch_answer_mode'
         && (
           request.resource.data.get('type', '') != 'set_watch_alert_profile'
           || (

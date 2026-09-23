@@ -1,6 +1,9 @@
 # Watch answering and SOS callbacks: proposed product design
 
-Status: **proposal for PR #115, not implemented or customer-enabled**.
+Status: **SOS-only behavior remains a proposal for draft PR #115.**
+Manual/Auto Calls settings and a per-device authorized request path are now
+implemented; see [Calls setup and app acceptance](watch-calls-app.md).
+This does not implement an emergency window or automatic restoration.
 The user asks for ordinary calls to require manual answering and an option
 for automatic answering when a guardian calls during an SOS. This document
 preserves that requested outcome and the implementation constraints; it does
@@ -106,9 +109,10 @@ The product must resolve and explicitly describe this behavior before promising
 
 ## Product implementation after Guardian hardware acceptance
 
-- Add a typed, authorized answer-mode command path under the watch-modes work,
-  with exact observed protocol frames confined to the V52 adapter. No raw
-  caller-supplied command or guessed SMS fallback.
+- Implemented for explicit app requests: typed, authorized answer-mode requests
+  with backend-owned captured frames and caller configuration, device leases,
+  stale-intent rejection and no automatic replay. No guessed SMS fallback.
+  SOS window generation and reconciliation still require separate implementation.
 - Serialize the multi-command mode transition per device. Keep request, each
   handoff, each reply, and applied-state evidence separate; define partial
   transition handling and bounded recovery before replay.
@@ -135,6 +139,8 @@ The product must resolve and explicitly describe this behavior before promising
    expiry during an ongoing call, disconnect, restart and restoration failure.
 5. Validate authorization, stale-command rejection, transition ordering and
    durable reconciliation in software tests. Physical gates remain separate.
-6. Implement the final approved app copy and expose the feature only with its
-   tested limitations. No customer control is enabled by this document.
+6. Complete the Calls UI-to-watch acceptance on the configured pilot. Its explicit
+   Auto/Manual requests do not yet implement SOS-only behavior. Final SOS copy and
+   customer enablement follow the remaining scope/restoration checks.
+
 

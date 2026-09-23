@@ -1,0 +1,88 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+enum WatchAnswerMode {
+  manual('Manual', 'Press to answer'),
+  auto('Auto', 'Answer handsfree');
+
+  const WatchAnswerMode(this.label, this.description);
+  final String label;
+  final String description;
+}
+
+DateTime? watchCallDate(dynamic value) =>
+    value is Timestamp ? value.toDate() : value is DateTime ? value : null;
+
+String watchCallRequestMessage(Map<String, dynamic>? request, DateTime now) {
+  if (request == null) return 'No answer setting requested from the app yet.';
+  final mode = request['mode'] == 'auto' ? 'Auto' : 'Manual';
+  final expiry = watchCallDate(request['expiresAt']);
+  final lease = watchCallDate(request['leaseUntil']);
+  switch (request['status']) {
+    case 'pending':
+      return expiry == null || !expiry.isAfter(now)
+          ? 'Could not confirm $mode before the request timed out. Check the watch before trying again.'
+          : 'Waiting to send $mode. This request expires shortly.';
+    case 'sending':
+      return lease != null && lease.isAfter(now)
+          ? 'Sending $mode to the watch…'
+          : 'Could not confirm $mode. Check the watch before trying again.';
+    case 'socket_handoff':
+      return '$mode sent. Make a test call to confirm the watch’s behavior.';
+    case 'handoff_unknown':
+      return 'Could not confirm $mode. The watch may have changed. Check it before trying again.';
+    case 'not_sent':
+      return switch (request['reason']) {
+        'no_fresh_identified_session' => '$mode was not sent. Wait for the watch to reconnect, then try again.',
+        'change_in_progress' => '$mode was not sent. Another change is in progress.',
+        'expired' || 'expired_before_handoff' => '$mode request expired. It will not be sent later.',
+        'superseded' => '$mode was not sent because a newer change was requested.',
+        'settings_changed' => '$mode was not sent. Call settings changed; review them and try again.',
+        'service_unavailable' => 'Auto requires an active Family or Care service. Manual remains available.',
+        _ => '$mode was not sent. Review the watch connection and your access.',
+      };
+    default:
+      return 'Answer setting could not be confirmed. Check the watch.';
+  }
+}
+
+class WatchCallsService {
+  WatchCallsService({FirebaseFirestore? db, FirebaseAuth? auth})
+      : _db = db ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
+
+  final FirebaseFirestore _db;
+  final FirebaseAuth _auth;
+
+  Stream<Map<String, dynamic>?> watchSettings(String imei) =>
+      _db.collection('watchCallSettings').doc(imei).snapshots().map((s) => s.data());
+
+  Stream<Map<String, dynamic>?> watchLatestRequest(String imei) => _db
+      .collection('watchCallRequests')
+      .where('imei', isEqualTo: imei)
+      .orderBy('createdAt', descending: true)
+      .limit(1)
+      .snapshots()
+      .map((s) => s.docs.isEmpty ? null : s.docs.first.data());
+
+  Future<void> requestMode(String imei, WatchAnswerMode mode, {
+    required String policyRevision,
+    required bool consentAccepted,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw StateError('Sign in to change call settings.');
+    if (policyRevision.isEmpty || consentAccepted != (mode == WatchAnswerMode.auto)) {
+      throw StateError('Review the call setting before sending it.');
+    }
+    await _db.collection('watchCallRequests').add({
+      'imei': imei,
+      'mode': mode.name,
+      'requestedBy': uid,
+      'policyRevision': policyRevision,
+      'consentAccepted': consentAccepted,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(seconds: 60))),
+      'status': 'pending',
+    }).timeout(const Duration(seconds: 12));
+  }
+}
