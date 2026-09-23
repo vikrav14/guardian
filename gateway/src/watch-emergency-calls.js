@@ -190,7 +190,9 @@ async function reconcileEmergencyCall(db, imei, { now = Date.now, send = sendWat
     const token = randomUUID();
     const deadlineAt = Math.min(clock + LEASE_MS, mode === 'auto' ? ms(job.autoBy) : Infinity);
     tx.update(jobRef, { token, phase: mode === 'auto' ? 'sending_auto' : 'restoring', attempts: job.attempts + 1 });
-    tx.set(callRef, { leaseUntil: new Date(deadlineAt), emergencyToken: token }, { merge: true });
+    // Fence delayed completion of a prior ordinary Calls request, including
+    // one whose process resumed after its lease expired.
+    tx.set(callRef, { requestId: `emergency_${token}`, leaseUntil: new Date(deadlineAt), emergencyToken: token }, { merge: true });
     tx.set(settingsRef, { status: mode === 'auto' ? 'preparing' : 'restoration_pending',
       ...(reason ? { reason } : {}), updatedAt: new Date(clock) }, { merge: true });
     return { mode, token, capture: job.capture, deadlineAt };

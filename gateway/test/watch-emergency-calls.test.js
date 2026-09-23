@@ -196,3 +196,30 @@ test('a newer Manual cancellation supersedes the earlier request without losing 
   await reconcileEmergencyCall(db, imei, { now: () => start + 3, send: replied });
   assert.equal(db.get('watchCallRequests/b').status, 'device_replied');
 });
+
+test('late completion of everyday Auto cannot clear the newer emergency Manual lease or overwrite its mode', async () => {
+  const db = fixture(); await configure(db);
+  let clock = start, finishOld, oldEntered, finishManual, manualEntered;
+  const oldStarted = new Promise(resolve => { oldEntered = resolve; });
+  const manualStarted = new Promise(resolve => { manualEntered = resolve; });
+  db.seed('watchCallRequests/old-auto', callRequest('auto', start));
+  const old = processWatchCallRequest(db, 'old-auto', { now: () => clock, send: () => {
+    oldEntered(); return new Promise(resolve => { finishOld = resolve; });
+  } });
+  await oldStarted;
+  await request(db, true, start + 1);
+  clock = start + 31000;
+  const restoring = reconcileEmergencyCall(db, imei, { now: () => clock, send: input => {
+    assert.equal(input.mode, 'manual'); manualEntered();
+    return new Promise(resolve => { finishManual = resolve; });
+  } });
+  await manualStarted;
+  const lease = db.get(`watchCallSettings/${imei}`).leaseUntil;
+  finishOld(replied()); await old;
+  assert.equal(db.get(`watchCallSettings/${imei}`).leaseUntil.getTime(), lease.getTime());
+  assert.match(db.get(`watchCallSettings/${imei}`).requestId, /^emergency_/);
+  assert.notEqual(db.get(`watchCallSettings/${imei}`).lastHandoffMode, 'auto');
+  finishManual(replied()); await restoring;
+  assert.equal(db.get(`watchCallSettings/${imei}`).lastHandoffMode, 'manual');
+  assert.equal(db.get(jobPath).active, false);
+});
