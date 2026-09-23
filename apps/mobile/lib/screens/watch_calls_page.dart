@@ -70,8 +70,10 @@ class _WatchCallsPageState extends State<WatchCallsPage> {
         policyRevision: settings['policyRevision'] as String,
         consentAccepted: mode == WatchAnswerMode.auto);
     } catch (_) {
-      if (mounted) setState(() => _message = 'Could not confirm the request. '
-        'Check the request status and watch before trying again.');
+      if (mounted) {
+        setState(() => _message = 'Could not confirm the request. '
+          'Check the request status and watch before trying again.');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
