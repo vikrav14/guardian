@@ -127,3 +127,8 @@ or Guardian route restoration was supplied with this capture. This is supplier
 provisioning evidence, not acceptance of the Guardian add-contact UI. No live
 inventory was imported or modified by this documentation update. PR #115 remains
 draft.
+
+Follow-up: the operator confirms the contact is visible, the Guardian return
+SMS was sent, and the second phone now rings. Both approved phones rang in
+Manual; under Auto the original number auto-answered and the second kept
+ringing. See [the full comparison and remaining checks](watch-caller-scope-20260924.md).

@@ -5,7 +5,11 @@
 Guardian-generated Auto and Manual transitions physically passed on the existing
 V52 pilot on 23 September 2026. The new **Watch settings → Calls** screen uses
 that exact captured adapter through a dedicated authenticated request path.
-It does not enable SOS-only answering or claim caller exclusivity.
+It does not enable SOS-only answering or claim universal caller exclusivity.
+The later [two-caller comparison](../testing/watch-caller-scope-20260924.md)
+passed on the pilot: both approved numbers rang in Manual; Auto answered the
+original configured number while the second approved phone kept ringing.
+Changing Auto on the second handset still uses the existing configured number.
 
 **Latest app retest passed, 23 September:** After the connection-validation
 update, the operator reported "it works!!!" and supplied the app's Manual then

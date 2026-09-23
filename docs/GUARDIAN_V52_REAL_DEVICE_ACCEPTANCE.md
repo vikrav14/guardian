@@ -1461,3 +1461,21 @@ or Guardian route restoration was supplied with this capture. This is supplier
 provisioning evidence, not acceptance of the Guardian add-contact UI. No live
 inventory was imported or modified by this documentation update. PR #115 remains
 draft.
+
+## 2026-09-24 MUT: original vs second approved caller comparison passed
+
+Following the slot-2 capture, the operator confirmed the new contact appears
+on the watch and sent the Guardian return SMS. Guardian app Manual was followed
+by calls from both phones: both kept ringing. Auto was then selected using the
+second phone; a call from that second number kept ringing, while a call from
+the original configured number automatically answered. This supports
+caller-specific Auto behavior for the two tested numbers on this pilot.
+
+The operator notes that the original number is also primary. This test does
+not isolate primary/SOS-role eligibility from the configured Auto number; the
+second number was never retargeted as the Auto caller. Selecting Auto from
+another handset does not change the backend-configured caller. The final observed mode is Auto; final Manual restoration is pending.
+No new call timestamps, gateway excerpts or second-caller audio result were
+provided. This does not accept Guardian contact provisioning (AnyTracking made
+the addition), unknown-caller behavior under Auto, SOS/fall automation, or a
+device-enforced timeout. Full [physical evidence and next checks](testing/watch-caller-scope-20260924.md).

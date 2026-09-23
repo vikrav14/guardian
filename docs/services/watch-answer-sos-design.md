@@ -31,9 +31,14 @@ not treat proposed defaults, duration or UI copy as approved final behavior.
   timestamps/durations were supplied for that app run.
   No ACALL value is inferred by inversion.
 - The observed Manual pair contains no caller identity, SOS incident identifier or
-  expiry parameter. Treat a device-wide persistent switch as the conservative
-  working assumption until firmware behavior is tested. A per-caller or
-  call-end hook has not been established.
+  expiry parameter. The later second-caller comparison supports caller-specific
+  Auto behavior on the pilot: both approved phones rang in Manual; the original
+  configured caller auto-answered in Auto while the second phone kept ringing.
+  Enabling Auto from the second handset still uses the original backend-owned
+  caller configuration. See the [physical record](../testing/watch-caller-scope-20260924.md).
+  A call-end hook, multiple Auto numbers and device-enforced expiry remain
+  unestablished. The final mode in that comparison is Auto; restoration remains
+  pending.
 
 Detailed evidence: [Manual capture](../testing/answer-mode-manual-capture-20260923.md).
 
@@ -170,13 +175,16 @@ mode or change carrier/caller configuration to make this test pass.
 
 ## Two constraints that must stay visible
 
-**Caller scope:** Auto's number-bearing argument suggests a selected caller,
-but the one successful call does not prove exclusivity. It does not distinguish
-an emergency call from an ordinary SIM call from that same number.
-Other firmware-eligible approved callers might also auto-connect during the
-window. Retain approved-caller restrictions and test their interaction with
-Auto. Do not temporarily open the watch to unknown callers or change its
-phonebook/SOS contacts as part of answer-mode switching.
+**Caller scope:** The two-phone pilot now demonstrates differentiated behavior:
+Auto answers the configured original caller while the second approved caller
+rings manually. This supports a callback policy scoped to that configured
+number; it does not establish every SOS/family caller or unknown-caller behavior
+under Auto. It does not distinguish an emergency call from an ordinary SIM call
+from the same number. The tested original number is also the primary contact;
+the comparison does not isolate ACALL-number matching from primary/SOS-role
+eligibility. Do not claim either is the sole firmware rule. Retain approved-caller restrictions. Do not temporarily
+open the watch to unknown callers or change its phonebook/SOS contacts as part
+of answer-mode switching.
 
 **Offline restoration:** A backend timer cannot transmit Manual to an offline
 watch. The switch may remain active beyond the requested window, including
@@ -255,7 +263,9 @@ must survive gateway sleep/crash and remain visible until reconciled.
 2. Completed on the existing pilot: the operator ran Guardian's exact captured
    Auto then Manual sequences and confirmed both expected physical outcomes.
    This does not establish every firmware, initial state or caller restriction.
-3. Verify the selected caller scope and unknown-caller rejection in both modes.
+3. Completed for the original vs second approved caller on the pilot: both ring
+   in Manual, only the original auto-answers in Auto. Unknown-caller rejection
+   under Auto, final Manual restoration, and second-caller audio remain pending.
 4. Test real supervised SOS and fall callbacks, duplicates, immediate/late calls,
    expiry during an ongoing call, disconnect, restart and restoration failure.
 5. Validate authorization, stale-command rejection, transition ordering and
@@ -263,5 +273,3 @@ must survive gateway sleep/crash and remain visible until reconciled.
 6. Completed on the configured pilot: explicit Calls UI-to-watch Auto/Manual
    retest. This does not yet implement incident-triggered answering. Final
    emergency copy and enablement follow the scope/restoration checks.
-
-

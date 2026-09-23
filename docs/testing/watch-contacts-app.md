@@ -1,7 +1,10 @@
 # Contacts: unified management and second-caller acceptance
 
 2026-09-23. PR #115 remains draft. The Calls Auto/Manual pilot already passed on
-Jesh; caller-number exclusivity and SOS/fall automation are not established.
+Jesh. The original vs second approved caller comparison has now passed on the
+pilot: both rang in Manual; only the original caller auto-answered in Auto.
+See the [physical result](watch-caller-scope-20260924.md). General caller
+exclusivity and SOS/fall automation remain unestablished.
 
 ## Delivered change
 
@@ -99,9 +102,11 @@ in their existing terminals; their old process will not gain the new watcher.
    whether each auto-answers, keeps ringing, or is blocked, plus audio results.
 5. Restore Manual and repeat both calls. Finish with physical Manual acceptance.
 
-Only step 4 establishes whether this firmware scopes ACALL to its supplied
-number. Do not label it guardian-only or SOS-only before that test. Do not make
-real SOS/fall events or send Meta messages for this contact test.
+Step 4 now has a positive differentiated result for the two tested callers;
+the second entry was provisioned in AnyTracking rather than the Guardian form.
+Final Manual restoration and second-caller audio are still pending. Do not
+label this SOS-only or generalize to every approved caller. Do not make real
+SOS/fall events or send Meta messages for this contact test.
 
 ## Delivery and recovery
 
