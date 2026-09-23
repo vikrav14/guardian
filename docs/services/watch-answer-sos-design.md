@@ -13,10 +13,14 @@ not treat proposed defaults, duration or UI copy as approved final behavior.
   operator selected Manual. Both commands received bare replies; four private
   records were saved. After reported Guardian return, an incoming call kept
   ringing until manual answering, then audio worked both ways.
-- This proves the observed reference Manual behavior on the pilot. Neither a
-  verified exact Auto sequence nor a Guardian-generated transition in either
-  direction is available yet. No ACALL value is inferred by inversion.
-- The observed pair contains no caller identity, SOS incident identifier or
+- A subsequent reference run at approximately 21:04/21:05 Mauritius time
+  passed Auto (two-way audio) and Manual (kept ringing) respectively. Auto
+  sent a 3G ACALL frame with 19 payload bytes; its argument is redacted in
+  the console, but the recorder saved all six relevant frames privately.
+  Inspect the existing private file ending 210251-301.jsonl before any new
+  trial. A decoded exact Auto argument and both Guardian-generated transitions
+  remain unavailable. No ACALL value is inferred by inversion.
+- The observed Manual pair contains no caller identity, SOS incident identifier or
   expiry parameter. Treat a device-wide persistent switch as the conservative
   working assumption until firmware behavior is tested. A per-caller or
   call-end hook has not been established.
@@ -117,8 +121,9 @@ The product must resolve and explicitly describe this behavior before promising
 
 ## Verification order
 
-1. Capture the exact reference Auto action and physical call/audio result;
-   restore reference Manual and physically confirm it.
+1. Review the saved private frame file from the now-successful reference
+   Auto/Manual run. Verify Auto's exact argument and its source; no additional
+   reference test is needed before reading this existing evidence.
 2. Reproduce the observed Auto and Manual sequences through Guardian and verify
    both transitions on the pilot without changing approved contacts.
 3. Verify the selected caller scope and unknown-caller rejection in both modes.

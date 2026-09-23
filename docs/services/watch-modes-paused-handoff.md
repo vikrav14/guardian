@@ -1,17 +1,17 @@
 # PR #115 investigation handoff — 23 September 2026
 
-> **Latest capture:** The operator reports selecting Manual in AnyTracking.
-> The supplier sent `3G / APPLOCK,JT-0 / 000c`, then
-> `3G / ACALL,0 / 0007`; the watch replied to both and the private recorder
-> saved four frames. This differs from Guardian's failed SG / APPLOCK,JT-1
-> Manual trial. After reported Guardian return, the operator confirms that a
-> call kept ringing until manually answered, with audio both ways. This is a
-> physical reference Manual pass, not yet a Guardian-generated transition.
-> Fresh return telemetry is not supplied. See the [exact exchange](../testing/answer-mode-manual-capture-20260923.md)
+> **Latest physical reference results:** Auto at approximately 21:04 Mauritius
+> time answered with two-way audio. Manual at 21:05 kept ringing. Guardian
+> return at 21:07 is operator-reported; fresh return telemetry is not supplied.
+> Auto produced a 3G ACALL frame (0013, 19 payload bytes, argument redacted),
+> then a bare reply. Manual again produced 3G APPLOCK,JT-0 then 3G ACALL,0
+> and bare replies. All six private frame writes were saved.
+> **Next:** inspect the existing private file ending 210251-301.jsonl;
+> do not ask for another capture before reading it or infer Auto's argument.
+> The literal Auto value, its caller scope and both Guardian-generated
+> transitions remain unverified. See the [capture evidence](../testing/answer-mode-manual-capture-20260923.md)
 > and [proposed app/SOS policy](watch-answer-sos-design.md).
-> Earlier auto-answer with two-way audio on the reference configuration remains
-> operator-confirmed. PR #115 stays draft; no new setter or Auto mapping is claimed.
-> Sections below are historical checkpoints, superseded where this capture differs.
+> PR stays draft. Sections below are historical, superseded where this differs.
 
 ## Earlier Guardian trial: exact supplier framing replied; Auto still rings
 

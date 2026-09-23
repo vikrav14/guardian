@@ -19,6 +19,16 @@ Guardian-generated transitions remain unverified; fresh return telemetry is
 still absent. See the [exact exchange](testing/answer-mode-manual-capture-20260923.md)
 and [proposed app/SOS policy](services/watch-answer-sos-design.md).
 
+**23 September subsequent Auto/Manual run:** The operator reports Auto at
+21:04 Mauritius time answered with audio both ways; Manual at 21:05 kept ringing;
+Guardian routing was restored at 21:07. Logs correlate Auto with a 3G ACALL
+frame (0013, 19 payload bytes, argument redacted) and reply; Manual repeats
+3G APPLOCK,JT-0 then 3G ACALL,0 and replies. Six private writes were saved.
+Inspect the existing private file ending 210251-301.jsonl before any further
+capture. Auto's literal argument, caller scope, guaranteed expiry and both
+Guardian-generated transitions remain unverified. This updates physical
+reference acceptance, not customer release readiness.
+
 ## Evidence semantics
 
 Guardian must not collapse different forms of evidence into one green label:
