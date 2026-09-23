@@ -19,6 +19,12 @@ const FALL_TEMPLATE_NAMES = Object.freeze({
   unavailable: 'guardian_fall_unavailable_v1',
 });
 
+const FALL_CALLBACK_TEMPLATE_NAMES = Object.freeze({
+  fresh: 'guardian_fall_callback_alert_v1',
+  last_known: 'guardian_fall_callback_last_location_v1',
+  unavailable: 'guardian_fall_callback_unavailable_v1',
+});
+
 function bodyComponent(bodyParameters) {
   return {
     type: 'body',
@@ -78,6 +84,7 @@ function buildFallTemplatePlan({
   device = {},
   alert = {},
   now = new Date(),
+  callbackTemplatesEnabled = false,
 } = {}) {
   const snapshot = readFallLocationSnapshot(alert);
   const frozenDevice = deviceAtFall(device, alert);
@@ -107,7 +114,7 @@ function buildFallTemplatePlan({
     locationValue,
     buildWatchTemplateValue(ctx),
   ];
-  const templateName = FALL_TEMPLATE_NAMES[locationDecision.state];
+  const templateName = (callbackTemplatesEnabled ? FALL_CALLBACK_TEMPLATE_NAMES : FALL_TEMPLATE_NAMES)[locationDecision.state];
   const buttonUrlParameter = locationDecision.state === 'unavailable'
     ? null
     : mapButtonSuffix(ctx);
@@ -115,6 +122,7 @@ function buildFallTemplatePlan({
     ? buildGuardianSafetyTemplateComponents({
         bodyParameters,
         buttonUrlParameter,
+        buttonIndex: callbackTemplatesEnabled ? 1 : 0,
       })
     : [bodyComponent(bodyParameters)];
 
@@ -132,6 +140,7 @@ function buildFallTemplatePlan({
 
 module.exports = {
   FALL_TEMPLATE_NAMES,
+  FALL_CALLBACK_TEMPLATE_NAMES,
   eventRelativeAge,
   buildFallLocationValue,
   buildFallTemplatePlan,

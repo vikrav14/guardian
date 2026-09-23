@@ -513,6 +513,38 @@ service cloud.firestore {
     }
 
     // Call authority and captured phone/frame data are backend-owned.
+    // Emergency jobs and caller authority are never client writable. Client
+    // alerts, including app SOS, cannot manufacture a watch callback window.
+    match /watchEmergencyPolicies/{imei} { allow read, write: if false; }
+    match /watchEmergencyJobs/{imei} { allow read, write: if false; }
+    match /watchEmergencyEvents/{eventId} { allow read, write: if false; }
+    match /watchEmergencySettings/{imei} {
+      allow read: if linkedTo(imei);
+      allow write: if false;
+    }
+    match /watchEmergencyRequests/{requestId} {
+      allow read: if linkedTo(resource.data.imei);
+      allow create: if request.resource.data.keys().hasOnly([
+          'imei', 'enabled', 'requestedBy', 'revision', 'consentAccepted', 'createdAt', 'expiresAt', 'status'
+        ])
+        && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
+        && request.resource.data.imei is string
+        && request.resource.data.imei.matches('^[0-9]{15}$')
+        && linkedTo(request.resource.data.imei)
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.enabled is bool
+        && request.resource.data.consentAccepted == request.resource.data.enabled
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(90, 's')
+        && get(/databases/$(database)/documents/watchEmergencyPolicies/$(request.resource.data.imei)).data.managerUid == request.auth.uid
+        && get(/databases/$(database)/documents/watchEmergencyPolicies/$(request.resource.data.imei)).data.revision == request.resource.data.revision
+        && (!request.resource.data.enabled || activePlanAtLeast('family'));
+      allow update, delete: if false;
+    }
+
     match /watchCallPolicies/{imei} {
       allow read, write: if false;
     }

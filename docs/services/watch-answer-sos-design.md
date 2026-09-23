@@ -1,4 +1,6 @@
-# Watch answering and SOS/fall callbacks: proposed product design
+# Watch answering and SOS/fall callbacks: design history
+
+> **Implementation checkpoint, 24 September MUT:** draft PR #115 now implements the owner-opted-in five-minute SOS/fall window, durable Manual recovery, primary/capture matching and separately gated fall callback templates. See [current pilot runbook](../testing/emergency-callback-pilot.md). The review below is historical; statements that these paths do not exist are superseded. Actual SOS/fall callback acceptance and Meta approval of the fall variants remain open.
 
 Status: **SOS/fall-triggered answering remains a proposal for draft PR #115.**
 Manual/Auto Calls settings and a per-device authorized request path are now

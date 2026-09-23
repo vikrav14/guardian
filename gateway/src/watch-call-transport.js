@@ -62,7 +62,7 @@ function exchangeOnSocket(candidate, input, protocolId, bytes, commands, timeout
  */
 async function sendCheckedFrames(input, prepared, expectedReplies, {
   deadlineAt = Date.now() + 25_000, now = Date.now, findSessions = findSocketsForDevice,
-  probeTimeoutMs = 4000, replyTimeoutMs = 8000, log = console.log,
+  probeTimeoutMs = 4000, replyTimeoutMs = 8000, log = console.log, beforeWrite = null,
 } = {}) {
   const { bytes, metadata } = prepared;
   const result = (outcome, reason, receivedReplies = []) => ({
@@ -108,6 +108,9 @@ async function sendCheckedFrames(input, prepared, expectedReplies, {
         return result('not_sent', 'connection_unconfirmed');
       }
       trace('connection_checked');
+      if (beforeWrite && !await beforeWrite()) return result('not_sent', 'superseded');
+      const afterGuard = candidates();
+      if (!usable(afterGuard) || afterGuard[0].socket !== selected.socket) return result('not_sent', 'connection_changed');
       // Check again immediately before the synchronous write. No mode-setting
       // fallback, rebroadcast or retry is allowed after this point.
       if (now() >= deadlineAt) return result('not_sent', 'expired_before_handoff');

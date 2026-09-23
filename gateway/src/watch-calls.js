@@ -65,12 +65,16 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
     const stateRef = db.collection('watchCallSettings').doc(request.imei);
     const state = (await tx.get(stateRef)).data() || {};
     const phonebook = (await tx.get(db.collection('watchPhonebookSettings').doc(request.imei))).data();
+    const emergency = (await tx.get(db.collection('watchEmergencySettings').doc(request.imei))).data();
+    const jobRef = db.collection('watchEmergencyJobs').doc(request.imei);
+    const job = (await tx.get(jobRef)).data();
     if (!Array.isArray(user?.linkedImeis) || !user.linkedImeis.includes(request.imei)) return reject('not_authorized');
     if (policy?.version !== 1 || policy.managedBy !== 'guardian_admin') return reject('not_configured');
     if (policy.revision !== request.policyRevision) return reject('settings_changed');
     // Manual restoration remains available to linked guardians after an
     // entitlement expires or Auto is disabled by support.
     if (request.mode === 'auto') {
+      if (emergency?.enabled || job?.active) return reject('emergency_policy_active');
       if (policy.autoEnabled !== true) return reject('auto_unavailable');
       const ownerUid = user.serviceOwnerUid || request.requestedBy;
       if (!validId(ownerUid)) return reject('not_authorized');
@@ -80,8 +84,20 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
       if ((ownerUid !== request.requestedBy && !verifiedFamilyMember(owner, request.requestedBy)) ||
           !entitlement.serviceActive || !['family', 'care'].includes(entitlement.plan)) return reject('service_unavailable');
     }
-    if (milliseconds(state.leaseUntil) > clock || milliseconds(phonebook?.leaseUntil) > clock) return reject('change_in_progress');
     if (milliseconds(state.latestRequestedAt) > milliseconds(request.createdAt)) return reject('superseded');
+    if (request.mode === 'manual' && job?.active) {
+      // Durable cancellation is accepted even while an emergency Auto write is
+      // in flight. The worker keeps the lease and then restores Manual. Its
+      // post-probe guard suppresses Auto whenever cancellation precedes it.
+      tx.set(stateRef, { latestRequestedAt: request.createdAt }, { merge: true });
+      tx.update(jobRef, { cancel: true, endsAt: new Date(clock), retryAt: new Date(clock), manualRequestId: requestId });
+      tx.update(ref, { status: 'restoration_pending', startedAt: new Date(clock) });
+      tx.set(db.collection('watchEmergencySettings').doc(request.imei), {
+        status: 'restoration_pending', updatedAt: new Date(clock),
+      }, { merge: true });
+      return { deferred: true };
+    }
+    if (milliseconds(state.leaseUntil) > clock || milliseconds(phonebook?.leaseUntil) > clock) return reject('change_in_progress');
     let prepared;
     try { prepared = prepareCapturedAnswerTrial({ imei: request.imei, mode: request.mode, capture: policy.capture }); }
     catch { return reject('not_configured'); }
@@ -93,7 +109,7 @@ async function processWatchCallRequest(db, requestId, { now = Date.now, send = s
       updatedAt: new Date(clock) }, { merge: true });
     return { request, capture: policy.capture, stateRef, leaseUntil };
   });
-  if (!claim || claim.rejected) return { outcome: claim?.reason || 'already_processed' };
+  if (!claim || claim.rejected || claim.deferred) return { outcome: claim?.deferred ? 'restoration_pending' : claim?.reason || 'already_processed' };
 
   let result;
   if (now() >= claim.leaseUntil) result = { outcome: 'not_sent', reason: 'expired_before_handoff' };

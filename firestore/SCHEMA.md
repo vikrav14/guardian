@@ -892,3 +892,49 @@ validate the designated manager, immutable deadline and verified slot inventory.
 No permission is inferred from fields inside `contactDirectory`. Watch access
 is per watch; notification recipients remain scoped to the linked account as
 before. Neither contact option changes the watch SOS number or Auto-answer.
+
+### Emergency callback answering (draft V52 pilot)
+
+`watchEmergencyPolicies/{imei}` is backend-only: version 1, guardian_admin,
+managerUid (service owner), revision and callPolicyRevision. Operator setup binds
+the existing captured caller to exactly one primary alert contact. It does not
+change phonebook or watch SOS dial settings. Configure with
+`gateway/scripts/configure-emergency-calls.js`.
+
+`watchEmergencySettings/{imei}` is readable by linked guardians, backend-written:
+configured, managerUid, revision, enabled, ready, callerHint (last four digits),
+windowMinutes=5, status, reason, incidentType, windowEndsAt, latestRequestedAt,
+updatedAt. Status is disabled/manual_replied/preparing/auto_replied/
+restoration_pending. Receipt never sets appliedStateVerified=true or
+an automatic device expiry claim. Expired countdown is not confirmed Manual.
+
+`watchEmergencyRequests/{id}` is an immutable owner-only preference request with
+imei, enabled, requestedBy, revision, consentAccepted==enabled, server createdAt,
+client expiresAt <=90s and initial status=pending. Enable requires Family/Care;
+disable remains available after expiry. Backend accepts as applied or not_applied
+with reason. Applied means the preference was stored, not that a watch changed.
+
+`watchEmergencyJobs/{imei}` is backend-only recovery state. It stores a PRIVATE
+snapshot of the already validated capture (needed for Manual even if current
+policy is removed), active, token, phase, cancel, endsAt, autoBy, retryAt,
+attempts, lastSourceAt, quietUntil, eventId/type and optional manualRequestId.
+Never expose this document or capture bytes through logs or public projections.
+Pending/sending Auto becomes Manual recovery after a deadline or crashed claim.
+The shared watchCallSettings lease/emergencyToken serializes with app Calls and
+phonebook writes. Cancellation preserves an active lease; post-probe authority
+checks fence stale Auto. Manual retries have backoff capped at 60s; recovery is
+not abandoned while the device may remain in Auto.
+
+`watchEmergencyEvents/{sha256}` backend-only deduplication: imei, createdAt,
+expiresAt (30 days; optional TTL cleanup). Event key includes source time, alarm
+kind/state and device identity. Only direct decoded TCP AL/AL_LTE ingress admits
+fresh SOS/fall; neither client alerts nor notification retries can open windows.
+Active incidents coalesce without extension, followed by a 60s quiet interval.
+
+`watchCallSettings` additionally projects emergencyEnabled and
+emergencyRestorationPending; everyday Auto is blocked until both are false.
+`watchCallRequests.status=restoration_pending` means explicit Manual cancelled
+an active emergency job; it finishes as device_replied after Manual recovery.
+Existing notification fan-out and recipient permissions remain unchanged.
+
+See `docs/testing/emergency-callback-pilot.md` for installation and acceptance.

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/guardian_entitlements.dart';
+import '../widgets/watch_emergency_calls_card.dart';
 import '../services/watch_calls_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
@@ -95,7 +96,8 @@ class _WatchCallsPageState extends State<WatchCallsPage> {
             final settings = settingsSnapshot.data;
             final configured = !settingsSnapshot.hasError && settings?['configured'] == true &&
                 settings?['policyRevision'] is String;
-            final autoAvailable = configured && settings?['autoAvailable'] == true && familyAccess;
+            final autoAvailable = configured && settings?['autoAvailable'] == true && familyAccess &&
+                settings?['emergencyEnabled'] != true && settings?['emergencyRestorationPending'] != true;
             final lease = watchCallDate(settings?['leaseUntil']);
             final changing = lease != null && lease.isAfter(DateTime.now());
             return StreamBuilder<Map<String, dynamic>?>(stream: _requests, builder: (context, requestSnapshot) {
@@ -107,6 +109,8 @@ class _WatchCallsPageState extends State<WatchCallsPage> {
                 Text('How should the watch answer?', style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 const Text('Manual is the default choice. Opening this screen does not change the watch.'),
+                const SizedBox(height: 20),
+                WatchEmergencyCallsCard(imei: widget.imei, service: _service, familyAccess: familyAccess),
                 const SizedBox(height: 20),
                 GuardianCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   for (final mode in WatchAnswerMode.values) ...[
@@ -128,7 +132,9 @@ class _WatchCallsPageState extends State<WatchCallsPage> {
                     Text(settings!['callerHint'] as String, style: TextStyle(color: colors.textSecondary)),
                   ],
                   const SizedBox(height: 12),
-                  const Text('Auto is not limited to SOS situations. It does not switch off automatically.'),
+                  Text(settings?['emergencyEnabled'] == true
+                    ? 'Emergency answering is on. Everyday calls use Manual. Send Manual to end a current callback window.'
+                    : 'Everyday Auto is not limited to SOS situations. It does not switch off automatically.'),
                   if (!familyAccess) ...[
                     const SizedBox(height: 12),
                     const Text('Auto requires an active Family or Care service. You can still request Manual.'),

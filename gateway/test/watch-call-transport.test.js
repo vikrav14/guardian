@@ -180,3 +180,11 @@ test('Calls and phonebook share the same transport exclusion and cannot steal ea
   assert.equal(second.reason, 'transport_busy'); await first;
   assert.equal(row.writes.length, 1);
 });
+
+test('cancelled emergency intent is checked after the probe and cannot write Auto', async () => {
+  const row = candidate(1, respond);
+  let checked = 0;
+  const result = await sendWatchCallWithReplies(input('auto'), { ...options([row]), beforeWrite: async () => { checked++; return false; } });
+  assert.equal(checked, 1); assert.equal(result.outcome, 'not_sent'); assert.equal(result.reason, 'superseded');
+  assert.equal(row.writes.length, 1); assert.match(row.writes[0].toString(), /VERNO/);
+});

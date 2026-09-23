@@ -1,3 +1,4 @@
+const { admitWatchEmergency, reconcileEmergencyCall } = require('./watch-emergency-calls');
 const net = require('net');
 
 const config = require('./config');
@@ -960,6 +961,16 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           }
         }
       } else if (event.type === 'alarm') {
+        // Independent of notification delivery; only decoded live watch ingress
+        // can admit an emergency call window. Never trigger from client alerts.
+        const emergencyDb = getDb();
+        if (emergencyDb) void Promise.resolve().then(() => admitWatchEmergency(emergencyDb, event, eventReceivedAt))
+          .then(result => {
+            if (['sos', 'fall'].includes(event.alarmType)) console.log(`[emergency-calls] type=${event.alarmType} outcome=${result?.outcome}`);
+            return result?.outcome === 'admitted' ? reconcileEmergencyCall(emergencyDb, event.imei) : null;
+          })
+          .catch(() => console.error('[emergency-calls] alarm admission unavailable; alerts continue'));
+
 
         console.log(
           `[alarm] received ${event.imei} type=${event.alarmType || 'other'} ` +

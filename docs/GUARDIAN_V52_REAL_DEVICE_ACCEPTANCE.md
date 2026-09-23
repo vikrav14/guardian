@@ -1482,3 +1482,20 @@ No new call timestamps, gateway excerpts or second-caller audio result were
 provided. This does not accept Guardian contact provisioning (AnyTracking made
 the addition), unknown-caller behavior under Auto, SOS/fall automation, or a
 device-enforced timeout. Full [physical evidence and next checks](testing/watch-caller-scope-20260924.md).
+
+
+### 24 September MUT — SOS/fall callback policy implemented, physical test pending
+
+Draft PR #115 now connects fresh decoded SOS/fall ingress to the accepted captured
+Auto adapter and restores the accepted Manual pair after five minutes. Owner
+opt-in, primary/captured caller matching, durable pre-write restoration state,
+restart recovery, stale-Auto suppression, duplicate coalescing and explicit
+Manual cancellation are implemented. Notifications are independent of transport.
+The app exposes window/recovery state without treating replies as physical proof.
+
+This does not add a new hardware acceptance result. Previously reported Manual
+restoration and the primary-versus-second-phone pilot stand. New real SOS/fall
+activation, both callers during the window, expiry/restoration, restart/offline
+recovery and active-call interaction remain to test. Fall call-button variants
+are implemented behind a separate exact-IMEI/SIM gate; Meta approval is not
+confirmed. See `docs/testing/emergency-callback-pilot.md` for the runnable sequence.

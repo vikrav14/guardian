@@ -52,6 +52,7 @@ void main() {
     final db = FakeFirebaseFirestore(); await setup(db); await showPage(tester, db);
     expect(find.text('Send Manual setting'), findsOneWidget);
     expect((await db.collection('watchCallRequests').get()).size, 0);
+    await tester.ensureVisible(find.text('Auto'));
     await tester.tap(find.text('Auto')); await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Send Auto setting'));
     await tester.tap(find.text('Send Auto setting')); await tester.pumpAndSettle();
@@ -79,6 +80,7 @@ void main() {
 
   testWidgets('inactive service still permits an explicit Manual request', (tester) async {
     final db = FakeFirebaseFirestore(); await setup(db); await showPage(tester, db, active: false);
+    await tester.ensureVisible(find.text('Auto'));
     await tester.tap(find.text('Auto')); await tester.pumpAndSettle();
     expect(find.text('Send Manual setting'), findsOneWidget);
     await tester.ensureVisible(find.text('Send Manual setting'));

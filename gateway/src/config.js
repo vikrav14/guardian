@@ -98,6 +98,12 @@ const config = {
   metaWhatsAppSosCallbackPilotNumber:
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
 
+  // Separate approval gate: existing SOS callback approval does not approve fall templates.
+  metaWhatsAppFallCallbackPilotImei:
+    process.env.META_WHATSAPP_FALL_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppFallCallbackPilotNumber:
+    process.env.META_WHATSAPP_FALL_CALLBACK_PILOT_NUMBER || '',
+
   // Private, read-only router observation. Never enables customer Home presence.
   wifiHomeObserveEnabled:
     String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',

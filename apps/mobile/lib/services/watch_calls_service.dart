@@ -19,6 +19,8 @@ String watchCallRequestMessage(Map<String, dynamic>? request, DateTime now) {
   final expiry = watchCallDate(request['expiresAt']);
   final lease = watchCallDate(request['leaseUntil']);
   switch (request['status']) {
+    case 'restoration_pending':
+      return 'Returning to Manual. Guardian will retry when the watch connects; Auto may remain on until it replies.';
     case 'pending':
       return expiry == null || !expiry.isAfter(now)
           ? 'Could not confirm $mode before the request timed out. Check the watch before trying again.'
@@ -38,6 +40,7 @@ String watchCallRequestMessage(Map<String, dynamic>? request, DateTime now) {
     case 'not_sent':
       return switch (request['reason']) {
         'no_fresh_identified_session' => '$mode was not sent. Wait for the watch to reconnect, then try again.',
+        'emergency_policy_active' => 'Emergency answering is enabled or Manual restoration is pending. Everyday calls stay Manual.',
         'change_in_progress' => '$mode was not sent. Another change is in progress.',
         'connection_unconfirmed' || 'connection_changed' => '$mode was not sent because the watch connection could not be confirmed. Wait for reconnection, then try again.',
         'transport_busy' => '$mode was not sent. Another call-setting change is in progress.',
@@ -59,6 +62,30 @@ class WatchCallsService {
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
+
+  String? get currentUid => _auth.currentUser?.uid;
+
+  Stream<Map<String, dynamic>?> watchEmergencySettings(String imei) => _db
+      .collection('watchEmergencySettings').doc(imei).snapshots().map((s) => s.data());
+
+  Stream<Map<String, dynamic>?> watchEmergencyRequest(String imei) => _db
+      .collection('watchEmergencyRequests').where('imei', isEqualTo: imei)
+      .orderBy('createdAt', descending: true).limit(1).snapshots()
+      .map((s) => s.docs.isEmpty ? null : s.docs.first.data());
+
+  Future<void> requestEmergency(String imei, {required bool enabled,
+    required String revision, required bool consentAccepted}) async {
+    final uid = currentUid;
+    if (uid == null || revision.isEmpty || consentAccepted != enabled) {
+      throw StateError('Review emergency answering before saving.');
+    }
+    await _db.collection('watchEmergencyRequests').add({
+      'imei': imei, 'enabled': enabled, 'requestedBy': uid, 'revision': revision,
+      'consentAccepted': consentAccepted, 'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(seconds: 60))),
+    }).timeout(const Duration(seconds: 12));
+  }
 
   Stream<Map<String, dynamic>?> watchSettings(String imei) =>
       _db.collection('watchCallSettings').doc(imei).snapshots().map((s) => s.data());

@@ -198,3 +198,13 @@ Transport regressions cover overlapping old/new sockets, expired preflight,
 wrong-socket replies, partial Manual replies, asynchronous write errors and
 real TCP delivery. Flutter exercises Auto then Manual and missing-reply copy.
 Require all three CI jobs (gateway, Firestore, Flutter) before pilot deployment.
+
+
+## Emergency callback policy — draft implementation
+
+Calls now includes an independent owner opt-in for a five-minute handsfree
+callback window after fresh watch SOS/fall. It establishes Manual first, checks
+the primary alert contact against the existing private captured caller, and
+restores Manual through a durable recovery job. Everyday Auto cannot override an
+enabled emergency policy or pending restoration. The phonebook and all alert
+recipients stay as configured. See [installation and acceptance](../testing/emergency-callback-pilot.md).

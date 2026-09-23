@@ -67,6 +67,17 @@ const SERVER_ONLY_COMMANDS = new Set([
   'BODYTEMP2',
 ]);
 
+// Alarm freshness must not depend on GPS coordinates or Wi-Fi/cell availability.
+function parseAlarmRecordedAt(fields) {
+  const [date, time] = fields;
+  if (!/^\d{6}$/.test(date || '') || !/^\d{6}$/.test(time || '')) return null;
+  const d = Number(date.slice(0, 2)), m = Number(date.slice(2, 4)), y = 2000 + Number(date.slice(4));
+  const h = Number(time.slice(0, 2)), min = Number(time.slice(2, 4)), sec = Number(time.slice(4));
+  const value = new Date(Date.UTC(y, m - 1, d, h, min, sec));
+  return value.getUTCFullYear() === y && value.getUTCMonth() === m - 1 && value.getUTCDate() === d &&
+    value.getUTCHours() === h && value.getUTCMinutes() === min && value.getUTCSeconds() === sec ? value : null;
+}
+
 function parseLocationData(fields) {
   if (fields.length < 2) return null;
   const date = fields[0]; // DDMMYY
@@ -449,6 +460,7 @@ function handlePacket(decoded, session) {
           }
         : {}),
       alarmCommand: command,
+      alarmRecordedAt: parseAlarmRecordedAt(args),
       alarmArgCount: args.length,
       severity: alarmType === 'sos' || alarmType === 'fall' ? 'critical' : 'warning',
       ...(loc && !loc.error ? loc : {}),
