@@ -30,6 +30,11 @@ The pilot is available only after an operator records the physical inventory.
 
 ## One-time setup for an existing watch
 
+For contacts previously saved in AnyTracking, the
+[reference recorder procedure](phonebook-reference-capture.md) can identify the
+serial of a specific entry by observing its save. It does not enumerate empty
+slots; a newly added captured entry is occupied.
+
 1. Update to `feat/v52-watch-modes`, retaining unrelated local files. Deploy the
    repository Firestore rules and indexes, restart the gateway, and restart the
    Flutter app. No ngrok or watch server-route change is needed.

@@ -78,11 +78,38 @@ test('observer handles fragmentation, coalescing and binary delimiters without l
   assert.equal(rows[0].lengthField, '000c');
   assert.equal(rows[0].appliedStateVerified, false);
   assert.equal(rows[1].frame, undefined);
+  assert.equal(rows[1].phonebookSlot, 1);
   assert.equal(rows[2].frame, undefined);
   assert.equal(rows[3].frame, frame('OTHERFLAG,1').toString());
   assert.equal(rows[4].reportedJt, 0);
   assert.equal(JSON.stringify(rows).includes('Private Name'), false);
   assert.equal(JSON.stringify(rows).includes('+23050000000'), false);
+});
+
+test('phonebook capture reports only addressed slots and never treats replies or incomplete forms as inventory', () => {
+  const rows = [];
+  const observer = new FrameObserver({ protocolId: ID, direction: 'server_to_watch', emit: row => rows.push(row) });
+  const writes = Buffer.concat([frame('PHBX,2,0041006e006e,+23050000001,'), frame('PHBX,15,0042006f0062,+23050000002,picture')]);
+  for (let offset = 0; offset < writes.length; offset += 5) observer.push(writes.subarray(offset, offset + 5));
+  observer.finish();
+  assert.deepEqual(rows.map(row => row.phonebookSlot), [2, 15]);
+  for (const row of rows) {
+    assert.equal(row.argumentsRedacted, true);
+    assert.equal(row.appliedStateVerified, false);
+    assert.equal(row.frame, undefined);
+    assert.equal(row.frameHex, undefined);
+  }
+  for (const secret of ['0041006e006e', '0042006f0062', '+23050000001', '+23050000002', 'picture']) {
+    assert.equal(JSON.stringify(rows).includes(secret), false);
+  }
+  for (const body of ['PHBX', 'PHBX,1', 'PHBX,0,name,phone', 'PHBX,16,name,phone', 'PHBX,2x,name,phone', 'PHBX,2,name']) {
+    const row = frameSummary(frame(body), ID, 'server_to_watch');
+    assert.equal(row.phonebookSlot, undefined);
+    assert.equal(row.frame, undefined);
+  }
+  assert.equal(frameSummary(frame('PHBX,2,name,phone'), ID, 'watch_to_server').phonebookSlot, undefined);
+  const malformed = Buffer.from(`[SG*${ID}*0001*PHBX,2,name,phone]`);
+  assert.equal(frameSummary(malformed, ID, 'server_to_watch').phonebookSlot, undefined);
 });
 
 test('uplink telemetry and parameterized replies remain redacted; high-bit input cannot become ASCII control', () => {

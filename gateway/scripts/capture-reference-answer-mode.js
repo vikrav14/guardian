@@ -128,7 +128,7 @@ function frameSummary(frame, protocolId, direction) {
     appliedStateVerified: false };
   // Capture literal observed short switches, including an unknown command
   // name with a single 0/1 parameter. Recognition is NOT permission to send it.
-  const safeDownlink = direction === 'server_to_watch' &&
+  const safeDownlink = direction === 'server_to_watch' && command !== 'PHBX' &&
     /^(?:APPLOCK,JT-[01]|[A-Za-z][A-Za-z0-9_]{0,31},[01])$/.test(body);
   const bareReply = /^(APPLOCK|ANS)$/.test(body);
   if (safeDownlink || bareReply) {
@@ -139,6 +139,15 @@ function frameSummary(frame, protocolId, direction) {
   if (command === 'CONFIG') {
     const jt = /(?:^|[,;])JT[:=-]([01])(?=[,;]|$)/.exec(body);
     if (jt) summary.reportedJt = Number(jt[1]);
+  }
+  // A phonebook save identifies its addressed serial, not all occupied/free
+  // entries. Names, numbers and images stay redacted, including in the private
+  // answer capture (which deliberately does not collect PHBX).
+  if (command === 'PHBX' && direction === 'server_to_watch' && summary.lengthMatches) {
+    const slot = /^PHBX,([0-9]{1,2}),/.exec(body);
+    if (slot && Number(slot[1]) >= 1 && Number(slot[1]) <= 15 && summary.argumentCount >= 3) {
+      summary.phonebookSlot = Number(slot[1]);
+    }
   }
   return summary;
 }
