@@ -4,9 +4,11 @@
 > The supplier sent `3G / APPLOCK,JT-0 / 000c`, then
 > `3G / ACALL,0 / 0007`; the watch replied to both and the private recorder
 > saved four frames. This differs from Guardian's failed SG / APPLOCK,JT-1
-> Manual trial. The post-selection physical call result is still unreported.
-> Guardian routing restoration is operator-reported; fresh return telemetry
-> is not yet supplied. See the [exact Manual exchange and next check](../testing/answer-mode-manual-capture-20260923.md).
+> Manual trial. After reported Guardian return, the operator confirms that a
+> call kept ringing until manually answered, with audio both ways. This is a
+> physical reference Manual pass, not yet a Guardian-generated transition.
+> Fresh return telemetry is not supplied. See the [exact exchange](../testing/answer-mode-manual-capture-20260923.md)
+> and [proposed app/SOS policy](watch-answer-sos-design.md).
 > Earlier auto-answer with two-way audio on the reference configuration remains
 > operator-confirmed. PR #115 stays draft; no new setter or Auto mapping is claimed.
 > Sections below are historical checkpoints, superseded where this capture differs.

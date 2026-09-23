@@ -2,8 +2,9 @@
 
 > **23 September update:** The Manual selection now has an exact reference
 > exchange: 3G APPLOCK,JT-0 followed by 3G ACALL,0, with bare replies and four
-> private records saved. Physical Manual behavior is still awaiting the
-> operator's call result. Read the [new capture](answer-mode-manual-capture-20260923.md);
+> private records saved. The operator now confirms ringing until manual
+> answering and clear two-way audio after reported Guardian return. Read the
+> [new capture](answer-mode-manual-capture-20260923.md);
 > this page preserves the earlier 22 September reference-call evidence.
 
 ## What changed

@@ -3,11 +3,16 @@
 ## Current result
 
 The operator reports selecting **Press to answer / Manual** in AnyTracking on
-the existing Guardian pilot. The submitted recorder excerpt now includes the
-exact two-command supplier exchange and both watch replies. The operator also
-reports restoring the Guardian route. A physical incoming-call result after
-this Manual selection and fresh post-return Guardian telemetry are not yet
-supplied. PR #115 remains draft; no production setter is enabled.
+the existing Guardian pilot. The submitted recorder excerpt includes the exact
+two-command supplier exchange and both watch replies. After reporting restoration
+of the Guardian route, the operator called the watch: it kept ringing, did not
+auto-answer, and two-way audio worked after manual answering.
+
+Record **operator-confirmed physical Manual behavior after this reference
+selection and reported return**. The call timestamp and ring duration were not
+measured in the supplied evidence. Fresh post-return Guardian telemetry is still
+not supplied. This does not yet prove a Guardian-generated command transition.
+PR #115 remains draft; no production setter is enabled.
 
 ## Recorded exchange
 
@@ -42,7 +47,7 @@ with no returned mode or execution result.
 | APPLOCK length field | 000c | 000c |
 | Additional answer command | None | ACALL,0 |
 | Watch reply | Bare APPLOCK | Bare APPLOCK and bare ACALL |
-| Physical result | Operator reported continued automatic answering | Not yet reported |
+| Physical result | Operator reported continued automatic answering | Operator confirms ringing until manual answer, then two-way audio, after reported Guardian return |
 
 This is evidence that the observed reference sequence differs from the tested
 Guardian implementation. It is **not yet a demonstrated fix** or proof that
@@ -60,15 +65,16 @@ Do not infer ACALL,1 or an Auto sequence by flipping values.
 
 ## Next evidence
 
-1. After a fresh Guardian connection, call from the same approved number and
-   record whether the watch waits for manual answering or still auto-answers.
-   Record audio if answered and keep the existing caller configuration.
-2. Review both saved files, retaining exact relevant bytes privately.
-3. If Manual works, capture the reference Auto selection and physical result
-   before implementing or claiming a complete Guardian on/off control.
-4. Only replay an observed sequence through a bounded operator trial with the
-   exact prefix, payloads, ordering and length fields, then verify behavior
-   physically. Handoff and bare replies remain separate from applied state.
+1. Retain both saved files and obtain fresh Guardian telemetry to separately
+   verify the reported return. The Manual call result itself is now reported.
+2. Capture the reference **Auto** selection and physical result; its exact
+   command pair is still missing. Restore reference Manual and verify again.
+3. Implement only observed sequences in a bounded Guardian operator trial,
+   preserving prefix, payloads, order and length fields. Verify both transitions
+   from Guardian physically; handoff and bare replies are not applied state.
+4. Before an emergency-only setting is offered, verify caller scope and
+   restoration during offline/reconnect/restart cases. See the
+   [proposed app and SOS policy](../services/watch-answer-sos-design.md).
 
 ## Connection recovery during this run
 
@@ -88,4 +94,6 @@ separate Guardian gateway. Obtain fresh gateway telemetry separately.
 ## Scope of this update
 
 Documentation only. No new watch command was sent by the repository update,
-no runtime or customer control changed, and no new physical pass is claimed.
+no runtime or customer control changed. The physical Manual pass above is the
+operator's new observation; it is not a software-test result or a Guardian
+implementation pass.
