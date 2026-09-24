@@ -182,6 +182,61 @@ async function sendMetaText(to, body, options = {}) {
   return sendMetaPayload(payload, options);
 }
 
+// Session messages only: callers use these in direct response to an inbound
+// message. Safety notifications continue to use their approved templates.
+function buildMetaInteractivePayload(to, interactive) {
+  const base = buildMetaTextPayload(to, interactive?.body?.text);
+  const check = (value, max, field) => {
+    if (typeof value !== 'string' || !value.trim() || Array.from(value).length > max) {
+      throw new Error(`Invalid WhatsApp interactive ${field}.`);
+    }
+  };
+  check(interactive.body.text, 1024, 'body');
+  if (interactive.footer) check(interactive.footer.text, 60, 'footer');
+  const ids = [];
+  if (interactive.type === 'list') {
+    check(interactive.action?.button, 20, 'list button');
+    const sections = interactive.action?.sections;
+    if (!Array.isArray(sections) || !sections.length || sections.length > 10) {
+      throw new Error('Invalid WhatsApp interactive sections.');
+    }
+    for (const section of sections) {
+      check(section.title, 24, 'section title');
+      if (!Array.isArray(section.rows) || !section.rows.length) throw new Error('Empty list section.');
+      for (const row of section.rows) {
+        check(row.id, 200, 'row id');
+        check(row.title, 24, 'row title');
+        if (row.description != null) check(row.description, 72, 'row description');
+        ids.push(row.id);
+      }
+    }
+    if (ids.length > 10) throw new Error('WhatsApp lists allow at most 10 rows.');
+  } else if (interactive.type === 'button') {
+    const buttons = interactive.action?.buttons;
+    if (!Array.isArray(buttons) || !buttons.length || buttons.length > 3) {
+      throw new Error('WhatsApp replies allow one to three buttons.');
+    }
+    for (const button of buttons) {
+      if (button.type !== 'reply') throw new Error('Only reply buttons are supported.');
+      check(button.reply?.id, 256, 'button id');
+      check(button.reply?.title, 20, 'button title');
+      ids.push(button.reply.id);
+    }
+  } else {
+    throw new Error('Unsupported WhatsApp interactive type.');
+  }
+  if (new Set(ids).size !== ids.length) throw new Error('Duplicate interactive ids.');
+  const { text, ...envelope } = base;
+  return { ...envelope, type: 'interactive', interactive };
+}
+
+async function sendMetaChatReply(to, result, options = {}) {
+  const payload = result.interactive
+    ? buildMetaInteractivePayload(to, result.interactive)
+    : buildMetaTextPayload(to, result.reply);
+  return sendMetaPayload(payload, options);
+}
+
 async function sendMetaTemplate(to, templateName, options = {}) {
   const payload = buildMetaTemplatePayload(to, templateName, options);
   return sendMetaPayload(payload, options);
@@ -190,10 +245,12 @@ async function sendMetaTemplate(to, templateName, options = {}) {
 module.exports = {
   normalizeMetaRecipient,
   buildMetaTextPayload,
+  buildMetaInteractivePayload,
   buildMetaTemplatePayload,
   buildGuardianSafetyTemplateComponents,
   metaMessagesUrl,
   sendMetaPayload,
   sendMetaText,
+  sendMetaChatReply,
   sendMetaTemplate,
 };

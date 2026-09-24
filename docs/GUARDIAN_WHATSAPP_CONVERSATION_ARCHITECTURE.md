@@ -7,6 +7,13 @@
 
 Plan names, inherited services, subscription states and launch evidence are governed by [`GUARDIAN_SERVICE_PROMISE_MATRIX.md`](GUARDIAN_SERVICE_PROMISE_MATRIX.md). WhatsApp policy must never grant a capability that the effective family plan excludes.
 
+**24 September implementation addendum:** [Grouped menus](services/whatsapp-grouped-menu.md)
+add native list and reply-button navigation before text-intent routing. The
+webhook retains selection IDs; fresh caller authorization precedes resolving
+an opaque sender/account/wearer-bound action. Read responses remain deterministic.
+Unknown or expired selections refresh the menu and never fall through into an
+action confirmation or LLM prompt. Existing typed routing remains available.
+
 ## 1. Purpose
 
 Guardian WhatsApp is a safety interface, not a general-purpose chatbot. It must give authorised family members clear, factual answers about linked wearers while protecting private data and never implying that an emergency action occurred when it did not.

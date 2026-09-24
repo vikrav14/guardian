@@ -112,6 +112,12 @@ function extractMetaInboundMessages(payload, expectedPhoneNumberId = '') {
           timestamp: message.timestamp || null,
           type: message.type || null,
           text: extractMessageText(message),
+          // Titles are display text, never action identifiers. Preserve the
+          // typed selection even when malformed so it cannot fall into chat.
+          ...(message.type === 'interactive' ? { interaction: {
+            type: message.interactive?.type || '',
+            id: String(message.interactive?.[message.interactive?.type]?.id || ''),
+          } } : {}),
           phoneNumberId,
         });
       }

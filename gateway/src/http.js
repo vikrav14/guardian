@@ -10,7 +10,8 @@ const {
 } = require('./assistant/tools');
 const { answerWithAssistant } = require('./assistant/claude');
 const { normalizeE164 } = require('./notify');
-const { sendMetaText } = require('./whatsapp-meta');
+const { sendMetaChatReply } = require('./whatsapp-meta');
+const { WhatsAppMenu } = require('./whatsapp-menu');
 const {
   verifyMetaWebhookChallenge,
   verifyMetaSignature,
@@ -135,6 +136,7 @@ let idempotencyStore = null;
 // duplicate Guardian replies or duplicate Meta charges.
 const metaInboundDeduper = new MetaMessageDeduper();
 const conversationController = new ConversationController();
+const whatsappMenu = new WhatsAppMenu();
 
 function initializeLlmStack() {
   try {
@@ -195,7 +197,7 @@ function parseGrowthParams(url) {
  * Phase 1: Integrated handleChat with provider abstraction, intent classification,
  * response validation, and full audit trail.
  */
-async function handleChat({ from, text }) {
+async function handleChat({ from, text, interaction }) {
   const requestId = generateRequestId();
   const started = Date.now();
   const db = getDb();
@@ -238,6 +240,23 @@ async function handleChat({ from, text }) {
       plan: ctx.entitlements?.plan,
       subscriptionStatus: ctx.entitlements?.status,
     });
+
+    // A selection is an opaque, sender-bound action, never a prompt assembled
+    // from its title. Resolve a fresh caller context before every tap.
+    const menuReply = await whatsappMenu.handle({
+      db, ctx, text, interaction, contextService: getContextRuntime()?.service,
+    });
+    if (menuReply) {
+      if (menuReply.menuWearerImei) {
+        conversationController.setState(ctx.from, {
+          lastWearerImei: menuReply.menuWearerImei, pendingIntent: null, pendingText: null,
+        });
+      }
+      idempotencyStore.store(requestId, menuReply.reply);
+      await auditLog.recordResponse({ requestId, destination: 'whatsapp',
+        replyLength: menuReply.reply.length, fallbackReason: 'interactive_menu' });
+      return { ctx, ...menuReply, deterministic: true };
+    }
 
     // Authorize the commercial service before courtesy/help routing or any
     // LLM/tool work. Critical messages retain the deterministic emergency
@@ -1600,7 +1619,7 @@ function startHttpServer() {
 
           // Media/unsupported payloads are acknowledged but intentionally do
           // not generate a paid Guardian reply in V1.
-          if (!message.text) {
+          if (!message.text && !message.interaction) {
             metaInboundDeduper.markDone(message.id);
             console.log(
               `[meta-webhook] unsupported inbound type=${message.type || 'unknown'} ignored`
@@ -1611,12 +1630,13 @@ function startHttpServer() {
           incrementMetric('whatsappInbound');
 
           try {
-            const { reply } = await handleChat({
+            const result = await handleChat({
               from: normalizeE164(message.from),
               text: message.text,
+              interaction: message.interaction,
             });
 
-            const wa = await sendMetaText(message.from, reply);
+            const wa = await sendMetaChatReply(message.from, result);
 
             if (wa.ok) {
               metaInboundDeduper.markDone(message.id);

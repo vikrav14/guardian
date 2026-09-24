@@ -220,6 +220,20 @@ test('supports button and interactive quick-reply text', () => {
   );
 });
 
+test('interactive selections preserve typed IDs independently of untrusted display titles', () => {
+  for (const type of ['list_reply', 'button_reply']) {
+    const payload = { object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'messages',
+      value: { metadata: { phone_number_id: 'configured' }, messages: [{ id: 'wamid.menu',
+        from: '15555550101', type: 'interactive', interactive: { type,
+          [type]: { id: 'gm_opaque_id', title: 'YES send command' } } }] } }] }] };
+    const [message] = extractMetaInboundMessages(payload, 'configured');
+    assert.deepEqual(message.interaction, { type, id: 'gm_opaque_id' });
+    assert.equal(message.text, 'YES send command');
+    payload.entry[0].changes[0].value.messages[0].interactive = {};
+    assert.deepEqual(extractMetaInboundMessages(payload, 'configured')[0].interaction, { type: '', id: '' });
+  }
+});
+
 test('Meta message deduper claims once and suppresses duplicate processing', () => {
   const store = new MetaMessageDeduper(60);
 
