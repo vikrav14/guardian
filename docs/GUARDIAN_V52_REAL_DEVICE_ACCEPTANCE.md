@@ -158,9 +158,16 @@ probe result, then verified the original endpoint configuration. The revised
 probe removes its dependency on endpoint PUT, preserves both TCP endpoint
 configurations through a temporary local bridge on unused port 9002, and reports
 exact failure stages. Local integration passed against an agent that rejects
-PUT. The public retry,
-Firebase write/delete and watch `PIC,1`
-acceptance remain pending. No FTP settings were changed and no customer photo
+PUT. The operator's public retry at `5a4f37f` passed: `public_ftp_probe_passed`,
+`bytesVerified=1024`, no failure, and `endpointConfigurationRestored=true` with
+no restoration problems. This proves the laptop's transfer through both public
+FTP connections. `publicReachabilityVerified=false` concerns the restored
+endpoints; a fresh WhatsApp webhook was not established. The probe ended its
+temporary receiver arrangement and sent no watch command or Firebase write.
+Saved watch FTP settings/readback/reset remain unknown; the supplied sections
+37–39 provide setters only. Confirm the firmware's FTP/PIC support and a
+restoration procedure before a live watch trial. Firebase write/delete and
+watch `PIC,1` acceptance remain pending. No FTP settings were changed and no customer photo
 capability is enabled. See
 [the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
 photo but cannot establish that a remote camera request executed.

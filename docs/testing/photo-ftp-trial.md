@@ -1,6 +1,7 @@
 # Photo FTP receiver and Firebase pilot
 
-Status: Windows readiness passed in PR #113 on 24 September 2026. With Python
+Status: Windows readiness and the public FTP probe passed in PR #113 on
+24 September 2026. With Python
 3.13.15, the operator completed all nine local FTP checks and received
 `firebase_read_check_passed` for `guardian-fbadd.firebasestorage.app` with
 `firebaseWrites=0` and `uploadPermissionVerified=false`. No watch FTP
@@ -22,7 +23,55 @@ and restored, while one temporary FTP data endpoint is created and removed. Fail
 now include `failureStage` and safe `failureRequest` method/endpoint/status
 fields. The startup row says `whatsappWebhookPausePlanned`; it does not claim
 the pause has already happened. An agent that rejects `PUT` is covered by
-unit and real local FTP integration tests. The revised public run remains pending.
+unit and real local FTP integration tests. The revised public run passed on the
+operator's laptop at commit `5a4f37f`.
+
+### Observed public probe result — 24 September 2026
+
+The operator updated the isolated tools checkout to `5a4f37f` and ran
+`check-photo-ftp-public.js --run --pause-whatsapp`. Its final result was:
+
+```json
+{
+  "outcome": "public_ftp_probe_passed",
+  "probeResult": {
+    "event": "ftp_probe_passed",
+    "bytesVerified": 1024,
+    "watchCommandsSent": false
+  },
+  "failure": null,
+  "failureStage": null,
+  "failureRequest": null,
+  "restoration": {
+    "outcome": "endpoint_configuration_restored",
+    "endpointConfigurationRestored": true,
+    "publicReachabilityVerified": false,
+    "problems": []
+  },
+  "watchCommandsSent": false,
+  "firebaseWrites": 0
+}
+```
+
+The recovery journal is under the operator's `%TEMP%` directory at
+`guardian-photo-public-QMkUPB/restore-endpoints.json`. No wall-clock execution
+timestamp was provided in the output; the date above is the testing session.
+The 1,024 random bytes traversed the public FTP control/data routes successfully.
+Restoration checked the original endpoint configurations through the ngrok API;
+the `publicReachabilityVerified=false` field concerns restored endpoints and
+does not negate the completed FTP transfer. A fresh restored WhatsApp webhook
+was not demonstrated by this result. Cleanup ended the temporary FTP receiver
+arrangement; no live destination remains for watch provisioning.
+
+This completes the laptop/public transport check. Do not repeat it just to obtain
+a photo: this probe transfers random test data and never sends a camera command.
+The next watch-side prerequisite is an actual saved FTP configuration plus a
+supported restoration procedure (or a supplier-confirmed reset). Sections 37–39
+of the supplied protocol only specify setters, not readback/reset. Confirm that
+`PIC,1`/FTP applies to this V52 firmware as well. Once these are established,
+prepare a fresh timed receiver and run one controlled remote-only photo trial.
+Firebase upload/delete can be checked separately, but cannot prove that a remote
+camera command caused an image.
 
 The supplier's sections 37–39 describe `PIC,1`, `FTPIP` and `FTPPWD`. They are
 a separate candidate from the captured `rcapture` / TCP `img` path. The
@@ -278,15 +327,17 @@ includes a response lost after pausing WhatsApp or creating the data endpoint,
 cancellation after the pause, concurrent recorder edits, occupied port 9002,
 legacy journal recovery and preservation of both existing TCP endpoints.
 Actual public execution returned 405 in the earlier version; the revised
-local-bridge flow is pending the operator's retry.
+local-bridge flow passed on the operator's laptop at `5a4f37f` with all
+1,024 bytes verified and the original endpoint configurations restored.
 Real local transfers run through distinct TCP control/data proxies; the
 Firebase adapter uses fakes, not the live project. Full JPEG decoding and
 tampered-receipt rejection were executed. Ordinary `npm test` does not need
 Python; the explicit check is `gateway/acceptance/photo-ftp.check.cjs` with
 `GUARDIAN_PHOTO_PYTHON` configured. The original PowerShell readiness workflow
 and Firebase read-only check now passed on the operator's Windows laptop.
-Actual ngrok forwarding, live Firebase writes/deletion, watch FTP compatibility
-and remote capture remain to be tested. No full release CI or customer-readiness
+Public ngrok forwarding from the laptop is now verified. Live Firebase
+writes/deletion, watch FTP compatibility and remote capture remain to be tested.
+No full release CI or customer-readiness
 claim is made.
 
 References: [Firebase Admin Storage](https://firebase.google.com/docs/storage/admin/start),
