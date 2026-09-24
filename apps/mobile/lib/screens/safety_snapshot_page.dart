@@ -288,10 +288,12 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
                   () => _service.loadImage(item.id),
                 ),
                 builder: (context, snapshot) {
-                  if (snapshot.hasError)
+                  if (snapshot.hasError) {
                     return const Text('This photo cannot be opened.');
-                  if (!snapshot.hasData)
+                  }
+                  if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
+                  }
                   return _PrivatePhoto(bytes: snapshot.data!);
                 },
               ),
