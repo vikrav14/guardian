@@ -92,8 +92,15 @@ async function issueWatchCallLink({ db, imei, alertId, alert, device, contact, n
   const number = phone(device?.simNumber);
   const contactPhone = phone(contact?.phone);
   const recipient = phone(contact?.whatsapp || contact?.phone);
-  const created = time(alert?.createdAt);
-  if (!db || !number || !contactPhone || !recipient || !alertId || !Number.isFinite(created)) return null;
+  if (!db || !number || !contactPhone || !recipient || !alertId) return null;
+  // createAlert delivers immediately using its original serverTimestamp()
+  // placeholder. Read the committed receipt time, never that placeholder or
+  // caller-supplied time, before deriving link expiry.
+  const savedAlert = await db.collection('alerts').doc(alertId).get();
+  if (!savedAlert.exists) return null;
+  const saved = savedAlert.data();
+  const created = time(saved.createdAt);
+  if (saved.imei !== imei || saved.type !== alert?.type || !Number.isFinite(created)) return null;
   const record = {
     version: 1, imei, alertId, alertType: alert.type,
     guardianUid: contact.guardianUid, ownerUid: contact.entitlements?.ownerUid,

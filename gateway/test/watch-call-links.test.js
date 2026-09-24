@@ -14,6 +14,7 @@ const { prepareFallWhatsApp } = require('../src/fall-whatsapp');
 const { buildSosLocationSnapshot } = require('../src/sos-location-snapshot');
 const { buildFallLocationSnapshot } = require('../src/fall-location-snapshot');
 const config = require('../src/config');
+const admin = require('firebase-admin');
 
 function fixture(type = 'sos', plan = 'family') {
   const now = new Date();
@@ -105,6 +106,19 @@ test('inherited access requires backend-verified family membership on every open
   payer.memberUids = [];
   payer.familyMembers = [{ uid: 'owner' }];
   assert.equal(await resolveWatchCallLink(f.db, token), null);
+});
+
+test('immediate delivery uses the committed alert timestamp rather than the serverTimestamp placeholder', async () => {
+  const f = fixture();
+  const token = await issueWatchCallLink({ ...f,
+    alert: { ...f.alert, createdAt: admin.firestore.FieldValue.serverTimestamp() } });
+  assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal((await resolveWatchCallLink(f.db, token)).number, f.device.simNumber);
+  const record = f.docs.get(`watchCallLinks/${digest(token)}`);
+  assert.equal(record.expiresAt.getTime(), f.now.getTime() + LINK_LIFETIME_MS);
+  const forged = await issueWatchCallLink({ ...f,
+    alert: { ...f.alert, createdAt: new Date(f.now.getTime() + 86400000) } });
+  assert.equal(f.docs.get(`watchCallLinks/${digest(forged)}`).expiresAt.getTime(), record.expiresAt.getTime());
 });
 
 test('malformed tokens do not query storage and phone parsing rejects dial-string injection', async () => {
