@@ -5,10 +5,53 @@ const config = require('../src/config');
 const {
   normalizeMetaRecipient,
   buildMetaTextPayload,
+  buildMetaInteractivePayload,
+  sendMetaChatReply,
   buildMetaTemplatePayload,
   buildGuardianSafetyTemplateComponents,
   sendMetaPayload,
 } = require('../src/whatsapp-meta');
+
+test('interactive payloads enforce total row, button, text and unique ID limits', () => {
+  const list = count => ({ type: 'list', body: { text: 'Choose for Alex' },
+    action: { button: 'Choose an option', sections: [{ title: 'Check now',
+      rows: Array.from({ length: count }, (_, i) => ({ id: `row_${i}`, title: `Option ${i}` })) }] } });
+  const buttons = count => ({ type: 'button', body: { text: 'Last known location' },
+    action: { buttons: Array.from({ length: count }, (_, i) => ({ type: 'reply', reply: { id: `id_${i}`, title: 'Main menu' } })) } });
+  assert.equal(buildMetaInteractivePayload('+15555550101', list(10)).interactive.type, 'list');
+  assert.throws(() => buildMetaInteractivePayload('+15555550101', list(11)), /at most 10/);
+  assert.throws(() => buildMetaInteractivePayload('+15555550101', buttons(4)), /one to three/);
+  const duplicate = list(2);
+  duplicate.action.sections[0].rows[1].id = 'row_0';
+  assert.throws(() => buildMetaInteractivePayload('+15555550101', duplicate), /Duplicate/);
+  const longBody = list(1);
+  longBody.body.text = 'x'.repeat(1025);
+  assert.throws(() => buildMetaInteractivePayload('+15555550101', longBody), /body/);
+});
+
+test('chat transport sends the native interactive object or unchanged text in a single request', async () => {
+  const saved = { token: config.metaWhatsAppAccessToken, phone: config.metaWhatsAppPhoneNumberId };
+  config.metaWhatsAppAccessToken = 'test-token';
+  config.metaWhatsAppPhoneNumberId = 'test-phone';
+  const sent = [];
+  const fetchImpl = async (url, options) => {
+    sent.push(JSON.parse(options.body));
+    return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'wamid.test' }] }) };
+  };
+  try {
+    const interactive = { type: 'button', body: { text: 'Actual response' }, action: {
+      buttons: [{ type: 'reply', reply: { title: 'Main menu', id: 'gm_test' } }] } };
+    await sendMetaChatReply('+15555550101', { reply: 'Actual response', interactive }, { fetchImpl });
+    await sendMetaChatReply('+15555550101', { reply: 'A typed answer' }, { fetchImpl });
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[0].interactive, interactive);
+    assert.equal(sent[0].text, undefined);
+    assert.equal(sent[1].text.body, 'A typed answer');
+  } finally {
+    config.metaWhatsAppAccessToken = saved.token;
+    config.metaWhatsAppPhoneNumberId = saved.phone;
+  }
+});
 
 test('normalizeMetaRecipient removes WhatsApp prefix, plus and punctuation', () => {
   assert.equal(normalizeMetaRecipient('whatsapp:+230 5859-0100'), '23058590100');

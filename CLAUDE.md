@@ -23,6 +23,16 @@ the family service.
   files are historical evidence only and must never override V52 captures,
   acceptance results or V52-only tests.
 
+### WhatsApp grouped menu (24 September draft)
+
+`gateway/src/whatsapp-menu.js` handles Hi/Menu/Help and native interactive taps.
+Preserve opaque sender/account/wearer-bound IDs, recheck access on every tap and
+keep menu selections read-only. Family exposes up to nine options, Care ten;
+existing reading flags and consent still apply. Long answers and wearer lists
+are paginated within Meta limits. Text requests retain the confirmation flow.
+See `docs/services/whatsapp-grouped-menu.md` for behaviour and live acceptance
+(pending). This work does not activate the pending SOS/fall call templates.
+
 ## Where things are tracked
 
 - **GitHub Issues** (https://github.com/vikrav14/guardian/issues) — one issue
