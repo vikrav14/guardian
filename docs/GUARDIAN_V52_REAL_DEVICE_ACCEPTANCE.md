@@ -147,11 +147,15 @@ Pass for the current product: canonical record, TCP dispatch, watch presentation
 
 ## Photo checkpoint — 24 September 2026
 
-Software-only follow-up: PR #113 now has a standalone bounded FTP receiver
+Software follow-up: PR #113 now has a standalone bounded FTP receiver
 with real control/data proxy tests and a separate Firebase private import/delete
-pilot. The combined focused suite passes 43 tests. Live Windows/public FTP,
-Firebase write/delete and watch `PIC,1` acceptance remain pending. No FTP
-settings were changed and no customer photo capability is enabled. Start with
+pilot. The combined focused suite passes 50 tests. The operator passed all nine
+local FTP checks on Windows/Python 3.13.15 and the Firebase read-only check for
+`guardian-fbadd.firebasestorage.app`, with zero writes and upload permissions
+still unverified. A separate public-probe CLI now includes tested endpoint
+restoration. Actual public FTP, Firebase write/delete and watch `PIC,1`
+acceptance remain pending. No FTP settings were changed and no customer photo
+capability is enabled. See
 [the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
 photo but cannot establish that a remote camera request executed.
 
