@@ -3,7 +3,88 @@
 24 September 2026. PR #113 remains draft. This is the QA handoff; the GitHub
 Wiki cannot be updated through the available repository connector.
 
-## Current next step — independent investigation, 24 September 2026
+## Latest result — two TCP uploads and gallery success, 25 September MUT / 24 September UTC
+
+Source: operator attachment `Pasted text(6).txt` and the accompanying report:
+two photos appeared promptly in AnyTracking; the operator deleted the first
+there before requesting/taking the second, which also appeared. The normal
+log verifies two request/reply/upload sequences on reference session 1:
+
+| Request UTC, 24 Sep (MUT, 25 Sep) | Reply UTC | Upload UTC | Request-to-upload | TCP payload |
+| --- | --- | --- | --- | --- |
+| 20:26:47.718 (00:26:47.718) | 20:26:50.162 | 20:26:55.373 | 7.655 s | 6930 bytes, `1B12` |
+| 20:30:08.554 (00:30:08.554) | 20:30:09.058 | 20:30:14.275 | 5.721 s | 6590 bytes, `19BE` |
+
+Both requests are the observed exact bare lowercase
+`[3G*9705254749*0008*rcapture]`. Reply delays are 2.444 and 0.504 seconds.
+Both `img` frame lengths match. The private recorder reports successful
+writes for image frames 1 and 2; after the second upload it has six records,
+two image frames and 13,678 total raw framed bytes. These payload sizes are
+not JPEG sizes. The measured intervals end at recorder receipt, not at gallery
+display. The operator's “pretty instantly” describes perceived app timing.
+
+**Established:** two TCP image uploads following reference-service commands,
+with both pictures reportedly visible in AnyTracking and an intervening
+operator-reported gallery deletion. The normal log begins with a partial line,
+contains 37 complete JSON rows, and continues with heartbeat exchange through
+20:37:39.974 UTC. It has no recorder-stop or return-to-Guardian evidence.
+No server-to-watch `img` ACK is visible in this excerpt.
+
+**Still to confirm:** that both photos were requested only from AnyTracking
+with no watch-camera/shutter interaction, plus the actual screen state and any
+wearer indication. The preceding instructions asked for an awake clock face
+but the result does not explicitly confirm those conditions. Do not classify
+this as proven hands-off capture, claim that waking fixed the earlier issue,
+or overwrite the earlier manually triggered sample's classification. The
+operator also restarted the watch during connection troubleshooting, so this
+is not a controlled awake-versus-asleep causal comparison.
+
+Deleting from the reference app establishes an operator-observed UI action,
+not hard deletion from its servers or deletion of the separate local private
+capture. The new binary capture has not been attached/decoded in this
+checkpoint; dimensions, JPEG byte sizes and image content remain unverified
+offline for these two uploads. The previous 240x240 decode belongs to a
+different, manually triggered sample.
+
+### Connection recovery preceding this result
+
+The original ngrok agent remained reconnecting even though a separate diagnose
+connection passed. The operator restarted it and restored the three forwards
+from a local endpoint backup: Guardian TCP 10595 to 9000, recorder TCP 17200 to
+9002, and the existing WhatsApp HTTPS domain to 9001. The former recorder port
+29315 was no longer the current route.
+
+The operator then reported AnyTracking offline despite routing SMS/restart.
+A listener check showed 9000 only. The previous recorder's log explicitly ended
+at 20:14:36.083 UTC (00:14:36.083 MUT) with `capture_window_ended`.
+Thus the missing local recorder explained why the new recorder tunnel could
+not forward watch traffic at that point. A fresh recorder was started before
+the two uploaded images above. This does not retrospectively diagnose the
+earlier connected-but-no-image camera attempts or establish an SMS failure.
+
+### Next work
+
+1. Restore the **current printed** Guardian return route and verify fresh
+   telemetry; expiry never restores routing.
+2. Confirm the no-watch-camera-interaction condition and actual screen behavior.
+3. Retain/inspect the private capture from this successful session. The public
+   log alone cannot decode the two images. Do not repeat successful captures
+   merely to recover data already saved.
+4. Prefer the now-observed `rcapture`/TCP `img` route for the next isolated
+   Guardian integration trial. A supplier reply or a new FTP configuration is
+   not a prerequisite for developing this path. Exact live parsing, bounded
+   private image validation/storage, authorization and honest completion/
+   timeout handling still need implementation and testing before the app flow
+   can be enabled.
+
+PR #113 remains draft/unmerged. No production camera dispatcher, ingress,
+customer flag, FTP setting or Firebase data changed in this checkpoint.
+Documentation-only update; no new test run. Earlier software test results
+remain separate from this hardware evidence.
+
+---
+
+## Earlier investigation plan — 24 September 2026
 
 The operator reports that Jett and colleagues are on holiday and asks to
 continue independently. Supplier availability is **not a prerequisite for the
