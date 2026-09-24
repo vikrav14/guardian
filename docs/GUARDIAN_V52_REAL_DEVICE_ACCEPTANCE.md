@@ -157,11 +157,15 @@ photos appeared promptly in AnyTracking, with deletion of the first there
 before the second. This is new positive upload/gallery evidence; the measured
 delays are to recorder receipt, not measured gallery-display latency.
 
-Still confirm both requests were app-only with no watch camera/shutter
-interaction, actual screen state and any wearer indication. Awake clock-face
-instructions are not proof that the condition was followed. The watch was also
-restarted during troubleshooting; no awake-state or restart root cause is
-established. Preserve the earlier manual-sample classification.
+Immediate operator follow-up: the watch was “absolutely not touched.”
+Combined with both request/upload sequences and reported app pictures, this
+confirms two hands-off remote photos through AnyTracking on this pilot V52.
+The no-watch-camera-interaction check is resolved. Actual screen state and
+wearer indication remain unreported; awake clock-face instructions alone are
+not evidence of the state. A prior watch restart and network/recorder recovery
+mean no awake-state or restart root cause is established. Preserve the earlier
+manual-sample classification. This positive pilot result does not establish
+general reliability or direct Guardian execution.
 
 The supplied log contains no image bytes for offline decoding and no final
 Guardian-routing verification. These two samples' dimensions/JPEG sizes,
