@@ -13,6 +13,26 @@ flag. No client writes or automatic TTL policy are introduced.
 
 Collections used by the GT06 gateway and (later) the Flutter app.
 
+## `watchCallLinks/{sha256Token}`
+
+Backend-only expiring capabilities for SOS/fall WhatsApp call pages. All client
+reads/writes are denied. Never store the raw random token in Firestore or logs.
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| version | number | `1` |
+| imei, alertId, alertType | string | Original watch and persisted SOS/fall |
+| guardianUid, ownerUid | string | Linked guardian and verified service owner |
+| simHash, contactHash, recipientHash | string | SHA-256 of normalized original SIM, contact phone and WhatsApp destination; not an anonymization guarantee for low-entropy phone numbers |
+| createdAt | timestamp | Link issuance time |
+| expiresAt | timestamp | Alert `createdAt` + one hour; checked on each request |
+| revokedAt | timestamp or null | Explicit backend revocation |
+
+The endpoint rechecks binding and entitlement before showing the number. Tokens
+are bearer links, not logged-in identities. Configure TTL cleanup on `expiresAt`;
+expiry enforcement does not depend on cleanup. See
+[security and rollout](../docs/services/watch-call-links.md).
+
 ## `users/{uid}`
 
 Firebase Auth UID as document ID.

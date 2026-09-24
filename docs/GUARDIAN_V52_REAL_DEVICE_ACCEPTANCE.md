@@ -1,5 +1,11 @@
 # Guardian V52 real-device acceptance
 
+**24 September dynamic call-link checkpoint:** the draft gateway prepares
+per-recipient SOS/fall call URLs for the correct watch, separately gated by v2
+template approval. Public deployment, Meta changes and physical URL acceptance
+are pending. Existing emergency handsfree behavior is unchanged. See
+[deployment and remaining acceptance](services/watch-call-links.md).
+
 **Status:** Release gate
 **Device under test:** One production-equivalent V52 watch and SIM
 **Rule:** Unit tests prove code paths. This runbook proves what the real watch, carrier and configured notification providers actually do.

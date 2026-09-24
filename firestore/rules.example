@@ -545,6 +545,10 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Bearer link records are backend-only; public access is through the
+    // expiring, re-authorized gateway landing page, never Firestore clients.
+    match /watchCallLinks/{linkId} { allow read, write: if false; }
+
     match /watchCallPolicies/{imei} {
       allow read, write: if false;
     }
