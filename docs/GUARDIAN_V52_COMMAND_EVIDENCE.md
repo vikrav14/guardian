@@ -49,8 +49,12 @@ a bare `rcapture` reply. Two later watch-to-server `img` frames were captured
 in the same relay session (payload lengths 3066 and 5987 bytes). The operator
 reports seeing the photos in AnyTracking. The request-to-upload intervals
 were 5.064 and 6.057 seconds; these are not measured app-display latencies.
-The normal log redacts the image body, so encoding, dimensions, chunk fields,
-and ACK requirements remain unverified. This evidence supersedes assuming
+The subsequently supplied private sample at 17:39:27.835Z has the envelope
+`img,5,260924213927,` followed by escaped binary JPEG and two NUL bytes. Applying
+the supplied protocol's five media escapes restores a viewable 240x240 JPEG
+of 4969 bytes. The value `5`, timestamp timezone semantics, trailer meaning,
+remote-request correlation, further variants and ACK requirements remain
+unverified. This evidence supersedes assuming
 `PIC,1`/FTP for this watch's observed AnyTracking path. Guardian has no enabled
 photo dispatcher or receiver. See [the evidence and private-capture runbook](testing/photo-reference-capture.md).
 

@@ -5,7 +5,7 @@
 | Service ID | `remote-photo` |
 | Product wording | **Safety snapshot** |
 | Minimum package | Family |
-| Current state | AnyTracking capture/upload observed on Jesh; Guardian capture/media disabled |
+| Current state | Pilot TCP img decoded offline to a viewable JPEG; live Guardian capture/media disabled |
 | Customer-visible | No |
 | Protocol inventory | `FTPIP`, `FTPPWD`, `PIC`, `rcapture` |
 | Accepted V52 capture commands | None |
@@ -66,14 +66,16 @@ GUARDIAN_SAFETY_SNAPSHOT_ENABLED=false
 
 Guardian's V52 decoder recognizes `FTPIP`, `FTPPWD`, `PIC` and `rcapture` as server-to-watch protocol inventory. The 24 September same-watch capture establishes that AnyTracking sends `[3G*9705254749*0008*rcapture]`, Jesh replies with bare `rcapture`, and later uploads `img` over the same observed TCP session. The operator reports receiving the photos in AnyTracking. This is reference-service physical evidence on one watch, not acceptance of Guardian's receiver or customer feature. See [the capture and next test](../testing/photo-reference-capture.md).
 
-This PR still contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. The supplier document's separate `PIC,1` / FTP example must not replace this observed `rcapture` / `img` flow. The `img` body is redacted in the normal log, so its encoding, fields, image boundaries and any response requirements remain unknown. Do not provision FTP or invent an image ACK from this evidence.
+This PR still contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. The supplier document's separate `PIC,1` / FTP example must not replace this observed `rcapture` / `img` flow. The private 24 September sample establishes `img,5,260924213927,` followed by an escaped binary JPEG and two NUL bytes. The five documented media escapes restore a viewable 240x240 JPEG of 4969 bytes. The field `5`, trailer semantics, request correlation and any ACK requirements remain unknown. Do not provision FTP or invent an image ACK from this evidence.
+
+`src/protocol/v52-photo.js` now decodes the observed envelope offline, preserves unknown fields, reverses only the five documented escapes and checks bounded baseline JPEG marker structure. `scripts/decode-photo-capture.js` inspects a private file and optionally writes JPEGs to a new local directory. It opens no network and is not connected to live ingress/dispatch. Its `jpeg_structure_only` result is not a substitute for a full image decoder in production; the actual pilot output was separately loaded with Pillow and visually inspected. The real pilot image and private capture are not committed to the repository.
 
 An optional standalone recorder saves only exact `rcapture` frames and watch-to-server `img` frames to a new private local file. It forwards supplier traffic unchanged and generates no commands or ACKs. This diagnostic is not imported into gateway startup, writes nothing to Firestore or Storage, and does not enable the customer flags. Normal output continues to redact images. The code is adapted from the tested PR #115 relay; the photo work stays in PR #113.
 
 Exact physical acceptance must establish:
 
 - repeatable single-request behavior for the observed `rcapture` command
-- decode and validate the observed TCP `img` body and any image ACK requirements
+- validate further `img` samples, request correlation and any image ACK requirements
 - determine whether additional configuration matters; FTP was not established for this flow
 - image type, size and naming behavior
 - latency and SIM data use
@@ -111,7 +113,8 @@ Before real image ingestion is enabled, Guardian still needs:
 ## Physical/privacy acceptance
 
 - [x] observe AnyTracking `rcapture` and subsequent `img` on Jesh, with operator-reported photos in Pictures
-- [ ] decode an exact private `img` capture and verify a Guardian-received image
+- [x] decode the exact private `img` sample offline and visually verify a 240x240 JPEG
+- [ ] verify reliable remote-only capture and live authorized Guardian reception
 - [ ] prove wearer-visible/audible indication behavior
 - [ ] verify single-capture behavior and prevent continuous/repeated capture
 - [ ] measure image size, latency and SIM data use

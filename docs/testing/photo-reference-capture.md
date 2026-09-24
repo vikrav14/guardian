@@ -39,7 +39,77 @@ This is a successful reference-service pilot, not a working Guardian photo UI.
 The supplied document's `PIC,1` / FTP example describes a different path; no
 FTP setup or new credentials are justified by these observed uploads.
 
-## Next: collect one exact image frame locally
+## Private sample decoded — 24 September follow-up
+
+The supplied `guardian-photo-private-20260924-213300-938.jsonl` contains seven
+records: three `rcapture` requests with bare replies, and one `img` upload at
+17:39:27.835Z (21:39:27 MUT). It was saved with `failed:false` and `limited:false`.
+The operator reported Success but an empty AnyTracking Pictures page in this
+attempt. Do not replace that report with a gallery-success claim.
+
+| Field | Observed value |
+| --- | --- |
+| Frame/payload sizes | 5088 / 5067 bytes |
+| ASCII envelope | `img,5,260924213927,` (19 bytes) |
+| Escaped media length | 5048 bytes, including trailing bytes |
+| Escape pairs | 77 total, all from the documented five mappings |
+| Decoded JPEG | 4969 bytes, baseline JPEG, 240x240, three components |
+| Bytes after JPEG EOI | Two NUL bytes (`0000`); meaning unknown |
+| Decoder validation | Pillow verify + full load + visual inspection succeeded |
+
+The supplier protocol's PHBX picture and AMR sections document these escapes:
+`7D 01 -> 7D`, `7D 02 -> 5B`, `7D 03 -> 5D`, `7D 04 -> 2C`,
+`7D 05 -> 2A`. Applying that existing mapping to this `img` body restores the
+photo. Directly treating the escaped bytes as JPEG can produce a partially
+decoded/corrupt-looking preview even if the image library accepts it; SOI/EOI
+markers and dimensions alone were not enough to establish correct decoding.
+
+Preserve `5` as an opaque field, not a photo count, fragment index, mode or
+remote/manual indicator. The timestamp text matches local wall time under a
+YYMMDDhhmmss interpretation in this sample, but timezone semantics are not
+established. Keep the original string. The packet has no proven request ID.
+The preceding request was at 17:36:02.378Z, 205.457 seconds earlier; the first
+request was at 17:33:36.147Z. The third request at 17:44:22.890Z has no later
+image in the capture. Do not call this a measured remote-capture latency or
+claim that a particular request caused this image. Ask whether the wearer
+opened/used the watch camera around 21:39:27 MUT and confirm the image matches
+the intended scene. No remote-only repeatability claim is made yet.
+
+This proves a decodable image traveled through the relay to the reference
+server. It does not explain an empty AnyTracking gallery, prove indexing or
+display, or demonstrate a production Guardian receiver. No `img` ACK appears
+in the supplied ordinary excerpt; do not manufacture one. The original private
+file and real photo stay outside Git; tests use a generated gradient image.
+
+### Offline decoder
+
+`gateway/scripts/decode-photo-capture.js` uses the new bounded parser in
+`gateway/src/protocol/v52-photo.js`. It validates selected identity, exact frame
+length, the observed envelope, escapes, baseline JPEG marker structure and
+the observed two-NUL trailer. It fails on unsupported/malformed forms, rather
+than guessing fragment assembly or truncating arbitrary data. It does not
+validate entropy-coded pixels; full decoding remains required before a live
+receiver accepts a photo. No production runtime imports this module yet.
+
+From the isolated photo checkout, inspect without creating image files:
+
+```powershell
+node scripts/decode-photo-capture.js `
+    --protocol-id 9705254749 `
+    --capture-file "$env:TEMP\guardian-photo-private-20260924-213300-938.jsonl"
+```
+
+To extract into a new private local directory, add:
+
+```powershell
+--output-dir "$env:TEMP\guardian-photo-decoded-20260924"
+```
+
+The output directory must not already exist. The script writes `photo-01.jpg`
+and prints metadata only. It generates no network calls, captures or ACKs.
+Retain/delete the local photo using the same handling as the private capture.
+
+## Optional further private captures
 
 Normal logs intentionally redact `img`, so they cannot reconstruct or decode
 the photo. The opt-in `--private-photo-file` records only bare `rcapture` in
@@ -118,14 +188,15 @@ private JSONL file for format analysis, rather than pasting a long hex dump.
 
 ## Verification and remaining implementation
 
-25 focused Node tests pass: existing transparent relay/answer capture and new
-private-photo tests, including binary delimiters, fragmented frames, identity
-filtering, redaction, file/byte limits, short writes and disk failure. Synthetic
-image test bytes do not establish the V52 image encoding. No physical photo
-payload has yet been collected by this new option.
+33 focused Node tests pass: existing transparent relay/answer capture,
+private-photo capture, and the offline decoder. Coverage includes all five
+escapes, embedded delimiter/EOI bytes, frame identity/length, malformed JPEG
+segments, bounded dimensions/trailers, file limits, redaction and no overwrite.
+Tests use a generated 32x24 gradient with synthetic metadata. Separately, the
+real supplied sample was decoded and visually verified as described above.
 
-Next use that exact payload to define a validated `img` parser and any fragment
-assembly/ACK behavior from evidence. Then connect single authorized requests
+Next confirm remote-only request correlation and further samples before any
+fragment assembly/ACK behavior is inferred. Then connect single authorized requests
 to private storage/view/delete and the Flutter UI. Keep customer flags and
 Guardian dispatch disabled until that path works. Wearer indication, real
 image format/dimensions, fresh-image correlation, reconnect/reboot handling,

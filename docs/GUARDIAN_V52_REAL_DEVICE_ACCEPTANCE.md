@@ -156,7 +156,15 @@ JPEG sizes. The operator reports sending the Guardian return SMS to port
 checkpoint. Tunnel ports are temporary and must be read afresh for the next run.
 
 This establishes reference-service capture/upload behavior on one watch.
-Guardian decoding/private storage, displayed image correctness, indication,
+Follow-up private file: one 5067-byte `img` payload at 17:39:27.835Z was decoded
+offline by reversing 77 documented escape pairs. The extracted JPEG is 4969
+bytes and 240x240 pixels; it loaded fully with Pillow and was visually inspected.
+No personal image bytes were committed. The operator still reported an empty
+AnyTracking gallery for this attempt. Three requests were present in the file;
+the upload is 205.457 seconds after the preceding request, with no request ID
+proving which request produced it. Local camera activity remains unreported.
+
+Live Guardian reception/private storage, fresh-image/request correlation, indication,
 retention/deletion, reconnect/failure handling and a second watch remain
 unverified. No customer flag or device-dispatch acceptance is changed.
 See [the exact timeline and next private capture](testing/photo-reference-capture.md).
