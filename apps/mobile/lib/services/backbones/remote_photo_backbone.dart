@@ -4,7 +4,7 @@ class RemotePhotoBackbone {
   static const String serviceId = 'remote-photo';
   static const String displayName = 'Safety snapshot';
   static const String minimumPlan = 'family';
-  static const String lifecycle = 'software_safety_path';
+  static const String lifecycle = 'controlled_app_integration';
   static const bool enabledByDefault = false;
   static const bool customerVisible = false;
   static const List<String> protocolCommands = <String>[
@@ -13,7 +13,7 @@ class RemotePhotoBackbone {
     'PIC',
     'rcapture',
   ];
-  static const List<String> acceptedProtocolCommands = <String>[];
+  static const List<String> acceptedProtocolCommands = <String>['rcapture'];
   static const List<String> safetyControls = <String>[
     'explicit household consent',
     'approved guardians only',
@@ -31,7 +31,7 @@ class RemotePhotoBackbone {
     'never imply a snapshot proves the wearer is safe',
   ];
   static const List<String> acceptanceGates = <String>[
-    'confirm FTPIP FTPPWD PIC and rcapture roles on exact V52 firmware',
+    'complete direct Guardian capture and deletion on each enabled V52',
     'prove whether the wearer receives a visible or audible capture indication',
     'verify upload transport image type size latency and SIM data use',
     'verify private ingress expiry deletion and access logging',

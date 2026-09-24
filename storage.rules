@@ -12,6 +12,10 @@ service firebase.storage {
         ).data.linkedImeis;
     }
 
+    match /privateSafetySnapshots/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     match /deviceAvatars/{imei}/avatar {
       allow read: if linkedTo(imei);
       allow delete: if linkedTo(imei);

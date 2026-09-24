@@ -13,14 +13,21 @@ function readSafetySnapshotRuntime(env = process.env) {
     .trim()
     .toLowerCase();
 
+  const acceptedImeis = String(env.SAFETY_SNAPSHOT_ACCEPTED_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d{15}$/.test(value));
+  const bucketName = String(env.FIREBASE_STORAGE_BUCKET || '').trim();
+  const deviceDispatchAllowed = requestsEnabled && customerEnabled && mediaIngressEnabled &&
+    deviceMode === 'accepted' && acceptedImeis.length > 0 && /^[a-z0-9][a-z0-9._-]+$/.test(bucketName);
   return Object.freeze({
     requestsEnabled,
     customerEnabled,
     mediaIngressEnabled,
     deviceMode,
-    requestWatcherEnabled: requestsEnabled,
-    deviceDispatchAllowed: false,
-    mediaIngressAllowed: mediaIngressEnabled && deviceMode === 'accepted',
+    requestWatcherEnabled: false,
+    deviceDispatchAllowed,
+    acceptedImeis: Object.freeze(acceptedImeis),
+    bucketName,
+    mediaIngressAllowed: deviceDispatchAllowed,
   });
 }
 

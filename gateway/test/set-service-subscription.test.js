@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { subscriptionPatch } = require('../scripts/set-service-subscription');
+const { subscriptionPatch, assertAllowedPlan } = require('../scripts/set-service-subscription');
 
 test('admin subscription patch writes the trusted versioned contract', () => {
   const patch = subscriptionPatch({ plan: 'care', status: 'active', until: null });
@@ -15,4 +15,11 @@ test('bounded statuses use the correct expiry field', () => {
   assert.equal(subscriptionPatch({ plan: 'family', status: 'trialing', until }).trialEndsAt, until);
   assert.equal(subscriptionPatch({ plan: 'family', status: 'past_due', until }).graceEndsAt, until);
   assert.equal(subscriptionPatch({ plan: 'family', status: 'cancelled', until }).currentPeriodEnd, until);
+});
+
+test('new subscriptions allow Family and Care but gate Essential behind an explicit legacy switch', () => {
+  assert.doesNotThrow(() => assertAllowedPlan('family'));
+  assert.doesNotThrow(() => assertAllowedPlan('care'));
+  assert.throws(() => assertAllowedPlan('essential'), /New customer subscriptions/);
+  assert.doesNotThrow(() => assertAllowedPlan('essential', true));
 });

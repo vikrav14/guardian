@@ -8,12 +8,13 @@ void main() {
       'state': 'available',
       'purpose': 'Check immediate surroundings',
       'sizeBytes': 12345,
+      'mediaExpiresAt': DateTime.now().add(const Duration(hours: 24)),
       'contentType': 'image/jpeg',
     });
 
     expect(snapshot.state, SafetySnapshotState.available);
     expect(snapshot.isViewable, isTrue);
-    expect(snapshot.statusLabel, 'Safety snapshot available');
+    expect(snapshot.statusLabel, 'Photo received');
     expect(snapshot.safetyNote, contains('does not prove'));
   });
 

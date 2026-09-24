@@ -65,6 +65,18 @@ test('classifyIntent: journey history queries', () => {
   }
 });
 
+test('classifyIntent: steps and daily activity queries', () => {
+  for (const text of [
+    'How many steps did Jesh take today?',
+    'Steps?',
+    'Was Mum active today?',
+    'Did Dad walk today?',
+    'Show the last seven days of activity',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'ACTIVITY_QUERY', `Failed for: ${text}`);
+  }
+});
+
 test('classifyIntent: weather near a wearer', () => {
   for (const text of [
     "How's the weather near Jesh?",
@@ -74,6 +86,18 @@ test('classifyIntent: weather near a wearer', () => {
   ]) {
     assert.equal(classifyIntent(text).type, 'WEATHER_QUERY', `Failed for: ${text}`);
   }
+});
+
+test('classifyIntent: watch wellbeing readings before weather', () => {
+  for (const text of [
+    "Mum's heart rate",
+    'latest blood pressure for Dad',
+    'show oxygen saturation',
+    'SpO2 reading',
+  ]) {
+    assert.equal(classifyIntent(text).type, 'WELLBEING_QUERY', `Failed for: ${text}`);
+  }
+  assert.equal(classifyIntent('Temperature around Dad').type, 'WEATHER_QUERY');
 });
 
 test('classifyIntent: safe zone', () => {

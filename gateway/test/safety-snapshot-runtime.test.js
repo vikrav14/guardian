@@ -1,35 +1,22 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-
 const { readSafetySnapshotRuntime } = require('../src/safety-snapshot-runtime');
-
-test('Safety snapshot runtime is fully default-off', () => {
-  const runtime = readSafetySnapshotRuntime({});
-  assert.equal(runtime.requestsEnabled, false);
-  assert.equal(runtime.customerEnabled, false);
-  assert.equal(runtime.mediaIngressEnabled, false);
-  assert.equal(runtime.deviceMode, 'unverified');
-  assert.equal(runtime.requestWatcherEnabled, false);
-  assert.equal(runtime.deviceDispatchAllowed, false);
-  assert.equal(runtime.mediaIngressAllowed, false);
+const enabled = {
+  SAFETY_SNAPSHOT_REQUESTS_ENABLED: 'true', SAFETY_SNAPSHOT_CUSTOMER_ENABLED: 'true',
+  SAFETY_SNAPSHOT_MEDIA_INGRESS_ENABLED: 'true', SAFETY_SNAPSHOT_DEVICE_MODE: 'accepted',
+  SAFETY_SNAPSHOT_ACCEPTED_IMEIS: '861397052547492', FIREBASE_STORAGE_BUCKET: 'example.firebasestorage.app',
+};
+test('capture is default-off; the legacy request watcher never dispatches', () => {
+  const config = readSafetySnapshotRuntime({});
+  assert.equal(config.deviceDispatchAllowed, false);
+  assert.equal(config.mediaIngressAllowed, false);
+  assert.equal(config.requestWatcherEnabled, false);
 });
-
-test('accepted device mode alone cannot enable capture or request processing', () => {
-  const runtime = readSafetySnapshotRuntime({
-    SAFETY_SNAPSHOT_DEVICE_MODE: 'accepted',
-  });
-  assert.equal(runtime.requestWatcherEnabled, false);
-  assert.equal(runtime.deviceDispatchAllowed, false);
-  assert.equal(runtime.mediaIngressAllowed, false);
-});
-
-test('media ingress requires its explicit gate and accepted mode but dispatch remains impossible', () => {
-  const runtime = readSafetySnapshotRuntime({
-    SAFETY_SNAPSHOT_REQUESTS_ENABLED: 'true',
-    SAFETY_SNAPSHOT_MEDIA_INGRESS_ENABLED: 'true',
-    SAFETY_SNAPSHOT_DEVICE_MODE: 'accepted',
-  });
-  assert.equal(runtime.requestWatcherEnabled, true);
-  assert.equal(runtime.mediaIngressAllowed, true);
-  assert.equal(runtime.deviceDispatchAllowed, false);
+test('all gates, a valid device allowlist and explicit private bucket are required', () => {
+  assert.equal(readSafetySnapshotRuntime(enabled).deviceDispatchAllowed, true);
+  for (const key of Object.keys(enabled)) {
+    assert.equal(readSafetySnapshotRuntime({ ...enabled, [key]: '' }).deviceDispatchAllowed, false, key);
+  }
+  assert.equal(readSafetySnapshotRuntime({ ...enabled, SAFETY_SNAPSHOT_ACCEPTED_IMEIS: '*' }).deviceDispatchAllowed, false);
+  assert.equal(readSafetySnapshotRuntime({ ...enabled, FIREBASE_STORAGE_BUCKET: 'https://bucket.example' }).deviceDispatchAllowed, false);
 });

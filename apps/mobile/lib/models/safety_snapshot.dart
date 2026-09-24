@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum SafetySnapshotState {
   requested,
   waitingForDeviceAcceptance,
+  takingPhoto,
+  failed,
   available,
   expired,
   deleted,
@@ -17,6 +19,7 @@ class SafetySnapshot {
     required this.purpose,
     required this.createdAt,
     this.capturedAt,
+    this.receivedAt,
     this.mediaExpiresAt,
     this.sizeBytes,
     this.contentType,
@@ -28,17 +31,23 @@ class SafetySnapshot {
   final String purpose;
   final DateTime? createdAt;
   final DateTime? capturedAt;
+  final DateTime? receivedAt;
   final DateTime? mediaExpiresAt;
   final int? sizeBytes;
   final String? contentType;
 
-  bool get isViewable => state == SafetySnapshotState.available;
+  bool get isViewable => state == SafetySnapshotState.available &&
+      mediaExpiresAt != null && mediaExpiresAt!.isAfter(DateTime.now());
+  bool get isPending => state == SafetySnapshotState.takingPhoto ||
+      state == SafetySnapshotState.requested;
 
   String get statusLabel => switch (state) {
     SafetySnapshotState.requested => 'Requested',
     SafetySnapshotState.waitingForDeviceAcceptance =>
       'Waiting for device acceptance',
-    SafetySnapshotState.available => 'Safety snapshot available',
+    SafetySnapshotState.takingPhoto => 'Taking photo…',
+    SafetySnapshotState.failed => 'No photo received',
+    SafetySnapshotState.available => isViewable ? 'Photo received' : 'Expired',
     SafetySnapshotState.expired => 'Expired',
     SafetySnapshotState.deleted => 'Deleted',
     SafetySnapshotState.rejected => 'Request rejected',
@@ -55,6 +64,8 @@ class SafetySnapshot {
       'requested' => SafetySnapshotState.requested,
       'waiting_for_device_acceptance' =>
         SafetySnapshotState.waitingForDeviceAcceptance,
+      'dispatching' || 'waiting_for_image' || 'receiving' => SafetySnapshotState.takingPhoto,
+      'failed' => SafetySnapshotState.failed,
       'available' => SafetySnapshotState.available,
       'expired' => SafetySnapshotState.expired,
       'deleted' => SafetySnapshotState.deleted,
@@ -67,6 +78,7 @@ class SafetySnapshot {
       purpose: (data['purpose'] as String?) ?? '',
       createdAt: _asDate(data['createdAt']),
       capturedAt: _asDate(data['capturedAt']),
+      receivedAt: _asDate(data['receivedAt']),
       mediaExpiresAt: _asDate(data['mediaExpiresAt']),
       sizeBytes: (data['sizeBytes'] as num?)?.toInt(),
       contentType: data['contentType'] as String?,

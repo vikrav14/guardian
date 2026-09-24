@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../models/care_profile.dart';
 import '../../models/device.dart';
@@ -22,7 +23,9 @@ class CareProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Device?>(
-      stream: DeviceService().watchDevice(device.imei),
+      stream: Firebase.apps.isEmpty
+          ? null
+          : DeviceService().watchDevice(device.imei),
       initialData: device,
       builder: (context, snapshot) {
         final latest = snapshot.data ?? device;
@@ -192,7 +195,7 @@ class _CareProfileEditorState extends State<_CareProfileEditor> {
                       ),
                     ),
                     Text(
-                      'Guardian adapts what it watches and explains.',
+                      'Choose care priorities. Available features are shown below.',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],

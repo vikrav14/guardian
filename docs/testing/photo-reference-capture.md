@@ -1,5 +1,22 @@
 # V52 photo reference capture
 
+
+## Guardian app integration — 25 September 2026 MUT
+
+The branch now includes the authorized `rcapture` sender, private TCP image
+receiver with full JPEG decoding, Firebase storage, authenticated viewing and
+deletion, retention cleanup, and a Family/Care app screen. It has been brought
+forward onto main `4386b0d` while preserving the historical photo evidence below.
+
+Local validation: **1344 gateway tests passed**, including a real local TCP
+photo exchange, concurrent request serialization, private access, timeouts,
+revocation and upload/deletion races. Both real remote samples also pass the
+new live JPEG decoder. Flutter and Firestore emulator CI are the next checks.
+No live Guardian photo or Firebase write is claimed from these software tests.
+The operator's next action is the direct app capture/delete trial in
+[the Windows app runbook](photo-app-trial.md).
+
+
 24 September 2026. PR #113 remains draft. This is the QA handoff; the GitHub
 Wiki cannot be updated through the available repository connector.
 

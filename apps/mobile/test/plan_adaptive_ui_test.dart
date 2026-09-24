@@ -81,11 +81,11 @@ void main() {
     }
 
     await pump(care: false);
-    expect(find.text('Wellbeing'), findsNothing);
+    expect(find.text('Care insights'), findsNothing);
     expect(find.text('Medication'), findsNothing);
 
     await pump(care: true);
-    expect(find.text('Wellbeing'), findsOneWidget);
+    expect(find.text('Care insights'), findsOneWidget);
     expect(find.text('Medication'), findsOneWidget);
   });
 
@@ -138,11 +138,10 @@ void main() {
       radiusMeters: 150,
     );
 
-    final resolved = journeyOriginGeofence(
-      journey,
-      const [office, home],
-      imei: 'watch-1',
-    );
+    final resolved = journeyOriginGeofence(journey, const [
+      office,
+      home,
+    ], imei: 'watch-1');
 
     expect(resolved?.id, 'home-id');
     expect(resolved?.radiusMeters, 150);

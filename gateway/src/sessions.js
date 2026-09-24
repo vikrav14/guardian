@@ -109,7 +109,14 @@ function handleIdleTimeout(socket) {
     }
   }
 
-  console.log(`[tcp] idle timeout imei=${session.imei || 'unknown'} after recovery`);
+  // Record the existing destroy decision for the close log without changing
+  // timeout, retry or socket behavior.
+  session.localCloseReason = 'packet_idle_timeout';
+  session.localCloseRequestedAt = new Date().toISOString();
+  console.log(
+    `[tcp] idle timeout imei=${session.imei || 'unknown'} after recovery ` +
+      `at=${session.localCloseRequestedAt}`
+  );
   try {
     socket.destroy();
   } catch (_) {

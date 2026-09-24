@@ -25,7 +25,15 @@ explicit action.
 
 Essential keeps Guardian help locked because WhatsApp questions and answers are
 not included in that plan. Essential's normal map, watch status, alert, journey
-and safety surfaces remain available according to its own entitlements.
+and safety surfaces remain available according to its own entitlements. A
+physical watch SOS is the narrow exception: Guardian sends one deterministic
+Meta template per accepted incident to the primary emergency contact. It does
+not open chat or invoke an LLM.
+
+Guardian Essential remains Rs 199/month from month 13. SOS-only WhatsApp is a
+core safety-delivery channel at that price, not the WhatsApp assistant. Product
+copy must say **SOS alerts in the Guardian app and WhatsApp** rather than the
+broader and misleading **WhatsApp included**.
 
 ## WhatsApp handoff
 
@@ -86,6 +94,17 @@ AI-backed WhatsApp behaviour must also have server-enforced controls:
 - aggregate cost and error telemetry without message bodies or private
   location/health content; and
 - a kill switch that preserves deterministic safety functions.
+
+Essential SOS cost controls are separate from AI limits:
+
+- exactly one primary WhatsApp recipient per Essential family;
+- one WhatsApp template per accepted wearer-SOS incident;
+- repeated device SOS packets collapse into the same incident for 90 seconds;
+- no LLM narration, conversational reply, routine alert or watch command; and
+- delivery/cost metrics must be reviewed against Meta invoices. A horizontally
+  scaled gateway requires a durable shared incident claim before scaling beyond
+  one notification worker; the current process-local window is not a
+  distributed lock.
 
 Marketing must not describe AI or WhatsApp use as unlimited until a written
 fair-use definition, budget model and abuse policy are approved.

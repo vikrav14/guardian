@@ -9,7 +9,7 @@ const { readSafetySnapshotRuntime } = require('../src/safety-snapshot-runtime');
 test('Safety snapshot release gates remain fail-closed', () => {
   const runtime = readSafetySnapshotRuntime({});
   assert.equal(SERVICE_CONTRACT.customerVisible, false);
-  assert.deepEqual(SERVICE_CONTRACT.acceptedProtocolCommands, []);
+  assert.deepEqual(SERVICE_CONTRACT.acceptedProtocolCommands, ['rcapture']);
   assert.equal(runtime.requestWatcherEnabled, false);
   assert.equal(runtime.customerEnabled, false);
   assert.equal(runtime.mediaIngressAllowed, false);

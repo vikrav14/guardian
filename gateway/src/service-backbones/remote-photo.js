@@ -4,11 +4,11 @@ const SERVICE_CONTRACT = Object.freeze({
   serviceId: 'remote-photo',
   displayName: 'Safety snapshot',
   minimumPlan: 'family',
-  lifecycle: 'software_safety_path',
+  lifecycle: 'controlled_app_integration',
   enabledByDefault: false,
   customerVisible: false,
   protocolCommands: Object.freeze(['FTPIP', 'FTPPWD', 'PIC', 'rcapture']),
-  acceptedProtocolCommands: Object.freeze([]),
+  acceptedProtocolCommands: Object.freeze(['rcapture']),
   safetyControls: Object.freeze([
     'explicit household consent',
     'approved guardians only',
@@ -34,7 +34,7 @@ const SERVICE_CONTRACT = Object.freeze({
     'never imply a snapshot proves the wearer is safe',
   ]),
   acceptanceGates: Object.freeze([
-    'confirm FTPIP FTPPWD PIC and rcapture roles on exact V52 firmware',
+    'complete direct Guardian capture and deletion on each enabled V52',
     'prove whether the wearer receives a visible or audible capture indication',
     'verify upload transport image type size latency and SIM data use',
     'verify private ingress expiry deletion and access logging',

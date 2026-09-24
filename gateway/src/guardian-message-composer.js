@@ -204,8 +204,9 @@ async function composeSafetyNarration({
   now = new Date(),
   provider = null,
   timeoutMs = DEFAULT_COMPOSER_TIMEOUT_MS,
+  context = null,
 } = {}) {
-  const ctx = buildSafetyContext({ device, alert, now });
+  const ctx = context || buildSafetyContext({ device, alert, now });
   const fallback = buildDeterministicNarration(type, ctx);
 
   if (!provider || typeof provider.complete !== 'function') {
