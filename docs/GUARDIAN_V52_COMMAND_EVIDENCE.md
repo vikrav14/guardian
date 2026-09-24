@@ -60,7 +60,11 @@ The value `5`, timestamp timezone semantics, trailer meaning,
 remote-request correlation, further variants and ACK requirements remain
 unverified. This evidence supersedes assuming
 `PIC,1`/FTP for this watch's observed AnyTracking path. Guardian has no enabled
-photo dispatcher or receiver. See [the evidence and private-capture runbook](testing/photo-reference-capture.md).
+photo dispatcher or receiver. A controlled app-only follow-up at 22:23 MUT
+sent the same `rcapture` frame, received a bare reply after 676 ms and continued
+heartbeat exchange, but produced no `img` in the supplied excerpt and no
+AnyTracking picture reported by the operator. This is not remote-capture
+acceptance. See [the evidence and private-capture runbook](testing/photo-reference-capture.md).
 
 ## Alarm decoding guardrail (existing branch baseline)
 

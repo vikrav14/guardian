@@ -168,6 +168,14 @@ remote latency. The decoded format remains valid evidence; a controlled
 AnyTracking-only request with untouched watch controls is the next test. This
 correction does not establish the trigger of the earlier 17:00/17:01 uploads.
 
+App-only follow-up at 22:23 MUT: `rcapture` sent at 18:23:22.676Z and bare reply
+at 18:23:23.352Z (676 ms). Heartbeat exchange continued through 18:25:15.560Z,
+but no `img` or recorder observation error appears in the supplied excerpt.
+The operator reports two minutes of waiting and an empty AnyTracking gallery.
+Remote-photo execution remains unverified. Next compare a request with the
+watch awake at the ordinary clock screen, camera/gallery closed; this checks
+a device-state hypothesis without changing command syntax.
+
 Live Guardian reception/private storage, fresh-image/request correlation, indication,
 retention/deletion, reconnect/failure handling and a second watch remain
 unverified. No customer flag or device-dispatch acceptance is changed.

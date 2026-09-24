@@ -94,6 +94,44 @@ display, or demonstrate a production Guardian receiver. No `img` ACK appears
 in the supplied ordinary excerpt; do not manufacture one. The original private
 file and real photo stay outside Git; tests use a generated gradient image.
 
+## Controlled app request — 22:23 MUT, 24 September
+
+The operator ran the app-only follow-up, reported waiting two minutes, and
+reported no picture in AnyTracking. The supplied excerpt contains:
+
+| Time UTC (MUT is UTC+4) | Evidence |
+| --- | --- |
+| 18:23:11.840 | Reference TCP connection established, session 1 |
+| 18:23:22.676 | Server sent exact `[3G*9705254749*0008*rcapture]` |
+| 18:23:23.352 | Watch returned bare `rcapture`, 676 ms after the request |
+| 18:25:15.107 / .560 | Watch heartbeat and server reply continued |
+
+No `img`, observation failure or disconnection appears in this excerpt. The
+private recorder reported two records, zero image frames and 58 raw bytes at
+the command/reply exchange. The excerpt ends 112.884 seconds after the request;
+it cannot establish what happened after its last row or on another transport.
+Result: command/reply exchange observed, remote photo/upload not observed.
+There is no image in these supplied rows for the offline decoder to recover.
+
+The successful local-camera upload remains separate evidence. The remote
+request matches the reference service's captured syntax, including case,
+prefix and length. The relay forwards buffers unchanged; no formatting change,
+FTP provisioning or invented ACK is justified by this result. The provided
+vendor document describes `PIC,1`/FTP but supplies no proven missing step for
+this observed `rcapture` exchange. The watch's screen/camera state at the
+request was not recorded; firmware support, camera state and upload behavior
+remain possible causes, not established diagnoses.
+
+Next single-variable check: wake the watch to the ordinary clock face and
+close any camera/gallery screen, without taking a local photo. While the
+recorder is connected, request Photo once in AnyTracking and leave the watch
+controls untouched. Note whether its screen opens the camera, shows a prompt,
+makes a shutter sound, or stays unchanged; record its screen state when the
+request arrives. Observe for up to two minutes without another request and
+check for `img`. Screen-awake dependence is a hypothesis, not a documented
+requirement. Restore the printed Guardian route when finished and verify fresh
+telemetry; do not restart tunnels merely because this photo attempt failed.
+
 ### Offline decoder
 
 `gateway/scripts/decode-photo-capture.js` uses the new bounded parser in
@@ -208,8 +246,10 @@ segments, bounded dimensions/trailers, file limits, redaction and no overwrite.
 Tests use a generated 32x24 gradient with synthetic metadata. Separately, the
 real supplied sample was decoded and visually verified as described above.
 
-Next obtain and decode a controlled app-only sample; the decoded private sample
-above was locally triggered. Confirm remote-only request correlation and further samples before any
+The 22:23 MUT app-only follow-up produced a reply but no image in the supplied
+window. Next compare with the watch awake on its normal clock screen, then
+obtain and decode an actual app-only upload; the decoded private sample above
+was locally triggered. Confirm remote-only request correlation and further samples before any
 fragment assembly/ACK behavior is inferred. Then connect single authorized requests
 to private storage/view/delete and the Flutter UI. Keep customer flags and
 Guardian dispatch disabled until that path works. Wearer indication, real
