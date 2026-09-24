@@ -9,7 +9,7 @@ const { sendDownlinkCommand } = require('./downlink');
  * - SMS provisioning: center number, SOS slots and `ts#` status. Center,
  *   SOS1 and `ts#` have been exercised successfully on Guardian's real V52;
  *   SOS2/SOS3 retain the same documented slot syntax pending acceptance.
- * - TCP data commands: administrator-only PHBX phonebook provisioning plus
+ * - TCP data commands: guarded PHBX phonebook additions plus
  *   monitor callback, alarm mode, ring/find, fall settings, medication reminders,
  *   alert profiles and upload interval. These are sent as `[SG*protocolId*LEN*...]` over the
  *   watch's active gateway session. They deliberately have no guessed SMS
@@ -114,8 +114,8 @@ function phonebookNameHex(name) {
  *   PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture bytes>
  *
  * Guardian deliberately leaves the optional picture field empty during the
- * first real-device acceptance. Slots 1-15 are a conservative Guardian
- * guardrail until the exact V52 capacity is confirmed on the target firmware.
+ * first real-device acceptance. The V52 user manual (page 2, Settings)
+ * documents 15 family numbers. This capacity does not reveal occupied slots.
  */
 function phonebookContactCommand({ slot, name, phone }) {
   const serial = Number(slot);

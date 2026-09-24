@@ -90,6 +90,12 @@ const config = {
   metaAppSecret: process.env.META_APP_SECRET || '',
   metaWhatsAppVerifyToken: process.env.META_WHATSAPP_VERIFY_TOKEN || '',
   metaWhatsAppReminderTemplate: process.env.META_WHATSAPP_REMINDER_TEMPLATE || '',
+  // Enable each family only after its v2 dynamic URL templates are approved.
+  watchCallPublicOrigin: process.env.WATCH_CALL_PUBLIC_ORIGIN || '',
+  metaWhatsAppSosDynamicCallEnabled:
+    String(process.env.META_WHATSAPP_SOS_DYNAMIC_CALL_ENABLED || 'false').toLowerCase() === 'true',
+  metaWhatsAppFallDynamicCallEnabled:
+    String(process.env.META_WHATSAPP_FALL_DYNAMIC_CALL_ENABLED || 'false').toLowerCase() === 'true',
   // Pilot-only: both values must match a device before Guardian selects the
   // SOS templates whose static Meta phone button calls that watch. Leave both
   // empty until the templates are approved and the real-device test passes.
@@ -97,6 +103,12 @@ const config = {
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
   metaWhatsAppSosCallbackPilotNumber:
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
+
+  // Separate approval gate: existing SOS callback approval does not approve fall templates.
+  metaWhatsAppFallCallbackPilotImei:
+    process.env.META_WHATSAPP_FALL_CALLBACK_PILOT_IMEI || '',
+  metaWhatsAppFallCallbackPilotNumber:
+    process.env.META_WHATSAPP_FALL_CALLBACK_PILOT_NUMBER || '',
 
   // Private, read-only router observation. Never enables customer Home presence.
   wifiHomeObserveEnabled:

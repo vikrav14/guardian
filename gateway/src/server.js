@@ -1,3 +1,4 @@
+const { admitWatchEmergency, reconcileEmergencyCall } = require('./watch-emergency-calls');
 const net = require('net');
 
 const config = require('./config');
@@ -9,6 +10,7 @@ const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offlin
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
 
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
+const { observeWatchCallPacket } = require('./watch-call-transport');
 
 const {
 
@@ -959,6 +961,16 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           }
         }
       } else if (event.type === 'alarm') {
+        // Independent of notification delivery; only decoded live watch ingress
+        // can admit an emergency call window. Never trigger from client alerts.
+        const emergencyDb = getDb();
+        if (emergencyDb) void Promise.resolve().then(() => admitWatchEmergency(emergencyDb, event, eventReceivedAt))
+          .then(result => {
+            if (['sos', 'fall'].includes(event.alarmType)) console.log(`[emergency-calls] type=${event.alarmType} outcome=${result?.outcome}`);
+            return result?.outcome === 'admitted' ? reconcileEmergencyCall(emergencyDb, event.imei) : null;
+          })
+          .catch(() => console.error('[emergency-calls] alarm admission unavailable; alerts continue'));
+
 
         console.log(
           `[alarm] received ${event.imei} type=${event.alarmType || 'other'} ` +
@@ -1248,15 +1260,21 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
         );
 
+      } else if (event.type === 'answer_mode_config') {
+        console.log(`[answer-mode-config] ${event.protocolId || event.imei} ` +
+          `receivedAt=${(receivedAt || new Date()).toISOString()} ${JSON.stringify(event.evidence)}`);
       } else if (event.type === 'command_echo') {
 
         const readbackArgs = Array.isArray(event.args) && event.args.length
           ? ` args=${event.args.join(',')}`
           : '';
+        const replyEvidence = event.command === 'APPLOCK' && event.replyEvidence
+          ? ` receivedAt=${(receivedAt || new Date()).toISOString()} replyEvidence=${JSON.stringify(event.replyEvidence)}`
+          : '';
 
         console.log(
 
-          `[gateway] ${event.protocolId || event.imei} echoed back ${event.command}${readbackArgs} (dropped, not re-acking)`
+          `[gateway] ${event.protocolId || event.imei} echoed back ${event.command}${readbackArgs}${replyEvidence} (dropped, not re-acking)`
 
         );
 
@@ -1357,6 +1375,10 @@ const server = net.createServer((socket) => {
       }
 
       const { acks, events } = handlePacket(decoded, session);
+
+      // Socket-specific Calls evidence must precede asynchronous persistence.
+      try { observeWatchCallPacket(socket, decoded, session); }
+      catch { console.warn('[watch-calls] reply observation unavailable'); }
 
       wearWireCapture?.observeIdentity(socket, session);
 

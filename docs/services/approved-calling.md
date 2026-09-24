@@ -4,8 +4,8 @@
 |---|---|
 | Service ID | `approved-calling` |
 | Minimum package | Essential |
-| Current state | Backbone and administrator provisioning only; disabled |
-| Customer-visible | No |
+| Current state | Add-only app pilot after verified inventory; full lifecycle withheld |
+| Customer-visible | Contacts; call additions require designated-manager setup |
 | Supported direction | Approved guardian calls the watch |
 | Live-proven protocol | `PHBX` |
 | Documented but not product-accepted | `DEVREFUSEPHONESWITCH` |
@@ -15,17 +15,19 @@ The physical pilot proved clear two-way audio after an approved guardian calls
 and the wearer answers. “Two-way audio” does not mean the wearer can originate
 a call: Guardian's current Machine 500 MB SIM does not permit outbound calls.
 
-This branch does not activate a customer menu or feature flag.
+This branch includes one Contacts screen with alert and watch-calling controls. Additions remain disabled
+until an operator verifies the existing phonebook and available slots.
 
 ## Safety controls
 
 - phonebook entries form an incoming-call allowlist
-- provisioning is restricted to the strict administrator endpoint
+- additions require the designated linked manager and verified empty-slot inventory
+- legacy administrator provisioning is blocked once a watch is managed
 - Firestore clients cannot enqueue `set_phonebook_contact`
 - the generic device-command dispatcher rejects phonebook changes
 - unknown callers were blocked on the pilot watch
 - the current product never promises wearer-originated calling
-- real contact values stay in the private operator session, not source control
+- real contact values stay in access-controlled device records and private operator sessions, not source control
 
 ## Current implementation
 
@@ -38,19 +40,23 @@ This branch does not activate a customer menu or feature flag.
 - [x] client Firestore command path denied with authorization tests
 - [x] physical approved/unknown incoming-call and two-way-audio acceptance
 - [x] phonebook persistence after reboot
-- [ ] backend-owned approved-contact records and lifecycle
-- [ ] authenticated customer contact-management UI
+- [x] backend-owned contact additions, reservations and delivery status
+- [ ] complete replacement/removal lifecycle
+- [x] authenticated add-only customer contact UI; physical acceptance pending
 - [ ] safe-mode enforcement proven on a second production watch
 - [ ] manufacturer-confirmed contact replacement/removal
 
-## New-device provisioning
+## Legacy unmanaged-device provisioning
+
+Use this only before managed inventory setup, with slot 1 physically verified
+empty. Managed watches use the Contacts workflow below.
 
 The watch must already have a live Guardian TCP session. Configure a strong
 `ADMIN_API_KEY` in private `gateway/.env`, restart the gateway, then run from
 `gateway` in a second PowerShell window:
 
 ```powershell
-$imei = Read-Host "Watch 10-digit protocol ID or 15-digit IMEI"
+$imei = Read-Host "Watch 15-digit hardware IMEI"
 $phone = Read-Host "Approved guardian number in E.164 form, for example +230..."
 
 npm run phonebook:provision -- `
@@ -106,9 +112,30 @@ Do not use “wearer can call family”, “outgoing calls”, or an unqualified
 1. Repeat provisioning, approved calling and unknown rejection on a second
    production-equivalent V52 and SIM.
 2. Prove or obtain the exact safe replacement/removal process from ReachFar.
-3. Implement backend-owned contact persistence and authenticated customer UI.
+3. Complete physical acceptance of app-based additions, retries and caller-scope checks.
 4. Complete privacy, billing, Android and failure-state acceptance.
 
 The manufacturer material supplied to Guardian does not document a PHBX
 delete/clear form. Use only an approved number that may safely remain on the
 watch until replacement/removal is confirmed.
+
+## 2026-09-23: authenticated add-only app pilot
+
+The designated linked contact manager can now add callers through **Watch
+settings → Contacts**, after operator-verified slot inventory. Each person has
+independent alert and calling permissions on one card. The backend reserves slots before PHBX, checks a live
+session, waits for receipt, and preserves uncertainty without replay. Generic
+commands and the legacy admin writer cannot bypass a managed inventory.
+
+Replacement/removal and general availability remain withheld. Read the setup,
+recovery boundaries and pending second-caller test in
+[Watch contacts acceptance](../testing/watch-contacts-app.md).
+
+### Documentary correction and unified Contacts
+
+The V52 manual page 2 confirms **15 family numbers**; the earlier description
+of this count as only a conservative software limit is superseded. See
+[the original-document evidence](../reference/V52-PHONEBOOK.md). The capacity
+does not reveal which numbered entries are already occupied on an existing
+watch. Customer contact management is now a single Contacts screen; backend
+notification and phonebook permissions remain independently enforced.

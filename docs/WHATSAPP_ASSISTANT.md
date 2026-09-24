@@ -54,6 +54,13 @@ failure; it never switches to another WhatsApp provider.
 
 ### SOS callback pilot
 
+**Dynamic successor (24 September):** shared SOS and fall Call watch links are
+implemented behind separate default-off gates using v2 URL-button contracts.
+They open the alert's watch number through an expiring Guardian page and retain
+the existing four variables/map variants. Meta approval and public tap-to-call
+acceptance remain pending. Follow [the rollout and exact template contract](services/watch-call-links.md).
+The v1 pilot below remains the rollback path while the dynamic gates are off.
+
 Guardian can select a second, pilot-only SOS template set after a controlled
 V52 no-call acceptance test:
 
@@ -75,7 +82,8 @@ META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER=
 Leave both empty by default. This pilot guard prevents another watch's alert
 from displaying a button that calls the pilot watch. The template button text
 is static; use the generic production label `Call watch` rather than embedding
-a wearer's name. This is not yet the scalable multi-watch call-link design.
+a wearer's name. The shared v2 call-link design above replaces this static pilot
+only after its own approval and activation gates pass.
 
 Guardian Essential includes only the physical-watch SOS WhatsApp entitlement.
 It sends one template per accepted SOS incident to the family's primary

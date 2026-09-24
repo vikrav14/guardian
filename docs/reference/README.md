@@ -27,3 +27,6 @@ file hashes, differences and Wi-Fi fence interpretation are recorded in
 Preserve raw vendor files, but record interpretation separately. For V52,
 prefer live captures plus explicit regression tests over conflicting generic
 or older-model prose.
+
+**Phonebook capacity checked 23 September:** the supplied V52 manual documents
+15 family numbers. See [capacity evidence and slot boundaries](V52-PHONEBOOK.md).

@@ -307,3 +307,15 @@ test('handlePacket parses full V52 gps=V alarm and keeps WiFi geolocation tail',
   assert.equal(events[0].needsGeolocation, true);
   assert.equal(events[0].accuracySource, 'wifi');
 });
+
+test('alarm source time is retained without usable positioning, and malformed calendar dates are rejected', () => {
+  const fields = v52AlarmPayload('00010000').split(',');
+  fields[0] = '230926'; fields[1] = '210000'; fields[2] = 'V';
+  fields[3] = 'invalid'; // no usable location must not remove the independent alarm time
+  const packet = () => handlePacket(decodeFrame(asciiFrame('3G', '9700000000', 'AL_LTE', fields.join(','))), {});
+  assert.equal(packet().events[0].alarmRecordedAt.toISOString(), '2026-09-23T21:00:00.000Z');
+  fields[0] = '310926';
+  assert.equal(packet().events[0].alarmRecordedAt, null);
+  fields[0] = '230926'; fields[1] = '250000';
+  assert.equal(packet().events[0].alarmRecordedAt, null);
+});

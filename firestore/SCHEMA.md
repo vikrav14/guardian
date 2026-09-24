@@ -13,6 +13,26 @@ flag. No client writes or automatic TTL policy are introduced.
 
 Collections used by the GT06 gateway and (later) the Flutter app.
 
+## `watchCallLinks/{sha256Token}`
+
+Backend-only expiring capabilities for SOS/fall WhatsApp call pages. All client
+reads/writes are denied. Never store the raw random token in Firestore or logs.
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| version | number | `1` |
+| imei, alertId, alertType | string | Original watch and persisted SOS/fall |
+| guardianUid, ownerUid | string | Linked guardian and verified service owner |
+| simHash, contactHash, recipientHash | string | SHA-256 of normalized original SIM, contact phone and WhatsApp destination; not an anonymization guarantee for low-entropy phone numbers |
+| createdAt | timestamp | Link issuance time |
+| expiresAt | timestamp | Alert `createdAt` + one hour; checked on each request |
+| revokedAt | timestamp or null | Explicit backend revocation |
+
+The endpoint rechecks binding and entitlement before showing the number. Tokens
+are bearer links, not logged-in identities. Configure TTL cleanup on `expiresAt`;
+expiry enforcement does not depend on cleanup. See
+[security and rollout](../docs/services/watch-call-links.md).
+
 ## `users/{uid}`
 
 Firebase Auth UID as document ID.
@@ -610,6 +630,55 @@ so repeated RSS polls and gateway restarts cannot manufacture a second match.
 It records only current-proximity or active-journey-approach evidence;
 `deliveryEligible=false` and `deliverySent=false` are mandatory in this phase.
 
+## Watch call answering
+
+These collections implement the per-device Calls pilot. See
+[Calls setup and acceptance](../docs/services/watch-calls-app.md).
+They do not implement automatic SOS windows.
+
+### `watchCallPolicies/{imei}` — private, administrator-owned
+
+`version:1`, `managedBy:guardian_admin`, `protocolId`, random `revision`,
+`autoEnabled`, validated six-record `capture`, `updatedAt`.
+The capture includes private phone/frame data. All client reads/writes are
+denied. Only a trusted operator provisions it after same-watch acceptance.
+
+### `watchCallSettings/{imei}` — backend projection
+
+Linked guardians may read; clients cannot write. Fields include `configured`,
+`autoAvailable`, `policyRevision`, masked `callerHint`, `requestId`,
+`requestedMode`, `requestedBy`, `latestRequestedAt`, `status`,
+`leaseUntil`, `lastHandoffMode`, `lastHandoffAt`, `updatedAt` and bounded
+completion evidence. No raw phone, capture, or frame is projected.
+Requested and last-handoff modes are not applied-state proof.
+
+### `watchCallRequests/{requestId}` — immutable intent and audit
+
+Client-created fields are exactly:
+`imei`, `mode:auto|manual`, `requestedBy`, `policyRevision`,
+`consentAccepted`, `createdAt:serverTimestamp`, `expiresAt`, `status:pending`.
+Auto requires consent=true and active trusted Family/Care access.
+Manual requires consent=false and remains available to linked guardians after
+Auto/plan disablement. The expiry is 60 seconds from the app action (rules bound
+it to at most 90 seconds); offline intent cannot arrive with a refreshed deadline.
+
+Backend-only fields: `status:pending|sending|device_replied|socket_handoff|not_sent|handoff_unknown`,
+`startedAt`, `leaseUntil`, `completedAt`, bounded `reason`,
+`appliedStateVerified:false`, `callerScopeVerified:false`,
+`automaticExpiry:false`, `deviceReplyObserved`, `expectedReplies`,
+`receivedReplies` (only APPLOCK/ACALL, never arguments). `device_replied` means
+the expected bare replies were observed on the selected socket after the write;
+it does not prove applied settings. Legacy socket_handoff records lack that
+receipt evidence. Missing/partial replies become handoff_unknown with reason
+watch_reply_missing; failed read-only connection checks are not_sent.
+Client updates/deletes are denied.
+Query index: imei ascending + createdAt descending for the latest request.
+
+A transaction serializes dispatch using a lease in watchCallSettings. Sending
+requests are never replayed after a crash. Lease expiry does not switch off
+handsfree answering on the device. `set_watch_answer_mode` is explicitly
+rejected by generic deviceCommands rules; the dispatcher has no such builder.
+
 ## `deviceCommands/{commandId}`
 
 App-originated V52 commands delivered through the model-supported carrier SMS
@@ -799,3 +868,93 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
+
+### Watch phonebook add-only pilot (2026-09-23)
+
+- `watchPhonebookPolicies/{imei}`: backend-only v1 `guardian_admin` authority,
+  designated `managerUid`, bound `protocolId`, revision and verified `emptySlots`.
+  One-time inventory includes occupied contacts; unknown slots are not available.
+  Unmanaged legacy provisioning uses a short backend-only lease here and cannot
+  write a configured watch. Setup cannot reset a configured inventory.
+- `watchPhonebookSettings/{imei}`: linked readers, backend writes. Manager UID,
+  revision, available-slot count, bounded contacts (slot/name/E.164 phone/status,
+  request/lease and receipt evidence), current request lease. Imported entries
+  are marked `imported`; no receipt claims physical application.
+- `watchPhonebookRequests/{id}`: immutable create by the designated linked
+  manager only. `imei`, `name`, `phone`, `requestedBy`, `createdAt`, `expiresAt`,
+  `status: pending`, `policyRevision`. Client cannot set slots or wire commands.
+  Deadline 1–90 seconds after receipt; gateway validates again before claiming.
+  Backend statuses: sending, device_replied, not_sent, handoff_unknown. Every
+  write claim reserves a slot first. Pre-write failures alone may retry the same
+  unchanged contact. Ambiguous writes/crashes permanently retain reservations.
+  No automatic replay, replacement, deletion or client status editing. Current
+  phonebook and Calls leases are mutually checked in transactions.
+
+These records contain private contact data and must not be copied to public logs.
+Rules and the `imei ASC, createdAt DESC` request index must deploy with the app.
+
+
+### Unified contact directory (23 September 2026)
+
+`users/{uid}.contactDirectory` is the account owner's address book (name, phone,
+optional WhatsApp), written under existing owner-only profile rules. It confers
+no device, assistant or notification authority. Contacts merges it with legacy
+`emergencyContacts` and the selected watch's backend-owned phonebook entries by
+canonical international phone (`00` and `+` compare equivalently). No migration
+or watch command is triggered by reading the screen.
+
+`emergencyContacts` remains the gateway-compatible projection of contacts whose
+**Receive safety alerts** choice is enabled. Turning it off preserves the
+address-book entry and watch access. Primary alert-recipient behavior remains
+compatible with the existing gateway. An optional call-access request and profile
+changes commit in one client transaction; request rules and the backend still
+validate the designated manager, immutable deadline and verified slot inventory.
+No permission is inferred from fields inside `contactDirectory`. Watch access
+is per watch; notification recipients remain scoped to the linked account as
+before. Neither contact option changes the watch SOS number or Auto-answer.
+
+### Emergency callback answering (draft V52 pilot)
+
+`watchEmergencyPolicies/{imei}` is backend-only: version 1, guardian_admin,
+managerUid (service owner), revision and callPolicyRevision. Operator setup binds
+the existing captured caller to exactly one primary alert contact. It does not
+change phonebook or watch SOS dial settings. Configure with
+`gateway/scripts/configure-emergency-calls.js`.
+
+`watchEmergencySettings/{imei}` is readable by linked guardians, backend-written:
+configured, managerUid, revision, enabled, ready, callerHint (last four digits),
+windowMinutes=5, status, reason, incidentType, windowEndsAt, latestRequestedAt,
+updatedAt. Status is disabled/manual_replied/preparing/auto_replied/
+restoration_pending. Receipt never sets appliedStateVerified=true or
+an automatic device expiry claim. Expired countdown is not confirmed Manual.
+
+`watchEmergencyRequests/{id}` is an immutable owner-only preference request with
+imei, enabled, requestedBy, revision, consentAccepted==enabled, server createdAt,
+client expiresAt <=90s and initial status=pending. Enable requires Family/Care;
+disable remains available after expiry. Backend accepts as applied or not_applied
+with reason. Applied means the preference was stored, not that a watch changed.
+
+`watchEmergencyJobs/{imei}` is backend-only recovery state. It stores a PRIVATE
+snapshot of the already validated capture (needed for Manual even if current
+policy is removed), active, token, phase, cancel, endsAt, autoBy, retryAt,
+attempts, lastSourceAt, quietUntil, eventId/type and optional manualRequestId.
+Never expose this document or capture bytes through logs or public projections.
+Pending/sending Auto becomes Manual recovery after a deadline or crashed claim.
+The shared watchCallSettings lease/emergencyToken serializes with app Calls and
+phonebook writes. Cancellation preserves an active lease; post-probe authority
+checks fence stale Auto. Manual retries have backoff capped at 60s; recovery is
+not abandoned while the device may remain in Auto.
+
+`watchEmergencyEvents/{sha256}` backend-only deduplication: imei, createdAt,
+expiresAt (30 days; optional TTL cleanup). Event key includes source time, alarm
+kind/state and device identity. Only direct decoded TCP AL/AL_LTE ingress admits
+fresh SOS/fall; neither client alerts nor notification retries can open windows.
+Active incidents coalesce without extension, followed by a 60s quiet interval.
+
+`watchCallSettings` additionally projects emergencyEnabled and
+emergencyRestorationPending; everyday Auto is blocked until both are false.
+`watchCallRequests.status=restoration_pending` means explicit Manual cancelled
+an active emergency job; it finishes as device_replied after Manual recovery.
+Existing notification fan-out and recipient permissions remain unchanged.
+
+See `docs/testing/emergency-callback-pilot.md` for installation and acceptance.

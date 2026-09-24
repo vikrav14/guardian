@@ -3,6 +3,7 @@ const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
+const { handleWatchCallLink } = require('./watch-call-link-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -19,7 +20,8 @@ const {
 } = require('./meta-webhook');
 const { recordMetaDeliveryStatus } = require('./meta-delivery');
 const { sendContinuousReporting, sendDownlinkCommand } = require('./downlink');
-const { provisionPhonebookContact } = require('./phonebook-provisioning');
+const { provisionUnmanagedPhonebook } = require('./watch-phonebook');
+const { MAX_CAPTURE_BYTES, sendCapturedAnswerTrial } = require('./captured-answer-mode-trial');
 const {
   buildWellbeingRequestCommand,
   buildWellbeingScheduleCommand,
@@ -1029,6 +1031,8 @@ function startHttpServer() {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
+      if (await handleWatchCallLink(req, res, { db: getDb(), pathname: url.pathname })) return;
+
       if (req.method === 'OPTIONS') {
         sendOptions(res);
         return;
@@ -1159,6 +1163,44 @@ function startHttpServer() {
         return;
       }
 
+      if (url.pathname === '/admin/watch-answer-trial') {
+        res.setHeader('Cache-Control', 'no-store');
+        if (!(await requireStrictAdmin(req, res))) return;
+        if (req.method !== 'POST') { sendJson(res, 405, { error: 'POST required' }); return; }
+        if (url.search) { sendJson(res, 400, { error: 'Body parameters only' }); return; }
+        if (Number(req.headers['content-length']) > MAX_CAPTURE_BYTES) {
+          sendJson(res, 413, { ok: false, outcome: 'not_sent', reason: 'invalid_reference_capture' }); return;
+        }
+        let payload, result;
+        try {
+          let size = 0;
+          const chunks = [];
+          for await (const chunk of req) {
+            size += Buffer.byteLength(chunk);
+            if (size > MAX_CAPTURE_BYTES) throw new Error('body_too_large');
+            chunks.push(Buffer.from(chunk));
+          }
+          payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          result = sendCapturedAnswerTrial(payload);
+        } catch {
+          // JSON errors can contain the private Auto number/frame. Never echo.
+          sendJson(res, 400, { ok: false, outcome: 'not_sent', reason: 'invalid_reference_capture' });
+          return;
+        }
+        let auditRecorded = false;
+        try {
+          if (auditLog) {
+            await auditLog.record({ requestId: generateRequestId(), phase: 'device_provisioning',
+              imei: payload.imei, data: { operation: 'captured_answer_mode_trial', mode: result.mode,
+                outcome: result.outcome, sessions: result.sessions, frameCount: result.frameCount } });
+            auditRecorded = true;
+          }
+        } catch { console.error('[answer-mode-trial] audit unavailable after trial; do not retry blindly'); }
+        console.log(`[answer-mode-trial] mode=${result.mode} outcome=${result.outcome} protocolId=${result.protocolId} sessions=${result.sessions}`);
+        sendJson(res, result.ok ? 200 : 409, { ...result, auditRecorded });
+        return;
+      }
+
       if (
         req.method === 'POST' &&
         url.pathname === '/admin/device-phonebook/contact'
@@ -1178,7 +1220,7 @@ function startHttpServer() {
 
         let result;
         try {
-          result = provisionPhonebookContact(payload);
+          result = await provisionUnmanagedPhonebook(getDb(), payload);
         } catch (error) {
           sendJson(res, 400, { error: error.message });
           return;
@@ -1425,6 +1467,13 @@ function startHttpServer() {
           return;
         }
         const command = url.searchParams.get('command') || 'CR';
+        const frameFormat = url.searchParams.get('frameFormat') || 'default';
+        if (frameFormat !== 'default' && (req.method !== 'POST' ||
+            url.pathname !== '/dev/downlink' || frameFormat !== 'applock-example' ||
+            !/^APPLOCK,JT-[01]$/.test(command))) {
+          sendJson(res, 400, { error: 'Only POST APPLOCK,JT-0/1 supports frameFormat=applock-example.' });
+          return;
+        }
         const { getWellnessRoutineRuntime } = require('./wellness-routine-runtime');
         try {
           const routine = getWellnessRoutineRuntime();
@@ -1437,7 +1486,7 @@ function startHttpServer() {
         const result =
           command === 'CR'
             ? sendContinuousReporting(imei)
-            : sendDownlinkCommand(imei, command);
+            : sendDownlinkCommand(imei, command, { frameFormat });
 
         // Auto-stop ring after 60 seconds (device firmware doesn't auto-stop as documented)
         if (command === 'find#' && result.ok) {

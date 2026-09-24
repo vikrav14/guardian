@@ -1,8 +1,103 @@
 # Guardian V52 real-device acceptance
 
+**24 September dynamic call-link checkpoint:** the draft gateway prepares
+per-recipient SOS/fall call URLs for the correct watch, separately gated by v2
+template approval. All six v2 templates were submitted on 24 September and
+showed In review. The public trial call-page fallback responded; activation and
+physical URL acceptance remain pending. Existing emergency handsfree behavior
+is unchanged. See
+[deployment and remaining acceptance](services/watch-call-links.md).
+
 **Status:** Release gate
 **Device under test:** One production-equivalent V52 watch and SIM
 **Rule:** Unit tests prove code paths. This runbook proves what the real watch, carrier and configured notification providers actually do.
+
+**22 September reference result:** The operator reports that the existing pilot
+auto-answered after an AnyTracking Answer mode change, with audio both ways.
+This was a successful reference-platform call; Guardian's own enable/disable
+path was still unverified at that checkpoint. The same session included intentional supplier SOS
+and phonebook writes. See the [captured evidence and remaining checks](testing/answer-mode-reference-success.md).
+
+**23 September Manual physical result:** AnyTracking sent 3G APPLOCK,JT-0 then
+3G ACALL,0 for the operator's Manual selection; bare replies and four saved
+private records were observed. After reported Guardian return, the operator
+confirms that a call kept ringing until manually answered, with audio both ways.
+This was a physical reference Manual pass. Guardian-generated transitions
+were not yet verified and fresh return telemetry was absent at that checkpoint. See the [exact exchange](testing/answer-mode-manual-capture-20260923.md)
+and [proposed app/SOS policy](services/watch-answer-sos-design.md).
+
+**23 September subsequent Auto/Manual run:** The operator reports Auto at
+21:04 Mauritius time answered with audio both ways; Manual at 21:05 kept ringing;
+Guardian routing was restored at 21:07. Logs correlate Auto with a 3G ACALL
+frame (0013, 19 payload bytes, argument redacted) and reply; Manual repeats
+3G APPLOCK,JT-0 then 3G ACALL,0 and replies. Six private writes were saved.
+The private six-record file was subsequently supplied and decoded: Auto sends
+3G ACALL with the captured guardian number in international `00…` format.
+Its exact value and hex are private. The authenticated Guardian replay and
+[physical acceptance record](testing/answer-mode-captured-trial.md) are documented.
+All 1,306 gateway tests pass, including exact-byte HTTP/TCP and privacy tests.
+Caller exclusivity and guaranteed expiry remain unverified. The subsequent
+Guardian physical result below updates the transition acceptance only.
+
+**23 September Guardian-generated physical pass:** The operator ran the new
+captured-answer helper for Auto (one frame, one session), then Manual (two
+frames, one session), both with `socket_handoff` for protocol ID 9705254749,
+and confirmed **both tests passed with the expected outcome**. This accepts
+the Guardian-controlled Auto and Manual transitions on this pilot with the
+tested approved caller. Manual was tested last. Exact call times, delays and
+ring durations were not supplied. The script cannot observe voice calls and
+correctly retains `appliedStateVerified:false`; the physical pass is based on
+operator observation. Implementation CI run 331 passed all release gates.
+Customer UI, caller exclusivity, persistence and SOS-window restoration remain
+separate acceptance items. See the [trial result](testing/answer-mode-captured-trial.md).
+
+**Calls app integration (draft PR #115):** Watch settings → Calls and a dedicated
+authorized, short-lived request path now use the tested adapter. Availability
+is provisioned per tested device; Auto requires explicit confirmation and
+active Family/Care access, while Manual restoration remains available to linked
+guardians after plan expiry. No SOS-only behavior is enabled. The earlier
+physical adapter pass does not substitute for the new
+[app-to-watch acceptance](services/watch-calls-app.md). Local gateway tests:
+1,314 passed; require emulator and Flutter CI before pilot deployment.
+
+**Earlier app acceptance failed for Manual (23 September, superseded below):** The operator reports
+Auto answered, then Manual was selected/sent but the next call still
+auto-answered. Both app requests have gateway socket_handoff records; only the
+Auto ACALL reply appears in the provided excerpt. Manual coincided with a new
+TCP connection at 18:22:45.244 UTC. The selected socket is not logged, so a
+handover race is a supported hypothesis, not an established root cause.
+At that checkpoint the operator had not run the suggested helper restoration,
+so Manual restoration remained unverified until the subsequent app retest.
+
+The draft now checks the selected connection with the already-proven read-only
+VERNO query, preserves the captured setting bytes, and waits for expected
+socket-specific replies. Missing replies remain uncertain with no automatic
+mode resend. Local gateway tests pass 1,325 cases. Implementation d0f4bfb passed
+all release gates in [CI run 335](https://github.com/vikrav14/guardian/actions/runs/35903829878),
+including Firestore authorization and Flutter; Dashboard UI review also passed.
+
+**Latest app retest passed (23 September, 18:46–18:47 UTC / 22:46–22:47 MUT):**
+The operator reports "it works!!!" after the update and supplies the following
+app-to-watch evidence:
+
+| Mode | Request ID | Checked connection | Expected replies received | Outcome |
+| --- | --- | --- | --- | --- |
+| Manual | 49tjN1xqpEoheuHyot0u | Connection 2, peer 57614; 18:46:17.869 UTC | APPLOCK and ACALL by 18:46:18.771 UTC | device_replied |
+| Auto | xdOjymVuaL4RvzJ9LioS | Connection 3, peer 54262; 18:47:05.367 UTC | ACALL at 18:47:06.455 UTC | device_replied |
+
+Record this as operator-reported successful app behavior on the existing Jesh
+pilot and tested caller, supported by receipt evidence on each selected socket.
+This supersedes the prior app Manual failure as the latest result. No precise
+call times, ring duration or fresh two-way-audio details were separately
+reported. Bare replies still leave appliedStateVerified false; the physical
+result is recorded here rather than inferred by the gateway.
+
+**Auto was requested last** in this excerpt; final Manual restoration afterward
+is not reported. Caller exclusivity, restart persistence, offline restoration
+and SOS-only automatic switching remain separate gates. The earlier failed
+request's exact cause is not retrospectively proven by this successful retest.
+See [the current procedure](services/watch-calls-app.md). PR #115 remains draft;
+this evidence update changes no executable code or watch setting.
 
 ## Evidence semantics
 
@@ -936,3 +1031,534 @@ Temperature remains blocked until the exact V52 upload shape is captured. Passin
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
 `releaseReady` remains false in the collector by design. Release also requires PR checks, Meta acceptance, Android smoke testing, billing lifecycle, privacy/retention review and resolution or rewording of every Partial/Not implemented promise in the service matrix.
+
+## 2026-09-21 — Call-answer investigation, still incomplete
+
+The pilot's `APPLOCK,JT-0` command was handed to one live TCP session and an APPLOCK
+response was logged, but the incoming call kept ringing. The operator subsequently
+confirmed that the watch's SMS `ts#` SOS1 readback matches the calling number.
+Manual answering was observed after the requested restoration; a matching JT-1
+downlink was not supplied. Auto-answer remains **not passed**.
+
+Correction to earlier PR wording: the existing parser discarded APPLOCK parameters,
+so the historical log does not prove the response was bare. The diagnostic added in
+draft PR #115 records a timestamp and bounded, redacted reply details without asserting
+applied state or sending another ACK. It requires a new supervised capture before
+drawing conclusions about the watch's actual response.
+
+The successful vibration-only test has a fresh `profile,3` downlink and an
+operator-confirmed physical outcome; the profile reply's exact shape is likewise
+not established by the old logger. Sound-only was reported working on retest, without
+a supplied fresh mode-2 downlink. Silent, expiry and reboot behavior remain unverified.
+
+See [watch modes](services/watch-modes.md) for supplier mappings, exact firmware
+labels, evidence limits and the next enable/call/restore trial. No real phone
+numbers or raw SOS status messages are included.
+
+## Instrumented follow-up — 21 September 2026, 19:08 UTC
+
+The operator supplied `Pasted text(20260921-191154).txt` (100 lines) after running
+the diagnostic gateway. It records one `APPLOCK,JT-0` downlink to one live session,
+followed by an APPLOCK reply at `2026-09-21T19:08:32.909Z` (23:08:32.909 MUT):
+
+```json
+{"kind":"bare","argumentCount":0,"arguments":[],"truncated":false,"appliedStateVerified":false}
+```
+
+This capture establishes that **this reply was bare**, matching the supplied
+communication example. It contains no returned mode or error detail; it still
+does not establish that automatic answering was applied. The earlier captures
+remain uninterpretable as to argument shape.
+
+The operator reported that the call from the confirmed on-watch SOS1 number,
+left untouched for the instructed 15–20 seconds, **kept ringing**. Auto-answer
+therefore remains **not passed**. The exact call timestamp/ring count is not
+present in the log. The excerpt contains no JT-1 downlink or verified manual
+restoration after this final Auto trial. Earlier helper outputs reported
+Auto -> Manual -> Auto socket handoffs; their exact timestamps were not supplied.
+
+Next action: end the call, restore `APPLOCK,JT-1`, capture the reply, and confirm
+manual answering. Ask the supplier to confirm support and prerequisites for
+`JT-0` on the two recorded firmware labels, including any caller-number format
+requirements and a supported way to read back answer mode. Keep caller
+restrictions unchanged. Do not infer unsupported firmware or change JT mappings
+from this result. Repeating the same enable/call trial without new information
+would not resolve the remaining uncertainty.
+
+The diagnostic commit `3eabb7d` passed Guardian release gates run
+[35641384531](https://github.com/vikrav14/guardian/actions/runs/35641384531).
+CI success validates the software checks, not physical auto-answer behavior.
+
+## 2026-09-21 — Exact-example answer-mode comparison prepared
+
+Further audit found a single byte difference between the prior APPLOCK frame and
+the supplied example: uppercase 000C versus lowercase 000c in the hexadecimal
+length. Both mean 12; causation is unproven. An opt-in exact-example sender and
+passive, redacted CONFIG JT observation are now available in draft PR #115.
+
+The script and HTTP/TCP path were verified using synthetic local sessions.
+No live watch command was sent by this investigation and no new physical success
+is claimed. Next compare the supplier frame while idle, observe incoming
+caller-ID recognition, and restore/verify manual answering. See
+[watch modes](services/watch-modes.md#deeper-protocol-audit--21-september-2026)
+for the audit, exact commands, limits and controlled trial procedure.
+
+Subsequent operator helper output reports a Manual (APPLOCK,JT-1) socket handoff to one session after the failed Auto test. A new Manual reply and untouched-call result have not yet been supplied.
+
+## Exact supplier-frame result — 21 September 2026, 19:37 UTC
+
+The operator ran the exact-example Auto trial at `2026-09-21T19:37:28.514Z`.
+Its output reported one live session and the expected 33-byte frame with a
+12-byte payload and lowercase `000c`. The subsequent attachment
+`Pasted text(20260921-194115).txt` independently contains:
+
+```text
+[downlink] sent APPLOCK,JT-0 to 9705254749 (1 session(s)): [SG*9705254749*000c*APPLOCK,JT-0]
+[gateway] 9705254749 echoed back APPLOCK receivedAt=2026-09-21T19:37:28.889Z replyEvidence={"kind":"bare","argumentCount":0,"arguments":[],"truncated":false,"appliedStateVerified":false} (dropped, not re-acking)
+```
+
+The operator reports that automatic answering **did not work**. This is a failed
+physical Auto test despite the exact supplier framing and a matching bare reply.
+Both uppercase and lowercase trials have now failed to produce automatic answering;
+the header-case change is not a demonstrated fix. The reply contains no applied
+mode or error information, so the reason for failure remains unknown.
+
+This excerpt contains no `answer-mode-config` observation and no subsequent
+`APPLOCK,JT-1` restoration. Neither absence establishes unsupported firmware.
+A later TCP connection at `19:39:56.078Z` does not establish why the call failed.
+The operator subsequently confirmed that the incoming screen displayed the saved
+contact. Combined with the prior SOS1 readback confirmation, this supplies evidence
+of visible caller recognition. It does not establish that the firmware uses the same
+internal matching rule for automatic answering. The precise call time, duration and
+ring count were not provided; do not infer them from the instructed test procedure.
+
+Next: end the call and restore Manual using the same supplier framing, capture
+its reply, then verify that a fresh untouched call waits for manual answering.
+The already-confirmed SMS SOS1 match and visible saved-contact recognition need
+not be repeated. The evidence does not yet distinguish ignored mode application,
+additional firmware prerequisites or an implementation defect; none is established
+as the cause. No documented V52 applied-mode readback has been identified.
+
+Do not repeat Auto without a new diagnostic reason or change contacts, caller
+restrictions or undocumented command values. PR #115 remains draft; automatic
+answering is not accepted.
+
+The diagnostic runtime commit `d1d37b4` passed
+[Guardian release gates run 35645517019](https://github.com/vikrav14/guardian/actions/runs/35645517019).
+That software result does not change the failed physical outcome.
+
+## Reboot comparison prepared — 21 September 2026
+
+After the request to restore Manual and verify a call, the operator reported
+"done". No new command output or detailed call observation accompanied that
+completion report. The operator then asked what else could be tried.
+
+The supplied Communication Protocol, section 43, documents `RESET` as a
+device restart. Section 42 separately documents `FACTORY`; this trial never
+sends FACTORY. The V52 user guide also documents remote reboot, but does **not**
+say that answering-mode changes require it. Testing behavior across a restart
+is a new diagnostic condition, not a known remedy or an established prerequisite.
+
+The existing `gateway/scripts/send-reset.js` did not attach the admin header
+required by the current gateway. The helper now:
+
+- Requires an explicit device identifier and previews unless `--send` is present.
+- Uses the configured HTTP port and admin key with one authenticated loopback POST.
+- Sends only the documented RESET command; it cannot override the command or host.
+- Bounds the request to ten seconds, rejects redirects, and never retries automatically.
+- Verifies the returned command/frame and keeps `watchRestartVerified: false`.
+- Requires the operator to observe a reboot and subsequent live telemetry.
+
+This changes the helper CLI: prior no-argument sends and --host/--port overrides
+are removed; explicit positional 10/15-digit identifiers remain supported.
+No runtime server change or gateway restart is required for this helper update.
+The assistant has not sent a live watch command.
+
+### Supervised comparison
+
+Keep the watch beside the informed operator; end any call and keep gateway and
+ngrok running. Pull the draft branch in a second terminal.
+
+1. Send Auto once with `trial-answer-mode.js --imei <pilot-imei> --mode auto --framing supplier --send`.
+2. Capture the APPLOCK reply and leave the watch idle for 30 seconds.
+3. Send `node scripts/send-reset.js --imei <pilot-imei> --send` once.
+4. Observe whether the watch visibly restarts; wait for its new identified TCP
+   session and fresh heartbeat. A socket-handoff result alone is not a reboot.
+   If handoff is uncertain or no restart is observed, inspect logs and stop this
+   comparison rather than retrying automatically.
+5. After reconnection, leave the watch idle for a minute, then call from the same
+   confirmed SOS1 contact and leave it untouched for up to 30 seconds. Record
+   local time, ring count, answer behavior and two-way audio if it answers.
+   Do not resend Auto after reboot: that would change what this test measures.
+6. End the call, send Manual using the same supplier framing, capture the reply,
+   wait 30 seconds and restart once with the same RESET helper. Wait for the new
+   session/heartbeat and verify that a call requires a manual answer. If it
+   answers automatically, report that result rather than claiming restoration.
+
+Retain APPLOCK, RESET, TCP connection and any `answer-mode-config` lines,
+without publishing contact data. This tests the requested modes across reboot;
+it cannot directly read the stored mode. A failure does not establish unsupported
+firmware. No caller-list, safe-mode, SOS-slot or server-setting change is part of
+the comparison. Auto-answer remains unaccepted and PR #115 stays draft.
+
+## Reboot trial result — 21 September 2026, 20:02–20:08 UTC
+
+Source: operator attachment `Pasted text(20260921-200849).txt` and the report
+"did not work" following the supervised Auto/reboot/call procedure. Automatic
+answering remains **not passed**.
+
+| Observed event | Evidence |
+| --- | --- |
+| Auto request | Exact supplier `APPLOCK,JT-0` frame with `000c`, handed to one session |
+| Auto response | Bare APPLOCK reply at `2026-09-21T20:02:37.767Z`; no returned mode/error |
+| Restart request | One `RESET` downlink to one session, after Auto; its exact send time is not printed |
+| New startup traffic | TCP connection at `20:04:11.795Z`, followed by configuration, full pilot IMEI and fresh persistence |
+| New configuration evidence | At `20:04:11.834Z`: `jtField: valid`, `reportedJt: 0`, `meaningVerified: false`, `appliedStateVerified: false` |
+| Manual request | Exact supplier `APPLOCK,JT-1` frame, handed to two registered sessions |
+| Manual response | Bare APPLOCK reply at `20:06:23.059Z` |
+| Post-Manual restart/configuration | Not present in the supplied excerpt |
+
+The startup sequence after RESET is consistent with a device restart. The
+operator did not separately describe the visible boot sequence, exact call time,
+ring count or post-restoration call outcome. The reported failure must not be
+turned into a claim that the stored answer mode has been read back.
+
+This is the **first captured JT configuration value from the pilot** in this
+investigation. Parser review confirms it is extracted from a received `JT:0`
+field, not a default substituted for missing data. Its meaning remains unknown:
+it could describe a setting or another firmware property. The same-named field
+in the mixed-family supplier example does not establish the V52 meaning.
+
+Next complete the already-planned **Manual/reboot** half of the comparison.
+Manual has already been handed off and replied to; do not resend Auto. If a
+restart after that Manual reply has already happened, obtain its configuration
+line instead of requesting another restart. Otherwise, with no call active,
+send RESET once using the updated helper, observe the watch startup and wait
+for identified reconnection/fresh telemetry. Retain the next
+`[answer-mode-config]` line and verify an incoming call waits for a manual answer.
+
+If JT changes to 1, that supplies evidence of a relationship between the request
+and startup configuration on this pilot; it still does not prove successful
+automatic answering. If it remains 0, that does not by itself distinguish a
+static field, ignored setting or a setting that does not persist. If no field
+arrives, record that absence without inferring a firmware capability.
+
+The excerpt also logs unhandled `appcontacttel`, `APPANDFNREPORT` and `eicard`
+during startup. It does not establish their semantics or a causal link to the
+failed call; do not fabricate server responses. The multiple registered TCP
+sessions likewise do not establish a cause of the Auto failure.
+
+No runtime change or live command is made by this evidence update. PR #115
+remains draft. The helper/runtime head `bc38754` passed
+[Guardian release gates run 35648407320](https://github.com/vikrav14/guardian/actions/runs/35648407320);
+software CI does not validate the physical answer-mode behavior.
+
+## Manual reboot comparison — 21 September 2026, 20:16 UTC
+
+The operator supplied the Manual helper output, the subsequent RESET helper
+output and startup logs. The Manual request was made at
+`2026-09-21T20:06:21.456Z`, handed to two sessions and replied to at
+`20:06:23.059Z` in the earlier capture. RESET was requested at
+`20:13:49.251Z` and handed to one session with the documented frame.
+
+The watch then connected at `20:16:11.009Z`, supplied its full pilot IMEI and
+fresh telemetry, and emitted this configuration evidence at `20:16:11.061Z`:
+
+```json
+{"jtField":"valid","reportedJt":0,"meaningVerified":false,"appliedStateVerified":false}
+```
+
+| Requested mode before RESET | Startup configuration (UTC) | Reported JT |
+| --- | --- | --- |
+| Auto, APPLOCK,JT-0 | 20:04:11.834 | 0 |
+| Manual, APPLOCK,JT-1 | 20:16:11.061 | 0 |
+
+The field is unchanged across the two requested modes. This comparison does
+**not validate JT as an applied answer-mode readback**. It does not prove that
+Auto is active, that Manual was ignored, or that the firmware lacks auto-answer.
+A static/default field and a setting that is ignored or does not persist remain
+possible explanations; these observations do not distinguish them.
+
+The startup socket ended at `20:16:40.619Z` without a socket error or logged
+gateway-initiated close, and a new connection arrived at `20:17:01.015Z` with
+fresh session persistence. This is connection evidence, not evidence of an
+answer-mode change or the cause of the failed automatic call.
+
+Manual is the last requested mode. The physical incoming-call result after this
+latest restart has not yet been supplied, so final Manual restoration remains
+awaiting that observation. No additional Auto, Manual or RESET command is
+needed merely to repeat this comparison.
+
+Auto-answer remains not passed. The documented mapping, exact frame, bare replies,
+stored SOS1 match, visible caller recognition and reboot comparison are now
+recorded. Further command variations require new V52-specific evidence; there
+is no demonstrated formatting fix or supported applied-state query to implement.
+Keep customer auto-answer controls disabled and PR #115 draft. This update
+changes evidence documentation only and sends no live device command.
+
+## Official app investigation — 21 September 2026
+
+Static inspection of the official AnyTracking 5.2.94 APK found an ANS
+app-to-server request. Its translation to a watch command and the pilot's app
+model branch are not established; this is not evidence for changing JT semantics
+or transmitting ANS over TCP/SMS. Guardian's unknown startup commands already get
+bare same-command ACKs. No missing handshake or wire correction was demonstrated.
+
+See [the source record and proposed reference-platform comparison](services/watch-answer-reference-comparison.md).
+A same-watch/SIM/caller test through the supplier platform is prepared but not
+executed. Owner agreement is required before temporarily sending watch telemetry
+to that platform; the procedure preserves contacts/restrictions and prepares the
+return server SMS first. A physical pass, both-direction audio and manual/routing
+restoration remain required. **Auto-answer is not passed; PR #115 remains draft.**
+
+## PR #115 paused — 22 September 2026
+
+The operator paused watch-modes/auto-answer work and selected PR #118 next after
+reporting a supplier reply. The [full resume checkpoint](services/watch-modes-paused-handoff.md)
+preserves all trial outcomes, diagnostic code, CI provenance, the AnyTracking
+analysis, known unknowns and the proposed native-platform comparison.
+
+Latest correction: **the watch works normally with Guardian; the access/connection
+problem concerns AnyTracking.** Login/server failure versus an offline-device
+screen has not been clarified. The supplied AnyTracking screenshot exposes Press
+to answer and Handsfree auto answer, with Press selected; this is UI evidence,
+not a fresh watch-state readback. No reference-platform test has occurred.
+
+Auto-answer remains not passed. Manual was last requested, but the final physical
+Manual result after the latest reboot was not separately supplied. JT:0 after
+both requested modes remains unverified as applied state. No device command,
+routing, caller restriction, routine or runtime change accompanies this pause.
+PR #115 stays open as a draft, with customer answer-mode controls disabled. Earlier
+next-test instructions are suspended. The supplier reply for #118 is reported
+received by the operator, but its contents have not yet been provided here.
+
+## PR #115 reference investigation resumed — later 22 September 2026
+
+The operator clarified that the ANS history was collected from a **separate new
+watch on AnyTracking**, not Jesh. It contains ten sent/responded entries,
+alternating five Set:0 and five Set:1, with 1–6-second response delays. Its latest
+entry reports Set:0 at 16:07:49; the history's timezone is not specified. The new
+watch's SIM currently cannot complete the reported voice-call checks. This is
+neither a physical auto-answer pass nor a new failure of Jesh's calling path.
+Model and firmware equivalence remain unknown. Device/account IDs and private
+request URLs are not republished here.
+
+After the HTTP inspection tool became unavailable, the operator requested that
+investigation continue. A standalone reference TCP relay is prepared and tested
+with local fake sockets; no real-device capture or routing change has happened.
+It can observe the supplier's actual command bytes using the new watch's data
+connection even while voice calls are blocked. It generates no watch commands
+or ACKs, redacts private payloads, targets one explicit protocol ID and has a
+bounded lifetime. Read the [capture runbook](testing/answer-mode-reference-relay.md)
+for preflight, a confirmed return SMS, temporary routing and cleanup.
+
+Jesh remains the Guardian pilot. No replacement for APPLOCK,JT-0 has been
+established, and no customer answer-mode behavior is enabled by this work.
+PR #115 remains draft; physical auto-answer acceptance is still outstanding.
+
+## 22 September 2026 — Auto trial after confirmed Sound + vibration
+
+A fresh profile,1 downlink to one live pilot session was supplied. The operator
+confirmed ringing and vibration, manual answering, and audio both ways. This
+closes the earlier missing-downlink gap for that incoming-call profile trial;
+it does not prove other reminder outputs, silent mode or temporary expiry.
+
+The supplier-framing trial helper was absent from the Windows checkout and
+failed with MODULE_NOT_FOUND before sending anything. A temporary PowerShell
+helper then used the existing authenticated local HTTP downlink endpoint and
+normal gateway framing. APPLOCK,JT-0 was handed off to one live session with
+length field 000C; the operator supplied the matching downlink and reported
+that the call kept ringing. The latest excerpt contains no APPLOCK response.
+The twenty-second wait was instructed, but an actual duration, ring count and
+individual call/command timestamps were not supplied.
+
+Result: Sound + vibration alone did not resolve Auto in this trial. Hardware
+automatic answering remains unproven. Do not count this as a new exact-supplier
+000c test, a verified applied mode or proof that this firmware is unsupported.
+Previous response/framing/reboot evidence remains separate historical evidence.
+
+Manual restoration was requested after the trial; its latest handoff, response
+and subsequent physical call result are still outstanding. The running Windows
+branch/commit is unknown. Next collect that version and the current APPLOCK
+response, and confirm Manual behavior before a different documented trial.
+The AnyTracking reference capture remains on hold. PR #115 stays draft;
+customer auto-answer controls stay disabled. No runtime change accompanies this
+evidence update. See the [current handoff](services/watch-modes-paused-handoff.md).
+
+## 22 September 2026 — Exact lowercase Auto framing still fails physically
+
+Following the current-framing test above, the operator identified the Windows
+checkout as feat/v52-care-reminders at 93ef8f0, without the applock-example
+override. Instructions were provided to switch to the draft watch-modes branch
+and restart the gateway while retaining ngrok and the Sound + vibration profile.
+
+The supplier-framing helper requested APPLOCK,JT-0 at 19:29:15.456 UTC, reporting
+lengthField:000c, payloadBytes:12 and one live session. The matching gateway
+downlink was supplied. At 19:29:16.749 UTC the watch returned a bare APPLOCK
+response with zero arguments and no truncation (1.293 seconds after the helper
+request). appliedStateVerified remained false. The operator then reported that
+the incoming call kept ringing.
+
+The Sound + vibration/manual-answer/two-way-audio baseline was physically
+confirmed earlier in the sequence. A second baseline immediately after this
+gateway branch/runtime change was not supplied, so this is not a strict
+one-variable comparison with the earlier uppercase trial. Exact call time,
+measured wait duration and ring count were not supplied. Continued telemetry
+and a later TCP connection do not establish call behavior or a causal failure.
+
+Outcome: exact supplier framing responded at protocol level but did not produce
+automatic answering. Lowercase 000c is not a demonstrated fix; do not infer
+unsupported firmware, reverse JT polarity or fabricate an ANS wire command.
+The requested Manual restore after this call remains unreported. Capture its
+handoff/reply and physical behavior before another materially different trial.
+PR #115 stays draft, customer Auto stays disabled, and reference capture remains
+on hold. This evidence update changes no executable code.
+
+## 2026-09-23: app watch-contact additions prepared, hardware test pending
+
+PR #115 now includes a designated-manager **Watch contacts** add-only screen,
+backend-owned slot allocation, expiring immutable requests and same-socket PHBX
+receipt. Existing contacts require a verified inventory before enabling adds;
+unknown or uncertain slots are never reused. Notification recipients, SOS slots
+and Auto-answer are unchanged. Editing/removal remain unavailable.
+
+Next pilot gate: add the second caller from the app, physically verify Manual
+ringing/audio, compare original vs second approved caller under Auto, then
+restore/test Manual for both. Caller exclusivity and emergency automation remain
+unaccepted. Setup, exact acceptance sequence and recovery are in
+[watch-contacts-app.md](testing/watch-contacts-app.md).
+
+
+## 2026-09-23: capacity verified and contact UX unified
+
+Original V52 manual page 2 explicitly documents **15 family numbers**. The
+protocol page 5 uses numbered PHBX entries; no occupancy/read-back or automatic
+append operation was found. See [source evidence](reference/V52-PHONEBOOK.md).
+The earlier software-only interpretation of the 15-contact limit is corrected.
+
+The two contact pages are replaced by one **Contacts** screen. Legacy recipients
+and managed watch entries merge by phone, with independent safety-alert and
+watch-call choices. Combined saves are atomic; no entry becomes an alert
+recipient or approved caller merely by opening the screen. Existing watch
+reservations, receipt uncertainty and unavailable removal stay intact. The
+second-phone physical caller-scope test remains pending.
+
+## 2026-09-23: AnyTracking second-contact write addressed slot 2
+
+The operator reports adding a second contact in AnyTracking during the
+same-watch recorder session. The supplied normal log establishes:
+
+| UTC time, 23 September | Observed exchange |
+| --- | --- |
+| 20:44:47.040 | Reference connection established; watch and supplier heartbeat replies followed |
+| 20:45:55.873 | Supplier-to-watch PHBX, prefix 3G, length 0038 (56 bytes), three arguments, phonebookSlot 2 |
+| 20:45:57.210 | Same session watch-to-server bare PHBX reply, prefix 3G, length 0004; 1.337 seconds after the write |
+
+The write occurred at 00:45:55 MUT on 24 September. Names, numbers and exact
+payload bytes remain redacted. The operator's action correlates the second
+contact with addressed serial 2. Treat serial 2 as used/reserved by this write;
+do not allocate it as empty. The ACK establishes receipt, not a read-back of
+stored contact details or an incoming-call result. Other occupied/free serials,
+slot 1's mapping, and optional argument contents are not established here.
+
+Next: inspect the watch phonebook, restore the printed Guardian route and verify
+fresh Guardian telemetry, request Manual through Calls, and test ringing/manual
+answering/two-way audio from the second phone. Then compare the two approved
+callers under Auto and restore/test Manual. No physical second-caller outcome
+or Guardian route restoration was supplied with this capture. This is supplier
+provisioning evidence, not acceptance of the Guardian add-contact UI. No live
+inventory was imported or modified by this documentation update. PR #115 remains
+draft.
+
+## 2026-09-24 MUT: original vs second approved caller comparison passed
+
+Following the slot-2 capture, the operator confirmed the new contact appears
+on the watch and sent the Guardian return SMS. Guardian app Manual was followed
+by calls from both phones: both kept ringing. Auto was then selected using the
+second phone; a call from that second number kept ringing, while a call from
+the original configured number automatically answered. This supports
+caller-specific Auto behavior for the two tested numbers on this pilot.
+
+The operator notes that the original number is also primary. This test does
+not isolate primary/SOS-role eligibility from the configured Auto number; the
+second number was never retargeted as the Auto caller. Selecting Auto from
+another handset does not change the backend-configured caller. In a subsequent
+update the operator confirms Manual has already been set. Record Manual as the
+reported final setting; no repeat setting change is requested. A separate
+post-restoration call result was not supplied.
+No new call timestamps, gateway excerpts or second-caller audio result were
+provided. This does not accept Guardian contact provisioning (AnyTracking made
+the addition), unknown-caller behavior under Auto, SOS/fall automation, or a
+device-enforced timeout. Full [physical evidence and next checks](testing/watch-caller-scope-20260924.md).
+
+
+### 24 September MUT — SOS/fall callback policy implemented, physical test pending
+
+Draft PR #115 now connects fresh decoded SOS/fall ingress to the accepted captured
+Auto adapter and restores the accepted Manual pair after five minutes. Owner
+opt-in, primary/captured caller matching, durable pre-write restoration state,
+restart recovery, stale-Auto suppression, duplicate coalescing and explicit
+Manual cancellation are implemented. Notifications are independent of transport.
+The app exposes window/recovery state without treating replies as physical proof.
+
+This does not add a new hardware acceptance result. Previously reported Manual
+restoration and the primary-versus-second-phone pilot stand. New real SOS/fall
+activation, both callers during the window, expiry/restoration, restart/offline
+recovery and active-call interaction remain to test. Fall call-button variants
+are implemented behind a separate exact-IMEI/SIM gate; Meta approval is not
+confirmed. See `docs/testing/emergency-callback-pilot.md` for the runnable sequence.
+
+### 24 September MUT — First emergency callback attempt blocked before Auto write
+
+At 01:53 MUT, the physical watch SOS generated the existing WhatsApp alert with
+Call watch. The app did not show Auto and the primary's incoming call kept
+ringing. Logs show `outcome=admitted`, then a four-second read-only connection
+check timeout. No Auto setting write followed. A replacement connection arrived
+about 23 seconds after SOS receipt; the gateway had already moved to Manual
+recovery and received both Manual replies on that new connection.
+
+Draft PR #115 now waits for a newly identified connection before Auto, bounded
+by the original thirty-second start deadline and the same five-minute window.
+Same-socket verification and authorization checks remain; uncertain Auto is
+never replayed. Regression coverage reproduces the delayed replacement without
+real device commands. Physical SOS/fall activation and expiry acceptance remain
+open. See `docs/testing/emergency-callback-pilot.md` for the timestamped evidence
+and retest. No new SOS template is needed for this transport fix.
+
+### 24 September MUT — SOS callback and five-minute Manual restoration passed on Jesh
+
+After the `aa41f37` reconnect fix, the operator received the SOS WhatsApp message
+and reported that calling the watch automatically answered. The screenshot
+shows the emergency card at `Watch replied to Auto` with 2m 39s remaining. Its
+separate everyday Manual selection did not represent that emergency state.
+In the requested follow-up call after five minutes, the operator reports that
+the watch kept ringing. This physically verifies return to normal ringing for
+the tested caller after the SOS window, alongside SOS-triggered Auto.
+
+Scope: this Jesh/caller pilot only; no exact retest timestamps or new two-way
+audio confirmation were supplied. Fall-triggered Auto, second-caller behavior
+inside an actual incident window, offline/restart recovery and expiry during
+an ongoing call remain open. No device-enforced timeout is proven. PR #115
+stays draft. The proposed simplified Calls customer screen is documented but
+has not been implemented as part of this evidence update.
+
+### 24 September, 14:25 MUT — Raw fall state, WhatsApp delivery and Auto reply observed
+
+Following an earlier cancelled local warning with no new stored alert, an
+uncancelled test produced `type=fall command=AL_LTE state=00200000 fields=25`.
+This directly correlates the pilot's physical fall test with bit 21. The
+gateway persisted the alarm and admitted the emergency window. Connection
+verification succeeded at 10:25:10.010 UTC; one captured Auto frame was sent
+at 10:25:10.676, and ACALL replied at 10:25:11.700 on the same connection.
+
+The operator's WhatsApp screenshot confirms receipt at 14:25 MUT, consistent
+with the primary's `wa=ok` and Meta `delivered` logs. It contains View location
+only; the fall Call watch button has not been delivered in this test. A second
+contact logged `wa=fail`, with no detailed provider error supplied. Do not
+claim all-recipient delivery. Cancellation is a plausible explanation for the
+earlier absent upload, not a measured firmware cutoff.
+
+The operator then reported `it auto answers`, physically confirming the fall
+callback beyond the ACALL receipt. Two-way audio and the five-minute return to
+Manual for this incident remain unreported. The earlier fully tested SOS cycle
+and two-caller scope evidence remain distinct.

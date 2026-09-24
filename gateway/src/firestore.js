@@ -32,6 +32,9 @@ const {
   shouldReconcileStaleOnline,
 } = require('./device-presence');
 const { startPendingFamilyJoinWatcher } = require('./family-membership');
+const { startWatchPhonebookWatcher } = require('./watch-phonebook');
+const { startWatchCallWatcher } = require('./watch-calls');
+const { startEmergencyCalls } = require('./watch-emergency-calls');
 
 let db = null;
 let enabled = false;
@@ -45,6 +48,9 @@ function initFirestore({ startWatchers = true } = {}) {
       startPendingAlertWatcher();
       startPendingCommandWatcher();
       startPendingFamilyJoinWatcher(db);
+      startWatchCallWatcher(db);
+    startEmergencyCalls(db);
+      startWatchPhonebookWatcher(db);
     }
     return db;
   }
@@ -91,6 +97,9 @@ function initFirestore({ startWatchers = true } = {}) {
     startPendingAlertWatcher();
     startPendingCommandWatcher();
     startPendingFamilyJoinWatcher(db);
+    startWatchCallWatcher(db);
+    startEmergencyCalls(db);
+    startWatchPhonebookWatcher(db);
   }
   return db;
 }

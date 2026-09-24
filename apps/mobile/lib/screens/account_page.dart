@@ -431,7 +431,7 @@ class AccountPage extends StatelessWidget {
                 ),
                 GuardianSettingsRow(
                   icon: Icons.contact_phone_rounded,
-                  label: 'Emergency contacts',
+                  label: 'Contacts',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(

@@ -10,6 +10,7 @@ const {
   sendPreparedFallWhatsApp,
 } = require('./fall-whatsapp');
 const { deviceAtFall } = require('./fall-location-snapshot');
+const { prepareRecipientCallLink, redactCallLinkResult } = require('./watch-call-links');
 const { summarizeMetaDelivery } = require('./meta-delivery');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser,
@@ -184,10 +185,13 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
             fallbackUsed: false,
           };
         } else {
-          entry.channels.whatsapp = await sendPreparedSosWhatsApp(
+          const recipientPrepared = await prepareRecipientCallLink(prepared, {
+            db, imei, alertId, alert, device, contact: c,
+          });
+          entry.channels.whatsapp = redactCallLinkResult(await sendPreparedSosWhatsApp(
             waTarget,
-            prepared
-          );
+            recipientPrepared
+          ), recipientPrepared);
         }
       } else if (isFall && fallPreparationPromise) {
         const prepared = await fallPreparationPromise;
@@ -201,10 +205,13 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
               fallbackUsed: false,
           };
         } else {
-          entry.channels.whatsapp = await sendPreparedFallWhatsApp(
+          const recipientPrepared = await prepareRecipientCallLink(prepared, {
+            db, imei, alertId, alert, device, contact: c,
+          });
+          entry.channels.whatsapp = redactCallLinkResult(await sendPreparedFallWhatsApp(
             waTarget,
-            prepared
-          );
+            recipientPrepared
+          ), recipientPrepared);
         }
       } else {
         entry.channels.whatsapp = {

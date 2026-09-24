@@ -166,3 +166,35 @@ test('prepared fall sends only through Meta and preserves plan evidence', async 
   assert.equal(result.fallbackUsed, false);
   assert.equal(result.locationState, 'fresh');
 });
+
+test('fall callback variants keep frozen location and move the map behind the static phone button', async () => {
+  for (const [location, expected] of [[new Date(now - 120000), 'alert'], [new Date(now - 3600000), 'last_location'], [null, 'unavailable']]) {
+    const atFall = device(location, location ? {} : { location: null });
+    const prepared = await prepareFallWhatsApp({ device: atFall,
+      alert: fallAlert(buildFallLocationSnapshot(atFall, { now })), now, callbackTemplatesEnabled: true });
+    assert.equal(prepared.plan.templateName, `guardian_fall_callback_${expected}_v1`);
+    assert.match(prepared.plan.bodyParameters[0], /fall alert/i);
+    assert.doesNotMatch(prepared.plan.bodyParameters[0], /pressed.*SOS/i);
+    if (location) assert.equal(prepared.plan.components.find(c => c.type === 'button').index, '1');
+    else assert.equal(prepared.plan.components.length, 1); // static phone button lives in approved template
+  }
+});
+
+test('fall callback approval gate matches BOTH watch identity and static button SIM; SOS gate is independent', () => {
+  const { fallCallbackTemplatesEnabledForDevice } = require('../src/fall-whatsapp');
+  const pilot = { metaWhatsAppFallCallbackPilotImei: '861397000000000', metaWhatsAppFallCallbackPilotNumber: '+23050000000' };
+  assert.equal(fallCallbackTemplatesEnabledForDevice({ imei: '861397000000000', simNumber: '+23050000000' }, pilot), true);
+  assert.equal(fallCallbackTemplatesEnabledForDevice({ imei: '861397000000001', simNumber: '+23050000000' }, pilot), false);
+  assert.equal(fallCallbackTemplatesEnabledForDevice({ imei: '861397000000000', simNumber: '+23050000001' }, pilot), false);
+  assert.equal(fallCallbackTemplatesEnabledForDevice({ imei: '861397000000000', simNumber: '+23050000000' }, {
+    metaWhatsAppSosCallbackPilotImei: '861397000000000', metaWhatsAppSosCallbackPilotNumber: '+23050000000',
+  }), false);
+});
+
+
+test('a malformed fall callback phone cannot match a watch with no SIM number', () => {
+  const { fallCallbackTemplatesEnabledForDevice } = require('../src/fall-whatsapp');
+  assert.equal(fallCallbackTemplatesEnabledForDevice({ imei: '861397000000000' }, {
+    metaWhatsAppFallCallbackPilotImei: '861397000000000', metaWhatsAppFallCallbackPilotNumber: '+()',
+  }), false);
+});

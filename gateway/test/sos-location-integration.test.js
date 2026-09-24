@@ -17,7 +17,7 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, emergency = null } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
@@ -32,6 +32,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     static now() { return clock; }
   }
   const modules = {
+    './watch-emergency-calls': emergency || { admitWatchEmergency: async () => ({ outcome: 'not_armed' }), reconcileEmergencyCall: async () => ({}) },
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
@@ -274,5 +275,20 @@ test('stalled or failed passive wear persistence cannot delay the real SOS dispa
     assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
     assert.deepEqual(run.errors, []);
     if (fail) assert.match(run.warnings.flat().join(' '), /wear write unavailable/);
+  }
+});
+
+for (const type of ['sos', 'fall']) test(`${type} delivery does not wait for emergency Auto admission or transport`, { timeout: 1000 }, async () => {
+  for (const stage of ['admission', 'transport', 'synchronous_failure']) {
+    const run = dispatcher(fixtures[0].device, { emergency: {
+      admitWatchEmergency: () => {
+        if (stage === 'synchronous_failure') throw new Error('admission unavailable');
+        return stage === 'admission' ? new Promise(() => {}) : Promise.resolve({ outcome: 'admitted' });
+      },
+      reconcileEmergencyCall: () => new Promise(() => {}),
+    } });
+    await run.apply([alarm({ alarmType: type })], {});
+    assert.equal(run.alerts.length, 1);
+    assert.equal(run.alerts[0].type, type);
   }
 });

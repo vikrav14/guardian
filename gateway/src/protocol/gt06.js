@@ -53,6 +53,8 @@ function parseV52Telemetry(fields) {
 // are device uploads and are parsed below.
 const SERVER_ONLY_COMMANDS = new Set([
   'CR', 'UPLOAD', 'CALL', 'MONITOR', 'SOS1', 'SOS2', 'SOS3', 'SOS', 'PHBX',
+  // V52 same-watch reference capture, 23 September 2026: bare ACALL reply.
+  'ACALL',
   'SMSONOFF', 'profile', 'PROFILE', 'REMIND', 'HSW', 'FIND', 'FALLDOWN', 'LSSET',
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
@@ -64,6 +66,17 @@ const SERVER_ONLY_COMMANDS = new Set([
   // without ACK for the explicit pilot comparison; this does not enable it.
   'BODYTEMP2',
 ]);
+
+// Alarm freshness must not depend on GPS coordinates or Wi-Fi/cell availability.
+function parseAlarmRecordedAt(fields) {
+  const [date, time] = fields;
+  if (!/^\d{6}$/.test(date || '') || !/^\d{6}$/.test(time || '')) return null;
+  const d = Number(date.slice(0, 2)), m = Number(date.slice(2, 4)), y = 2000 + Number(date.slice(4));
+  const h = Number(time.slice(0, 2)), min = Number(time.slice(2, 4)), sec = Number(time.slice(4));
+  const value = new Date(Date.UTC(y, m - 1, d, h, min, sec));
+  return value.getUTCFullYear() === y && value.getUTCMonth() === m - 1 && value.getUTCDate() === d &&
+    value.getUTCHours() === h && value.getUTCMinutes() === min && value.getUTCSeconds() === sec ? value : null;
+}
 
 function parseLocationData(fields) {
   if (fields.length < 2) return null;
@@ -290,6 +303,33 @@ function decodeFrame(frame) {
   };
 }
 
+function summarizeAppLockReply(args) {
+  // APPLOCK can cover other settings too. Never log arbitrary arguments (which
+  // may contain contact data), and never equate a reply with applied state.
+  const safeTokens = new Set(['JT-0', 'JT-1', 'OK', 'ERROR', 'FAIL', '0', '1']);
+  const limit = 8;
+  return {
+    kind: args.length === 0 ? 'bare' : 'parameterized',
+    argumentCount: args.length,
+    arguments: args.slice(0, limit).map(arg => safeTokens.has(arg) ? arg : '[redacted]'),
+    truncated: args.length > limit,
+    appliedStateVerified: false,
+  };
+}
+
+function summarizeAnswerModeConfig(args) {
+  // The mixed-family supplier CONFIG example includes JT:0. Observe only;
+  // it is not established as a V52 applied-mode readback or capability flag.
+  const fields = args.filter(value => typeof value === 'string' && value.trim().startsWith('JT:'));
+  const valid = fields.length === 1 && /^JT:[01]$/.test(fields[0].trim());
+  return {
+    jtField: !fields.length ? 'missing' : fields.length > 1 ? 'duplicate' : valid ? 'valid' : 'invalid',
+    reportedJt: valid ? Number(fields[0].trim().slice(3)) : null,
+    meaningVerified: false,
+    appliedStateVerified: false,
+  };
+}
+
 function handlePacket(decoded, session) {
   const { imei: rawId, command, args, payload } = decoded;
   const acks = [];
@@ -420,6 +460,7 @@ function handlePacket(decoded, session) {
           }
         : {}),
       alarmCommand: command,
+      alarmRecordedAt: parseAlarmRecordedAt(args),
       alarmArgCount: args.length,
       severity: alarmType === 'sos' || alarmType === 'fall' ? 'critical' : 'warning',
       ...(loc && !loc.error ? loc : {}),
@@ -433,6 +474,7 @@ function handlePacket(decoded, session) {
     // Device firmware self-test packet — contains device state including UL (upload interval).
     // Per the V52 vendor protocol: reply CONFIG,1 (not bare CONFIG).
     acks.push(buildAckFrame(protocolId, 'CONFIG,1'));
+    events.push({ type: 'answer_mode_config', ...eventMeta, evidence: summarizeAnswerModeConfig(args) });
     if (fullImeiHint && isFullImei(fullImeiHint)) {
       events.push({ type: 'imei_report', ...eventMeta, fullImei: fullImeiHint });
     }
@@ -455,6 +497,7 @@ function handlePacket(decoded, session) {
       ...(command === 'FON' || command === 'FALLDOWN' || command === 'LSSET'
         ? { args: [...args] }
         : {}),
+      ...(command === 'APPLOCK' ? { replyEvidence: summarizeAppLockReply(args) } : {}),
     });
   } else {
     // Unknown command — still ACK for compatibility
