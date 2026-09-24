@@ -37,7 +37,7 @@ not proof of three header fields when the image encoding is not known.
 
 This is a successful reference-service pilot, not a working Guardian photo UI.
 The supplied document's `PIC,1` / FTP example describes a different path; no
-FTP setup or new credentials are justified by these observed uploads.
+FTP setup or new credentials are required to explain these observed TCP uploads.
 
 ## Private sample decoded — 24 September follow-up
 
@@ -132,7 +132,33 @@ check for `img`. Screen-awake dependence is a hypothesis, not a documented
 requirement. Restore the printed Guardian route when finished and verify fresh
 telemetry; do not restart tunnels merely because this photo attempt failed.
 
-### Offline decoder
+## Documented alternative: PIC with FTP
+
+The operator highlighted supplier protocol sections 37–39 again after the
+22:23 app-only attempt. They specify a separate server-requested photo route:
+configure `FTPIP,<address>,<port>` and `FTPPWD,<user>,<password>`, then send
+`PIC,1`. The documented reply includes the picture name and the image is
+transferred to FTP. The stated filename is `ID_yyyyMMddHHmmss.JPG` using GMT.
+This remains a useful documented test candidate on the V52; it has not been
+physically accepted on Jesh. It does not establish an FTP prerequisite for
+`rcapture`, or explain that command's missing upload.
+
+A meaningful comparison needs a controlled FTP receiver, its own credentials,
+reachable FTP control/data connections, and an upload log before requesting
+the picture. The TCP relay does not capture a separate FTP transfer. Capture
+the configuration replies and `PIC` response separately from the actual file;
+only a received, decoded new scene demonstrates completion. The supplied
+`FTPPWD` example names its reply `FTPSWD`; retain this discrepancy until the
+device's actual response is observed. Do not silently normalize it or conclude
+a timeout from the request name alone. The example host/account/password are
+not Guardian configuration and must not be used as a destination or login.
+
+No FTP endpoint, credentials or watch setting has been changed. Saved FTP
+settings and their restoration need to be established before a live trial;
+the provided excerpt contains no read-back/reset command for them. This
+alternative does not change the validity of the decoded local-camera TCP img.
+
+## Offline decoder
 
 `gateway/scripts/decode-photo-capture.js` uses the new bounded parser in
 `gateway/src/protocol/v52-photo.js`. It validates selected identity, exact frame

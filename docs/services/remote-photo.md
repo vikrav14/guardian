@@ -74,6 +74,15 @@ The operator subsequently confirmed that the recovered 17:39:27 image was trigge
 
 An optional standalone recorder saves only exact `rcapture` frames and watch-to-server `img` frames to a new private local file. It forwards supplier traffic unchanged and generates no commands or ACKs. This diagnostic is not imported into gateway startup, writes nothing to Firestore or Storage, and does not enable the customer flags. Normal output continues to redact images. The code is adapted from the tested PR #115 relay; the photo work stays in PR #113.
 
+The supplier's sections 37–39 also remain a useful independent trial path:
+`FTPIP` + `FTPPWD` configure an FTP receiver, then `PIC,1` requests a photo whose
+documented reply names the file. This has not been physically verified on Jesh.
+Its FTP transfer would not pass through the TCP recorder. A controlled receiver,
+actual received file and restoration of saved settings are prerequisites for
+a meaningful trial; no example destination or credentials may be reused.
+The documented `FTPPWD`/`FTPSWD` request/reply spelling discrepancy remains
+unresolved. No FTP configuration has been changed by this work.
+
 Exact physical acceptance must establish:
 
 - repeatable single-request behavior for the observed `rcapture` command
