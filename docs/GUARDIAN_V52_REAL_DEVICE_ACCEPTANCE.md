@@ -145,6 +145,43 @@ Medication reminders are Guardian Care only.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+## Photo follow-up — 25 September 2026 MUT (24 September UTC)
+
+New operator evidence: `Pasted text(6).txt` logs two reference-service
+`rcapture` requests followed by matching-length TCP `img` frames:
+20:26:47.718 -> 20:26:55.373 UTC (7.655 s, 6930 payload bytes) and
+20:30:08.554 -> 20:30:14.275 UTC (5.721 s, 6590 payload bytes).
+The recorder saved both uploads (six private records, two image frames,
+13,678 total raw frame bytes after the second). The operator reports both
+photos appeared promptly in AnyTracking, with deletion of the first there
+before the second. This is new positive upload/gallery evidence; the measured
+delays are to recorder receipt, not measured gallery-display latency.
+
+Still confirm both requests were app-only with no watch camera/shutter
+interaction, actual screen state and any wearer indication. Awake clock-face
+instructions are not proof that the condition was followed. The watch was also
+restarted during troubleshooting; no awake-state or restart root cause is
+established. Preserve the earlier manual-sample classification.
+
+The supplied log contains no image bytes for offline decoding and no final
+Guardian-routing verification. These two samples' dimensions/JPEG sizes,
+private Guardian ingestion/deletion, direct Guardian command execution and
+customer readiness remain unverified. Reference-app deletion does not prove
+server hard deletion or deletion of the separate local capture. The public
+FTP probe remains historical and is not a prerequisite for pursuing the
+observed TCP path. No new watch FTP provisioning is needed for that path.
+
+The recorder's earlier expiry (20:14:36.083 UTC) and missing 9002 listener
+explained the later offline routing problem until the recorder restarted.
+This does not explain the earlier connected-but-no-image trials. Current
+reported forwards after ngrok recovery were Guardian 10595 -> 9000, recorder
+17200 -> 9002 and the existing WhatsApp HTTPS -> 9001; reread current endpoints
+for later sessions.
+
+See [the latest photo evidence and next steps](testing/photo-reference-capture.md).
+PR #113 remains draft; this update changes documentation only, with no new
+test run or production feature activation.
+
 ## Photo checkpoint — 24 September 2026
 
 Software follow-up: PR #113 now has a standalone bounded FTP receiver
