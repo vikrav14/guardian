@@ -697,18 +697,31 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
     return GuardianDashboardOverview(
       serviceSections: [
-        if (selected != null && guardianSnapshotAppConfigured &&
+        if (selected != null &&
+            guardianSnapshotAppConfigured &&
             entitlementScope.subscription?.serviceActive == true &&
-            [GuardianPlan.family, GuardianPlan.care].contains(entitlementScope.subscription?.plan))
-          Card(child: ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Safety snapshot'),
-            subtitle: Text('One private photo from ${selected.displayName}’s watch'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push<void>(MaterialPageRoute(
-              builder: (_) => SafetySnapshotPage(imei: selected.imei, name: selected.displayName),
-            )),
-          )),
+            [
+              GuardianPlan.family,
+              GuardianPlan.care,
+            ].contains(entitlementScope.subscription?.plan))
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Safety snapshot'),
+              subtitle: Text(
+                'One private photo from ${selected.displayName}’s watch',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => SafetySnapshotPage(
+                    imei: selected.imei,
+                    name: selected.displayName,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
       weather: selected == null
           ? null

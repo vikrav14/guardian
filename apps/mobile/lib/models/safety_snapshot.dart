@@ -36,9 +36,12 @@ class SafetySnapshot {
   final int? sizeBytes;
   final String? contentType;
 
-  bool get isViewable => state == SafetySnapshotState.available &&
-      mediaExpiresAt != null && mediaExpiresAt!.isAfter(DateTime.now());
-  bool get isPending => state == SafetySnapshotState.takingPhoto ||
+  bool get isViewable =>
+      state == SafetySnapshotState.available &&
+      mediaExpiresAt != null &&
+      mediaExpiresAt!.isAfter(DateTime.now());
+  bool get isPending =>
+      state == SafetySnapshotState.takingPhoto ||
       state == SafetySnapshotState.requested;
 
   String get statusLabel => switch (state) {
@@ -56,15 +59,14 @@ class SafetySnapshot {
   String get safetyNote =>
       'A single snapshot provides context only. It does not prove that the wearer is safe.';
 
-  factory SafetySnapshot.fromFirestore(
-    String id,
-    Map<String, dynamic> data,
-  ) {
+  factory SafetySnapshot.fromFirestore(String id, Map<String, dynamic> data) {
     final state = switch ((data['state'] as String?)?.trim()) {
       'requested' => SafetySnapshotState.requested,
       'waiting_for_device_acceptance' =>
         SafetySnapshotState.waitingForDeviceAcceptance,
-      'dispatching' || 'waiting_for_image' || 'receiving' => SafetySnapshotState.takingPhoto,
+      'dispatching' ||
+      'waiting_for_image' ||
+      'receiving' => SafetySnapshotState.takingPhoto,
       'failed' => SafetySnapshotState.failed,
       'available' => SafetySnapshotState.available,
       'expired' => SafetySnapshotState.expired,
