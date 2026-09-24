@@ -7,6 +7,23 @@ Status: Windows readiness passed in PR #113 on 24 September 2026. With Python
 configuration has been changed. Remote-only capture, public FTP connectivity
 from the watch, and live Firebase import/delete have not passed acceptance.
 
+The first public probe at commit `aea1417` returned `ngrok_http_405` before
+obtaining any FTP probe result. It verified the original endpoint configuration
+afterward (`endpointConfigurationRestored=true`), with zero watch commands or
+Firebase writes. The old result did not identify the failing method. Its first
+mutation was endpoint `PUT`, making update-method compatibility the leading
+explanation, not a camera/FTP-upload finding.
+
+The revised probe leaves both existing TCP endpoints unchanged. It binds a
+temporary local bridge on unused port 9002, forwarding the recorder's existing
+public address to FTP control on 2121. It uses no `PUT` and does not delete or
+recreate a randomly allocated TCP address. Only the WhatsApp endpoint is paused
+and restored, while one temporary FTP data endpoint is created and removed. Failures
+now include `failureStage` and safe `failureRequest` method/endpoint/status
+fields. The startup row says `whatsappWebhookPausePlanned`; it does not claim
+the pause has already happened. An agent that rejects `PUT` is covered by
+unit and real local FTP integration tests. The revised public run remains pending.
+
 The supplier's sections 37–39 describe `PIC,1`, `FTPIP` and `FTPPWD`. They are
 a separate candidate from the captured `rcapture` / TCP `img` path. The
 controlled 22:23 MUT `rcapture` test returned a bare reply but no image in the
@@ -72,16 +89,17 @@ FTP needs separate command and passive-data connections:
 
 The last supplied account session allowed three endpoints. Guardian TCP plus
 WhatsApp HTTPS leaves only one spare slot. Keeping Guardian while running both
-FTP endpoints would require releasing the recorder endpoint **and temporarily
-pausing the WhatsApp endpoint**, or using a different host/plan. The original
-readiness/Serve tools never change endpoints. A separate short network probe
-below makes these temporary changes only with its explicit run flags.
+FTP connections requires using the recorder slot for control and temporarily
+pausing the WhatsApp endpoint to free the data slot, or using a different
+host/plan. The original readiness/Serve tools never change endpoints. The short
+probe below reuses the recorder through a local bridge; its ngrok upstream
+remains `127.0.0.1:9002` throughout.
 
 ### Short public probe with endpoint restoration
 
 `check-photo-ftp-public.js` transfers 1,024 random test bytes, then attempts to
-restore the original endpoint configuration. It leaves `command_line` alone,
-temporarily points the recorder endpoint at FTP control, pauses the WhatsApp
+restore the original endpoint configuration. It leaves both TCP endpoints alone,
+temporarily forwards local port 9002 to FTP control on 2121, pauses the WhatsApp
 HTTPS endpoint and creates one passive-data endpoint. Incoming WhatsApp
 messages/delivery webhooks cannot reach the gateway during this interval;
 watch telemetry stays on the existing Guardian route. Do not combine this
@@ -105,12 +123,16 @@ Expected output: `public_ftp_probe_passed`, `bytesVerified: 1024`, and
 `endpointConfigurationRestored: true`. This proves upload connectivity from
 the laptop through the public endpoints, not from the watch. Endpoint
 restoration means the local ngrok API reports the original configurations;
-it is not proof of a new inbound WhatsApp webhook. The public endpoints used
-for the probe are removed/restored afterward, so do not use them to provision
-the watch.
+it is not proof of a new inbound WhatsApp webhook. Cleanup removes the temporary
+data endpoint and local bridge and restores WhatsApp. It verifies all three
+original endpoint configurations. The temporary FTP arrangement no longer
+exists afterward, so do not use it to provision the watch.
 
 The tool checks the exact three-endpoint layout and refuses active recorder
-connections or nontrivial endpoint policies. It bounds child processes and
+connections or nontrivial endpoint policies. Local port 9002 must be unused;
+`recorder_port_in_use_stop_old_recorder` means stop the old recorder in its own
+window before retrying. This failure occurs before endpoint changes, and the
+tool never kills another process. It bounds child processes and
 API calls, handles Ctrl+C with restoration, and writes `restore-endpoints.json`
 before the first change. API response loss after mutation is handled by
 inspecting current endpoints during recovery. It preserves unexpected external
@@ -126,6 +148,10 @@ node (Join-Path $guardianPhotoTools 'gateway\scripts\check-photo-ftp-public.js')
 Do not rerun a failed trial blindly. Preserve its output/journal and check
 the recovery result. The local receiver's session file remains private and
 contains only temporary FTP credentials; this public probe sends no photo.
+Version-one journals from the earlier probe remain supported. If their recorder
+configuration actually changed, legacy recovery uses delete/create operations
+and reports an incomplete restoration if the original address cannot be reclaimed.
+New version-two runs do not need to recreate either TCP endpoint.
 ngrok operations follow the documented local
 [Agent API](https://ngrok.com/docs/gateway/agent/api).
 
@@ -243,12 +269,16 @@ same deletion tool; do not claim the upload was rolled back.
 
 ## Verification at this checkpoint
 
-50 focused Node tests passed: 33 existing recorder/decoder tests, eight
-Firebase-adapter tests, six endpoint-lifecycle tests, and three explicit
+56 focused Node tests passed: 33 existing recorder/decoder tests, eight
+Firebase-adapter tests, twelve endpoint-lifecycle tests, and three explicit
 Python-backed acceptance tests. The public-check CLI also ran end to end
-against a local fake ngrok API with real FTP control/data proxies and verified
-restoration. Actual ngrok API/public-network execution of that new CLI is
-still pending.
+against a local fake ngrok API that rejects PUT and duplicate creates, with
+real FTP control/data proxies and verified restoration. Recovery coverage
+includes a response lost after pausing WhatsApp or creating the data endpoint,
+cancellation after the pause, concurrent recorder edits, occupied port 9002,
+legacy journal recovery and preservation of both existing TCP endpoints.
+Actual public execution returned 405 in the earlier version; the revised
+local-bridge flow is pending the operator's retry.
 Real local transfers run through distinct TCP control/data proxies; the
 Firebase adapter uses fakes, not the live project. Full JPEG decoding and
 tampered-receipt rejection were executed. Ordinary `npm test` does not need

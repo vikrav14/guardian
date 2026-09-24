@@ -47,7 +47,7 @@ test('Firebase receipt reader fully decodes the JPEG and rejects changed bytes',
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('public-check CLI drives real FTP through a local fake agent and restores its routes', { timeout: 20000 }, async () => {
+test('public-check CLI drives real FTP through an agent without PUT support and restores its routes', { timeout: 20000 }, async () => {
   const python = process.env.GUARDIAN_PHOTO_PYTHON;
   assert.ok(python);
   const rows = new Map();
@@ -70,10 +70,14 @@ test('public-check CLI drives real FTP through a local fake agent and restores i
     const name = decodeURIComponent(req.url.split('/').pop());
     res.setHeader('Content-Type', 'application/json');
     if (req.method === 'GET') { res.end(JSON.stringify({ endpoints: [...rows.values()] })); return; }
+    if (req.method === 'PUT') { res.statusCode = 405; res.end('{}'); return; }
     assert.notEqual(name, 'command_line');
+    assert.notEqual(name, 'guardian-answer-capture');
     if (req.method === 'DELETE') { rows.delete(name); res.statusCode = 204; res.end(); return; }
     const body = JSON.parse(raw);
     assert.notEqual(body.name, 'command_line');
+    assert.notEqual(body.name, 'guardian-answer-capture');
+    if (rows.has(body.name)) { res.statusCode = 409; res.end('{}'); return; }
     if (body.url === 'tcp://') body.url = `tcp://127.0.0.1:${data.address().port}`;
     rows.set(body.name, body); res.end(JSON.stringify(body));
   });

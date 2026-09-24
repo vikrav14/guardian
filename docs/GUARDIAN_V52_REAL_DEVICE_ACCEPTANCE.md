@@ -149,11 +149,17 @@ Pass for the current product: canonical record, TCP dispatch, watch presentation
 
 Software follow-up: PR #113 now has a standalone bounded FTP receiver
 with real control/data proxy tests and a separate Firebase private import/delete
-pilot. The combined focused suite passes 50 tests. The operator passed all nine
+pilot. The combined focused suite passes 56 tests. The operator passed all nine
 local FTP checks on Windows/Python 3.13.15 and the Firebase read-only check for
 `guardian-fbadd.firebasestorage.app`, with zero writes and upload permissions
 still unverified. A separate public-probe CLI now includes tested endpoint
-restoration. Actual public FTP, Firebase write/delete and watch `PIC,1`
+restoration. The first public attempt returned `ngrok_http_405` with no FTP
+probe result, then verified the original endpoint configuration. The revised
+probe removes its dependency on endpoint PUT, preserves both TCP endpoint
+configurations through a temporary local bridge on unused port 9002, and reports
+exact failure stages. Local integration passed against an agent that rejects
+PUT. The public retry,
+Firebase write/delete and watch `PIC,1`
 acceptance remain pending. No FTP settings were changed and no customer photo
 capability is enabled. See
 [the readiness check](testing/photo-ftp-trial.md); Firebase stores a received

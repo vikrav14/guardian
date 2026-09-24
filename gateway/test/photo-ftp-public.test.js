@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { planEndpoints, validateJournal, trial, restore } = require('../scripts/check-photo-ftp-public');
+const { planEndpoints, validateJournal, trial, restore, startControlBridge } = require('../scripts/check-photo-ftp-public');
 
 const id = '0123456789abcdef';
 function endpoints() {
@@ -11,16 +11,22 @@ function endpoints() {
     { name: 'guardian-wa-https', url: 'https://example.ngrok-free.dev', upstream: { url: 'http://localhost:9001' }, inspect: true },
   ];
 }
-function fake({ failAfter = '', failRestoreWhatsapp = false, changeCapture = false } = {}) {
+function fake({ failAfter = '', failRestoreWhatsapp = false, changeCapture = false, rejectDelete = false, legacy = false } = {}) {
   const rows = new Map(endpoints().map(row => [row.name, row]));
   const calls = [];
   let failed = false;
   const request = async (method, name, body) => {
     if (method === 'GET') return { endpoints: structuredClone([...rows.values()]) };
     assert.notEqual(name || body?.name, 'command_line', 'must never mutate the Guardian endpoint');
+    if (!legacy) assert.notEqual(name || body?.name, 'guardian-answer-capture', 'must retain the recorder TCP address');
     calls.push({ method, name: name || body?.name });
+    if (method === 'PUT' || method === 'DELETE' && rejectDelete) throw Object.assign(Error('ngrok_http_405'), {
+      request: { method, endpoint: name, status: 405 },
+    });
     if (method === 'DELETE') rows.delete(name);
     else {
+      assert.equal(method, 'POST');
+      if (rows.has(body.name)) throw Error('ngrok_http_409');
       if (body.name === 'guardian-wa-https' && failRestoreWhatsapp) throw Error('simulated_restore_failure');
       rows.set(body.name, { ...structuredClone(body), url: body.url === 'tcp://' ? 'tcp://data.ngrok.test:24680' : body.url });
     }
@@ -37,7 +43,7 @@ function fake({ failAfter = '', failRestoreWhatsapp = false, changeCapture = fal
   return { request, rows, calls, probe };
 }
 
-test('public probe restores both original routes and never mutates Guardian', async () => {
+test('agent without PUT support completes the probe, restores routes and never mutates Guardian', async () => {
   const plan = planEndpoints(endpoints(), id), deps = fake();
   const result = await trial({ plan, ...deps });
   assert.equal(result.outcome, 'public_ftp_probe_passed');
@@ -45,16 +51,76 @@ test('public probe restores both original routes and never mutates Guardian', as
   assert.equal(deps.rows.size, 3);
   assert.equal(deps.rows.get('guardian-answer-capture').upstream.url, '127.0.0.1:9002');
   assert.ok(deps.rows.has('guardian-wa-https'));
+  assert.ok(!deps.calls.some(call => call.method === 'PUT'));
 });
 
 test('response lost after each setup mutation still triggers endpoint restoration', async () => {
-  for (const failAfter of ['PUT:guardian-answer-capture', 'DELETE:guardian-wa-https', `POST:guardian-photo-ftp-data-${id}`]) {
+  for (const failAfter of ['DELETE:guardian-wa-https', `POST:guardian-photo-ftp-data-${id}`]) {
     const plan = planEndpoints(endpoints(), id), deps = fake({ failAfter });
     const result = await trial({ plan, ...deps });
     assert.equal(result.outcome, 'public_ftp_probe_incomplete');
     assert.equal(result.restoration.endpointConfigurationRestored, true);
     assert.equal(deps.rows.size, 3);
   }
+});
+
+test('an unsupported delete reports its exact stage/request without claiming a probe', async () => {
+  const plan = planEndpoints(endpoints(), id), deps = fake({ rejectDelete: true });
+  const result = await trial({ plan, ...deps });
+  assert.equal(result.failure, 'ngrok_http_405');
+  assert.equal(result.failureStage, 'pause_whatsapp_endpoint');
+  assert.deepEqual(result.failureRequest, { method: 'DELETE', endpoint: 'guardian-wa-https', status: 405 });
+  assert.equal(result.restoration.endpointConfigurationRestored, true);
+  assert.equal(result.probeResult, null);
+});
+
+test('cancellation immediately after pausing WhatsApp restores it', async () => {
+  const plan = planEndpoints(endpoints(), id), deps = fake(), abort = new AbortController();
+  const request = async (...args) => {
+    const value = await deps.request(...args);
+    if (args[0] === 'DELETE' && args[1] === plan.whatsapp.name) abort.abort();
+    return value;
+  };
+  const result = await trial({ plan, request, signal: abort.signal, probe: deps.probe });
+  assert.equal(result.failure, 'probe_cancelled');
+  assert.equal(result.restoration.endpointConfigurationRestored, true);
+  assert.equal(deps.rows.get(plan.capture.name).upstream.url, plan.capture.upstream.url);
+  assert.ok(deps.rows.has(plan.whatsapp.name));
+});
+
+test('a recorder changed after planning is preserved before any endpoint mutation', async () => {
+  const plan = planEndpoints(endpoints(), id), deps = fake();
+  deps.rows.get(plan.capture.name).upstream.url = '127.0.0.1:9999';
+  const result = await trial({ plan, ...deps });
+  assert.equal(result.failure, 'endpoint_changed_during_trial');
+  assert.equal(result.restoration.endpointConfigurationRestored, false);
+  assert.deepEqual(deps.calls, []);
+});
+
+test('recorder connection metrics do not cause a TCP endpoint update during cleanup', async () => {
+  const plan = planEndpoints(endpoints(), id), deps = fake();
+  const result = await trial({ plan, ...deps, probe: async () => {
+    deps.rows.get(plan.capture.name).metrics = { conns: { gauge: 1 } };
+    return { event: 'ftp_probe_passed', bytesVerified: 1024 };
+  } });
+  assert.equal(result.outcome, 'public_ftp_probe_passed');
+  assert.equal(result.restoration.endpointConfigurationRestored, true);
+});
+
+test('old version-one recovery journals still restore a previously changed recorder', async () => {
+  const plan = planEndpoints(endpoints(), id), deps = fake({ legacy: true });
+  plan.version = 1;
+  plan.captureTrial = { ...plan.capture, upstream: { url: '127.0.0.1:2121' }, inspect: false };
+  assert.deepEqual(validateJournal(plan), plan);
+  deps.rows.set(plan.capture.name, structuredClone(plan.captureTrial));
+  assert.equal((await restore(plan, deps.request)).endpointConfigurationRestored, true);
+  assert.ok(!deps.calls.some(call => call.method === 'PUT'));
+});
+
+test('a local bridge refuses to replace an occupied recorder listener', async () => {
+  const first = await startControlBridge(0);
+  try { await assert.rejects(startControlBridge(first.port), /recorder_port_in_use/); }
+  finally { await first.stop(); }
 });
 
 test('probe failure and cancellation restore endpoints before reporting failure', async () => {
@@ -69,7 +135,7 @@ test('probe failure and cancellation restore endpoints before reporting failure'
   }
 });
 
-test('WhatsApp restoration failure does not skip recorder restoration or claim success', async () => {
+test('WhatsApp restoration failure leaves both TCP routes intact and does not claim success', async () => {
   const plan = planEndpoints(endpoints(), id), deps = fake({ failRestoreWhatsapp: true });
   const result = await trial({ plan, ...deps });
   assert.equal(result.restoration.endpointConfigurationRestored, false);

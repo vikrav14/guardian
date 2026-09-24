@@ -46,8 +46,8 @@ function planEndpoints(rows, id) {
       !/^http:\/\/(localhost|127\.0\.0\.1):9001\/?$/.test(whatsapp.upstream.url)) throw Error('unexpected_endpoint_upstream');
   publicUrl(guardian.url, 'tcp:'); publicUrl(capture.url, 'tcp:'); publicUrl(whatsapp.url, 'https:');
   if (Number(capture.metrics?.conns?.gauge || 0) !== 0) throw Error('recorder_has_active_connections');
-  const captureTrial = { ...config(capture), upstream: { url: '127.0.0.1:2121' }, inspect: false };
-  return { version: 1, id, guardian: config(guardian), capture: config(capture), whatsapp: config(whatsapp), captureTrial,
+  const captureTrial = config(capture);
+  return { version: 2, id, guardian: config(guardian), capture: config(capture), whatsapp: config(whatsapp), captureTrial,
     data: { name: `guardian-photo-ftp-data-${id}`, url: 'tcp://', upstream: { url: '127.0.0.1:2122' }, inspect: false } };
 }
 
@@ -56,15 +56,38 @@ async function api(method, name, body) {
     method, headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(10000), redirect: 'error',
   });
-  if (!response.ok) throw Error(`ngrok_http_${response.status}`);
+  if (!response.ok) {
+    const error = Error(`ngrok_http_${response.status}`);
+    error.request = { method, endpoint: name || body?.name || null, status: response.status };
+    throw error;
+  }
   return response.status === 204 ? null : response.json();
 }
 
 function validateJournal(value) {
-  if (!value || value.version !== 1) throw Error('invalid_restore_journal');
+  if (!value || ![1, 2].includes(value.version)) throw Error('invalid_restore_journal');
   const expected = planEndpoints([value.guardian, value.capture, value.whatsapp], value.id);
+  if (value.version === 1) {
+    expected.version = 1;
+    expected.captureTrial = { ...expected.capture, upstream: { url: '127.0.0.1:2121' }, inspect: false };
+  }
   if (!same(value.captureTrial, expected.captureTrial) || !same(value.data, expected.data)) throw Error('invalid_restore_journal');
   return expected;
+}
+
+async function replaceEndpoint(original, replacement, request, check = () => {}, requireIdle = true) {
+  // Older agents can expose GET/POST/DELETE without implementing endpoint PUT.
+  // Re-read before deleting so a concurrent operator's route is not replaced.
+  const rows = (await request('GET')).endpoints;
+  const current = rows.find(row => row.name === original.name);
+  if (!same(current, original) || original.name !== replacement.name || original.name === 'command_line') {
+    throw Error('endpoint_changed_during_trial');
+  }
+  if (requireIdle && Number(current.metrics?.conns?.gauge || 0) !== 0) throw Error('recorder_has_active_connections');
+  check();
+  await request('DELETE', original.name);
+  check();
+  await request('POST', null, replacement);
 }
 
 async function restore(plan, request = api) {
@@ -80,13 +103,16 @@ async function restore(plan, request = api) {
     }
   });
   // Restore WhatsApp first; a recorder restoration failure must not skip it.
-  for (const original of [plan.whatsapp, plan.capture]) await attempt(async () => {
+  // v2 never mutates either TCP endpoint. v1 journals remain recoverable.
+  for (const original of plan.version === 1 ? [plan.whatsapp, plan.capture] : [plan.whatsapp]) await attempt(async () => {
     const rows = (await request('GET')).endpoints;
     const current = rows.find(row => row.name === original.name);
     if (same(current, original)) return;
     if (!current) { await request('POST', null, original); return; }
     if (original.name === plan.capture.name && same(current, plan.captureTrial)) {
-      await request('PUT', original.name, original); return;
+      // Cleanup owns this temporary FTP endpoint. Lagging connection metrics
+      // must not prevent restoration after the receiver has been stopped.
+      await replaceEndpoint(plan.captureTrial, original, request, undefined, false); return;
     }
     throw Error('endpoint_changed_during_trial');
   });
@@ -102,27 +128,34 @@ async function restore(plan, request = api) {
 }
 
 async function trial({ plan, request = api, probe, signal }) {
-  let probeResult = null, failure = null;
+  let probeResult = null, failure = null, failureStage = null, failureRequest = null;
+  let stage = 'verify_original_endpoints';
   const check = () => { if (signal?.aborted) throw Error('probe_cancelled'); };
   try {
     check();
-    await request('PUT', plan.capture.name, plan.captureTrial);
+    const originalRows = (await request('GET')).endpoints;
+    if (plan.version !== 2 || ![plan.guardian, plan.capture, plan.whatsapp].every(original =>
+      same(originalRows.find(row => row.name === original.name), original))) throw Error('endpoint_changed_during_trial');
     check();
+    stage = 'pause_whatsapp_endpoint';
     await request('DELETE', plan.whatsapp.name);
     check();
+    stage = 'create_ftp_data_endpoint';
     await request('POST', null, plan.data);
     check();
+    stage = 'verify_trial_endpoints';
     const rows = (await request('GET')).endpoints;
     const data = rows.find(row => row.name === plan.data.name);
     if (!data || !same(data, { ...plan.data, url: data.url }) ||
         !same(rows.find(row => row.name === plan.capture.name), plan.captureTrial) ||
         !same(rows.find(row => row.name === plan.guardian.name), plan.guardian)) throw Error('trial_endpoints_not_verified');
     publicUrl(data.url, 'tcp:');
+    stage = 'public_ftp_transfer';
     probeResult = await probe(plan.captureTrial.url, data.url);
-  } catch (error) { failure = error.message; }
+  } catch (error) { failure = error.message; failureStage = stage; failureRequest = error.request || null; }
   const restoration = await restore(plan, request);
   return { outcome: !failure && restoration.endpointConfigurationRestored ? 'public_ftp_probe_passed' : 'public_ftp_probe_incomplete',
-    probeResult, failure, restoration, watchCommandsSent: false, firebaseWrites: 0 };
+    probeResult, failure, failureStage, failureRequest, restoration, watchCommandsSent: false, firebaseWrites: 0 };
 }
 
 function child(python, args, signal, readyEvent) {
@@ -166,6 +199,31 @@ async function freePort(port) {
   });
 }
 
+async function startControlBridge(port = 9002) {
+  const sockets = new Set();
+  const server = net.createServer(socket => {
+    if (sockets.size >= 12) { socket.destroy(); return; }
+    const upstream = net.connect(2121, '127.0.0.1');
+    for (const stream of [socket, upstream]) {
+      sockets.add(stream); stream.once('close', () => sockets.delete(stream));
+      stream.setTimeout(30000, () => stream.destroy());
+    }
+    socket.on('error', () => upstream.destroy());
+    upstream.on('error', () => socket.destroy());
+    socket.on('close', () => upstream.destroy());
+    upstream.on('close', () => socket.destroy());
+    socket.pipe(upstream).pipe(socket);
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', () => reject(Error('recorder_port_in_use_stop_old_recorder')));
+    server.listen(port, '127.0.0.1', resolve);
+  });
+  return { port: server.address().port, stop: async () => {
+    for (const socket of sockets) socket.destroy();
+    await new Promise(resolve => server.close(resolve));
+  } };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--restore-journal' && args.length === 2) {
@@ -180,7 +238,7 @@ async function main() {
   const plan = planEndpoints((await api('GET')).endpoints, crypto.randomBytes(8).toString('hex'));
   if (!args.length) {
     emit({ outcome: 'public_ftp_preview', changesMade: false, guardianUrl: plan.guardian.url,
-      temporarilyRepurposeRecorder: true, temporarilyPauseWhatsappWebhooks: true,
+      reuseRecorderThroughLocalBridge: true, tcpEndpointChangesPlanned: false, temporarilyPauseWhatsappWebhooks: true,
       automaticallyRestoreEndpoints: true, watchCommandsSent: false, firebaseWrites: 0 }); return;
   }
   const python = process.env.GUARDIAN_PHOTO_PYTHON || path.join(process.env.LOCALAPPDATA || '', 'Guardian', 'photo-ftp-python', 'Scripts', 'python.exe');
@@ -195,10 +253,12 @@ async function main() {
   const onInterrupt = () => abort.abort();
   process.on('SIGINT', onInterrupt); process.on('SIGTERM', onInterrupt);
   const deadline = setTimeout(onInterrupt, 120000);
+  let bridge;
   try {
+    bridge = await startControlBridge();
     await child(python, [receiver, '--init-dir', sessionDir, '--imei', '861397052547492', '--protocol-id', '9705254749'], abort.signal).result;
     emit({ outcome: 'public_ftp_probe_starting', restoreJournal: journal,
-      whatsappWebhooksTemporarilyPaused: true, watchCommandsSent: false });
+      whatsappWebhookPausePlanned: true, watchCommandsSent: false });
     const result = await trial({ plan, signal: abort.signal, probe: async (controlUrl, dataUrl) => {
       const session = path.join(sessionDir, 'session.json');
       const server = child(python, [receiver, '--run', '--session', session, '--control-url', controlUrl,
@@ -213,7 +273,10 @@ async function main() {
     emit({ ...result, restoreJournal: journal });
     if (result.outcome !== 'public_ftp_probe_passed') process.exitCode = 1;
   } finally {
-    clearTimeout(deadline); process.removeListener('SIGINT', onInterrupt); process.removeListener('SIGTERM', onInterrupt);
+    try { if (bridge) await bridge.stop(); }
+    finally {
+      clearTimeout(deadline); process.removeListener('SIGINT', onInterrupt); process.removeListener('SIGTERM', onInterrupt);
+    }
   }
 }
 
@@ -221,4 +284,4 @@ if (require.main === module) main().catch(error => {
   emit({ outcome: 'public_ftp_check_failed', reason: /^[a-z_0-9]+$/.test(error.message || '') ? error.message : 'check_local_agent_and_arguments' });
   process.exitCode = 1;
 });
-module.exports = { config, same, planEndpoints, validateJournal, restore, trial };
+module.exports = { config, same, planEndpoints, validateJournal, restore, trial, startControlBridge };
