@@ -3,7 +3,7 @@
 24 September 2026. PR #113 remains draft. This is the QA handoff; the GitHub
 Wiki cannot be updated through the available repository connector.
 
-## Latest result — two TCP uploads and gallery success, 25 September MUT / 24 September UTC
+## Latest result — two hands-off remote photos confirmed, 25 September MUT / 24 September UTC
 
 Source: operator attachment `Pasted text(6).txt` and the accompanying report:
 two photos appeared promptly in AnyTracking; the operator deleted the first
@@ -30,14 +30,21 @@ contains 37 complete JSON rows, and continues with heartbeat exchange through
 20:37:39.974 UTC. It has no recorder-stop or return-to-Guardian evidence.
 No server-to-watch `img` ACK is visible in this excerpt.
 
-**Still to confirm:** that both photos were requested only from AnyTracking
-with no watch-camera/shutter interaction, plus the actual screen state and any
-wearer indication. The preceding instructions asked for an awake clock face
-but the result does not explicitly confirm those conditions. Do not classify
-this as proven hands-off capture, claim that waking fixed the earlier issue,
-or overwrite the earlier manually triggered sample's classification. The
-operator also restarted the watch during connection troubleshooting, so this
-is not a controlled awake-versus-asleep causal comparison.
+**Operator confirmation:** in the immediate follow-up the operator states the
+watch was “absolutely not touched.” Together with both request/reply/upload
+sequences and the reported app pictures, this confirms **two hands-off remote
+captures through AnyTracking on this pilot V52**. The no-watch-interaction
+condition is resolved; do not keep asking for it or require a supplier reply
+to establish that the observed remote TCP path can work.
+
+**Remaining observations:** actual screen state at request time and any
+visible/audible wearer indication were not explicitly reported for this
+successful session. Instructions to start awake are not proof of that state.
+The watch was also restarted during connection troubleshooting, so this is
+not a controlled awake-versus-asleep causal comparison. Do not claim that
+waking fixed the earlier failures or overwrite the earlier manually triggered
+sample's classification. Two successful requests establish this pilot result,
+not reliability across sleep states, reboots, offline recovery or other watches.
 
 Deleting from the reference app establishes an operator-observed UI action,
 not hard deletion from its servers or deletion of the separate local private
@@ -66,7 +73,8 @@ earlier connected-but-no-image camera attempts or establish an SMS failure.
 
 1. Restore the **current printed** Guardian return route and verify fresh
    telemetry; expiry never restores routing.
-2. Confirm the no-watch-camera-interaction condition and actual screen behavior.
+2. No-watch-interaction is confirmed. Record screen state/wearer indication if
+   the operator can recall it; do not infer those details from transport logs.
 3. Retain/inspect the private capture from this successful session. The public
    log alone cannot decode the two images. Do not repeat successful captures
    merely to recover data already saved.
