@@ -48,6 +48,24 @@ test('all five documented media escapes decode and invalid/trailing escapes are 
   for (const bytes of [[0x7d], [0x7d, 0], [0x7d, 6], [0x5d]]) assert.throws(() => unescapeMedia(Buffer.from(bytes)));
 });
 
+test('observed one-, two- and six-NUL trailers preserve the exact JPEG and raw trailer', () => {
+  for (const count of [1, 2, 6]) {
+    const result = decodeV52PhotoFrame(frame(jpeg, { trailer: Buffer.alloc(count) }), ID);
+    assert.deepEqual(result.jpeg, jpeg);
+    assert.equal(result.metadata.jpegBytes, jpeg.length);
+    assert.equal(result.metadata.trailingBytesHex, '00'.repeat(count));
+    assert.equal(result.metadata.validation, 'jpeg_structure_only');
+    // No non-zero byte is permitted at any position of a supported trailer.
+    for (let position = 0; position < count; position++) {
+      const trailer = Buffer.alloc(count); trailer[position] = 1;
+      assert.throws(() => decodeV52PhotoFrame(frame(jpeg, { trailer }), ID), /unsupported_image_trailer/);
+    }
+  }
+  for (const count of [0, 3, 4, 5, 7, 8, 64]) {
+    assert.throws(() => decodeV52PhotoFrame(frame(jpeg, { trailer: Buffer.alloc(count) }), ID), /unsupported_image_trailer/);
+  }
+});
+
 test('frame identity, length, prefix, command envelope and bounded metadata are enforced', () => {
   assert.throws(() => decodeV52PhotoFrame(frame(), undefined), /expected_protocol/);
   assert.throws(() => decodeV52PhotoFrame(frame(), '9999999999'), /identity/);
@@ -72,7 +90,7 @@ test('truncated segments, missing EOI, unsupported frames and unexpected trailer
   assert.throws(() => decodeV52PhotoFrame(frame(progressive), ID), /unsupported_jpeg_frame/);
   const oversized = Buffer.from(jpeg); oversized.writeUInt16BE(5000, sof + 7);
   assert.throws(() => decodeV52PhotoFrame(frame(oversized), ID), /dimensions/);
-  for (const trailer of [Buffer.alloc(0), Buffer.from([0]), Buffer.from([0, 1]), jpeg]) {
+  for (const trailer of [Buffer.alloc(0), Buffer.alloc(3), Buffer.from([0, 1]), jpeg]) {
     assert.throws(() => decodeV52PhotoFrame(frame(jpeg, { trailer }), ID), /trailer/);
   }
 });
@@ -98,6 +116,26 @@ test('offline extraction writes exact private bytes to a new directory and refus
   assert.equal(path.basename(result.images[0].outputFile), 'photo-01.jpg');
   if (process.platform !== 'win32') assert.equal(fs.statSync(result.images[0].outputFile).mode & 0o777, 0o600);
   assert.throws(() => decodeCapture({ captureFile, protocolId: ID, outputDir }));
+});
+
+test('offline capture extracts both remote trailer variants using synthetic image bytes', t => {
+  const directory = temp(t), captureFile = path.join(directory, 'remote.jsonl'), outputDir = path.join(directory, 'photos');
+  const variants = [
+    { trailer: Buffer.alloc(6), timestamp: '260925002653' },
+    { trailer: Buffer.alloc(1), timestamp: '260925003013' },
+  ];
+  fs.writeFileSync(captureFile, variants.map(options => JSON.stringify(record(frame(jpeg, options)))).join('\n'));
+  const result = decodeCapture({ captureFile, protocolId: ID, outputDir });
+  assert.equal(result.imageCount, 2);
+  assert.equal(result.networkOpened, false);
+  assert.equal(result.commandsGenerated, false);
+  assert.deepEqual(result.images.map(image => image.trailingBytesHex), ['000000000000', '00']);
+  assert.deepEqual(result.images.map(image => image.deviceTimestampRaw), variants.map(options => options.timestamp));
+  for (const image of result.images) {
+    assert.deepEqual(fs.readFileSync(image.outputFile), jpeg);
+    assert.equal(image.sha256, crypto.createHash('sha256').update(jpeg).digest('hex'));
+  }
+  assert.equal(JSON.stringify(result).includes('frameHex'), false);
 });
 
 test('capture size/count, JSON, hex, direction and row/frame identities are validated before output', t => {

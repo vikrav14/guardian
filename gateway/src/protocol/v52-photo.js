@@ -6,6 +6,9 @@ const ESCAPES = new Map([[1, 0x7d], [2, 0x5b], [3, 0x5d], [4, 0x2c], [5, 0x2a]])
 const RESERVED = new Set([0x5b, 0x5d, 0x2c, 0x2a]);
 const MAX_FRAME_BYTES = 65556;
 const MAX_DIMENSION = 1024;
+// Observed after the JPEG EOI in three fully decoded pilot samples. Do not
+// infer padding/alignment semantics or accept arbitrary trailing bytes.
+const OBSERVED_ZERO_TRAILER_LENGTHS = new Set([1, 2, 6]);
 
 function fail(code) { throw new Error(code); }
 
@@ -94,9 +97,11 @@ function decodeV52PhotoFrame(frame, expectedProtocolId) {
   const decoded = unescapeMedia(encoded);
   const dimensions = inspectJpegStructure(decoded.bytes);
   const trailer = decoded.bytes.subarray(dimensions.jpegEnd);
-  // The private pilot sample ends with two NUL bytes. Keep their value in
-  // metadata; do not assign them checksum/fragment/termination semantics.
-  if (!(trailer.length === 2 && trailer[0] === 0 && trailer[1] === 0)) fail('unsupported_image_trailer');
+  // The first local-camera sample had two NULs; two hands-off remote samples
+  // have six and one. Preserve only these observed forms, after parsing EOI.
+  if (!OBSERVED_ZERO_TRAILER_LENGTHS.has(trailer.length) || trailer.some(byte => byte !== 0)) {
+    fail('unsupported_image_trailer');
+  }
   return {
     jpeg: Buffer.from(decoded.bytes.subarray(0, dimensions.jpegEnd)),
     metadata: {

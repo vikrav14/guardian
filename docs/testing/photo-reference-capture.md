@@ -48,10 +48,41 @@ not reliability across sleep states, reboots, offline recovery or other watches.
 
 Deleting from the reference app establishes an operator-observed UI action,
 not hard deletion from its servers or deletion of the separate local private
-capture. The new binary capture has not been attached/decoded in this
-checkpoint; dimensions, JPEG byte sizes and image content remain unverified
-offline for these two uploads. The previous 240x240 decode belongs to a
-different, manually triggered sample.
+capture. The subsequently attached
+`guardian-photo-private-20260925-002537-151.jsonl` contains both complete images.
+Both pass Pillow verification, full pixel decoding with truncated-image loading
+disabled, and visual inspection. They are distinct, viewable 240x240 RGB JPEGs.
+The earlier manually triggered sample remains separate evidence.
+
+### Private remote samples decoded
+
+| Sample | Raw timestamp field | Payload bytes | JPEG bytes | Escape pairs | Bytes after JPEG EOI |
+| --- | --- | --- | --- | --- | --- |
+| First | `260925002653` | 6930 | 6797 | 108 | Six NULs, `000000000000` |
+| Second | `260925003013` | 6590 | 6450 | 120 | One NUL, `00` |
+
+Both use the observed `img,5,<timestamp>,` envelope and the same five media
+escapes. Preserve the raw timestamp and opaque `5`; these do not establish
+request correlation or timestamp semantics.
+
+The original offline decoder rejected these valid samples with
+`unsupported_image_trailer` because it required the two NUL bytes seen in the
+manual sample. The decoder now accepts only the three observed all-zero
+trailer lengths: one, two and six. It retains the trailer in metadata and
+continues to reject nonzero or unobserved trailers. Padding/alignment semantics
+are not established. This is an offline decoder fix, not a diagnosis of the
+earlier AnyTracking failures; the pass-through recorder never transformed
+supplier traffic.
+
+All **35 focused relay/private-recorder/decoder tests passed**, including
+synthetic coverage for accepted and rejected trailers and extraction of two
+samples. Real images and the private capture remain outside Git. Node reports
+`jpeg_structure_only`; the full Pillow and visual checks above are separate
+validation of these two real outputs.
+
+The operator also reports restoring the watch IP to Guardian. This records
+operator-reported restoration; fresh Guardian telemetry was not supplied in
+this checkpoint. No additional routing change is needed to inspect the files.
 
 ### Connection recovery preceding this result
 
@@ -71,13 +102,12 @@ earlier connected-but-no-image camera attempts or establish an SMS failure.
 
 ### Next work
 
-1. Restore the **current printed** Guardian return route and verify fresh
-   telemetry; expiry never restores routing.
+1. The operator reports restoring Guardian routing. Keep the watch on Guardian;
+   distinguish this report from independently verified fresh telemetry.
 2. No-watch-interaction is confirmed. Record screen state/wearer indication if
    the operator can recall it; do not infer those details from transport logs.
-3. Retain/inspect the private capture from this successful session. The public
-   log alone cannot decode the two images. Do not repeat successful captures
-   merely to recover data already saved.
+3. Private capture inspection is complete: both remote images decode fully.
+   No repeat reference capture is needed to recover or validate these files.
 4. Prefer the now-observed `rcapture`/TCP `img` route for the next isolated
    Guardian integration trial. A supplier reply or a new FTP configuration is
    not a prerequisite for developing this path. Exact live parsing, bounded
@@ -87,8 +117,8 @@ earlier connected-but-no-image camera attempts or establish an SMS failure.
 
 PR #113 remains draft/unmerged. No production camera dispatcher, ingress,
 customer flag, FTP setting or Firebase data changed in this checkpoint.
-Documentation-only update; no new test run. Earlier software test results
-remain separate from this hardware evidence.
+This checkpoint fixes offline trailer validation and records 35 passing focused
+tests. Earlier FTP test results remain separate; no new FTP trial was run.
 
 ---
 

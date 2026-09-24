@@ -167,13 +167,23 @@ mean no awake-state or restart root cause is established. Preserve the earlier
 manual-sample classification. This positive pilot result does not establish
 general reliability or direct Guardian execution.
 
-The supplied log contains no image bytes for offline decoding and no final
-Guardian-routing verification. These two samples' dimensions/JPEG sizes,
-private Guardian ingestion/deletion, direct Guardian command execution and
-customer readiness remain unverified. Reference-app deletion does not prove
-server hard deletion or deletion of the separate local capture. The public
-FTP probe remains historical and is not a prerequisite for pursuing the
-observed TCP path. No new watch FTP provisioning is needed for that path.
+The subsequently attached private capture
+`guardian-photo-private-20260925-002537-151.jsonl` contains both complete images.
+They decode to distinct 240x240 RGB JPEGs of **6797 and 6450 bytes**; Pillow
+verification, full pixel loading with truncated-image loading disabled, and
+visual inspection all passed. Their post-EOI trailers contain six and one NUL
+bytes, respectively. The offline decoder previously required the two NULs in
+the manual sample; it now accepts only the observed all-zero lengths one, two
+and six while retaining raw trailer metadata. Meaning of the trailer and
+header fields remains unproven. Real images/captures are not committed.
+
+The operator reports restoring the watch IP to Guardian; fresh Guardian
+telemetry has not been independently verified here. Private Guardian
+ingestion/deletion, direct Guardian execution and customer readiness remain
+unverified. Reference-app deletion does not prove server hard deletion or
+deletion of the local capture. The public FTP probe remains historical and is
+not a prerequisite for pursuing the observed TCP path. No new watch FTP
+provisioning is needed for that path.
 
 The recorder's earlier expiry (20:14:36.083 UTC) and missing 9002 listener
 explained the later offline routing problem until the recorder restarted.
@@ -183,8 +193,9 @@ reported forwards after ngrok recovery were Guardian 10595 -> 9000, recorder
 for later sessions.
 
 See [the latest photo evidence and next steps](testing/photo-reference-capture.md).
-PR #113 remains draft; this update changes documentation only, with no new
-test run or production feature activation.
+PR #113 remains draft. The offline decoder fix passes **35 focused
+relay/private-recorder/decoder tests**, including synthetic trailer rejection
+and two-image extraction coverage. No production feature was activated.
 
 ## Photo checkpoint — 24 September 2026
 

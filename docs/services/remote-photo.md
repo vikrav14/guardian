@@ -5,10 +5,10 @@
 | Service ID | `remote-photo` |
 | Product wording | **Safety snapshot** |
 | Minimum package | Family |
-| Current state | Pilot TCP img decoded offline to a viewable JPEG; live Guardian capture/media disabled |
+| Current state | Two hands-off pilot captures fully decoded offline; live Guardian capture/media disabled |
 | Customer-visible | No |
 | Protocol inventory | `FTPIP`, `FTPPWD`, `PIC`, `rcapture` |
-| Accepted V52 capture commands | None |
+| Production-dispatch-enabled capture commands | None |
 | Observed reference exchange | `3G` / lowercase `rcapture`, then watch-to-server `img`; 24 September 2026 |
 
 Safety snapshot is designed as a **single, consent-bound contextual image** for a genuine family-safety question. It is not a live camera, continuous monitoring service, background camera, or covert-surveillance feature.
@@ -68,7 +68,11 @@ Guardian's V52 decoder recognizes `FTPIP`, `FTPPWD`, `PIC` and `rcapture` as ser
 
 This PR still contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. The supplier document's separate `PIC,1` / FTP example must not replace this observed `rcapture` / `img` flow. The private 24 September sample establishes `img,5,260924213927,` followed by an escaped binary JPEG and two NUL bytes. The five documented media escapes restore a viewable 240x240 JPEG of 4969 bytes. The field `5`, trailer semantics, request correlation and any ACK requirements remain unknown. Do not provision FTP or invent an image ACK from this evidence.
 
-The operator subsequently confirmed that the recovered 17:39:27 image was triggered by accidentally pressing the camera button on the watch. This sample proves a locally triggered upload can be decoded. Its 205.457-second interval after an AnyTracking request is not remote-capture latency. The 22:23 MUT app-only follow-up received a bare reply after 676 ms but no `img` in the supplied excerpt, with heartbeats continuing and the gallery still empty. Remote-only capture remains unverified. The next comparison checks a request with the watch awake on the clock face and camera/gallery closed; this is a hypothesis test, not a required firmware sequence. The trigger of the earlier 17:00/17:01 uploads is not established by the local-photo correction.
+The operator confirmed that the recovered 17:39:27 image was triggered by accidentally pressing the watch camera button. Its 205.457-second interval after an AnyTracking request is not remote-capture latency. The 22:23 MUT app-only follow-up had a bare reply but no observed image. Keep these historical outcomes separate from the subsequent successful remote trial.
+
+At 20:26 and 20:30 UTC (25 September MUT), two exact `rcapture` requests produced TCP images after 7.655 and 5.721 seconds. The operator confirms the watch was untouched and both pictures appeared promptly in AnyTracking. Both private samples fully decode to distinct 240x240 RGB JPEGs, 6797 and 6450 bytes, verified with Pillow and visual inspection. This proves two hands-off captures on Jesh through the reference service. Actual screen state and wearer indication remain unreported; general reliability, fresh-image correlation and live Guardian reception remain unverified. The operator reports restoring Guardian IP routing; fresh telemetry was not supplied in this checkpoint.
+
+The remote JPEGs have six and one NUL bytes after EOI, while the earlier manual image has two. Offline trailer validation now accepts only those three observed all-zero lengths and preserves them in metadata; it rejects other lengths or nonzero bytes. These observations do not establish padding semantics. All 35 focused relay/private-recorder/decoder tests pass, including synthetic trailer and two-image extraction regressions.
 
 `src/protocol/v52-photo.js` now decodes the observed envelope offline, preserves unknown fields, reverses only the five documented escapes and checks bounded baseline JPEG marker structure. `scripts/decode-photo-capture.js` inspects a private file and optionally writes JPEGs to a new local directory. It opens no network and is not connected to live ingress/dispatch. Its `jpeg_structure_only` result is not a substitute for a full image decoder in production; the actual pilot output was separately loaded with Pillow and visually inspected. The real pilot image and private capture are not committed to the repository.
 
@@ -132,8 +136,8 @@ Before real image ingestion is enabled, Guardian still needs:
 ## Physical/privacy acceptance
 
 - [x] observe AnyTracking `rcapture` and subsequent `img` on Jesh, with operator-reported photos in Pictures
-- [x] decode the exact private `img` sample offline and visually verify a 240x240 JPEG
-- [ ] verify reliable remote-only capture and live authorized Guardian reception
+- [x] confirm two hands-off reference captures and fully decode their distinct 240x240 JPEGs
+- [ ] verify reliable capture across device states and live authorized Guardian reception
 - [ ] prove wearer-visible/audible indication behavior
 - [ ] verify single-capture behavior and prevent continuous/repeated capture
 - [ ] measure image size, latency and SIM data use
@@ -144,4 +148,4 @@ Before real image ingestion is enabled, Guardian still needs:
 
 ## Release rule
 
-Keep Safety snapshot customer-hidden and non-dispatchable. Continue the operator-authorized tabletop comparison through AnyTracking to establish the image format. Guardian dispatch and production media ingestion remain disabled until the receiver and physical acceptance are complete. The TCP recorder needs no FTP credentials; the separate FTP diagnostic creates temporary local credentials for its own receiver and never sends them to the watch automatically.
+Keep Safety snapshot customer-hidden and non-dispatchable while implementing and testing an isolated Guardian command/receiver path using the observed `rcapture` and TCP `img` exchange. The two remote images are already fully decoded; no repeat AnyTracking capture or supplier reply is needed to establish that pilot result. Guardian dispatch and production media ingestion remain disabled until the receiver and physical acceptance are complete. The TCP path needs no new FTP provisioning; the separate FTP diagnostic remains an independent trial tool.
