@@ -96,7 +96,15 @@ Exact physical acceptance must establish:
 
 ## Media security boundary
 
-The repository currently has Firebase Storage CORS configuration but no dedicated Firebase Storage authorization rules for Safety snapshots. For this phase, media ingress remains **backend-only and disabled**. The mobile app must not upload snapshot media and must not receive a permanent/public Storage URL.
+The repository has Firebase Storage rules for avatars, but no dedicated customer authorization path for Safety snapshots. Production media ingress remains **backend-only and disabled**. The mobile app must not upload snapshot media and must not receive a permanent/public Storage URL.
+
+PR #113 also provides a standalone bounded FTP diagnostic and an explicit
+operator-only Firebase import/delete tool. These are not gateway runtime
+ingress: imports use backend-only `photoTrialImports` metadata and private
+`privatePhotoTrials` objects, retain unverified remote/request-correlation
+status, and require manual cleanup. The first PowerShell readiness check
+changes no watch settings, tunnels or Firebase data. See
+[the FTP/Firebase trial runbook](../testing/photo-ftp-trial.md).
 
 Before real image ingestion is enabled, Guardian still needs:
 
@@ -136,4 +144,4 @@ Before real image ingestion is enabled, Guardian still needs:
 
 ## Release rule
 
-Keep Safety snapshot customer-hidden and non-dispatchable. Continue the operator-authorized tabletop comparison through AnyTracking to establish the image format. Guardian dispatch and media ingestion remain disabled until the receiver and physical acceptance are complete. No FTP credentials are required or collected by this diagnostic.
+Keep Safety snapshot customer-hidden and non-dispatchable. Continue the operator-authorized tabletop comparison through AnyTracking to establish the image format. Guardian dispatch and production media ingestion remain disabled until the receiver and physical acceptance are complete. The TCP recorder needs no FTP credentials; the separate FTP diagnostic creates temporary local credentials for its own receiver and never sends them to the watch automatically.

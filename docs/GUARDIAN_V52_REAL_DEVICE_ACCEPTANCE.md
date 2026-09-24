@@ -147,6 +147,14 @@ Pass for the current product: canonical record, TCP dispatch, watch presentation
 
 ## Photo checkpoint — 24 September 2026
 
+Software-only follow-up: PR #113 now has a standalone bounded FTP receiver
+with real control/data proxy tests and a separate Firebase private import/delete
+pilot. The combined focused suite passes 43 tests. Live Windows/public FTP,
+Firebase write/delete and watch `PIC,1` acceptance remain pending. No FTP
+settings were changed and no customer photo capability is enabled. Start with
+[the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
+photo but cannot establish that a remote camera request executed.
+
 Jesh / protocol ID `9705254749`: the operator reports photos visible in
 AnyTracking. The recorded reference session contains lowercase `rcapture`
 requests/replies followed by two `img` uploads, 5.064 and 6.057 seconds after

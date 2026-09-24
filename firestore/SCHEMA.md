@@ -405,6 +405,41 @@ idempotent per device/source/hour.
 
 ## Gateway write map
 
+### Diagnostic-only `photoTrialImports/{importId}`
+
+Created only by the explicit `gateway/scripts/photo-trial-firebase.js` pilot;
+never by gateway startup. Client reads/writes are denied by existing unmatched
+path rules. This is separate from production `safetySnapshotRequests` and
+does not create a customer-visible photo or satisfy its authorization policy.
+The JPEG is a private Storage object, not a Firestore field. No public URL or
+download token is recorded. `importId` hashes IMEI, linked requester UID and
+image SHA-256 to prevent repeat uploads of the same trial image.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| version | number | `1` |
+| imei / protocolId | string | Exact trial device identities |
+| requestedBy | string | Verified linked Firebase user UID |
+| source | string | `ftp_trial_operator_import` |
+| sha256 / bytes / width / height | string / number | Validated JPEG properties |
+| validation | string | `pillow_full_decode`; full decode repeated before import |
+| receivedAt / importedAt / updatedAt | timestamp | Transfer receipt and processing times; not proven camera capture time |
+| consentConfirmed | boolean | Operator confirmed this test-photo import |
+| state | string | `uploading`, `stored`, `failed_cleaned`, `cleanup_required`, `deleted` |
+| bucket / objectPath | string / nullable string | Private bucket and `privatePhotoTrials/{imei}/{importId}.jpg`; path cleared on deletion |
+| generation | string or null | Storage generation for conditional deletion, when known |
+| remoteCaptureVerified / requestCorrelationVerified / customerVisible | boolean | Always `false` in this pilot |
+| automaticExpiry | boolean | `false`; no TTL or deletion scheduler is installed |
+| cleanupRequiredAfterTrial | boolean | Explicit cleanup required; cleared by successful deletion |
+| deletedAt | timestamp | Live-object deletion completed or object was already absent |
+
+Deletion keeps the audit record. Storage provider soft-delete/versioning may
+retain copies under bucket policy. A failed import records cleanup uncertainty;
+it must not be reported as a successful rollback. See
+[the trial runbook](../docs/testing/photo-ftp-trial.md).
+
+### Runtime writes
+
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
 
 | Trigger | Firestore action |

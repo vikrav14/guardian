@@ -265,6 +265,13 @@ private JSONL file for format analysis, rather than pasting a long hex dump.
 
 ## Verification and remaining implementation
 
+For the separately documented `PIC,1`/FTP candidate, PR #113 now includes
+a standalone FTP receiver, real local transfer self-test and explicit private
+Firebase import/delete pilot. Start with the read-only readiness workflow in
+[photo-ftp-trial.md](photo-ftp-trial.md). It needs no routing SMS, does not
+replace this recorder, and does not make remote capture proven. That runbook
+records the current combined 43-test result and the remaining live checks.
+
 33 focused Node tests pass: existing transparent relay/answer capture,
 private-photo capture, and the offline decoder. Coverage includes all five
 escapes, embedded delimiter/EOI bytes, frame identity/length, malformed JPEG
