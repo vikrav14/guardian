@@ -2,8 +2,10 @@
 
 **24 September dynamic call-link checkpoint:** the draft gateway prepares
 per-recipient SOS/fall call URLs for the correct watch, separately gated by v2
-template approval. Public deployment, Meta changes and physical URL acceptance
-are pending. Existing emergency handsfree behavior is unchanged. See
+template approval. All six v2 templates were submitted on 24 September and
+showed In review. The public trial call-page fallback responded; activation and
+physical URL acceptance remain pending. Existing emergency handsfree behavior
+is unchanged. See
 [deployment and remaining acceptance](services/watch-call-links.md).
 
 **Status:** Release gate

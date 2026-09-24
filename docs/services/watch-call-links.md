@@ -1,9 +1,31 @@
 # Dynamic Call watch links — 24 September 2026
 
 Draft PR #115 implements a shared SOS/fall Call watch URL. Gateway code is
-available; Meta approval, public deployment and physical WhatsApp tap-to-call
-acceptance are pending. No template or device setting is changed by this update.
-The feature defaults off separately for SOS and fall.
+available and all six shared v2 templates were submitted to Meta on 24 September
+2026. All six showed **In review** after submission. The public trial origin
+served the new call-page fallback; approval, activation and physical WhatsApp
+tap-to-call acceptance remain pending. The feature defaults off separately for
+SOS and fall. Approved v1 templates remain intact.
+
+## Submission checkpoint — 24 September 2026
+
+- Submitted every template in the matrix below as **Utility / English**, with
+  four body variables. All six use a dynamic **Call watch** website button at
+  index 0. Fresh and last-known variants retain their dynamic map button at
+  index 1; unavailable variants have only Call watch.
+- Submitted call URL: `https://lidless-inward-lucas.ngrok-free.dev/call-watch/{{1}}`.
+  Review examples use the generic `/call-watch/unavailable` page and synthetic
+  wearer/location data. No watch SIM or contact number is fixed in any template.
+- A read-only request to that origin's `/call-watch/unavailable` returned the
+  new Guardian fallback HTML with expected HTTP 410. The request skipped ngrok's
+  browser warning; this does not prove a handset can reach a live call link.
+- No messages or watch commands were sent. No remote environment flags, TTL
+  policy or tunnel inspection settings were changed. The operator must configure
+  the matching origin, keep both gates off during review, and complete the
+  deployment checks below before activation.
+- Code commit `bafc7d2`: 1,394 gateway tests passed locally. Guardian release
+  gates #355 and Dashboard UI review #173 passed, including the Firestore
+  authorization and Flutter checks.
 
 ## Customer flow
 
@@ -48,7 +70,7 @@ the safety alert and its map still send. No recipients or SMS messages are added
 Provider errors have the emitted token redacted before notification logging.
 Failed page lookups also show the generic unavailable page.
 
-## Meta contracts for the next step
+## Submitted Meta contracts
 
 New **v2** versions retain the approved v1 alerts during review. Editing a live
 fixed-phone template in place would make old payloads incompatible with its new
@@ -91,7 +113,7 @@ cd gateway
 Configure privately in `gateway/.env`, initially with both flags off:
 
 ```dotenv
-WATCH_CALL_PUBLIC_ORIGIN=https://YOUR_STABLE_HOST
+WATCH_CALL_PUBLIC_ORIGIN=https://lidless-inward-lucas.ngrok-free.dev
 META_WHATSAPP_SOS_DYNAMIC_CALL_ENABLED=false
 META_WHATSAPP_FALL_DYNAMIC_CALL_ENABLED=false
 ```
@@ -104,8 +126,8 @@ The gateway never derives a public origin from incoming Host headers.
 1. Restart gateway; verify public `/health`, then `/call-watch/unavailable`.
    The latter intentionally returns HTTP 410 with a readable fallback page.
    Complete TTL and access-log configuration above.
-2. Create/approve v2 templates. Keep v1 templates and pilot gates until each
-   corresponding v2 family is ready.
+2. The six v2 templates are submitted and awaiting Meta review. Keep v1
+   templates and pilot gates until each corresponding v2 family is ready.
 3. Configure WABA/access token privately and run the read-only schema checks:
 
    ```powershell
