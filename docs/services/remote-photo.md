@@ -5,10 +5,11 @@
 | Service ID | `remote-photo` |
 | Product wording | **Safety snapshot** |
 | Minimum package | Family |
-| Current state | Software safety path implemented; capture/media disabled |
+| Current state | AnyTracking capture/upload observed on Jesh; Guardian capture/media disabled |
 | Customer-visible | No |
 | Protocol inventory | `FTPIP`, `FTPPWD`, `PIC`, `rcapture` |
 | Accepted V52 capture commands | None |
+| Observed reference exchange | `3G` / lowercase `rcapture`, then watch-to-server `img`; 24 September 2026 |
 
 Safety snapshot is designed as a **single, consent-bound contextual image** for a genuine family-safety question. It is not a live camera, continuous monitoring service, background camera, or covert-surveillance feature.
 
@@ -63,15 +64,17 @@ GUARDIAN_SAFETY_SNAPSHOT_ENABLED=false
 
 ## Protocol boundary
 
-Guardian's V52 decoder recognizes `FTPIP`, `FTPPWD`, `PIC` and `rcapture` as server-to-watch protocol inventory. The current Guardian command-evidence ledger does **not** establish an accepted production payload or role for this capture family.
+Guardian's V52 decoder recognizes `FTPIP`, `FTPPWD`, `PIC` and `rcapture` as server-to-watch protocol inventory. The 24 September same-watch capture establishes that AnyTracking sends `[3G*9705254749*0008*rcapture]`, Jesh replies with bare `rcapture`, and later uploads `img` over the same observed TCP session. The operator reports receiving the photos in AnyTracking. This is reference-service physical evidence on one watch, not acceptance of Guardian's receiver or customer feature. See [the capture and next test](../testing/photo-reference-capture.md).
 
-This PR therefore contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. In particular, Guardian must not assume that `rcapture` alone triggers a safe capture, that `PIC` is the request command, or that FTP configuration can safely point at arbitrary infrastructure.
+This PR still contains no photo command builder and does not add any of these commands to the generic `deviceCommands` dispatcher. The supplier document's separate `PIC,1` / FTP example must not replace this observed `rcapture` / `img` flow. The `img` body is redacted in the normal log, so its encoding, fields, image boundaries and any response requirements remain unknown. Do not provision FTP or invent an image ACK from this evidence.
+
+An optional standalone recorder saves only exact `rcapture` frames and watch-to-server `img` frames to a new private local file. It forwards supplier traffic unchanged and generates no commands or ACKs. This diagnostic is not imported into gateway startup, writes nothing to Firestore or Storage, and does not enable the customer flags. Normal output continues to redact images. The code is adapted from the tested PR #115 relay; the photo work stays in PR #113.
 
 Exact physical acceptance must establish:
 
-- which command/configuration initiates one capture
-- whether FTP configuration is persistent or per-session
-- where and how the V52 uploads the image
+- repeatable single-request behavior for the observed `rcapture` command
+- decode and validate the observed TCP `img` body and any image ACK requirements
+- determine whether additional configuration matters; FTP was not established for this flow
 - image type, size and naming behavior
 - latency and SIM data use
 - offline/reconnect behavior
@@ -107,7 +110,8 @@ Before real image ingestion is enabled, Guardian still needs:
 
 ## Physical/privacy acceptance
 
-- [ ] capture supplier documentation or exact-device evidence for `FTPIP`, `FTPPWD`, `PIC` and `rcapture`
+- [x] observe AnyTracking `rcapture` and subsequent `img` on Jesh, with operator-reported photos in Pictures
+- [ ] decode an exact private `img` capture and verify a Guardian-received image
 - [ ] prove wearer-visible/audible indication behavior
 - [ ] verify single-capture behavior and prevent continuous/repeated capture
 - [ ] measure image size, latency and SIM data use
@@ -118,4 +122,4 @@ Before real image ingestion is enabled, Guardian still needs:
 
 ## Release rule
 
-Keep Safety snapshot customer-hidden and non-dispatchable. No photo command or FTP credential should be sent to a V52 until the exact transport and capture behavior are physically proven and separately accepted.
+Keep Safety snapshot customer-hidden and non-dispatchable. Continue the operator-authorized tabletop comparison through AnyTracking to establish the image format. Guardian dispatch and media ingestion remain disabled until the receiver and physical acceptance are complete. No FTP credentials are required or collected by this diagnostic.

@@ -145,7 +145,23 @@ Medication reminders are Guardian Care only.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
-## Final collection
+## Photo checkpoint — 24 September 2026
+
+Jesh / protocol ID `9705254749`: the operator reports photos visible in
+AnyTracking. The recorded reference session contains lowercase `rcapture`
+requests/replies followed by two `img` uploads, 5.064 and 6.057 seconds after
+their requests. TCP payload lengths are 3066 and 5987 bytes, not measured
+JPEG sizes. The operator reports sending the Guardian return SMS to port
+10595; fresh Guardian telemetry after restoration was not supplied in this
+checkpoint. Tunnel ports are temporary and must be read afresh for the next run.
+
+This establishes reference-service capture/upload behavior on one watch.
+Guardian decoding/private storage, displayed image correctness, indication,
+retention/deletion, reconnect/failure handling and a second watch remain
+unverified. No customer flag or device-dispatch acceptance is changed.
+See [the exact timeline and next private capture](testing/photo-reference-capture.md).
+
+## Final collection (release)
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 

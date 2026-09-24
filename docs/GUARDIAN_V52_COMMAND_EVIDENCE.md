@@ -26,8 +26,10 @@ treated as interchangeable.
 
 ## TCP data commands
 
-These commands are wrapped as `[SG*<10-digit protocol ID>*<hex length>*<data>]`
-and require an active V52 gateway session. There is no SMS fallback.
+Most existing Guardian commands are wrapped as `[SG*<10-digit protocol ID>*<hex length>*<data>]`
+and require an active V52 gateway session. Preserve the observed `3G` prefix for the
+photo reference exchange below; do not generalize one prefix across firmware commands.
+There is no guessed SMS fallback.
 
 | Action | Data payload | Evidence | Acceptance still required |
 |---|---|---|---|
@@ -40,7 +42,19 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
 | Incoming-call allowlist contact | `PHBX,<serial>,<UTF-16BE name hex>,<phone>,<picture>` | Live-proven on one V52 | With picture empty, the entry appeared, persisted after reboot, allowed its approved number to ring the watch, and clear two-way audio followed answer; an unknown number was blocked. Guardian's SIM does not permit outbound calls. Repeat on a second watch and confirm replacement/removal before customer activation. |
 
-## Alarm decoding guardrail
+## Photo reference evidence, 24 September 2026
+
+On Jesh, AnyTracking sent `[3G*9705254749*0008*rcapture]` and the watch returned
+a bare `rcapture` reply. Two later watch-to-server `img` frames were captured
+in the same relay session (payload lengths 3066 and 5987 bytes). The operator
+reports seeing the photos in AnyTracking. The request-to-upload intervals
+were 5.064 and 6.057 seconds; these are not measured app-display latencies.
+The normal log redacts the image body, so encoding, dimensions, chunk fields,
+and ACK requirements remain unverified. This evidence supersedes assuming
+`PIC,1`/FTP for this watch's observed AnyTracking path. Guardian has no enabled
+photo dispatcher or receiver. See [the evidence and private-capture runbook](testing/photo-reference-capture.md).
+
+## Alarm decoding guardrail (existing branch baseline)
 
 The V52 alarm state is the eight-character hexadecimal field at argument index
 15 of the full LTE layout. Production mappings are SOS bit 16, low battery 17,
