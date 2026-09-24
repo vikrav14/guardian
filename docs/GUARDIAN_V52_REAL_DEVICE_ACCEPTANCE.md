@@ -1533,3 +1533,24 @@ inside an actual incident window, offline/restart recovery and expiry during
 an ongoing call remain open. No device-enforced timeout is proven. PR #115
 stays draft. The proposed simplified Calls customer screen is documented but
 has not been implemented as part of this evidence update.
+
+### 24 September, 14:25 MUT — Raw fall state, WhatsApp delivery and Auto reply observed
+
+Following an earlier cancelled local warning with no new stored alert, an
+uncancelled test produced `type=fall command=AL_LTE state=00200000 fields=25`.
+This directly correlates the pilot's physical fall test with bit 21. The
+gateway persisted the alarm and admitted the emergency window. Connection
+verification succeeded at 10:25:10.010 UTC; one captured Auto frame was sent
+at 10:25:10.676, and ACALL replied at 10:25:11.700 on the same connection.
+
+The operator's WhatsApp screenshot confirms receipt at 14:25 MUT, consistent
+with the primary's `wa=ok` and Meta `delivered` logs. It contains View location
+only; the fall Call watch button has not been delivered in this test. A second
+contact logged `wa=fail`, with no detailed provider error supplied. Do not
+claim all-recipient delivery. Cancellation is a plausible explanation for the
+earlier absent upload, not a measured firmware cutoff.
+
+The operator then reported `it auto answers`, physically confirming the fall
+callback beyond the ACALL receipt. Two-way audio and the five-minute return to
+Manual for this incident remain unreported. The earlier fully tested SOS cycle
+and two-caller scope evidence remain distinct.

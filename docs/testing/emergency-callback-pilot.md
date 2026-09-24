@@ -4,8 +4,11 @@ Implemented on draft PR #115. After the bounded reconnect fix in `aa41f37`, the
 operator confirmed SOS WhatsApp delivery, automatic answering on the callback,
 and normal ringing on a call after five minutes. This accepts that SOS cycle on
 Jesh for the tested caller. Normal app Auto/Manual and the earlier two-caller
-comparison also passed. Emergency fall activation and broader recovery checks
-remain open. See the first-attempt failure and successful retest below.
+comparison also passed. On 24 September at 14:25 MUT, an uncancelled fall
+produced a recorded `00200000` alarm, delivered WhatsApp and a watch reply to
+Auto. The operator then confirmed the callback auto-answered. Two-way audio
+for that call and fall-window restoration are still unreported. Broader recovery
+checks remain open. See the evidence below.
 
 ## What is built
 
@@ -145,6 +148,42 @@ Manual/Auto controls and duplicate request-status card in the customer flow
 with one emergency preference, a single callback-window status, and an End
 handsfree now action that restores Manual while preserving future emergency
 opt-in. Retain an honest restoration-pending state if the watch is offline.
+
+## Uncancelled fall upload and Auto reply: 24 September, 14:25 MUT
+
+The earlier morning test was cancelled on the watch when ringing started; the
+read-only database check found no new alert of any type. The operator repeated
+the test following instructions to leave the watch warning untouched. The new
+logs show a full-layout `AL_LTE` alarm, `type=fall`, `state=00200000`, `fields=25`.
+This provides direct raw-state evidence for bit 21 on this pilot, beyond the
+older database row that also recorded `00200000` as fall.
+
+| UTC on 24 September | Observed result |
+| --- | --- |
+| Approximately 10:25:09 | Fall persisted; emergency outcome `admitted` |
+| 10:25:09.605 | Auto connection preflight starts |
+| 10:25:10.010 | Same connection verified by firmware reply |
+| 10:25:10.676 | One captured Auto frame sent; waiting for ACALL |
+| 10:25:11.700 | ACALL reply received; `watch_replied` |
+| Following lines | Primary WhatsApp `wa=ok`; Meta `sent` then `delivered` |
+
+The operator supplied the received WhatsApp screenshot at 14:25 MUT. It says
+possible fall, identifies the position as approximate cell-tower positioning,
+and shows a View location button only. No Call watch button is present in that
+delivered template. Its delivery works independently of Auto activation; a
+direct call from the configured primary number can test the current window.
+The exact template name was not included in the logs/screenshot.
+
+The operator subsequently reported `it auto answers`, physically confirming
+the fall-triggered callback on Jesh. No new audio or expiry result accompanied
+that report.
+
+One other contact logged `wa=fail`; the primary's successful delivery does not
+establish delivery to every contact. The provider error for that recipient was
+not included. Two-way audio and Manual after this specific fall window still
+require operator confirmation. Earlier cancellation
+is consistent with the missing first upload, but the exact firmware cancellation
+cutoff is not established by this comparison.
 
 ## WhatsApp fall call button
 

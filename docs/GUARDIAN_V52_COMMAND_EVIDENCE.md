@@ -76,11 +76,12 @@ The V52 datasheet lists the sensors, but a sensor claim does not establish a com
 The V52 alarm state is the eight-character hexadecimal field at argument index
 15 of the full LTE layout. Production mappings are SOS bit 16, low battery 17,
 safe-zone exit 18, entry 19, bracelet removal 20 and fall 22. Guardian also
-accepts bit 21 as a compatibility candidate for the pilot's previously
-unclassified fall alarms. The 21 September app/WhatsApp receipt result confirms
-the user-facing path after this change, but the supplied result has no raw state
-value; bit 21 is not independently proven by that evidence. Preserve the raw
-alarm code for confirmation. Bit 20 remains removal, and shortened older-model
+accepts bit 21 for the pilot's previously unclassified fall alarms. The original
+21 September app/WhatsApp result omitted the raw state. The 24 September 14:25
+MUT physical test now supplies `AL_LTE state=00200000 fields=25`, classified as
+fall, followed by primary Meta delivery and an Auto command reply. This directly
+establishes bit 21 for the tested Jesh device/firmware; it is not a universal
+mapping for other firmware. Bit 20 remains removal, and shortened older-model
 layouts are still rejected by tests. See the recorded fall evidence in
 [real-device acceptance](GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#recorded-fall-delivery-evidence--21-september-2026-mauritius).
 
