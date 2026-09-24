@@ -3,6 +3,107 @@
 24 September 2026. PR #113 remains draft. This is the QA handoff; the GitHub
 Wiki cannot be updated through the available repository connector.
 
+## Current next step — independent investigation, 24 September 2026
+
+The operator reports that Jett and colleagues are on holiday and asks to
+continue independently. Supplier availability is **not a prerequisite for the
+TCP investigation**. No new hardware result is recorded by this update.
+
+The existing pass-through recorder and offline decoder are sufficient for the
+next experiment. Their 33 focused tests passed again; no runtime code, watch
+command sender, FTP setting, Firebase record or customer flag changed.
+
+### What the independent source check adds
+
+Another manufacturer's published
+[Beesure/SeTracker protocol](https://www.4p-touch.com/beesure-gps-setracker-server-protocol.html),
+section “Remote Snapshot Command”, describes the same lowercase bare
+`rcapture` request and `img,x,y,z` upload; it labels x=5 as remote snapshot.
+This is supporting protocol-family evidence, **not Jesh firmware acceptance**.
+The exact request was already observed from AnyTracking.
+
+Jesh's manually triggered sample also used x=5. The external definition must
+not override the operator's observation, prove a remote trigger, or resolve
+whether an earlier request was pending. Keep this field opaque for acceptance.
+No newly verified wake command, extra parameter, missing ACK or FTP prerequisite
+was found. The local supplied sections 37–39 describe the separate PIC/FTP
+candidate, not an established requirement for rcapture.
+
+### Trial A — ordinary clock face, awake
+
+This controls a missing observation in the 22:23 test. It does not assume an
+awake screen is required or promise that it will fix the camera.
+
+1. Use the Windows setup and recorder command below. Keep the ordinary gateway
+   and ngrok running. Read the **current** tunnel addresses; do not reuse a
+   historical port. Stop an old recorder in its own window if 9002 is occupied.
+2. After `relay_listening`, send the printed recorder-routing SMS. Wait for
+   `reference_connected`, fresh watch traffic and AnyTracking online.
+   Guardian telemetry is temporarily diverted during this comparison.
+3. With no active call, return the watch to its ordinary clock face, with the
+   camera/gallery closed. Wake the screen and aim the camera at a distinct
+   stationary object. Note local time, displayed battery, charger connection
+   and screen state. Do not change other settings.
+4. Tap **Photo → OK once** in AnyTracking while the clock screen is awake.
+   Leave watch controls untouched for two minutes. Record any camera view,
+   confirmation prompt, shutter sound or screen change. Do not respond to a
+   prompt during this hands-off observation; describe it first. If the screen
+   times out naturally, record that rather than repeatedly waking it.
+5. Preserve the request, reply, image and heartbeat rows. The observation window
+   starts at the logged server-to-watch `rcapture`, not the app's Success toast.
+   A missing request means this was not an executed camera-command trial.
+6. If an image arrives, stop further requests. Decode it with the existing
+   offline tool and check that it shows the intended new scene. A saved frame,
+   bare reply or app Success alone does not establish complete remote capture.
+7. Restore the printed Guardian route and verify newly received telemetry.
+   Recorder exit/expiry does not restore routing. Keep the capture and normal
+   log separate; the private file contains the actual image.
+
+### Decision after Trial A
+
+| Observation | Next conclusion/action |
+| --- | --- |
+| One request, no manual interaction, complete new image | Candidate remote-only success; validate the scene, image and timing before integrating Guardian |
+| Valid new image in capture, Pictures empty | Investigate reference gallery/indexing separately; empty gallery alone is not a capture failure |
+| Reply, no image, but camera/prompt appears | Preserve exact visible behavior; this may require wearer interaction, which must be tested and described separately |
+| Reply and continuing traffic, no image or prompt | Trial B can test transient watch state |
+| No request, reconnect, observer error, limit, or incomplete evidence | Fix/resolve that observation gap before attributing failure to the camera |
+
+An image timestamp near a request is not an authenticated request identifier.
+Late uploads remain potentially ambiguous. Keep the previous manual sample
+classified as manually triggered.
+
+### Trial B — normal watch restart, only after Trial A fails
+
+Use the watch's ordinary local power-off/on controls; **not factory reset** and
+not an invented remote reset command. This is a separate tabletop trial while
+the recorder is running. Wait for a new reference session, fresh telemetry and
+AnyTracking online. Keep the scene, charging state and clock-awake procedure the
+same, then make exactly one new app request and observe hands-off for two
+minutes. Record the reboot and new request times.
+
+A success only after restarting suggests a transient device-state dependency;
+it does not identify the root cause or prove reliability. Do not repeat requests
+indefinitely. If two clean trials still show only acknowledgements, preserve
+their logs and screen observations for the next analysis.
+
+A later local-camera control must be labelled separately and aimed at a
+different scene. A photo manually taken after a failed remote request might
+still satisfy pending firmware state; it cannot retroactively validate the
+remote request or establish type-5 semantics.
+
+### FTP remains a separate investigation
+
+Continue inspecting available documentation and owned-device evidence for FTP
+readback/restoration; no supplier reply is inherently required if those facts
+can be established independently. The laptop/public probe is already complete.
+Changing saved FTP settings with an unknown baseline is unnecessary for these
+TCP trials. Do not run PIC against an unknown saved destination, guess a
+readback/reset command, or infer that restoring ordinary IP routing restores
+FTP settings.
+
+---
+
 ## Observed on Jesh
 
 Device IMEI `861397052547492`, protocol ID `9705254749`. The operator requested
