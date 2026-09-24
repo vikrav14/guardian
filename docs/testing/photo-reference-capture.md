@@ -70,10 +70,23 @@ YYMMDDhhmmss interpretation in this sample, but timezone semantics are not
 established. Keep the original string. The packet has no proven request ID.
 The preceding request was at 17:36:02.378Z, 205.457 seconds earlier; the first
 request was at 17:33:36.147Z. The third request at 17:44:22.890Z has no later
-image in the capture. Do not call this a measured remote-capture latency or
-claim that a particular request caused this image. Ask whether the wearer
-opened/used the watch camera around 21:39:27 MUT and confirm the image matches
-the intended scene. No remote-only repeatability claim is made yet.
+image in the capture.
+
+**Operator correction, 24 September:** the recovered image came from accidentally
+pressing the camera button on the watch. Classify this sample as a locally
+triggered photo upload. The 205.457-second interval is not remote-capture latency
+and must not be attributed to an AnyTracking request. It validates the upload
+format and offline decoder, not remote-only capture. This correction applies to
+the 17:39:27 sample; it does not determine how the earlier 17:00/17:01 photos
+were triggered.
+
+Next controlled test: with the recorder connected, aim the watch at a distinct
+stationary object and leave its controls untouched. Press Photo in AnyTracking
+once and note the time. Wait up to 60 seconds for an `img` upload and check the
+new scene in Pictures. This is a bounded observation window, not a promised
+device timeout. Record any later upload separately; if none arrives, preserve
+the request/reply evidence without using the watch camera or repeating Photo
+within the same trial. Local-camera and remote-only tests must stay separate.
 
 This proves a decodable image traveled through the relay to the reference
 server. It does not explain an empty AnyTracking gallery, prove indexing or
@@ -195,7 +208,8 @@ segments, bounded dimensions/trailers, file limits, redaction and no overwrite.
 Tests use a generated 32x24 gradient with synthetic metadata. Separately, the
 real supplied sample was decoded and visually verified as described above.
 
-Next confirm remote-only request correlation and further samples before any
+Next obtain and decode a controlled app-only sample; the decoded private sample
+above was locally triggered. Confirm remote-only request correlation and further samples before any
 fragment assembly/ACK behavior is inferred. Then connect single authorized requests
 to private storage/view/delete and the Flutter UI. Keep customer flags and
 Guardian dispatch disabled until that path works. Wearer indication, real

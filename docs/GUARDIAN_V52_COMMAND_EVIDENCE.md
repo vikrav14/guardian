@@ -52,7 +52,11 @@ were 5.064 and 6.057 seconds; these are not measured app-display latencies.
 The subsequently supplied private sample at 17:39:27.835Z has the envelope
 `img,5,260924213927,` followed by escaped binary JPEG and two NUL bytes. Applying
 the supplied protocol's five media escapes restores a viewable 240x240 JPEG
-of 4969 bytes. The value `5`, timestamp timezone semantics, trailer meaning,
+of 4969 bytes. The operator subsequently confirmed that this recovered image
+was triggered by accidentally pressing the camera button on the watch. It is
+local-photo upload/format evidence, not remote-command success, and its interval
+after the preceding request must not be reported as remote-capture latency.
+The value `5`, timestamp timezone semantics, trailer meaning,
 remote-request correlation, further variants and ACK requirements remain
 unverified. This evidence supersedes assuming
 `PIC,1`/FTP for this watch's observed AnyTracking path. Guardian has no enabled

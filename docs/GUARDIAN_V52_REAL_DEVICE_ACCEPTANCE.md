@@ -161,8 +161,12 @@ offline by reversing 77 documented escape pairs. The extracted JPEG is 4969
 bytes and 240x240 pixels; it loaded fully with Pillow and was visually inspected.
 No personal image bytes were committed. The operator still reported an empty
 AnyTracking gallery for this attempt. Three requests were present in the file;
-the upload is 205.457 seconds after the preceding request, with no request ID
-proving which request produced it. Local camera activity remains unreported.
+the upload is 205.457 seconds after the preceding request. The operator has now
+confirmed accidentally pressing the camera button on the watch. Classify this
+sample as a locally triggered upload, not remote-request success or measured
+remote latency. The decoded format remains valid evidence; a controlled
+AnyTracking-only request with untouched watch controls is the next test. This
+correction does not establish the trigger of the earlier 17:00/17:01 uploads.
 
 Live Guardian reception/private storage, fresh-image/request correlation, indication,
 retention/deletion, reconnect/failure handling and a second watch remain
