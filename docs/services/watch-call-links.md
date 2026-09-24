@@ -27,6 +27,54 @@ SOS and fall. Approved v1 templates remain intact.
   gates #355 and Dashboard UI review #173 passed, including the Firestore
   authorization and Flutter checks.
 
+## Paused pending Meta approval — operator handoff
+
+On 24 September the operator ran
+`node scripts/check-watch-call-templates.js --type both` on the Windows gateway.
+It returned `ready: false`, `changesMade: false`, and exactly
+`problems: ["not_approved"]` for each of the six templates in the matrix below.
+The checker reported no other contract problems. This is approval-pending
+evidence, not successful delivery or tap-to-call acceptance. Meta's review time
+is outside Guardian's control; do not assume approval after a fixed 24 hours.
+
+The operator requested a pause to work on the everyday WhatsApp menu. Keep
+PR #115 **draft**, with both dynamic-call gates **false**, and retain the
+approved v1 alert route. No live environment change is claimed by this handoff.
+All gateway implementation and these notes are pushed to
+`feat/v52-watch-modes`; menu examples are a separate design discussion, with no
+menu implementation in this checkpoint.
+
+Resume after Meta's decision:
+
+1. Pull `feat/v52-watch-modes` with `git pull --ff-only`. Confirm the public
+   HTTPS origin still matches the approved template URL; check gateway health
+   and the expected HTTP 410 fallback page. Check TTL cleanup and access-log /
+   tunnel-inspection privacy from the deployment section below.
+2. Run `node scripts/check-watch-call-templates.js --type both` again. If any
+   template remains unapproved or reports another contract problem, keep its
+   family's flag off and inspect that Meta template. Do not recreate templates
+   or alter their names just to bypass review.
+3. Once all three variants of a family pass, enable that family's flag and
+   restart the gateway. When both pass, enable both SOS and fall flags.
+4. With the wearer/test watch supervised, test one SOS and one uncancelled fall
+   separately. Verify receipt and provider delivery, Call watch opening the
+   correct watch page, then the correct SIM in the carrier dialer. Verify
+   two-way audio after answering; record alert time and outcomes without
+   publishing live tokens or phone numbers.
+5. Verify the primary contact auto-answers during the existing five-minute
+   emergency window, the second approved phonebook contact rings normally, and
+   the primary rings normally after Manual restoration. Opening/reopening the
+   URL must not start or extend that window. A fall cancelled locally before
+   upload does not test the alert/WhatsApp flow.
+6. Complete the remaining contract/security acceptance: fresh, last-known and
+   unavailable location messages; separate SIM destinations; expired links;
+   changed SIM/contact removal; and restoration after gateway restart/offline.
+   The second recipient's earlier WhatsApp failure also remains unresolved.
+
+Do not promote URL delivery to Proven or merge solely because templates become
+approved. Record the actual message, dial destination and physical call results
+in `docs/GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md`.
+
 ## Customer flow
 
 The selected emergency contact receives the existing four alert facts. **Call
