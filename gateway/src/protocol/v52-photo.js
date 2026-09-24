@@ -1,6 +1,7 @@
 'use strict';
 
-// Offline evidence decoder. Not connected to gateway ingress or request dispatch.
+// Bounded frame/structure decoder, shared by offline tools and live ingress.
+// Live ingress additionally performs full pixel decoding and authorization.
 // See docs/testing/photo-reference-capture.md: 24 September Jesh img capture.
 const ESCAPES = new Map([[1, 0x7d], [2, 0x5b], [3, 0x5d], [4, 0x2c], [5, 0x2a]]);
 const RESERVED = new Set([0x5b, 0x5d, 0x2c, 0x2a]);

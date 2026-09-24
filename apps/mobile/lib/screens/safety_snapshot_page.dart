@@ -77,11 +77,13 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
         _images.removeWhere((id, _) => !feed.items.any((item) => item.id == id && item.isViewable));
       });
     } catch (error) {
-      if (mounted) setState(() {
-        _error = _message(error);
-        _feed = null;
-        _clearImages();
-      });
+      if (mounted) {
+        setState(() {
+          _error = _message(error);
+          _feed = null;
+          _clearImages();
+        });
+      }
     } finally { _loading = false; }
   }
 
@@ -97,10 +99,12 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
       await _service.requestSnapshot(imei: widget.imei, purpose: purpose,
         consentConfirmed: true, safetyPurposeConfirmed: true);
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(error is SnapshotFailure ? error.message
             : 'The request status is uncertain. Checking for a photo; please wait before trying again.'),
-      ));
+        ));
+      }
     } finally {
       if (mounted) {
         await _refresh();
@@ -115,8 +119,10 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
       await _service.delete(item.id);
       await _refresh();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_message(error))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_message(error))));
+      }
       await _refresh();
     } finally {
       if (mounted) setState(() => _deleting.remove(item.id));

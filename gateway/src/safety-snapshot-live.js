@@ -283,14 +283,19 @@ function getSnapshotController() { return live; }
 function startSnapshotController({ db, findSessions, env = process.env }) {
   const runtime = readSafetySnapshotRuntime(env);
   if (!db || !runtime.bucketName) return null;
-  const admin = require('firebase-admin');
-  const mediaApp = admin.apps.find(app => app.name === 'safety-snapshot-media') ||
-    admin.initializeApp(admin.app().options, 'safety-snapshot-media');
-  const bucket = admin.storage(mediaApp).bucket(runtime.bucketName);
-  // Bound the write lease: do not replay media writes after ambiguous failures.
-  bucket.storage.retryOptions.autoRetry = false;
-  bucket.storage.retryOptions.maxRetries = 0;
-  live = createSnapshotController({ db, bucket, findSessions, runtime });
+  try {
+    const admin = require('firebase-admin');
+    const mediaApp = admin.apps.find(app => app.name === 'safety-snapshot-media') ||
+      admin.initializeApp(admin.app().options, 'safety-snapshot-media');
+    const bucket = admin.storage(mediaApp).bucket(runtime.bucketName);
+    // Bound the write lease: do not replay media writes after ambiguous failures.
+    bucket.storage.retryOptions.autoRetry = false;
+    bucket.storage.retryOptions.maxRetries = 0;
+    live = createSnapshotController({ db, bucket, findSessions, runtime });
+  } catch {
+    console.warn('[safety-snapshot] initialization failed; camera unavailable');
+    return null;
+  }
   live.sweep().catch(() => console.warn('[safety-snapshot] cleanup deferred'));
   const timer = setInterval(() => live.sweep().catch(() => console.warn('[safety-snapshot] cleanup deferred')), 30_000);
   timer.unref();
