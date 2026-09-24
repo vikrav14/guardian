@@ -1,10 +1,67 @@
 # Grouped WhatsApp menu
 
-Implemented on a separate draft branch on 24 September 2026. Live WhatsApp
-acceptance is pending. This is stacked on `feat/v52-watch-modes` to preserve the
+Implemented on a separate draft branch on 24 September 2026. The operator has
+confirmed the Location → Main menu → Reminders → Add reminder path; broader
+acceptance is now with QA. This is stacked on `feat/v52-watch-modes` to preserve the
 current watch functionality; PR #115 stays draft with its dynamic call-template
 rollout paused for Meta approval. Do not merge or enable that rollout as part of
 menu testing.
+
+## QA handoff and merge decision — 24 September 2026
+
+The operator accepted this version for QA and authorized a merge to `main` only
+if suitable, explicitly accepting a wait for the pending WhatsApp-template work.
+PR [#139](https://github.com/vikrav14/guardian/pull/139) remains draft and unmerged.
+
+At the merge check, `main` was `4386b0d7`, PR #115 was open/draft at `348087cb`, and
+the menu implementation was `1714a108`. GitHub reported #139 conflict-free against
+its actual base, `feat/v52-watch-modes`. Compared with `main`, however, it contained
+50 commits across 103 files: the menu commit plus 49 earlier watch-branch commits.
+Retargeting and merging it as-is would therefore include the unmerged watch calls,
+contacts, Firestore changes and dynamic call-template work. This is a branch and
+release dependency, not a merge conflict or a requirement for menu-template approval.
+No merge or template activation was performed.
+
+### Operator evidence
+
+| Path | Observed result | Scope of confirmation |
+| --- | --- | --- |
+| Location | Home Wi-Fi detection for the chosen wearer, saved Home map link, recent connection/battery information, older retained GPS clearly separated | Live response received; no claim of a new satellite fix |
+| Main menu | Returned the greeting and options for the same wearer | Navigation response received |
+| Reminders | Listed three saved daily reminders for the selected wearer, with notification-status wording | Saved-record read received; no new reminder was created |
+| Add reminder | Explained the typed details and confirmation needed | Help path received; creation/execution remains untested in this run |
+
+The pasted transcript repeats several responses. It is not established whether
+these were distinct WhatsApp bubbles or copying artifacts. No duplicate-delivery
+defect is declared from this paste; QA should verify one reply per single tap.
+“WhatsApp delivery not confirmed” describes the reminder notification record and
+does not establish that a watch reminder failed.
+
+### Remaining QA checks
+
+- [ ] Verify the native list sections, all available options and follow-up buttons
+  on WhatsApp mobile, including Weather, Watch status, Journeys, Recent alerts
+  and Safe zones. Exercise More for long answers.
+- [ ] Compare returned facts, ages and uncertainty with the correct wearer's app
+  records. Saved safe zones must not imply current presence.
+- [ ] Check Family/Care differences, enabled/disabled activity and wellbeing flags,
+  missing/revoked wearer consent, and notification-only contact restrictions.
+- [ ] Check two wearers, duplicate display names, Change wearer and ordinary typed
+  questions after a selection. Removed access must block an old menu selection.
+- [ ] Verify reminder creation through the existing typed confirmation flow using
+  a controlled test reminder; cancellation must create nothing. Report watch
+  execution and WhatsApp notification delivery separately from saved status.
+- [ ] Check one reply per tap, duplicate webhook suppression, expired menu refresh
+  and old-menu refresh after a gateway restart.
+
+QA can use `feat/whatsapp-grouped-menu` now; no further operator setup is requested
+for this handoff. Keep both PRs draft while their outstanding checks are recorded.
+When resuming, first complete PR #115's template checks and call-link acceptance
+in [watch-call-links.md](watch-call-links.md). After #115 is ready and merged,
+retarget #139 to `main`, inspect the resulting diff and current checks/reviews,
+record QA's result, and merge only when those gates are satisfied. Meta approval
+alone does not verify the delivered link or call behavior. An independent port of
+the menu onto `main` remains possible but was not attempted during this handoff.
 
 ## What the family sees
 
@@ -128,7 +185,9 @@ No stored configuration has been migrated by this menu change.
 - Targeted tests also cover Meta limits, multi-wearer selection/pagination,
   foreign/expired IDs, changed access/plan/feature flags, consent-required reads,
   long answers and existing confirmation routing.
-- Live WhatsApp rendering and tap-through: pending operator test above.
+- Live operator smoke result: Location → Main menu → Reminders → Add reminder
+  received as described above. Remaining rendering, data and access checks are
+  handed to QA; no full acceptance or merge-readiness claim is made.
 - Wiki publication is unavailable through the current repository connector;
   use this page as the QA handoff until the corresponding wiki entry can be
   published. Repository instructions and assistant docs link here.

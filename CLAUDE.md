@@ -30,8 +30,10 @@ Preserve opaque sender/account/wearer-bound IDs, recheck access on every tap and
 keep menu selections read-only. Family exposes up to nine options, Care ten;
 existing reading flags and consent still apply. Long answers and wearer lists
 are paginated within Meta limits. Text requests retain the confirmation flow.
-See `docs/services/whatsapp-grouped-menu.md` for behaviour and live acceptance
-(pending). This work does not activate the pending SOS/fall call templates.
+See `docs/services/whatsapp-grouped-menu.md` for the operator's confirmed smoke
+path, remaining QA checks and merge decision. PR #139 remains draft, stacked on
+unmerged #115; do not retarget and merge the entire stack as a menu-only change.
+This work does not activate the pending SOS/fall call templates.
 
 ## Where things are tracked
 

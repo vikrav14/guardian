@@ -9,8 +9,9 @@ list for an authorised wearer. Family has up to nine grouped options; Care adds
 Today’s summary. Taps are deterministic, sender-bound and re-authorised, with
 related follow-up buttons and ordinary typing retained. Existing hardware flags
 and consent still apply. See [menu behaviour and Windows acceptance steps](services/whatsapp-grouped-menu.md).
-Live menu acceptance is pending; this does not enable the pending SOS/fall call
-templates.
+The operator confirmed Location → Main menu → Reminders → Add reminder; broader
+acceptance is with QA. PR #139 remains draft because its branch includes unmerged
+PR #115 work. This does not enable the pending SOS/fall call templates.
 
 ## Required configuration
 
