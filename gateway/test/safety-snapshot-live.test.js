@@ -62,7 +62,7 @@ function frame({ image = jpeg, id = protocolId, trailer = 6 } = {}) {
   const body = Buffer.concat([Buffer.from('img,5,260925002653,'), Buffer.from([...Buffer.concat([image, Buffer.alloc(trailer)])].flatMap(byte => codes.has(byte) ? [0x7d, codes.get(byte)] : [byte]))]);
   return Buffer.concat([Buffer.from(`[3G*${id}*${body.length.toString(16).padStart(4, '0')}*`), body, Buffer.from(']')]);
 }
-function setup() {
+function setup({ captureRejectedFrame = null } = {}) {
   const db = database(), objects = new Map(), writes = [], logs = [];
   let date = new Date('2026-09-25T00:00:00Z');
   const socket = { writable: true, destroyed: false, write: (data, callback) => { writes.push(Buffer.from(data)); callback?.(); return true; } };
@@ -79,7 +79,7 @@ function setup() {
     download: async () => [objects.get(path)],
     delete: async () => { if (bucket.failDelete) throw Error('storage_unavailable'); objects.delete(path); },
   }) };
-  const args = { db, bucket, findSessions: () => matches, runtime: { deviceDispatchAllowed: true, acceptedImeis: [imei] }, now: () => date, log: value => logs.push(value) };
+  const args = { db, bucket, findSessions: () => matches, runtime: { deviceDispatchAllowed: true, acceptedImeis: [imei] }, now: () => date, log: value => logs.push(value), captureRejectedFrame };
   const api = createSnapshotController(args);
   return { api, args, db, bucket, objects, writes, logs, socket, session,
     advance: ms => { date = new Date(date.getTime() + ms); }, matches: value => { matches = value; },
@@ -162,8 +162,54 @@ test('decoder rejection is distinguished from timeout without emitting the corru
   await until(() => s.auth(id).state === 'failed');
   assert.equal(s.auth(id).reason, 'image_rejected_or_storage_failed');
   assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'decode');
+  assert.equal(s.auth(id).receiveDiagnostics.decodeError, 'jpeg_soi_missing');
+  assert.equal(s.auth(id).receiveDiagnostics.rejectedFrameCapture, 'not_enabled');
   assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
   assert.equal(JSON.stringify(s.logs).includes('private-invalid-image'), false);
+  assert.equal(s.objects.size, 0);
+});
+
+test('unobserved padding stays rejected with precise metadata and one opt-in capture', async () => {
+  const captures = [];
+  const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
+  const id = await s.api.request('owner', input), bytes = frame({ trailer: 3 });
+  ingress(s, bytes); await until(() => s.auth(id).state === 'failed');
+  const d = s.auth(id).receiveDiagnostics;
+  assert.equal(d.decodeError, 'unsupported_image_trailer');
+  assert.deepEqual(d.decodeDetails, { frameBytes: bytes.length, jpegBytes: jpeg.length,
+    width: 32, height: 24, trailerBytes: 3, trailerAllZero: true,
+    declaredPayloadBytes: bytes.length - 21 });
+  assert.equal(d.rejectedFrameCapture, 'saved');
+  assert.equal(captures.length, 1); assert.deepEqual(captures[0].frame, bytes);
+  assert.equal(captures[0].requestId, id); assert.equal(s.objects.size, 0);
+  assert.equal(JSON.stringify({ d, logs: s.logs }).includes(bytes.toString('hex')), false);
+  assert.equal(s.writes.length, 1);
+});
+
+test('revoked, cancelled and expired requests never save rejected diagnostic frames', async () => {
+  for (const action of ['revoke', 'cancel', 'expire']) {
+    let captured = 0;
+    const s = setup({ captureRejectedFrame: async () => { captured++; return 'saved'; } });
+    const id = await s.api.request('owner', input);
+    if (action === 'revoke') s.db.rows.get('users/owner').linkedImeis = [];
+    if (action === 'cancel') await s.api.remove('owner', id);
+    ingress(s, frame({ trailer: 3 }));
+    if (action === 'expire') s.advance(121_000);
+    await until(() => s.auth(id).state === 'failed' || s.auth(id).state === 'deleted');
+    // Drain async access checks even when cancellation already made it terminal.
+    for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(captured, 0, action);
+    assert.equal(s.objects.size, 0);
+  }
+});
+
+test('diagnostic writer failure preserves the original decode failure', async () => {
+  const s = setup({ captureRejectedFrame: async () => { throw Error('private-path-and-secret'); } });
+  const id = await s.api.request('owner', input);
+  await receive(s, id, frame({ trailer: 3 }));
+  assert.equal(s.auth(id).receiveDiagnostics.decodeError, 'unsupported_image_trailer');
+  assert.equal(s.auth(id).receiveDiagnostics.rejectedFrameCapture, 'write_failed');
+  assert.equal(JSON.stringify(s.logs).includes('private-path-and-secret'), false);
   assert.equal(s.objects.size, 0);
 });
 

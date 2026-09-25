@@ -195,6 +195,54 @@ Leave the watch untouched, retain the normal cooldown and record the resulting
 receive diagnostics. This tests one known preparation difference; `CR` is not
 claimed to wake or enable the camera. An uncertain CR handoff must not be retried.
 
+## Sleeping-watch upload after the CR comparison (17:15 MUT)
+
+The operator sent one protected `CR`; the gateway logged its exact `SG` frame,
+a bare reply and fresh location/radio reports. The subsequent app request
+`38e8cae9-0c62-446b-97a2-92b8bbfbf5a1` received one image frame on the authorized
+session: first recognized image header at +6.762 seconds, last data at +6.962
+seconds, 6 chunks / 4562 total bytes / 4 complete frames. The total byte count
+includes telemetry and is **not** the image size. `acceptedPhotoFrames=1` and
+`failureStage=decode`; no image reached storage. No session/identity/expiry
+rejection is recorded. This establishes image-frame arrival during an untouched
+remote trial following `CR`, not successful JPEG decoding/display or proof that
+CR is always required. The app's next-capture time is 17:30 MUT.
+
+The old handler omitted the specific decoder exception and did not retain the
+rejected frame. It cannot be recovered from the supplied counters. The next
+gateway build adds a fixed `decodeError` code and `decodeDetails` containing only
+frame sizes and, for a trailer rejection, JPEG size/dimensions and trailer
+length/all-zero status. Third-party exception text and image bytes never enter
+these logs. The existing strict decoder is unchanged: metadata alone does not
+justify accepting an unobserved format.
+
+For one diagnostic trial, explicitly set an absolute new local path before
+starting the gateway in its already-configured PowerShell window:
+
+```powershell
+$env:SAFETY_SNAPSHOT_REJECTED_FRAME_FILE = Join-Path $env:TEMP ("guardian-rejected-photo-{0}.jsonl" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+Write-Host "PRIVATE DIAGNOSTIC FILE: $env:SAFETY_SNAPSHOT_REJECTED_FRAME_FILE"
+npm start
+```
+
+This creates no file until a requested image fails decoding. Current family
+access, request state and deadline are rechecked first. At most one rejected
+frame (maximum 65,556 bytes before hex encoding) is saved per process, using
+exclusive creation and restrictive file mode where supported. Existing files
+are never overwritten, even after restart. `rejectedFrameCapture=saved` confirms
+the write. Unsolicited, cancelled, revoked or expired requests do not qualify.
+The file contains the actual private image frame: share it only for this
+diagnosis, keep it outside Git and delete it after investigation. This explicit
+local diagnostic file has no automatic expiry; the app's 24-hour private-media
+cleanup does not manage it. Remove `SAFETY_SNAPSHOT_REJECTED_FRAME_FILE` and
+restart the gateway to disable this diagnostic mode. It sends no command and
+does not retry or publish a rejected photo.
+
+After the normal cooldown, repeat the one-CR/one-app-request sequence while
+leaving the watch untouched. Supply the diagnostic summary and, if saved, the
+private file for offline format inspection. Do not change padding acceptance,
+JPEG tolerance, camera commands or cooldown until the new evidence supports it.
+
 ## Boundaries and recovery
 
 - `rcapture` has no verified request identifier. Association is limited to one

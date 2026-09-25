@@ -866,6 +866,10 @@ That watcher is no longer started by the reminder scheduler.
   list. Packet observation is in memory only; no per-packet Firestore writes.
   Missing diagnostics (older requests or a restarted gateway) mean unavailable
   evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
+  Decoder failures additionally carry a fixed `decodeError`, numeric/boolean
+  `decodeDetails`, and a `rejectedFrameCapture` outcome. The optional rejected
+  frame is an operator-selected local diagnostic file, never a Firestore field
+  or public Storage object, and is not managed by app media-expiry cleanup.
 - `cleanupPending` and `uploadLeaseUntil` retain interrupted/deferred deletion
   work. The gateway denies expired/deleted access immediately, then deletes
   objects while running and after restart. It never resends capture commands.

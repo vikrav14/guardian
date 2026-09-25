@@ -2,7 +2,8 @@
 
 const crypto = require('node:crypto');
 const jpegCodec = require('jpeg-js');
-const { decodeV52PhotoFrame } = require('./protocol/v52-photo');
+const { decodeV52PhotoFrame, PhotoDecodeError } = require('./protocol/v52-photo');
+const { createRejectedPhotoCapture } = require('./safety-snapshot-rejected-frame');
 const { assessSnapshotAccess } = require('./safety-snapshot-requests');
 const { normalizePurpose, asDate } = require('./safety-snapshot-policy');
 const { readSafetySnapshotRuntime } = require('./safety-snapshot-runtime');
@@ -30,20 +31,28 @@ function receiveDiagnostics() {
     maxBufferedBytes: 0, incompletePhotoBuffered: false, identityChanged: false,
     acceptedPhotoFrames: 0, differentSessionPhotoFrames: 0,
     identityMismatchPhotoFrames: 0, expiredPhotoFrames: 0,
-    duplicatePhotoFrames: 0, failureStage: null };
+    duplicatePhotoFrames: 0, failureStage: null, decodeError: null,
+    decodeDetails: null, rejectedFrameCapture: 'not_enabled' };
 }
 function decodePhoto(frame, protocolId) {
   const decoded = decodeV52PhotoFrame(frame, protocolId);
-  const pixels = jpegCodec.decode(decoded.jpeg, {
-    useTArray: true, formatAsRGBA: false, tolerantDecoding: false,
-    maxResolutionInMP: 1.1, maxMemoryUsageInMB: 32,
-  });
+  let pixels;
+  try {
+    pixels = jpegCodec.decode(decoded.jpeg, {
+      useTArray: true, formatAsRGBA: false, tolerantDecoding: false,
+      maxResolutionInMP: 1.1, maxMemoryUsageInMB: 32,
+    });
+  } catch {
+    // Never emit a third-party exception: it can contain payload-derived text.
+    throw new PhotoDecodeError('jpeg_pixel_decode_failed');
+  }
   if (pixels.width !== decoded.metadata.width || pixels.height !== decoded.metadata.height ||
-      pixels.data.length !== pixels.width * pixels.height * 3) fail('invalid_image');
+      pixels.data.length !== pixels.width * pixels.height * 3) throw new PhotoDecodeError('jpeg_pixel_dimensions_mismatch');
   return decoded;
 }
 
-function createSnapshotController({ db, bucket, findSessions, runtime, now = () => new Date(), log = console.warn }) {
+function createSnapshotController({ db, bucket, findSessions, runtime, now = () => new Date(), log = console.warn,
+  captureRejectedFrame = null }) {
   const pending = new Map();
   const config = runtime || readSafetySnapshotRuntime();
   const ref = id => db.collection('safetySnapshotAuthorizations').doc(id);
@@ -205,8 +214,37 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       });
       reportReceive(slot, 'image_available');
       await event(slot.id, 'image_available').catch(report);
-    } catch {
+    } catch (error) {
       slot.diagnostics.failureStage = stage;
+      if (stage === 'decode') {
+        // Only our own fixed decoder codes and numeric/boolean structure facts.
+        slot.diagnostics.decodeError = error instanceof PhotoDecodeError ? error.code : 'unexpected_decode_failure';
+        const details = { frameBytes: frame.length };
+        if (error instanceof PhotoDecodeError) {
+          for (const key of ['jpegBytes', 'width', 'height', 'trailerBytes']) {
+            if (Number.isSafeInteger(error.details[key]) && error.details[key] >= 0) details[key] = error.details[key];
+          }
+          if (typeof error.details.trailerAllZero === 'boolean') details.trailerAllZero = error.details.trailerAllZero;
+        }
+        const lengthField = frame.subarray(15, 19).toString('ascii');
+        if (/^[a-f0-9]{4}$/i.test(lengthField)) details.declaredPayloadBytes = parseInt(lengthField, 16);
+        slot.diagnostics.decodeDetails = details;
+        if (captureRejectedFrame) {
+          slot.diagnostics.rejectedFrameCapture = 'not_authorized';
+          let allowed = false;
+          try {
+            const auth = await authorized(slot.uid, slot.id);
+            allowed = ACTIVE_STATES.includes(auth.state) && asDate(auth.authorizationExpiresAt) > now();
+          } catch { /* A failed access check must not save diagnostic media. */ }
+          if (allowed) {
+            try {
+              slot.diagnostics.rejectedFrameCapture = await captureRejectedFrame({
+                frame, requestId: slot.id, protocolId: slot.protocolId, at: now().toISOString(),
+              });
+            } catch { slot.diagnostics.rejectedFrameCapture = 'write_failed'; }
+          }
+        }
+      }
       await finishFailure(slot.id, 'image_rejected_or_storage_failed', slot);
       if (attemptedSave) {
         await ref(slot.id).update({ cleanupPending: true, uploadLeaseUntil: null });
@@ -360,7 +398,8 @@ function startSnapshotController({ db, findSessions, env = process.env }) {
     // Bound the write lease: do not replay media writes after ambiguous failures.
     bucket.storage.retryOptions.autoRetry = false;
     bucket.storage.retryOptions.maxRetries = 0;
-    live = createSnapshotController({ db, bucket, findSessions, runtime });
+    const captureRejectedFrame = createRejectedPhotoCapture(env.SAFETY_SNAPSHOT_REJECTED_FRAME_FILE);
+    live = createSnapshotController({ db, bucket, findSessions, runtime, captureRejectedFrame });
   } catch {
     console.warn('[safety-snapshot] initialization failed; camera unavailable');
     return null;

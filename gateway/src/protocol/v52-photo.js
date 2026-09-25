@@ -11,7 +11,14 @@ const MAX_DIMENSION = 1024;
 // infer padding/alignment semantics or accept arbitrary trailing bytes.
 const OBSERVED_ZERO_TRAILER_LENGTHS = new Set([1, 2, 6]);
 
-function fail(code) { throw new Error(code); }
+class PhotoDecodeError extends Error {
+  constructor(code, details = {}) {
+    super(code);
+    this.code = code;
+    this.details = details;
+  }
+}
+function fail(code, details) { throw new PhotoDecodeError(code, details); }
 
 function unescapeMedia(bytes) {
   const decoded = Buffer.alloc(bytes.length);
@@ -101,7 +108,10 @@ function decodeV52PhotoFrame(frame, expectedProtocolId) {
   // The first local-camera sample had two NULs; two hands-off remote samples
   // have six and one. Preserve only these observed forms, after parsing EOI.
   if (!OBSERVED_ZERO_TRAILER_LENGTHS.has(trailer.length) || trailer.some(byte => byte !== 0)) {
-    fail('unsupported_image_trailer');
+    fail('unsupported_image_trailer', {
+      jpegBytes: dimensions.jpegEnd, width: dimensions.width, height: dimensions.height,
+      trailerBytes: trailer.length, trailerAllZero: trailer.every(byte => byte === 0),
+    });
   }
   return {
     jpeg: Buffer.from(decoded.bytes.subarray(0, dimensions.jpegEnd)),
@@ -117,4 +127,4 @@ function decodeV52PhotoFrame(frame, expectedProtocolId) {
   };
 }
 
-module.exports = { decodeV52PhotoFrame, unescapeMedia, inspectJpegStructure, MAX_FRAME_BYTES };
+module.exports = { decodeV52PhotoFrame, unescapeMedia, inspectJpegStructure, MAX_FRAME_BYTES, PhotoDecodeError };
