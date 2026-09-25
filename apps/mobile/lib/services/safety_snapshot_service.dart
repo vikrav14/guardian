@@ -28,6 +28,12 @@ class SnapshotFailure implements Exception {
     'photo_unavailable' ||
     'photo_not_found' => 'This photo has expired or been deleted.',
     'sign_in_required' => 'Please sign in again to access photos.',
+    'sign_in_timeout' =>
+      'Your sign-in check timed out. Retry the connection or sign in again.',
+    'photo_service_timeout' =>
+      'The photo service took too long to respond. Retry the connection.',
+    'request_status_unknown' =>
+      'The photo request may have reached the watch. Check its status before requesting another photo.',
     'family_plan_required' ||
     'device_not_linked' ||
     'family_membership_not_verified' =>
@@ -77,7 +83,12 @@ class SafetySnapshotService {
             ['localhost', '127.0.0.1'].contains(_base.host))) {
       throw const SnapshotFailure('camera_unavailable');
     }
-    final token = await _token();
+    // Bound authentication separately. A token arriving after this deadline must
+    // never continue into a delayed camera request.
+    final token = await _token().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => throw const SnapshotFailure('sign_in_timeout'),
+    );
     if (token == null) throw const SnapshotFailure('sign_in_required');
     final request =
         http.Request(method, _base.replace(path: path, queryParameters: query))
@@ -88,9 +99,17 @@ class SafetySnapshotService {
           });
     if (body != null) request.body = jsonEncode(body);
     // A timeout never retries a camera request automatically.
-    final response = await http.Response.fromStream(
-      await _client.send(request).timeout(const Duration(seconds: 20)),
-    ).timeout(const Duration(seconds: 20));
+    final response = await _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => throw SnapshotFailure(
+            method == 'POST'
+                ? 'request_status_unknown'
+                : 'photo_service_timeout',
+          ),
+        );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String code = 'photo_service_error';
       try {

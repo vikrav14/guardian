@@ -42,7 +42,7 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refresh());
     _poll = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!_foreground) return;
+      if (!_foreground || _error != null) return;
       final pending =
           _sending || (_feed?.items.any((item) => item.isPending) ?? false);
       if (pending ||
@@ -71,6 +71,9 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
       _clearImages();
       if (mounted) setState(() => _feed = null);
     } else {
+      // If a previous load is still settling, the next poll must refresh as
+      // soon as it finishes instead of leaving an empty feed for 30 seconds.
+      _lastRefresh = null;
       unawaited(_refresh());
     }
   }
@@ -82,10 +85,18 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
 
   Future<void> _refresh() async {
     if (_loading || !_foreground) return;
-    _loading = true;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     _lastRefresh = DateTime.now();
     try {
-      final feed = await _service.load(widget.imei);
+      final feed = await _service
+          .load(widget.imei)
+          .timeout(
+            const Duration(seconds: 35),
+            onTimeout: () => throw const SnapshotFailure('photo_service_timeout'),
+          );
       if (!mounted || !_foreground) return;
       setState(() {
         _feed = feed;
@@ -104,7 +115,11 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
         });
       }
     } finally {
-      _loading = false;
+      if (mounted) {
+        setState(() => _loading = false);
+      } else {
+        _loading = false;
+      }
     }
   }
 
@@ -190,8 +205,10 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
         _foreground;
     final explanation =
         _error ??
-        (feed == null
-            ? 'Connecting to your watch…'
+        (!_foreground
+            ? 'Return to this app to check the photo service.'
+            : feed == null
+            ? 'Connecting to the photo service…'
             : !feed.cameraAvailable
             ? 'Photos are not available for this watch yet.'
             : !feed.online
@@ -220,6 +237,17 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
                     ),
                     const SizedBox(height: 8),
                     Text(explanation),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _loading || !_foreground ? null : _refresh,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry connection'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     FilledButton.icon(
                       onPressed: canRequest ? _takePhoto : null,

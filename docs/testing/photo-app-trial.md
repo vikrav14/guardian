@@ -24,9 +24,15 @@ git merge --ff-only origin/feat/v52-remote-photo
 if ($LASTEXITCODE -ne 0) { throw 'Local branch needs reconciliation; do not reset it.' }
 npm ci --prefix gateway
 if ($LASTEXITCODE -ne 0) { throw 'Dependency install failed.' }
-firebase deploy --only "firestore:rules,firestore:indexes,storage" --project guardian-fbadd
+firebase deploy --only "firestore:indexes,storage" --project guardian-fbadd
 if ($LASTEXITCODE -ne 0) { throw 'Firebase deployment failed.' }
 ```
+
+Answer **No** if the CLI asks to delete existing indexes or field overrides.
+This trial uses authenticated gateway HTTP calls, not client Firestore reads or
+writes to snapshot collections. Preserve the deployed Firestore rules: this
+branch predates the separate calling/phonebook/emergency rule changes. Before a
+production merge, reconcile those rules and indexes with the current app.
 
 Wait for the new `safetySnapshotAuthorizations` indexes to finish building.
 The gateway serves image bytes after verifying the Firebase ID token and current
@@ -96,6 +102,17 @@ There is a **15-minute per-watch cooldown**, shared by all guardians and retaine
 across gateway restart. The page displays when another request is available.
 There are no automatic camera retries. The app refreshes an active request every
 three seconds and otherwise every 30 seconds while this page is foregrounded.
+On a connection error, automatic polling pauses and **Retry connection** reloads
+the status without requesting a photo. Firebase sign-in verification has a
+10-second deadline; the HTTP response has a 20-second deadline. The page also
+bounds its overall status load to 35 seconds. A late sign-in token cannot send a
+camera request after that sign-in check has timed out. A timed-out POST is shown
+as an uncertain request, never automatically retried.
+
+If the page cannot connect, record the exact message and check the Flutter
+terminal as well as the gateway terminal. Losing browser focus clears the photo
+view and pauses polling; returning to the app refreshes the status. The loading
+message describes connection to the photo service, not watch connectivity.
 
 ## Boundaries and recovery
 
