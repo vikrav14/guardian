@@ -110,9 +110,14 @@ camera request after that sign-in check has timed out. A timed-out POST is shown
 as an uncertain request, never automatically retried.
 
 If the page cannot connect, record the exact message and check the Flutter
-terminal as well as the gateway terminal. Losing browser focus clears the photo
-view and pauses polling; returning to the app refreshes the status. The loading
-message describes connection to the photo service, not watch connectivity.
+terminal as well as the gateway terminal. Losing browser focus clears private
+image widgets/bytes and pauses polling, while retaining request status cards.
+Returning refreshes access before images or capture controls are enabled. A
+status response from before the focus change cannot restore image access. The
+initial loading message describes connection to the photo service, not watch
+connectivity; foreground refresh says **Updating photo status** without clearing
+the request history. Failed/pending cards show their request time so repeated
+attempts can be distinguished.
 
 The 25 September trial reached the service but reported a connected watch as
 offline. The photo connection filter used the wrong IMEI substring, expecting
@@ -162,6 +167,23 @@ These diagnostics are absent on older requests and after a gateway restart
 loses its in-memory observer; absence must not be interpreted as zero traffic.
 The original timed-out request cannot be diagnosed retroactively from these
 counters. Direct Guardian photo display/deletion is still unverified.
+
+The next instrumented trial (around 16:55 MUT) also timed out. Its summary
+records exactly two chunks / 63 bytes / two complete frames, one bare
+`rcapture` reply after 1.005 seconds, and the last traffic after 65.110 seconds.
+All image-header/frame/acceptance/rejection counters and buffered-byte counts
+are zero; no identity change is observed. Therefore no recognizable image or
+partial buffered upload reached this request's TCP connection. No decode or
+storage failure is implicated by this attempt. This does not prove whether the
+watch's camera fired or whether firmware attempted another transport.
+
+The successful reference session used the same exact capture command. Its
+connection setup additionally included `CR` (then frequent location reports),
+`PEDO,1`, and `WALKTIME`, and replied to `LK` with prefix `3G`; Guardian currently
+replies to `LK` with `SG`. These are observed differences, not proven capture
+prerequisites. Do not change heartbeat framing or replay configuration commands
+speculatively. First establish the watch's screen/camera state during the failed
+request; any subsequent trial must isolate one condition and retain cooldown.
 
 ## Boundaries and recovery
 

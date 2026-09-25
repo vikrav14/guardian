@@ -31,6 +31,8 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
   bool _loading = false;
   bool _sending = false;
   bool _foreground = true;
+  bool _statusFresh = false;
+  int _visibilityGeneration = 0;
   DateTime? _lastRefresh;
   final Map<String, Future<Uint8List>> _images = {};
   final Set<String> _deleting = {};
@@ -68,8 +70,11 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
+      _visibilityGeneration++;
       _clearImages();
-      if (mounted) setState(() => _feed = null);
+      // Preserve request statuses when Chrome loses focus. Private image
+      // widgets are removed until a fresh foreground access check completes.
+      if (mounted) setState(() => _statusFresh = false);
     } else {
       // If a previous load is still settling, the next poll must refresh as
       // soon as it finishes instead of leaving an empty feed for 30 seconds.
@@ -85,6 +90,7 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
 
   Future<void> _refresh() async {
     if (_loading || !_foreground) return;
+    final generation = _visibilityGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -98,9 +104,12 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
             onTimeout: () =>
                 throw const SnapshotFailure('photo_service_timeout'),
           );
-      if (!mounted || !_foreground) return;
+      if (!mounted || !_foreground || generation != _visibilityGeneration) {
+        return;
+      }
       setState(() {
         _feed = feed;
+        _statusFresh = true;
         _error = null;
         _images.removeWhere(
           (id, _) =>
@@ -108,10 +117,11 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
         );
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && _foreground && generation == _visibilityGeneration) {
         setState(() {
           _error = _message(error);
           _feed = null;
+          _statusFresh = false;
           _clearImages();
         });
       }
@@ -203,6 +213,7 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
         feed.online &&
         !waiting &&
         !cooling &&
+        _statusFresh &&
         _foreground;
     final explanation =
         _error ??
@@ -210,6 +221,8 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
             ? 'Return to this app to check the photo service.'
             : feed == null
             ? 'Connecting to the photo service…'
+            : !_statusFresh
+            ? 'Updating photo status…'
             : !feed.cameraAvailable
             ? 'Photos are not available for this watch yet.'
             : !feed.online
@@ -308,8 +321,13 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
               Text(
                 'Received ${DateFormat('d MMM, HH:mm:ss').format(item.receivedAt!.toLocal())}',
               ),
+            ] else if (item.createdAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Requested ${DateFormat('d MMM, HH:mm:ss').format(item.createdAt!.toLocal())}',
+              ),
             ],
-            if (item.isViewable && !deleting) ...[
+            if (item.isViewable && !deleting && _foreground && _statusFresh) ...[
               const SizedBox(height: 12),
               FutureBuilder<Uint8List>(
                 future: _images.putIfAbsent(
@@ -339,7 +357,9 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
               ),
             if (item.isPending)
               TextButton(
-                onPressed: deleting ? null : () => _delete(item),
+                onPressed: deleting || !_foreground || !_statusFresh
+                    ? null
+                    : () => _delete(item),
                 child: const Text('Cancel waiting'),
               ),
           ],
