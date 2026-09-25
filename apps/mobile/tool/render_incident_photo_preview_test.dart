@@ -123,7 +123,10 @@ void main() {
         });
         await tester.pumpAndSettle();
         expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
-        expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
+        expect(
+          tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns,
+          1,
+        );
         expect(find.text('Auto-rotated • original preserved'), findsOneWidget);
         expect(tester.takeException(), isNull);
         final boundary =

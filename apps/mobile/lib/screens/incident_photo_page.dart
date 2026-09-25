@@ -474,9 +474,8 @@ class _AdjustedPhotoState extends State<_AdjustedPhoto> {
           ),
           if ((widget.suggestedQuarterTurns ?? 0) != 0)
             TextButton(
-              onPressed: () => setState(
-                () => widget.adjustment.quarterTurns = null,
-              ),
+              onPressed: () =>
+                  setState(() => widget.adjustment.quarterTurns = null),
               child: const Text('Auto rotate'),
             ),
         ],

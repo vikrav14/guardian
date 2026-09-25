@@ -29,6 +29,7 @@ class IncidentPhoto {
         ? degrees ~/ 90
         : null;
   }
+
   factory IncidentPhoto.fromJson(Map<String, dynamic> data) => IncidentPhoto(
     id: data['id'] as String,
     sequence: (data['sequence'] as num).toInt(),

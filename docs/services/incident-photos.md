@@ -2,16 +2,19 @@
 
 Implementation on `feat/v52-remote-photo`; **supervised trial only, not hardware-accepted**.
 The single-photo path has four consecutive operator-reported successes after the
-padding correction on 25 September 2026, including two without manual CR. Five
-sequential captures, capture during an SOS call, and real AI output remain to be
-tested. No CR, invented wake command, generative enhancement or photo retry is added.
+padding correction on 25 September 2026, including two without manual CR. On
+26 September, a live saved-original AI probe succeeded and a subsequent gallery
+displayed three photos with AI descriptions. Five-photo completion and capture
+during an SOS call remain unverified. No CR, invented wake command, generative
+enhancement or photo retry is added.
 
 The 26 September 00:56 MUT supervised trial displayed two photos. A third image
 passed decoding/storage but failed publication; the old generic error does not
 establish why. Exact-duplicate rejection is a possibility, not a confirmed result.
 Both displayed photos reported AI unavailable. The gateway log also shows an
 independent automatic recovery CR before this sequence, so this trial does not
-isolate capture without CR. Five-photo completion and real AI output remain open.
+isolate capture without CR. At that checkpoint, five-photo completion and real AI
+output were still open.
 
 At 01:23 MUT the saved-original AI probe completed with `analysis_invalid_json`
 and `contentFormat=fenced_json`. The original download and provider request both
@@ -21,6 +24,12 @@ unlabelled) around otherwise valid JSON. It still rejects surrounding prose,
 multiple blocks, incomplete/truncated replies, invalid JSON and invalid scene
 content. No raw provider response was retained. Repeat the saved-photo probe to
 verify live output; the two earlier stored failures remain unchanged.
+
+The repeat probe succeeded with `too_unclear` at 01:42 MUT. A later supervised
+gallery screenshot (trial at 01:57:54) shows three available photos with stored AI
+descriptions and an unavailable fourth request. That fourth stop reason still
+needs diagnostics. This establishes displayed AI results, not verified scene
+accuracy, five-photo completion or live acceptance of automatic orientation.
 
 ## Behavior
 
