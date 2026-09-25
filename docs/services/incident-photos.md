@@ -79,6 +79,19 @@ Keep the existing snapshot bucket, allowlist and device acceptance gates. Deploy
 bypass incident authorization or expiry. Existing photo indexes are unchanged;
 new worker queries use automatic single-field indexes.
 
+The rules now retain the phonebook, manual/automatic answering, emergency
+callback and private call-link protections from PR #115 at `348087cb`. Earlier
+photo commits through `6756f08` omitted those separate calling rules; do not
+deploy their entire rules file over the calling pilot. This reconciliation changes
+only client authorization and does not activate calling or photo workers.
+Deploy only `firestore:rules`, preserving the existing calling indexes and Storage
+configuration. Any additional unpublished rules still need to be reconciled.
+
+If a new PowerShell window reports photo capture disabled, restore the six
+process-local snapshot settings from the single-photo trial in that same window
+before starting the gateway. Set the incident trial-only switch explicitly; photo
+capture settings do not themselves confirm a live watch connection.
+
 1. Record wearer/responsible-guardian agreement to automatic SOS/fall capture. AI
    agreement also covers sending originals to Anthropic and brief descriptions to
    the household's configured emergency WhatsApp contacts. In `gateway`:
