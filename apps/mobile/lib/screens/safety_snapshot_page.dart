@@ -327,7 +327,10 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
                 'Requested ${DateFormat('d MMM, HH:mm:ss').format(item.createdAt!.toLocal())}',
               ),
             ],
-            if (item.isViewable && !deleting && _foreground && _statusFresh) ...[
+            if (item.isViewable &&
+                !deleting &&
+                _foreground &&
+                _statusFresh) ...[
               const SizedBox(height: 12),
               FutureBuilder<Uint8List>(
                 future: _images.putIfAbsent(

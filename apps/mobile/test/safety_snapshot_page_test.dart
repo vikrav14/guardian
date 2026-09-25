@@ -103,9 +103,7 @@ void main() {
     expect(find.text('Updating photo status…'), findsOneWidget);
     expect(
       tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Take photo'),
-          )
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Take photo'))
           .onPressed,
       isNull,
     );
