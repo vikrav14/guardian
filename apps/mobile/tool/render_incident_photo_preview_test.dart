@@ -112,7 +112,11 @@ void main() {
           ),
         );
         await tester.pump();
-        await tester.pump(const Duration(milliseconds: 400));
+        await tester.runAsync(() async {
+          await precacheImage(MemoryImage(bytes), key.currentContext!);
+        });
+        await tester.pumpAndSettle();
+        expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
         expect(tester.takeException(), isNull);
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
