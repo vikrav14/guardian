@@ -7,7 +7,7 @@
 | Runtime | Explicit gates, private bucket and exact IMEI allowlist required |
 | Verified watch exchange | `[3G*<protocolId>*0008*rcapture]`, then TCP `img` |
 | Hardware evidence | Two decoded reference captures; first Guardian photo displayed at 17:30:24 MUT on 25 September |
-| Next acceptance | Install the verified trailer fix, repeat Guardian capture and test deletion |
+| Next acceptance | Install the bounded zero-padding fix, repeat Guardian capture and test deletion |
 
 The app integration is implemented on PR #113. It does not activate the user's
 Windows gateway or deploy Firebase changes. See the
@@ -58,8 +58,10 @@ context and never establishes that the wearer is safe.
   Unsolicited, duplicate, late and mismatched images are discarded without ACKs.
 - Images bypass the ASCII telemetry decoder and normal logging. The receiver
   validates framing, identity, escapes, JPEG structure and bounded full pixel
-  decoding before storage. Only the observed one-, two-, five- and six-NUL trailers
-  are accepted. Those trailer meanings remain unknown.
+  decoding before storage. A structurally parsed JPEG may be followed by zero
+  to 64 NUL bytes, which are excluded from the saved JPEG. Nonzero or longer
+  suffixes are rejected. This is a bounded receiver policy, not a claim about
+  firmware alignment or its maximum padding length.
 - The wire format has no verified request identifier. Association uses the
   same connection and request window; `requestCorrelationVerified` remains
   false. A late or manually triggered image inside that window is ambiguous.
@@ -96,6 +98,15 @@ the exact frame, and its 240x240 image was visually verified. Both GitHub
 workflows passed at code-fix head `b233553`. This validates the decoder fix
 offline, not a new Guardian app capture or deletion. See the
 [trial evidence](../testing/photo-app-trial.md#five-nul-trailer-rejection-1747-mut).
+
+At 22:08 MUT another frame arrived after 5.516 seconds with eight zero bytes
+after a structurally parsed 3227-byte, 240x240 JPEG. This exposed the remaining
+defect in enumerating individual trailer lengths. The receiver now uses the
+bounded zero-only suffix policy above. Synthetic tests cover every length
+through the cap, nonzero bytes at every suffix position and excess-length
+rejection; live-controller tests still require full pixel validation before
+storage. This latest frame was not retained, so its full pixel validity is not
+established by the log. One fresh app capture remains necessary.
 
 Repeat success, direct Guardian deletion, wearer indication, reliability across
 device states, and a second V52 still require physical acceptance. No new FTP

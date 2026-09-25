@@ -7,10 +7,11 @@ const ESCAPES = new Map([[1, 0x7d], [2, 0x5b], [3, 0x5d], [4, 0x2c], [5, 0x2a]])
 const RESERVED = new Set([0x5b, 0x5d, 0x2c, 0x2a]);
 const MAX_FRAME_BYTES = 65556;
 const MAX_DIMENSION = 1024;
-// Observed after JPEG EOI: 1/2/6 in fully decoded reference samples, and 5 in
-// the 25 September 17:47 MUT Guardian rejection diagnostics. Live ingress
-// still requires full pixel decoding. Do not infer general padding semantics.
-const OBSERVED_ZERO_TRAILER_LENGTHS = new Set([1, 2, 5, 6]);
+// The zero-only suffix varies between photos (1/2/5/6/8 bytes observed).
+// Bound it independently of image data instead of enumerating sample lengths.
+// This is a receiver policy cap, not a claimed firmware alignment rule/maximum.
+// Live ingress still requires strict full pixel decoding of the exact JPEG.
+const MAX_ZERO_TRAILER_BYTES = 64;
 
 class PhotoDecodeError extends Error {
   constructor(code, details = {}) {
@@ -106,9 +107,9 @@ function decodeV52PhotoFrame(frame, expectedProtocolId) {
   const decoded = unescapeMedia(encoded);
   const dimensions = inspectJpegStructure(decoded.bytes);
   const trailer = decoded.bytes.subarray(dimensions.jpegEnd);
-  // Preserve only observed all-zero trailers after the structurally parsed
-  // EOI; embedded EOI bytes and nonzero/unobserved trailers remain rejected.
-  if (!OBSERVED_ZERO_TRAILER_LENGTHS.has(trailer.length) || trailer.some(byte => byte !== 0)) {
+  // The structural parser finds EOI; never search for marker-looking bytes or
+  // trim zeros inside the JPEG. Only a bounded, all-zero suffix is removable.
+  if (trailer.length > MAX_ZERO_TRAILER_BYTES || trailer.some(byte => byte !== 0)) {
     fail('unsupported_image_trailer', {
       jpegBytes: dimensions.jpegEnd, width: dimensions.width, height: dimensions.height,
       trailerBytes: trailer.length, trailerAllZero: trailer.every(byte => byte === 0),

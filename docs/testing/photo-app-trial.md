@@ -259,8 +259,8 @@ was recorded. The new diagnostics identify `unsupported_image_trailer`:
 | Trailer after parsed JPEG EOI | Five bytes, all zero |
 | Diagnostic file | `rejectedFrameCapture=saved` |
 
-This is a decoder compatibility rejection, not an image timeout. The code now
-accepts this observed five-NUL variant alongside one, two and six, while still
+This is a decoder compatibility rejection, not an image timeout. At `b233553`
+the code accepted this observed five-NUL variant alongside one, two and six, while still
 rejecting nonzero/unobserved trailers and requiring full pixel decoding before
 private storage. Synthetic regressions reproduce the former rejection and
 cover fragmented ingress, exact stored JPEG bytes, authenticated retrieval,
@@ -298,6 +298,35 @@ Use the file matching this attempt for offline inspection. Do not re-import an
 expired request as a fresh authorized app photo. Leave the ordinary cooldown
 and watch routing unchanged. The screen's 18:02 next-request time does not need
 to elapse for offline replay.
+
+## Variable zero padding correction (22:08 MUT)
+
+After gateway restart and one CR handoff, request
+`988bdfa1-9831-49c8-9af3-aaf5d97ebecd` received an image header at +5.323 seconds
+and last data at +5.516 seconds. The 3295-byte frame declared 3274 payload bytes;
+structural parsing found a 3227-byte, 240x240 JPEG followed by **eight zero
+bytes**. The error was again `unsupported_image_trailer`; no session, identity
+or expiry rejection was recorded. Diagnostic capture was disabled, so this
+exact frame is unavailable for full pixel replay. It is not an image timeout
+and not a new verified app photo.
+
+The earlier one/two/five/six length allowlist was too restrictive. The receiver
+now accepts a **zero-only suffix from 0 through 64 bytes** after the EOI found
+by JPEG structural parsing. Sixty-four is a local defensive policy cap, not a
+vendor-confirmed alignment rule or a claim of 64-byte padding on this watch.
+It avoids treating every small variation as a new image format. Bytes within
+the JPEG are never trimmed; marker-like bytes inside metadata do not terminate
+the image. Exact frame length, identity, escapes, size/dimension limits and
+strict full pixel decoding remain required. Nonzero suffixes, concatenated
+images, missing EOI, oversized suffixes and corrupt pixels remain rejected.
+
+Regression checks cover all 65 accepted suffix lengths and nonzero bytes at
+every position, the 65-byte rejected boundary, offline extraction including
+the observed eight-byte form, and fragmented live ingress through full decode,
+private storage and authenticated retrieval. Real-photo replay can reconfirm
+the retained 17:48 frame; this is distinct from synthetic eight-byte coverage.
+Update the gateway and perform one fresh request after its normal cooldown.
+No automatic camera/CR sequence, retry or policy bypass is included.
 
 ## Boundaries and recovery
 

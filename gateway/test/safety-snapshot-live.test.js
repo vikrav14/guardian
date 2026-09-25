@@ -169,32 +169,34 @@ test('decoder rejection is distinguished from timeout without emitting the corru
   assert.equal(s.objects.size, 0);
 });
 
-test('five-NUL photo survives fragmented ingress and full decoding before private storage', async () => {
-  const captures = [];
-  const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
-  const id = await s.api.request('owner', input), bytes = frame({ trailer: 5 });
-  ingress(s, bytes.subarray(0, 31)); ingress(s, bytes.subarray(31, -3)); ingress(s, bytes.subarray(-3));
-  await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state));
-  assert.equal(s.auth(id).state, 'available');
-  assert.equal(s.auth(id).validation, 'full_pixel_decode');
-  assert.equal(s.auth(id).receiveDiagnostics.decodeError, null);
-  assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
-  assert.equal(s.objects.size, 1);
-  assert.deepEqual([...s.objects.values()][0], jpeg, 'store only the JPEG, without its trailer');
-  assert.deepEqual(await s.api.image('owner', id), jpeg);
-  assert.equal(captures.length, 0);
-  assert.equal(s.writes.length, 1, 'ingress must not send a retry or image ACK');
+test('bounded zero padding survives fragmented ingress and full decoding before private storage', async () => {
+  for (const trailer of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 32, 64]) {
+    const captures = [];
+    const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
+    const id = await s.api.request('owner', input), bytes = frame({ trailer });
+    ingress(s, bytes.subarray(0, 31)); ingress(s, bytes.subarray(31, -3)); ingress(s, bytes.subarray(-3));
+    await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state));
+    assert.equal(s.auth(id).state, 'available', `trailer length ${trailer}`);
+    assert.equal(s.auth(id).validation, 'full_pixel_decode');
+    assert.equal(s.auth(id).receiveDiagnostics.decodeError, null);
+    assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
+    assert.equal(s.objects.size, 1);
+    assert.deepEqual([...s.objects.values()][0], jpeg, 'store only the JPEG, without its trailer');
+    assert.deepEqual(await s.api.image('owner', id), jpeg);
+    assert.equal(captures.length, 0);
+    assert.equal(s.writes.length, 1, 'ingress must not send a retry or image ACK');
+  }
 });
 
-test('unobserved padding stays rejected with precise metadata and one opt-in capture', async () => {
+test('over-limit padding stays rejected with precise metadata and one opt-in capture', async () => {
   const captures = [];
   const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
-  const id = await s.api.request('owner', input), bytes = frame({ trailer: 3 });
+  const id = await s.api.request('owner', input), bytes = frame({ trailer: 65 });
   ingress(s, bytes); await until(() => s.auth(id).state === 'failed');
   const d = s.auth(id).receiveDiagnostics;
   assert.equal(d.decodeError, 'unsupported_image_trailer');
   assert.deepEqual(d.decodeDetails, { frameBytes: bytes.length, jpegBytes: jpeg.length,
-    width: 32, height: 24, trailerBytes: 3, trailerAllZero: true,
+    width: 32, height: 24, trailerBytes: 65, trailerAllZero: true,
     declaredPayloadBytes: bytes.length - 21 });
   assert.equal(d.rejectedFrameCapture, 'saved');
   assert.equal(captures.length, 1); assert.deepEqual(captures[0].frame, bytes);
@@ -210,7 +212,7 @@ test('revoked, cancelled and expired requests never save rejected diagnostic fra
     const id = await s.api.request('owner', input);
     if (action === 'revoke') s.db.rows.get('users/owner').linkedImeis = [];
     if (action === 'cancel') await s.api.remove('owner', id);
-    ingress(s, frame({ trailer: 3 }));
+    ingress(s, frame({ trailer: 65 }));
     if (action === 'expire') s.advance(121_000);
     await until(() => s.auth(id).state === 'failed' || s.auth(id).state === 'deleted');
     // Drain async access checks even when cancellation already made it terminal.
@@ -223,7 +225,7 @@ test('revoked, cancelled and expired requests never save rejected diagnostic fra
 test('diagnostic writer failure preserves the original decode failure', async () => {
   const s = setup({ captureRejectedFrame: async () => { throw Error('private-path-and-secret'); } });
   const id = await s.api.request('owner', input);
-  await receive(s, id, frame({ trailer: 3 }));
+  await receive(s, id, frame({ trailer: 65 }));
   assert.equal(s.auth(id).receiveDiagnostics.decodeError, 'unsupported_image_trailer');
   assert.equal(s.auth(id).receiveDiagnostics.rejectedFrameCapture, 'write_failed');
   assert.equal(JSON.stringify(s.logs).includes('private-path-and-secret'), false);
@@ -320,7 +322,7 @@ test('disconnect and gateway restart never resend a capture', async () => {
 test('full decoder rejects structurally plausible JPEG without usable pixel data', () => {
   const corrupt = Buffer.from(jpeg); const scan = corrupt.indexOf(Buffer.from([0xff, 0xda]));
   const entropyStart = scan + 2 + corrupt.readUInt16BE(scan + 2);
-  for (const trailer of [1, 2, 5, 6]) {
+  for (const trailer of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 32, 64]) {
     assert.throws(() => decodePhoto(frame({ image: Buffer.concat([corrupt.subarray(0, entropyStart), Buffer.from([1, 0xff, 0xd9])]), trailer }), protocolId),
       error => error.code === 'jpeg_pixel_decode_failed');
   }
