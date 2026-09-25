@@ -182,8 +182,18 @@ connection setup additionally included `CR` (then frequent location reports),
 `PEDO,1`, and `WALKTIME`, and replied to `LK` with prefix `3G`; Guardian currently
 replies to `LK` with `SG`. These are observed differences, not proven capture
 prerequisites. Do not change heartbeat framing or replay configuration commands
-speculatively. First establish the watch's screen/camera state during the failed
-request; any subsequent trial must isolate one condition and retain cooldown.
+speculatively.
+
+At 17:10 MUT the operator confirmed that the watch was asleep and untouched.
+Remote capture from that state is the intended requirement; manually waking it
+or using its camera is not an acceptance solution. The earlier successful
+reference session's screen state remains unknown, so sleep dependence is not
+proven. The next isolated trial can use the existing strict-admin `CR` endpoint
+once (the same temporary GPS-reporting command observed before the reference
+photos), then one explicitly confirmed app capture within the reporting burst.
+Leave the watch untouched, retain the normal cooldown and record the resulting
+receive diagnostics. This tests one known preparation difference; `CR` is not
+claimed to wake or enable the camera. An uncertain CR handoff must not be retried.
 
 ## Boundaries and recovery
 
