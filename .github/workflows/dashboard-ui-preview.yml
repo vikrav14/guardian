@@ -24,6 +24,18 @@ on:
       - 'apps/mobile/test/dashboard_reading_status_test.dart'
       - 'apps/mobile/test/wear_check_service_test.dart'
       - 'apps/mobile/lib/screens/map_dashboard_page.dart'
+      - 'apps/mobile/lib/screens/incident_photo_page.dart'
+      - 'apps/mobile/lib/models/incident_photos.dart'
+      - 'apps/mobile/test/incident_photo_page_test.dart'
+      - 'apps/mobile/tool/render_incident_photo_preview_test.dart'
+      - 'apps/mobile/lib/screens/safety_snapshot_page.dart'
+      - 'apps/mobile/lib/models/safety_snapshot.dart'
+      - 'apps/mobile/lib/services/safety_snapshot_service.dart'
+      - 'apps/mobile/lib/services/backbones/remote_photo_backbone.dart'
+      - 'apps/mobile/test/safety_snapshot_page_test.dart'
+      - 'apps/mobile/test/safety_snapshot_service_test.dart'
+      - 'apps/mobile/test/safety_snapshot_test.dart'
+      - 'apps/mobile/test/remote_photo_backbone_test.dart'
       - 'apps/mobile/lib/screens/home_shell.dart'
       - 'apps/mobile/lib/widgets/navigation/**'
       - 'apps/mobile/lib/widgets/layout/guardian_app_header.dart'
@@ -127,6 +139,19 @@ jobs:
             test/dashboard_reading_status_test.dart \
             test/wear_check_service_test.dart \
             lib/screens/map_dashboard_page.dart \
+            lib/screens/incident_photo_page.dart \
+            lib/screens/auth_gate.dart \
+            lib/models/incident_photos.dart \
+            test/incident_photo_page_test.dart \
+            tool/render_incident_photo_preview_test.dart \
+            lib/screens/safety_snapshot_page.dart \
+            lib/models/safety_snapshot.dart \
+            lib/services/safety_snapshot_service.dart \
+            lib/services/backbones/remote_photo_backbone.dart \
+            test/safety_snapshot_page_test.dart \
+            test/safety_snapshot_service_test.dart \
+            test/safety_snapshot_test.dart \
+            test/remote_photo_backbone_test.dart \
             lib/screens/home_shell.dart \
             lib/widgets/navigation/guardian_navigation.dart \
             lib/widgets/navigation/guardian_navigation_icon.dart \
@@ -155,11 +180,13 @@ jobs:
             test/wellness_history_test.dart \
             test/temperature_preview_test.dart \
             tool/render_wellness_previews_test.dart
+          mkdir -p build
+          git diff -- . > build/ui-format.patch
           git diff --exit-code
 
       - name: Test app layouts, actions and safe-zone rules
         if: ${{ !cancelled() }}
-        run: flutter test test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/dashboard_reading_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
+        run: flutter test test/safety_snapshot_page_test.dart test/safety_snapshot_service_test.dart test/guardian_surface_test.dart test/alerts_page_test.dart test/alerts_bulk_resolution_test.dart test/guardian_dashboard_overview_test.dart test/dashboard_wearing_status_test.dart test/dashboard_reading_status_test.dart test/wear_check_service_test.dart test/guardian_navigation_test.dart test/widget_test.dart test/login_page_test.dart test/safe_zones_overview_test.dart test/safe_zone_map_test.dart test/safe_zone_logic_test.dart test/watch_preferences_test.dart test/wellness_routine_test.dart test/wellness_history_test.dart test/temperature_preview_test.dart
 
       - name: Test profile weather freshness and presentation
         if: ${{ !cancelled() }}
@@ -226,3 +253,23 @@ jobs:
           if-no-files-found: error
 
 
+
+      - name: Render incident photo gallery
+        if: ${{ !cancelled() }}
+        run: flutter test tool/render_incident_photo_preview_test.dart --dart-define=INCIDENT_PREVIEWS=true
+
+      - name: Save incident photo review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-incident-photo-previews
+          path: apps/mobile/build/incident-photo-previews/*.png
+          if-no-files-found: error
+
+      - name: Save formatting patch
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-ui-format-patch
+          path: apps/mobile/build/ui-format.patch
+          if-no-files-found: warn

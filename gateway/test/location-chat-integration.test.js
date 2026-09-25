@@ -59,6 +59,7 @@ function chatHarness({ plan = 'family', status = 'active', devices = { A: watch(
     auditSink: audit,
     provider: { async complete() { calls.provider++; throw new Error('Provider must not be used'); } },
     require(name) {
+      if (name === './safety-snapshot-http') return { createSnapshotHttpHandler: () => async () => false };
       if (name === './firestore') return { getDb: () => db };
       if (name === './assistant/tools') return { ...realTools, async runTool(...args) {
         calls.tools.push({ name: args[2], input: args[3] });

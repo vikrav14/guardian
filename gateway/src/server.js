@@ -129,6 +129,9 @@ const {
 
 initFirestore();
 
+const { startSnapshotController, isPhotoFrame } = require('./safety-snapshot-live');
+const snapshotController = startSnapshotController({ db: getDb(), findSessions: findSocketsForDevice });
+
 const temperatureTrialQuarantine = require('./temperature-trial-quarantine')
   .createTemperatureTrialQuarantine({ pilotImei: config.wifiHomePilotImei });
 const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbeingStore({
@@ -1176,6 +1179,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
             eventAt: alarmAt,
 
+            ...(['sos', 'fall'].includes(alarmType)
+              ? { incidentPhotoEligible: true, incidentPhotoPending: true } : {}),
+
             payload: alarmPayload,
 
             ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
@@ -1341,9 +1347,16 @@ const server = net.createServer((socket) => {
 
     session.buffer = Buffer.from(rest);
 
+    // Counts/header flags only, including incomplete uploads before framing.
+    snapshotController?.observeTraffic(socket, session, { chunkBytes: chunk.length, frames, rest });
 
 
     for (const frame of frames) {
+      // Handle private binary media before the text decoder, logs or telemetry.
+      if (isPhotoFrame(frame)) {
+        snapshotController?.observe(frame, socket, session);
+        continue;
+      }
 
       const decoded = decodeFrame(frame);
 
@@ -1442,6 +1455,7 @@ const server = net.createServer((socket) => {
 
 
   socket.on('close', (hadError) => {
+    snapshotController?.disconnect(socket);
 
     const session = getSession(socket);
     wearWireCapture?.observeClose(socket);

@@ -732,6 +732,41 @@ idempotent per device/source/hour.
 
 ## Gateway write map
 
+### Diagnostic-only `photoTrialImports/{importId}`
+
+Created only by the explicit `gateway/scripts/photo-trial-firebase.js` pilot;
+never by gateway startup. Client reads/writes are denied by existing unmatched
+path rules. This is separate from production `safetySnapshotRequests` and
+does not create a customer-visible photo or satisfy its authorization policy.
+The JPEG is a private Storage object, not a Firestore field. No public URL or
+download token is recorded. `importId` hashes IMEI, linked requester UID and
+image SHA-256 to prevent repeat uploads of the same trial image.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| version | number | `1` |
+| imei / protocolId | string | Exact trial device identities |
+| requestedBy | string | Verified linked Firebase user UID |
+| source | string | `ftp_trial_operator_import` |
+| sha256 / bytes / width / height | string / number | Validated JPEG properties |
+| validation | string | `pillow_full_decode`; full decode repeated before import |
+| receivedAt / importedAt / updatedAt | timestamp | Transfer receipt and processing times; not proven camera capture time |
+| consentConfirmed | boolean | Operator confirmed this test-photo import |
+| state | string | `uploading`, `stored`, `failed_cleaned`, `cleanup_required`, `deleted` |
+| bucket / objectPath | string / nullable string | Private bucket and `privatePhotoTrials/{imei}/{importId}.jpg`; path cleared on deletion |
+| generation | string or null | Storage generation for conditional deletion, when known |
+| remoteCaptureVerified / requestCorrelationVerified / customerVisible | boolean | Always `false` in this pilot |
+| automaticExpiry | boolean | `false`; no TTL or deletion scheduler is installed |
+| cleanupRequiredAfterTrial | boolean | Explicit cleanup required; cleared by successful deletion |
+| deletedAt | timestamp | Live-object deletion completed or object was already absent |
+
+Deletion keeps the audit record. Storage provider soft-delete/versioning may
+retain copies under bucket policy. A failed import records cleanup uncertainty;
+it must not be reported as a successful rollback. See
+[the trial runbook](../docs/testing/photo-ftp-trial.md).
+
+### Runtime writes
+
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
 
 | Trigger | Firestore action |
@@ -799,3 +834,44 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
+
+
+### Live Safety snapshot path (25 September 2026)
+
+The app now uses authenticated `/api/safety-snapshots` gateway routes. It does
+not enqueue the historical backend-only `safetySnapshotRequests` workflow.
+That watcher is no longer started by the reminder scheduler.
+
+- `safetySnapshotAuthorizations/{UUID}`: server-owned request, requester,
+  service owner, IMEI, explicit consent/purpose, `state` (`dispatching`,
+  `waiting_for_image`, `receiving`, `available`, `failed`, `deleted`, `expired`),
+  two-minute authorization deadline and 24-hour media access deadline.
+- `safetySnapshotDeviceLocks/{imei}`: server-only last request time and request
+  ID. A Firestore transaction serializes all guardians/gateway workers and
+  enforces a durable per-watch 15-minute cooldown.
+- `safetySnapshotAudit/{UUID}` is immutable creation evidence. Its backend-only
+  `events` subcollection records command handoff, receipt, view and deletion.
+- `mediaPath` is a deterministic private Storage key:
+  `privateSafetySnapshots/{serviceOwnerUid}/{imei}/{UUID}.jpg`. No Firebase
+  download token or public URL is created. Direct client Storage access is
+  denied; the gateway verifies current membership/plan for each image request.
+- Receipt metadata includes byte size, dimensions, SHA-256, raw device timestamp,
+  `validation: full_pixel_decode`, `correlation: same_session_request_window`
+  and `requestCorrelationVerified: false`. `receivedAt` is gateway time, not a
+  verified capture timestamp. There is no verified on-wire request identifier.
+- Optional `receiveDiagnostics` (version 1) accompanies terminal receive states:
+  fixed-size traffic/frame/rejection counters, relative arrival times, buffered
+  byte counts, image-header flags and a fixed failure-stage label. It contains
+  no raw frames, image data or credentials, and is not exposed in the app HTTP
+  list. Packet observation is in memory only; no per-packet Firestore writes.
+  Missing diagnostics (older requests or a restarted gateway) mean unavailable
+  evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
+  Decoder failures additionally carry a fixed `decodeError`, numeric/boolean
+  `decodeDetails`, and a `rejectedFrameCapture` outcome. The optional rejected
+  frame is an operator-selected local diagnostic file, never a Firestore field
+  or public Storage object, and is not managed by app media-expiry cleanup.
+- `cleanupPending` and `uploadLeaseUntil` retain interrupted/deferred deletion
+  work. The gateway denies expired/deleted access immediately, then deletes
+  objects while running and after restart. It never resends capture commands.
+- Composite indexes cover the owner/device gallery and bounded timeout/expiry
+  sweeps. Images and raw protocol frames are never Firestore document fields.

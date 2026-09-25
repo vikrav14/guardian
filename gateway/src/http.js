@@ -1,4 +1,5 @@
 const http = require('http');
+const handleSnapshotHttp = require('./safety-snapshot-http').createSnapshotHttpHandler();
 const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
@@ -1028,6 +1029,8 @@ function startHttpServer() {
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+      if (await handleSnapshotHttp(req, res, url)) return;
 
       if (req.method === 'OPTIONS') {
         sendOptions(res);

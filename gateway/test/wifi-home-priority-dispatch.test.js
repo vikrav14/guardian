@@ -52,6 +52,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
     './location-provenance': require('../src/location-provenance'),
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
+    './safety-snapshot-live': { startSnapshotController: () => null, isPhotoFrame: () => false },
     './reminder-scheduler': { startReminderScheduler: noop },
     './profile-weather': { startProfileWeather: noop },
     './ops-metrics': { incrementEvent: noop, startMetricsFlusher: noop },

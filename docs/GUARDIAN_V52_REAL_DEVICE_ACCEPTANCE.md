@@ -1,5 +1,22 @@
 # Guardian V52 real-device acceptance
 
+
+## Guardian app integration — 25 September 2026 MUT
+
+The branch now includes the authorized `rcapture` sender, private TCP image
+receiver with full JPEG decoding, Firebase storage, authenticated viewing and
+deletion, retention cleanup, and a Family/Care app screen. It has been brought
+forward onto main `4386b0d` while preserving the historical photo evidence below.
+
+Local validation: **1344 gateway tests passed**, including a real local TCP
+photo exchange, concurrent request serialization, private access, timeouts,
+revocation and upload/deletion races. Both real remote samples also pass the
+new live JPEG decoder. Flutter and Firestore emulator CI are the next checks.
+No live Guardian photo or Firebase write is claimed from these software tests.
+The operator's next action is the direct app capture/delete trial in
+[the Windows app runbook](testing/photo-app-trial.md).
+
+
 **Status:** Release gate
 **Device under test:** One production-equivalent V52 watch and SIM
 **Rule:** Unit tests prove code paths. This runbook proves what the real watch, carrier and configured notification providers actually do.
@@ -931,7 +948,120 @@ Pilot evidence, 23 August 2026: one exact V52 acknowledged `hrtstart,1` but did 
 
 Temperature remains blocked until the exact V52 upload shape is captured. Passing this test permits an engineering evidence update; it does not turn on customer flags or establish medical accuracy.
 
-## Final collection
+## Photo follow-up — 25 September 2026 MUT (24 September UTC)
+
+New operator evidence: `Pasted text(6).txt` logs two reference-service
+`rcapture` requests followed by matching-length TCP `img` frames:
+20:26:47.718 -> 20:26:55.373 UTC (7.655 s, 6930 payload bytes) and
+20:30:08.554 -> 20:30:14.275 UTC (5.721 s, 6590 payload bytes).
+The recorder saved both uploads (six private records, two image frames,
+13,678 total raw frame bytes after the second). The operator reports both
+photos appeared promptly in AnyTracking, with deletion of the first there
+before the second. This is new positive upload/gallery evidence; the measured
+delays are to recorder receipt, not measured gallery-display latency.
+
+Immediate operator follow-up: the watch was “absolutely not touched.”
+Combined with both request/upload sequences and reported app pictures, this
+confirms two hands-off remote photos through AnyTracking on this pilot V52.
+The no-watch-camera-interaction check is resolved. Actual screen state and
+wearer indication remain unreported; awake clock-face instructions alone are
+not evidence of the state. A prior watch restart and network/recorder recovery
+mean no awake-state or restart root cause is established. Preserve the earlier
+manual-sample classification. This positive pilot result does not establish
+general reliability or direct Guardian execution.
+
+The subsequently attached private capture
+`guardian-photo-private-20260925-002537-151.jsonl` contains both complete images.
+They decode to distinct 240x240 RGB JPEGs of **6797 and 6450 bytes**; Pillow
+verification, full pixel loading with truncated-image loading disabled, and
+visual inspection all passed. Their post-EOI trailers contain six and one NUL
+bytes, respectively. The offline decoder previously required the two NULs in
+the manual sample; it now accepts only the observed all-zero lengths one, two
+and six while retaining raw trailer metadata. Meaning of the trailer and
+header fields remains unproven. Real images/captures are not committed.
+
+The operator reports restoring the watch IP to Guardian; fresh Guardian
+telemetry has not been independently verified here. Private Guardian
+ingestion/deletion, direct Guardian execution and customer readiness remain
+unverified. Reference-app deletion does not prove server hard deletion or
+deletion of the local capture. The public FTP probe remains historical and is
+not a prerequisite for pursuing the observed TCP path. No new watch FTP
+provisioning is needed for that path.
+
+The recorder's earlier expiry (20:14:36.083 UTC) and missing 9002 listener
+explained the later offline routing problem until the recorder restarted.
+This does not explain the earlier connected-but-no-image trials. Current
+reported forwards after ngrok recovery were Guardian 10595 -> 9000, recorder
+17200 -> 9002 and the existing WhatsApp HTTPS -> 9001; reread current endpoints
+for later sessions.
+
+See [the latest photo evidence and next steps](testing/photo-reference-capture.md).
+PR #113 remains draft. The offline decoder fix passes **35 focused
+relay/private-recorder/decoder tests**, including synthetic trailer rejection
+and two-image extraction coverage. No production feature was activated.
+
+## Photo checkpoint — 24 September 2026
+
+Software follow-up: PR #113 now has a standalone bounded FTP receiver
+with real control/data proxy tests and a separate Firebase private import/delete
+pilot. The combined focused suite passes 56 tests. The operator passed all nine
+local FTP checks on Windows/Python 3.13.15 and the Firebase read-only check for
+`guardian-fbadd.firebasestorage.app`, with zero writes and upload permissions
+still unverified. A separate public-probe CLI now includes tested endpoint
+restoration. The first public attempt returned `ngrok_http_405` with no FTP
+probe result, then verified the original endpoint configuration. The revised
+probe removes its dependency on endpoint PUT, preserves both TCP endpoint
+configurations through a temporary local bridge on unused port 9002, and reports
+exact failure stages. Local integration passed against an agent that rejects
+PUT. The operator's public retry at `5a4f37f` passed: `public_ftp_probe_passed`,
+`bytesVerified=1024`, no failure, and `endpointConfigurationRestored=true` with
+no restoration problems. This proves the laptop's transfer through both public
+FTP connections. `publicReachabilityVerified=false` concerns the restored
+endpoints; a fresh WhatsApp webhook was not established. The probe ended its
+temporary receiver arrangement and sent no watch command or Firebase write.
+Saved watch FTP settings/readback/reset remain unknown; the supplied sections
+37–39 provide setters only. Confirm the firmware's FTP/PIC support and a
+restoration procedure before a live watch trial. Firebase write/delete and
+watch `PIC,1` acceptance remain pending. No FTP settings were changed and no customer photo
+capability is enabled. See
+[the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
+photo but cannot establish that a remote camera request executed.
+
+Jesh / protocol ID `9705254749`: the operator reports photos visible in
+AnyTracking. The recorded reference session contains lowercase `rcapture`
+requests/replies followed by two `img` uploads, 5.064 and 6.057 seconds after
+their requests. TCP payload lengths are 3066 and 5987 bytes, not measured
+JPEG sizes. The operator reports sending the Guardian return SMS to port
+10595; fresh Guardian telemetry after restoration was not supplied in this
+checkpoint. Tunnel ports are temporary and must be read afresh for the next run.
+
+This establishes reference-service capture/upload behavior on one watch.
+Follow-up private file: one 5067-byte `img` payload at 17:39:27.835Z was decoded
+offline by reversing 77 documented escape pairs. The extracted JPEG is 4969
+bytes and 240x240 pixels; it loaded fully with Pillow and was visually inspected.
+No personal image bytes were committed. The operator still reported an empty
+AnyTracking gallery for this attempt. Three requests were present in the file;
+the upload is 205.457 seconds after the preceding request. The operator has now
+confirmed accidentally pressing the camera button on the watch. Classify this
+sample as a locally triggered upload, not remote-request success or measured
+remote latency. The decoded format remains valid evidence; a controlled
+AnyTracking-only request with untouched watch controls is the next test. This
+correction does not establish the trigger of the earlier 17:00/17:01 uploads.
+
+App-only follow-up at 22:23 MUT: `rcapture` sent at 18:23:22.676Z and bare reply
+at 18:23:23.352Z (676 ms). Heartbeat exchange continued through 18:25:15.560Z,
+but no `img` or recorder observation error appears in the supplied excerpt.
+The operator reports two minutes of waiting and an empty AnyTracking gallery.
+Remote-photo execution remains unverified. Next compare a request with the
+watch awake at the ordinary clock screen, camera/gallery closed; this checks
+a device-state hypothesis without changing command syntax.
+
+Live Guardian reception/private storage, fresh-image/request correlation, indication,
+retention/deletion, reconnect/failure handling and a second watch remain
+unverified. No customer flag or device-dispatch acceptance is changed.
+See [the exact timeline and next private capture](testing/photo-reference-capture.md).
+
+## Final collection (release)
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
