@@ -48,8 +48,8 @@ test('all five documented media escapes decode and invalid/trailing escapes are 
   for (const bytes of [[0x7d], [0x7d, 0], [0x7d, 6], [0x5d]]) assert.throws(() => unescapeMedia(Buffer.from(bytes)));
 });
 
-test('observed one-, two- and six-NUL trailers preserve the exact JPEG and raw trailer', () => {
-  for (const count of [1, 2, 6]) {
+test('observed one-, two-, five- and six-NUL trailers preserve the exact JPEG and raw trailer', () => {
+  for (const count of [1, 2, 5, 6]) {
     const result = decodeV52PhotoFrame(frame(jpeg, { trailer: Buffer.alloc(count) }), ID);
     assert.deepEqual(result.jpeg, jpeg);
     assert.equal(result.metadata.jpegBytes, jpeg.length);
@@ -61,7 +61,7 @@ test('observed one-, two- and six-NUL trailers preserve the exact JPEG and raw t
       assert.throws(() => decodeV52PhotoFrame(frame(jpeg, { trailer }), ID), /unsupported_image_trailer/);
     }
   }
-  for (const count of [0, 3, 4, 5, 7, 8, 64]) {
+  for (const count of [0, 3, 4, 7, 8, 64]) {
     assert.throws(() => decodeV52PhotoFrame(frame(jpeg, { trailer: Buffer.alloc(count) }), ID), /unsupported_image_trailer/);
   }
 });
@@ -118,18 +118,19 @@ test('offline extraction writes exact private bytes to a new directory and refus
   assert.throws(() => decodeCapture({ captureFile, protocolId: ID, outputDir }));
 });
 
-test('offline capture extracts both remote trailer variants using synthetic image bytes', t => {
+test('offline capture extracts all observed remote trailer variants using synthetic image bytes', t => {
   const directory = temp(t), captureFile = path.join(directory, 'remote.jsonl'), outputDir = path.join(directory, 'photos');
   const variants = [
     { trailer: Buffer.alloc(6), timestamp: '260925002653' },
     { trailer: Buffer.alloc(1), timestamp: '260925003013' },
+    { trailer: Buffer.alloc(5), timestamp: '260925174800' },
   ];
   fs.writeFileSync(captureFile, variants.map(options => JSON.stringify(record(frame(jpeg, options)))).join('\n'));
   const result = decodeCapture({ captureFile, protocolId: ID, outputDir });
-  assert.equal(result.imageCount, 2);
+  assert.equal(result.imageCount, 3);
   assert.equal(result.networkOpened, false);
   assert.equal(result.commandsGenerated, false);
-  assert.deepEqual(result.images.map(image => image.trailingBytesHex), ['000000000000', '00']);
+  assert.deepEqual(result.images.map(image => image.trailingBytesHex), ['000000000000', '00', '0000000000']);
   assert.deepEqual(result.images.map(image => image.deviceTimestampRaw), variants.map(options => options.timestamp));
   for (const image of result.images) {
     assert.deepEqual(fs.readFileSync(image.outputFile), jpeg);

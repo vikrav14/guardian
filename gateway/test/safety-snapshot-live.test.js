@@ -169,6 +169,23 @@ test('decoder rejection is distinguished from timeout without emitting the corru
   assert.equal(s.objects.size, 0);
 });
 
+test('five-NUL photo survives fragmented ingress and full decoding before private storage', async () => {
+  const captures = [];
+  const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
+  const id = await s.api.request('owner', input), bytes = frame({ trailer: 5 });
+  ingress(s, bytes.subarray(0, 31)); ingress(s, bytes.subarray(31, -3)); ingress(s, bytes.subarray(-3));
+  await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state));
+  assert.equal(s.auth(id).state, 'available');
+  assert.equal(s.auth(id).validation, 'full_pixel_decode');
+  assert.equal(s.auth(id).receiveDiagnostics.decodeError, null);
+  assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
+  assert.equal(s.objects.size, 1);
+  assert.deepEqual([...s.objects.values()][0], jpeg, 'store only the JPEG, without its trailer');
+  assert.deepEqual(await s.api.image('owner', id), jpeg);
+  assert.equal(captures.length, 0);
+  assert.equal(s.writes.length, 1, 'ingress must not send a retry or image ACK');
+});
+
 test('unobserved padding stays rejected with precise metadata and one opt-in capture', async () => {
   const captures = [];
   const s = setup({ captureRejectedFrame: async data => { captures.push(data); return 'saved'; } });
@@ -303,7 +320,10 @@ test('disconnect and gateway restart never resend a capture', async () => {
 test('full decoder rejects structurally plausible JPEG without usable pixel data', () => {
   const corrupt = Buffer.from(jpeg); const scan = corrupt.indexOf(Buffer.from([0xff, 0xda]));
   const entropyStart = scan + 2 + corrupt.readUInt16BE(scan + 2);
-  assert.throws(() => decodePhoto(frame({ image: Buffer.concat([corrupt.subarray(0, entropyStart), Buffer.from([1, 0xff, 0xd9])]) }), protocolId));
+  for (const trailer of [1, 2, 5, 6]) {
+    assert.throws(() => decodePhoto(frame({ image: Buffer.concat([corrupt.subarray(0, entropyStart), Buffer.from([1, 0xff, 0xd9])]), trailer }), protocolId),
+      error => error.code === 'jpeg_pixel_decode_failed');
+  }
 });
 
 test('revoked membership or subscription blocks upload and later image viewing', async () => {

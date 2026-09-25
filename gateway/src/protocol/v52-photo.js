@@ -7,9 +7,10 @@ const ESCAPES = new Map([[1, 0x7d], [2, 0x5b], [3, 0x5d], [4, 0x2c], [5, 0x2a]])
 const RESERVED = new Set([0x5b, 0x5d, 0x2c, 0x2a]);
 const MAX_FRAME_BYTES = 65556;
 const MAX_DIMENSION = 1024;
-// Observed after the JPEG EOI in three fully decoded pilot samples. Do not
-// infer padding/alignment semantics or accept arbitrary trailing bytes.
-const OBSERVED_ZERO_TRAILER_LENGTHS = new Set([1, 2, 6]);
+// Observed after JPEG EOI: 1/2/6 in fully decoded reference samples, and 5 in
+// the 25 September 17:47 MUT Guardian rejection diagnostics. Live ingress
+// still requires full pixel decoding. Do not infer general padding semantics.
+const OBSERVED_ZERO_TRAILER_LENGTHS = new Set([1, 2, 5, 6]);
 
 class PhotoDecodeError extends Error {
   constructor(code, details = {}) {
@@ -105,8 +106,8 @@ function decodeV52PhotoFrame(frame, expectedProtocolId) {
   const decoded = unescapeMedia(encoded);
   const dimensions = inspectJpegStructure(decoded.bytes);
   const trailer = decoded.bytes.subarray(dimensions.jpegEnd);
-  // The first local-camera sample had two NULs; two hands-off remote samples
-  // have six and one. Preserve only these observed forms, after parsing EOI.
+  // Preserve only observed all-zero trailers after the structurally parsed
+  // EOI; embedded EOI bytes and nonzero/unobserved trailers remain rejected.
   if (!OBSERVED_ZERO_TRAILER_LENGTHS.has(trailer.length) || trailer.some(byte => byte !== 0)) {
     fail('unsupported_image_trailer', {
       jpegBytes: dimensions.jpegEnd, width: dimensions.width, height: dimensions.height,

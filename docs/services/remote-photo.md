@@ -3,11 +3,11 @@
 | Field | Value |
 | --- | --- |
 | Service | `remote-photo`, Family and Care |
-| App | Safety snapshot card; request, view, delete |
+| App trial | Temporary Safety snapshot card; request, view, delete |
 | Runtime | Explicit gates, private bucket and exact IMEI allowlist required |
 | Verified watch exchange | `[3G*<protocolId>*0008*rcapture]`, then TCP `img` |
-| Hardware evidence | Two hands-off reference captures; both full 240x240 JPEGs |
-| Next acceptance | Direct Guardian app capture and deletion on Jesh |
+| Hardware evidence | Two decoded reference captures; first Guardian photo displayed at 17:30:24 MUT on 25 September |
+| Next acceptance | Replay the 17:47 rejected frame, then repeat Guardian capture and test deletion |
 
 The app integration is implemented on PR #113. It does not activate the user's
 Windows gateway or deploy Firebase changes. See the
@@ -15,7 +15,22 @@ Windows gateway or deploy Firebase changes. See the
 Historical captures, including the earlier manually triggered sample, remain in
 [the evidence runbook](../testing/photo-reference-capture.md).
 
-## App flow
+## Intended customer flow (agreed 25 September; not implemented)
+
+The manual Snapshot menu is a test tool. The agreed customer feature is limited
+to received SOS/fall incidents: send the emergency alert promptly and collect
+up to five photos sequentially in the background. A **View incident photos**
+button in a new WhatsApp template version would open an authenticated gallery
+for that incident, showing photos as they arrive and reporting partial failures.
+Existing calling and location actions must remain available.
+
+Five-photo reliability, capture during SOS calling and the required spacing
+are not verified. Implementation needs a bounded incident-specific capture
+policy, emergency-photo permission, durable duplicate-incident suppression,
+current family authorization and retention. The manual 15-minute cooldown
+remains unchanged; no automatic sequence or template change is enabled here.
+
+## Current app trial flow
 
 A linked Family/Care guardian opens **Safety snapshot**, chooses **Take photo**,
 enters a safety purpose and confirms permission. The backend verifies current
@@ -43,7 +58,7 @@ context and never establishes that the wearer is safe.
   Unsolicited, duplicate, late and mismatched images are discarded without ACKs.
 - Images bypass the ASCII telemetry decoder and normal logging. The receiver
   validates framing, identity, escapes, JPEG structure and bounded full pixel
-  decoding before storage. Only the observed one-, two- and six-NUL trailers
+  decoding before storage. Only the observed one-, two-, five- and six-NUL trailers
   are accepted. Those trailer meanings remain unknown.
 - The wire format has no verified request identifier. Association uses the
   same connection and request window; `requestCorrelationVerified` remains
@@ -71,7 +86,14 @@ timeout and restart cleanup. Flutter request/permission/offline tests and a real
 Firestore transaction test are included in release CI.
 
 Two AnyTracking hands-off captures and full offline/live-decoder validation are
-established on Jesh. Direct Guardian upload/view/delete, wearer indication,
-reliability across device states, and a second V52 still require physical
-acceptance. No new FTP provisioning or supplier response is required for the
-observed TCP integration.
+established on Jesh. The operator confirmed a displayed Guardian photo received
+at 17:30:24 MUT on 25 September. The next attempt, around 17:47, delivered an
+image frame after 9.285 seconds but was rejected solely at the trailer check:
+five zero bytes after a structurally parsed 4358-byte, 240x240 JPEG. Five-NUL
+support now preserves the JPEG bytes and still requires full pixel validation;
+the saved private frame has not yet been supplied for exact replay. See the
+[trial evidence](../testing/photo-app-trial.md#five-nul-trailer-rejection-1747-mut).
+
+Repeat success, direct Guardian deletion, wearer indication, reliability across
+device states, and a second V52 still require physical acceptance. No new FTP
+provisioning or supplier response is required for the observed TCP integration.

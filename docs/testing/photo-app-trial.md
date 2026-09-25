@@ -243,6 +243,44 @@ leaving the watch untouched. Supply the diagnostic summary and, if saved, the
 private file for offline format inspection. Do not change padding acceptance,
 JPEG tolerance, camera commands or cooldown until the new evidence supports it.
 
+## Five-NUL trailer rejection (17:47 MUT)
+
+The operator first confirmed a rendered Guardian photo with receipt time
+17:30:24 MUT on 25 September. The repeat request
+`78935bfa-ef4c-47c6-a681-1af9f86e9364`, following one CR handoff around 17:47,
+reached the same authorized session and returned an image header at +8.914
+seconds, with last data at +9.285 seconds. No session/identity/expiry rejection
+was recorded. The new diagnostics identify `unsupported_image_trailer`:
+
+| Observed field | Value |
+| --- | --- |
+| Complete frame / declared payload | 4487 / 4466 bytes |
+| Structurally parsed JPEG | 4358 bytes, 240x240 |
+| Trailer after parsed JPEG EOI | Five bytes, all zero |
+| Diagnostic file | `rejectedFrameCapture=saved` |
+
+This is a decoder compatibility rejection, not an image timeout. The code now
+accepts this observed five-NUL variant alongside one, two and six, while still
+rejecting nonzero/unobserved trailers and requiring full pixel decoding before
+private storage. Synthetic regressions reproduce the former rejection and
+cover fragmented ingress, exact stored JPEG bytes, authenticated retrieval,
+offline extraction and corrupt pixel data. They do not establish that this
+particular device JPEG passes full pixel decoding: the saved private frame must
+be replayed for that evidence. No private frame or image is committed.
+
+Locate the saved diagnostic file without triggering another watch capture:
+
+```powershell
+Get-ChildItem -LiteralPath $env:TEMP -Filter 'guardian-rejected-photo-*.jsonl' |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 3 FullName, Length, LastWriteTime
+```
+
+Use the file matching this attempt for offline inspection. Do not re-import an
+expired request as a fresh authorized app photo. Leave the ordinary cooldown
+and watch routing unchanged. The screen's 18:02 next-request time does not need
+to elapse for offline replay.
+
 ## Boundaries and recovery
 
 - `rcapture` has no verified request identifier. Association is limited to one
