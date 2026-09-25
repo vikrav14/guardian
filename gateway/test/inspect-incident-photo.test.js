@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, receive, imei } = require('./helpers/photo-harness');
 const { createIncidentPhotos } = require('../src/incident-photos');
+const { createPhotoAnalyzer } = require('../src/incident-photo-analysis');
 const { CONSENT_VERSION } = require('../src/incident-photo-policy');
 const { inspectIncidentPhoto, probeOriginal } = require('../scripts/inspect-incident-photo');
 const original = require('./fixtures/photo-synthetic');
@@ -37,15 +38,19 @@ test('inspection selects safe fields and refuses a mismatched incident', async (
   await assert.rejects(inspectIncidentPhoto(s.probe), /invalid_incident/);
 });
 
-test('explicit probe uses one saved original, adds only a view audit, and leaves saved analysis intact', async () => {
+test('explicit probe accepts fenced AI output on one saved original and leaves saved analysis intact', async () => {
   const s = await savedPhoto();
   const photoBefore = structuredClone(s.auth(s.photoId));
   const incidentBefore = structuredClone(s.db.rows.get('incidentPhotos/trialOne'));
   const keysBefore = new Set(s.db.rows.keys());
   let calls = 0;
-  const report = await probeOriginal({ ...s.probe, analyze: async bytes => {
-    calls++; assert.deepEqual(bytes, original); return result;
+  const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async (url, request) => {
+    calls++;
+    assert.deepEqual(Buffer.from(JSON.parse(request.body).messages[0].content[0].source.data, 'base64'), original);
+    return { ok: true, json: async () => ({ stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '```json\n' + JSON.stringify(result) + '\n```' }] }) };
   } });
+  const report = await probeOriginal({ ...s.probe, analyze });
   assert.equal(calls, 1);
   assert.equal(s.writes.length, 1, 'only the fixture setup sent a camera command');
   assert.deepEqual(report, { outcome: 'probe_succeeded', status: 'too_unclear', basis: 'original_photo',

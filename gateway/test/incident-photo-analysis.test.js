@@ -36,7 +36,7 @@ test('analysis failures retain only fixed categories and bounded protocol metada
     [async () => ({ ok: false, status: 401, json: async () => { throw Error('error body must not be read'); } }), 'analysis_http_error', { httpStatus: 401 }],
     [async () => ({ ok: true, json: async () => { throw Error('secret invalid response'); } }), 'analysis_invalid_response', {}],
     [async () => ({ ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'secret partial scene' }] }) }), 'analysis_incomplete', { stopReason: 'max_tokens' }],
-    [async () => payload('```json\n' + JSON.stringify(valid) + '\n```'), 'analysis_invalid_json', { contentFormat: 'fenced_json' }],
+    [async () => payload('```json\n' + JSON.stringify(valid)), 'analysis_invalid_json', { contentFormat: 'fenced_json' }],
     [async () => payload('secret malformed scene'), 'analysis_invalid_json', { contentFormat: 'other' }],
     [async () => payload(JSON.stringify({ ...valid, visibleDetails: ['The wearer is safe.'] })), 'analysis_schema_rejected', {}],
     [async () => payload('x'.repeat(5001)), 'analysis_response_too_large', {}],
@@ -58,6 +58,45 @@ test('a dark-scene response can succeed as too_unclear', async () => {
     ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] }),
   }) });
   assert.equal((await analyze(image)).status, 'too_unclear');
+});
+
+function analyzeText(text, stopReason = 'end_turn') {
+  return createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async () => ({
+    ok: true, json: async () => ({ stop_reason: stopReason, content: [{ type: 'text', text }] }),
+  }) })(image);
+}
+
+test('one complete JSON code fence is accepted for visible and unreadable scenes', async () => {
+  const unclear = { status: 'too_unclear', visibleDetails: [], uncertainDetails: [], limitations: ['The photo is too dark.'] };
+  for (const value of [valid, unclear]) {
+    const json = JSON.stringify(value);
+    for (const text of [json, '```json\n' + json + '\n```', '```\n' + json + '\n```',
+      ' \n```JSON\r\n' + json + '\r\n```\t\n']) {
+      assert.deepEqual(await analyzeText(text), { ...value, model: 'test-only', basis: 'original_photo', version: 1 });
+    }
+  }
+});
+
+test('fence handling rejects prose, multiple blocks, incomplete fences and non-JSON syntax', async () => {
+  const json = JSON.stringify(valid), fenced = '```json\n' + json + '\n```';
+  for (const text of ['Here is the result:\n' + fenced, fenced + '\nExtra advice.', fenced + '\n' + fenced,
+    '```json\n' + json, json + '\n```', '```javascript\n' + json + '\n```',
+    '```json\n' + json + '\n' + json + '\n```', '```json\n' + json + ',\n```',
+    '```json\n// comment\n' + json + '\n```']) {
+    await assert.rejects(analyzeText(text), error => analysisFailure(error).reason === 'analysis_invalid_json');
+  }
+  await assert.rejects(analyzeText(fenced, 'max_tokens'), error => analysisFailure(error).reason === 'analysis_incomplete');
+  await assert.rejects(analyzeText('```json\n' + ' '.repeat(5000) + json + '\n```'),
+    error => analysisFailure(error).reason === 'analysis_response_too_large');
+});
+
+test('wrapped JSON still passes the same schema and content checks', async () => {
+  for (const value of [{ ...valid, extra: 'unexpected' }, { ...valid, visibleDetails: [] },
+    { ...valid, visibleDetails: ['The wearer is safe.'] }, { ...valid, limitations: ['Visit https://example.test'] },
+    { ...valid, visibleDetails: ['x'.repeat(181)] }]) {
+    await assert.rejects(analyzeText('```json\n' + JSON.stringify(value) + '\n```'),
+      error => analysisFailure(error).reason === 'analysis_schema_rejected');
+  }
 });
 
 test('every SOS/fall location variant preserves map/call order and adds the matching gallery URL', () => {

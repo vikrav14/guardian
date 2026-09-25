@@ -13,6 +13,15 @@ Both displayed photos reported AI unavailable. The gateway log also shows an
 independent automatic recovery CR before this sequence, so this trial does not
 isolate capture without CR. Five-photo completion and real AI output remain open.
 
+At 01:23 MUT the saved-original AI probe completed with `analysis_invalid_json`
+and `contentFormat=fenced_json`. The original download and provider request both
+completed; this result is a parser failure, not evidence of a stuck command.
+The analyzer now accepts one complete outer Markdown fence (JSON-labelled or
+unlabelled) around otherwise valid JSON. It still rejects surrounding prose,
+multiple blocks, incomplete/truncated replies, invalid JSON and invalid scene
+content. No raw provider response was retained. Repeat the saved-photo probe to
+verify live output; the two earlier stored failures remain unchanged.
+
 ## Behavior
 
 The watch alarm handler marks persisted SOS/fall alerts as photo-eligible. Existing

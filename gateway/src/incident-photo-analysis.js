@@ -87,8 +87,12 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
     if (!parts.every(part => typeof part.text === 'string')) throw new PhotoAnalysisError('analysis_invalid_response');
     const content = parts.map(part => part.text).join('');
     if (content.length > 5000) throw new PhotoAnalysisError('analysis_response_too_large');
+    // Some vision responses wrap JSON despite the output instruction. Accept
+    // only one complete outer fence; never extract JSON from prose or repair it.
+    // Size, completion, schema and scene-content checks remain unchanged.
+    const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(content.trim());
     let parsed;
-    try { parsed = JSON.parse(content); }
+    try { parsed = JSON.parse(fenced ? fenced[1] : content); }
     catch {
       throw new PhotoAnalysisError('analysis_invalid_json', {
         contentFormat: /^\s*```(?:json)?\s*[\r\n]/i.test(content) ? 'fenced_json' : 'other',
