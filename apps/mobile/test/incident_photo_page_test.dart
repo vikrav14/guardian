@@ -114,16 +114,12 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Guardian AI photo insights'), findsOneWidget);
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.inactive,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
       expect(find.text('Guardian AI photo insights'), findsNothing);
       expect(find.textContaining('Photo 1: A chair'), findsNothing);
       service.denied = true;
-      tester.binding.handleAppLifecycleStateChanged(
-        AppLifecycleState.resumed,
-      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
       await tester.pump();
       expect(find.text('Guardian AI photo insights'), findsNothing);
@@ -155,6 +151,34 @@ void main() {
     expect(find.text('Deleted'), findsOneWidget);
     expect(find.text('Guardian AI photo insights'), findsNothing);
     expect(find.textContaining('Photo 1: A chair'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('a late status response cannot restore deleted AI details', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = FakeIncidentPhotos();
+    final oldFeed = await service.loadIncident('incident1');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IncidentPhotoPage(incidentId: 'incident1', service: service),
+      ),
+    );
+    await tester.pump();
+    final delayed = Completer<IncidentPhotoFeed>();
+    service.pending = delayed;
+    await tester.pump(const Duration(seconds: 3));
+    await tester.tap(find.text('Delete photo & AI details'));
+    await tester.pump();
+    expect(find.text('Guardian AI photo insights'), findsNothing);
+    delayed.complete(oldFeed);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Guardian AI photo insights'), findsNothing);
+    expect(find.text('Deleted'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

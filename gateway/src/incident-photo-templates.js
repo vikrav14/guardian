@@ -53,7 +53,7 @@ function templateDefinitions({ appUrl, callNumber = null } = {}) {
       buttons.push({ type: 'URL', text: 'Photos & AI details', url: `${base}{{1}}`, example: [`${base}sampleIncident123`] });
       definitions.push({ name: templateName(type, state, callback), language: 'en', category: 'UTILITY', components: [
         { type: 'HEADER', format: 'TEXT', text: type === 'sos' ? 'Guardian SOS alert' : 'Guardian fall alert' },
-        { type: 'BODY', text: '{{1}}\n\nEvent time: {{2}}\nLocation: {{3}}\n{{4}}\n\nGuardian AI photo insights\nAwaiting incident photos, if available (up to 5). Use Photos & AI details for progress. Keep checking on the wearer; do not wait for photos.',
+        { type: 'BODY', text: 'Safety event: {{1}}\n\nEvent time: {{2}}\nLocation: {{3}}\n{{4}}\n\nGuardian AI photo insights\nAwaiting incident photos, if available (up to 5). Use Photos & AI details for progress. Keep checking on the wearer; do not wait for photos.',
           example: { body_text: [[type === 'sos' ? 'Alex pressed SOS and is requesting help.' : 'The watch reported a possible fall for Alex. Please check on Alex now.',
             '25 September, 23:35', state === 'unavailable' ? 'Current position unconfirmed' : state === 'last_known' ? 'Last known GPS fix, recorded 2 hours before the alert; current position unconfirmed' : 'GPS fix recorded 30 seconds before the alert', 'Battery: 55%']] } },
         { type: 'BUTTONS', buttons },

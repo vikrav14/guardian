@@ -1,6 +1,5 @@
 // Render only synthetic data; no watch photos or private descriptions are fixtures.
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -94,9 +93,13 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: buildGuardianTheme().copyWith(
-              textTheme: buildGuardianTheme().textTheme.apply(
-                fontFamily: 'IncidentPreview',
+            theme: ThemeData(
+              useMaterial3: true,
+              fontFamily: 'IncidentPreview',
+              scaffoldBackgroundColor: GuardianThemeColors.light.canvas,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: GuardianThemeColors.light.accent,
+                surface: GuardianThemeColors.light.surface,
               ),
             ),
             home: RepaintBoundary(

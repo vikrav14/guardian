@@ -171,3 +171,16 @@ test('incident HTTP reads require authentication, current household access and n
   assert.equal(response.headers['Cache-Control'], 'private, no-store');
   assert.equal(s.writes.length, 0, 'opening a gallery does not trigger capture');
 });
+
+test('photo follow-up waits for the original alert and accepts its delivered webhook state', async () => {
+  let sent = 0;
+  const s = trial({ onComplete: async () => { sent++; return { ok: true }; } });
+  s.alarm('alertOne', 'fall', { notifyStatus: 'sending' });
+  await s.incidents.enqueue('alertOne');
+  s.incident().state = 'stopped';
+  await s.incidents.sweep(); await s.incidents.drain();
+  assert.equal(sent, 0); assert.equal(s.incident().followupState, 'pending');
+  s.db.rows.get('alerts/alertOne').notifyStatus = 'delivered';
+  await s.incidents.sweep(); await s.incidents.drain();
+  assert.equal(sent, 1); assert.equal(s.incident().followupState, 'accepted');
+});

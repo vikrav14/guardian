@@ -48,7 +48,10 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
           (_feed?.photos.any(
                 (photo) =>
                     photo.viewable &&
-                    ['pending', 'analysing'].contains(photo.analysis?['status']),
+                    [
+                      'pending',
+                      'analysing',
+                    ].contains(photo.analysis?['status']),
               ) ??
               false);
       if (_foreground &&
@@ -106,15 +109,20 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
       });
     } finally {
       _loading = false;
-      if (mounted && _foreground && generation != _generation)
+      if (mounted && _foreground && generation != _generation) {
         unawaited(_refresh());
+      }
     }
   }
 
   Future<void> _delete(IncidentPhoto photo) async {
     setState(() {
+      // Invalidate a status request begun before deletion; its late response
+      // must not restore a scene description after the photo was removed.
+      _generation++;
+      _fresh = false;
       _deleting.add(photo.id);
-      _images.remove(photo.id);
+      _images.clear();
     });
     try {
       await _service.delete(photo.id);
@@ -291,13 +299,15 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                   () => _service.loadImage(photo.id),
                 ),
                 builder: (context, snapshot) {
-                  if (snapshot.hasError)
+                  if (snapshot.hasError) {
                     return const Text('This photo cannot be opened.');
-                  if (!snapshot.hasData)
+                  }
+                  if (!snapshot.hasData) {
                     return const SizedBox(
                       height: 200,
                       child: Center(child: CircularProgressIndicator()),
                     );
+                  }
                   return _AdjustedPhoto(
                     key: ValueKey(photo.id),
                     bytes: snapshot.data!,
@@ -328,12 +338,14 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
 
   Widget _analysis(Map<String, dynamic>? analysis) {
     final status = analysis?['status'];
-    if (status == 'unavailable')
+    if (status == 'unavailable') {
       return const Text(
         'AI analysis unavailable. The original photo remains available.',
       );
-    if (status != 'ready' && status != 'too_unclear')
+    }
+    if (status != 'ready' && status != 'too_unclear') {
       return const Text('Analysing this photo…');
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

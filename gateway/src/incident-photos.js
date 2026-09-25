@@ -186,6 +186,9 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
             const photos = await Promise.all(fresh.requestIds.map(id => photoRef(id).get()));
             if (photos.some(p => p.data()?.state === 'available' &&
                 ['pending', 'analysing'].includes(p.data()?.analysis?.status))) continue;
+            const alert = (await db.collection('alerts').doc(fresh.id).get()).data();
+            // An optional photo update must not overtake the initial alert.
+            if (!fresh.trial && ['pending', 'sending'].includes(alert?.notifyStatus)) continue;
             const claimed = await db.runTransaction(async tx => {
               const row = await tx.get(doc.ref);
               if (row.data()?.followupState !== 'pending') return false;
@@ -194,8 +197,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
             if (claimed) {
               // At-most-once transport attempt, including restart/ambiguous send.
               try {
-                const alert = (await db.collection('alerts').doc(fresh.id).get()).data();
-                const result = fresh.trial || !['accepted', 'partial', 'sent'].includes(alert?.notifyStatus)
+                const result = fresh.trial || !['accepted', 'partial', 'sent', 'delivered'].includes(alert?.notifyStatus)
                   ? { ok: false } : await onComplete(fresh);
                 await doc.ref.update({ followupState: result?.ok ? 'accepted' : 'unavailable' });
               } catch { await doc.ref.update({ followupState: 'unavailable' }); }
