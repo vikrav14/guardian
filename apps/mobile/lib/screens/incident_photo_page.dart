@@ -33,6 +33,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
   String? _error;
   DateTime? _lastRefresh;
   final Map<String, Future<Uint8List>> _images = {};
+  final Map<String, _PhotoViewAdjustment> _adjustments = {};
   final Set<String> _deleting = {};
 
   @override
@@ -96,6 +97,9 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
         _images.removeWhere(
           (id, _) => !feed.photos.any((p) => p.id == id && p.viewable),
         );
+        _adjustments.removeWhere(
+          (id, _) => !feed.photos.any((p) => p.id == id && p.viewable),
+        );
       });
     } catch (error) {
       if (!mounted || !_foreground || generation != _generation) return;
@@ -103,6 +107,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
         _feed = null;
         _fresh = false;
         _images.clear();
+        _adjustments.clear();
         _error = error is SnapshotFailure
             ? error.message
             : 'Could not load incident photos.';
@@ -122,6 +127,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
       _generation++;
       _fresh = false;
       _deleting.add(photo.id);
+      _adjustments.remove(photo.id);
       _images.clear();
     });
     try {
@@ -311,6 +317,11 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                   return _AdjustedPhoto(
                     key: ValueKey(photo.id),
                     bytes: snapshot.data!,
+                    suggestedQuarterTurns: photo.suggestedQuarterTurns,
+                    adjustment: _adjustments.putIfAbsent(
+                      photo.id,
+                      _PhotoViewAdjustment.new,
+                    ),
                   );
                 },
               ),
@@ -369,17 +380,34 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
   }
 }
 
+// These session-only viewing choices contain no image or AI content. Keep them
+// across foreground reauthorization so a late AI result cannot undo a choice.
+class _PhotoViewAdjustment {
+  int? quarterTurns;
+  double brightness = 0;
+}
+
 class _AdjustedPhoto extends StatefulWidget {
-  const _AdjustedPhoto({super.key, required this.bytes});
+  const _AdjustedPhoto({
+    super.key,
+    required this.bytes,
+    required this.adjustment,
+    this.suggestedQuarterTurns,
+  });
   final Uint8List bytes;
+  final _PhotoViewAdjustment adjustment;
+  final int? suggestedQuarterTurns;
   @override
   State<_AdjustedPhoto> createState() => _AdjustedPhotoState();
 }
 
 class _AdjustedPhotoState extends State<_AdjustedPhoto> {
   late final MemoryImage _image = MemoryImage(widget.bytes);
-  int _turns = 0;
-  double _brightness = 0;
+  int get _turns =>
+      widget.adjustment.quarterTurns ?? widget.suggestedQuarterTurns ?? 0;
+  double get _brightness => widget.adjustment.brightness;
+  bool get _autoRotated =>
+      widget.adjustment.quarterTurns == null && _turns != 0;
   @override
   void dispose() {
     unawaited(_image.evict());
@@ -418,7 +446,9 @@ class _AdjustedPhotoState extends State<_AdjustedPhoto> {
             image: _image,
             height: 280,
             fit: BoxFit.contain,
-            semanticLabel: 'Original photo received from the watch',
+            semanticLabel: _turns == 0
+                ? 'Original photo received from the watch'
+                : 'Watch photo rotated for viewing',
             errorBuilder: (_, _, _) =>
                 const Text('This photo could not be displayed.'),
           ),
@@ -429,17 +459,26 @@ class _AdjustedPhotoState extends State<_AdjustedPhoto> {
         alignment: WrapAlignment.center,
         children: [
           TextButton.icon(
-            onPressed: () => setState(() => _turns = (_turns + 1) % 4),
+            onPressed: () => setState(
+              () => widget.adjustment.quarterTurns = (_turns + 1) % 4,
+            ),
             icon: const Icon(Icons.rotate_right),
             label: const Text('Rotate'),
           ),
           TextButton(
             onPressed: () => setState(() {
-              _turns = 0;
-              _brightness = 0;
+              widget.adjustment.quarterTurns = 0;
+              widget.adjustment.brightness = 0;
             }),
             child: const Text('Original'),
           ),
+          if ((widget.suggestedQuarterTurns ?? 0) != 0)
+            TextButton(
+              onPressed: () => setState(
+                () => widget.adjustment.quarterTurns = null,
+              ),
+              child: const Text('Auto rotate'),
+            ),
         ],
       ),
       Row(
@@ -451,13 +490,18 @@ class _AdjustedPhotoState extends State<_AdjustedPhoto> {
               value: _brightness,
               min: -40,
               max: 70,
-              onChanged: (value) => setState(() => _brightness = value),
+              onChanged: (value) =>
+                  setState(() => widget.adjustment.brightness = value),
             ),
           ),
         ],
       ),
       Text(
-        _turns == 0 && _brightness == 0
+        _autoRotated
+            ? (_brightness == 0
+                  ? 'Auto-rotated • original preserved'
+                  : 'Auto-rotated • brightness adjusted')
+            : _turns == 0 && _brightness == 0
             ? 'Original photo'
             : 'Adjusted view • rotation / brightness only',
       ),

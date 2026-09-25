@@ -152,6 +152,24 @@ test('AI failure does not remove a valid photo; follow-up is at most once across
   assert.equal(s.auth(id).state, 'available');
 });
 
+test('viewing orientation is saved with AI, preserves original bytes and follows consent and deletion', async () => {
+  const orientation = { clockwiseDegrees: 270, confidence: 'high' };
+  let calls = 0;
+  const s = trial({ analyze: async () => { calls++; return { ...result, orientation }; } });
+  s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0]; await receive(s, id);
+  const original = await s.api.image('owner', id);
+  await s.incidents.analyzePhoto(id); await s.incidents.analyzePhoto(id);
+  assert.equal(calls, 1);
+  assert.equal(s.auth(id).analysis.version, 2);
+  assert.deepEqual((await s.incidents.gallery('member', 'alertOne')).photos[0].analysis.orientation, orientation);
+  assert.deepEqual(await s.api.image('owner', id), original);
+  s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+  assert.equal((await s.incidents.gallery('owner', 'alertOne')).photos[0].analysis.orientation, undefined);
+  await s.api.remove('owner', id);
+  assert.equal(s.auth(id).analysis, null);
+});
+
 test('incident HTTP reads require authentication, current household access and no-store', async () => {
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
   const handler = createSnapshotHttpHandler({ controller: () => s.api, incidents: () => s.incidents,

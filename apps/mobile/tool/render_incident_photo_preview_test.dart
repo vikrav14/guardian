@@ -1,5 +1,6 @@
 // Render only synthetic data; no watch photos or private descriptions are fixtures.
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -28,6 +29,8 @@ class PreviewIncidentService extends SafetySnapshotService {
         expiresAt: DateTime.now().add(const Duration(hours: 24)),
         analysis: {
           'status': 'ready',
+          'basis': 'original_photo',
+          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
           'visibleDetails': ['Pale walls and furniture are visible.'],
           'uncertainDetails': ['The nearby surface may be upholstery.'],
           'limitations': ['The tilted view does not show the wearer.'],
@@ -67,6 +70,9 @@ void main() {
         final bytes = (await tester.runAsync(() async {
           final recorder = ui.PictureRecorder();
           final canvas = Canvas(recorder);
+          // A deliberately sideways original; the viewer restores upright.
+          canvas.translate(0, 240);
+          canvas.rotate(-math.pi / 2);
           canvas.drawRect(
             const Rect.fromLTWH(0, 0, 240, 240),
             Paint()..color = const Color(0xffe6e1d9),
@@ -117,6 +123,8 @@ void main() {
         });
         await tester.pumpAndSettle();
         expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+        expect(tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns, 1);
+        expect(find.text('Auto-rotated • original preserved'), findsOneWidget);
         expect(tester.takeException(), isNull);
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

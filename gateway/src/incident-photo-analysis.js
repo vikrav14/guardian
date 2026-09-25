@@ -8,9 +8,15 @@ Do not identify people, infer protected traits, diagnose injury or consciousness
 infer the cause of an alarm, assess emergency severity, confirm a location, or recommend dismissing an alert.
 Do not infer motion, recovery or a fall from a wrist angle. Do not read private documents or transcribe screen text.
 If the scene is too dark, blurred or obstructed, say so. No factual detail may come from imagined enhancement.
+Suggest a viewing rotation only when clear physical scene cues establish upright orientation.
+clockwiseDegrees is the clockwise turn to APPLY TO THE ORIGINAL image to make it upright: 0, 90, 180 or 270.
+Use confidence "high" only for a clear direction. Otherwise use clockwiseDegrees null and confidence "low".
+Do not guess from wrist posture, or from text, a screen or poster alone. Scene clarity and orientation confidence are separate.
+Avoid left/right/top/bottom references that change when the viewer rotates the photo. Rotation is not a verified camera angle.
 Return ONLY JSON with exactly these keys:
 {"status":"ready" or "too_unclear","visibleDetails":[up to 4 short strings],
-"uncertainDetails":[up to 3 short strings],"limitations":[up to 3 short strings]}.
+"uncertainDetails":[up to 3 short strings],"limitations":[up to 3 short strings],
+"orientation":{"clockwiseDegrees":0 or 90 or 180 or 270 or null,"confidence":"high" or "low"}}.
 Every string must be at most 180 characters. Keep uncertainty explicit; no advice, links or identities.`;
 
 // Only fixed codes and bounded protocol metadata may leave this module on
@@ -29,8 +35,10 @@ function analysisFailure(error) {
 }
 
 function validateAnalysis(value) {
+  const keys = value && Object.keys(value).sort().join(',');
   if (!value || !['ready', 'too_unclear'].includes(value.status) ||
-      Object.keys(value).sort().join(',') !== 'limitations,status,uncertainDetails,visibleDetails') {
+      !['limitations,status,uncertainDetails,visibleDetails',
+        'limitations,orientation,status,uncertainDetails,visibleDetails'].includes(keys)) {
     throw new Error('invalid_analysis');
   }
   const result = { status: value.status };
@@ -46,6 +54,16 @@ function validateAnalysis(value) {
   }
   if (result.status === 'ready' && !result.visibleDetails.length) throw new Error('invalid_analysis');
   if (result.status === 'too_unclear' && !result.limitations.length) throw new Error('invalid_analysis');
+  if (Object.hasOwn(value, 'orientation')) {
+    const orientation = value.orientation;
+    // Invalid or uncertain rotation falls back to the original view without
+    // losing an otherwise valid description. Never copy arbitrary model fields.
+    result.orientation = orientation && !Array.isArray(orientation) &&
+      Object.keys(orientation).sort().join(',') === 'clockwiseDegrees,confidence' &&
+      orientation.confidence === 'high' && [0, 90, 180, 270].includes(orientation.clockwiseDegrees)
+      ? { clockwiseDegrees: orientation.clockwiseDegrees, confidence: 'high' }
+      : { clockwiseDegrees: null, confidence: 'low' };
+  }
   return result;
 }
 
@@ -101,7 +119,7 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
     let result;
     try { result = validateAnalysis(parsed); }
     catch { throw new PhotoAnalysisError('analysis_schema_rejected'); }
-    return { ...result, model, basis: 'original_photo', version: 1 };
+    return { ...result, model, basis: 'original_photo', version: result.orientation ? 2 : 1 };
   };
 }
 

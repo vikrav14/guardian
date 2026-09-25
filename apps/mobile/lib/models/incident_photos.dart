@@ -15,6 +15,20 @@ class IncidentPhoto {
   final Map<String, dynamic>? analysis;
   bool get viewable =>
       state == 'available' && (expiresAt?.isAfter(DateTime.now()) ?? false);
+  int? get suggestedQuarterTurns {
+    if (!['ready', 'too_unclear'].contains(analysis?['status']) ||
+        analysis?['basis'] != 'original_photo') {
+      return null;
+    }
+    final orientation = analysis?['orientation'];
+    if (orientation is! Map || orientation['confidence'] != 'high') {
+      return null;
+    }
+    final degrees = orientation['clockwiseDegrees'];
+    return degrees is int && [0, 90, 180, 270].contains(degrees)
+        ? degrees ~/ 90
+        : null;
+  }
   factory IncidentPhoto.fromJson(Map<String, dynamic> data) => IncidentPhoto(
     id: data['id'] as String,
     sequence: (data['sequence'] as num).toInt(),

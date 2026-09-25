@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/incident_photos.dart';
@@ -13,6 +14,8 @@ class FakeIncidentPhotos extends SafetySnapshotService {
   int requests = 0;
   bool denied = false;
   bool deleted = false;
+  Uint8List? imageBytes;
+  Map<String, dynamic>? orientation;
   Completer<IncidentPhotoFeed>? pending;
   @override
   Future<IncidentPhotoFeed> loadIncident(String id) async {
@@ -34,6 +37,8 @@ class FakeIncidentPhotos extends SafetySnapshotService {
           expiresAt: DateTime.now().add(const Duration(hours: 1)),
           analysis: {
             'status': 'ready',
+            'basis': 'original_photo',
+            if (orientation != null) 'orientation': orientation,
             'visibleDetails': ['A chair is visible.'],
             'uncertainDetails': ['An object may be a table.'],
             'limitations': ['The view is blurred.'],
@@ -46,6 +51,7 @@ class FakeIncidentPhotos extends SafetySnapshotService {
   @override
   Future<Uint8List> loadImage(String id) {
     imageLoads++;
+    if (imageBytes != null) return Future.value(imageBytes!);
     return Completer<Uint8List>().future;
   }
 
@@ -79,6 +85,92 @@ void main() {
       isNull,
     );
     expect(incidentFromUri(Uri.parse('https://guardian.example/')), isNull);
+  });
+
+  test('only clear, valid original-photo orientation can drive automatic rotation', () {
+    IncidentPhoto photo(Map<String, dynamic>? analysis) => IncidentPhoto(
+      id: 'photo-one', sequence: 1, state: 'available', analysis: analysis,
+    );
+    for (final degrees in [0, 90, 180, 270]) {
+      expect(photo({
+        'status': 'too_unclear', 'basis': 'original_photo',
+        'orientation': {'clockwiseDegrees': degrees, 'confidence': 'high'},
+      }).suggestedQuarterTurns, degrees ~/ 90);
+    }
+    for (final orientation in [null, '90', {},
+      {'clockwiseDegrees': 90, 'confidence': 'low'},
+      {'clockwiseDegrees': '90', 'confidence': 'high'},
+      {'clockwiseDegrees': 45, 'confidence': 'high'},
+      {'clockwiseDegrees': -90, 'confidence': 'high'},
+    ]) {
+      expect(photo({
+        'status': 'ready', 'basis': 'original_photo', 'orientation': orientation,
+      }).suggestedQuarterTurns, isNull);
+    }
+    expect(photo(null).suggestedQuarterTurns, isNull);
+    expect(photo({
+      'status': 'unavailable', 'basis': 'original_photo',
+      'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+    }).suggestedQuarterTurns, isNull);
+  });
+
+  testWidgets('late automatic rotation respects manual choices, foreground privacy and Original', (tester) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final bytes = (await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, 120, 80), Paint()..color = Colors.blue);
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(120, 80);
+      final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+      image.dispose(); picture.dispose();
+      return bytes;
+    }))!;
+    final service = FakeIncidentPhotos()..imageBytes = bytes;
+    await tester.pumpWidget(MaterialApp(home: IncidentPhotoPage(incidentId: 'incident1', service: service)));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await precacheImage(MemoryImage(bytes), tester.element(find.byType(IncidentPhotoPage)));
+    });
+    await tester.pumpAndSettle();
+    int turns() => tester.widget<RotatedBox>(find.byType(RotatedBox)).quarterTurns;
+    expect(turns(), 0);
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    service.orientation = {'clockwiseDegrees': 90, 'confidence': 'high'};
+    await tester.pump(const Duration(seconds: 3)); await tester.pump();
+    expect(turns(), 1);
+    expect(find.text('Auto-rotated • original preserved'), findsOneWidget);
+    await tester.tap(find.text('Original')); await tester.pump();
+    service.orientation = {'clockwiseDegrees': 180, 'confidence': 'high'};
+    await tester.pump(const Duration(seconds: 3)); await tester.pump();
+    expect(turns(), 0, reason: 'late suggestions must not undo Original');
+    await tester.tap(find.text('Rotate')); await tester.pump();
+    expect(turns(), 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(find.byType(RotatedBox), findsNothing);
+    expect(find.text('Guardian AI photo insights'), findsNothing);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(); await tester.pump();
+    await tester.runAsync(() async {
+      await precacheImage(MemoryImage(bytes), tester.element(find.byType(IncidentPhotoPage)));
+    });
+    await tester.pumpAndSettle();
+    expect(turns(), 1, reason: 'the user view survives foreground access checks');
+    await tester.tap(find.text('Auto rotate')); await tester.pump();
+    expect(turns(), 2);
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(30); await tester.pump();
+    await tester.tap(find.text('Original')); await tester.pump();
+    expect(turns(), 0);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+    expect((tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes, same(bytes));
+    expect(service.requests, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
     'gallery is read-only and shows progress, source basis and per-photo uncertainty',

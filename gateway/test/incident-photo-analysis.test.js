@@ -99,6 +99,34 @@ test('wrapped JSON still passes the same schema and content checks', async () =>
   }
 });
 
+test('orientation is a bounded viewing suggestion from the same original-photo response', async () => {
+  for (const clockwiseDegrees of [0, 90, 180, 270]) {
+    const orientation = { clockwiseDegrees, confidence: 'high' };
+    const analyzed = await analyzeText(JSON.stringify({ ...valid, orientation }));
+    assert.deepEqual(analyzed.orientation, orientation);
+    assert.equal(analyzed.basis, 'original_photo');
+    assert.equal(analyzed.version, 2);
+  }
+  const unclear = { status: 'too_unclear', visibleDetails: [], uncertainDetails: [], limitations: ['Fine detail is blurred.'] };
+  assert.deepEqual((await analyzeText(JSON.stringify({ ...unclear,
+    orientation: { clockwiseDegrees: 90, confidence: 'high' } }))).orientation,
+  { clockwiseDegrees: 90, confidence: 'high' });
+});
+
+test('uncertain or malformed orientation cannot rotate the image or discard a valid description', async () => {
+  for (const orientation of [null, '90', [], {}, { clockwiseDegrees: 90, confidence: 'low' },
+    { clockwiseDegrees: null, confidence: 'high' }, { clockwiseDegrees: '90', confidence: 'high' },
+    { clockwiseDegrees: -90, confidence: 'high' }, { clockwiseDegrees: 45, confidence: 'high' },
+    { clockwiseDegrees: 360, confidence: 'high' }, { clockwiseDegrees: 90, confidence: 1 },
+    { clockwiseDegrees: 90, confidence: 'high', extra: 'secret scene' }]) {
+    const analyzed = await analyzeText(JSON.stringify({ ...valid, orientation }));
+    assert.deepEqual(analyzed.orientation, { clockwiseDegrees: null, confidence: 'low' });
+    assert.deepEqual(analyzed.visibleDetails, valid.visibleDetails);
+    assert.equal(JSON.stringify(analyzed).includes('secret scene'), false);
+  }
+  assert.equal(Object.hasOwn(await analyzeText(JSON.stringify(valid)), 'orientation'), false, 'legacy descriptions remain supported');
+});
+
 test('every SOS/fall location variant preserves map/call order and adds the matching gallery URL', () => {
   const appUrl = 'https://guardian.example.test';
   const definitions = templateDefinitions({ appUrl, callNumber: '+23050000000' });

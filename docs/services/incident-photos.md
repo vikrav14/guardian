@@ -53,7 +53,17 @@ Emergency contacts need an authorized Guardian account to open photos.
 
 The Flutter gallery shows each original as it arrives, received time, per-photo
 analysis state, visible details, uncertainties and image limitations. Rotation and
-brightness are display-only controls. Backgrounding hides both images and AI;
+brightness are display-only controls. The same consented original-photo AI request
+also asks for a viewing orientation. A validated, high-confidence suggestion of
+90, 180 or 270 degrees clockwise is applied automatically when analysis arrives;
+0 means already upright. Low-confidence, missing or malformed suggestions keep
+the original orientation. Model confidence is not a guarantee of correctness.
+The image is available while AI runs, and no additional upload/request is added.
+Manual Rotate and Original take priority over later analysis and refreshes, even
+across background/foreground access checks; Auto rotate reapplies the suggestion.
+Brightness and rotation never rewrite the stored JPEG or feed an altered image
+back to AI. Older analyses without orientation metadata retain manual rotation;
+they are not silently reprocessed. Backgrounding hides both images and AI;
 foreground access is rechecked. Deletion removes the server-side description too.
 Access expires after 24 hours; physical object/description cleanup runs with the
 gateway and catches up after restart. Scene summaries already delivered to

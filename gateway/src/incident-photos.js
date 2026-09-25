@@ -115,9 +115,10 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const image = await snapshots.image(claim.serviceOwnerUid, id);
       stage = 'provider';
       const result = await analyze(image);
-      const { status, visibleDetails, uncertainDetails, limitations } = result;
-      analysis = { ...validateAnalysis({ status, visibleDetails, uncertainDetails, limitations }),
-        basis: 'original_photo', version: 1, generatedAt: now() };
+      const { status, visibleDetails, uncertainDetails, limitations, orientation } = result;
+      analysis = { ...validateAnalysis({ status, visibleDetails, uncertainDetails, limitations,
+        ...(orientation === undefined ? {} : { orientation }) }),
+        basis: 'original_photo', version: orientation === undefined ? 1 : 2, generatedAt: now() };
     } catch (error) {
       analysis = stage === 'original'
         ? { status: 'unavailable', reason: 'analysis_original_unavailable' }
