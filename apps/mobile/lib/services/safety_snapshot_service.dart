@@ -27,7 +27,8 @@ class SnapshotFailure implements Exception {
     'camera_busy' => 'The watch is handling another photo request.',
     'cooldown_active' => 'Please wait before requesting another photo.',
     'camera_unavailable' => 'Photos are not available for this watch yet.',
-    'incident_not_found' || 'photo_unavailable' ||
+    'incident_not_found' ||
+    'photo_unavailable' ||
     'photo_not_found' => 'This photo has expired or been deleted.',
     'sign_in_required' => 'Please sign in again to access photos.',
     'sign_in_timeout' =>
@@ -132,7 +133,9 @@ class SafetySnapshotService {
       throw const SnapshotFailure('incident_not_found');
     }
     final response = await _request('GET', '/api/incident-photos/$id');
-    return IncidentPhotoFeed.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return IncidentPhotoFeed.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<SnapshotFeed> load(String imei) async {

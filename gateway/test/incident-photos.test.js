@@ -5,6 +5,7 @@ const jpeg = require('jpeg-js');
 const { setup, frame, receive, until, imei } = require('./helpers/photo-harness');
 const { createIncidentPhotos } = require('../src/incident-photos');
 const { createSnapshotController } = require('../src/safety-snapshot-live');
+const { createSnapshotHttpHandler } = require('../src/safety-snapshot-http');
 const { CONSENT_VERSION, GAP_MS } = require('../src/incident-photo-policy');
 const result = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: ['A shape may be a table.'], limitations: ['The image is blurred.'] };
 function scene(n) {
@@ -147,4 +148,26 @@ test('AI failure does not remove a valid photo; follow-up is at most once across
   await Promise.all([s.incidents.drain(), other.drain()]);
   assert.equal(sends, 1);
   assert.equal(s.auth(id).state, 'available');
+});
+
+test('incident HTTP reads require authentication, current household access and no-store', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+  const handler = createSnapshotHttpHandler({ controller: () => s.api, incidents: () => s.incidents,
+    verifyToken: async token => { if (token === 'revoked') throw Error('revoked'); return { uid: token }; } });
+  async function request(uid, method = 'GET') {
+    const output = {};
+    await handler({ method, headers: uid ? { authorization: `Bearer ${uid}` } : {} }, {
+      writeHead: (status, headers) => { Object.assign(output, { status, headers }); },
+      end: bytes => { output.body = JSON.parse(bytes); },
+    }, new URL('https://gateway.example/api/incident-photos/alertOne'));
+    return output;
+  }
+  assert.equal((await request(null)).status, 401);
+  assert.equal((await request('revoked')).status, 401);
+  assert.equal((await request('outsider')).status, 404);
+  assert.equal((await request('owner', 'POST')).status, 404);
+  const response = await request('member');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['Cache-Control'], 'private, no-store');
+  assert.equal(s.writes.length, 0, 'opening a gallery does not trigger capture');
 });

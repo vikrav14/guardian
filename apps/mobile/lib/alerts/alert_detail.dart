@@ -99,11 +99,15 @@ class AlertDetail extends StatelessWidget {
               ),
             ],
           ],
-          if ((sos || alert.type.toLowerCase() == 'fall') && guardianSnapshotGatewayUrl.isNotEmpty) ...[
+          if ((sos || alert.type.toLowerCase() == 'fall') &&
+              guardianSnapshotGatewayUrl.isNotEmpty) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => IncidentPhotoPage(incidentId: alert.id))),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => IncidentPhotoPage(incidentId: alert.id),
+                ),
+              ),
               icon: const Icon(Icons.photo_library_outlined),
               label: const Text('Photos & AI details'),
             ),

@@ -79,8 +79,10 @@ class _AuthGateState extends State<AuthGate> {
               );
             }
             if (_incidentId != null) {
-              return IncidentPhotoPage(incidentId: _incidentId!,
-                onClose: () => setState(() => _incidentId = null));
+              return IncidentPhotoPage(
+                incidentId: _incidentId!,
+                onClose: () => setState(() => _incidentId = null),
+              );
             }
             return const HomeShell();
           },
