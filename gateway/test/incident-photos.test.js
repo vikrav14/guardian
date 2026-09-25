@@ -106,6 +106,8 @@ test('identical image replay is not counted as a second distinct incident photo'
   await receive(s, s.incident().requestIds[0]); s.advance(GAP_MS); await s.incidents.tick('alertOne');
   await receive(s, s.incident().requestIds[1]); await s.incidents.tick('alertOne');
   assert.equal(s.incident().state, 'stopped');
+  assert.equal(s.incident().reason, 'duplicate_incident_image');
+  assert.equal(s.auth(s.incident().requestIds[1]).receiveDiagnostics.rejectionReason, 'duplicate_incident_image');
   assert.equal((await s.incidents.gallery('owner', 'alertOne')).photos.filter(p => p.state === 'available').length, 1);
 });
 

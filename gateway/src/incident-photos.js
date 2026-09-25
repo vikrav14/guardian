@@ -2,7 +2,7 @@
 
 const { asDate } = require('./safety-snapshot-policy');
 const { MAX_PHOTOS, SEQUENCE_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
-const { validateAnalysis } = require('./incident-photo-analysis');
+const { validateAnalysis, analysisFailure } = require('./incident-photo-analysis');
 const RETENTION_MS = 24 * 60 * 60_000;
 const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
@@ -110,13 +110,19 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
     });
     if (!claim) return;
     let analysis;
+    let stage = 'original';
     try {
       const image = await snapshots.image(claim.serviceOwnerUid, id);
+      stage = 'provider';
       const result = await analyze(image);
       const { status, visibleDetails, uncertainDetails, limitations } = result;
       analysis = { ...validateAnalysis({ status, visibleDetails, uncertainDetails, limitations }),
         basis: 'original_photo', version: 1, generatedAt: now() };
-    } catch { analysis = { status: 'unavailable', reason: 'analysis_failed' }; }
+    } catch (error) {
+      analysis = stage === 'original'
+        ? { status: 'unavailable', reason: 'analysis_original_unavailable' }
+        : analysisFailure(error);
+    }
     await db.runTransaction(async tx => {
       const doc = await tx.get(photoRef(id));
       const photo = doc.data();

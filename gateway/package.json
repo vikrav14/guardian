@@ -40,7 +40,8 @@
     "wellness:routine": "node scripts/inspect-wellness-routine.js",
     "incident:setup": "node scripts/incident-photo-setup.js",
     "incident:trial": "node scripts/incident-photo-trial.js",
-    "incident:templates": "node scripts/incident-photo-templates.js"
+    "incident:templates": "node scripts/incident-photo-templates.js",
+    "incident:inspect": "node scripts/inspect-incident-photo.js"
   },
   "engines": {
     "node": ">=18"

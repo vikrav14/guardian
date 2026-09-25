@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPhotoAnalyzer, validateAnalysis } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, validateAnalysis, analysisFailure } = require('../src/incident-photo-analysis');
 const { templateDefinitions, photoTemplatePlan, buildFollowupPlan } = require('../src/incident-photo-templates');
 const image = require('./fixtures/photo-synthetic');
 const valid = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: [], limitations: ['Blur limits detail.'] };
@@ -26,6 +26,38 @@ test('malformed output, reassurance, links, extra fields and oversized content f
   assert.throws(() => validateAnalysis({ ...valid, location: 'home' }));
   assert.throws(() => validateAnalysis({ ...valid, visibleDetails: [] }));
   assert.equal(validateAnalysis({ status: 'too_unclear', visibleDetails: [], uncertainDetails: [], limitations: ['The lens is obstructed.'] }).status, 'too_unclear');
+});
+
+test('analysis failures retain only fixed categories and bounded protocol metadata', async () => {
+  const payload = text => ({ ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) });
+  const cases = [
+    [async () => { throw Error('secret network details'); }, 'analysis_network_failed', {}],
+    [async () => { throw Object.assign(Error('secret timeout details'), { name: 'TimeoutError' }); }, 'analysis_timeout', {}],
+    [async () => ({ ok: false, status: 401, json: async () => { throw Error('error body must not be read'); } }), 'analysis_http_error', { httpStatus: 401 }],
+    [async () => ({ ok: true, json: async () => { throw Error('secret invalid response'); } }), 'analysis_invalid_response', {}],
+    [async () => ({ ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'secret partial scene' }] }) }), 'analysis_incomplete', { stopReason: 'max_tokens' }],
+    [async () => payload('```json\n' + JSON.stringify(valid) + '\n```'), 'analysis_invalid_json', { contentFormat: 'fenced_json' }],
+    [async () => payload('secret malformed scene'), 'analysis_invalid_json', { contentFormat: 'other' }],
+    [async () => payload(JSON.stringify({ ...valid, visibleDetails: ['The wearer is safe.'] })), 'analysis_schema_rejected', {}],
+    [async () => payload('x'.repeat(5001)), 'analysis_response_too_large', {}],
+  ];
+  for (const [fetchImpl, reason, diagnostics] of cases) {
+    const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl });
+    await assert.rejects(analyze(image), error => {
+      assert.deepEqual(analysisFailure(error), { status: 'unavailable', reason, diagnostics });
+      return true;
+    });
+  }
+  assert.deepEqual(analysisFailure(Object.assign(Error('secret'), { code: 'secret', diagnostics: { content: 'secret' } })),
+    { status: 'unavailable', reason: 'analysis_failed' });
+});
+
+test('a dark-scene response can succeed as too_unclear', async () => {
+  const value = { status: 'too_unclear', visibleDetails: [], uncertainDetails: [], limitations: ['The photo is too dark to describe.'] };
+  const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async () => ({
+    ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] }),
+  }) });
+  assert.equal((await analyze(image)).status, 'too_unclear');
 });
 
 test('every SOS/fall location variant preserves map/call order and adds the matching gallery URL', () => {

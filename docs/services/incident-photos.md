@@ -1,10 +1,17 @@
 # SOS and fall incident photos
 
-Implementation on `feat/v52-remote-photo`; **not activated or hardware-accepted**.
+Implementation on `feat/v52-remote-photo`; **supervised trial only, not hardware-accepted**.
 The single-photo path has four consecutive operator-reported successes after the
 padding correction on 25 September 2026, including two without manual CR. Five
 sequential captures, capture during an SOS call, and real AI output remain to be
 tested. No CR, invented wake command, generative enhancement or photo retry is added.
+
+The 26 September 00:56 MUT supervised trial displayed two photos. A third image
+passed decoding/storage but failed publication; the old generic error does not
+establish why. Exact-duplicate rejection is a possibility, not a confirmed result.
+Both displayed photos reported AI unavailable. The gateway log also shows an
+independent automatic recovery CR before this sequence, so this trial does not
+isolate capture without CR. Five-photo completion and real AI output remain open.
 
 ## Behavior
 
@@ -147,3 +154,35 @@ capture settings do not themselves confirm a live watch connection.
 Rollback: leave existing templates selected (`INCIDENT_PHOTO_TEMPLATES_APPROVED=false`)
 and disable automatic capture (`INCIDENT_PHOTOS_ENABLED=false`). Authenticated
 gallery reads, deletion and expiry cleanup continue for existing photos.
+
+## Inspect a partial sequence without another capture
+
+From a separate configured shell in `gateway`, select an existing request UUID:
+
+```powershell
+npm run incident:inspect -- --photo PHOTO_REQUEST_UUID
+```
+
+This reads the incident and prints bounded status fields for all its requests.
+New gateway failures retain a fixed rejection reason for duplicate images,
+revoked consent or inactive requests, and fixed AI failure categories for HTTP,
+timeout, response parsing or schema rejection. Earlier generic failures cannot
+be reconstructed retrospectively. No image, scene description, key, provider
+error body or raw model output is printed.
+
+To diagnose AI while the original remains available, make one explicit provider
+request using the original photo and current household AI consent:
+
+```powershell
+npm run incident:inspect -- --photo PHOTO_REQUEST_UUID --probe-ai --confirm --bucket guardian-fbadd.firebasestorage.app
+```
+
+The explicit bucket must belong to the configured Firebase project. Current
+access, subscription, consent, incident and photo expiry are rechecked. The probe
+prints status/counts or a fixed failure code and bounded metadata such as HTTP
+status. It leaves the saved analysis unchanged; an ordinary photo-view audit is
+recorded. It starts no gateway watchers and sends no camera or emergency message.
+The running gateway can stay connected; no restart or Firebase deploy is needed
+to run this diagnostic. New persisted failure categories require the updated
+gateway on its next normal restart. An AI response of `too_unclear` is successful
+analysis of an unreadable scene; `unavailable` means analysis did not complete.

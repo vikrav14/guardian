@@ -282,7 +282,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                       : photo.state == 'deleted'
                       ? 'Deleted'
                       : photo.state == 'failed'
-                      ? 'No photo received for this request.'
+                      ? 'Photo unavailable for this request.'
                       : photo.state == 'expired' ||
                             (photo.state == 'available' && !photo.viewable)
                       ? 'Expired'

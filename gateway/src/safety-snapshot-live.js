@@ -32,7 +32,7 @@ function receiveDiagnostics() {
     maxBufferedBytes: 0, incompletePhotoBuffered: false, identityChanged: false,
     acceptedPhotoFrames: 0, differentSessionPhotoFrames: 0,
     identityMismatchPhotoFrames: 0, expiredPhotoFrames: 0,
-    duplicatePhotoFrames: 0, failureStage: null, decodeError: null,
+    duplicatePhotoFrames: 0, failureStage: null, rejectionReason: null, decodeError: null,
     decodeDetails: null, rejectedFrameCapture: 'not_enabled' };
 }
 function decodePhoto(frame, protocolId) {
@@ -243,6 +243,9 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       await event(slot.id, 'image_available').catch(report);
     } catch (error) {
       slot.diagnostics.failureStage = stage;
+      const rejection = ['duplicate_incident_image', 'incident_consent_revoked', 'request_no_longer_active']
+        .includes(error?.code) ? error.code : null;
+      slot.diagnostics.rejectionReason = rejection;
       if (stage === 'decode') {
         // Only our own fixed decoder codes and numeric/boolean structure facts.
         slot.diagnostics.decodeError = error instanceof PhotoDecodeError ? error.code : 'unexpected_decode_failure';
@@ -272,7 +275,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
           }
         }
       }
-      await finishFailure(slot.id, 'image_rejected_or_storage_failed', slot);
+      await finishFailure(slot.id, rejection || 'image_rejected_or_storage_failed', slot);
       if (attemptedSave) {
         await ref(slot.id).update({ cleanupPending: true, uploadLeaseUntil: null });
         await cleanup(slot.id);
