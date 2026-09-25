@@ -5,13 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/safety_snapshot.dart';
+import '../models/incident_photos.dart';
 
 const guardianSnapshotGatewayUrl = String.fromEnvironment(
   'GUARDIAN_GATEWAY_URL',
 );
 const guardianSafetySnapshotsEnabled = bool.fromEnvironment(
   'GUARDIAN_SAFETY_SNAPSHOTS_ENABLED',
-  defaultValue: true,
+  defaultValue: false,
 );
 bool get guardianSnapshotAppConfigured =>
     guardianSafetySnapshotsEnabled && guardianSnapshotGatewayUrl.isNotEmpty;
@@ -23,9 +24,10 @@ class SnapshotFailure implements Exception {
   String get message => switch (code) {
     'watch_offline_or_reconnecting' || 'watch_disconnected' =>
       'The watch is offline or reconnecting. Try again when it is connected.',
+    'camera_busy' => 'The watch is handling another photo request.',
     'cooldown_active' => 'Please wait before requesting another photo.',
     'camera_unavailable' => 'Photos are not available for this watch yet.',
-    'photo_unavailable' ||
+    'incident_not_found' || 'photo_unavailable' ||
     'photo_not_found' => 'This photo has expired or been deleted.',
     'sign_in_required' => 'Please sign in again to access photos.',
     'sign_in_timeout' =>
@@ -123,6 +125,14 @@ class SafetySnapshotService {
       throw SnapshotFailure(code);
     }
     return response;
+  }
+
+  Future<IncidentPhotoFeed> loadIncident(String id) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(id)) {
+      throw const SnapshotFailure('incident_not_found');
+    }
+    final response = await _request('GET', '/api/incident-photos/$id');
+    return IncidentPhotoFeed.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   Future<SnapshotFeed> load(String imei) async {

@@ -8,6 +8,7 @@ const { assessSnapshotAccess } = require('./safety-snapshot-requests');
 const { normalizePurpose, asDate } = require('./safety-snapshot-policy');
 const { readSafetySnapshotRuntime } = require('./safety-snapshot-runtime');
 const { protocolIdFromFullImei } = require('./imei');
+const { consentAllows, readIncidentAuthorization } = require('./incident-photo-policy');
 
 const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -99,7 +100,8 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     if (changed) reportReceive(slot, reason);
   }
 
-  async function request(uid, input) {
+  async function requestInternal(uid, input, incidentId = null) {
+    if (!incidentId && config.manualTestEnabled === false) fail('manual_photos_disabled', 403);
     const imei = String(input?.imei || '');
     let purpose;
     try { purpose = normalizePurpose(input?.purpose); } catch { fail('invalid_purpose', 400); }
@@ -113,13 +115,19 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       const lock = await tx.get(lockRef(imei));
       const last = asDate(lock.data()?.lastRequestedAt);
       const at = now();
-      if (last && at.getTime() < last.getTime() + COOLDOWN_MS) {
+      const incidentClaim = incidentId
+        ? await readIncidentAuthorization(db, tx, incidentId, uid, imei, at) : null;
+      if (asDate(lock.data()?.activeUntil) > at ||
+          (asDate(lock.data()?.incidentUntil) > at && lock.data()?.incidentId !== incidentId)) fail('camera_busy');
+      if (!incidentId && last && at.getTime() < last.getTime() + COOLDOWN_MS) {
         const error = Object.assign(new Error('cooldown_active'), { code: 'cooldown_active', status: 429, retryAt: new Date(last.getTime() + COOLDOWN_MS) });
         throw error;
       }
       const auth = {
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         purpose, consentConfirmed: true, safetyPurposeConfirmed: true,
+        ...(incidentId ? { incidentId, sequence: incidentClaim.incident.requestIds.length + 1,
+          analysis: { status: 'pending' } } : {}),
         state: 'dispatching', deviceCommand: 'rcapture', deviceCommandSent: false,
         createdAt: at, updatedAt: at, authorizationExpiresAt: new Date(at.getTime() + WINDOW_MS),
         mediaExpiresAt: new Date(at.getTime() + RETENTION_MS),
@@ -127,7 +135,11 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         cleanupPending: false, correlation: 'same_session_request_window', requestCorrelationVerified: false,
       };
       tx.create(ref(id), auth);
-      tx.set(lockRef(imei), { lastRequestedAt: at, requestId: id });
+      tx.set(lockRef(imei), { ...lock.data(), lastRequestedAt: at, requestId: id,
+        activeUntil: new Date(at.getTime() + WINDOW_MS) });
+      if (incidentClaim) tx.update(incidentClaim.ref, {
+        requestIds: [...incidentClaim.incident.requestIds, id], updatedAt: at,
+      });
       tx.create(db.collection('safetySnapshotAudit').doc(id), {
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         consentConfirmed: true, safetyPurposeConfirmed: true, purpose, createdAt: at,
@@ -187,6 +199,10 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         const doc = await tx.get(ref(slot.id));
         const auth = doc.data();
         const decision = await access(slot.uid, slot.imei, doc => tx.get(doc));
+        if (auth?.incidentId) {
+          const settings = (await tx.get(db.collection('incidentPhotoSettings').doc(slot.imei))).data();
+          if (!consentAllows(settings, auth.serviceOwnerUid)) fail('incident_consent_revoked');
+        }
         if (!auth || !['dispatching', 'waiting_for_image'].includes(auth.state) ||
             decision.ownerUid !== auth.serviceOwnerUid || asDate(auth.authorizationExpiresAt) <= now()) fail('request_no_longer_active');
         tx.update(ref(slot.id), { state: 'receiving', cleanupPending: true, uploadLeaseUntil: new Date(now().getTime() + 120_000), updatedAt: now() });
@@ -204,6 +220,16 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         const doc = await tx.get(ref(slot.id));
         const auth = doc.data();
         const decision = await access(slot.uid, slot.imei, doc => tx.get(doc));
+        const lock = await tx.get(lockRef(slot.imei));
+        if (auth?.incidentId) {
+          const settings = (await tx.get(db.collection('incidentPhotoSettings').doc(slot.imei))).data();
+          const incident = (await tx.get(db.collection('incidentPhotos').doc(auth.incidentId))).data();
+          const previous = await Promise.all((incident?.requestIds || []).filter(id => id !== slot.id)
+            .map(id => tx.get(ref(id))));
+          const digest = crypto.createHash('sha256').update(image.jpeg).digest('hex');
+          if (!consentAllows(settings, auth.serviceOwnerUid)) fail('incident_consent_revoked');
+          if (previous.some(doc => doc.data()?.sha256 === digest)) fail('duplicate_incident_image');
+        }
         if (auth?.state !== 'receiving' || decision.ownerUid !== auth.serviceOwnerUid || asDate(auth.authorizationExpiresAt) <= now()) fail('request_no_longer_active');
         tx.update(ref(slot.id), { state: 'available', receivedAt: now(), updatedAt: now(),
           sizeBytes: image.jpeg.length, width: image.metadata.width, height: image.metadata.height,
@@ -211,6 +237,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
           deviceTimestampRaw: image.metadata.deviceTimestampRaw, cleanupPending: false, uploadLeaseUntil: null,
           validation: 'full_pixel_decode', timeBasis: 'gateway_receipt_not_verified_capture_time',
           receiveDiagnostics: { ...slot.diagnostics } });
+        if (lock.data()?.requestId === slot.id) tx.update(lockRef(slot.imei), { activeUntil: now() });
       });
       reportReceive(slot, 'image_available');
       await event(slot.id, 'image_available').catch(report);
@@ -323,7 +350,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     const lock = await lockRef(imei).get();
     const last = asDate(lock.data()?.lastRequestedAt);
     const retryAt = last ? new Date(last.getTime() + COOLDOWN_MS) : null;
-    return { cameraAvailable: enabledFor(imei), online: Boolean(connection(imei)), retryAt,
+    return { cameraAvailable: enabledFor(imei) && config.manualTestEnabled !== false, online: Boolean(connection(imei)), retryAt,
       snapshots: snaps.docs.map(doc => {
         const a = doc.data();
         let state = a.state;
@@ -351,7 +378,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       const auth = doc.data();
       const decision = await access(uid, auth.imei, doc => tx.get(doc));
       if (decision.ownerUid !== auth.serviceOwnerUid) fail('photo_not_found', 404);
-      tx.update(ref(id), { state: 'deleted', deletedAt: now(), updatedAt: now(), cleanupPending: true });
+      tx.update(ref(id), { state: 'deleted', deletedAt: now(), updatedAt: now(), cleanupPending: true, analysis: null });
     });
     await event(id, 'deletion_requested', uid);
     await cleanup(id);
@@ -373,7 +400,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       for (const doc of available.docs) if (asDate(doc.data().mediaExpiresAt) <= now()) {
         await db.runTransaction(async tx => {
           const fresh = await tx.get(doc.ref);
-          if (fresh.data()?.state === 'available') tx.update(doc.ref, { state: 'expired', cleanupPending: true, updatedAt: now() });
+          if (fresh.data()?.state === 'available') tx.update(doc.ref, { state: 'expired', cleanupPending: true, updatedAt: now(), analysis: null });
         });
       }
       const dirty = await db.collection('safetySnapshotAuthorizations').where('cleanupPending', '==', true).limit(100).get();
@@ -382,7 +409,10 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       }
     } finally { sweeping = false; }
   }
-  return { request, observe, observeTraffic, disconnect, list, image, remove, sweep, access };
+  const request = (uid, input) => requestInternal(uid, input);
+  const requestIncident = (uid, imei, incidentId) => requestInternal(uid, { imei,
+    purpose: 'SOS or fall incident surroundings', consentConfirmed: true, safetyPurposeConfirmed: true }, incidentId);
+  return { request, requestIncident, authorized, observe, observeTraffic, disconnect, list, image, remove, sweep, access };
 }
 
 let live = null;
@@ -407,6 +437,7 @@ function startSnapshotController({ db, findSessions, env = process.env }) {
   live.sweep().catch(() => console.warn('[safety-snapshot] cleanup deferred'));
   const timer = setInterval(() => live.sweep().catch(() => console.warn('[safety-snapshot] cleanup deferred')), 30_000);
   timer.unref();
+  require('./incident-photos-live').startIncidentPhotos({ db, snapshots: live, env });
   return live;
 }
 module.exports = { createSnapshotController, startSnapshotController, getSnapshotController, isPhotoFrame, decodePhoto };

@@ -433,8 +433,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Incident media and AI are available only through reauthorized HTTP reads.
+    match /incidentPhotos/{id} { allow read, write: if false; }
+    match /incidentPhotoSettings/{id} { allow read, write: if false; }
+    match /incidentPhotoDelivery/{id} { allow read, write: if false; }
+
     match /safetySnapshotAuthorizations/{authorizationId} {
-      allow read: if linkedTo(resource.data.imei)
+      allow read: if !('incidentId' in resource.data)
+        && linkedTo(resource.data.imei)
         && activePlanAtLeast('family')
         && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
       allow create, update, delete: if false;

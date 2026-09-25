@@ -1,4 +1,5 @@
 'use strict';
+const { getIncidentPhotos } = require('./incident-photos-live');
 const { getSnapshotController } = require('./safety-snapshot-live');
 
 async function readJson(req) {
@@ -12,9 +13,9 @@ async function readJson(req) {
   catch { throw Object.assign(new Error('invalid_json'), { status: 400, code: 'invalid_json' }); }
 }
 
-function createSnapshotHttpHandler({ controller = getSnapshotController, verifyToken = token => require('firebase-admin').auth().verifyIdToken(token, true) } = {}) {
+function createSnapshotHttpHandler({ controller = getSnapshotController, incidents = getIncidentPhotos, verifyToken = token => require('firebase-admin').auth().verifyIdToken(token, true) } = {}) {
   return async function handle(req, res, url) {
-    if (!url.pathname.startsWith('/api/safety-snapshots')) return false;
+    if (!url.pathname.startsWith('/api/safety-snapshots') && !url.pathname.startsWith('/api/incident-photos/')) return false;
     const headers = {
       'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, ngrok-skip-browser-warning',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Cache-Control': 'private, no-store',
@@ -30,6 +31,13 @@ function createSnapshotHttpHandler({ controller = getSnapshotController, verifyT
       catch { json(401, { error: 'sign_in_required' }); return true; }
       const api = controller();
       if (!api) { json(503, { error: 'camera_unavailable' }); return true; }
+      const incidentMatch = /^\/api\/incident-photos\/([A-Za-z0-9_-]{1,80})$/.exec(url.pathname);
+      if (incidentMatch && req.method === 'GET') {
+        const service = incidents();
+        if (!service) json(503, { error: 'camera_unavailable' });
+        else json(200, await service.gallery(identity.uid, incidentMatch[1]));
+        return true;
+      }
       const match = /^\/api\/safety-snapshots\/([a-f0-9-]{36})(\/image)?$/.exec(url.pathname);
       if (url.pathname === '/api/safety-snapshots' && req.method === 'GET') {
         json(200, await api.list(identity.uid, String(url.searchParams.get('imei') || '')));

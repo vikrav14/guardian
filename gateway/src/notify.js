@@ -142,14 +142,14 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   const sosPreparationPromise =
     isSos && config.notifyWhatsApp &&
       whatsappContacts.length > 0
-      ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
+      ? prepareSosWhatsApp({ device: device || {}, alert, alertId }).catch((err) => ({
           error: err.message,
         }))
       : null;
   const fallPreparationPromise =
     isFall && config.notifyWhatsApp &&
       whatsappContacts.length > 0
-      ? prepareFallWhatsApp({ device: device || {}, alert }).catch((err) => ({
+      ? prepareFallWhatsApp({ device: device || {}, alert, alertId }).catch((err) => ({
           error: err.message,
         }))
       : null;

@@ -79,6 +79,29 @@ function validRequest(requestedBy) {
   };
 }
 
+test('incident photos, AI and enrollment remain server-only even for a linked Family user', async () => {
+  const db = testEnv.authenticatedContext('family-user').firestore();
+  await testEnv.withSecurityRulesDisabled(async context => {
+    const adminDb = context.firestore();
+    for (const collection of ['incidentPhotos', 'incidentPhotoSettings', 'incidentPhotoDelivery']) {
+      await setDoc(doc(adminDb, collection, 'private-incident'), { imei, ownerUid: 'family-user' });
+    }
+    await setDoc(doc(adminDb, 'safetySnapshotAuthorizations', 'incident-photo'), {
+      imei, serviceOwnerUid: 'family-user', incidentId: 'private-incident', state: 'available',
+      analysis: { status: 'ready', visibleDetails: ['Synthetic scene'] },
+    });
+  });
+  for (const collection of ['incidentPhotos', 'incidentPhotoSettings', 'incidentPhotoDelivery']) {
+    await assertFails(getDoc(doc(db, collection, 'private-incident')));
+    await assertFails(setDoc(doc(db, collection, 'forged'), { imei, ownerUid: 'family-user', enabled: true }));
+  }
+  await assertFails(getDoc(doc(db, 'safetySnapshotAuthorizations', 'incident-photo')));
+  await assertFails(setDoc(doc(db, 'alerts', 'forged-photo-alarm'), {
+    imei, type: 'sos', severity: 'critical', message: 'App SOS', resolved: false,
+    notifyStatus: 'pending', createdAt: serverTimestamp(), incidentPhotoEligible: true, incidentPhotoPending: true,
+  }));
+});
+
 test('linked Family and Care users may enqueue a consent-bound snapshot request', async () => {
   for (const uid of ['family-user', 'care-user']) {
     const db = testEnv.authenticatedContext(uid).firestore();

@@ -28,6 +28,7 @@ function readSafetySnapshotRuntime(env = process.env) {
     acceptedImeis: Object.freeze(acceptedImeis),
     bucketName,
     mediaIngressAllowed: deviceDispatchAllowed,
+    manualTestEnabled: asBool(env.SAFETY_SNAPSHOT_MANUAL_TEST_ENABLED, false),
   });
 }
 

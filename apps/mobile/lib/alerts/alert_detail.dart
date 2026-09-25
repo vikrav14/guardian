@@ -6,6 +6,8 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../theme/app_theme.dart';
 import 'alert_presentation.dart';
+import '../screens/incident_photo_page.dart';
+import '../services/safety_snapshot_service.dart';
 
 class AlertDetail extends StatelessWidget {
   const AlertDetail({
@@ -96,6 +98,15 @@ class AlertDetail extends StatelessWidget {
                 style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ],
+          ],
+          if ((sos || alert.type.toLowerCase() == 'fall') && guardianSnapshotGatewayUrl.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => IncidentPhotoPage(incidentId: alert.id))),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Photos & AI details'),
+            ),
           ],
           if (sos) ...[
             const SizedBox(height: 20),

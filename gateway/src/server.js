@@ -1179,6 +1179,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
             eventAt: alarmAt,
 
+            ...(['sos', 'fall'].includes(alarmType)
+              ? { incidentPhotoEligible: true, incidentPhotoPending: true } : {}),
+
             payload: alarmPayload,
 
             ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
