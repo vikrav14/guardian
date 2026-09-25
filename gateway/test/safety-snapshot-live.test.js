@@ -89,6 +89,83 @@ function setup() {
 const input = { imei, purpose: 'Check immediate surroundings', consentConfirmed: true, safetyPurposeConfirmed: true };
 async function until(fn) { for (let i = 0; i < 200; i++) { if (fn()) return; await new Promise(resolve => setImmediate(resolve)); } assert.fail('operation did not finish'); }
 async function receive(s, id, bytes = frame()) { s.api.observe(bytes, s.socket, s.session); await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state)); }
+function ingress(s, chunk) {
+  const { frames, rest } = extractFrames(Buffer.concat([s.session.buffer || Buffer.alloc(0), chunk]));
+  s.session.buffer = Buffer.from(rest);
+  s.api.observeTraffic(s.socket, s.session, { chunkBytes: chunk.length, frames, rest });
+  for (const bytes of frames) if (isPhotoFrame(bytes)) s.api.observe(bytes, s.socket, s.session);
+}
+
+test('timeout records a bare reply and continued traffic without implying a photo', async () => {
+  const s = setup(), id = await s.api.request('owner', input);
+  s.advance(500);
+  const reply = Buffer.from('[3G*9705254749*0008*rcapture]');
+  ingress(s, reply.subarray(0, 10)); ingress(s, reply.subarray(10));
+  s.advance(30_000); ingress(s, Buffer.from('[3G*9705254749*0002*LK]'));
+  s.advance(90_000); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics;
+  assert.equal(s.auth(id).reason, 'image_timeout');
+  assert.equal(d.rcaptureReplies, 1); assert.equal(d.chunks, 3); assert.equal(d.frames, 2);
+  assert.equal(d.firstDataAfterMs, 500); assert.equal(d.lastDataAfterMs, 30_500);
+  assert.equal(d.photoHeaderSeen, false); assert.equal(d.acceptedPhotoFrames, 0);
+  assert.equal(d.bufferedBytes, 0); assert.equal(d.failureStage, null);
+  assert.equal(s.writes.length, 1); assert.equal(s.objects.size, 0);
+  assert.equal(s.logs.length, 2);
+  assert(s.logs[1].includes('image_timeout'));
+  // No diagnostics are collected outside the explicit request window.
+  ingress(s, frame()); assert.equal(s.logs.length, 2);
+});
+
+test('an incomplete photo survives framing as diagnostic evidence, never as a saved image', async () => {
+  const s = setup(), id = await s.api.request('owner', input);
+  const incomplete = frame().subarray(0, -1);
+  ingress(s, incomplete.subarray(0, 22)); s.advance(1000);
+  ingress(s, incomplete.subarray(22));
+  s.advance(120_000); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics;
+  assert.equal(d.photoHeaderSeen, true); assert.equal(d.incompletePhotoBuffered, true);
+  assert.equal(d.firstPhotoHeaderAfterMs, 1000);
+  assert.equal(d.bufferedBytes, incomplete.length); assert.equal(d.maxBufferedBytes, incomplete.length);
+  assert.equal(d.photoFrames, 0); assert.equal(d.acceptedPhotoFrames, 0);
+  assert.equal(s.objects.size, 0); assert.equal(s.writes.length, 1);
+  const diagnosticOutput = JSON.stringify({ d, logs: s.logs });
+  for (const secret of [imei, protocolId, input.purpose, jpeg.toString('hex'), '260925002653', 'frameHex']) {
+    assert.equal(diagnosticOutput.includes(secret), false, 'metadata must omit private content');
+  }
+});
+
+test('replacement, changed identity and expired photo arrivals remain rejected with counts', async () => {
+  const s = setup(), id = await s.api.request('owner', input);
+  s.api.observe(frame(), {}, { ...s.session });
+  s.session.imei = '861397052547490';
+  ingress(s, frame()); s.session.imei = imei;
+  s.advance(121_000); s.api.observe(frame(), s.socket, s.session); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics;
+  assert.equal(d.differentSessionPhotoFrames, 1); assert.equal(d.identityMismatchPhotoFrames, 1);
+  assert.equal(d.expiredPhotoFrames, 1); assert.equal(d.identityChanged, true);
+  assert.equal(d.acceptedPhotoFrames, 0); assert.equal(s.objects.size, 0);
+  assert.equal(s.writes.length, 1);
+});
+
+test('unsupported header is visible in diagnostics without broadening accepted media', async () => {
+  const s = setup(), id = await s.api.request('owner', input);
+  ingress(s, Buffer.from('[3G*861397052547492*0004*IMG,]'));
+  s.advance(121_000); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics;
+  assert.equal(d.photoHeaderSeen, true); assert.equal(d.photoFrames, 1);
+  assert.equal(d.acceptedPhotoFrames, 0); assert.equal(s.objects.size, 0);
+});
+
+test('decoder rejection is distinguished from timeout without emitting the corrupt payload', async () => {
+  const s = setup(), id = await s.api.request('owner', input);
+  ingress(s, frame({ image: Buffer.from('private-invalid-image') }));
+  await until(() => s.auth(id).state === 'failed');
+  assert.equal(s.auth(id).reason, 'image_rejected_or_storage_failed');
+  assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'decode');
+  assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
+  assert.equal(JSON.stringify(s.logs).includes('private-invalid-image'), false);
+  assert.equal(s.objects.size, 0);
+});
 
 test('real decoded V52 identity is online and supports capture through the session registry', async t => {
   const s = setup();
@@ -173,6 +250,7 @@ test('disconnect and gateway restart never resend a capture', async () => {
   s.advance(15 * 60_000); const next = await s.api.request('owner', input);
   const restarted = createSnapshotController(s.args); s.advance(121_000); await restarted.sweep();
   assert.equal(s.auth(next).reason, 'image_timeout'); assert.equal(s.writes.length, 2);
+  assert.equal(s.auth(next).receiveDiagnostics, undefined, 'restart must not invent zero-traffic evidence');
   restarted.observe(frame(), s.socket, s.session); assert.equal(s.objects.size, 0);
 });
 
@@ -186,6 +264,7 @@ test('revoked membership or subscription blocks upload and later image viewing',
   const s = setup(), id = await s.api.request('member', input);
   s.db.rows.get('users/owner').memberUids = [];
   await receive(s, id); assert.equal(s.auth(id).state, 'failed'); assert.equal(s.objects.size, 0);
+  assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'authorize');
   s.advance(15 * 60_000); const next = await s.api.request('owner', input); await receive(s, next);
   s.db.rows.get('serviceSubscriptions/owner').status = 'expired';
   await assert.rejects(s.api.image('owner', next));
@@ -195,6 +274,7 @@ test('storage failure is not success and ambiguous writes are cleaned up', async
   const s = setup(); s.bucket.failSave = true; const id = await s.api.request('owner', input);
   await receive(s, id); await until(() => s.objects.size === 0 && !s.auth(id).cleanupPending);
   assert.equal(s.auth(id).state, 'failed');
+  assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'storage');
 });
 
 test('deletion during upload prevents publication and removes the eventual object', async () => {
@@ -222,6 +302,7 @@ test('real TCP splitting/coalescing preserves the photo and the following heartb
   const [socket] = await connected; t.after(() => { socket.destroy(); watch.destroy(); });
   s.matches([{ socket, session: s.session }]); let buffer = Buffer.alloc(0), heartbeats = 0;
   socket.on('data', chunk => { const result = extractFrames(Buffer.concat([buffer, chunk])); buffer = Buffer.from(result.rest);
+    s.api.observeTraffic(socket, s.session, { chunkBytes: chunk.length, frames: result.frames, rest: result.rest });
     for (const bytes of result.frames) { if (isPhotoFrame(bytes)) s.api.observe(bytes, socket, s.session); else heartbeats++; }
   });
   const downlink = once(watch, 'data'); const id = await s.api.request('owner', input);
@@ -229,6 +310,9 @@ test('real TCP splitting/coalescing preserves the photo and the following heartb
   const bytes = frame(); watch.write(bytes.subarray(0, 127));
   watch.write(Buffer.concat([bytes.subarray(127), Buffer.from(`[3G*${protocolId}*0002*LK]`)]));
   await until(() => s.auth(id).state === 'available'); assert.equal(heartbeats, 1);
+  assert.equal(s.auth(id).receiveDiagnostics.photoFrames, 1);
+  assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
+  assert.equal(s.auth(id).receiveDiagnostics.failureStage, null);
 });
 
 test('authenticated HTTP routes enforce token verification, no-store media and deletion', async t => {

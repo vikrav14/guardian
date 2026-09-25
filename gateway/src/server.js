@@ -1344,6 +1344,8 @@ const server = net.createServer((socket) => {
 
     session.buffer = Buffer.from(rest);
 
+    // Counts/header flags only, including incomplete uploads before framing.
+    snapshotController?.observeTraffic(socket, session, { chunkBytes: chunk.length, frames, rest });
 
 
     for (const frame of frames) {

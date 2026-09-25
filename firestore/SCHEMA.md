@@ -859,6 +859,13 @@ That watcher is no longer started by the reminder scheduler.
   `validation: full_pixel_decode`, `correlation: same_session_request_window`
   and `requestCorrelationVerified: false`. `receivedAt` is gateway time, not a
   verified capture timestamp. There is no verified on-wire request identifier.
+- Optional `receiveDiagnostics` (version 1) accompanies terminal receive states:
+  fixed-size traffic/frame/rejection counters, relative arrival times, buffered
+  byte counts, image-header flags and a fixed failure-stage label. It contains
+  no raw frames, image data or credentials, and is not exposed in the app HTTP
+  list. Packet observation is in memory only; no per-packet Firestore writes.
+  Missing diagnostics (older requests or a restarted gateway) mean unavailable
+  evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
 - `cleanupPending` and `uploadLeaseUntil` retain interrupted/deferred deletion
   work. The gateway denies expired/deleted access immediately, then deletes
   objects while running and after restart. It never resends capture commands.

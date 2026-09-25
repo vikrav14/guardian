@@ -17,6 +17,21 @@ function fail(code, status = 409) { throw Object.assign(new Error(code), { code,
 function isPhotoFrame(frame) {
   return Buffer.isBuffer(frame) && frame.length >= 24 && frame.subarray(20, 24).equals(Buffer.from('img,'));
 }
+// Diagnostic classification only: never accepts a new media format. Inspect a
+// bounded header and retain booleans/counts, never image bytes or header text.
+function hasPhotoHeader(bytes) {
+  return /^\[[a-z0-9]{2}\*\d{10,15}\*[a-f0-9]{4}\*img(?:,|$)/i
+    .test(bytes.subarray(0, 48).toString('latin1'));
+}
+function receiveDiagnostics() {
+  return { version: 1, chunks: 0, bytes: 0, frames: 0, rcaptureReplies: 0,
+    photoFrames: 0, photoHeaderSeen: false, firstPhotoHeaderAfterMs: null,
+    firstDataAfterMs: null, lastDataAfterMs: null, bufferedBytes: 0,
+    maxBufferedBytes: 0, incompletePhotoBuffered: false, identityChanged: false,
+    acceptedPhotoFrames: 0, differentSessionPhotoFrames: 0,
+    identityMismatchPhotoFrames: 0, expiredPhotoFrames: 0,
+    duplicatePhotoFrames: 0, failureStage: null };
+}
 function decodePhoto(frame, protocolId) {
   const decoded = decodeV52PhotoFrame(frame, protocolId);
   const pixels = jpegCodec.decode(decoded.jpeg, {
@@ -35,6 +50,11 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   const lockRef = imei => db.collection('safetySnapshotDeviceLocks').doc(imei);
   const enabledFor = imei => config.deviceDispatchAllowed && config.acceptedImeis.includes(imei);
   const report = () => log('[safety-snapshot] operation failed; private payload omitted');
+  const reportReceive = (slot, outcome) => {
+    // Fixed schema; no exception text, identities, purpose, token or media.
+    if (slot) log(`[safety-snapshot] ${JSON.stringify({ requestId: slot.id,
+      outcome, receiveDiagnostics: slot.diagnostics })}`);
+  };
   const event = (id, type, uid = null) => db.collection('safetySnapshotAudit').doc(id)
     .collection('events').add({ type, uid, at: now() });
 
@@ -59,12 +79,15 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     return matches.length === 1 ? matches[0] : null;
   }
 
-  async function finishFailure(id, reason) {
-    await db.runTransaction(async tx => {
+  async function finishFailure(id, reason, slot = null) {
+    const changed = await db.runTransaction(async tx => {
       const doc = await tx.get(ref(id));
-      if (!doc.exists || !ACTIVE_STATES.includes(doc.data().state)) return;
-      tx.update(ref(id), { state: 'failed', reason, updatedAt: now() });
+      if (!doc.exists || !ACTIVE_STATES.includes(doc.data().state)) return false;
+      tx.update(ref(id), { state: 'failed', reason, updatedAt: now(),
+        ...(slot ? { receiveDiagnostics: { ...slot.diagnostics } } : {}) });
+      return true;
     });
+    if (changed) reportReceive(slot, reason);
   }
 
   async function request(uid, input) {
@@ -106,13 +129,14 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     if (!selected) { await finishFailure(id, 'watch_disconnected'); return id; }
     // Install reception before write; reply/upload may race the persistence update.
     const slot = { id, ...selected, imei, ownerUid: claimed.serviceOwnerUid, uid,
-      expiresAt: claimed.authorizationExpiresAt, receiving: false };
+      expiresAt: claimed.authorizationExpiresAt, startedAt: now(), receiving: false,
+      protocolId: selected.session.protocolId, diagnostics: receiveDiagnostics() };
     pending.set(selected.socket, slot);
     try {
       selected.socket.write(Buffer.from(`[3G*${selected.session.protocolId}*0008*rcapture]`, 'ascii'), error => {
         if (error) {
           if (pending.get(selected.socket) === slot) pending.delete(selected.socket);
-          finishFailure(id, 'send_failed').catch(report);
+          finishFailure(id, 'send_failed', slot).catch(report);
         }
       });
       await db.runTransaction(async tx => {
@@ -123,9 +147,10 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         });
       });
       await event(id, 'command_handed_off', uid);
+      reportReceive(slot, 'command_handed_off');
     } catch {
       if (pending.get(selected.socket) === slot) pending.delete(selected.socket);
-      await finishFailure(id, 'send_or_persistence_failed');
+      await finishFailure(id, 'send_or_persistence_failed', slot);
     }
     return id;
   }
@@ -145,8 +170,10 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
 
   async function receive(slot, frame) {
     let attemptedSave = false;
+    let stage = 'decode';
     try {
-      const image = decodePhoto(frame, slot.session.protocolId);
+      const image = decodePhoto(frame, slot.protocolId);
+      stage = 'authorize';
       await db.runTransaction(async tx => {
         const doc = await tx.get(ref(slot.id));
         const auth = doc.data();
@@ -157,11 +184,13 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       });
       const path = privatePath(slot.ownerUid, slot.imei, slot.id);
       attemptedSave = true;
+      stage = 'storage';
       await bucket.file(path).save(image.jpeg, {
         resumable: false, timeout: 30_000, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 },
         metadata: { contentType: 'image/jpeg', cacheControl: 'private, no-store',
           metadata: { requestId: slot.id, expiresAt: new Date(now().getTime() + RETENTION_MS).toISOString() } },
       });
+      stage = 'publish';
       await db.runTransaction(async tx => {
         const doc = await tx.get(ref(slot.id));
         const auth = doc.data();
@@ -171,11 +200,14 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
           sizeBytes: image.jpeg.length, width: image.metadata.width, height: image.metadata.height,
           contentType: 'image/jpeg', sha256: crypto.createHash('sha256').update(image.jpeg).digest('hex'),
           deviceTimestampRaw: image.metadata.deviceTimestampRaw, cleanupPending: false, uploadLeaseUntil: null,
-          validation: 'full_pixel_decode', timeBasis: 'gateway_receipt_not_verified_capture_time' });
+          validation: 'full_pixel_decode', timeBasis: 'gateway_receipt_not_verified_capture_time',
+          receiveDiagnostics: { ...slot.diagnostics } });
       });
+      reportReceive(slot, 'image_available');
       await event(slot.id, 'image_available').catch(report);
     } catch {
-      await finishFailure(slot.id, 'image_rejected_or_storage_failed');
+      slot.diagnostics.failureStage = stage;
+      await finishFailure(slot.id, 'image_rejected_or_storage_failed', slot);
       if (attemptedSave) {
         await ref(slot.id).update({ cleanupPending: true, uploadLeaseUntil: null });
         await cleanup(slot.id);
@@ -185,21 +217,55 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     }
   }
 
+  function observeTraffic(socket, session, { chunkBytes, frames, rest }) {
+    const slot = pending.get(socket);
+    if (!slot || now() >= slot.expiresAt) return;
+    const d = slot.diagnostics, afterMs = Math.max(0, now() - slot.startedAt);
+    d.chunks++; d.bytes += chunkBytes; d.frames += frames.length;
+    d.firstDataAfterMs ??= afterMs; d.lastDataAfterMs = afterMs;
+    d.bufferedBytes = rest.length;
+    d.maxBufferedBytes = Math.max(d.maxBufferedBytes, rest.length);
+    d.incompletePhotoBuffered = hasPhotoHeader(rest);
+    d.identityChanged ||= slot.session !== session || slot.imei !== session.imei ||
+      slot.protocolId !== session.protocolId;
+    const reply = Buffer.from(`[3G*${slot.protocolId}*0008*rcapture]`, 'ascii');
+    for (const frame of frames) {
+      if (frame.equals(reply)) d.rcaptureReplies++;
+      if (hasPhotoHeader(frame)) d.photoFrames++;
+    }
+    if (d.incompletePhotoBuffered || d.photoFrames > 0) {
+      d.photoHeaderSeen = true;
+      d.firstPhotoHeaderAfterMs ??= afterMs;
+    }
+  }
+
   function observe(frame, socket, session) {
     if (!isPhotoFrame(frame)) return false;
     const slot = pending.get(socket);
-    if (slot && !slot.receiving && slot.session === session && slot.imei === session.imei && now() < slot.expiresAt) {
+    if (!slot) {
+      // Record a replacement-session arrival as evidence only; never adopt it.
+      for (const active of pending.values()) {
+        if (now() < active.expiresAt && active.imei === session.imei &&
+            active.protocolId === session.protocolId) active.diagnostics.differentSessionPhotoFrames++;
+      }
+    } else if (slot.receiving) slot.diagnostics.duplicatePhotoFrames++;
+    else if (slot.session !== session) slot.diagnostics.differentSessionPhotoFrames++;
+    else if (slot.imei !== session.imei || slot.protocolId !== session.protocolId) slot.diagnostics.identityMismatchPhotoFrames++;
+    else if (now() >= slot.expiresAt) slot.diagnostics.expiredPhotoFrames++;
+    else {
+      slot.diagnostics.acceptedPhotoFrames++;
       slot.receiving = true;
       receive(slot, Buffer.from(frame)).catch(report);
     }
-    // Unsolicited, duplicate and expired images are dropped without logs or ACKs.
+    // Dropped images never generate ACKs or raw logs. Counters are bounded to
+    // this request and written once with its terminal state, not per packet.
     return true;
   }
 
   function disconnect(socket) {
     const slot = pending.get(socket);
     pending.delete(socket);
-    if (slot && !slot.receiving) finishFailure(slot.id, 'watch_disconnected').catch(report);
+    if (slot && !slot.receiving) finishFailure(slot.id, 'watch_disconnected', slot).catch(report);
   }
 
   async function authorized(uid, id, { viewing = false } = {}) {
@@ -261,7 +327,8 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       // Each query is bounded, uses a single-field index, and recovers after restart.
       const active = await db.collection('safetySnapshotAuthorizations').where('state', 'in', ACTIVE_STATES).where('authorizationExpiresAt', '<=', now()).orderBy('authorizationExpiresAt').limit(100).get();
       for (const doc of active.docs) if (asDate(doc.data().authorizationExpiresAt) <= now()) {
-        await finishFailure(doc.id, 'image_timeout');
+        const slot = [...pending.values()].find(value => value.id === doc.id);
+        await finishFailure(doc.id, 'image_timeout', slot);
       }
       for (const [socket, slot] of pending) if (slot.expiresAt <= now()) pending.delete(socket);
       const available = await db.collection('safetySnapshotAuthorizations').where('state', '==', 'available').where('mediaExpiresAt', '<=', now()).orderBy('mediaExpiresAt').limit(100).get();
@@ -277,7 +344,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       }
     } finally { sweeping = false; }
   }
-  return { request, observe, disconnect, list, image, remove, sweep, access };
+  return { request, observe, observeTraffic, disconnect, list, image, remove, sweep, access };
 }
 
 let live = null;

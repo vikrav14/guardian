@@ -123,6 +123,46 @@ V52 identity through the actual session registry, verifies the literal observed
 Restart the gateway after pulling this fix; the Flutter app and Firebase
 deployment do not need to be restarted or redeployed for this gateway change.
 
+## Command acknowledged, image timed out (25 September)
+
+The first direct Guardian request was created at 12:34:35.792 UTC (16:34 MUT).
+Its stored command handoff is 12:34:36.132 UTC, and the gateway recorded the
+watch's bare `rcapture` reply. The authorization expired at 12:36:35.792 UTC;
+the cleanup sweep saved `state=failed`, `reason=image_timeout` at 12:37:02.773.
+`receivedAt`, `sizeBytes` and `validation` are absent. This proves command
+delivery and no completed Guardian photo, not that the camera took a photo or
+that no partial bytes arrived. Both earlier hands-off capture files still pass
+the current production framer and full JPEG decoder offline.
+
+The gateway now collects fixed-size, per-request receive diagnostics in memory
+and saves `receiveDiagnostics` with the terminal receive state. It prints
+`[safety-snapshot]` JSON summaries at command handoff and terminal receive outcome. No raw
+frames, image data, purpose, identity or tokens are included. Packet observation
+does not add Firestore writes, send commands, acknowledge images or change the
+two-minute deadline or 15-minute cooldown. The selected protocol identity is
+frozen for the request, and a changed session identity remains rejected.
+
+After pulling this update, restart only the gateway in its existing configured
+PowerShell window. Keep the current app, ngrok and Firebase deployment. Once
+the displayed cooldown ends, request **one** photo through the app. Keep the
+gateway running through the terminal result (the sweep can take up to another
+30 seconds after the two-minute window) and share the `[safety-snapshot]` rows.
+
+| Diagnostic | What it can establish |
+| --- | --- |
+| `rcaptureReplies` | Exact bare replies on the requested connection; not images. |
+| `chunks`, `bytes`, `firstDataAfterMs`, `lastDataAfterMs` | Traffic received during the request window, including ordinary telemetry. |
+| `photoHeaderSeen`, `photoFrames` | A recognizable image header or complete framed image candidate reached this connection. Classification does not accept an unverified format. |
+| `incompletePhotoBuffered`, `bufferedBytes`, `maxBufferedBytes` | An incomplete image or other bytes remained in the framer. Zero recognized headers alone cannot exclude an unknown transport/format. |
+| `acceptedPhotoFrames` | An image entered validation for this request; it is not proof of successful validation/storage. |
+| `differentSessionPhotoFrames`, `identityMismatchPhotoFrames`, `expiredPhotoFrames`, `duplicatePhotoFrames` | Images seen but not adopted for the specified reason. A replacement connection is never substituted. |
+| `failureStage` | `decode`, `authorize`, `storage` or `publish` if receive processing failed. Null on a timeout does not indicate a storage fault. |
+
+These diagnostics are absent on older requests and after a gateway restart
+loses its in-memory observer; absence must not be interpreted as zero traffic.
+The original timed-out request cannot be diagnosed retroactively from these
+counters. Direct Guardian photo display/deletion is still unverified.
+
 ## Boundaries and recovery
 
 - `rcapture` has no verified request identifier. Association is limited to one
