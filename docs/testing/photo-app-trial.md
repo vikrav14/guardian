@@ -264,9 +264,27 @@ accepts this observed five-NUL variant alongside one, two and six, while still
 rejecting nonzero/unobserved trailers and requiring full pixel decoding before
 private storage. Synthetic regressions reproduce the former rejection and
 cover fragmented ingress, exact stored JPEG bytes, authenticated retrieval,
-offline extraction and corrupt pixel data. They do not establish that this
-particular device JPEG passes full pixel decoding: the saved private frame must
-be replayed for that evidence. No private frame or image is committed.
+offline extraction and corrupt pixel data. No private frame or image is committed.
+
+### Exact saved-frame replay confirmed (21:38 MUT)
+
+The operator supplied the private file for the same request, with receive time
+`2026-09-25T13:48:00.678Z`. Replay confirmed one complete 4487-byte image frame,
+no leftover framing bytes, a 4358-byte 240x240 JPEG and exactly five zero bytes
+after EOI. The previous decoder reproduced `unsupported_image_trailer`; the
+updated production `extractFrames`, `isPhotoFrame` and `decodePhoto` path passed,
+including strict full pixel decoding. The extracted image was also visually
+verified as a normally rendered room/ceiling view. No network connection,
+camera command, cloud import or request-state mutation was performed.
+
+Both [Guardian release gates](https://github.com/vikrav14/guardian/actions/runs/36144194300)
+and [Dashboard UI review](https://github.com/vikrav14/guardian/actions/runs/36144194112)
+passed at `b233553`; all 1,357 local gateway tests had passed. Update/restart the
+Windows gateway to load that fix, then perform one fresh app-confirmed capture.
+Repeat app receipt/display and direct Guardian deletion remain acceptance items;
+the offline replay must not be counted as a new successful live request.
+
+The following lookup is retained for locating a diagnostic file if needed:
 
 Locate the saved diagnostic file without triggering another watch capture:
 

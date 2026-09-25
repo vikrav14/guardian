@@ -7,7 +7,7 @@
 | Runtime | Explicit gates, private bucket and exact IMEI allowlist required |
 | Verified watch exchange | `[3G*<protocolId>*0008*rcapture]`, then TCP `img` |
 | Hardware evidence | Two decoded reference captures; first Guardian photo displayed at 17:30:24 MUT on 25 September |
-| Next acceptance | Replay the 17:47 rejected frame, then repeat Guardian capture and test deletion |
+| Next acceptance | Install the verified trailer fix, repeat Guardian capture and test deletion |
 
 The app integration is implemented on PR #113. It does not activate the user's
 Windows gateway or deploy Firebase changes. See the
@@ -89,9 +89,12 @@ Two AnyTracking hands-off captures and full offline/live-decoder validation are
 established on Jesh. The operator confirmed a displayed Guardian photo received
 at 17:30:24 MUT on 25 September. The next attempt, around 17:47, delivered an
 image frame after 9.285 seconds but was rejected solely at the trailer check:
-five zero bytes after a structurally parsed 4358-byte, 240x240 JPEG. Five-NUL
-support now preserves the JPEG bytes and still requires full pixel validation;
-the saved private frame has not yet been supplied for exact replay. See the
+five zero bytes after a structurally parsed 4358-byte, 240x240 JPEG. At 21:38 MUT
+the operator supplied the saved private frame. The old decoder reproduced the
+trailer rejection; the updated production framer and full pixel decoder passed
+the exact frame, and its 240x240 image was visually verified. Both GitHub
+workflows passed at code-fix head `b233553`. This validates the decoder fix
+offline, not a new Guardian app capture or deletion. See the
 [trial evidence](../testing/photo-app-trial.md#five-nul-trailer-rejection-1747-mut).
 
 Repeat success, direct Guardian deletion, wearer indication, reliability across
