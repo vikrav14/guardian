@@ -32,6 +32,7 @@ class FakePhotos extends SafetySnapshotService {
             ],
     );
   }
+
   @override
   Future<String> requestSnapshot({
     required String imei,
@@ -46,44 +47,47 @@ class FakePhotos extends SafetySnapshotService {
 }
 
 void main() {
-  testWidgets('stalled load exposes retry and recovers without a camera request', (
-    tester,
-  ) async {
-    final stalled = Completer<SnapshotFeed>();
-    final service = FakePhotos()..firstLoad = stalled;
-    addTearDown(service.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SafetySnapshotPage(
-          imei: '861397052547492',
-          name: 'Jesh',
-          service: service,
+  testWidgets(
+    'stalled load exposes retry and recovers without a camera request',
+    (tester) async {
+      final stalled = Completer<SnapshotFeed>();
+      final service = FakePhotos()..firstLoad = stalled;
+      addTearDown(service.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SafetySnapshotPage(
+            imei: '861397052547492',
+            name: 'Jesh',
+            service: service,
+          ),
         ),
-      ),
-    );
-    expect(find.text('Connecting to the photo service…'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 36));
-    expect(find.text('Retry connection'), findsOneWidget);
-    expect(find.text('Connecting to the photo service…'), findsNothing);
-    await tester.pump(const Duration(seconds: 60));
-    expect(service.loads, 1);
-    await tester.tap(find.text('Retry connection'));
-    await tester.pump();
-    expect(service.loads, 2);
-    expect(service.requests, 0);
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Take photo'))
-          .onPressed,
-      isNotNull,
-    );
-    stalled.complete(
-      const SnapshotFeed(items: [], cameraAvailable: false, online: false),
-    );
-    await tester.pump();
-    expect(find.text('Take one photo from Jesh’s watch.'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+      );
+      expect(find.text('Connecting to the photo service…'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 36));
+      expect(find.text('Retry connection'), findsOneWidget);
+      expect(find.text('Connecting to the photo service…'), findsNothing);
+      await tester.pump(const Duration(seconds: 60));
+      expect(service.loads, 1);
+      await tester.tap(find.text('Retry connection'));
+      await tester.pump();
+      expect(service.loads, 2);
+      expect(service.requests, 0);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Take photo'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      stalled.complete(
+        const SnapshotFeed(items: [], cameraAvailable: false, online: false),
+      );
+      await tester.pump();
+      expect(find.text('Take one photo from Jesh’s watch.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('returning during an old load promptly refreshes the status', (
     tester,

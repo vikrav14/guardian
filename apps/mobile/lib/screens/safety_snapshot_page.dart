@@ -95,7 +95,8 @@ class _SafetySnapshotPageState extends State<SafetySnapshotPage>
           .load(widget.imei)
           .timeout(
             const Duration(seconds: 35),
-            onTimeout: () => throw const SnapshotFailure('photo_service_timeout'),
+            onTimeout: () =>
+                throw const SnapshotFailure('photo_service_timeout'),
           );
       if (!mounted || !_foreground) return;
       setState(() {
