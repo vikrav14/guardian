@@ -16,7 +16,8 @@ before(async () => {
 after(async () => { if (app) await app.delete(); });
 
 test('real Firestore transactions serialize capture, store a private image and recover deletion', async () => {
-  const imei = '861397052547492', protocolId = imei.slice(3, 13);
+  // Use the observed wire ID independently of the production conversion.
+  const imei = '861397052547492', protocolId = '9705254749';
   const sent = [], objects = new Map();
   const socket = { write(bytes, callback) { sent.push(bytes.toString()); callback?.(); return true; } };
   const session = { imei, protocolId };
@@ -32,7 +33,7 @@ test('real Firestore transactions serialize capture, store a private image and r
   const input = { imei, purpose: 'Check immediate surroundings', consentConfirmed: true, safetyPurposeConfirmed: true };
   const results = await Promise.allSettled([one.request('owner', input), two.request('member', input)]);
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
-  assert.deepEqual(sent, [`[3G*${protocolId}*0008*rcapture]`]);
+  assert.deepEqual(sent, ['[3G*9705254749*0008*rcapture]']);
   const winner = results[0].status === 'fulfilled' ? one : two;
   const id = results.find(result => result.status === 'fulfilled').value;
   const escapes = new Map([[0x7d, 1], [0x5b, 2], [0x5d, 3], [0x2c, 4], [0x2a, 5]]);
