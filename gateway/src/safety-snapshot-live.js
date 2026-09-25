@@ -6,6 +6,7 @@ const { decodeV52PhotoFrame } = require('./protocol/v52-photo');
 const { assessSnapshotAccess } = require('./safety-snapshot-requests');
 const { normalizePurpose, asDate } = require('./safety-snapshot-policy');
 const { readSafetySnapshotRuntime } = require('./safety-snapshot-runtime');
+const { protocolIdFromFullImei } = require('./imei');
 
 const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -50,9 +51,10 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   }
 
   function connection(imei) {
+    const expectedProtocolId = protocolIdFromFullImei(imei);
     const matches = findSessions(imei).filter(({ socket, session }) =>
       !socket.destroyed && socket.writable !== false && session.imei === imei &&
-      session.protocolId === imei.slice(3, 13));
+      expectedProtocolId != null && session.protocolId === expectedProtocolId);
     // Never fan out a camera request across duplicate/replacement sessions.
     return matches.length === 1 ? matches[0] : null;
   }

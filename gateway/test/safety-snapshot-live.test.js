@@ -6,9 +6,12 @@ const net = require('node:net');
 const { once } = require('node:events');
 const { createSnapshotController, decodePhoto, isPhotoFrame } = require('../src/safety-snapshot-live');
 const { createSnapshotHttpHandler } = require('../src/safety-snapshot-http');
-const { extractFrames } = require('../src/protocol/gt06');
+const { extractFrames, decodeFrame, handlePacket } = require('../src/protocol/gt06');
+const sessions = require('../src/sessions');
 const jpeg = require('./fixtures/photo-synthetic');
-const imei = '861397052547492', protocolId = imei.slice(3, 13);
+// Literal identities observed on Jesh; do not derive expected wire data from the
+// implementation under test (the previous slice repeated the production bug).
+const imei = '861397052547492', protocolId = '9705254749';
 const clone = value => value == null ? value : structuredClone(value);
 
 // Serialized transactions model competing gateway workers against one durable store.
@@ -86,6 +89,34 @@ function setup() {
 const input = { imei, purpose: 'Check immediate surroundings', consentConfirmed: true, safetyPurposeConfirmed: true };
 async function until(fn) { for (let i = 0; i < 200; i++) { if (fn()) return; await new Promise(resolve => setImmediate(resolve)); } assert.fail('operation did not finish'); }
 async function receive(s, id, bytes = frame()) { s.api.observe(bytes, s.socket, s.session); await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state)); }
+
+test('real decoded V52 identity is online and supports capture through the session registry', async t => {
+  const s = setup();
+  sessions.registerSession(s.socket);
+  t.after(() => sessions.unregisterSession(s.socket));
+  const session = sessions.getSession(s.socket);
+  const decoded = decodeFrame(Buffer.from('[3G*9705254749*0016*RYIMEI,861397052547492]'));
+  assert.equal(decoded.error, undefined);
+  handlePacket(decoded, session);
+  assert.equal(session.imei, '861397052547492');
+  assert.equal(session.protocolId, '9705254749');
+  const api = createSnapshotController({ ...s.args, findSessions: sessions.findSocketsForDevice });
+  assert.equal((await api.list('owner', imei)).online, true);
+  const id = await api.request('owner', input);
+  assert.equal(s.writes.length, 1);
+  assert.equal(s.writes[0].toString(), '[3G*9705254749*0008*rcapture]');
+  api.observe(frame(), s.socket, session);
+  await until(() => s.auth(id).state === 'available');
+  assert.deepEqual(await api.image('owner', id), jpeg);
+});
+
+test('an incorrect protocol identity stays blocked even with the linked IMEI', async () => {
+  const s = setup();
+  s.session.protocolId = '3970525474';
+  assert.equal((await s.api.list('owner', imei)).online, false);
+  await assert.rejects(s.api.request('owner', input), /watch_offline_or_reconnecting/);
+  assert.equal(s.writes.length, 0);
+});
 
 test('authorized request sends exact 3G command once; image receives full validation and private view/delete', async () => {
   const s = setup(), id = await s.api.request('owner', input);

@@ -114,6 +114,15 @@ terminal as well as the gateway terminal. Losing browser focus clears the photo
 view and pauses polling; returning to the app refreshes the status. The loading
 message describes connection to the photo service, not watch connectivity.
 
+The 25 September trial reached the service but reported a connected watch as
+offline. The photo connection filter used the wrong IMEI substring, expecting
+`3970525474` instead of Jesh's observed `9705254749`. It now uses Guardian's
+canonical `protocolIdFromFullImei` helper. Regression coverage passes a decoded
+V52 identity through the actual session registry, verifies the literal observed
+`rcapture` frame, and keeps mismatched identities and duplicate sessions blocked.
+Restart the gateway after pulling this fix; the Flutter app and Firebase
+deployment do not need to be restarted or redeployed for this gateway change.
+
 ## Boundaries and recovery
 
 - `rcapture` has no verified request identifier. Association is limited to one
