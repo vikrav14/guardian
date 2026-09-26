@@ -362,7 +362,9 @@ void main() {
       await tester.pump();
       expect(find.text('A chair stands beside a window.'), findsOneWidget);
       expect(
-        find.text('Automatic orientation is uncertain. Use Rotate to adjust the view.'),
+        find.text(
+          'Automatic orientation is uncertain. Use Rotate to adjust the view.',
+        ),
         findsOneWidget,
       );
       expect(find.text('Auto rotate'), findsNothing);
