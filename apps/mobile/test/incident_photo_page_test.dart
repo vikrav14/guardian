@@ -255,79 +255,78 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  test(
-    'selected viewing rotation allows abstention but blocks conflicts',
-    () {
-      final base = <String, dynamic>{
-        'status': 'ready',
-        'basis': 'rotated_original_photo',
-        'inputRotationClockwiseDegrees': 270,
-        'orientationReference': 'analysis_input',
-        'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+  test('selected viewing rotation allows abstention but blocks conflicts', () {
+    final base = <String, dynamic>{
+      'status': 'ready',
+      'basis': 'rotated_original_photo',
+      'inputRotationClockwiseDegrees': 270,
+      'orientationReference': 'analysis_input',
+      'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+      'orientationSelection': {
+        'method': 'four_views_then_description',
+        'clockwiseDegrees': 270,
+        'confidence': 'high',
+      },
+    };
+    int? turns(Map<String, dynamic> analysis) => IncidentPhoto(
+      id: 'photo-one',
+      sequence: 1,
+      state: 'available',
+      analysis: analysis,
+    ).suggestedQuarterTurns;
+    expect(turns(base), 3);
+    final selection = base['orientationSelection'] as Map<String, dynamic>;
+    final uncertain = {
+      ...base,
+      'orientation': {'clockwiseDegrees': null, 'confidence': 'low'},
+      'orientationSelection': {...selection, 'verification': 'uncertain'},
+    };
+    expect(turns(uncertain), 3);
+    expect(turns({...uncertain, 'orientation': null}), 3);
+    for (final change in [
+      {
+        'orientationSelection': {...selection, 'confidence': 'low'},
+      },
+      {
+        'orientationSelection': {...selection, 'verification': 'conflicting'},
+      },
+      {
+        'orientationSelection': {...selection, 'verification': 'unknown'},
+      },
+      {
+        'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+      },
+      {
+        'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'},
+      },
+    ]) {
+      expect(turns({...uncertain, ...change}), isNull);
+    }
+    for (final change in [
+      {'orientationSelection': null},
+      {'orientationReference': 'original_photo'},
+      {'inputRotationClockwiseDegrees': 90},
+      {'inputRotationClockwiseDegrees': '270'},
+      {'basis': 'unknown'},
+      {
         'orientationSelection': {
           'method': 'four_views_then_description',
           'clockwiseDegrees': 270,
           'confidence': 'high',
+          'verification': 'conflicting',
         },
-      };
-      int? turns(Map<String, dynamic> analysis) => IncidentPhoto(
-        id: 'photo-one',
-        sequence: 1,
-        state: 'available',
-        analysis: analysis,
-      ).suggestedQuarterTurns;
-      expect(turns(base), 3);
-      final selection = base['orientationSelection'] as Map<String, dynamic>;
-      final uncertain = {
-        ...base,
-        'orientation': {'clockwiseDegrees': null, 'confidence': 'low'},
-        'orientationSelection': {...selection, 'verification': 'uncertain'},
-      };
-      expect(turns(uncertain), 3);
-      expect(turns({...uncertain, 'orientation': null}), 3);
-      for (final change in [
-        {'orientationSelection': {...selection, 'confidence': 'low'}},
-        {
-          'orientationSelection': {...selection, 'verification': 'conflicting'},
-        },
-        {
-          'orientationSelection': {...selection, 'verification': 'unknown'},
-        },
-        {
-          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
-        },
-        {
-          'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'},
-        },
-      ]) {
-        expect(turns({...uncertain, ...change}), isNull);
-      }
-      for (final change in [
-        {'orientationSelection': null},
-        {'orientationReference': 'original_photo'},
-        {'inputRotationClockwiseDegrees': 90},
-        {'inputRotationClockwiseDegrees': '270'},
-        {'basis': 'unknown'},
-        {
-          'orientationSelection': {
-            'method': 'four_views_then_description',
-            'clockwiseDegrees': 270,
-            'confidence': 'high',
-            'verification': 'conflicting',
-          },
-        },
-        {
-          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
-        },
-        {
-          'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'},
-        },
-        {'status': 'unavailable'},
-      ]) {
-        expect(turns({...base, ...change}), isNull);
-      }
-    },
-  );
+      },
+      {
+        'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+      },
+      {
+        'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'},
+      },
+      {'status': 'unavailable'},
+    ]) {
+      expect(turns({...base, ...change}), isNull);
+    }
+  });
   testWidgets(
     'gallery is read-only and shows progress, source basis and per-photo uncertainty',
     (tester) async {
