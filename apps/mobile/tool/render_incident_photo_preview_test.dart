@@ -34,11 +34,12 @@ class PreviewIncidentService extends SafetySnapshotService {
               'An indoor view shows pale walls, a doorway and part of a sofa.',
           'inputRotationClockwiseDegrees': 90,
           'orientationReference': 'analysis_input',
-          'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+          'orientation': {'clockwiseDegrees': null, 'confidence': 'low'},
           'orientationSelection': {
             'method': 'four_views_then_description',
             'clockwiseDegrees': 90,
             'confidence': 'high',
+            'verification': 'uncertain',
           },
           'visibleDetails': <String>[],
           'uncertainDetails': ['The nearby surface may be upholstery.'],

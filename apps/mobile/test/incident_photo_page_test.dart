@@ -232,11 +232,12 @@ void main() {
         'limitations': <String>[],
         'inputRotationClockwiseDegrees': 270,
         'orientationReference': 'analysis_input',
-        'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+        'orientation': {'clockwiseDegrees': null, 'confidence': 'low'},
         'orientationSelection': {
           'method': 'four_views_then_description',
           'clockwiseDegrees': 270,
           'confidence': 'high',
+          'verification': 'uncertain',
         },
       };
       await tester.pump(const Duration(seconds: 3));
@@ -244,7 +245,7 @@ void main() {
       expect(turns(), 0, reason: 'new processing must respect Original');
       await tester.tap(find.text('Auto rotate'));
       await tester.pump();
-      expect(turns(), 3, reason: 'apply input rotation, not the residual zero');
+      expect(turns(), 3, reason: 'apply the selected input rotation');
       expect(
         (tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes,
         same(bytes),
@@ -255,7 +256,7 @@ void main() {
     },
   );
   test(
-    'rotated analysis requires matching selection and an upright residual',
+    'selected viewing rotation allows abstention but blocks conflicts',
     () {
       final base = <String, dynamic>{
         'status': 'ready',
@@ -276,6 +277,31 @@ void main() {
         analysis: analysis,
       ).suggestedQuarterTurns;
       expect(turns(base), 3);
+      final selection = base['orientationSelection'] as Map<String, dynamic>;
+      final uncertain = {
+        ...base,
+        'orientation': {'clockwiseDegrees': null, 'confidence': 'low'},
+        'orientationSelection': {...selection, 'verification': 'uncertain'},
+      };
+      expect(turns(uncertain), 3);
+      expect(turns({...uncertain, 'orientation': null}), 3);
+      for (final change in [
+        {'orientationSelection': {...selection, 'confidence': 'low'}},
+        {
+          'orientationSelection': {...selection, 'verification': 'conflicting'},
+        },
+        {
+          'orientationSelection': {...selection, 'verification': 'unknown'},
+        },
+        {
+          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+        },
+        {
+          'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'},
+        },
+      ]) {
+        expect(turns({...uncertain, ...change}), isNull);
+      }
       for (final change in [
         {'orientationSelection': null},
         {'orientationReference': 'original_photo'},

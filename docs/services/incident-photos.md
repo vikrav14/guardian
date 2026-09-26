@@ -343,9 +343,10 @@ With `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=true`, processing uses:
    the orientation reference explicit: any turn is additional to the image actually
    supplied in this request. This call gets no proposed scene description or
    orientation answer. A valid description is kept even if orientation is uncertain
-   or disagrees. Automatic viewing rotation requires a clear selection and a
-   high-confidence residual zero; disagreement withholds that viewing suggestion
-   without a third call or automatic retry.
+   or disagrees. Automatic viewing rotation uses a clear selector result when the
+   description confirms zero additional turn or abstains. A confident nonzero
+   residual is a conflict and withholds the viewing suggestion. There is no third
+   call or automatic retry.
 
 Each provider request has a 20-second timeout; orientation is bounded to 160 output
 tokens/1,000 characters and description to 900 tokens/5,000 characters. Each PNG
@@ -360,9 +361,13 @@ The saved record includes the input rotation, separate selector provenance and
 remains relative to `analysis_input`; the gallery applies the selected input turn
 to the original exactly once. Manual Rotate/Original choices take precedence.
 `orientationSelection.verification` is derived from the two responses: `confirmed`,
-`uncertain`, `conflicting`, or `not_selected`. Uncertain or conflicting orientation
-leaves the original view and the validated description available with a separate
-orientation note. Existing photos are not automatically reanalysed.
+`uncertain`, `conflicting`, or `not_selected`. `uncertain` means the description
+abstained; it does not contradict the selector's high-confidence viewing suggestion.
+The gallery may apply that selected turn while retaining manual Rotate/Original
+controls. `conflicting` and `not_selected` retain the original view and display a
+separate orientation note alongside the valid description. A viewing suggestion
+is reversible and is not a verified camera angle or evidence about body posture.
+Existing photos are not automatically reanalysed.
 Inspect a new photo with `incident:inspect -- --photo UUID` to confirm the stored
 model, prompt version, input rotation and orientation method.
 
@@ -388,6 +393,31 @@ derived verification state. `--show-analysis` exposes the validated description
 only in the operator's terminal. Access and AI consent are checked between both
 calls. No saved analysis, camera command, original bytes, incident state or
 notification is changed; the result reports `savedAnalysisChanged: false`.
+
+The subsequent saved-photo probe selected 270 degrees with high confidence and
+produced a useful description. Its description response abstained on orientation
+(`null`/`low`) rather than proposing a competing turn. Review of the supplied
+screenshot agreed with the selected turn. This justifies separating a selector recommendation from
+a secondary abstention for reversible viewing; it is one-image evidence, not a
+general accuracy or capture-reliability claim. No private scene text is retained.
+
+To recover an existing failed orientation analysis into the gallery, the operator
+can explicitly add `--save-analysis` to the confirmed automatic probe:
+
+```powershell
+npm run incident:inspect -- --photo UUID --probe-ai --probe-orientation --confirm --save-analysis --bucket guardian-fbadd.firebasestorage.app
+```
+
+This runs fresh analysis (the previous console-only result was not saved) and
+replaces only `unavailable` analyses with reason `analysis_orientation_uncertain`
+or `analysis_orientation_inconsistent`. Successful output is `analysis_saved`
+with `savedAnalysisChanged: true`. Other failures, pending work and existing
+successful analyses are refused before AI. The final transaction checks current
+access/subscription/consent, incident membership, photo and incident expiry,
+unchanged original path/hash and unchanged failed analysis. Concurrent recovery,
+deletion or access changes win over a late result. Failed processing leaves the old
+record intact. No capture, incident/follow-up state, notification, original bytes
+or expiry is changed. An ambiguous save error must be inspected before retrying.
 
 Rollback: set `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=false` and restart the gateway
 to restore the single original-JPEG AI call. Saved originals remain unchanged.

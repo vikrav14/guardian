@@ -33,24 +33,29 @@ class IncidentPhoto {
       return null;
     }
     final orientation = analysis?['orientation'];
-    if (orientation is! Map || orientation['confidence'] != 'high') {
-      return null;
-    }
-    final degrees = orientation['clockwiseDegrees'];
     if (analysis?['basis'] != 'original_photo') {
       final selection = analysis?['orientationSelection'];
       final inputRotation = analysis?['inputRotationClockwiseDegrees'];
+      final confirmed =
+          orientation is Map &&
+          orientation['confidence'] == 'high' &&
+          orientation['clockwiseDegrees'] == 0;
+      final abstained =
+          orientation == null ||
+          (orientation is Map &&
+              orientation['confidence'] == 'low' &&
+              orientation['clockwiseDegrees'] == null);
       if (![
             'rotated_original_photo',
             'decoded_original_photo',
           ].contains(analysis?['basis']) ||
           analysis?['orientationReference'] != 'analysis_input' ||
-          degrees != 0 ||
           selection is! Map ||
           selection['method'] != 'four_views_then_description' ||
           selection['confidence'] != 'high' ||
-          (selection['verification'] != null &&
-              selection['verification'] != 'confirmed') ||
+          !(confirmed &&
+                  [null, 'confirmed'].contains(selection['verification']) ||
+              abstained && selection['verification'] == 'uncertain') ||
           selection['clockwiseDegrees'] != inputRotation) {
         return null;
       }
@@ -58,6 +63,10 @@ class IncidentPhoto {
           ? inputRotation ~/ 90
           : null;
     }
+    if (orientation is! Map || orientation['confidence'] != 'high') {
+      return null;
+    }
+    final degrees = orientation['clockwiseDegrees'];
     return degrees is int && [0, 90, 180, 270].contains(degrees)
         ? degrees ~/ 90
         : null;

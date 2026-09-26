@@ -389,11 +389,9 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
         if (status == 'too_unclear') const Text('Limited visual detail'),
         if (hasSummary || visibleDetails.isNotEmpty)
           Text(hasSummary ? summary : visibleDetails.join(' ')),
-        if ([
-          'uncertain',
-          'conflicting',
-          'not_selected',
-        ].contains(analysis?['orientationSelection']?['verification']))
+        if (['conflicting', 'not_selected'].contains(
+          analysis?['orientationSelection']?['verification'],
+        ))
           const Text(
             'Automatic orientation is uncertain. Use Rotate to adjust the view.',
           ),
