@@ -2,7 +2,7 @@
 
 const { consentAllows, validIncidentId } = require('../src/incident-photo-policy');
 const { asDate } = require('../src/safety-snapshot-policy');
-const { createPhotoAnalyzer, analysisFailure } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance } = require('../src/incident-photo-analysis');
 const photoIdValid = value => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value || '');
 
 async function inspectIncidentPhoto({ db, photoId }) {
@@ -17,16 +17,19 @@ async function inspectIncidentPhoto({ db, photoId }) {
   return { outcome: 'inspection', incidentId: photo.incidentId, incidentState: incident.state,
     incidentReason: incident.reason || null, photos: rows.map(doc => {
       const row = doc.data() || {};
+      const provenance = analysisProvenance(row.analysis);
       // Explicit field selection: never include scene descriptions, identifiers
       // of household members, object paths, hashes or the original image.
       return { requestId: doc.id, sequence: row.sequence, state: row.state, reason: row.reason || null,
         aiStatus: row.analysis?.status || null, aiReason: row.analysis?.reason || null,
+        aiModel: provenance.model || null, aiResponseModel: provenance.responseModel || null,
+        aiPromptVersion: provenance.promptVersion || null,
         failureStage: row.receiveDiagnostics?.failureStage || null,
         rejectionReason: row.receiveDiagnostics?.rejectionReason || null };
     }) };
 }
 
-async function probeOriginal({ db, snapshots, photoId, analyze, now = () => new Date() }) {
+async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = false, now = () => new Date() }) {
   if (!photoIdValid(photoId)) return { outcome: 'probe_blocked', reason: 'invalid_photo_id' };
   if (!analyze) return { outcome: 'probe_blocked', reason: 'analysis_not_configured' };
   const photo = (await db.collection('safetySnapshotAuthorizations').doc(photoId).get()).data();
@@ -48,29 +51,43 @@ async function probeOriginal({ db, snapshots, photoId, analyze, now = () => new 
     await reauthorize();
   } catch { return { outcome: 'probe_blocked', reason: 'original_or_consent_unavailable' }; }
   let result;
-  try { result = await analyze(bytes); }
+  try { result = analysisRecord(await analyze(bytes)); }
   catch (error) { return { outcome: 'probe_failed', ...analysisFailure(error) }; }
   try { await reauthorize(); }
   catch { return { outcome: 'probe_blocked', reason: 'access_changed_during_probe' }; }
   return { outcome: 'probe_succeeded', status: result.status, basis: 'original_photo',
+    ...analysisProvenance(result),
     visibleDetailCount: result.visibleDetails.length, uncertaintyCount: result.uncertainDetails.length,
-    limitationCount: result.limitations.length, savedAnalysisChanged: false };
+    limitationCount: result.limitations.length, savedAnalysisChanged: false,
+    ...(showAnalysis ? { analysis: result } : {}) };
+}
+
+function parseInspectionArgs(args) {
+  const options = {};
+  for (let i = 0; i < args.length; i++) {
+    const key = args[i];
+    if (Object.hasOwn(options, key)) throw Error('invalid_arguments');
+    if (['--probe-ai', '--confirm', '--show-analysis'].includes(key)) options[key] = true;
+    else if (['--photo', '--bucket'].includes(key) && args[i + 1] && !args[i + 1].startsWith('--')) options[key] = args[++i];
+    else throw Error('invalid_arguments');
+  }
+  if (!photoIdValid(options['--photo'])) throw Error('invalid_photo_id');
+  if (options['--show-analysis'] && !options['--probe-ai']) throw Error('probe_required');
+  if (options['--probe-ai'] && !options['--confirm']) throw Error('probe_confirmation_required');
+  return { photoId: options['--photo'], bucket: options['--bucket'], probe: options['--probe-ai'] === true,
+    showAnalysis: options['--show-analysis'] === true };
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const flag = name => args.includes(`--${name}`);
-  const value = name => args[args.indexOf(`--${name}`) + 1];
-  if (!flag('photo') || !photoIdValid(value('photo'))) throw Error('invalid_photo_id');
-  if (flag('probe-ai') && !flag('confirm')) throw Error('probe_confirmation_required');
+  const options = parseInspectionArgs(process.argv.slice(2));
   const config = require('../src/config');
   const { initFirestore } = require('../src/firestore');
   const db = initFirestore({ startWatchers: false });
   if (!db) throw Error('firestore_unavailable');
   try {
-    console.log(JSON.stringify(await inspectIncidentPhoto({ db, photoId: value('photo') }), null, 2));
-    if (!flag('probe-ai')) return;
-    const bucketName = flag('bucket') ? value('bucket') : process.env.FIREBASE_STORAGE_BUCKET;
+    console.log(JSON.stringify(await inspectIncidentPhoto({ db, photoId: options.photoId }), null, 2));
+    if (!options.probe) return;
+    const bucketName = options.bucket || process.env.FIREBASE_STORAGE_BUCKET;
     if (![`${config.firebaseProjectId}.firebasestorage.app`, `${config.firebaseProjectId}.appspot.com`].includes(bucketName)) {
       throw Error('project_bucket_required');
     }
@@ -80,14 +97,15 @@ async function main() {
     const snapshots = createSnapshotController({ db, bucket: admin.storage().bucket(bucketName), findSessions: () => [] });
     const analyze = createPhotoAnalyzer({ apiKey: config.anthropicApiKey,
       model: process.env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel });
-    console.log(JSON.stringify(await probeOriginal({ db, snapshots, photoId: value('photo'), analyze }), null, 2));
+    console.log(JSON.stringify(await probeOriginal({ db, snapshots, photoId: options.photoId,
+      analyze, showAnalysis: options.showAnalysis }), null, 2));
   } finally { await db.terminate(); }
 }
 if (require.main === module) main().catch(error => {
-  const allowed = ['invalid_photo_id', 'probe_confirmation_required', 'incident_photo_not_found',
+  const allowed = ['invalid_arguments', 'invalid_photo_id', 'probe_required', 'probe_confirmation_required', 'incident_photo_not_found',
     'invalid_incident', 'firestore_unavailable', 'project_bucket_required'];
   console.error(JSON.stringify({ outcome: 'inspection_failed', reason: allowed.includes(error?.message)
     ? error.message : 'check_configuration_or_access' }));
   process.exitCode = 1;
 });
-module.exports = { inspectIncidentPhoto, probeOriginal };
+module.exports = { inspectIncidentPhoto, probeOriginal, parseInspectionArgs };

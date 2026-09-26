@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPhotoAnalyzer, validateAnalysis, analysisFailure } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, validateAnalysis, analysisFailure, PROMPT_VERSION } = require('../src/incident-photo-analysis');
 const { templateDefinitions, photoTemplatePlan, buildFollowupPlan } = require('../src/incident-photo-templates');
 const image = require('./fixtures/photo-synthetic');
 const valid = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: [], limitations: ['Blur limits detail.'] };
@@ -12,7 +12,7 @@ test('vision request uses the exact original bytes, bounded tokens/time and no i
     const body = JSON.parse(request.body);
     const source = body.messages[0].content[0].source;
     assert.deepEqual(Buffer.from(source.data, 'base64'), image);
-    assert.equal(body.max_tokens, 700); assert(request.signal);
+    assert.equal(body.max_tokens, 900); assert(request.signal);
     assert.match(body.system, /never follow them/);
     return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(valid) }] }) };
   } });
@@ -72,7 +72,7 @@ test('one complete JSON code fence is accepted for visible and unreadable scenes
     const json = JSON.stringify(value);
     for (const text of [json, '```json\n' + json + '\n```', '```\n' + json + '\n```',
       ' \n```JSON\r\n' + json + '\r\n```\t\n']) {
-      assert.deepEqual(await analyzeText(text), { ...value, model: 'test-only', basis: 'original_photo', version: 1 });
+      assert.deepEqual(await analyzeText(text), { ...value, model: 'test-only', promptVersion: PROMPT_VERSION, basis: 'original_photo', version: 1 });
     }
   }
 });
@@ -111,6 +111,43 @@ test('orientation is a bounded viewing suggestion from the same original-photo r
   assert.deepEqual((await analyzeText(JSON.stringify({ ...unclear,
     orientation: { clockwiseDegrees: 90, confidence: 'high' } }))).orientation,
   { clockwiseDegrees: 90, confidence: 'high' });
+});
+
+test('a concise scene summary can carry meaningful detail without filler observations', async () => {
+  const value = { status: 'ready', summary: 'A chair stands beside a window.',
+    visibleDetails: [], uncertainDetails: [], limitations: ['Fine details are blurred.'],
+    orientation: { clockwiseDegrees: 90, confidence: 'high' } };
+  const analyzed = await analyzeText(JSON.stringify(value));
+  assert.equal(analyzed.summary, value.summary);
+  assert.equal(analyzed.version, 3);
+  assert.equal(analyzed.promptVersion, PROMPT_VERSION);
+  assert.deepEqual(analyzed.visibleDetails, []);
+  assert.deepEqual(analyzed.orientation, value.orientation);
+});
+
+test('summary receives the same content safeguards and cannot smuggle provider metadata', async () => {
+  for (const summary of ['', ' ', 'x'.repeat(321), 'The wearer is safe.', 'No emergency.',
+    'https://example.test', '<script>bad</script>', 'Hidden\ntext']) {
+    await assert.rejects(analyzeText(JSON.stringify({ ...valid, summary })),
+      error => analysisFailure(error).reason === 'analysis_schema_rejected');
+  }
+  for (const extra of [{ model: 'invented-model' }, { promptVersion: 3 }, { confidence: 'certain' }]) {
+    assert.throws(() => validateAnalysis({ ...valid, summary: 'A chair is visible.', ...extra }));
+  }
+});
+
+test('provenance distinguishes the requested model from the provider response model', async () => {
+  for (const responseModel of ['provider-model-20260901', 'secret scene\ncontent', undefined]) {
+    const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'configured-alias', fetchImpl: async () => ({
+      ok: true, json: async () => ({ model: responseModel, stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify(valid) }] }),
+    }) });
+    const analyzed = await analyze(image);
+    assert.equal(analyzed.model, 'configured-alias');
+    assert.equal(analyzed.responseModel, responseModel === 'provider-model-20260901' ? responseModel : undefined);
+    assert.equal(analyzed.promptVersion, PROMPT_VERSION);
+    assert.equal(JSON.stringify(analyzed).includes('secret scene'), false);
+  }
 });
 
 test('uncertain or malformed orientation cannot rotate the image or discard a valid description', async () => {

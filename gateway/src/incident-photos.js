@@ -2,7 +2,7 @@
 
 const { asDate } = require('./safety-snapshot-policy');
 const { MAX_PHOTOS, SEQUENCE_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
-const { validateAnalysis, analysisFailure } = require('./incident-photo-analysis');
+const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
 const RETENTION_MS = 24 * 60 * 60_000;
 const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
@@ -115,10 +115,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const image = await snapshots.image(claim.serviceOwnerUid, id);
       stage = 'provider';
       const result = await analyze(image);
-      const { status, visibleDetails, uncertainDetails, limitations, orientation } = result;
-      analysis = { ...validateAnalysis({ status, visibleDetails, uncertainDetails, limitations,
-        ...(orientation === undefined ? {} : { orientation }) }),
-        basis: 'original_photo', version: orientation === undefined ? 1 : 2, generatedAt: now() };
+      analysis = { ...analysisRecord(result), generatedAt: now() };
     } catch (error) {
       analysis = stage === 'original'
         ? { status: 'unavailable', reason: 'analysis_original_unavailable' }
@@ -163,7 +160,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
     // Cross-photo summary only cites per-photo statements; no inferred movement,
     // diagnosis, location confirmation or emergency decision is generated.
     const summary = photos.filter(p => p.analysis?.status === 'ready').map(p => ({
-      photo: p.sequence, text: p.analysis.visibleDetails[0],
+      photo: p.sequence, text: p.analysis.summary || p.analysis.visibleDetails[0],
     }));
     return { id: alertId, type: incident.type, trial: incident.trial, state: incident.state, reason: incident.reason,
       eventAt: asDate(incident.eventAt), expiresAt: asDate(incident.expiresAt), target: MAX_PHOTOS, photos, summary };

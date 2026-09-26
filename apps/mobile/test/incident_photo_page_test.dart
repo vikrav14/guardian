@@ -16,6 +16,7 @@ class FakeIncidentPhotos extends SafetySnapshotService {
   bool deleted = false;
   Uint8List? imageBytes;
   Map<String, dynamic>? orientation;
+  Map<String, dynamic>? analysisOverride;
   Completer<IncidentPhotoFeed>? pending;
   @override
   Future<IncidentPhotoFeed> loadIncident(String id) async {
@@ -35,7 +36,7 @@ class FakeIncidentPhotos extends SafetySnapshotService {
           state: deleted ? 'deleted' : 'available',
           receivedAt: DateTime.now(),
           expiresAt: DateTime.now().add(const Duration(hours: 1)),
-          analysis: {
+          analysis: analysisOverride ?? {
             'status': 'ready',
             'basis': 'original_photo',
             if (orientation != null) 'orientation': orientation,
@@ -245,13 +246,66 @@ void main() {
       await tester.pump();
       expect(find.text('1 of up to 5 photos available'), findsOneWidget);
       expect(find.text('Guardian AI photo insights'), findsOneWidget);
-      expect(find.text('• An object may be a table.'), findsOneWidget);
+      expect(find.text('A chair is visible.'), findsOneWidget);
+      expect(find.text('An object may be a table.'), findsOneWidget);
       expect(find.text('Take photo'), findsNothing);
       expect(service.requests, 0);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('scene summary leads with caveats visible and extra detail optional', (tester) async {
+    tester.view.physicalSize = const Size(390, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final service = FakeIncidentPhotos()
+      ..analysisOverride = {
+        'status': 'ready',
+        'summary': 'A chair stands beside a window.',
+        'visibleDetails': ['A curtain is visible.'],
+        'uncertainDetails': ['A small object may be a bag.'],
+        'limitations': ['Fine details are blurred.', 'The view is partly obstructed.'],
+      };
+    await tester.pumpWidget(MaterialApp(
+      home: IncidentPhotoPage(incidentId: 'incident1', service: service),
+    ));
+    await tester.pump();
+    expect(find.text('A chair stands beside a window.'), findsOneWidget);
+    expect(find.text('A small object may be a bag.'), findsOneWidget);
+    expect(find.text('Fine details are blurred.'), findsOneWidget);
+    expect(find.text('• A curtain is visible.'), findsNothing);
+    await tester.tap(find.text('More photo details'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('• A curtain is visible.'), findsOneWidget);
+    expect(find.text('• The view is partly obstructed.'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    expect(find.text('A chair stands beside a window.'), findsNothing);
+    expect(find.text('• A curtain is visible.'), findsNothing);
+    expect(service.requests, 0);
+    await tester.pumpWidget(const SizedBox());
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+  testWidgets('unreadable imagery describes visibility without an assessment label', (tester) async {
+    final service = FakeIncidentPhotos()
+      ..analysisOverride = {
+        'status': 'too_unclear',
+        'summary': 'The image is almost entirely dark.',
+        'visibleDetails': <String>[],
+        'uncertainDetails': <String>[],
+        'limitations': ['Objects cannot be distinguished.'],
+      };
+    await tester.pumpWidget(MaterialApp(
+      home: IncidentPhotoPage(incidentId: 'incident1', service: service),
+    ));
+    await tester.pump();
+    expect(find.text('Limited visual detail'), findsOneWidget);
+    expect(find.text('The image is almost entirely dark.'), findsOneWidget);
+    expect(find.text('Too unclear to assess'), findsNothing);
+    expect(find.text('More photo details'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'backgrounding hides image and AI, and a failed foreground access check stays private',
     (tester) async {

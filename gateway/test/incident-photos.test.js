@@ -170,6 +170,28 @@ test('viewing orientation is saved with AI, preserves original bytes and follows
   assert.equal(s.auth(id).analysis, null);
 });
 
+test('concise summaries and bounded provenance persist under the same private analysis lifecycle', async () => {
+  const description = { ...result, summary: 'A chair stands beside a window.', visibleDetails: [],
+    model: 'configured-alias', responseModel: 'provider-model-20260901', promptVersion: 3,
+    privateExtra: 'secret provider details' };
+  const s = trial({ analyze: async () => description });
+  s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0]; await receive(s, id);
+  await s.incidents.analyzePhoto(id);
+  const gallery = await s.incidents.gallery('member', 'alertOne');
+  assert.equal(gallery.photos[0].analysis.summary, description.summary);
+  assert.equal(gallery.photos[0].analysis.model, 'configured-alias');
+  assert.equal(gallery.photos[0].analysis.responseModel, 'provider-model-20260901');
+  assert.equal(gallery.photos[0].analysis.promptVersion, 3);
+  assert.equal(gallery.photos[0].analysis.version, 3);
+  assert.equal(gallery.summary[0].text, description.summary);
+  assert.equal(JSON.stringify(gallery).includes('secret provider details'), false);
+  s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+  assert.deepEqual((await s.incidents.gallery('owner', 'alertOne')).photos[0].analysis, { status: 'unavailable' });
+  await s.api.remove('owner', id);
+  assert.equal(s.auth(id).analysis, null);
+});
+
 test('incident HTTP reads require authentication, current household access and no-store', async () => {
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
   const handler = createSnapshotHttpHandler({ controller: () => s.api, incidents: () => s.incidents,

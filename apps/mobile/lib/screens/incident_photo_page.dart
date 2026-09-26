@@ -331,7 +331,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const Text(
-                'AI interpretation of the original. Details may be incorrect; check the photo.',
+                'AI description of the original photo. Check against the image.',
               ),
               const SizedBox(height: 8),
               _analysis(photo.analysis),
@@ -357,24 +357,57 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
     if (status != 'ready' && status != 'too_unclear') {
       return const Text('Analysing this photo…');
     }
+    List<String> details(String key) =>
+        (analysis?[key] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .map((text) => text.trim())
+            .where((text) => text.isNotEmpty)
+            .toSet()
+            .toList();
+    final visibleDetails = details('visibleDetails');
+    final summary = (analysis?['summary'] as String?)?.trim();
+    final hasSummary = summary != null && summary.isNotEmpty;
+    final uncertain = details('uncertainDetails');
+    final limitations = details('limitations')
+        .where((text) => !uncertain.contains(text))
+        .toList();
+    final extra = [
+      ('Also visible', hasSummary ? visibleDetails : <String>[]),
+      ('Uncertain details', uncertain.skip(1).toList()),
+      ('Image quality', limitations.skip(1).toList()),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (status == 'too_unclear') const Text('Too unclear to assess'),
-        for (final section in [
-          ('visibleDetails', 'Visible details'),
-          ('uncertainDetails', 'Uncertain details'),
-          ('limitations', 'Image limitations'),
+        if (status == 'too_unclear') const Text('Limited visual detail'),
+        if (hasSummary || visibleDetails.isNotEmpty)
+          Text(hasSummary ? summary : visibleDetails.join(' ')),
+        for (final caveat in [
+          if (uncertain.isNotEmpty) uncertain.first,
+          if (limitations.isNotEmpty) limitations.first,
         ])
-          if ((analysis![section.$1] as List<dynamic>? ?? []).isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              section.$2,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            for (final text in analysis[section.$1] as List<dynamic>)
-              Text('• $text'),
-          ],
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(caveat),
+          ),
+        if (extra.any((section) => section.$2.isNotEmpty))
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            title: const Text('More photo details'),
+            children: [
+              for (final section in extra)
+                if (section.$2.isNotEmpty) ...[
+                  Text(
+                    section.$1,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  for (final text in section.$2) Text('• $text'),
+                  const SizedBox(height: 8),
+                ],
+            ],
+          ),
       ],
     );
   }

@@ -3,9 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, receive, imei } = require('./helpers/photo-harness');
 const { createIncidentPhotos } = require('../src/incident-photos');
-const { createPhotoAnalyzer } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, PROMPT_VERSION } = require('../src/incident-photo-analysis');
 const { CONSENT_VERSION } = require('../src/incident-photo-policy');
-const { inspectIncidentPhoto, probeOriginal } = require('../scripts/inspect-incident-photo');
+const { inspectIncidentPhoto, probeOriginal, parseInspectionArgs } = require('../scripts/inspect-incident-photo');
 const original = require('./fixtures/photo-synthetic');
 const result = { status: 'too_unclear', visibleDetails: [], uncertainDetails: [], limitations: ['The photo is too dark.'] };
 
@@ -54,12 +54,51 @@ test('explicit probe accepts fenced AI output on one saved original and leaves s
   assert.equal(calls, 1);
   assert.equal(s.writes.length, 1, 'only the fixture setup sent a camera command');
   assert.deepEqual(report, { outcome: 'probe_succeeded', status: 'too_unclear', basis: 'original_photo',
+    model: 'test-only', promptVersion: PROMPT_VERSION,
     visibleDetailCount: 0, uncertaintyCount: 0, limitationCount: 1, savedAnalysisChanged: false });
   assert.deepEqual(s.auth(s.photoId), photoBefore);
   assert.deepEqual(s.db.rows.get('incidentPhotos/trialOne'), incidentBefore);
   const added = [...s.db.rows.keys()].filter(key => !keysBefore.has(key));
   assert.equal(added.length, 1);
   assert.equal(s.db.rows.get(added[0]).type, 'viewed');
+});
+
+test('description output is opt-in, validated, reauthorized and never saved by the probe', async () => {
+  const s = await savedPhoto();
+  const photoBefore = structuredClone(s.auth(s.photoId));
+  const description = { ...result, summary: 'The view is mostly dark.', model: 'configured-model',
+    responseModel: 'provider-model', promptVersion: 3, privateExtra: 'secret raw content' };
+  const hidden = await probeOriginal({ ...s.probe, analyze: async () => description });
+  assert.equal(hidden.analysis, undefined);
+  assert.equal(JSON.stringify(hidden).includes(description.summary), false);
+  const report = await probeOriginal({ ...s.probe, analyze: async () => description, showAnalysis: true });
+  assert.equal(report.analysis.summary, description.summary);
+  assert.equal(report.analysis.responseModel, 'provider-model');
+  assert.equal(report.analysis.privateExtra, undefined);
+  assert.deepEqual(s.auth(s.photoId), photoBefore);
+  assert.equal(s.writes.length, 1);
+  const invalid = await probeOriginal({ ...s.probe, showAnalysis: true,
+    analyze: async () => ({ ...description, summary: 'The wearer is safe.' }) });
+  assert.equal(invalid.outcome, 'probe_failed');
+  assert.equal(invalid.analysis, undefined);
+  const revoked = await probeOriginal({ ...s.probe, showAnalysis: true, analyze: async () => {
+    s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+    return description;
+  } });
+  assert.equal(revoked.outcome, 'probe_blocked');
+  assert.equal(revoked.analysis, undefined);
+});
+
+test('description flag requires a confirmed probe and malformed CLI options fail before any work', () => {
+  const id = '00000000-0000-0000-0000-000000000001';
+  const base = ['--photo', id];
+  assert.throws(() => parseInspectionArgs([...base, '--show-analysis']), /probe_required/);
+  assert.throws(() => parseInspectionArgs([...base, '--probe-ai', '--show-analysis']), /probe_confirmation_required/);
+  assert.throws(() => parseInspectionArgs([...base, '--photo', id]), /invalid_arguments/);
+  assert.throws(() => parseInspectionArgs([...base, '--bucket']), /invalid_arguments/);
+  assert.throws(() => parseInspectionArgs([...base, '--unknown']), /invalid_arguments/);
+  assert.deepEqual(parseInspectionArgs([...base, '--probe-ai', '--confirm', '--show-analysis']),
+    { photoId: id, bucket: undefined, probe: true, showAnalysis: true });
 });
 
 test('probe blocks revoked consent, expiry, deletion, changed ownership and revoked subscription before AI', async () => {

@@ -31,6 +31,43 @@ descriptions and an unavailable fourth request. That fourth stop reason still
 needs diagnostics. This establishes displayed AI results, not verified scene
 accuracy, five-photo completion or live acceptance of automatic orientation.
 
+On 26 September at 20:21 and 20:36 MUT, two supervised attempts each returned
+one bare capture reply and 64 total bytes across two frames, with no photo
+header/frame or partial buffer before timeout. The supplied log contains no
+reconnect or CR around either attempt. A further alert at 20:42 reused the 20:36
+incident's lock, which expired at 20:48:11; it was not another capture attempt.
+A 21:00 screenshot subsequently shows an available photo and an AI description
+the operator found too vague. That screenshot alone does not establish sequence
+completion, the effect of the suggested CR comparison, the model used, or
+automatic orientation. The displayed image was labelled as an adjusted view.
+
+## Scene description quality
+
+Prompt version 3 prioritises recognisable people, visible body/support positions
+and surroundings, considers possible quarter-turn orientations, and requests a
+short scene summary. `ready` means at least one meaningful scene detail can be
+described; `too_unclear` is reserved for largely unreadable imagery. Neither is
+a judgment about a person's condition or the seriousness of an incident.
+Empty detail arrays are allowed; the prompt discourages filler and repeated
+caveats. A summary has the same content checks as other scene text and a
+320-character limit. The existing image, JSON-size, consent and response-time
+limits remain; the output budget is 900 tokens for the added summary, with no
+extra automatic AI calls or model switch.
+
+New analyses retain the requested/configured `model`, the provider's
+`responseModel` when supplied as a bounded model ID, and `promptVersion`.
+Historical results without those fields remain unknown, not attributed to the
+current configuration. The model metadata comes from the request/provider
+envelope, not model-generated scene JSON. It follows the same access, consent,
+expiry and deletion lifecycle as the description.
+
+The gallery leads with the summary, keeps the first specific ambiguity and
+image limitation visible, and puts additional observations under **More photo
+details**. Legacy descriptions use their visible observations as the lead;
+they are not silently reanalysed. This presentation and its tests cannot establish
+real model accuracy: compare the new prompt on a still-authorised saved original
+before changing the configured model or claiming better scene recognition.
+
 ## Behavior
 
 The watch alarm handler marks persisted SOS/fall alerts as photo-eligible. Existing
@@ -214,3 +251,19 @@ The running gateway can stay connected; no restart or Firebase deploy is needed
 to run this diagnostic. New persisted failure categories require the updated
 gateway on its next normal restart. An AI response of `too_unclear` is successful
 analysis of an unreadable scene; `unavailable` means analysis did not complete.
+
+To explicitly review the new description of that same original, add
+`--show-analysis` to the confirmed probe:
+
+```powershell
+npm run incident:inspect -- --photo PHOTO_REQUEST_UUID --probe-ai --confirm --show-analysis --bucket guardian-fbadd.firebasestorage.app
+```
+
+This prints the validated private scene description and orientation in your
+terminal, together with requested/provider model IDs and prompt version when
+available. Omit `--show-analysis` from ordinary diagnostic logs. Access is checked
+again after AI completes, and deleted, expired or revoked images cannot release
+a description. No saved analysis is replaced and no watch command, notification,
+gateway restart or new capture is needed for this comparison. Pulling the new
+code is enough for this one-shot script; restart the gateway and Flutter to use
+the new processing and presentation for subsequent incident photos.
