@@ -100,10 +100,68 @@ function analysisRecord(value) {
     ...(summary === undefined ? {} : { summary }), ...(orientation === undefined ? {} : { orientation }) });
   const rotation = value.inputRotationClockwiseDegrees;
   if (rotation !== undefined && ![0, 90, 180, 270].includes(rotation)) throw Error('invalid_analysis_input');
+  let selection;
+  if (value.orientationSelection !== undefined) {
+    const input = value.orientationSelection;
+    if (!input || input.method !== 'four_views_then_description' || input.promptVersion !== 1 ||
+        input.confidence !== 'high' || input.clockwiseDegrees !== rotation || rotation === undefined ||
+        description.orientation?.clockwiseDegrees !== 0 || description.orientation?.confidence !== 'high') {
+      throw Error('invalid_orientation_selection');
+    }
+    selection = { method: input.method, clockwiseDegrees: rotation, confidence: 'high',
+      ...analysisProvenance(input), promptVersion: 1 };
+  }
   return { ...description, ...analysisProvenance(value), basis: 'original_photo',
     ...(rotation === undefined ? {} : { basis: rotation ? 'rotated_original_photo' : 'decoded_original_photo',
       inputRotationClockwiseDegrees: rotation, inputEncoding: 'png', orientationReference: 'analysis_input' }),
+    ...(selection ? { orientationSelection: selection } : {}),
     version: description.summary ? 3 : description.orientation ? 2 : 1 };
+}
+
+async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, system, imageContent, maxTokens = 900, maxChars = 5000 }) {
+  let response;
+  try {
+    response = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20_000),
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system,
+        messages: [{ role: 'user', content: imageContent }] }),
+    });
+  } catch (error) {
+    throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
+      ? 'analysis_timeout' : 'analysis_network_failed');
+  }
+  if (!response.ok) throw new PhotoAnalysisError('analysis_http_error', {
+    httpStatus: Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
+      ? response.status : null,
+  });
+  let payload;
+  try { payload = await response.json(); }
+  catch (error) {
+    throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
+      ? 'analysis_timeout' : 'analysis_invalid_response');
+  }
+  if (!payload || !Array.isArray(payload.content)) throw new PhotoAnalysisError('analysis_invalid_response');
+  if (payload.stop_reason !== 'end_turn') throw new PhotoAnalysisError('analysis_incomplete', {
+    stopReason: ['max_tokens', 'refusal', 'tool_use', 'pause_turn', 'stop_sequence'].includes(payload.stop_reason)
+      ? payload.stop_reason : 'other',
+  });
+  const parts = payload.content.filter(part => part?.type === 'text');
+  if (!parts.every(part => typeof part.text === 'string')) throw new PhotoAnalysisError('analysis_invalid_response');
+  const content = parts.map(part => part.text).join('');
+  if (content.length > maxChars) throw new PhotoAnalysisError('analysis_response_too_large');
+  // Some vision responses wrap JSON despite the output instruction. Accept
+  // only one complete outer fence; never extract JSON from prose or repair it.
+  // Size, completion, schema and scene-content checks remain unchanged.
+  const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(content.trim());
+  let parsed;
+  try { parsed = JSON.parse(fenced ? fenced[1] : content); }
+  catch {
+    throw new PhotoAnalysisError('analysis_invalid_json', {
+      contentFormat: /^\s*```(?:json)?\s*[\r\n]/i.test(content) ? 'fenced_json' : 'other',
+    });
+  }
+  return { parsed, responseModel: payload.model };
 }
 
 function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
@@ -117,57 +175,17 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
       catch { throw new PhotoAnalysisError('analysis_rotation_failed'); }
       if (input.length > 4_000_000) throw new PhotoAnalysisError('analysis_invalid_image');
     }
-    let response;
-    try {
-      response = await fetchImpl('https://api.anthropic.com/v1/messages', {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20_000),
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model, max_tokens: 900, system: PROMPT,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: probeRotationClockwiseDegrees === null ? 'image/jpeg' : 'image/png', data: input.toString('base64') } },
-            { type: 'text', text: 'Describe only what can be supported by this original photo.' },
-          ] }] }),
-      });
-    } catch (error) {
-      throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
-        ? 'analysis_timeout' : 'analysis_network_failed');
-    }
-    if (!response.ok) throw new PhotoAnalysisError('analysis_http_error', {
-      httpStatus: Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
-        ? response.status : null,
-    });
-    let payload;
-    try { payload = await response.json(); }
-    catch (error) {
-      throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
-        ? 'analysis_timeout' : 'analysis_invalid_response');
-    }
-    if (!payload || !Array.isArray(payload.content)) throw new PhotoAnalysisError('analysis_invalid_response');
-    if (payload.stop_reason !== 'end_turn') throw new PhotoAnalysisError('analysis_incomplete', {
-      stopReason: ['max_tokens', 'refusal', 'tool_use', 'pause_turn', 'stop_sequence'].includes(payload.stop_reason)
-        ? payload.stop_reason : 'other',
-    });
-    const parts = payload.content.filter(part => part?.type === 'text');
-    if (!parts.every(part => typeof part.text === 'string')) throw new PhotoAnalysisError('analysis_invalid_response');
-    const content = parts.map(part => part.text).join('');
-    if (content.length > 5000) throw new PhotoAnalysisError('analysis_response_too_large');
-    // Some vision responses wrap JSON despite the output instruction. Accept
-    // only one complete outer fence; never extract JSON from prose or repair it.
-    // Size, completion, schema and scene-content checks remain unchanged.
-    const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(content.trim());
-    let parsed;
-    try { parsed = JSON.parse(fenced ? fenced[1] : content); }
-    catch {
-      throw new PhotoAnalysisError('analysis_invalid_json', {
-        contentFormat: /^\s*```(?:json)?\s*[\r\n]/i.test(content) ? 'fenced_json' : 'other',
-      });
-    }
+    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: PROMPT,
+      imageContent: [
+        { type: 'image', source: { type: 'base64', media_type: probeRotationClockwiseDegrees === null ? 'image/jpeg' : 'image/png', data: input.toString('base64') } },
+        { type: 'text', text: 'Describe only what can be supported by this original photo.' },
+      ] });
     let result;
     try { result = validateAnalysis(parsed); }
     catch { throw new PhotoAnalysisError('analysis_schema_rejected'); }
-    return analysisRecord({ ...result, model, responseModel: payload.model, promptVersion: PROMPT_VERSION,
+    return analysisRecord({ ...result, model, responseModel, promptVersion: PROMPT_VERSION,
       ...(probeRotationClockwiseDegrees === null ? {} : { inputRotationClockwiseDegrees: probeRotationClockwiseDegrees }) });
   };
 }
 
-module.exports = { PROMPT, PROMPT_VERSION, validateAnalysis, createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance };
+module.exports = { requestPhotoJson, PhotoAnalysisError, PROMPT, PROMPT_VERSION, validateAnalysis, createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance };

@@ -111,10 +111,23 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
     if (!claim) return;
     let analysis;
     let stage = 'original';
+    const reauthorize = async () => {
+      const photo = await snapshots.authorized(claim.serviceOwnerUid, id, { viewing: true });
+      const settings = (await settingsRef(claim.imei).get()).data();
+      const incident = (await incidentRef(claim.incidentId).get()).data();
+      if (photo.serviceOwnerUid !== claim.serviceOwnerUid || photo.imei !== claim.imei ||
+          photo.incidentId !== claim.incidentId || photo.analysis?.status !== 'analysing' ||
+          !(asDate(photo.analysis.deadlineAt) > now()) ||
+          incident?.ownerUid !== claim.serviceOwnerUid || incident?.imei !== claim.imei ||
+          !incident?.requestIds?.includes(id) || !(asDate(incident?.expiresAt) > now()) ||
+          !consentAllows(settings, claim.serviceOwnerUid, { ai: true })) fail('analysis_access_changed');
+    };
     try {
       const image = await snapshots.image(claim.serviceOwnerUid, id);
       stage = 'provider';
-      const result = await analyze(image);
+      await reauthorize();
+      const result = await analyze(image, { reauthorize });
+      await reauthorize();
       analysis = { ...analysisRecord(result), generatedAt: now() };
     } catch (error) {
       analysis = stage === 'original'
@@ -125,11 +138,14 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const doc = await tx.get(photoRef(id));
       const photo = doc.data();
       const settings = (await tx.get(settingsRef(claim.imei))).data();
+      const incident = (await tx.get(incidentRef(claim.incidentId))).data();
       let decision = null;
       try { decision = await snapshots.access(claim.serviceOwnerUid, claim.imei, ref => tx.get(ref)); } catch { /* revoked */ }
       // Deletion, expiry, ownership and consent always beat a late AI response.
       if (photo?.state !== 'available' || photo.analysis?.status !== 'analysing' ||
           !(asDate(photo.mediaExpiresAt) > now()) || decision?.ownerUid !== claim.serviceOwnerUid ||
+          incident?.ownerUid !== claim.serviceOwnerUid || !(asDate(incident?.expiresAt) > now()) ||
+          !incident?.requestIds?.includes(id) ||
           !consentAllows(settings, claim.serviceOwnerUid, { ai: true })) return;
       tx.update(doc.ref, { analysis });
     });

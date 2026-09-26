@@ -51,8 +51,9 @@ a judgment about a person's condition or the seriousness of an incident.
 Empty detail arrays are allowed; the prompt discourages filler and repeated
 caveats. A summary has the same content checks as other scene text and a
 320-character limit. The existing image, JSON-size, consent and response-time
-limits remain; the output budget is 900 tokens for the added summary, with no
-extra automatic AI calls or model switch.
+limits remain; the description output budget is 900 tokens. The default path
+uses one call. The opt-in orientation-first trial below uses up to two calls.
+The operator selects the model explicitly; no default model is silently changed.
 
 New analyses retain the requested/configured `model`, the provider's
 `responseModel` when supplied as a bounded model ID, and `promptVersion`.
@@ -115,10 +116,12 @@ Access expires after 24 hours; physical object/description cleanup runs with the
 gateway and catches up after restart. Scene summaries already delivered to
 WhatsApp remain in the recipient's chat.
 
-With separate AI consent and `INCIDENT_PHOTO_AI_ENABLED=true`, the gateway sends
-only the original JPEG to the configured Anthropic vision model. It sends no
-watch identity, name, GPS, event narrative or generated enhancement. One bounded
-attempt per photo; no provider error or image content is logged. Structured output
+With separate AI consent and `INCIDENT_PHOTO_AI_ENABLED=true`, the default path
+sends the original JPEG to the configured Anthropic vision model. The explicit
+orientation-first trial sends lossless rotated pixel views as described below.
+Neither path sends watch identity, name, GPS, event narrative or generated
+enhancement. One bounded analysis attempt per photo (up to two provider calls in
+the orientation-first trial); no provider error or image content is logged. Structured output
 validation and a restrictive prompt reduce unsupported claims but cannot guarantee
 truth. AI output is explicitly unverified. No photo result can resolve, downgrade,
 diagnose or change location evidence for an alert. The cross-photo summary cites
@@ -293,7 +296,8 @@ relative to the submitted view, **not** the stored original; do not apply it to
 the gallery. The original bytes, saved analysis and gallery remain unchanged.
 Consent, access and expiry checks apply before upload and after the response.
 The flag is unavailable without `--probe-ai --confirm`; runtime automatic
-analysis still sends the original JPEG and never chooses this diagnostic path.
+analysis sends the original JPEG unless the separate orientation-first runtime
+flag below is enabled. The diagnostic flag itself never changes the runtime.
 
 Sept 26 operator review found that a model could suggest the wrong quarter-turn
 with high confidence. A successful schema check and `ready` status do not prove
@@ -301,3 +305,62 @@ scene accuracy or correct orientation. Evaluate the explicit rotated-input
 probe before changing runtime preprocessing or the model; a fixed correction
 for every watch photo is not justified by one example. Capture timeouts remain
 a separate, unresolved device/transport issue.
+
+## Orientation-first live trial
+
+In the Sept 26 saved-photo comparison, the upright-input Sonnet 4.6 result was
+materially more faithful to the visible scene than upright-input Haiku and either
+sideways-input result. This is one-image evidence, not broad accuracy acceptance.
+The new runtime path still needs a fresh supervised capture to establish its
+automatic selection, saved description and matching gallery rotation together.
+
+In the **existing configured gateway terminal**, stop Node and restart after
+pulling the updated branch with:
+
+```powershell
+$env:INCIDENT_PHOTO_AI_MODEL = 'claude-sonnet-4-6'
+$env:INCIDENT_PHOTO_AI_ENABLED = 'true'
+$env:INCIDENT_PHOTO_AI_ORIENTATION_ENABLED = 'true'
+$env:INCIDENT_PHOTOS_ENABLED = 'true'
+$env:INCIDENT_PHOTOS_TRIAL_ONLY = 'true'
+$env:INCIDENT_PHOTO_TEMPLATES_APPROVED = 'false'
+npm start
+```
+
+Keep the existing accepted-watch snapshot flags, credentials and private bucket.
+Restart Flutter with the existing gateway URL to load the updated gallery model.
+Wait for the watch to reconnect before queuing **one** `incident:trial` command;
+no manual CR or local watch photo is required. This is still the bounded sequence
+of up to five photos, and capture may stop earlier on a timeout or other failure.
+
+With `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=true`, processing uses:
+
+1. One orientation request containing four explicitly labelled PNG quarter-turn
+   views of the **same** original. Each is a pixel-preserving, strictly decoded
+   view; no interpolation, scene hints or generative enhancement is involved.
+2. Only after a clear selection and fresh access/AI-consent checks, one description
+   request on the selected view, using unchanged description prompt v3. This call
+   gets no proposed scene description or orientation answer. It must independently
+   return a high-confidence residual zero-degree orientation; disagreement stops
+   analysis without a third call or automatic retry.
+
+Each provider request has a 20-second timeout; orientation is bounded to 160 output
+tokens/1,000 characters and description to 900 tokens/5,000 characters. Each PNG
+is bounded to 4 MB, so four images remain within the direct API request-size limit.
+Current ownership, subscription, incident/photo expiry and AI consent are checked
+before uploads, between calls, after analysis and at persistence. Original JPEG
+storage/hash, capture timing and emergency delivery remain independent of AI.
+Two model passes agreeing still do not prove orientation or description accuracy.
+
+The saved record includes the input rotation, separate selector provenance and
+`orientationSelection.method=four_views_then_description`. Residual orientation
+remains relative to `analysis_input`; the gallery applies the selected input turn
+to the original exactly once. Manual Rotate/Original choices take precedence.
+Uncertain or inconsistent orientation leaves the original view available and
+shows an honest AI-unavailable explanation. Existing photos are not reanalysed.
+Inspect a new photo with `incident:inspect -- --photo UUID` to confirm the stored
+model, prompt version, input rotation and orientation method.
+
+Rollback: set `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=false` and restart the gateway
+to restore the single original-JPEG AI call. Saved originals remain unchanged.
+The supervised trial does not submit or activate SOS/fall WhatsApp templates.

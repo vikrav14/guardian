@@ -223,6 +223,28 @@ void main() {
       await tester.pump();
       expect(turns(), 0);
       expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+      service.analysisOverride = {
+        'status': 'ready',
+        'basis': 'rotated_original_photo',
+        'summary': 'A chair is visible.',
+        'visibleDetails': <String>[],
+        'uncertainDetails': <String>[],
+        'limitations': <String>[],
+        'inputRotationClockwiseDegrees': 270,
+        'orientationReference': 'analysis_input',
+        'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+        'orientationSelection': {
+          'method': 'four_views_then_description',
+          'clockwiseDegrees': 270,
+          'confidence': 'high',
+        },
+      };
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      expect(turns(), 0, reason: 'new processing must respect Original');
+      await tester.tap(find.text('Auto rotate'));
+      await tester.pump();
+      expect(turns(), 3, reason: 'apply input rotation, not the residual zero');
       expect(
         (tester.widget<Image>(find.byType(Image)).image as MemoryImage).bytes,
         same(bytes),
@@ -232,6 +254,39 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  test('rotated analysis requires matching selection and an upright residual', () {
+    final base = <String, dynamic>{
+      'status': 'ready',
+      'basis': 'rotated_original_photo',
+      'inputRotationClockwiseDegrees': 270,
+      'orientationReference': 'analysis_input',
+      'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+      'orientationSelection': {
+        'method': 'four_views_then_description',
+        'clockwiseDegrees': 270,
+        'confidence': 'high',
+      },
+    };
+    int? turns(Map<String, dynamic> analysis) => IncidentPhoto(
+      id: 'photo-one',
+      sequence: 1,
+      state: 'available',
+      analysis: analysis,
+    ).suggestedQuarterTurns;
+    expect(turns(base), 3);
+    for (final change in [
+      {'orientationSelection': null},
+      {'orientationReference': 'original_photo'},
+      {'inputRotationClockwiseDegrees': 90},
+      {'inputRotationClockwiseDegrees': '270'},
+      {'basis': 'unknown'},
+      {'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'}},
+      {'orientation': {'clockwiseDegrees': 0, 'confidence': 'low'}},
+      {'status': 'unavailable'},
+    ]) {
+      expect(turns({...base, ...change}), isNull);
+    }
+  });
   testWidgets(
     'gallery is read-only and shows progress, source basis and per-photo uncertainty',
     (tester) async {

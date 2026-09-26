@@ -226,3 +226,41 @@ test('photo follow-up waits for the original alert and accepts its delivered web
   await s.incidents.sweep(); await s.incidents.drain();
   assert.equal(sent, 1); assert.equal(s.incident().followupState, 'accepted');
 });
+
+test('live orientation selection persists with the summary and original, and rechecks access between provider calls', async () => {
+  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  for (const change of ['none', 'consent', 'deleted', 'expiry', 'incident_expiry', 'owner', 'subscription']) {
+    let s; let calls = 0; let id;
+    const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'test-model', fetchImpl: async () => {
+      calls++;
+      if (calls === 1) {
+        if (change === 'consent') s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+        if (change === 'deleted') await s.api.remove('owner', id);
+        if (change === 'expiry') s.advance(24 * 60 * 60_000 + 1);
+        if (change === 'incident_expiry') s.incident().expiresAt = s.args.now();
+        if (change === 'owner') s.incident().ownerUid = 'outsider';
+        if (change === 'subscription') s.db.rows.get('serviceSubscriptions/owner').status = 'cancelled';
+      }
+      return { ok: true, json: async () => ({ stop_reason: 'end_turn', model: 'test-model', content: [{ type: 'text',
+        text: JSON.stringify(calls === 1 ? { view: 'D', confidence: 'high' } : {
+          ...result, summary: 'A chair is visible.', orientation: { clockwiseDegrees: 0, confidence: 'high' },
+        }) }] }) };
+    } });
+    s = trial({ analyze }); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+    id = s.incident().requestIds[0]; await receive(s, id);
+    const before = await s.api.image('owner', id);
+    await s.incidents.analyzePhoto(id);
+    assert.equal(calls, change === 'none' ? 2 : 1, change);
+    if (change === 'none') {
+      const gallery = await s.incidents.gallery('member', 'alertOne');
+      assert.equal(gallery.photos[0].analysis.inputRotationClockwiseDegrees, 270);
+      assert.equal(gallery.photos[0].analysis.orientationSelection.clockwiseDegrees, 270);
+      assert.equal(gallery.photos[0].analysis.orientation.clockwiseDegrees, 0);
+      assert.equal(gallery.summary[0].text, 'A chair is visible.');
+      assert.deepEqual(await s.api.image('owner', id), before);
+      await s.api.remove('owner', id);
+      assert.equal(s.auth(id).analysis, null);
+    } else assert.notEqual(s.auth(id).analysis?.status, 'ready');
+    assert.equal(s.writes.length, 1);
+  }
+});

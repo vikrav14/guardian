@@ -29,10 +29,17 @@ class PreviewIncidentService extends SafetySnapshotService {
         expiresAt: DateTime.now().add(const Duration(hours: 24)),
         analysis: {
           'status': 'ready',
-          'basis': 'original_photo',
+          'basis': 'rotated_original_photo',
           'summary':
               'An indoor view shows pale walls, a doorway and part of a sofa.',
-          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+          'inputRotationClockwiseDegrees': 90,
+          'orientationReference': 'analysis_input',
+          'orientation': {'clockwiseDegrees': 0, 'confidence': 'high'},
+          'orientationSelection': {
+            'method': 'four_views_then_description',
+            'clockwiseDegrees': 90,
+            'confidence': 'high',
+          },
           'visibleDetails': <String>[],
           'uncertainDetails': ['The nearby surface may be upholstery.'],
           'limitations': [

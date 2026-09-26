@@ -24,6 +24,10 @@ async function inspectIncidentPhoto({ db, photoId }) {
         aiStatus: row.analysis?.status || null, aiReason: row.analysis?.reason || null,
         aiModel: provenance.model || null, aiResponseModel: provenance.responseModel || null,
         aiPromptVersion: provenance.promptVersion || null,
+        aiInputRotationClockwiseDegrees: [0, 90, 180, 270].includes(row.analysis?.inputRotationClockwiseDegrees)
+          ? row.analysis.inputRotationClockwiseDegrees : null,
+        aiOrientationMethod: row.analysis?.orientationSelection?.method === 'four_views_then_description'
+          ? 'four_views_then_description' : null,
         failureStage: row.receiveDiagnostics?.failureStage || null,
         rejectionReason: row.receiveDiagnostics?.rejectionReason || null };
     }) };

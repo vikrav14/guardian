@@ -29,8 +29,7 @@ class IncidentPhoto {
   }
 
   int? get suggestedQuarterTurns {
-    if (!['ready', 'too_unclear'].contains(analysis?['status']) ||
-        analysis?['basis'] != 'original_photo') {
+    if (!['ready', 'too_unclear'].contains(analysis?['status'])) {
       return null;
     }
     final orientation = analysis?['orientation'];
@@ -38,6 +37,25 @@ class IncidentPhoto {
       return null;
     }
     final degrees = orientation['clockwiseDegrees'];
+    if (analysis?['basis'] != 'original_photo') {
+      final selection = analysis?['orientationSelection'];
+      final inputRotation = analysis?['inputRotationClockwiseDegrees'];
+      if (![
+            'rotated_original_photo',
+            'decoded_original_photo',
+          ].contains(analysis?['basis']) ||
+          analysis?['orientationReference'] != 'analysis_input' ||
+          degrees != 0 ||
+          selection is! Map ||
+          selection['method'] != 'four_views_then_description' ||
+          selection['confidence'] != 'high' ||
+          selection['clockwiseDegrees'] != inputRotation) {
+        return null;
+      }
+      return inputRotation is int && [0, 90, 180, 270].contains(inputRotation)
+          ? inputRotation ~/ 90
+          : null;
+    }
     return degrees is int && [0, 90, 180, 270].contains(degrees)
         ? degrees ~/ 90
         : null;

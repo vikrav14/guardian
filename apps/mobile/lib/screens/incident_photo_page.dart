@@ -331,7 +331,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const Text(
-                'AI description of the original photo. Check against the image.',
+                'AI description of this photo. Check against the image.',
               ),
               const SizedBox(height: 8),
               _analysis(photo.analysis),
@@ -350,6 +350,14 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
   Widget _analysis(Map<String, dynamic>? analysis) {
     final status = analysis?['status'];
     if (status == 'unavailable') {
+      if ([
+        'analysis_orientation_uncertain',
+        'analysis_orientation_inconsistent',
+      ].contains(analysis?['reason'])) {
+        return const Text(
+          'AI could not establish the photo orientation. You can rotate and inspect the original.',
+        );
+      }
       return const Text(
         'AI analysis unavailable. The original photo remains available.',
       );

@@ -1,17 +1,22 @@
 'use strict';
 const { createIncidentPhotos } = require('./incident-photos');
 const { createPhotoAnalyzer } = require('./incident-photo-analysis');
+const { createOrientedPhotoAnalyzer } = require('./incident-photo-orientation');
 const { asBool } = require('./safety-snapshot-runtime');
 const { buildFollowupPlan, galleryBase } = require('./incident-photo-templates');
 
 let live = null;
 function getIncidentPhotos() { return live; }
+function configuredPhotoAnalyzer({ env, config, fetchImpl }) {
+  if (!asBool(env.INCIDENT_PHOTO_AI_ENABLED)) return null;
+  const factory = asBool(env.INCIDENT_PHOTO_AI_ORIENTATION_ENABLED) ? createOrientedPhotoAnalyzer : createPhotoAnalyzer;
+  return factory({ apiKey: config.anthropicApiKey,
+    model: env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel, fetchImpl });
+}
 function startIncidentPhotos({ db, snapshots, env = process.env }) {
   if (!db || !snapshots) return null;
   const config = require('./config');
-  const analyze = asBool(env.INCIDENT_PHOTO_AI_ENABLED) ? createPhotoAnalyzer({
-    apiKey: config.anthropicApiKey, model: env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel,
-  }) : null;
+  const analyze = configuredPhotoAnalyzer({ env, config });
   live = createIncidentPhotos({ db, snapshots, enabled: asBool(env.INCIDENT_PHOTOS_ENABLED),
     trialOnly: asBool(env.INCIDENT_PHOTOS_TRIAL_ONLY, true), analyze, log: console.warn,
     onComplete: async incident => {
@@ -48,4 +53,4 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
   const timer = setInterval(run, 3000); timer.unref(); run();
   return live;
 }
-module.exports = { getIncidentPhotos, startIncidentPhotos };
+module.exports = { getIncidentPhotos, startIncidentPhotos, configuredPhotoAnalyzer };
