@@ -125,6 +125,16 @@ test('a concise scene summary can carry meaningful detail without filler observa
   assert.deepEqual(analyzed.orientation, value.orientation);
 });
 
+test('an unreadable-scene summary needs no repeated limitation but legacy empty descriptions fail', async () => {
+  const value = { status: 'too_unclear', summary: 'Darkness obscures the scene.',
+    visibleDetails: [], uncertainDetails: [], limitations: [] };
+  const analyzed = await analyzeText(JSON.stringify(value));
+  assert.equal(analyzed.summary, value.summary);
+  assert.deepEqual(analyzed.limitations, []);
+  const { summary, ...emptyLegacy } = value;
+  assert.throws(() => validateAnalysis(emptyLegacy));
+});
+
 test('summary receives the same content safeguards and cannot smuggle provider metadata', async () => {
   for (const summary of ['', ' ', 'x'.repeat(321), 'The wearer is safe.', 'No emergency.',
     'https://example.test', '<script>bad</script>', 'Hidden\ntext']) {

@@ -70,7 +70,7 @@ function validateAnalysis(value) {
     result[key] = [...new Set(value[key].map(item => text(item, 180)))];
   }
   if (result.status === 'ready' && !result.summary && !result.visibleDetails.length) throw new Error('invalid_analysis');
-  if (result.status === 'too_unclear' && !result.limitations.length) throw new Error('invalid_analysis');
+  if (result.status === 'too_unclear' && !result.summary && !result.limitations.length) throw new Error('invalid_analysis');
   if (Object.hasOwn(value, 'orientation')) {
     const orientation = value.orientation;
     // Invalid or uncertain rotation falls back to the original view without

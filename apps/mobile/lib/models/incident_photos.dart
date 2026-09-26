@@ -15,6 +15,19 @@ class IncidentPhoto {
   final Map<String, dynamic>? analysis;
   bool get viewable =>
       state == 'available' && (expiresAt?.isAfter(DateTime.now()) ?? false);
+  String? get sceneSummary {
+    if (analysis?['status'] != 'ready') return null;
+    final summary = analysis?['summary'];
+    if (summary is String && summary.trim().isNotEmpty) return summary.trim();
+    final details = analysis?['visibleDetails'];
+    if (details is List) {
+      for (final text in details) {
+        if (text is String && text.trim().isNotEmpty) return text.trim();
+      }
+    }
+    return null;
+  }
+
   int? get suggestedQuarterTurns {
     if (!['ready', 'too_unclear'].contains(analysis?['status']) ||
         analysis?['basis'] != 'original_photo') {

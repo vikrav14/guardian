@@ -30,11 +30,15 @@ class PreviewIncidentService extends SafetySnapshotService {
         analysis: {
           'status': 'ready',
           'basis': 'original_photo',
-          'summary': 'An indoor view shows pale walls, a doorway and part of a sofa.',
+          'summary':
+              'An indoor view shows pale walls, a doorway and part of a sofa.',
           'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
           'visibleDetails': <String>[],
           'uncertainDetails': ['The nearby surface may be upholstery.'],
-          'limitations': ['The view covers only part of the room.', 'Fine detail is limited.'],
+          'limitations': [
+            'The view covers only part of the room.',
+            'Fine detail is limited.',
+          ],
         },
       ),
     ],

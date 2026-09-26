@@ -232,7 +232,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                     if (visible &&
                         feed != null &&
                         feed.photos.any(
-                          (p) => p.viewable && p.analysis?['status'] == 'ready',
+                          (p) => p.viewable && p.sceneSummary != null,
                         )) ...[
                       const SizedBox(height: 24),
                       Text(
@@ -240,12 +240,12 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       for (final photo in feed.photos.where(
-                        (p) => p.viewable && p.analysis?['status'] == 'ready',
+                        (p) => p.viewable && p.sceneSummary != null,
                       ))
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'Photo ${photo.sequence}: ${(photo.analysis!['visibleDetails'] as List).first}',
+                            'Photo ${photo.sequence}: ${photo.sceneSummary}',
                           ),
                         ),
                     ],
@@ -357,20 +357,19 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
     if (status != 'ready' && status != 'too_unclear') {
       return const Text('Analysing this photo…');
     }
-    List<String> details(String key) =>
-        (analysis?[key] as List<dynamic>? ?? [])
-            .whereType<String>()
-            .map((text) => text.trim())
-            .where((text) => text.isNotEmpty)
-            .toSet()
-            .toList();
+    List<String> details(String key) => (analysis?[key] as List<dynamic>? ?? [])
+        .whereType<String>()
+        .map((text) => text.trim())
+        .where((text) => text.isNotEmpty)
+        .toSet()
+        .toList();
     final visibleDetails = details('visibleDetails');
     final summary = (analysis?['summary'] as String?)?.trim();
     final hasSummary = summary != null && summary.isNotEmpty;
     final uncertain = details('uncertainDetails');
-    final limitations = details('limitations')
-        .where((text) => !uncertain.contains(text))
-        .toList();
+    final limitations = details(
+      'limitations',
+    ).where((text) => !uncertain.contains(text)).toList();
     final extra = [
       ('Also visible', hasSummary ? visibleDetails : <String>[]),
       ('Uncertain details', uncertain.skip(1).toList()),
@@ -386,10 +385,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
           if (uncertain.isNotEmpty) uncertain.first,
           if (limitations.isNotEmpty) limitations.first,
         ])
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(caveat),
-          ),
+          Padding(padding: const EdgeInsets.only(top: 8), child: Text(caveat)),
         if (extra.any((section) => section.$2.isNotEmpty))
           ExpansionTile(
             tilePadding: EdgeInsets.zero,
