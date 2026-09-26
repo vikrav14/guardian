@@ -19,6 +19,25 @@ test('vision request uses the exact original bytes, bounded tokens/time and no i
   assert.equal((await analyze(image)).basis, 'original_photo');
 });
 
+test('rotation failures are bounded and do not call the provider; zero-degree PNG is a control', async () => {
+  let calls = 0;
+  const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async (url, request) => {
+    calls++;
+    assert.equal(JSON.parse(request.body).messages[0].content[0].source.media_type, 'image/png');
+    return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(valid) }] }) };
+  } });
+  await assert.rejects(analyze(image, { probeRotationClockwiseDegrees: -90 }),
+    error => analysisFailure(error).reason === 'analysis_invalid_rotation');
+  await assert.rejects(analyze(Buffer.from('not JPEG'), { probeRotationClockwiseDegrees: 270 }),
+    error => analysisFailure(error).reason === 'analysis_rotation_failed');
+  assert.equal(calls, 0);
+  const control = await analyze(image, { probeRotationClockwiseDegrees: 0 });
+  assert.equal(control.basis, 'decoded_original_photo');
+  assert.equal(control.inputRotationClockwiseDegrees, 0);
+  assert.equal(calls, 1);
+  assert.throws(() => validateAnalysis({ ...valid, inputRotationClockwiseDegrees: 270 }), /invalid_analysis/);
+});
+
 test('malformed output, reassurance, links, extra fields and oversized content fail closed', () => {
   for (const text of ['The wearer is safe.', 'No emergency.', 'Visit https://example.test', 'x'.repeat(181), '<script>bad</script>']) {
     assert.throws(() => validateAnalysis({ ...valid, visibleDetails: [text] }), /invalid_analysis/);

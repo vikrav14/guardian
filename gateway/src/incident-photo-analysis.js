@@ -98,14 +98,25 @@ function analysisRecord(value) {
   const { status, summary, visibleDetails, uncertainDetails, limitations, orientation } = value;
   const description = validateAnalysis({ status, visibleDetails, uncertainDetails, limitations,
     ...(summary === undefined ? {} : { summary }), ...(orientation === undefined ? {} : { orientation }) });
+  const rotation = value.inputRotationClockwiseDegrees;
+  if (rotation !== undefined && ![0, 90, 180, 270].includes(rotation)) throw Error('invalid_analysis_input');
   return { ...description, ...analysisProvenance(value), basis: 'original_photo',
+    ...(rotation === undefined ? {} : { basis: rotation ? 'rotated_original_photo' : 'decoded_original_photo',
+      inputRotationClockwiseDegrees: rotation, inputEncoding: 'png', orientationReference: 'analysis_input' }),
     version: description.summary ? 3 : description.orientation ? 2 : 1 };
 }
 
 function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
   if (!apiKey || !model) return null;
-  return async bytes => {
+  return async (bytes, { probeRotationClockwiseDegrees = null } = {}) => {
     if (!Buffer.isBuffer(bytes) || bytes.length > 65536) throw new PhotoAnalysisError('analysis_invalid_image');
+    let input = bytes;
+    if (probeRotationClockwiseDegrees !== null) {
+      if (![0, 90, 180, 270].includes(probeRotationClockwiseDegrees)) throw new PhotoAnalysisError('analysis_invalid_rotation');
+      try { input = require('./incident-photo-rotation').rotatedPhotoPng(bytes, probeRotationClockwiseDegrees); }
+      catch { throw new PhotoAnalysisError('analysis_rotation_failed'); }
+      if (input.length > 4_000_000) throw new PhotoAnalysisError('analysis_invalid_image');
+    }
     let response;
     try {
       response = await fetchImpl('https://api.anthropic.com/v1/messages', {
@@ -113,7 +124,7 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model, max_tokens: 900, system: PROMPT,
           messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: bytes.toString('base64') } },
+            { type: 'image', source: { type: 'base64', media_type: probeRotationClockwiseDegrees === null ? 'image/jpeg' : 'image/png', data: input.toString('base64') } },
             { type: 'text', text: 'Describe only what can be supported by this original photo.' },
           ] }] }),
       });
@@ -154,7 +165,8 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
     let result;
     try { result = validateAnalysis(parsed); }
     catch { throw new PhotoAnalysisError('analysis_schema_rejected'); }
-    return analysisRecord({ ...result, model, responseModel: payload.model, promptVersion: PROMPT_VERSION });
+    return analysisRecord({ ...result, model, responseModel: payload.model, promptVersion: PROMPT_VERSION,
+      ...(probeRotationClockwiseDegrees === null ? {} : { inputRotationClockwiseDegrees: probeRotationClockwiseDegrees }) });
   };
 }
 

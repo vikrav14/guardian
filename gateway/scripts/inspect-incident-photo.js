@@ -29,8 +29,9 @@ async function inspectIncidentPhoto({ db, photoId }) {
     }) };
 }
 
-async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = false, now = () => new Date() }) {
+async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = false, rotateClockwise = null, now = () => new Date() }) {
   if (!photoIdValid(photoId)) return { outcome: 'probe_blocked', reason: 'invalid_photo_id' };
+  if (rotateClockwise !== null && ![0, 90, 180, 270].includes(rotateClockwise)) return { outcome: 'probe_blocked', reason: 'invalid_rotation' };
   if (!analyze) return { outcome: 'probe_blocked', reason: 'analysis_not_configured' };
   const photo = (await db.collection('safetySnapshotAuthorizations').doc(photoId).get()).data();
   if (!photo || !validIncidentId(photo.incidentId)) return { outcome: 'probe_blocked', reason: 'incident_photo_not_found' };
@@ -51,11 +52,14 @@ async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = f
     await reauthorize();
   } catch { return { outcome: 'probe_blocked', reason: 'original_or_consent_unavailable' }; }
   let result;
-  try { result = analysisRecord(await analyze(bytes)); }
+  try { result = analysisRecord(await analyze(bytes, { probeRotationClockwiseDegrees: rotateClockwise })); }
   catch (error) { return { outcome: 'probe_failed', ...analysisFailure(error) }; }
   try { await reauthorize(); }
   catch { return { outcome: 'probe_blocked', reason: 'access_changed_during_probe' }; }
-  return { outcome: 'probe_succeeded', status: result.status, basis: 'original_photo',
+  return { outcome: 'probe_succeeded', status: result.status, basis: result.basis,
+    ...(result.inputRotationClockwiseDegrees === undefined ? {} : {
+      inputRotationClockwiseDegrees: result.inputRotationClockwiseDegrees,
+      inputEncoding: result.inputEncoding, orientationReference: result.orientationReference }),
     ...analysisProvenance(result),
     visibleDetailCount: result.visibleDetails.length, uncertaintyCount: result.uncertainDetails.length,
     limitationCount: result.limitations.length, savedAnalysisChanged: false,
@@ -68,14 +72,19 @@ function parseInspectionArgs(args) {
     const key = args[i];
     if (Object.hasOwn(options, key)) throw Error('invalid_arguments');
     if (['--probe-ai', '--confirm', '--show-analysis'].includes(key)) options[key] = true;
-    else if (['--photo', '--bucket'].includes(key) && args[i + 1] && !args[i + 1].startsWith('--')) options[key] = args[++i];
+    else if (['--photo', '--bucket', '--rotate-clockwise'].includes(key) && args[i + 1] && !args[i + 1].startsWith('--')) options[key] = args[++i];
     else throw Error('invalid_arguments');
   }
   if (!photoIdValid(options['--photo'])) throw Error('invalid_photo_id');
   if (options['--show-analysis'] && !options['--probe-ai']) throw Error('probe_required');
+  if (options['--rotate-clockwise'] !== undefined) {
+    if (!/^(0|90|180|270)$/.test(options['--rotate-clockwise'])) throw Error('invalid_rotation');
+    if (!options['--probe-ai']) throw Error('probe_required');
+  }
   if (options['--probe-ai'] && !options['--confirm']) throw Error('probe_confirmation_required');
   return { photoId: options['--photo'], bucket: options['--bucket'], probe: options['--probe-ai'] === true,
-    showAnalysis: options['--show-analysis'] === true };
+    showAnalysis: options['--show-analysis'] === true,
+    ...(options['--rotate-clockwise'] === undefined ? {} : { rotateClockwise: Number(options['--rotate-clockwise']) }) };
 }
 
 async function main() {
@@ -98,11 +107,11 @@ async function main() {
     const analyze = createPhotoAnalyzer({ apiKey: config.anthropicApiKey,
       model: process.env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel });
     console.log(JSON.stringify(await probeOriginal({ db, snapshots, photoId: options.photoId,
-      analyze, showAnalysis: options.showAnalysis }), null, 2));
+      analyze, showAnalysis: options.showAnalysis, rotateClockwise: options.rotateClockwise }), null, 2));
   } finally { await db.terminate(); }
 }
 if (require.main === module) main().catch(error => {
-  const allowed = ['invalid_arguments', 'invalid_photo_id', 'probe_required', 'probe_confirmation_required', 'incident_photo_not_found',
+  const allowed = ['invalid_arguments', 'invalid_photo_id', 'invalid_rotation', 'probe_required', 'probe_confirmation_required', 'incident_photo_not_found',
     'invalid_incident', 'firestore_unavailable', 'project_bucket_required'];
   console.error(JSON.stringify({ outcome: 'inspection_failed', reason: allowed.includes(error?.message)
     ? error.message : 'check_configuration_or_access' }));

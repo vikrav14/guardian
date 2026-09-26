@@ -101,6 +101,50 @@ test('description flag requires a confirmed probe and malformed CLI options fail
     { photoId: id, bucket: undefined, probe: true, showAnalysis: true });
 });
 
+test('rotation flag is explicit, bounded and requires a confirmed probe', () => {
+  const id = '00000000-0000-0000-0000-000000000001';
+  const base = ['--photo', id];
+  assert.throws(() => parseInspectionArgs([...base, '--rotate-clockwise', '270']), /probe_required/);
+  assert.throws(() => parseInspectionArgs([...base, '--probe-ai', '--rotate-clockwise', '270']), /probe_confirmation_required/);
+  for (const angle of ['-90', '45', '360', '90.0', 'NaN', '']) {
+    assert.throws(() => parseInspectionArgs([...base, '--probe-ai', '--confirm', '--rotate-clockwise', angle]));
+  }
+  for (const angle of ['0', '90', '180', '270']) {
+    assert.equal(parseInspectionArgs([...base, '--probe-ai', '--confirm', '--rotate-clockwise', angle]).rotateClockwise, Number(angle));
+  }
+});
+
+test('rotated probe sends one PNG, reports its basis and leaves stored original and analysis intact', async () => {
+  const s = await savedPhoto();
+  const photoBefore = structuredClone(s.auth(s.photoId));
+  const incidentBefore = structuredClone(s.db.rows.get('incidentPhotos/trialOne'));
+  let calls = 0;
+  const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async (url, request) => {
+    calls++;
+    const body = JSON.parse(request.body);
+    assert.equal(body.messages[0].content[0].source.media_type, 'image/png');
+    assert.deepEqual(Buffer.from(body.messages[0].content[0].source.data, 'base64'),
+      require('../src/incident-photo-rotation').rotatedPhotoPng(original, 270));
+    return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({
+      ...result, orientation: { clockwiseDegrees: 0, confidence: 'high' },
+    }) }] }) };
+  } });
+  const report = await probeOriginal({ ...s.probe, analyze, rotateClockwise: 270, showAnalysis: true });
+  assert.equal(report.outcome, 'probe_succeeded');
+  assert.equal(report.basis, 'rotated_original_photo');
+  assert.equal(report.inputRotationClockwiseDegrees, 270);
+  assert.equal(report.inputEncoding, 'png');
+  assert.equal(report.orientationReference, 'analysis_input');
+  assert.equal(report.analysis.basis, report.basis);
+  assert.equal(report.analysis.orientation.clockwiseDegrees, 0, 'relative to supplied input, not stored original');
+  assert.equal(report.savedAnalysisChanged, false);
+  assert.equal(calls, 1);
+  assert.deepEqual(s.auth(s.photoId), photoBefore);
+  assert.deepEqual(s.db.rows.get('incidentPhotos/trialOne'), incidentBefore);
+  assert.deepEqual(await s.api.image('owner', s.photoId), original);
+  assert.equal(s.writes.length, 1, 'only fixture setup sent a camera command');
+});
+
 test('probe blocks revoked consent, expiry, deletion, changed ownership and revoked subscription before AI', async () => {
   for (const change of ['consent', 'expiry', 'incident_expiry', 'deleted', 'owner', 'subscription']) {
     const s = await savedPhoto();
@@ -111,7 +155,7 @@ test('probe blocks revoked consent, expiry, deletion, changed ownership and revo
     if (change === 'owner') s.db.rows.get('incidentPhotos/trialOne').ownerUid = 'outsider';
     if (change === 'subscription') s.db.rows.get('serviceSubscriptions/owner').status = 'cancelled';
     let calls = 0;
-    const report = await probeOriginal({ ...s.probe, analyze: async () => { calls++; return result; } });
+    const report = await probeOriginal({ ...s.probe, rotateClockwise: 270, analyze: async () => { calls++; return result; } });
     assert.equal(report.outcome, 'probe_blocked', change);
     assert.equal(calls, 0, change);
   }
@@ -123,7 +167,7 @@ test('probe does not retry a provider failure and does not release a result afte
   const failed = await probeOriginal({ ...s.probe, analyze: async () => { calls++; throw Error('secret provider failure'); } });
   assert.deepEqual(failed, { outcome: 'probe_failed', status: 'unavailable', reason: 'analysis_failed' });
   assert.equal(calls, 1);
-  const deleted = await probeOriginal({ ...s.probe, analyze: async () => {
+  const deleted = await probeOriginal({ ...s.probe, rotateClockwise: 270, analyze: async () => {
     await s.api.remove('owner', s.photoId); return result;
   } });
   assert.deepEqual(deleted, { outcome: 'probe_blocked', reason: 'access_changed_during_probe' });

@@ -267,3 +267,37 @@ a description. No saved analysis is replaced and no watch command, notification,
 gateway restart or new capture is needed for this comparison. Pulling the new
 code is enough for this one-shot script; restart the gateway and Flutter to use
 the new processing and presentation for subsequent incident photos.
+
+### Compare a known upright view without another capture
+
+If an operator has checked the original and knows its viewing rotation, a
+confirmed diagnostic can rotate decoded pixels before the one AI request:
+
+```powershell
+npm run incident:inspect -- --photo PHOTO_REQUEST_UUID --probe-ai --confirm --show-analysis --rotate-clockwise 270 --bucket guardian-fbadd.firebasestorage.app
+```
+
+`--rotate-clockwise` accepts only 0, 90, 180 or 270. Omit it for the exact original
+JPEG baseline. The explicit flag decodes under the existing 1.1 MP / 32 MB limits,
+rearranges RGB pixels with no interpolation, and encodes an in-memory lossless PNG
+bounded to 4 MB. No resizing, brightening, metadata, generative enhancement or
+derived file is saved. `0` is a PNG decoding/encoding control with no rotation;
+use it if an improvement needs separating from the JPEG-versus-PNG input change.
+Keep the same model and prompt for a rotation comparison. Prompt version 3 and
+its text remain unchanged; no scene hints or expected answers are sent.
+
+Output identifies `basis: rotated_original_photo` (or `decoded_original_photo`
+for 0), `inputRotationClockwiseDegrees`, `inputEncoding: png`, and
+`orientationReference: analysis_input`. Any model orientation is a further turn
+relative to the submitted view, **not** the stored original; do not apply it to
+the gallery. The original bytes, saved analysis and gallery remain unchanged.
+Consent, access and expiry checks apply before upload and after the response.
+The flag is unavailable without `--probe-ai --confirm`; runtime automatic
+analysis still sends the original JPEG and never chooses this diagnostic path.
+
+Sept 26 operator review found that a model could suggest the wrong quarter-turn
+with high confidence. A successful schema check and `ready` status do not prove
+scene accuracy or correct orientation. Evaluate the explicit rotated-input
+probe before changing runtime preprocessing or the model; a fixed correction
+for every watch photo is not justified by one example. Capture timeouts remain
+a separate, unresolved device/transport issue.
