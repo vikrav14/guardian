@@ -114,6 +114,47 @@ test('rotation flag is explicit, bounded and requires a confirmed probe', () => 
   }
 });
 
+test('automatic orientation probe requires confirmation and cannot take a manual rotation', () => {
+  const base = ['--photo', '00000000-0000-0000-0000-000000000001'];
+  assert.throws(() => parseInspectionArgs([...base, '--probe-orientation']), /probe_required/);
+  assert.throws(() => parseInspectionArgs([...base, '--probe-ai', '--probe-orientation']), /probe_confirmation_required/);
+  assert.throws(() => parseInspectionArgs([...base, '--probe-ai', '--confirm', '--probe-orientation', '--rotate-clockwise', '270']), /invalid_arguments/);
+  assert.equal(parseInspectionArgs([...base, '--probe-ai', '--confirm', '--probe-orientation']).orientationProbe, true);
+});
+
+test('orientation probe preserves disagreement evidence without changing stored analysis or taking a photo', async () => {
+  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  for (const revoked of [false, true]) {
+    const s = await savedPhoto();
+    const before = structuredClone(s.auth(s.photoId));
+    let calls = 0;
+    const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'selected-model', fetchImpl: async () => {
+      if (++calls === 1 && revoked) s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+      const value = calls === 1 ? { view: 'D', confidence: 'high' } : {
+        ...result, orientation: { clockwiseDegrees: 90, confidence: 'high' },
+      };
+      return { ok: true, json: async () => ({ model: 'response-model', stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify(value) }] }) };
+    } });
+    const report = await probeOriginal({ ...s.probe, analyze });
+    assert.equal(calls, revoked ? 1 : 2);
+    if (revoked) assert.notEqual(report.outcome, 'probe_succeeded');
+    else {
+      assert.equal(report.outcome, 'probe_succeeded');
+      assert.equal(report.orientationSelection.clockwiseDegrees, 270);
+      assert.equal(report.orientationSelection.verification, 'conflicting');
+      assert.equal(report.orientation.clockwiseDegrees, 90);
+      assert.equal(report.model, 'selected-model');
+      assert.equal(report.promptVersion, PROMPT_VERSION);
+      assert.equal(report.savedAnalysisChanged, false);
+      assert.equal(report.analysis, undefined);
+      assert.equal(JSON.stringify(report).includes('too dark.'), false);
+    }
+    assert.deepEqual(s.auth(s.photoId), before);
+    assert.equal(s.writes.length, 1);
+  }
+});
+
 test('rotated probe sends one PNG, reports its basis and leaves stored original and analysis intact', async () => {
   const s = await savedPhoto();
   const photoBefore = structuredClone(s.auth(s.photoId));

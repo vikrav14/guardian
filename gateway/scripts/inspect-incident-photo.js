@@ -3,6 +3,7 @@
 const { consentAllows, validIncidentId } = require('../src/incident-photo-policy');
 const { asDate } = require('../src/safety-snapshot-policy');
 const { createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance } = require('../src/incident-photo-analysis');
+const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
 const photoIdValid = value => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value || '');
 
 async function inspectIncidentPhoto({ db, photoId }) {
@@ -28,6 +29,8 @@ async function inspectIncidentPhoto({ db, photoId }) {
           ? row.analysis.inputRotationClockwiseDegrees : null,
         aiOrientationMethod: row.analysis?.orientationSelection?.method === 'four_views_then_description'
           ? 'four_views_then_description' : null,
+        aiOrientationVerification: ['confirmed', 'uncertain', 'conflicting', 'not_selected'].includes(row.analysis?.orientationSelection?.verification)
+          ? row.analysis.orientationSelection.verification : null,
         failureStage: row.receiveDiagnostics?.failureStage || null,
         rejectionReason: row.receiveDiagnostics?.rejectionReason || null };
     }) };
@@ -56,7 +59,7 @@ async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = f
     await reauthorize();
   } catch { return { outcome: 'probe_blocked', reason: 'original_or_consent_unavailable' }; }
   let result;
-  try { result = analysisRecord(await analyze(bytes, { probeRotationClockwiseDegrees: rotateClockwise })); }
+  try { result = analysisRecord(await analyze(bytes, { probeRotationClockwiseDegrees: rotateClockwise, reauthorize })); }
   catch (error) { return { outcome: 'probe_failed', ...analysisFailure(error) }; }
   try { await reauthorize(); }
   catch { return { outcome: 'probe_blocked', reason: 'access_changed_during_probe' }; }
@@ -65,6 +68,8 @@ async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = f
       inputRotationClockwiseDegrees: result.inputRotationClockwiseDegrees,
       inputEncoding: result.inputEncoding, orientationReference: result.orientationReference }),
     ...analysisProvenance(result),
+    ...(result.orientationSelection ? { orientationSelection: result.orientationSelection,
+      orientation: result.orientation || { clockwiseDegrees: null, confidence: 'low' } } : {}),
     visibleDetailCount: result.visibleDetails.length, uncertaintyCount: result.uncertainDetails.length,
     limitationCount: result.limitations.length, savedAnalysisChanged: false,
     ...(showAnalysis ? { analysis: result } : {}) };
@@ -75,12 +80,14 @@ function parseInspectionArgs(args) {
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
     if (Object.hasOwn(options, key)) throw Error('invalid_arguments');
-    if (['--probe-ai', '--confirm', '--show-analysis'].includes(key)) options[key] = true;
+    if (['--probe-ai', '--confirm', '--show-analysis', '--probe-orientation'].includes(key)) options[key] = true;
     else if (['--photo', '--bucket', '--rotate-clockwise'].includes(key) && args[i + 1] && !args[i + 1].startsWith('--')) options[key] = args[++i];
     else throw Error('invalid_arguments');
   }
   if (!photoIdValid(options['--photo'])) throw Error('invalid_photo_id');
   if (options['--show-analysis'] && !options['--probe-ai']) throw Error('probe_required');
+  if (options['--probe-orientation'] && !options['--probe-ai']) throw Error('probe_required');
+  if (options['--probe-orientation'] && options['--rotate-clockwise'] !== undefined) throw Error('invalid_arguments');
   if (options['--rotate-clockwise'] !== undefined) {
     if (!/^(0|90|180|270)$/.test(options['--rotate-clockwise'])) throw Error('invalid_rotation');
     if (!options['--probe-ai']) throw Error('probe_required');
@@ -88,6 +95,7 @@ function parseInspectionArgs(args) {
   if (options['--probe-ai'] && !options['--confirm']) throw Error('probe_confirmation_required');
   return { photoId: options['--photo'], bucket: options['--bucket'], probe: options['--probe-ai'] === true,
     showAnalysis: options['--show-analysis'] === true,
+    ...(options['--probe-orientation'] ? { orientationProbe: true } : {}),
     ...(options['--rotate-clockwise'] === undefined ? {} : { rotateClockwise: Number(options['--rotate-clockwise']) }) };
 }
 
@@ -108,7 +116,8 @@ async function main() {
     const admin = require('firebase-admin');
     // No session, worker, watcher, retry or camera dispatch is started here.
     const snapshots = createSnapshotController({ db, bucket: admin.storage().bucket(bucketName), findSessions: () => [] });
-    const analyze = createPhotoAnalyzer({ apiKey: config.anthropicApiKey,
+    const factory = options.orientationProbe ? createOrientedPhotoAnalyzer : createPhotoAnalyzer;
+    const analyze = factory({ apiKey: config.anthropicApiKey,
       model: process.env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel });
     console.log(JSON.stringify(await probeOriginal({ db, snapshots, photoId: options.photoId,
       analyze, showAnalysis: options.showAnalysis, rotateClockwise: options.rotateClockwise }), null, 2));

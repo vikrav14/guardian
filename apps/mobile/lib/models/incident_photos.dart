@@ -49,6 +49,8 @@ class IncidentPhoto {
           selection is! Map ||
           selection['method'] != 'four_views_then_description' ||
           selection['confidence'] != 'high' ||
+          (selection['verification'] != null &&
+              selection['verification'] != 'confirmed') ||
           selection['clockwiseDegrees'] != inputRotation) {
         return null;
       }

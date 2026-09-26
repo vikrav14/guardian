@@ -11,7 +11,7 @@ const description = { status: 'ready', summary: 'A chair is visible.', visibleDe
 const response = (value, model = 'provider-model') => ({ ok: true, json: async () => ({ model,
   stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] }) });
 
-test('each selected view is described alone with unchanged prompt and exact decoded pixels, in two calls', async () => {
+test('each selected view is described alone with explicit input-relative orientation and exact decoded pixels, in two calls', async () => {
   for (const [index, view] of ['A', 'B', 'C', 'D'].entries()) {
     let calls = 0; let checks = 0;
     const before = Buffer.from(original);
@@ -33,7 +33,8 @@ test('each selected view is described alone with unchanged prompt and exact deco
       assert.equal(calls, 2); assert.equal(body.system, PROMPT); assert.equal(body.max_tokens, 900);
       assert.equal(images.length, 1);
       assert.deepEqual(Buffer.from(images[0].source.data, 'base64'), rotatedPhotoPng(original, index * 90));
-      assert.equal(body.messages[0].content.at(-1).text, 'Describe only what can be supported by this original photo.');
+      assert.match(body.system, /AS DISPLAYED IN THIS REQUEST/);
+      assert.match(body.messages[0].content.at(-1).text, /relative to this supplied image/);
       return response(description, 'description-provider');
     } });
     const result = await analyze(original, { reauthorize: async () => { checks++; } });
@@ -42,6 +43,7 @@ test('each selected view is described alone with unchanged prompt and exact deco
     assert.equal(result.orientation.clockwiseDegrees, 0);
     assert.equal(result.orientationReference, 'analysis_input');
     assert.equal(result.orientationSelection.clockwiseDegrees, index * 90);
+    assert.equal(result.orientationSelection.verification, 'confirmed');
     assert.equal(result.orientationSelection.responseModel, 'orientation-provider');
     assert.equal(result.responseModel, 'description-provider');
     assert.deepEqual(analysisRecord(result), result);
@@ -49,25 +51,53 @@ test('each selected view is described alone with unchanged prompt and exact deco
   }
 });
 
-test('uncertain, malformed or conflicting orientation cannot produce a rotated description or retry', async () => {
-  for (const selection of [{ view: null, confidence: 'low' }, { view: 'A', confidence: 'low' },
-    { view: 'E', confidence: 'high' }, { view: 'D', confidence: 'high', summary: 'secret' }, [], null]) {
+test('malformed orientation cannot produce a description or retry', async () => {
+  for (const selection of [{ view: 'E', confidence: 'high' }, { view: 'D', confidence: 'high', summary: 'secret' }, [], null]) {
     let calls = 0;
     const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only',
       fetchImpl: async () => { calls++; return response(selection); } });
     await assert.rejects(analyze(original, { reauthorize: async () => {} }), error => {
-      assert.match(analysisFailure(error).reason, /^analysis_orientation_(uncertain|invalid)$/);
+      assert.equal(analysisFailure(error).reason, 'analysis_orientation_invalid');
       assert.equal(JSON.stringify(analysisFailure(error)).includes('secret'), false); return true;
     });
     assert.equal(calls, 1);
   }
+});
+
+test('uncertain selection still describes unturned pixels and never authorizes automatic rotation', async () => {
+  for (const selection of [{ view: null, confidence: 'low' }, { view: 'A', confidence: 'low' }, { view: null, confidence: 'high' }]) {
+    let calls = 0;
+    const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async (url, request) => {
+      if (++calls === 1) return response(selection);
+      const image = JSON.parse(request.body).messages[0].content[0].source;
+      assert.deepEqual(Buffer.from(image.data, 'base64'), rotatedPhotoPng(original, 0));
+      return response(description);
+    } });
+    const result = await analyze(original, { reauthorize: async () => {} });
+    assert.equal(calls, 2);
+    assert.equal(result.summary, description.summary);
+    assert.equal(result.basis, 'decoded_original_photo');
+    assert.equal(result.orientationSelection.clockwiseDegrees, null);
+    assert.equal(result.orientationSelection.confidence, 'low');
+    assert.equal(result.orientationSelection.verification, 'not_selected');
+    assert.deepEqual(analysisRecord(result), result);
+  }
+});
+
+test('disagreement preserves the validated description and both rotation responses without a retry', async () => {
   for (const orientation of [undefined, { clockwiseDegrees: 90, confidence: 'high' }, { clockwiseDegrees: null, confidence: 'low' }]) {
     let calls = 0;
     const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async () => {
       return response(++calls === 1 ? { view: 'D', confidence: 'high' } : { ...description, orientation });
     } });
-    await assert.rejects(analyze(original, { reauthorize: async () => {} }),
-      error => analysisFailure(error).reason === 'analysis_orientation_inconsistent');
+    const result = await analyze(original, { reauthorize: async () => {} });
+    assert.equal(result.summary, description.summary);
+    assert.equal(result.status, 'ready');
+    assert.equal(result.model, 'test-only');
+    assert.equal(result.inputRotationClockwiseDegrees, 270);
+    assert.deepEqual(result.orientation, orientation);
+    assert.equal(result.orientationSelection.verification, orientation?.confidence === 'high' ? 'conflicting' : 'uncertain');
+    assert.deepEqual(analysisRecord(result), result);
     assert.equal(calls, 2);
   }
 });
@@ -113,6 +143,8 @@ test('model JSON cannot inject trusted orientation selection and contradictory s
     method: 'four_views_then_description', confidence: 'high', clockwiseDegrees: 270, promptVersion: 1,
   } };
   assert.equal(analysisRecord(record).orientationSelection.clockwiseDegrees, 270);
+  assert.equal(analysisRecord({ ...record, orientation: { clockwiseDegrees: 90, confidence: 'high' },
+    orientationSelection: { ...record.orientationSelection, verification: 'confirmed' } }).orientationSelection.verification, 'conflicting');
   for (const change of [{ clockwiseDegrees: 90 }, { confidence: 'low' }, { promptVersion: 2 }, { method: 'guess' }]) {
     assert.throws(() => analysisRecord({ ...record, orientationSelection: { ...record.orientationSelection, ...change } }));
   }

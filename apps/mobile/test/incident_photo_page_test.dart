@@ -283,6 +283,14 @@ void main() {
         {'inputRotationClockwiseDegrees': '270'},
         {'basis': 'unknown'},
         {
+          'orientationSelection': {
+            'method': 'four_views_then_description',
+            'clockwiseDegrees': 270,
+            'confidence': 'high',
+            'verification': 'conflicting',
+          },
+        },
+        {
           'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
         },
         {
@@ -328,6 +336,16 @@ void main() {
       final service = FakeIncidentPhotos()
         ..analysisOverride = {
           'status': 'ready',
+          'basis': 'rotated_original_photo',
+          'inputRotationClockwiseDegrees': 270,
+          'orientationReference': 'analysis_input',
+          'orientation': {'clockwiseDegrees': 90, 'confidence': 'high'},
+          'orientationSelection': {
+            'method': 'four_views_then_description',
+            'clockwiseDegrees': 270,
+            'confidence': 'high',
+            'verification': 'conflicting',
+          },
           'summary': 'A chair stands beside a window.',
           'visibleDetails': ['A curtain is visible.'],
           'uncertainDetails': ['A small object may be a bag.'],
@@ -343,6 +361,11 @@ void main() {
       );
       await tester.pump();
       expect(find.text('A chair stands beside a window.'), findsOneWidget);
+      expect(
+        find.text('Automatic orientation is uncertain. Use Rotate to adjust the view.'),
+        findsOneWidget,
+      );
+      expect(find.text('Auto rotate'), findsNothing);
       expect(find.text('A small object may be a bag.'), findsOneWidget);
       expect(find.text('Fine details are blurred.'), findsOneWidget);
       expect(find.text('• A curtain is visible.'), findsNothing);

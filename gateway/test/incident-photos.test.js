@@ -264,3 +264,31 @@ test('live orientation selection persists with the summary and original, and rec
     assert.equal(s.writes.length, 1);
   }
 });
+
+test('orientation disagreement keeps the description and provenance in the gallery under normal privacy controls', async () => {
+  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  let calls = 0;
+  const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'configured-model', fetchImpl: async () => ({
+    ok: true, json: async () => ({ stop_reason: 'end_turn', model: 'provider-model', content: [{ type: 'text',
+      text: JSON.stringify(++calls === 1 ? { view: 'D', confidence: 'high' } : {
+        ...result, summary: 'A chair is visible.', orientation: { clockwiseDegrees: 90, confidence: 'high' },
+      }) }] }),
+  }) });
+  const s = trial({ analyze });
+  s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0]; await receive(s, id);
+  const before = await s.api.image('owner', id);
+  await s.incidents.analyzePhoto(id); await s.incidents.analyzePhoto(id);
+  const gallery = await s.incidents.gallery('member', 'alertOne');
+  assert.equal(calls, 2);
+  assert.equal(gallery.summary[0].text, 'A chair is visible.');
+  assert.equal(gallery.photos[0].analysis.status, 'ready');
+  assert.equal(gallery.photos[0].analysis.orientationSelection.verification, 'conflicting');
+  assert.equal(gallery.photos[0].analysis.model, 'configured-model');
+  assert.deepEqual(await s.api.image('owner', id), before);
+  s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
+  assert.equal((await s.incidents.gallery('member', 'alertOne')).photos[0].analysis.summary, undefined);
+  await s.api.remove('owner', id);
+  assert.equal(s.auth(id).analysis, null);
+  assert.equal(s.writes.length, 1);
+});

@@ -338,11 +338,14 @@ With `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=true`, processing uses:
 1. One orientation request containing four explicitly labelled PNG quarter-turn
    views of the **same** original. Each is a pixel-preserving, strictly decoded
    view; no interpolation, scene hints or generative enhancement is involved.
-2. Only after a clear selection and fresh access/AI-consent checks, one description
-   request on the selected view, using unchanged description prompt v3. This call
-   gets no proposed scene description or orientation answer. It must independently
-   return a high-confidence residual zero-degree orientation; disagreement stops
-   analysis without a third call or automatic retry.
+2. After fresh access/AI-consent checks, one description request on the selected
+   view (or zero-degree decoded original if selection abstained). Prompt v4 makes
+   the orientation reference explicit: any turn is additional to the image actually
+   supplied in this request. This call gets no proposed scene description or
+   orientation answer. A valid description is kept even if orientation is uncertain
+   or disagrees. Automatic viewing rotation requires a clear selection and a
+   high-confidence residual zero; disagreement withholds that viewing suggestion
+   without a third call or automatic retry.
 
 Each provider request has a 20-second timeout; orientation is bounded to 160 output
 tokens/1,000 characters and description to 900 tokens/5,000 characters. Each PNG
@@ -356,10 +359,35 @@ The saved record includes the input rotation, separate selector provenance and
 `orientationSelection.method=four_views_then_description`. Residual orientation
 remains relative to `analysis_input`; the gallery applies the selected input turn
 to the original exactly once. Manual Rotate/Original choices take precedence.
-Uncertain or inconsistent orientation leaves the original view available and
-shows an honest AI-unavailable explanation. Existing photos are not reanalysed.
+`orientationSelection.verification` is derived from the two responses: `confirmed`,
+`uncertain`, `conflicting`, or `not_selected`. Uncertain or conflicting orientation
+leaves the original view and the validated description available with a separate
+orientation note. Existing photos are not automatically reanalysed.
 Inspect a new photo with `incident:inspect -- --photo UUID` to confirm the stored
 model, prompt version, input rotation and orientation method.
+
+The first live trial of the two-call path received one photo, but discarded its
+description because the second response did not confirm the selected orientation.
+A later photo timed out separately. That result exposed the unnecessary coupling;
+it did not establish which of the two model orientations was correct. Prompt v4
+clarifies the reference and retains descriptions, but live orientation accuracy
+still needs verification on the saved image.
+
+To test the complete automatic path on one existing, unexpired photo without
+another capture, use this explicit diagnostic (up to two AI requests):
+
+```powershell
+npm run incident:inspect -- --photo UUID --probe-ai --probe-orientation --confirm --show-analysis --bucket guardian-fbadd.firebasestorage.app
+```
+
+`--probe-orientation` cannot be combined with `--rotate-clockwise`. It explicitly
+uses the automatic path regardless of the gateway runtime flag, with the model
+configured in this command's environment. Output includes the selected input
+rotation, the description's residual rotation, both provider model IDs and the
+derived verification state. `--show-analysis` exposes the validated description
+only in the operator's terminal. Access and AI consent are checked between both
+calls. No saved analysis, camera command, original bytes, incident state or
+notification is changed; the result reports `savedAnalysisChanged: false`.
 
 Rollback: set `INCIDENT_PHOTO_AI_ORIENTATION_ENABLED=false` and restart the gateway
 to restore the single original-JPEG AI call. Saved originals remain unchanged.

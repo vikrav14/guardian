@@ -42,19 +42,17 @@ function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) 
         !['high', 'low'].includes(parsed.confidence) || !(parsed.view === null || VIEWS.includes(parsed.view))) {
       throw new PhotoAnalysisError('analysis_orientation_invalid');
     }
-    if (parsed.confidence !== 'high' || parsed.view === null) throw new PhotoAnalysisError('analysis_orientation_uncertain');
-    const rotation = VIEWS.indexOf(parsed.view) * 90;
+    const selected = parsed.confidence === 'high' && parsed.view !== null;
+    const rotation = selected ? VIEWS.indexOf(parsed.view) * 90 : 0;
     // Never carry scene hints or a supposed correct answer into the description.
-    // Recheck permission before a second upload, then independently check that
-    // the chosen view is still judged upright by the description response.
+    // If selection abstains, describe the unturned pixels. A disagreement only
+    // withholds automatic display rotation; it must not erase a valid summary.
     await reauthorize();
     const result = await describe(bytes, { probeRotationClockwiseDegrees: rotation });
     await reauthorize();
-    if (result.orientation?.clockwiseDegrees !== 0 || result.orientation?.confidence !== 'high') {
-      throw new PhotoAnalysisError('analysis_orientation_inconsistent');
-    }
     return analysisRecord({ ...result, orientationSelection: { method: 'four_views_then_description',
-      clockwiseDegrees: rotation, confidence: 'high', model, responseModel, promptVersion: ORIENTATION_PROMPT_VERSION } });
+      clockwiseDegrees: selected ? rotation : null, confidence: selected ? 'high' : 'low',
+      model, responseModel, promptVersion: ORIENTATION_PROMPT_VERSION } });
   };
 }
 
