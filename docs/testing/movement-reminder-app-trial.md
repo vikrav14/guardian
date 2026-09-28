@@ -1,10 +1,64 @@
 # Connected movement reminder trial
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
-release. The watch menu's Open / 20 and Close / 20 transitions were physically
-observed with the captured 3G / lowercase-length frames. The timed inactivity
-notification, worktime enforcement, movement reset and reboot persistence still
-need observation. Do not turn a transport reply into a hardware acceptance result.
+release. Earlier reports of Open / 20 and Close / 20 could not be reproduced
+reliably on 29 September; the connected enable path is not physically accepted.
+The timed inactivity notification, worktime enforcement, movement reset and
+reboot persistence remain unverified. Do not turn a transport reply into a
+hardware acceptance result.
+
+## Current blocker and next controlled check — 29 September 2026
+
+All times below are Mauritius time. Preserve the earlier observations as
+historical evidence, not a current pass:
+
+- At 00:28 the app sent Off, worktime 00:30–01:00, then On. Each command received
+  a bare reply. The operator reported Close / 0 on the watch.
+- A separate app Off yielded reported Close / 20 around 00:37.
+- Combined On with worktime 00:30–01:15, sent inside the active window, again
+  yielded Close / 0 around 00:40.
+- The bounded preload on the original gateway then sent isolated
+  `[3G*9705254749*000e*SEDENTARY,1,20]` and
+  `[3G*9705254749*000e*SEDENTARY,0,20]`. Actual downlink logs show one session
+  and a bare reply for each. The operator reported Close / 0 after both, around
+  00:50 and 00:51. Individual downlink lines have no timestamp.
+- The supplied physical watch photo at 00:55 directly shows Sedentary Close,
+  Interval 0, with Save and Back controls. It establishes the displayed value;
+  whether this editing screen reflects the running remote configuration is not
+  yet independently established.
+
+Code/evidence review: Guardian already replies to CONFIG with CONFIG,1.
+Its ordinary wrapper uses SG while the supplier capture uses 3G; causality is
+unproven. The isolated setting frames above match the captured supplier format.
+The prior worktime setting was not restored by isolated Off/On, so worktime
+influence is not excluded. No arbitrary delay, new command syntax, reset or
+firmware change is justified by these observations.
+
+Next, establish a local-menu control without enabling the reminder:
+
+1. Keep the normal Guardian gateway running. Send no remote reminder commands
+   during this check.
+2. On the physical watch, deliberately select Close and interval 20. Press the
+   watch's Save once, leave the menu, then reopen it.
+3. Record whether Close / 20 persists or Close / 0 returns, and any visible
+   save result. Do not enable or start a 20-minute waiting test yet.
+
+This local Save is an intentional control experiment; it cannot count as proof
+that a remote command applied. A retained value checks local persistence only,
+not remote readback equivalence. The result determines the next comparison.
+
+The separate pilot checkout has no copied .env. To restore normal operation,
+stop the temporary gateway and explicitly use the original configured directory:
+
+```powershell
+Set-Location C:\Users\MSI\repos\guardian\gateway
+Remove-Item Env:GUARDIAN_SEDENTARY_FRAME_TRIAL_PROTOCOL_ID -ErrorAction SilentlyContinue
+npm start
+```
+
+Do not use plain npm start inside guardian-movement-pilot/gateway; its launcher
+needs the original environment via --env as documented below. Startup failure
+there is not evidence that the original Firebase configuration is missing.
 
 ## What is connected
 
