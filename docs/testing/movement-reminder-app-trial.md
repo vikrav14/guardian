@@ -1,13 +1,14 @@
 # Connected movement reminder trial
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
-release. Earlier reports of Open / 20 and Close / 20 could not be reproduced
-reliably on 29 September; the connected enable path is not physically accepted.
+release. Earlier remote Open / 20 reports need re-verification after connected
+On failed. Local On / 20 persistence is now observed; local Off normalizes its
+displayed interval to 0. The connected enable path is not physically accepted.
 The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
 
-## Current blocker and next controlled check — 29 September 2026
+## Current blocker and local-control result — 29 September 2026
 
 All times below are Mauritius time. Preserve the earlier observations as
 historical evidence, not a current pass:
@@ -34,18 +35,34 @@ The prior worktime setting was not restored by isolated Off/On, so worktime
 influence is not excluded. No arbitrary delay, new command syntax, reset or
 firmware change is justified by these observations.
 
-Next, establish a local-menu control without enabling the reminder:
+**Local control, reported 01:04–01:05 MUT:** the operator saved Close with
+interval 20 on the physical watch, reopened it, and saw Close / 0. They then
+saved Open / 20 locally and confirmed that Open / 20 persisted after reopening.
+Saving Close / 20 again returned to Close / 0. Final state is locally closed.
 
-1. Keep the normal Guardian gateway running. Send no remote reminder commands
-   during this check.
-2. On the physical watch, deliberately select Close and interval 20. Press the
-   watch's Save once, leave the menu, then reopen it.
-3. Record whether Close / 20 persists or Close / 0 returns, and any visible
-   save result. Do not enable or start a 20-minute waiting test yet.
+This corrects our Off acceptance criterion: Close / 0 is the observed normal
+local disabled display on this pilot, not evidence that Off failed or the
+interval was corrupted. Earlier transient Close / 20 reports must not be used
+to require interval retention when disabled. Do not add an interval-zero wire
+command; keep the captured Off body unchanged.
 
-This local Save is an intentional control experiment; it cannot count as proof
-that a remote command applied. A retained value checks local persistence only,
-not remote readback equivalence. The result determines the next comparison.
+Local Save works, but it does not establish that remote settings use the same
+stored fields or that timed inactivity execution works. Remote On still needs
+to produce a physically observed saved Open / 20 state, or firmware-specific
+evidence explaining any separate local/remote settings.
+
+Next supplier comparison: verify current Guardian and recorder endpoints,
+use the existing pass-through recorder, and save only the AnyTracking upper
+Open / 20 control once. Inspect the physical watch after leaving/reopening its
+menu without a local Save; record menu, time, and captured frame. Leave lower
+active-hour controls unchanged for this setting comparison. Send Off through
+AnyTracking once, check closed state (0 is expected from the local control),
+then restore Guardian routing and verify fresh telemetry. This checks setting
+application only; do not wait for a reminder in the expiring overnight window.
+Compare the full captured exchange if AnyTracking succeeds. If it also fails,
+retain the evidence for a firmware-specific supplier investigation instead of
+guessing another command. The existing active-hour setting remains a possible
+influence; this comparison is not proof that it is irrelevant.
 
 The separate pilot checkout has no copied .env. To restore normal operation,
 stop the temporary gateway and explicitly use the original configured directory:
@@ -158,7 +175,7 @@ photo/WhatsApp rollout acceptance is outside this test.
 
 ## First physical trial
 
-1. Confirm watch clock matches Mauritius time and menu starts Close / 20.
+1. Confirm watch clock matches Mauritius time and menu starts closed (Close / 0 on this pilot).
 2. Choose one active window containing the **next 30 minutes**. Do not run a
    20-minute test against the earlier 21:00–23:59 window across midnight. After
    midnight, for example, use 00:05–01:00 only if the current clock fits it.
@@ -168,13 +185,14 @@ photo/WhatsApp rollout acceptance is outside this test.
    Note any movement, sound, vibration, displayed text and exact time. Do not
    send extra On commands during this observation. No alarm after 25 minutes
    is an inconclusive/failed reminder test, not permission to claim it works.
-5. Select Off and Save once. Physically check Close / 20 and record the time.
+5. Select Off and Save once. Physically check the closed state and record the time; Close / 0 is
+   normal for the local disabled display on this pilot.
    If the outcome is uncertain, inspect first; do not repeatedly tap Save.
 6. Share the three observations: enable menu, actual reminder or no reminder,
    disable menu. We then record evidence and plan the remaining schedule/reset
    checks. Do not mark the full feature accepted from the menu test alone.
 
-When finished, leave the watch Close / 20, stop this gateway with Ctrl+C, then
+When finished, leave the watch closed, stop this gateway with Ctrl+C, then
 run `npm start` from `C:\Users\MSI\repos\guardian\gateway` to restore the
 normal gateway. Keep the Guardian TCP tunnel at its current endpoint. A restart
 does not itself turn a watch setting off.

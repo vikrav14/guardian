@@ -1,5 +1,12 @@
 # Sedentary framing comparison — 28 September 2026
 
+> **29 September correction:** the later connected and isolated remote On
+> trials did not reproduce Open / 20. A physical local-Save control established
+> that Open / 20 persists, while saving Close / 20 returns to Close / 0. The
+> latter is normal local Off display, not an Off failure. The historical reports
+> below remain observations, not current proof of reliable remote control or
+> retained interval 20 when disabled. See [current evidence](movement-reminder-app-trial.md).
+
 The pilot's AnyTracking upper Save changed the watch menu from Close / 0 to
 Open / 20. Its exact request was `[3G*9705254749*000e*SEDENTARY,1,20]` at
 19:09:11.855 UTC, followed by bare SEDENTARY at 19:09:12.208. Guardian's prior

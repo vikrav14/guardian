@@ -46,7 +46,7 @@ async function main(args = process.argv.slice(2)) {
     console.log(JSON.stringify({ event: 'movement_reminder_pilot_ready', imei: input.imei,
       account: 'linked_service_account', automaticCommands: false, customerRolloutEnabled: false,
       intervalMinutes: 20, physicalReminderVerified: false,
-      note: 'Only Save in the signed-in pilot app sends commands. Send Off and check Close / 20 before stopping.' }));
+      note: 'Only Save in the signed-in pilot app sends commands. Send Off and check the physical watch is closed before stopping; this pilot shows interval 0 when locally closed.' }));
     require('../src/server');
     started = true;
   } finally {
