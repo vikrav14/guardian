@@ -57,4 +57,37 @@ No photo/WhatsApp configuration or template activation is part of this test.
 
 Run offline checks with:
 `node --test test/sedentary-framing-preload.test.js` from `gateway/`.
-Physical Guardian reproduction and reminder behavior remain unverified.
+## Physical Guardian reproduction passed — reported 23:33 Mauritius
+
+The operator started the helper against the existing photo gateway, which logged
+`sedentary_frame_trial_ready` and a watch connection at 19:30:51.623 UTC.
+Through the existing authenticated `Send-GuardianSedentary` helper:
+
+| Action | Actual Guardian downlink | Operator-observed watch menu |
+| --- | --- | --- |
+| On | `[3G*9705254749*000e*SEDENTARY,1,20]` | **Open / 20** |
+| Off | `[3G*9705254749*000e*SEDENTARY,0,20]` | **Close / 20** |
+
+The gateway recorded one connected session for each send and a bare SEDENTARY
+reply after each. The operator reported both physical menu transitions in the
+same trial. The frame-built diagnostic's `commandSent:false` describes the
+pre-handoff stage; the subsequent downlink and reply lines supply transport
+evidence. The command lines lack individual timestamps, so do not infer exact
+request times or response latency from adjacent telemetry.
+
+**Accepted for this pilot:** the captured-format on/off requests change the
+watch's displayed setting and retain interval 20. The earlier SG/000E requests
+elicited replies without the desired menu change. The joint framing change
+worked; prefix versus length-case causality was not separately tested. Do not
+generalize to other firmware, intervals, commands or watches.
+
+**Still unverified:** the audible/vibration reminder after inactivity, movement
+reset/cadence, schedule enforcement and persistence across reboot. Off with a
+closed menu is not an observed long-term suppression test. SEDENTARYWORKTIME
+reply handling remains a separate implementation gap. Do not mark the whole
+sedentary feature release-ready or enable customer controls.
+
+Cleanup menu is confirmed **Close / 20** after the remote off. The next operational
+step is to stop the temporary gateway and restart normally with `npm start`;
+that normal restart has not yet been confirmed. The normal sender still uses its
+existing framing: this successful test does not install a permanent fix.
