@@ -10,6 +10,7 @@ import '../widgets/layout/guardian_page_frame.dart';
 import 'watch_preferences_page.dart';
 import '../wellness/wellness_routine.dart';
 import '../wellness/wellness_settings_card.dart';
+import '../wellness/movement_reminder_preview.dart';
 import 'emergency_contacts_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
@@ -155,6 +156,14 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                 const SizedBox(height: 24),
                 WellnessSettingsCard(
                   subscription: widget.subscription,
+                  onMovementReminders: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => MovementReminderPreviewPage(
+                        name: widget.device.displayName,
+                        subscription: widget.subscription,
+                      ),
+                    ),
+                  ),
                   onOpen: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => WellnessRoutinePage(
