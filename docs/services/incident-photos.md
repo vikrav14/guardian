@@ -238,6 +238,32 @@ timeout, response parsing or schema rejection. Earlier generic failures cannot
 be reconstructed retrospectively. No image, scene description, key, provider
 error body or raw model output is printed.
 
+Storage-stage failures now also retain `receiveDiagnostics.storageError`, exposed
+by this inspection command. It contains only an HTTP `statusCode`, allowlisted
+SDK/network `code`, provider `reason` and error `name`; unrecognized values are
+null. It never retains exception messages, object paths, request headers or
+response bodies. These fields are diagnostic evidence, not a reason to retry a
+camera command or change permissions automatically. Historical failures without
+this metadata remain unknown.
+
+Gateway startup prints a `[safety-snapshot] storage runtime` line showing the
+actual bucket, configured Firebase project, whether the bucket has one of that
+project's standard names, and whether a Storage emulator is configured. A custom
+bucket is not automatically invalid. This line identifies the running process's
+configuration; a successful check in a separate shell does not establish that
+both processes use the same environment or credentials.
+
+On 28 September at 15:28 MUT, a supervised image arrived about 5.4 seconds after
+dispatch and passed decoding and authorization, but saving failed at `storage`.
+The old log did not retain the underlying error. Subsequent operator checks
+accessed bucket metadata, reported create/get/delete permissions, and uploaded,
+read back and deleted a synthetic JPEG with the same upload settings. This proves
+those operations worked in that command's environment and diagnostic prefix at
+that time; it does not establish why the earlier gateway upload failed. No private
+photo, provider response, identifier or scene text is retained here. Capture,
+cleanup, CRC validation, create-only uploads and the absence of automatic capture
+retries are unchanged.
+
 To diagnose AI while the original remains available, make one explicit provider
 request using the original photo and current household AI consent:
 

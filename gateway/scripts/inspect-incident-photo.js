@@ -5,6 +5,7 @@ const { consentAllows, validIncidentId } = require('../src/incident-photo-policy
 const { asDate } = require('../src/safety-snapshot-policy');
 const { createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance } = require('../src/incident-photo-analysis');
 const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+const { storageFailureDetails } = require('../src/safety-snapshot-storage-diagnostics');
 const photoIdValid = value => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value || '');
 
 async function inspectIncidentPhoto({ db, photoId }) {
@@ -33,6 +34,8 @@ async function inspectIncidentPhoto({ db, photoId }) {
         aiOrientationVerification: ['confirmed', 'uncertain', 'conflicting', 'not_selected'].includes(row.analysis?.orientationSelection?.verification)
           ? row.analysis.orientationSelection.verification : null,
         failureStage: row.receiveDiagnostics?.failureStage || null,
+        storageError: row.receiveDiagnostics?.storageError
+          ? storageFailureDetails(row.receiveDiagnostics.storageError) : null,
         rejectionReason: row.receiveDiagnostics?.rejectionReason || null };
     }) };
 }

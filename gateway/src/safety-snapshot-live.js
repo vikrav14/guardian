@@ -7,6 +7,7 @@ const { createRejectedPhotoCapture } = require('./safety-snapshot-rejected-frame
 const { assessSnapshotAccess } = require('./safety-snapshot-requests');
 const { normalizePurpose, asDate } = require('./safety-snapshot-policy');
 const { readSafetySnapshotRuntime } = require('./safety-snapshot-runtime');
+const { storageFailureDetails, storageRuntimeDetails } = require('./safety-snapshot-storage-diagnostics');
 const { protocolIdFromFullImei } = require('./imei');
 const { consentAllows, readIncidentAuthorization } = require('./incident-photo-policy');
 
@@ -32,7 +33,7 @@ function receiveDiagnostics() {
     maxBufferedBytes: 0, incompletePhotoBuffered: false, identityChanged: false,
     acceptedPhotoFrames: 0, differentSessionPhotoFrames: 0,
     identityMismatchPhotoFrames: 0, expiredPhotoFrames: 0,
-    duplicatePhotoFrames: 0, failureStage: null, rejectionReason: null, decodeError: null,
+    duplicatePhotoFrames: 0, failureStage: null, rejectionReason: null, storageError: null, decodeError: null,
     decodeDetails: null, rejectedFrameCapture: 'not_enabled' };
 }
 function decodePhoto(frame, protocolId) {
@@ -243,6 +244,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       await event(slot.id, 'image_available').catch(report);
     } catch (error) {
       slot.diagnostics.failureStage = stage;
+      if (stage === 'storage') slot.diagnostics.storageError = storageFailureDetails(error);
       const rejection = ['duplicate_incident_image', 'incident_consent_revoked', 'request_no_longer_active']
         .includes(error?.code) ? error.code : null;
       slot.diagnostics.rejectionReason = rejection;
@@ -431,6 +433,10 @@ function startSnapshotController({ db, findSessions, env = process.env }) {
     // Bound the write lease: do not replay media writes after ambiguous failures.
     bucket.storage.retryOptions.autoRetry = false;
     bucket.storage.retryOptions.maxRetries = 0;
+    console.info(`[safety-snapshot] storage runtime ${JSON.stringify(storageRuntimeDetails({
+      bucketName: bucket.name, projectId: mediaApp.options.projectId,
+      emulatorEnabled: Boolean(process.env.STORAGE_EMULATOR_HOST || process.env.FIREBASE_STORAGE_EMULATOR_HOST),
+    }))}`);
     const captureRejectedFrame = createRejectedPhotoCapture(env.SAFETY_SNAPSHOT_REJECTED_FRAME_FILE);
     live = createSnapshotController({ db, bucket, findSessions, runtime, captureRejectedFrame });
   } catch {

@@ -38,6 +38,22 @@ test('inspection selects safe fields and refuses a mismatched incident', async (
   await assert.rejects(inspectIncidentPhoto(s.probe), /invalid_incident/);
 });
 
+test('inspection revalidates stored storage diagnostics and omits raw provider fields', async () => {
+  const s = await savedPhoto();
+  s.auth(s.photoId).receiveDiagnostics = { failureStage: 'storage', storageError: {
+    statusCode: 503, code: 'secret object path', reason: 'backendError', name: 'ApiError',
+    message: 'secret provider response', headers: { authorization: 'secret token' },
+  } };
+  const before = structuredClone([...s.db.rows]);
+  const report = await inspectIncidentPhoto(s.probe);
+  assert.equal(report.photos[0].failureStage, 'storage');
+  assert.deepEqual(report.photos[0].storageError, {
+    statusCode: 503, code: null, reason: 'backendError', name: 'ApiError',
+  });
+  assert.equal(JSON.stringify(report).includes('secret'), false);
+  assert.deepEqual([...s.db.rows], before);
+});
+
 test('explicit probe accepts fenced AI output on one saved original and leaves saved analysis intact', async () => {
   const s = await savedPhoto();
   const photoBefore = structuredClone(s.auth(s.photoId));

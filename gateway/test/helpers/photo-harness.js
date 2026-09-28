@@ -65,7 +65,7 @@ function setup({ captureRejectedFrame = null } = {}) {
       assert.equal(options.metadata.metadata.firebaseStorageDownloadTokens, undefined);
       if (bucket.pause) await bucket.pause;
       objects.set(path, Buffer.from(bytes));
-      if (bucket.failSave) throw Error('ambiguous_storage_failure');
+      if (bucket.failSave) throw bucket.failSave instanceof Error ? bucket.failSave : Error('ambiguous_storage_failure');
     },
     download: async () => [objects.get(path)],
     delete: async () => { if (bucket.failDelete) throw Error('storage_unavailable'); objects.delete(path); },

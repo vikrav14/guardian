@@ -268,6 +268,26 @@ test('storage failure is not success and ambiguous writes are cleaned up', async
   await receive(s, id); await until(() => s.objects.size === 0 && !s.auth(id).cleanupPending);
   assert.equal(s.auth(id).state, 'failed');
   assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'storage');
+  assert.deepEqual(s.auth(id).receiveDiagnostics.storageError, {
+    statusCode: null, code: null, reason: null, name: 'Error',
+  });
+});
+
+test('a failed upload retains safe storage diagnostics while cleaning up and sending no retry', async () => {
+  const s = setup();
+  s.bucket.failSave = Object.assign(new Error('private storage response'), {
+    code: 403, name: 'ApiError', errors: [{ reason: 'forbidden', message: 'private storage response' }],
+  });
+  const id = await s.api.request('owner', input);
+  await receive(s, id); await until(() => s.objects.size === 0 && !s.auth(id).cleanupPending);
+  assert.equal(s.auth(id).state, 'failed');
+  assert.equal(s.auth(id).receiveDiagnostics.failureStage, 'storage');
+  assert.deepEqual(s.auth(id).receiveDiagnostics.storageError, {
+    statusCode: 403, code: null, reason: 'forbidden', name: 'ApiError',
+  });
+  assert.equal(s.writes.length, 1);
+  assert.equal(s.logs.some(line => line.includes('"statusCode":403')), true);
+  assert.equal(JSON.stringify({ logs: s.logs, diagnostics: s.auth(id).receiveDiagnostics }).includes('private storage response'), false);
 });
 
 test('deletion during upload prevents publication and removes the eventual object', async () => {
