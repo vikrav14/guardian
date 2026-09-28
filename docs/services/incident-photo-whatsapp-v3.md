@@ -73,6 +73,10 @@ sign-in. A desktop localhost URL is not a usable destination on contacts'
 phones. A changing ngrok hostname requires contract review; it must not be
 silently substituted under an already-approved template.
 
+To publish the existing Flutter app on the Guardian Firebase project, follow
+[`guardian-web-hosting.md`](guardian-web-hosting.md). Verify the hosted gallery
+before submitting or enabling the photo follow-up template.
+
 ```powershell
 # Replace both placeholders with the verified deployed destinations.
 $env:WATCH_CALL_PUBLIC_ORIGIN = 'https://YOUR-PUBLIC-GATEWAY'

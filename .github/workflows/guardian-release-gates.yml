@@ -14,6 +14,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  hosting-script:
+    name: Windows Hosting deployment safeguards
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Verify deployment failures stop before publication
+        shell: powershell
+        run: ./scripts/test-deploy-guardian-web.ps1
+
   gateway:
     name: Gateway tests
     runs-on: ubuntu-latest
