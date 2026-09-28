@@ -11,7 +11,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $appRoot = Join-Path $repoRoot 'apps/mobile'
 $projectId = 'guardian-fbadd'
 $appUrl = "https://$projectId.web.app"
-$firebasePackage = 'firebase-tools@15.27.0'
+. (Join-Path $PSScriptRoot 'guardian-hosting-tools.ps1')
 
 function Invoke-CheckedNative {
     param([string]$Command, [string[]]$Arguments)
@@ -21,7 +21,7 @@ function Invoke-CheckedNative {
     }
 }
 
-foreach ($command in @('flutter', 'node', 'npx')) {
+foreach ($command in @('flutter')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
         throw "$command is not available. Use the terminal where Flutter normally works."
     }
@@ -69,9 +69,10 @@ if ($health.ok -ne $true -or $health.service -ne 'guardian-gateway-http') {
 
 Push-Location $repoRoot
 try {
+    $firebase = Get-GuardianFirebaseTools
     Write-Host 'Checking Firebase access. Use the Google account that manages Guardian if sign-in opens.'
-    Invoke-CheckedNative 'npx' @('--yes', $firebasePackage, 'login')
-    Invoke-CheckedNative 'npx' @('--yes', $firebasePackage, 'hosting:sites:list', '--project', $projectId, '--non-interactive')
+    Invoke-GuardianFirebase $firebase @('login')
+    Invoke-GuardianFirebase $firebase @('hosting:sites:list', '--project', $projectId, '--non-interactive')
 
     Push-Location $appRoot
     try {
@@ -94,7 +95,7 @@ try {
     $releaseId = [Guid]::NewGuid().ToString()
     $release = @{ releaseId = $releaseId; builtAt = [DateTime]::UtcNow.ToString('o'); gatewayUrl = $GatewayUrl }
     $release | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $buildRoot 'guardian-release.json') -Encoding UTF8
-    Invoke-CheckedNative 'npx' @('--yes', $firebasePackage, 'deploy', '--only', 'hosting',
+    Invoke-GuardianFirebase $firebase @('deploy', '--only', 'hosting',
         '--project', $projectId, '--config', (Join-Path $repoRoot 'firebase.json'), '--non-interactive')
 
     $published = Invoke-RestMethod "$appUrl/guardian-release.json?release=$releaseId" -TimeoutSec 30

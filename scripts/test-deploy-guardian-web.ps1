@@ -5,12 +5,22 @@ $fixture = Join-Path ([IO.Path]::GetTempPath()) ('guardian-hosting-test-' + [Gui
 $sourceRoot = Split-Path -Parent $PSScriptRoot
 $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'scripts'), (Join-Path $fixture 'apps/mobile/web') -Force
 Copy-Item (Join-Path $PSScriptRoot 'deploy-guardian-web.ps1') (Join-Path $fixture 'scripts')
+Copy-Item (Join-Path $PSScriptRoot 'guardian-hosting-tools.ps1') (Join-Path $fixture 'scripts')
+# Substitute tool acquisition, but retain the real Firebase invocation/exit guard.
+Add-Content (Join-Path $fixture 'scripts/guardian-hosting-tools.ps1') @'
+
+function Get-GuardianFirebaseTools {
+    if ($testState.setupFailure) { throw 'Synthetic deployment tool setup failure' }
+    return @{ Node = 'guardian-test-node'; Cli = 'isolated/firebase.js' }
+}
+'@
 Copy-Item (Join-Path $sourceRoot 'firebase.json') $fixture
 Set-Content (Join-Path $fixture 'apps/mobile/web/maps_key.js') "window.GOOGLE_MAPS_API_KEY = 'AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';"
 # A shared object survives the child script scope used to execute deployment.
 $testState = @{
     commands = New-Object 'System.Collections.Generic.List[object]'
     failure = ''; wrongHealth = $false; wrongRelease = $false; ambiguousEndpoint = $false
+    firebaseFailure = ''; setupFailure = $false; releaseChecks = 0
 }
 
 function Assert-True($condition, $message) {
@@ -28,14 +38,19 @@ function Invoke-RestMethod {
         return @{ ok = -not $testState.wrongHealth; service = 'guardian-gateway-http' }
     }
     if ($Uri -like 'https://guardian-fbadd.web.app/guardian-release.json?release=*') {
+        $testState.releaseChecks++
         if ($testState.wrongRelease) { return @{ releaseId = 'old-release' } }
         return (Get-Content (Join-Path $fixture 'apps/mobile/build/web/guardian-release.json') -Raw | ConvertFrom-Json)
     }
     throw "Unexpected network request: $Uri"
 }
-function npx {
-    $testState.commands.Add([pscustomobject]@{ command = 'npx'; arguments = @($args) })
+function npx { throw 'System npx must not be used for deployment' }
+function node { throw 'System Node must not be used for deployment' }
+function guardian-test-node {
+    Assert-True ($args[0] -eq 'isolated/firebase.js') 'Firebase must use the isolated JS entry point'
+    $testState.commands.Add([pscustomobject]@{ command = 'firebase'; arguments = @($args | Select-Object -Skip 1) })
     $global:LASTEXITCODE = 0
+    if ($testState.firebaseFailure -eq $args[1]) { $global:LASTEXITCODE = -1073740791 }
 }
 function flutter {
     $testState.commands.Add([pscustomobject]@{ command = 'flutter'; arguments = @($args) })
@@ -55,6 +70,7 @@ function flutter {
 function Run-Deployment {
     param([string]$Url = 'https://gateway.example', [switch]$Discover)
     $testState.commands.Clear()
+    $testState.releaseChecks = 0
     if ($Discover) { & (Join-Path $fixture 'scripts/deploy-guardian-web.ps1') }
     else { & (Join-Path $fixture 'scripts/deploy-guardian-web.ps1') -GatewayUrl $Url }
 }
@@ -77,6 +93,21 @@ try {
     Assert-True ($build -contains '--dart-define=GUARDIAN_GATEWAY_URL=https://gateway.example') 'Current gateway must reach Flutter build'
     Assert-True ($build -contains '--dart-define=GUARDIAN_SAFETY_SNAPSHOTS_ENABLED=false') 'Manual capture UI must remain opt-in'
     Assert-True ($build -contains '--no-pub') 'Build must use the locked dependency restore'
+
+    $testState.setupFailure = $true
+    Expect-Stopped { Run-Deployment } 'Tool setup failure must stop'
+    $testState.setupFailure = $false
+    foreach ($stage in @('login', 'hosting:sites:list')) {
+        $testState.firebaseFailure = $stage
+        Expect-Stopped { Run-Deployment } "Firebase $stage shutdown crash must stop"
+        Assert-True (@($testState.commands | Where-Object { $_.command -eq 'flutter' }).Count -eq 0) 'Failed Firebase preflight must prevent the build'
+    }
+    $testState.firebaseFailure = 'deploy'
+    $caught = $false
+    try { Run-Deployment } catch { $caught = $_.Exception.Message -like '*exit -1073740791*' }
+    Assert-True $caught 'A shutdown crash after deployment must not be treated as success'
+    Assert-True ($testState.releaseChecks -eq 0) 'Failed deployment must not reach success verification'
+    $testState.firebaseFailure = ''
 
     foreach ($stage in @('clean', 'pub', 'build')) {
         $testState.failure = $stage

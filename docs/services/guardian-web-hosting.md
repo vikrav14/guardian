@@ -27,9 +27,21 @@ if ($LASTEXITCODE -ne 0) { throw 'Update failed. Stop here.' }
 The script discovers the current ngrok HTTPS endpoint, checks `/health`, signs in
 to the Firebase CLI if needed, builds the app with that gateway URL, and runs
 `firebase deploy --only hosting --project guardian-fbadd`. It uses a pinned
-Firebase CLI package via npx; no global CLI installation or stored CI credential
-is needed. Native command failures stop before deployment. The published release
+Firebase CLI 15.27.0 with a separate Node 24.21.0 runtime under
+`%LOCALAPPDATA%\Guardian\hosting-tools`. The first run downloads the official Node
+archive, verifies its pinned SHA-256 checksum, and installs the CLI in that cache.
+The cached Node executable is verified on every run. No global installation,
+PATH change, gateway restart, or stored CI credential is needed. The existing
+Firebase CLI login is reused. Native command failures stop deployment. The published release
 marker must match the fresh build before the script reports success.
+
+This isolated runtime avoids the Windows `UV_HANDLE_CLOSING` shutdown assertion
+reported after `firebase login`. Node's fix is included in 24.20.0 and later
+([upstream fix](https://github.com/nodejs/node/pull/61999),
+[release notes](https://nodejs.org/en/blog/release/v24.20.0)). Do not ignore a
+nonzero CLI exit, even if the preceding output says that login succeeded.
+The release gate exercises the actual isolated CLI on Windows without credentials
+or a live deployment, as well as mocked failure paths for the deployment script.
 
 To supply a stable gateway explicitly, use `-GatewayUrl https://YOUR-GATEWAY`.
 The manual safety snapshot dashboard button remains disabled by default, matching
