@@ -92,22 +92,21 @@ class MovementRemindersService implements MovementReminderClient {
   MovementRemindersService({
     http.Client? client,
     Future<String?> Function()? token,
-    String gatewayUrl = const String.fromEnvironment('GUARDIAN_GATEWAY_URL'),
+    this.gatewayUrl = const String.fromEnvironment('GUARDIAN_GATEWAY_URL'),
   }) : _client = client ?? http.Client(),
        _token = token ?? (() async {
          final user = FirebaseAuth.instance.currentUser;
          return user == null ? null : await user.getIdToken();
-       }),
-       _gatewayUrl = gatewayUrl;
+       });
 
   final http.Client _client;
   final Future<String?> Function() _token;
-  final String _gatewayUrl;
+  final String gatewayUrl;
 
   void close() => _client.close();
 
   Uri _uri(String imei) {
-    final base = Uri.tryParse(_gatewayUrl);
+    final base = Uri.tryParse(gatewayUrl);
     final local = base?.scheme == 'http' &&
         ['localhost', '127.0.0.1'].contains(base?.host);
     if (base == null || base.host.isEmpty ||
