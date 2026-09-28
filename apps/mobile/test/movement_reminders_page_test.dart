@@ -107,6 +107,17 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('explicit Off stays available because a reply is not current watch state', (tester) async {
+    final client = FakeMovementClient()..state = const MovementState(
+      version: 1, status: 'replies_observed', connected: true,
+      desired: MovementSettings(enabled: false, start: '08:00', end: '20:00'));
+    await tester.pumpWidget(screen(client));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+    await tapSave(tester);
+    expect(client.requests.single.enabled, isFalse);
+  });
+
   testWidgets('320px with doubled text keeps connected controls usable', (tester) async {
     tester.view.physicalSize = const Size(320, 700);
     tester.view.devicePixelRatio = 1;

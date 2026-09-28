@@ -145,9 +145,11 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
     };
     final awaiting = state?.status == 'sending';
     final requiresOff = state?.status == 'unconfirmed';
-    final alreadyRequested = state?.status == 'replies_observed' &&
+    // Off remains available for cleanup even if somebody changed the watch
+    // locally since the last reply. There is no authoritative state readback.
+    final alreadyRequested = _enabled && state?.status == 'replies_observed' &&
         state?.desired?.enabled == _enabled &&
-        (!_enabled || (state?.desired?.start == _start && state?.desired?.end == _end));
+        state?.desired?.start == _start && state?.desired?.end == _end;
     final canSave = !_busy && !_refreshRequired && state != null &&
         state.connected && !awaiting && !alreadyRequested && (!requiresOff || !_enabled);
     return Scaffold(
