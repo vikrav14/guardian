@@ -3,10 +3,6 @@
 const { buildFallTemplatePlan } = require('./guardian-fall-plan');
 const { sendMetaTemplate } = require('./whatsapp-meta');
 
-const { photoTemplatePlan } = require('./incident-photo-templates');
-const { asBool } = require('./safety-snapshot-runtime');
-const { callbackTemplatesEnabledForDevice } = require('./sos-whatsapp');
-
 const FALL_TEMPLATE_LANGUAGE = 'en';
 
 async function prepareFallWhatsApp({
@@ -16,9 +12,7 @@ async function prepareFallWhatsApp({
   alertId = null,
 } = {}) {
   return {
-    plan: photoTemplatePlan(buildFallTemplatePlan({ device, alert, now }), { type: 'fall', alertId,
-      approved: asBool(process.env.INCIDENT_PHOTO_TEMPLATES_APPROVED),
-      appUrl: process.env.INCIDENT_PHOTOS_APP_URL, callback: callbackTemplatesEnabledForDevice(device) }),
+    plan: buildFallTemplatePlan({ device, alert, now }),
   };
 }
 

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createPhotoAnalyzer, validateAnalysis, analysisFailure, PROMPT_VERSION } = require('../src/incident-photo-analysis');
-const { templateDefinitions, photoTemplatePlan, buildFollowupPlan } = require('../src/incident-photo-templates');
+const { templateDefinitions, buildFollowupPlan } = require('../src/incident-photo-templates');
 const image = require('./fixtures/photo-synthetic');
 const valid = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: [], limitations: ['Blur limits detail.'] };
 
@@ -191,26 +191,6 @@ test('uncertain or malformed orientation cannot rotate the image or discard a va
     assert.equal(JSON.stringify(analyzed).includes('secret scene'), false);
   }
   assert.equal(Object.hasOwn(await analyzeText(JSON.stringify(valid)), 'orientation'), false, 'legacy descriptions remain supported');
-});
-
-test('every SOS/fall location variant preserves map/call order and adds the matching gallery URL', () => {
-  const appUrl = 'https://guardian.example.test';
-  const definitions = templateDefinitions({ appUrl, callNumber: '+23050000000' });
-  assert.equal(definitions.length, 13);
-  for (const type of ['sos', 'fall']) for (const locationState of ['fresh', 'last_known', 'unavailable']) for (const callback of [false, true]) {
-    const plan = { bodyParameters: ['alarm', 'time', 'location', 'battery'], locationState,
-      buttonUrlParameter: locationState === 'unavailable' ? null : '-20.16,57.50' };
-    assert.equal(photoTemplatePlan(plan, { type, alertId: 'abc', appUrl }), plan, 'no switch before approval');
-    const next = photoTemplatePlan(plan, { type, alertId: 'abc', appUrl, callback, approved: true });
-    const definition = definitions.find(row => row.name === next.templateName);
-    const buttons = definition.components.find(row => row.type === 'BUTTONS').buttons;
-    for (const component of next.components.filter(row => row.type === 'button')) {
-      assert.equal(buttons[Number(component.index)].type, 'URL');
-    }
-    assert.match(buttons.at(-1).url, /\?incident=\{\{1\}\}$/);
-    assert.equal(next.components.at(-1).parameters[0].text, 'abc');
-    assert.equal(buttons.filter(b => b.type === 'PHONE_NUMBER').length, callback ? 1 : 0);
-  }
 });
 
 test('follow-up has an honest unavailable state with no fabricated scene description', () => {

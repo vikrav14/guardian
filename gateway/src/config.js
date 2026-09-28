@@ -97,6 +97,11 @@ const config = {
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_IMEI || '',
   metaWhatsAppSosCallbackPilotNumber:
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
+  watchCallPublicOrigin: process.env.WATCH_CALL_PUBLIC_ORIGIN || '',
+  metaWhatsAppSosDynamicCallEnabled:
+    String(process.env.META_WHATSAPP_SOS_DYNAMIC_CALL_ENABLED || 'false').toLowerCase() === 'true',
+  metaWhatsAppFallDynamicCallEnabled:
+    String(process.env.META_WHATSAPP_FALL_DYNAMIC_CALL_ENABLED || 'false').toLowerCase() === 'true',
 
   // Private, read-only router observation. Never enables customer Home presence.
   wifiHomeObserveEnabled:

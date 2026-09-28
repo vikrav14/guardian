@@ -1,30 +1,34 @@
 'use strict';
 const { validIncidentId } = require('./incident-photo-policy');
+const { asBool } = require('./safety-snapshot-runtime');
+const { DYNAMIC_CALL_TEMPLATES } = require('./watch-call-links');
+const { checkCallTemplates } = require('./watch-call-template-contract');
 const FOLLOWUP_TEMPLATE = 'guardian_incident_photo_update_v1';
+const PHOTO_NOTICE = '\n\nIncident photos may follow, if available (up to 5). Keep checking on the wearer; do not wait for photos.';
+const V3_TEMPLATES = Object.freeze(Object.fromEntries(Object.entries(DYNAMIC_CALL_TEMPLATES)
+  .map(([type, states]) => [type, Object.freeze(Object.fromEntries(Object.entries(states)
+    .map(([state, name]) => [state, name.replace(/_v2$/, '_v3')])))])));
 
 function galleryBase(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return null;
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
+        /^(localhost|127\.|\[::1\])/.test(url.hostname) || url.hostname.endsWith('.localhost')) return null;
     return `${url.href.replace(/\/$/, '')}/?incident=`;
   } catch { return null; }
 }
-function templateName(type, state, callback) {
-  if (!['sos', 'fall'].includes(type) || !['fresh', 'last_known', 'unavailable'].includes(state)) throw Error('invalid_template');
-  const variant = { fresh: 'alert', last_known: 'last_location', unavailable: 'unavailable' }[state];
-  return `guardian_${type}${callback ? '_callback' : ''}_${variant}_photos_v1`;
+
+// After recipient-specific v2 link issuance, change only the approved name.
+// Body facts, bearer token and frozen map remain exactly as prepared.
+function withIncidentPhotoTemplate(prepared, { type, env = process.env } = {}) {
+  const plan = prepared?.plan;
+  const names = V3_TEMPLATES[type];
+  const enabled = type === 'sos' ? env.INCIDENT_PHOTO_SOS_V3_ENABLED : env.INCIDENT_PHOTO_FALL_V3_ENABLED;
+  if (!names || !asBool(enabled) || !plan?.dynamicCallLink ||
+      plan.templateName !== DYNAMIC_CALL_TEMPLATES[type][plan.locationState]) return prepared;
+  return { ...prepared, plan: { ...plan, templateName: names[plan.locationState] } };
 }
-function photoTemplatePlan(plan, { type, alertId, approved = false, appUrl, callback = false } = {}) {
-  if (!approved || !validIncidentId(alertId) || !galleryBase(appUrl)) return plan;
-  const hasMap = Boolean(plan.buttonUrlParameter);
-  const body = { type: 'body', parameters: plan.bodyParameters.map(text => ({ type: 'text', text })) };
-  const urlButton = (index, text) => ({ type: 'button', sub_type: 'url', index: String(index), parameters: [{ type: 'text', text }] });
-  const mapIndex = callback ? 1 : 0;
-  return { ...plan, templateName: templateName(type, plan.locationState, callback),
-    callButtonIncluded: callback, incidentId: alertId,
-    components: [body, ...(hasMap ? [urlButton(mapIndex, plan.buttonUrlParameter)] : []),
-      urlButton(mapIndex + (hasMap ? 1 : 0), alertId)] };
-}
+
 function buildFollowupPlan(id, gallery) {
   if (!validIncidentId(id)) throw Error('invalid_incident');
   const received = gallery.photos.filter(p => p.state === 'available');
@@ -38,27 +42,39 @@ function buildFollowupPlan(id, gallery) {
   ] };
 }
 
-// Create reviewed versions alongside the existing live templates. Switching is
-// independent from submission and requires approved names plus a deployed app.
-function templateDefinitions({ appUrl, callNumber = null } = {}) {
+// Preserve the approved v2 wording and buttons, copying only writable fields.
+function writableComponents(components) {
+  if (!Array.isArray(components)) throw Error('invalid_template_components');
+  const seen = new Set();
+  return components.map(component => {
+    const { type, format, text, example, buttons } = component;
+    if (!['HEADER', 'BODY', 'FOOTER', 'BUTTONS'].includes(type) || seen.has(type)) throw Error('unsupported_template_components');
+    seen.add(type);
+    return { type, ...(format ? { format } : {}), ...(typeof text === 'string' ? { text } : {}),
+      ...(example ? { example: structuredClone(example) } : {}),
+      ...(buttons ? { buttons: buttons.map(button => {
+        if (button.type !== 'URL') throw Error('unsupported_template_button');
+        return { type: 'URL', text: button.text, url: button.url,
+          ...(button.example ? { example: structuredClone(button.example) } : {}) };
+      }) } : {}) };
+  });
+}
+
+function templateDefinitions({ appUrl, callOrigin, baseTemplates } = {}) {
   const base = galleryBase(appUrl);
   if (!base) throw Error('A deployed HTTPS app URL without query or fragment is required.');
-  if (callNumber && !/^\+[1-9]\d{7,14}$/.test(callNumber)) throw Error('Call watch number must be E.164.');
+  if (!Array.isArray(baseTemplates)) throw Error('Read the six existing v2 templates before preparing v3.');
+  const checks = ['sos', 'fall'].flatMap(type => checkCallTemplates(baseTemplates,
+    { type, settings: { watchCallPublicOrigin: callOrigin } }));
+  if (checks.some(check => !check.ready)) throw Error('Existing v2 approval or calling/location contract does not match. No templates changed.');
   const definitions = [];
   for (const type of ['sos', 'fall']) for (const state of ['fresh', 'last_known', 'unavailable']) {
-    for (const callback of (callNumber ? [false, true] : [false])) {
-      const buttons = callback ? [{ type: 'PHONE_NUMBER', text: 'Call watch', phone_number: callNumber }] : [];
-      if (state !== 'unavailable') buttons.push({ type: 'URL', text: state === 'last_known' ? 'Last known location' : 'View location',
-        url: 'https://maps.google.com/?q={{1}}', example: ['https://maps.google.com/?q=-20.16,57.50'] });
-      buttons.push({ type: 'URL', text: 'Photos & AI details', url: `${base}{{1}}`, example: [`${base}sampleIncident123`] });
-      definitions.push({ name: templateName(type, state, callback), language: 'en', category: 'UTILITY', components: [
-        { type: 'HEADER', format: 'TEXT', text: type === 'sos' ? 'Guardian SOS alert' : 'Guardian fall alert' },
-        { type: 'BODY', text: 'Safety event: {{1}}\n\nEvent time: {{2}}\nLocation: {{3}}\n{{4}}\n\nGuardian AI photo insights\nAwaiting incident photos, if available (up to 5). Use Photos & AI details for progress. Keep checking on the wearer; do not wait for photos.',
-          example: { body_text: [[type === 'sos' ? 'Alex pressed SOS and is requesting help.' : 'The watch reported a possible fall for Alex. Please check on Alex now.',
-            '25 September, 23:35', state === 'unavailable' ? 'Current position unconfirmed' : state === 'last_known' ? 'Last known GPS fix, recorded 2 hours before the alert; current position unconfirmed' : 'GPS fix recorded 30 seconds before the alert', 'Battery: 55%']] } },
-        { type: 'BUTTONS', buttons },
-      ] });
-    }
+    const original = baseTemplates.find(row => row.name === DYNAMIC_CALL_TEMPLATES[type][state] && row.language === 'en');
+    const components = writableComponents(original.components);
+    const body = components.find(component => component.type === 'BODY');
+    body.text += PHOTO_NOTICE;
+    if (body.text.length > 1024) throw Error('The revised body exceeds the template limit. No templates changed.');
+    definitions.push({ name: V3_TEMPLATES[type][state], language: 'en', category: 'UTILITY', components });
   }
   definitions.push({ name: FOLLOWUP_TEMPLATE, language: 'en', category: 'UTILITY', components: [
     { type: 'HEADER', format: 'TEXT', text: 'Guardian incident update' },
@@ -68,4 +84,27 @@ function templateDefinitions({ appUrl, callNumber = null } = {}) {
   ] });
   return definitions;
 }
-module.exports = { galleryBase, templateName, photoTemplatePlan, buildFollowupPlan, templateDefinitions, FOLLOWUP_TEMPLATE };
+
+function checkPhotoTemplates(templates, definitions) {
+  const comparable = components => writableComponents(components).map(component => {
+    const { example, ...rest } = component;
+    if (rest.buttons) rest.buttons = rest.buttons.map(({ example, ...button }) => button);
+    return rest;
+  });
+  return definitions.map(definition => {
+    const rows = templates.filter(row => row.name === definition.name && row.language === 'en');
+    if (!rows.length) return { name: definition.name, ready: false, problems: ['missing_english_template'] };
+    const row = rows[0], problems = [];
+    if (rows.length !== 1) problems.push('duplicate_english_template');
+    if (row.status !== 'APPROVED') problems.push('not_approved');
+    if (row.category !== definition.category) problems.push('not_utility');
+    if (row.parameter_format && row.parameter_format !== 'POSITIONAL') problems.push('unsupported_parameter_format');
+    try {
+      if (JSON.stringify(comparable(row.components)) !== JSON.stringify(comparable(definition.components))) problems.push('contract_mismatch');
+    } catch { problems.push('contract_mismatch'); }
+    return { name: definition.name, ready: problems.length === 0, problems };
+  });
+}
+
+module.exports = { galleryBase, withIncidentPhotoTemplate, buildFollowupPlan,
+  templateDefinitions, checkPhotoTemplates, FOLLOWUP_TEMPLATE, PHOTO_NOTICE, V3_TEMPLATES };

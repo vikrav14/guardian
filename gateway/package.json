@@ -41,7 +41,8 @@
     "incident:setup": "node scripts/incident-photo-setup.js",
     "incident:trial": "node scripts/incident-photo-trial.js",
     "incident:templates": "node scripts/incident-photo-templates.js",
-    "incident:inspect": "node scripts/inspect-incident-photo.js"
+    "incident:inspect": "node scripts/inspect-incident-photo.js",
+    "call:templates": "node scripts/check-watch-call-templates.js"
   },
   "engines": {
     "node": ">=18"

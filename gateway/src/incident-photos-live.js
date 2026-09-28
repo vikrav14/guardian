@@ -20,7 +20,7 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
   live = createIncidentPhotos({ db, snapshots, enabled: asBool(env.INCIDENT_PHOTOS_ENABLED),
     trialOnly: asBool(env.INCIDENT_PHOTOS_TRIAL_ONLY, true), analyze, log: console.warn,
     onComplete: async incident => {
-      if (!asBool(env.INCIDENT_PHOTO_TEMPLATES_APPROVED) || !galleryBase(env.INCIDENT_PHOTOS_APP_URL) || !config.notifyWhatsApp) return { ok: false };
+      if (!asBool(env.INCIDENT_PHOTO_FOLLOWUP_APPROVED) || !galleryBase(env.INCIDENT_PHOTOS_APP_URL) || !config.notifyWhatsApp) return { ok: false };
       const { findContactsForImei } = require('./notify');
       const { selectWhatsAppContacts } = require('./notification-whatsapp-policy');
       const { sendMetaTemplate } = require('./whatsapp-meta');

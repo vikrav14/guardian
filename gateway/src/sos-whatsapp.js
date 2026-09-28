@@ -10,9 +10,6 @@ const {
 const config = require('./config');
 const { buildSosSafetyContext } = require('./sos-location-snapshot');
 
-const { photoTemplatePlan } = require('./incident-photo-templates');
-const { asBool } = require('./safety-snapshot-runtime');
-
 const SOS_TEMPLATE_LANGUAGE = 'en';
 
 function getSafetyNarrationProvider() {
@@ -80,9 +77,7 @@ async function prepareSosWhatsApp({
 
   return {
     composeResult,
-    plan: photoTemplatePlan(plan, { type: 'sos', alertId,
-      approved: asBool(process.env.INCIDENT_PHOTO_TEMPLATES_APPROVED),
-      appUrl: process.env.INCIDENT_PHOTOS_APP_URL, callback: plan.callButtonIncluded }),
+    plan,
   };
 }
 

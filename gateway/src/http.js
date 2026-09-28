@@ -4,6 +4,7 @@ const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
+const { handleWatchCallLink } = require('./watch-call-link-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -1031,6 +1032,7 @@ function startHttpServer() {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
       if (await handleSnapshotHttp(req, res, url)) return;
+      if (await handleWatchCallLink(req, res, { db: getDb(), pathname: url.pathname })) return;
 
       if (req.method === 'OPTIONS') {
         sendOptions(res);

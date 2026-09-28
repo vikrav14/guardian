@@ -129,19 +129,30 @@ individual photo descriptions; it does not infer motion or recovery.
 
 ## WhatsApp contracts
 
-Both SOS and fall receive fresh / last-known / unavailable variants. Callback
-variants retain `Call watch` for the exact existing IMEI/SIM pilot. Map URLs remain
-bound to the existing frozen event location. Each new variant adds `Photos & AI
-details` and an awaiting-photos section. An optional single follow-up reports photo
-counts and up to two grounded, explicitly unverified per-photo descriptions.
+The six callback v3 alerts are derived from the six approved English callback
+v2 templates. The only body change is a short note that incident photos may
+follow and that the recipient should not wait for them. `Call watch` stays at URL
+button 0, with the frozen incident/last-known map at URL button 1 when available.
+The unavailable-location variants contain only `Call watch`. No gallery button
+is added to these alerts: Meta permits at most two URL buttons.
 
-Generate and review definitions using `npm run incident:templates -- --app-url
-https://YOUR-DEPLOYED-GUARDIAN-APP --call-number +230YOURWATCHNUMBER`.
-No credentials are needed for this preview. `--submit` creates new versioned
-templates in the configured WABA; it does not change or interrupt existing approved
-templates. `--check` verifies both approval and the exact expected body/buttons.
-Do not turn on `INCIDENT_PHOTO_TEMPLATES_APPROVED` until that check passes and the
-deployed gallery opens correctly on a phone. The switch is independent of capture.
+The separate `guardian_incident_photo_update_v1` follow-up reports received and
+analysed counts, up to two explicitly unverified per-photo descriptions, and a
+`Photos & AI details` URL. Capture/AI never holds up the original notification.
+Trials send no emergency alert or follow-up.
+
+See [the v3 rollout guide](incident-photo-whatsapp-v3.md) for exact names,
+read-only preview, submission, approval checks, activation and rollback. Preview
+now reads the existing six v2 contracts from Meta so wording and buttons are
+preserved. It requires local Meta credentials. Submission creates missing
+versions only; it never edits existing templates. A mismatch aborts before any
+submission. No command changes gateway flags or sends a WhatsApp message.
+
+`INCIDENT_PHOTO_SOS_V3_ENABLED`, `INCIDENT_PHOTO_FALL_V3_ENABLED`, and
+`INCIDENT_PHOTO_FOLLOWUP_APPROVED` are independent and default off. V3 also
+requires the matching dynamic-call family gate and public call origin. The old
+`INCIDENT_PHOTO_TEMPLATES_APPROVED` flag and `_photos_v1` draft contracts are
+retired and no longer select templates.
 
 References: [Meta template components](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/components/),
 [template overview](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/overview),
@@ -185,7 +196,9 @@ capture settings do not themselves confirm a live watch connection.
    $env:INCIDENT_PHOTOS_ENABLED = 'true'
    $env:INCIDENT_PHOTOS_TRIAL_ONLY = 'true'
    $env:INCIDENT_PHOTO_AI_ENABLED = 'true'
-   $env:INCIDENT_PHOTO_TEMPLATES_APPROVED = 'false'
+   $env:INCIDENT_PHOTO_SOS_V3_ENABLED = 'false'
+   $env:INCIDENT_PHOTO_FALL_V3_ENABLED = 'false'
+   $env:INCIDENT_PHOTO_FOLLOWUP_APPROVED = 'false'
    npm start
    ```
 
@@ -212,15 +225,15 @@ capture settings do not themselves confirm a live watch connection.
    behavior. Stop after a failed/partial sequence and inspect evidence.
 
 5. After supervised acceptance, deploy the app at a stable HTTPS URL, submit/check
-   template revisions, set `INCIDENT_PHOTOS_APP_URL`, enable the approved-template
-   switch, then set `INCIDENT_PHOTOS_TRIAL_ONLY=false` for a coordinated physical
+   the seven templates using the v3 rollout guide, set `INCIDENT_PHOTOS_APP_URL`,
+   enable the checked family/follow-up gates, then set `INCIDENT_PHOTOS_TRIAL_ONLY=false` for a coordinated physical
    SOS and fall test. Confirm the alert arrives promptly, call/map actions still
    work, no duplicate batch starts, the gallery works on mobile, and AI remains
    appropriately uncertain. Templates, live capture and AI are not production
    accepted until these checks are recorded.
 
-Rollback: leave existing templates selected (`INCIDENT_PHOTO_TEMPLATES_APPROVED=false`)
-and disable automatic capture (`INCIDENT_PHOTOS_ENABLED=false`). Authenticated
+Rollback: disable both v3 family gates and `INCIDENT_PHOTO_FOLLOWUP_APPROVED`
+(see the v3 guide for the resulting v2/v1 selection), and disable automatic capture (`INCIDENT_PHOTOS_ENABLED=false`). Authenticated
 gallery reads, deletion and expiry cleanup continue for existing photos.
 
 ## Inspect a partial sequence without another capture
@@ -349,7 +362,9 @@ $env:INCIDENT_PHOTO_AI_ENABLED = 'true'
 $env:INCIDENT_PHOTO_AI_ORIENTATION_ENABLED = 'true'
 $env:INCIDENT_PHOTOS_ENABLED = 'true'
 $env:INCIDENT_PHOTOS_TRIAL_ONLY = 'true'
-$env:INCIDENT_PHOTO_TEMPLATES_APPROVED = 'false'
+$env:INCIDENT_PHOTO_SOS_V3_ENABLED = 'false'
+   $env:INCIDENT_PHOTO_FALL_V3_ENABLED = 'false'
+   $env:INCIDENT_PHOTO_FOLLOWUP_APPROVED = 'false'
 npm start
 ```
 
