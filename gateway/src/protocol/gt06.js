@@ -57,7 +57,7 @@ const SERVER_ONLY_COMMANDS = new Set([
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
   // Additional commands documented for the V52 data protocol/captures.
-  'hrtstart', 'SEDENTARY', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
+  'hrtstart', 'SEDENTARY', 'SEDENTARYWORKTIME', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
   // ReachFar V48 integration evidence uses this spelling. Recognize its reply

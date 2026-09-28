@@ -19,7 +19,22 @@ hours. Start with the observed 20-minute interval. The first layout supports
 one daytime window; do not imply that arbitrary intervals, overnight windows,
 multiple periods or weekday scheduling have been accepted on the watch.
 
-## Implemented preview
+## Connected supervised pilot (28 September follow-up)
+
+The user next requested connected controls and the physical reminder test.
+`movement_reminders_page.dart` now provides a separate authenticated pilot path;
+see [the app trial runbook](../testing/movement-reminder-app-trial.md).
+It uses an inactivity interval / active-hours contract, scoped captured-format
+sender, durable request audit, version checks and no automatic retries.
+The explicit signed-in account/device pilot permits Jesh's active Family profile
+without changing the subscription. Normal customer Care visibility is unchanged.
+The original preview remains available behind its existing flag.
+
+The software path does not establish physical reminder behavior. Customer launch,
+physical sound/vibration and active-hours acceptance remain pending. The sections
+below describe the initial preview and the customer acceptance requirements.
+
+## Initial preview
 
 The new screen lets an internal reviewer try a local example toggle and daytime
 start/end times. 08:00–20:00 is explicitly an **example**, not a tested wire value

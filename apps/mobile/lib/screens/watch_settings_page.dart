@@ -11,6 +11,8 @@ import 'watch_preferences_page.dart';
 import '../wellness/wellness_routine.dart';
 import '../wellness/wellness_settings_card.dart';
 import '../wellness/movement_reminder_preview.dart';
+import '../wellness/movement_reminders_page.dart';
+import '../services/movement_reminders_service.dart';
 import 'emergency_contacts_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
@@ -155,10 +157,17 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                 _personCard(colors),
                 const SizedBox(height: 24),
                 WellnessSettingsCard(
+                  imei: widget.device.imei,
                   subscription: widget.subscription,
                   onMovementReminders: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => MovementReminderPreviewPage(
+                      builder: (_) => canUseMovementPilot(widget.subscription, widget.device.imei)
+                          ? MovementRemindersPage(
+                              imei: widget.device.imei,
+                              name: widget.device.displayName,
+                              subscription: widget.subscription,
+                            )
+                          : MovementReminderPreviewPage(
                         name: widget.device.displayName,
                         subscription: widget.subscription,
                       ),
