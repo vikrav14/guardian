@@ -43,6 +43,19 @@ nonzero CLI exit, even if the preceding output says that login succeeded.
 The release gate exercises the actual isolated CLI on Windows without credentials
 or a live deployment, as well as mocked failure paths for the deployment script.
 
+If Firebase reports **Deploy complete** but the final release check fails, do not
+rebuild immediately. Verify the existing deployment from the same checkout:
+
+```powershell
+& .\scripts\deploy-guardian-web.ps1 -VerifyOnly
+```
+
+This reads the local and public release markers and requires both the release ID
+and gateway URL to match. It performs no build, login, upload, or deployment.
+The verifier accepts the UTF-8 byte-order mark written by the original Windows
+script; future builds write JSON without that marker. A stale release or HTML
+fallback still fails verification.
+
 To supply a stable gateway explicitly, use `-GatewayUrl https://YOUR-GATEWAY`.
 The manual safety snapshot dashboard button remains disabled by default, matching
 the ordinary Flutter launch. Add `-EnableSafetySnapshots` only when deliberately

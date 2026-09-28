@@ -21,6 +21,7 @@ $testState = @{
     commands = New-Object 'System.Collections.Generic.List[object]'
     failure = ''; wrongHealth = $false; wrongRelease = $false; ambiguousEndpoint = $false
     firebaseFailure = ''; setupFailure = $false; releaseChecks = 0
+    releaseBom = $false; invalidRelease = $false; wrongGateway = $false
 }
 
 function Assert-True($condition, $message) {
@@ -37,12 +38,21 @@ function Invoke-RestMethod {
         Assert-True ($Headers['ngrok-skip-browser-warning'] -eq '1') 'ngrok warning bypass missing'
         return @{ ok = -not $testState.wrongHealth; service = 'guardian-gateway-http' }
     }
-    if ($Uri -like 'https://guardian-fbadd.web.app/guardian-release.json?release=*') {
-        $testState.releaseChecks++
-        if ($testState.wrongRelease) { return @{ releaseId = 'old-release' } }
-        return (Get-Content (Join-Path $fixture 'apps/mobile/build/web/guardian-release.json') -Raw | ConvertFrom-Json)
-    }
     throw "Unexpected network request: $Uri"
+}
+function Invoke-WebRequest {
+    param($Uri, $TimeoutSec, $Headers, [switch]$UseBasicParsing)
+    Assert-True ($Uri -like 'https://guardian-fbadd.web.app/guardian-release.json?release=*') 'Unexpected release URL'
+    Assert-True $UseBasicParsing 'Windows verification must not require Internet Explorer'
+    $testState.releaseChecks++
+    $release = Get-Content (Join-Path $fixture 'apps/mobile/build/web/guardian-release.json') -Raw | ConvertFrom-Json
+    if ($testState.wrongRelease) { $release.releaseId = 'old-release' }
+    if ($testState.wrongGateway) { $release.gatewayUrl = 'https://old-gateway.example' }
+    $content = $release | ConvertTo-Json
+    if ($testState.invalidRelease) { $content = '<html>SPA fallback, not a release marker</html>' }
+    [byte[]]$bytes = [Text.Encoding]::UTF8.GetBytes($content)
+    if ($testState.releaseBom) { $bytes = [byte[]]@(239, 187, 191) + $bytes }
+    return @{ RawContentStream = [IO.MemoryStream]::new($bytes) }
 }
 function npx { throw 'System npx must not be used for deployment' }
 function node { throw 'System Node must not be used for deployment' }
@@ -93,6 +103,26 @@ try {
     Assert-True ($build -contains '--dart-define=GUARDIAN_GATEWAY_URL=https://gateway.example') 'Current gateway must reach Flutter build'
     Assert-True ($build -contains '--dart-define=GUARDIAN_SAFETY_SNAPSHOTS_ENABLED=false') 'Manual capture UI must remain opt-in'
     Assert-True ($build -contains '--no-pub') 'Build must use the locked dependency restore'
+    $releasePath = Join-Path $fixture 'apps/mobile/build/web/guardian-release.json'
+    $bytes = [IO.File]::ReadAllBytes($releasePath)
+    Assert-True ($bytes[0] -eq 123) 'New JSON release markers must begin with {, without a UTF-8 BOM'
+
+    # Real byte streams exercise the encoding boundary previously hidden by mocks.
+    $testState.releaseBom = $true
+    Run-Deployment
+    $beforeVerification = [IO.File]::ReadAllText($releasePath)
+    $testState.commands.Clear()
+    & (Join-Path $fixture 'scripts/deploy-guardian-web.ps1') -VerifyOnly
+    Assert-True ($testState.commands.Count -eq 0) 'Read-only verification must not build, log in, or deploy'
+    Assert-True ([IO.File]::ReadAllText($releasePath) -eq $beforeVerification) 'Read-only verification must preserve the local release'
+    foreach ($problem in @('wrongRelease', 'wrongGateway', 'invalidRelease')) {
+        $testState[$problem] = $true
+        $caught = $false
+        try { & (Join-Path $fixture 'scripts/deploy-guardian-web.ps1') -VerifyOnly } catch { $caught = $true }
+        Assert-True $caught "Verification must reject $problem even with a BOM"
+        $testState[$problem] = $false
+    }
+    $testState.releaseBom = $false
 
     $testState.setupFailure = $true
     Expect-Stopped { Run-Deployment } 'Tool setup failure must stop'

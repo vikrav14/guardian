@@ -3,7 +3,8 @@
 [CmdletBinding()]
 param(
     [string]$GatewayUrl = '',
-    [switch]$EnableSafetySnapshots
+    [switch]$EnableSafetySnapshots,
+    [switch]$VerifyOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +13,35 @@ $appRoot = Join-Path $repoRoot 'apps/mobile'
 $projectId = 'guardian-fbadd'
 $appUrl = "https://$projectId.web.app"
 . (Join-Path $PSScriptRoot 'guardian-hosting-tools.ps1')
+
+function Confirm-GuardianWebRelease {
+    param([string]$ReleasePath)
+    if (-not (Test-Path -LiteralPath $ReleasePath)) {
+        throw 'The local release marker is missing. Use the checkout that performed the deployment.'
+    }
+    $expected = [IO.File]::ReadAllText($ReleasePath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $releaseGuid = [Guid]::Empty
+    if (-not [Guid]::TryParse([string]$expected.releaseId, [ref]$releaseGuid)) {
+        throw 'The local release marker has no valid release ID.'
+    }
+    $response = Invoke-WebRequest "$appUrl/guardian-release.json?release=$($expected.releaseId)" `
+        -UseBasicParsing -TimeoutSec 30 -Headers @{ 'Cache-Control' = 'no-cache' }
+    # Windows PowerShell may return BOM-prefixed JSON as a string from
+    # Invoke-RestMethod. Read the bytes with BOM detection before parsing JSON.
+    $response.RawContentStream.Position = 0
+    $reader = [IO.StreamReader]::new($response.RawContentStream, [Text.Encoding]::UTF8, $true)
+    try { $published = $reader.ReadToEnd() | ConvertFrom-Json }
+    finally { $reader.Dispose() }
+    if ($published.releaseId -cne $expected.releaseId -or $published.gatewayUrl -cne $expected.gatewayUrl) {
+        throw 'Firebase reported deployment success, but the new release could not be verified. Share this message before retrying.'
+    }
+}
+
+if ($VerifyOnly) {
+    Confirm-GuardianWebRelease (Join-Path $appRoot 'build/web/guardian-release.json')
+    Write-Host "Guardian web release verified: $appUrl"
+    return
+}
 
 function Invoke-CheckedNative {
     param([string]$Command, [string[]]$Arguments)
@@ -94,14 +124,13 @@ try {
     }
     $releaseId = [Guid]::NewGuid().ToString()
     $release = @{ releaseId = $releaseId; builtAt = [DateTime]::UtcNow.ToString('o'); gatewayUrl = $GatewayUrl }
-    $release | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $buildRoot 'guardian-release.json') -Encoding UTF8
+    $releasePath = Join-Path $buildRoot 'guardian-release.json'
+    # Explicitly omit the BOM on both Windows PowerShell 5.1 and PowerShell 7.
+    [IO.File]::WriteAllText($releasePath, ($release | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     Invoke-GuardianFirebase $firebase @('deploy', '--only', 'hosting',
         '--project', $projectId, '--config', (Join-Path $repoRoot 'firebase.json'), '--non-interactive')
 
-    $published = Invoke-RestMethod "$appUrl/guardian-release.json?release=$releaseId" -TimeoutSec 30
-    if ($published.releaseId -ne $releaseId) {
-        throw 'Firebase reported deployment success, but the new release could not be verified. Share this message before retrying.'
-    }
+    Confirm-GuardianWebRelease $releasePath
     Write-Host "Guardian app published and verified: $appUrl"
     Write-Host "Photo template setting: INCIDENT_PHOTOS_APP_URL=$appUrl"
     Write-Host 'Keep the gateway and ngrok running. Open this address on your phone and sign in.'
