@@ -253,6 +253,22 @@ observation; do not assume cleanup has already happened. The previous requested
 hours ended at 15:00, so this report is not a basis for beginning a new 20-minute
 test inside that expiring window. PR #118 remains draft.
 
+### Operator result at 15:01 MUT: Guardian Off reflects the disabled menu
+
+In response to the explicit Off check, the operator reported selecting Off in
+Guardian, seeing Close / 20 first, then Close / 0. This is consistent with the
+earlier local disabled-display normalization. Record the corrected Guardian
+**Off menu check as passed by operator observation**, alongside the 14:58 On
+result. The last physical state reported is closed. Exact Off request/reply
+rows and send time have not yet been supplied; 15:01 is the report time.
+
+This establishes the two observed setting transitions. It does not establish
+long-term suppression, timed prompt delivery, worktime enforcement or sensor
+reset rules. Next verify an independent hours Save while still Off, including
+the exact window/reply and unchanged physical menu, before enabling another
+timed observation. The old window ending 15:00 must not be reused for that wait.
+Scene mode and volume still need an explicit operator confirmation.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking

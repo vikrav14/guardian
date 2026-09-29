@@ -1,11 +1,12 @@
 # Connected movement reminder trial
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
-release. The isolated Guardian On setting check was reported successful at
-14:58 MUT on 29 September after the independent-Save correction: the physical
-watch showed Open / 20. Earlier inconsistent reports remain historical evidence.
-Local Off normalizes its displayed interval to 0. Off through the corrected
-control and the complete connected reminder behavior still need acceptance.
+release. The isolated Guardian On/Off menu checks were reported successful on
+29 September after the independent-Save correction: Open / 20 after On at
+14:58 MUT; Close / 20 briefly, then Close / 0 after Off at 15:01 MUT. These are
+operator report times. Earlier inconsistent reports remain historical evidence.
+The corrected control's observed menu transition passes in both directions;
+the complete connected reminder behavior still needs acceptance.
 The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
@@ -16,10 +17,12 @@ Save actions: switch sends only SEDENTARY On/Off; hours sends only WORKTIME.
 The earlier unrequested Off/hours/On sequence is removed. The UI no longer blocks
 explicit On merely because a previous On received a reply. Exact sent frame hex
 is retained in the request audit. The operator subsequently reported that saving
-On in Guardian produced Open / 20 on the watch. This passes the observed enable
-menu check, not timed inactivity behavior or a permanent remote readback. The
-new request's exact audit rows have not yet been supplied. Next check is one
-explicit Off and the physical menu; no further timed wait is requested first.
+On in Guardian produced Open / 20 on the watch, and selecting Off produced
+Close / 20 then Close / 0. This passes the observed On/Off menu checks, not timed
+inactivity behavior or permanent remote readback. Exact new audit rows have not
+yet been supplied. The watch was last reported closed. Next check is the
+independent active-hours Save while Off, with its reply and unchanged menu,
+before a separately enabled timed observation with confirmed sound mode.
 
 **Previous observation, 29 September at 14:22 MUT:** the
 [source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)
