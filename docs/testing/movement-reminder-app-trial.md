@@ -1,13 +1,20 @@
 # Connected movement reminder trial
 
+**Latest On check, reported 29 September at 20:24:43 MUT:** the operator says
+the Guardian Save was around 20:22-20:23 and the physical watch shows **Open / 20**.
+This follows the separate hours request below and the instruction to inspect
+the watch without pressing its Save. Record an operator-observed remote On
+menu result for this run; the Save time is approximate, with no new immutable
+request audit or exact wire time supplied. A timed reminder is not yet reported.
+
 **Latest hours check, screenshot 29 September at 20:14:11 MUT:** the app shows
 Selected: Off, From 20:00 / Until 22:00, and Last request: "Watch replied — check
 the watch" / "Requested hours: 20:00–22:00". The accompanying gateway excerpt
 contains a SEDENTARYWORKTIME echo near 20:14 (the echo line has no independent
 timestamp) and fresh Guardian telemetry. This supports a separate hours request
 and reply; the screenshot is not applied schedule readback. Exact WORKTIME
-bytes, the UI click time and a new physical menu observation are not supplied.
-No On request after this hours Save has yet been reported.
+bytes and the hours UI click time are not supplied. The later On/menu report
+above does not independently verify the firmware-applied active hours.
 
 **Earlier operator report, 29 September at 17:48:15 MUT: remote menu check passed
 for this run.** During the requested Guardian-through-recorder setting check,
@@ -48,14 +55,21 @@ overlap. A read-only refresh does not display a Save as sending. There is no
 new combined Save or automatic hours command. Regression coverage checks both
 pending actions, completion/failure cleanup and read-only refresh.
 
-**Next diagnostic:** leave the requested 20:00-22:00 hours unchanged, select On
-and Save On/Off once, record its local time, then reopen the physical menu
-without pressing the watch's Save. Report the displayed switch and interval
-before starting another timed observation. The first
+**Current bounded observation:** with the reported Open / 20 after Guardian On,
+leave On / 20 and the requested 20:00-22:00 hours unchanged. Keep the watch on
+Guardian, worn during ordinary comfortable seated activity until **20:50 MUT**.
+Do not save again in either app or on the watch, restart the gateway or reroute
+during this observation. Record the prompt time, sound/vibration and exact
+screen text if it occurs; otherwise end this observation at 20:50 and report
+no prompt. This cutoff is an observation limit, not a guaranteed firing time:
+the watch's inactivity reset rules and precise start time remain unverified.
+Record any setting changes or substantial movement. After the result, use an
+explicit Guardian Off Save for cleanup and inspect the physical menu separately.
+Neither a timed result nor cleanup is completed yet. The first
 [connection capture](movement-session-comparison.md) remains a
 successful On/Off-only check. The absent hours Save is explained by the UI
 confusion; it does not explain earlier failed runs that did include WORKTIME.
-No further timed wait or supplier reroute is requested yet.
+No supplier reroute is requested. Remote functional acceptance remains open.
 
 **Earlier remote result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
 the operator confirmed that the physical clock matched Mauritius time and

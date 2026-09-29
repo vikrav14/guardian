@@ -941,13 +941,21 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
+and physical **Open / 20**, following the separate hours request below and the
+instruction to inspect without the watch's Save. This is an operator-observed
+On/menu result; the Save time is approximate and no new exact wire audit was
+supplied. A bounded remote-only reminder observation is now requested through
+20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
+route changes. The cutoff is not a guaranteed firing time. Timed sound/display
+and subsequent explicit Off cleanup are pending; remote acceptance stays open.
+
 The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
 Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare
 SEDENTARYWORKTIME echo near 20:14 and fresh telemetry after the reported return
 to Guardian. This is hours-request/reply evidence, not applied schedule readback.
-The exact wire body/time and a physical menu check following this hours Save
-have not been supplied. Next observe one explicit On after this separate hours
-Save before beginning a new timed trial. Remote functional acceptance is open.
+The exact hours wire body/time has not been supplied. The later physical
+Open / 20 result does not independently verify the firmware-applied schedule.
 
 At 17:48:15 MUT the operator reported Open / 20 during the requested
 Guardian-through-recorder check, then Guardian Off Save produced Close / 20

@@ -499,11 +499,27 @@ negate the recorded command reply.
 
 The screenshot and echo support a completed separate hours request/reply for
 20:00-22:00. They do not independently retain the exact outgoing frame or prove
-the firmware-applied schedule. No new physical menu check or On after this
-hours request has yet been supplied. Next leave the hours unchanged, Save On
-once in Guardian, record the time and inspect the physical menu without local
-Save before any timed observation. No supplier reroute is requested. Remote
-timed acceptance remains open.
+the firmware-applied schedule. The following On/menu report is a separate
+observation, not schedule readback.
+
+### Guardian On after separate hours — reported at 20:24:43 MUT
+
+The operator reported "saved was around 20.22/23" and **Open / 20** on the
+physical watch. The preceding instruction was one Guardian On/Off Save with
+20:00-22:00 unchanged, followed by inspection without the watch's Save. Record
+an operator-observed remote On/menu result for this run. The approximate
+20:22-20:23 Save time is not an independently measured wire or application time;
+no fresh immutable request audit accompanies this report.
+
+The next observation is bounded through **20:50 MUT**, with the watch worn
+during ordinary comfortable seated activity, still routed to Guardian, and
+On / 20 / requested 20:00-22:00 left unchanged. No additional Save, gateway
+restart or reroute is requested. Record any prompt time, sound/vibration and
+screen text, or report no prompt at the cutoff. The cutoff does not assert an
+exact trigger time; inactivity reset rules remain unverified. Record material
+movement or setting changes. Explicit Guardian Off cleanup and a separate
+physical menu check follow the result. Prompt and cleanup are pending. No
+supplier reroute is requested; remote timed acceptance remains open.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 
