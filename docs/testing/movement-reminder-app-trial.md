@@ -11,11 +11,15 @@ hardware acceptance result.
 
 **Latest review:** the [29 September original-PDF audit](sedentary-source-audit-2026-09-29.md)
 confirms the framing but finds no documented sedentary readback or local/remote
-menu equivalence. AnyTracking's 01:30 On also produced a bare reply followed by
-reported Close / 0. That comparison was outside the earlier requested time
-window, with retained worktime unverified. Record the menu as an observation,
-not the sole pass/fail condition. The audit's bounded daytime diagnostic
-supersedes the historical upper-Save-only comparison below.
+menu equivalence. Its midday follow-up records supplier On / 20, two identical
+21:00-23:59 worktime requests, replies, and a physical Open / 20 photograph.
+The operator reported saving 13:00-14:00, but delivery of that change was not
+captured. No sound or on-screen reminder was observed by 13:28. This is
+inconclusive; do not repeat a timed trial before confirming delivery of the
+intended active hours. Guardian routing was restored with a connected-session
+inspection. The app status-load error must be diagnosed; its default Off and
+08:00-20:00 display is not watch readback. Cleanup remains unconfirmed. See the
+audit for exact evidence and limits; the upper-Save-only plan below is historical.
 
 ## Current blocker and local-control result — 29 September 2026
 

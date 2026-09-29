@@ -1,7 +1,7 @@
 # V52 sedentary source audit - 29 September 2026
 
 PR #118 remains draft. This is a review of five original supplier PDFs supplied
-again by the operator, the current sender, and the previous night's captures.
+again by the operator, the current sender, and the overnight and midday captures.
 It does not establish that remote reminders work or change a watch setting.
 
 ## Original source inventory
@@ -60,7 +60,7 @@ example PDF. A bare SEDENTARY reply carries no saved values or success code.
   this editing menu is authoritative for a remotely stored reminder. Do not
   classify a remote command as applied or ineffective solely from that menu.
 
-## Latest supplier comparison, in Mauritius time
+## Overnight supplier comparison, in Mauritius time
 
 On 29 September, the relay recorded supplier Off at 01:13:45.545 with a bare
 reply at 01:13:47.174; supplier On / 20 at 01:30:25.726 with a bare reply at
@@ -79,7 +79,75 @@ The observed symptom is not isolated to Guardian's sender. It does not prove a
 firmware defect or that both services failed to enable the running reminder.
 No controlled, timed remote reminder observation has resolved that question.
 Recorder expiry does not restore routing or disable a stored setting. Fresh
-Guardian telemetry and cleanup after the latest remote On remain unconfirmed.
+Guardian telemetry and cleanup after that remote On were unconfirmed at the time.
+The midday follow-up below supersedes the routing status, but does not establish
+remote reminder acceptance or completed Off cleanup.
+
+## Midday supplier capture and observation - 29 September 2026
+
+All times in this section are Mauritius time (UTC+4). The public recorder TCP
+port failed a connection test while the supplier server was reachable. The
+operator recreated only the recorder endpoint and its public TCP check passed;
+the next recording reached the supplier at 12:33:45.988. A local ngrok endpoint
+listing alone is not sufficient evidence that its public port is reachable.
+Future runs must rediscover addresses; do not reuse ports from this record.
+
+The operator supplied screenshots and the six private rows from
+`daytime-20260929-123343-914.jsonl`. Exact setting frames were:
+
+| Sent | Body | Prefix / length | Bare watch reply |
+| --- | --- | --- | --- |
+| 12:35:02.102 | `SEDENTARY,1,20` | `3G` / `000e` | 12:35:03.052 |
+| 12:35:15.070 | `SEDENTARYWORKTIME,21:00-23:59,-` | `3G` / `001f` | 12:35:15.807 |
+| 12:36:45.627 | `SEDENTARYWORKTIME,21:00-23:59,-` | `3G` / `001f` | 12:36:46.683 |
+
+Both worktime frames are identical. The upper Save sent On / 20, even though
+the operator described the earlier state as closed. The app screenshots show
+Open / 20, first period 21:00-23:59 and an empty second period, plus a Success
+toast. The supplied physical-watch photograph shows Open / 20. Whether that
+photo followed only reopening, with no physical local edit/Save, has not been
+explicitly confirmed. Do not upgrade this to applied-state readback.
+
+The bytes and lengths match the current Guardian sender. This supplier run used
+On then worktime, whereas Guardian's combined On request uses Off, worktime,
+then On. Order remains a comparison variable; there is no evidence yet that
+changing the order fixes reminder behavior.
+
+At 12:53 the operator confirmed saving a 13:00-14:00 window in AnyTracking and
+reported the physical watch clock as 12:53, matching Mauritius time. However,
+the subsequently supplied private file still contains only the six rows above:
+no 13:00-14:00 frame or reply was captured. The supplied public log ends with a
+12:37:45.347 heartbeat reply, not a session-close or recorder-stop event. Do not
+infer that the daytime schedule reached the watch from the app Save alone.
+
+The operator restored the Guardian route; the 12:52 inspection reported
+`sessionConnected: true`. Home matching remained `no_observation`, a separate
+condition. The recorder started at 12:33:43.980 with a 20-minute bound, so its
+nominal expiry was 12:53:43.980, not the earlier recording's 12:42 expiry.
+
+The operator reported wearing the watch while seated at 12:55 and agreed to
+observe through 13:25 without further changes. At 13:28 they reported no sound
+and no on-screen reminder. Vibration, scene mode/volume, sensor-detected movement,
+and applied worktime remain unconfirmed. Classify this observation as
+**inconclusive: no reminder observed, daytime schedule delivery unverified**.
+Do not mark it a pass, a proven firmware fault, or a Guardian send failure.
+Do not extend the wait or repeat On/Off blindly.
+
+### Guardian page shown during the observation
+
+The screenshot shows Selected: Off, 08:00-20:00, Last request: Not checked, an
+unconfirmed-result error and a disabled Save button. Source inspection confirms
+these values match the form's initial values when state has not loaded. They
+are not a live reading from the watch or proof that Guardian sent Off. Opening,
+refreshing and reconnecting do not send reminder settings; the authenticated
+POST Save path does. Guardian does not import AnyTracking's requested settings.
+
+Before another Guardian timed trial, diagnose the status-load failure (current
+gateway URL, route/pilot availability and authenticated read). Record the exact
+requested daytime window, sent frames/replies and clock/mode before beginning
+another wait. The initial-load UI must also avoid presenting fallback Off and
+hours as though they were loaded settings. No runtime change is made by this
+evidence update. Off cleanup after the midday enable remains unconfirmed.
 
 ## Next diagnostic, without repeating blind On/Off attempts
 
