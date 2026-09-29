@@ -24,13 +24,23 @@ the subsequent 15:15 On, the menu still showed Close / 0 despite an audited
 single SEDENTARY,1,20 frame and reply 557 ms later. The earlier successful
 On/Off checks are individual observations, not repeatable acceptance.
 
-Next read the immutable request records for the earlier On/Off and intervening
-hours Save and compare exact bytes, timestamps and replies. Requested hours in
-the latest merged desired state are not the preceding worktime wire evidence.
-Hours/order are investigation variables, not established causes. Do not start
-another blind waiting test or alter framing that already matches the capture.
-The physical menu still is not documented readback of the running reminder.
-Scene mode/volume and actual reminder behavior remain unconfirmed.
+The 15:21 immutable request audit now confirms all four single-frame handoffs
+and replies: On at 14:58:08.211, Off at 15:00:52.144, WORKTIME,15:10-16:30,-
+at 15:05:23.123 and On at 15:15:13.019 MUT. Both On frames are identical.
+At approximately 15:22 the operator saved the same hours again, after On,
+and still reported Close / 0. The screenshot shows the hours action and Watch
+replied; the public log contains a WORKTIME echo, but that echo line has no
+timestamp. This single reverse-order check did not resolve the symptom.
+
+Do not ask for the same request history again or infer that order alone fixes
+it. No extra Off was found in the reviewed reply-handling path. The echo log's
+"dropped, not re-acking" wording means the reply is not acknowledged back; it
+does not mean the outgoing setting was dropped. The physical menu is not
+documented readback of the running reminder, and a bare reply is not applied
+state. Record current watch clock, scene mode and audible volume before any
+further bounded behavior observation. Earlier menu checks are insufficient to
+call the feature fixed; avoid additional blind resends or speculative framing
+changes. Customer rollout remains blocked and supplier contact is not requested.
 
 **Previous observation, 29 September at 14:22 MUT:** the
 [source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)

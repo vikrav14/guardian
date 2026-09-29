@@ -304,6 +304,51 @@ claim that worktime caused the result, guess a timezone correction, or start
 another blind wait. Actual reminder behavior and scene mode remain unverified.
 PR #118 stays draft, with no customer activation or supplier escalation.
 
+### Full request audit and follow-up hours Save, supplied at 15:21-15:24 MUT
+
+The operator supplied the immutable requests from 14:45-15:20 MUT. The query
+did not reach its 50-record limit. All four were replies_observed with null
+reason, one evidence row each, and the captured 3G/lowercase-length framing:
+
+| Created (MUT) | Sent (MUT) | Body | Bare reply (MUT) |
+| --- | --- | --- | --- |
+| 14:58:07.532 | 14:58:08.211 | `SEDENTARY,1,20` | 14:58:09.245 |
+| 15:00:51.458 | 15:00:52.144 | `SEDENTARY,0,20` | 15:00:53.041 |
+| 15:05:22.424 | 15:05:23.123 | `SEDENTARYWORKTIME,15:10-16:30,-` | 15:05:23.840 |
+| 15:15:12.238 | 15:15:13.019 | `SEDENTARY,1,20` | 15:15:13.576 |
+
+This closes the earlier missing-hours-wire-evidence gap and supplies the exact
+earlier On/Off times. The earlier successful On had merged requested hours
+00:30-15:00; the later On had 15:10-16:30. Neither audit reads firmware state.
+The two On frames are identical, and the worktime has 31 ASCII payload bytes,
+length 001f, with the same syntax as the captured supplier example.
+
+To test the observed supplier ordering, the operator kept On selected and the
+15:10-16:30 hours unchanged, then pressed only Save active hours at about 15:22.
+They reported Close / 0 afterward. The 15:24 screenshot shows Selected: On,
+the unchanged hours and Last request: Watch replied / Requested hours:
+15:10-16:30. The public log includes a SEDENTARYWORKTIME echo between nearby
+15:22:35-era entries; the echo itself has no timestamp, so do not assign an
+exact receive time from its neighboring location event. The immutable audit
+for this final hours request has not been supplied.
+
+The order check did not resolve the reported symptom; it is not evidence that
+the firmware's behavior is independent of all ordering or timing. Do not make
+an automatic extra hours command into a supposed fix. The latest reviewed
+receive path observes the bare reply before asynchronous event processing;
+both SEDENTARY commands are in SERVER_ONLY_COMMANDS and produce no ACK back.
+The command_echo handler logs only. "Dropped, not re-acking" describes skipping
+an ACK to the reply, not discarding the outgoing request. No hidden Off was
+identified in those reviewed paths; this is not a complete capture of every
+possible external writer. Weak home-Wi-Fi evidence and the CR recovery probe
+do not establish a cause for Close / 0; the watch continued sending packets.
+
+The current clock, scene mode and audible volume still need explicit checks
+before a further bounded behavior observation. Preserve the menu result as
+reported without equating it to documented remote readback. Actual reminder
+acceptance remains pending; no supplier contact, customer activation, guessed
+hardware command or blanket ACK change is justified by this result.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking
