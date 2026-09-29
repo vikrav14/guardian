@@ -1,5 +1,15 @@
 # PR #118: remaining V52 reminder commands
 
+**29 September update:** the connected Guardian 20-minute trial received replies
+but no reminder was reported by 15:56 MUT. A subsequent physical-watch Open / 20
+Save produced a reported audible and on-screen exercise reminder at 16:24:51,
+approximately 20 minutes after the local enable confirmation. Local control
+passed; remote acceptance remains open. Local Close / 0 Save and persistence
+after reopening were confirmed by the operator at 16:26:41; cleanup is complete.
+Use the [current movement runbook](movement-reminder-app-trial.md) for this
+comparison; the fixed-26-minute CLI procedures below are historical and should
+not be mixed into the active app trial.
+
 Status: REMIND once-only sound/visible clearing and local SEDENTARY speech were
 observed. HSW passed the pilot wake-screen on/off test on 22 September; remote
 SEDENTARY execution remains unverified. New supplier
@@ -237,7 +247,7 @@ retain its disabled state rather than marking it proven.
 - Supplier definitions: received 22 September; see linked source record.
 - Existing observations: REMIND once-only sound/visible clearing; three local SEDENTARY announcements with unknown timing.
 - HSW wake-screen on/off: **passed on pilot, operator-confirmed 22 September**; see the canonical evidence below.
-- Remote SEDENTARY trial: **not yet performed**.
+- Remote SEDENTARY trial: **performed; not accepted**. See the 29 September movement runbook and local-enable positive control above.
 - Full customer/hardware acceptance: **incomplete**.
 
 See [the canonical HSW result](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md#hsw-physical-wake-screen-result--22-september-2026) for transport evidence, the operator's observations and the remaining limits.

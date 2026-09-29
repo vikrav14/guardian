@@ -388,6 +388,42 @@ performed in this observation; define its inputs and result criteria first. Do n
 the supplier, alter the global ACK policy, invent a new command, or repeat the
 same remote waiting test without new evidence or a specific comparison purpose.
 
+### Local-enable control: audible/display reminder reported at 16:24:51 MUT
+
+After the remote test and reported 16:01 Guardian Off cleanup, the operator was
+instructed to enable Open / 20 directly in the physical watch menu, press the
+watch's Save once, leave and reopen without another Save. At 16:04:56 they
+reported "it shows open 20". Guardian's last requested state was to remain Off;
+no new Guardian or AnyTracking setting Save was requested for this control.
+
+The local observation was planned for approximately 16:05-16:29, inside the
+unchanged requested hours 15:10-16:30, with the watch worn, arm resting and
+screen allowed to sleep. At 16:24:51 the operator reported receiving a reminder
+as sound, and screen text transcribed as "sedenatry reminder: do some exercise".
+Record **local-enable audible and on-screen reminder observed: passed for this
+single control**. The report is about 20 minutes after the enable confirmation;
+do not turn the report timestamp into an exact firing time, calibrated interval
+measurement, proof of sensor inactivity, vibration evidence or repeat behavior.
+
+This supports the watch's ability to execute a locally enabled reminder under
+the observed conditions. The earlier remotely enabled observation produced no
+reported reminder, despite exact-frame handoff/reply evidence. The comparison
+narrows the investigation to reliable remote application and any differing
+stored settings/session conditions; it does not identify a defective byte,
+prove that Guardian alone is responsible, or show that remote hours were applied.
+No hours change was requested between the remote trial and local control.
+
+On the prompt, the operator was instructed to finish by selecting Close and
+Save on the physical watch and checking Close / 0, leaving Guardian unchanged.
+At 16:26:41 the operator reported setting Close / 0, saving locally, leaving
+and reopening the menu, and seeing Close / 0 persist. Local disable/menu cleanup
+is operator-confirmed; it does not prove long-term prompt suppression, reboot
+persistence or a remote Off transition. Do not infer or introduce an interval-0
+wire command from the local UI normalization. Remote acceptance and PR #118
+remain open; no further timer wait is needed to establish this local positive
+control. Existing 21 September local speech reports remain separate historical
+evidence, with unknown timing; this is not claimed to be the first-ever prompt.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking

@@ -1,6 +1,19 @@
 # Connected movement reminder trial
 
-**Latest result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
+**Latest result, reported 29 September at 16:24:51 MUT: local reminder passed.**
+After the remote trial below and its Off cleanup, the operator enabled Open / 20
+using the physical watch's Save and confirmed that display at 16:04:56. Guardian
+was to remain unchanged with its last requested state Off. A local observation
+was planned from approximately 16:05 to 16:29. At 16:24:51 the operator reported
+sound and on-screen text transcribed as "Sedentary reminder: do some exercise".
+This is a local-enable audible/display result, approximately consistent with
+the selected 20 minutes; the event's exact firing time was not independently
+captured. It does not make Guardian remote enable accepted. At 16:26:41 the
+operator confirmed saving Close / 0 locally, leaving and reopening the menu,
+and seeing Close / 0 persist. Local cleanup is operator-confirmed; long-term
+suppression and reboot persistence remain untested.
+
+**Earlier remote result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
 the operator confirmed that the physical clock matched Mauritius time and
 reported sound mode on. A bounded worn/seated observation was requested for
 15:30-15:55, within the requested 15:10-16:30 window. At 15:56 they reported
@@ -20,9 +33,10 @@ and the operator still reported Close / 0. The exact later frame matches the
 captured AnyTracking On frame. Preserve the earlier positive observations;
 reliable setting reflection is not established by them. The complete connected
 reminder behavior still needs acceptance.
-The timed inactivity notification, worktime enforcement, movement reset and
-reboot persistence remain unverified. Do not turn a transport reply into a
-hardware acceptance result.
+The locally enabled audible/display reminder now has a positive timed control;
+remote timed execution, worktime enforcement, movement reset and reboot
+persistence remain unverified. Do not turn a transport reply or local control
+result into remote hardware acceptance.
 
 **Current correction, 29 September:** the user requested investigating Guardian
 rather than supplier escalation. The sender now matches the captured independent

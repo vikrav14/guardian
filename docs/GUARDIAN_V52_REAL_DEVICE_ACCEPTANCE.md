@@ -939,6 +939,25 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ## Native clock, sedentary and talking-clock reminders (PR #118)
 
+### Latest sedentary comparison — 29 September 2026
+
+The Guardian remote trial received exact SEDENTARY/SEDENTARYWORKTIME replies
+but the operator reported no reminder by 15:56 MUT. Guardian Off cleanup was
+reported at 16:01 (Close / 20 then Close / 0). Next, a physical-watch Open / 20
+Save was confirmed at 16:04:56; with Guardian left at its last requested Off,
+the operator reported sound and "Sedentary reminder: do some exercise" on screen
+at 16:24:51. The latter is a report time, not an independently measured firing
+time. **Local-enable audible/display control passed; remote execution remains
+not accepted.** At 16:26:41 the operator confirmed saving Close / 0 locally and
+seeing it persist after leaving and reopening the menu. Local cleanup passed
+by operator observation; long-term suppression and reboot remain untested.
+
+See the [detailed comparison](testing/sedentary-source-audit-2026-09-29.md#local-enable-control-audibledisplay-reminder-reported-at-162451-mut)
+and [current movement runbook](testing/movement-reminder-app-trial.md). One local
+prompt does not prove remote setting application, quiet hours, motion reset,
+repeat cadence, vibration, persistence or reliable Off suppression. Preserve
+the earlier local speech observations and remote trials below as historical.
+
 Follow the [Windows trial](testing/care-reminder-command-acceptance.md) and
 [supplier reply](testing/care-reminder-supplier-reply-2026-09-22.md).
 Customer controls/automatic dispatch stay disabled. Existing wellness routines
