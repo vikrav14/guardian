@@ -1,5 +1,15 @@
 # Connected movement reminder trial
 
+**Latest result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
+the operator confirmed that the physical clock matched Mauritius time and
+reported sound mode on. A bounded worn/seated observation was requested for
+15:30-15:55, within the requested 15:10-16:30 window. At 15:56 they reported
+"nothing". Classify the functional acceptance as **not passed: no reminder
+reported**. Do not extend the wait or mark the feature working from replies.
+The actual motion/reset behavior, firmware-applied state and precise sound
+volume remain unknown; no firmware or Guardian root cause is established.
+Post-test Off cleanup was instructed but has not yet been confirmed.
+
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
 release. Guardian On/Off menu checks were reported successful on 29 September
 at 14:58 and 15:01 MUT, but a later On sent at 15:15:13.019 received a reply
@@ -37,8 +47,8 @@ it. No extra Off was found in the reviewed reply-handling path. The echo log's
 "dropped, not re-acking" wording means the reply is not acknowledged back; it
 does not mean the outgoing setting was dropped. The physical menu is not
 documented readback of the running reminder, and a bare reply is not applied
-state. Record current watch clock, scene mode and audible volume before any
-further bounded behavior observation. Earlier menu checks are insufficient to
+state. The subsequent clock/sound confirmation and no-reminder result are
+recorded above. Earlier menu checks are insufficient to
 call the feature fixed; avoid additional blind resends or speculative framing
 changes. Customer rollout remains blocked and supplier contact is not requested.
 

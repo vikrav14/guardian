@@ -349,6 +349,43 @@ reported without equating it to documented remote readback. Actual reminder
 acceptance remains pending; no supplier contact, customer activation, guessed
 hardware command or blanket ACK change is justified by this result.
 
+### Bounded behavior observation completed at 15:56 MUT: no reminder reported
+
+At 15:29 the operator reported "current time is mautitiur time / sound mode on".
+This confirms the operator's clock-match and sound-enabled observations; it
+does not supply an exact volume level or prove the reminder-specific sound path.
+
+The agreed observation was 15:30-15:55 MUT with the watch worn, ordinary seated
+inactivity, the watch arm resting, the screen allowed to sleep, and no further
+setting changes. This was inside the recorded requested 15:10-16:30 window.
+The latest intended switch remained On / 20, with the exact 15:15 frame/reply
+and subsequent hours reply described above. The unresolved physical menu
+before the observation was Close / 0. The protocol does not define it as
+remote-state readback; neither the menu nor bare reply proves applied state.
+
+At 15:56 the operator reported "nothing". Record **functional acceptance not
+passed: no reminder observed by the end of the bounded test**. Do not separately
+invent sound, vibration or screen events, exact motion/wearing history, absence
+of every possible external write, or applied firmware settings. The instructions
+and reported outcome are evidence; sensor inactivity and reset rules remain
+undocumented. This result does not establish a specific firmware fault or a
+new sender defect, and it must not be used to claim the feature works.
+
+Stop the observation without extending it or blindly resending On. The operator
+was instructed to select Off and Save On/Off once at the end, but has not yet
+reported doing so or supplied the post-test menu/reply. Cleanup therefore remains
+pending. Earlier positive menu checks and the new software gates are preserved
+as separate evidence; the PR stays draft with customer controls gated.
+
+Before another timed test, define a comparison that changes one relevant
+variable and captures its result. A local-watch enable can serve as a reminder
+engine control, but local menu persistence alone has already been checked and
+is not a new behavior pass. A supplier-app comparison would require matching
+hours, clock/sound conditions and a complete capture. Neither comparison was
+performed in this observation; define its inputs and result criteria first. Do not contact
+the supplier, alter the global ACK policy, invent a new command, or repeat the
+same remote waiting test without new evidence or a specific comparison purpose.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking
