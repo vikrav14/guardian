@@ -233,10 +233,25 @@ version, UUID, authorization and unconfirmed-change guards remain. A failed
 initial load no longer shows default Off/hours as if they were loaded.
 
 These are verified software discrepancies and targeted corrections, not a
-proven firmware diagnosis. No evidence yet proves that the former sequence
-caused Close / 0 or that this patch resolves it. Validate one isolated On Save
-and the physical menu first, as described in the updated app trial runbook;
-do not begin another timed wait or claim hardware acceptance from unit tests.
+proven firmware diagnosis. The observation below supports the corrected path's
+enable behavior, but does not isolate which former difference caused Close / 0
+or establish timer behavior. Do not claim hardware acceptance from unit tests.
+
+### Operator result at 14:58 MUT: isolated Guardian On reflects Open / 20
+
+Following instructions to use correction `2dbaa83`, leave active hours alone,
+select On and press Save On/Off once, then reopen the physical menu without its
+Save, the operator reported: "clicked on on save / watch it shows open 20".
+Record the isolated enable **menu check as passed by operator observation**.
+14:58 is the report time; exact command/reply times and the new audit rows have
+not been supplied. This is stronger evidence than a bare transport reply but
+does not establish a general device-state readback or reboot persistence.
+
+The timed reminder, motion reset, repeat behavior and worktime enforcement
+remain unverified. Next is one explicit Guardian Off Save and a separate menu
+observation; do not assume cleanup has already happened. The previous requested
+hours ended at 15:00, so this report is not a basis for beginning a new 20-minute
+test inside that expiring window. PR #118 remains draft.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

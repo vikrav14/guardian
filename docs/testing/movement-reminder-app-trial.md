@@ -1,10 +1,11 @@
 # Connected movement reminder trial
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
-release. Earlier remote Open / 20 reports need re-verification after connected
-On did not produce the expected menu display. Local On / 20 persistence is now
-observed; local Off normalizes its displayed interval to 0. The connected enable
-path is not physically accepted.
+release. The isolated Guardian On setting check was reported successful at
+14:58 MUT on 29 September after the independent-Save correction: the physical
+watch showed Open / 20. Earlier inconsistent reports remain historical evidence.
+Local Off normalizes its displayed interval to 0. Off through the corrected
+control and the complete connected reminder behavior still need acceptance.
 The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
@@ -14,9 +15,11 @@ rather than supplier escalation. The sender now matches the captured independent
 Save actions: switch sends only SEDENTARY On/Off; hours sends only WORKTIME.
 The earlier unrequested Off/hours/On sequence is removed. The UI no longer blocks
 explicit On merely because a previous On received a reply. Exact sent frame hex
-is retained in the request audit. These fix concrete software discrepancies;
-whether they resolve the physical symptom is not yet established. See the next
-validation below; no further timed wait is requested first.
+is retained in the request audit. The operator subsequently reported that saving
+On in Guardian produced Open / 20 on the watch. This passes the observed enable
+menu check, not timed inactivity behavior or a permanent remote readback. The
+new request's exact audit rows have not yet been supplied. Next check is one
+explicit Off and the physical menu; no further timed wait is requested first.
 
 **Previous observation, 29 September at 14:22 MUT:** the
 [source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)
