@@ -1,12 +1,12 @@
 # Connected movement reminder trial
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
-release. The isolated Guardian On/Off menu checks were reported successful on
-29 September after the independent-Save correction: Open / 20 after On at
-14:58 MUT; Close / 20 briefly, then Close / 0 after Off at 15:01 MUT. These are
-operator report times. Earlier inconsistent reports remain historical evidence.
-The corrected control's observed menu transition passes in both directions;
-the complete connected reminder behavior still needs acceptance.
+release. Guardian On/Off menu checks were reported successful on 29 September
+at 14:58 and 15:01 MUT, but a later On sent at 15:15:13.019 received a reply
+and the operator still reported Close / 0. The exact later frame matches the
+captured AnyTracking On frame. Preserve the earlier positive observations;
+reliable setting reflection is not established by them. The complete connected
+reminder behavior still needs acceptance.
 The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
@@ -18,11 +18,19 @@ The earlier unrequested Off/hours/On sequence is removed. The UI no longer block
 explicit On merely because a previous On received a reply. Exact sent frame hex
 is retained in the request audit. The operator subsequently reported that saving
 On in Guardian produced Open / 20 on the watch, and selecting Off produced
-Close / 20 then Close / 0. This passes the observed On/Off menu checks, not timed
-inactivity behavior or permanent remote readback. Exact new audit rows have not
-yet been supplied. The watch was last reported closed. Next check is the
-independent active-hours Save while Off, with its reply and unchanged menu,
-before a separately enabled timed observation with confirmed sound mode.
+Close / 20 then Close / 0. A 15:08 screenshot then showed Requested hours:
+15:10-16:30 and Watch replied, while the physical menu remained closed. After
+the subsequent 15:15 On, the menu still showed Close / 0 despite an audited
+single SEDENTARY,1,20 frame and reply 557 ms later. The earlier successful
+On/Off checks are individual observations, not repeatable acceptance.
+
+Next read the immutable request records for the earlier On/Off and intervening
+hours Save and compare exact bytes, timestamps and replies. Requested hours in
+the latest merged desired state are not the preceding worktime wire evidence.
+Hours/order are investigation variables, not established causes. Do not start
+another blind waiting test or alter framing that already matches the capture.
+The physical menu still is not documented readback of the running reminder.
+Scene mode/volume and actual reminder behavior remain unconfirmed.
 
 **Previous observation, 29 September at 14:22 MUT:** the
 [source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)

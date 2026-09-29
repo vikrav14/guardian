@@ -269,6 +269,41 @@ the exact window/reply and unchanged physical menu, before enabling another
 timed observation. The old window ending 15:00 must not be reused for that wait.
 Scene mode and volume still need an explicit operator confirmation.
 
+### Follow-up at 15:08-15:17 MUT: hours replied, later On still shows Close / 0
+
+The 15:08:17 app screenshot shows Watch replied - check the watch and
+Requested hours: 15:10-16:30. The operator had reported the physical menu
+remaining Close / 0 while Off. This confirms the app's recorded hours action
+and reply status, not the exact WORKTIME socket bytes or firmware application.
+
+The operator then selected On and Save around 15:15 and reported Close / 0.
+Their read-only audit supplied at 15:17 establishes:
+
+| Field | Observed value |
+| --- | --- |
+| Request created | 15:15:12.238 MUT (`2026-09-29T11:15:12.238Z`) |
+| Action / result | `switch` / `replies_observed`; reason and nextCommand null |
+| Outbound frame | `[3G*9705254749*000e*SEDENTARY,1,20]` |
+| Socket handoff | 15:15:13.019 MUT; handoff true |
+| Bare reply | 15:15:13.576 MUT, 557 ms later |
+| Merged requested state | enabled true, interval 20, 15:10-16:30, Indian/Mauritius |
+| Physical observation | Close / 0; appliedStateVerified remains false |
+
+The frame hex is byte-for-byte equal to the previously captured AnyTracking
+On / 20 frame for this protocol ID. This request contains only one command;
+it is not the former combined Off/worktime/On sequence. It rules out a missing
+socket handoff, different outbound frame or absent reply for this attempt.
+It does not prove applied state or explain the physical-menu result.
+
+The positive 14:58 On and 15:01 Off observations remain, but they do not prove
+consistent On behavior after the intervening hours action. Read the individual
+request audits to compare earlier successful On/Off with the exact hours frame
+and later On; do not infer worktime delivery from merged desired state alone.
+Hours, ordering and firmware/menu behavior remain unresolved variables. Do not
+claim that worktime caused the result, guess a timezone correction, or start
+another blind wait. Actual reminder behavior and scene mode remain unverified.
+PR #118 stays draft, with no customer activation or supplier escalation.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking
