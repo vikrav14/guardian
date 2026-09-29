@@ -149,7 +149,71 @@ another wait. The initial-load UI must also avoid presenting fallback Off and
 hours as though they were loaded settings. No runtime change is made by this
 evidence update. Off cleanup after the midday enable remains unconfirmed.
 
-## Next diagnostic, without repeating blind On/Off attempts
+## Guardian afternoon observation - 29 September 2026
+
+All times below are Mauritius time (UTC+4). The earlier app-load blocker was
+resolved for this session: both local and HTTPS routes initially returned 404;
+after starting the movement pilot with the original gateway environment, an
+unauthenticated local request returned 401 `sign_in_required`, and the signed-in
+app loaded its stored request. This establishes route availability and a working
+authenticated read, not hardware acceptance. The separate care-reminder watcher
+being disabled is not evidence that this HTTP pilot is disabled.
+
+The operator supplied the read-only `movementReminderSettings` audit for a
+request created at 13:48:34.974 (`2026-09-29T09:48:34.974Z`). It records enabled
+true, interval 20, start 00:30, end 15:00 and timezone Indian/Mauritius. Status
+was `replies_observed`, reason null and nextCommand null. Every evidence row
+has handoff true, replyObserved true and appliedStateVerified false:
+
+| Sent | Body | Bare watch reply |
+| --- | --- | --- |
+| 13:48:36.269 | `SEDENTARY,0,20` | 13:48:36.748 |
+| 13:48:38.153 | `SEDENTARYWORKTIME,00:30-15:00,-` | 13:48:38.608 |
+| 13:48:39.341 | `SEDENTARY,1,20` | 13:48:39.706 |
+
+Unlike the earlier AnyTracking midday observation, the daytime-containing
+window and final enable now have exact recorded command/reply evidence. The
+start remained 00:30 rather than the initially suggested 14:00; this still
+includes the observation, so the operator was not asked to resave it merely
+to change the start label. Neither the requested window nor its reply proves
+which clock or worktime state the firmware actually uses.
+
+At 13:55 the operator agreed to observe until 14:20. At 14:07 they reported
+Close / 0 on the physical watch and supplied a Guardian screenshot showing
+Selected: On, 20 minutes, 00:30-15:00 and Watch replied - check the watch.
+At 14:08 they explicitly confirmed only opening the physical menu, with no
+local Save. The menu check therefore did not include an operator-issued local
+settings save; the difference between requested and displayed state remains
+unresolved. Do not dismiss Close / 0 or call it definitive remote readback.
+
+At 14:22 the operator reported "i got nothing and its 14.22" in response to
+the sound/vibration/on-screen observation request. Record **no reminder
+reported by the cutoff; physical acceptance not passed**. Sound mode and
+volume were requested but never confirmed. Detected motion, firmware timer
+start/reset and applied hours remain unknown; opening the watch menu also
+occurred during the observation. This is not proof of a firmware defect, a
+specific timer reset, or a transport failure. Do not extend the wait, infer
+that a prompt was missed, or immediately start another enable cycle.
+
+The observation has ended. Recommend one explicit Off through the working
+Guardian page, then read-only status refresh and a separate physical-menu
+check. If local fallback is needed, the previously observed physical Close /
+Save behavior is available. Off dispatch, reply and physical cleanup after
+this observation have not yet been supplied and must not be marked complete.
+
+### Next decision: obtain firmware-specific clarification
+
+Retain the exact request/replies above, the supplier comparison, both previously
+reported V52 firmware labels and the no-local-Save/no-reminder observations for
+Jett. Ask for the supported SEDENTARYWORKTIME syntax and clock basis, any required
+command order, the relationship between remote settings and the local menu,
+an applied-setting readback, movement/reset/repeat rules and sound-mode behavior.
+The supplier has already defined On/Off polarity and the interval's units;
+do not repeat those questions. A further physical trial should answer a specific
+newly supported question, not repeat this wait. No supplier message was sent.
+PR #118 remains draft and customer movement reminders remain gated.
+
+## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking
    sedentary page, including both periods and the selected interval/switch,

@@ -9,17 +9,18 @@ The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
 
-**Latest review:** the [29 September original-PDF audit](sedentary-source-audit-2026-09-29.md)
-confirms the framing but finds no documented sedentary readback or local/remote
-menu equivalence. Its midday follow-up records supplier On / 20, two identical
-21:00-23:59 worktime requests, replies, and a physical Open / 20 photograph.
-The operator reported saving 13:00-14:00, but delivery of that change was not
-captured. No sound or on-screen reminder was observed by 13:28. This is
-inconclusive; do not repeat a timed trial before confirming delivery of the
-intended active hours. Guardian routing was restored with a connected-session
-inspection. The app status-load error must be diagnosed; its default Off and
-08:00-20:00 display is not watch readback. Cleanup remains unconfirmed. See the
-audit for exact evidence and limits; the upper-Save-only plan below is historical.
+**Latest review, 29 September at 14:22 MUT:** the
+[source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)
+record the resolved app-load blocker and exact Guardian Off, worktime
+00:30-15:00, then On / 20 replies at 13:48. The physical watch displayed Close /
+0 at 14:07; the operator confirmed opening the menu without a local Save. No
+reminder was reported by 14:22. Transport evidence is complete for this request;
+physical acceptance is not passed. Mode/volume, detected motion and applied
+firmware state remain unknown. End this observation without another blind
+enable/wait cycle; obtain firmware-specific clarification using the evidence.
+Off cleanup after this observation remains unconfirmed. The earlier AnyTracking
+13:00-14:00 delivery gap is a separate historical result. The source audit also
+finds no documented sedentary readback or local/remote menu equivalence.
 
 ## Current blocker and local-control result — 29 September 2026
 
