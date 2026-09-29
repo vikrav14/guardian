@@ -8,7 +8,10 @@ reported sound mode on. A bounded worn/seated observation was requested for
 reported**. Do not extend the wait or mark the feature working from replies.
 The actual motion/reset behavior, firmware-applied state and precise sound
 volume remain unknown; no firmware or Guardian root cause is established.
-Post-test Off cleanup was instructed but has not yet been confirmed.
+At 16:01 the operator confirmed selecting Off and saving in Guardian, followed
+by Close / 20 then Close / 0 on the physical watch. Record post-test Off cleanup
+as operator-observed; exact Off wire times and long-term suppression are not
+established by that report. The remote reminder result remains not passed.
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
 release. Guardian On/Off menu checks were reported successful on 29 September

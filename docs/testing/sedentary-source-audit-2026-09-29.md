@@ -371,11 +371,13 @@ and reported outcome are evidence; sensor inactivity and reset rules remain
 undocumented. This result does not establish a specific firmware fault or a
 new sender defect, and it must not be used to claim the feature works.
 
-Stop the observation without extending it or blindly resending On. The operator
-was instructed to select Off and Save On/Off once at the end, but has not yet
-reported doing so or supplied the post-test menu/reply. Cleanup therefore remains
-pending. Earlier positive menu checks and the new software gates are preserved
-as separate evidence; the PR stays draft with customer controls gated.
+Stop the observation without extending it or blindly resending On. At 16:01
+the operator reported selecting Off and saving in Guardian, then observing
+Close / 20 followed by Close / 0 on the physical watch. Post-test Off cleanup
+is now operator-confirmed by that menu transition. Exact Off command/reply times
+were not supplied, and this is not long-term suppression evidence. Earlier
+positive menu checks and the new software gates are preserved as separate
+evidence; the PR stays draft with customer controls gated.
 
 Before another timed test, define a comparison that changes one relevant
 variable and captures its result. A local-watch enable can serve as a reminder
