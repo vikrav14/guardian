@@ -14,13 +14,14 @@ class FakeMovementClient implements MovementReminderClient {
   final ids = <String>[];
   final actions = <String>[];
   Completer<MovementState>? pending;
+  Completer<MovementState>? pendingLoad;
   bool fail = false;
   bool failLoad = false;
   @override
   Future<MovementState> load(String imei) async {
     reads++;
     if (failLoad) throw const MovementRequestException('gateway_unavailable');
-    return state;
+    return pendingLoad?.future ?? state;
   }
   @override
   Future<MovementState> save(String imei, {required String requestId,
@@ -78,6 +79,9 @@ void main() {
     await tapSave(tester);
     expect(client.requests.length, 1);
     expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
+    expect(find.text('Save On/Off'), findsOneWidget);
+    expect(find.text('Save active hours'), findsOneWidget);
+    expect(find.text('Sending On…'), findsNothing);
     client.state = const MovementState(version: 1, status: 'unconfirmed', connected: true,
       desired: MovementSettings(enabled: true, start: '08:00', end: '20:00'));
     await tester.ensureVisible(find.text('Refresh status'));
@@ -107,16 +111,67 @@ void main() {
     expect(find.byType(FilledButton), findsNothing);
   });
 
-  testWidgets('pending save blocks duplicate taps', (tester) async {
+  testWidgets('pending On save shows progress only on its button and blocks both actions', (tester) async {
     final client = FakeMovementClient()..pending = Completer<MovementState>();
     await tester.pumpWidget(screen(client));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('movement-switch')));
     await tapSave(tester);
     expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
     expect(tester.widget<FilledButton>(hoursSave).onPressed, isNull);
     expect(client.requests.length, 1);
+    expect(client.actions, ['switch']);
+    expect(find.text('Sending On…'), findsOneWidget);
+    expect(find.text('Save active hours'), findsOneWidget);
+    expect(find.text('Sending active hours…'), findsNothing);
     client.pending!.complete(const MovementState(version: 1, status: 'replies_observed', connected: true));
     await tester.pumpAndSettle();
+    expect(find.text('Save On/Off'), findsOneWidget);
+    expect(find.text('Save active hours'), findsOneWidget);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNotNull);
+  });
+
+  testWidgets('pending hours save leaves the On/Off label unchanged and sends only hours', (tester) async {
+    final client = FakeMovementClient()..pending = Completer<MovementState>();
+    await tester.pumpWidget(screen(client));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(hoursSave);
+    await tester.tap(hoursSave);
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNull);
+    expect(client.actions, ['hours']);
+    expect(find.text('Save On/Off'), findsOneWidget);
+    expect(find.text('Sending active hours…'), findsOneWidget);
+    expect(find.text('Sending Off…'), findsNothing);
+    client.pending!.complete(const MovementState(version: 1, status: 'replies_observed',
+      connected: true, action: 'hours',
+      desired: MovementSettings(enabled: false, start: '08:00', end: '20:00')));
+    await tester.pumpAndSettle();
+    expect(find.text('Save On/Off'), findsOneWidget);
+    expect(find.text('Save active hours'), findsOneWidget);
+    expect(find.text('Requested hours: 08:00–20:00'), findsOneWidget);
+  });
+
+  testWidgets('read-only refresh does not make either Save appear to be sending', (tester) async {
+    final client = FakeMovementClient();
+    await tester.pumpWidget(screen(client));
+    await tester.pumpAndSettle();
+    client.pendingLoad = Completer<MovementState>();
+    await tester.ensureVisible(find.text('Refresh status'));
+    await tester.tap(find.text('Refresh status'));
+    await tester.pumpAndSettle();
+    expect(client.requests, isEmpty);
+    expect(find.text('Save On/Off'), findsOneWidget);
+    expect(find.text('Save active hours'), findsOneWidget);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNull);
+    client.pendingLoad!.complete(client.state);
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNotNull);
+    expect(client.requests, isEmpty);
   });
 
   testWidgets('explicit Off stays available because a reply is not current watch state', (tester) async {

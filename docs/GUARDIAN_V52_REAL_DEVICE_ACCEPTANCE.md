@@ -948,8 +948,12 @@ this run's remote On/Off menu check as operator-observed pass and cleanup as
 closed. The subsequently supplied capture records On at 17:46:29.090 with a
 578 ms reply, then Off at 17:47:16.090 with a 1,042 ms reply (all MUT). It reports
 20 frames and complete observation through the 17:48:07.488 connection close.
-No SEDENTARYWORKTIME appears in that recorded connection; the requested
-17:00-19:00 Save and fresh traffic after restoration remain unverified. Existing
+No SEDENTARYWORKTIME appears in that recorded connection. At 17:59:02 the
+operator clarified that they pressed only Save On/Off and assumed the hours
+were included because both buttons displayed loading. This explains the absent
+hours request in this run. The shared loading feedback is corrected to identify
+only the active action, without changing wire commands or combining Saves.
+Fresh traffic after restoration remains unprovided. Existing
 SG startup ACKs were present during this successful menu check. This does not
 establish remote timed output or reliable repeated application, and no cause
 for the changed result is established.

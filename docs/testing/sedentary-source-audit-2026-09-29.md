@@ -469,10 +469,22 @@ suppress an unchanged hours Save. UI/API errors, the action not being pressed,
 or an earlier direct handoff still need distinguishing with the operator/audit.
 Do not claim that WORKTIME caused the earlier failure from this absence.
 
-Next clarify the hours action/timing while leaving the watch closed. If it was
-pressed in-session, inspect that immutable request before sending another
-command. Do not reroute to AnyTracking or repeat a timed wait merely to collect
-another acknowledgement. No firmware/runtime fix is established by this trace.
+At 17:59:02 MUT the operator clarified that they pressed only Save On/Off. Both
+buttons showed loading, which led them to assume both had been saved. That
+explains the missing WORKTIME in this trace; no hours delivery failure was
+demonstrated by this run. Source inspection confirms both button labels used
+the same `_busy` value although the submitted actions were independent.
+
+The UI correction tracks which Save is active and displays progress only on
+that button; both controls still block concurrent submission. Explicit hours
+Save remains separate. A read-only refresh never presents either Save as
+sending. No gateway or hardware command changes accompany this fix. This is
+an established UI feedback defect, not an explanation for the earlier failed
+remote tests whose audits contain actual WORKTIME handoffs and replies.
+
+Next update the app and explicitly save a current hours window with the watch
+closed, then inspect that hours request before enabling. No supplier reroute or
+new timed wait is requested yet. Remote timed acceptance remains open.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

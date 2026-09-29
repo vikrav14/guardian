@@ -30,6 +30,7 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
   MovementReminderClient? _client;
   MovementState? _state;
   bool _busy = false;
+  String? _savingAction;
   bool _refreshRequired = false;
   bool _enabled = false;
   String _start = '08:00';
@@ -97,7 +98,7 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
   Future<void> _save(String action) async {
     if (_busy || _refreshRequired || _state == null || !_allowed) return;
     final settings = MovementSettings(enabled: _enabled, start: _start, end: _end);
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _savingAction = action; _error = null; });
     try {
       final result = await _client!.save(widget.imei,
         requestId: const Uuid().v4(), expectedVersion: _state!.version,
@@ -106,7 +107,7 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
     } catch (error) {
       if (mounted) setState(() { _error = _message(error); _refreshRequired = true; });
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() { _busy = false; _savingAction = null; });
     }
   }
 
@@ -147,6 +148,9 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
     };
     final awaiting = state?.status == 'sending';
     final requiresOff = state?.status == 'unconfirmed';
+    // Both controls are disabled while a request runs, but only the requested
+    // action shows progress. Shared loading text suggested both had been saved.
+    final savingAction = _savingAction ?? (awaiting ? state?.action : null);
     // A completed request is not watch readback. Keep an explicit Save available
     // even when the selection equals the last request. Busy/version/UUID guards
     // prevent concurrent or automatically replayed writes.
@@ -180,7 +184,8 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
                 FilledButton(
                   key: const ValueKey('movement-save-switch'),
                   onPressed: canSave && (!requiresOff || !_enabled) ? () => _save('switch') : null,
-                  child: Text(_busy ? 'Please wait…' : 'Save On/Off'),
+                  child: Text(savingAction == 'switch'
+                    ? 'Sending ${_enabled ? 'On' : 'Off'}…' : 'Save On/Off'),
                 ),
                 const Text('Keeps the current watch hours unchanged.'),
                 const Divider(height: 24),
@@ -198,7 +203,7 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
                 FilledButton(
                   key: const ValueKey('movement-save-hours'),
                   onPressed: canSave && !requiresOff ? () => _save('hours') : null,
-                  child: Text(_busy ? 'Please wait…' : 'Save active hours'),
+                  child: Text(savingAction == 'hours' ? 'Sending active hours…' : 'Save active hours'),
                 ),
                 const Text('Keeps the watch On/Off setting unchanged.'),
               ])),

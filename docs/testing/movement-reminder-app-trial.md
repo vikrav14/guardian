@@ -11,8 +11,9 @@ applied-state readback. The JSONL supplied at 17:54:44 shows On sent at
 It reports 20 observed frames and a complete capture, with the watch connection
 closing at 17:48:07.488. These are wire times, not exact UI-click times.
 There is no SEDENTARYWORKTIME frame during the recorded connection from
-17:45:13.289 to 17:48:07.488. Whether the requested 17:00-19:00 hours Save was
-pressed, rejected or sent before routing changed is not established. Fresh
+17:45:13.289 to 17:48:07.488. At 17:59:02 the operator clarified that they pressed
+only Save On/Off: both buttons showed loading, so they assumed both settings
+were saved. The 17:00-19:00 hours Save was not performed in this test. Fresh
 post-return Guardian traffic remains unprovided. Do not attribute the positive
 result to the relay or a framing change; no runtime framing was changed.
 
@@ -29,13 +30,20 @@ operator confirmed saving Close / 0 locally, leaving and reopening the menu,
 and seeing Close / 0 persist. Local cleanup is operator-confirmed; long-term
 suppression and reboot persistence remain untested.
 
-**Next diagnostic:** clarify whether Save active hours was pressed after the
-recorder connected. The first [connection capture](movement-session-comparison.md)
-is reviewed: successful On/Off menu reflection occurred with the existing SG
-startup ACKs and no WORKTIME in the captured session. The missing hours frame
-does not prove that WORKTIME causes failures or was never sent on an earlier
-direct connection. Keep the watch closed while resolving that gap; no further
-blind timed wait or supplier reroute is requested yet.
+**UI correction after the operator clarification:** both buttons previously
+used `_busy` for their loading label even though only one action was submitted.
+Each button now shows progress only for its own action (Sending On/Off or
+Sending active hours); both remain disabled during the request to prevent
+overlap. A read-only refresh does not display a Save as sending. There is no
+new combined Save or automatic hours command. Regression coverage checks both
+pending actions, completion/failure cleanup and read-only refresh.
+
+**Next diagnostic:** update the pilot app, then explicitly save the active
+hours while the watch remains closed and inspect that request before another
+On. The first [connection capture](movement-session-comparison.md) remains a
+successful On/Off-only check. The absent hours Save is explained by the UI
+confusion; it does not explain earlier failed runs that did include WORKTIME.
+No further timed wait or supplier reroute is requested yet.
 
 **Earlier remote result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
 the operator confirmed that the physical clock matched Mauritius time and
