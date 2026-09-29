@@ -1,12 +1,36 @@
 # Connected movement reminder trial
 
+**Paused at the operator's request, 30 September at 01:01:16 MUT:** continue
+in the next session. No further test or timed wait tonight. If not already
+done, complete only Guardian Off / Save On/Off once before leaving the watch.
+This worn run's Off cleanup is not confirmed. On resumption, establish current
+state and choose the next bounded check before any new enable command.
+
+**Worn sound/display reported, 30 September at 00:59:54 MUT:** the operator
+reports a ring and on-watch message at **00:57**, after the Guardian On/menu
+check below. They walked **12 steps**, report the count was still 12 when it
+rang, and say they counted **26 minutes**. Record one positive operator-observed
+worn sound/display result after Guardian configuration. The exact screen text
+is not newly transcribed in this report. It occurred after the planned 00:31
+observation checkpoint, so do not mark an exact 20-minute or bounded 25-minute
+timing test passed. The actual settled start, last-step timestamp and baseline
+for the reported 26 minutes are not independently captured.
+
+Walking restarting the inactivity count is plausible and is the operator's
+hypothesis, not a verified reset rule. An unchanged step count does not establish
+absence of other motion. The 00:57 event falls within requested 00:00-01:00;
+quiet-hours enforcement is still unverified. Request Guardian Off / Save On/Off
+once after this result, then inspect the physical menu without local Save.
+This run's Off cleanup is pending. Core remote worn sound/display has positive
+evidence; exact cadence, movement-reset behavior and full acceptance remain open.
+
 **Worn-trial enable confirmed, 30 September at 00:05:52 MUT:** in response to
 the Guardian On / physical-menu step, the operator reports **Open / 20**. Record
 this run's physical enable result as operator-observed. Exact Save/wire time and
 the new hours request audit are not supplied. Proceed with the planned watch-worn,
 comfortable seated observation for **25 minutes from the actual settled start**;
 the operator is asked to note that time. Keep 00:00-01:00, On / 20 and routing
-unchanged. No prompt/no-prompt or new Off cleanup result has yet been reported.
+unchanged. The later 00:57 sound/display result is above; new Off cleanup is pending.
 
 **New worn test requested, 29 September at 23:55:49 MUT:** the operator wants
 to proceed now. The starting physical state is the confirmed Close / 0 below.
@@ -27,8 +51,8 @@ The cutoff is not a guaranteed trigger time. If starting too late for this
 window to contain the full observation, choose a new window before enabling.
 After a reminder or the cutoff, select Off and Save On/Off once in Guardian,
 then reopen the physical menu without Save and record the result. Physical
-Open / 20 is now reported above. Exact new hours/On wire evidence, actual settled
-start, worn prompt/no-prompt and subsequent cleanup remain outstanding.
+Open / 20 and later worn sound/display are now reported above. Exact new hours/On
+wire evidence, actual settled start and subsequent cleanup remain outstanding.
 
 **Latest confirmation, 29 September at 23:48:26 MUT: off-wrist sound/display
 passed for this run by operator observation.** The operator confirms the watch

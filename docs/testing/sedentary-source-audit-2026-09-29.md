@@ -637,9 +637,47 @@ Proceed with the requested watch-worn, comfortable seated observation for
 25 minutes from the actual settled start and ask the operator to note that
 start. Keep settings and Guardian routing unchanged, record movement and any
 prompt time/sound/text or no prompt at the cutoff, then perform Guardian Off
-and inspect the physical menu separately. No reminder/no-reminder or new Off
-result has been supplied. This confirms the enable menu step, not completed
-worn behavior or full hardware acceptance; the PR remains draft.
+and inspect the physical menu separately. The later sound/display result
+follows below; new Off cleanup remains pending. The enable report by itself
+does not complete worn behavior or full hardware acceptance.
+
+### Worn sound/display observed with intervening walking — 30 September at 00:59:54 MUT
+
+The operator reports the watch **rang with a message at 00:57**, rather than
+00:31. They say they walked **12 steps**, speculate this caused the later
+trigger, and report counting **26 minutes**, with the displayed step count
+still at 12 when it rang. This follows the separate Guardian On configuration
+and physical Open / 20 report at 00:05:52. Record one positive operator-observed
+worn audible/display result after Guardian setup; the exact screen text is
+not transcribed anew. No new raw command or device-event capture accompanies
+the report. The message submission time is not the reminder's firing time.
+
+00:31 was a proposed observation cutoff if settled at 00:06, not a guaranteed
+alarm appointment. The sound reported at 00:57 is outside that planned bounded
+observation; preserve it as a later positive result, not a passed exact
+20-minute or initial 25-minute timing test. Actual settled start, last-step
+time and the reference point for the counted 26 minutes were not independently
+recorded. Walking resetting an inactivity timer is plausible, but this run
+does not establish reset conditions, step thresholds, polling cadence or the
+firmware timer. A step count staying at 12 cannot exclude non-step wrist motion.
+
+00:57 is within the requested 00:00-01:00 window. This supports an in-window
+observation only; it does not prove suppression after 01:00. Request explicit
+Guardian Off / Save On/Off once and a physical menu check without local Save.
+This worn run's cleanup has not been reported yet; the earlier sofa run's
+Close / 0 at 23:52 is separate. Basic remote worn sound/display now has positive
+operator evidence; exact timing, movement reset and quiet-hours enforcement
+remain unverified. No new timed wait, merge or customer release is requested.
+
+### Operator pause — 30 September at 01:01:16 MUT
+
+The operator asks to continue tomorrow. Stop further tests or timed waits;
+preserve the positive worn result and its timing/movement limits above. If not
+already done, complete only the previously requested Guardian Off Save once.
+The operator has not confirmed that cleanup. At the next session establish the
+watch's current state before any new activation, then choose the next bounded
+check. No automatic follow-up command, merge or deployment is authorized by
+this pause.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

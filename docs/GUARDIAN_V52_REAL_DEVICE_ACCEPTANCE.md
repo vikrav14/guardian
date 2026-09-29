@@ -941,12 +941,31 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29-30 September 2026
 
+At 01:01:16 MUT on 30 September the operator asks to continue tomorrow.
+Pause new tests and timed waits. Guardian Off Save is requested only if not
+already done; this worn run's cleanup remains unconfirmed. Establish current
+state on resumption before enabling another trial. PR remains draft.
+
+At **00:59:54 MUT on 30 September**, the operator reports the worn watch rang
+and displayed a message at **00:57**, following the Guardian On/menu check.
+They walked 12 steps, say the count remained 12 at the reminder, and report
+counting 26 minutes. Record one positive operator-observed worn sound/display
+result after remote configuration. Exact message wording is not newly supplied.
+The event is later than the planned 00:31 observation checkpoint, so exact
+20-minute timing and the original bounded 25-minute trial are not passed.
+Last movement time, settled start and the 26-minute baseline are not recorded.
+Movement resetting the timer is a plausible hypothesis, not verified behavior;
+unchanged steps do not rule out other motion. The event falls within requested
+00:00-01:00 hours but does not establish quiet-hours enforcement. Request one
+Guardian Off Save and physical menu inspection; this run's cleanup is pending.
+Core worn sound/display has positive evidence; full acceptance remains open.
+
 At **00:05:52 MUT on 30 September**, the operator reports **Open / 20** after
 the requested Guardian On/menu check. This run's physical enable is observed.
 Proceed with the separate worn/seated observation for 25 minutes from the
 actual settled start, which the operator is asked to note, within planned
-00:00-01:00 hours. Exact new hours/On wire evidence is not supplied. Worn prompt
-or no-prompt, exact start and later Off cleanup remain pending.
+00:00-01:00 hours. Exact new hours/On wire evidence is not supplied. The later
+worn result is above; exact start and new Off cleanup remain outstanding.
 
 At 23:55:49 MUT the operator requested the separate worn test now, superseding
 the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
@@ -954,8 +973,8 @@ the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
 around 00:05 and a physical Open / 20 check without local Save. Only after that
 check, observe worn/seated for 25 minutes from the recorded actual start (target
 00:05-00:30). Record prompt/no-prompt and finish with Guardian Off plus a separate
-physical menu check. Physical enable is subsequently reported above; the worn
-result and cleanup remain pending. See the movement runbook for exact steps.
+physical menu check. Physical enable and worn sound/display are subsequently
+reported above; cleanup remains pending. See the movement runbook for exact steps.
 
 At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
 for both rings and displayed **"Sedentary reminder: do some exercise"**. First
