@@ -2,11 +2,20 @@
 
 PR #118, requested 28 September 2026. This is a supervised pilot, not a customer
 release. Earlier remote Open / 20 reports need re-verification after connected
-On failed. Local On / 20 persistence is now observed; local Off normalizes its
-displayed interval to 0. The connected enable path is not physically accepted.
+On did not produce the expected menu display. Local On / 20 persistence is now
+observed; local Off normalizes its displayed interval to 0. The connected enable
+path is not physically accepted.
 The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
+
+**Latest review:** the [29 September original-PDF audit](sedentary-source-audit-2026-09-29.md)
+confirms the framing but finds no documented sedentary readback or local/remote
+menu equivalence. AnyTracking's 01:30 On also produced a bare reply followed by
+reported Close / 0. That comparison was outside the earlier requested time
+window, with retained worktime unverified. Record the menu as an observation,
+not the sole pass/fail condition. The audit's bounded daytime diagnostic
+supersedes the historical upper-Save-only comparison below.
 
 ## Current blocker and local-control result — 29 September 2026
 
@@ -47,11 +56,12 @@ to require interval retention when disabled. Do not add an interval-zero wire
 command; keep the captured Off body unchanged.
 
 Local Save works, but it does not establish that remote settings use the same
-stored fields or that timed inactivity execution works. Remote On still needs
-to produce a physically observed saved Open / 20 state, or firmware-specific
-evidence explaining any separate local/remote settings.
+stored fields or that timed inactivity execution works. Remote application is
+unverified. Establish it through controlled actual reminder behavior and/or
+documented applied-state readback; do not assume this local menu is readback.
 
-Next supplier comparison: verify current Guardian and recorder endpoints,
+Historical supplier comparison plan (attempt captured; see the latest audit
+for results and unconfirmed cleanup): verify current Guardian and recorder endpoints,
 use the existing pass-through recorder, and save only the AnyTracking upper
 Open / 20 control once. Inspect the physical watch after leaving/reopening its
 menu without a local Save; record menu, time, and captured frame. Leave lower
@@ -179,8 +189,10 @@ photo/WhatsApp rollout acceptance is outside this test.
 2. Choose one active window containing the **next 30 minutes**. Do not run a
    20-minute test against the earlier 21:00–23:59 window across midnight. After
    midnight, for example, use 00:05–01:00 only if the current clock fits it.
-3. Select On and Save once. Check menu Open / 20; record the exact watch time
-   and the active hours submitted. A bare reply is not enough.
+3. Select On and Save once. Record the displayed menu, exact watch time and
+   active hours submitted. Neither a bare reply nor the local menu alone proves
+   whether the remote setting was applied. For the next comparison, use the
+   supplier baseline described in the audit before repeating Guardian trials.
 4. Keep the watch worn during ordinary seated inactivity for 20–25 minutes.
    Note any movement, sound, vibration, displayed text and exact time. Do not
    send extra On commands during this observation. No alarm after 25 minutes
