@@ -537,7 +537,33 @@ verify worn behavior; silence would not prove wear detection or suppression.
 Whether this firmware gates sedentary prompts on wear status is unverified.
 Then use explicit Guardian Off Save and inspect the menu. The later worn test
 needs its own starting time and an active window covering that observation.
-No prompt, placement or Off cleanup result has yet been reported for this plan.
+The subsequent sound report below supplies a partial result; placement time
+and Off cleanup remain unconfirmed.
+
+### Two audible events reported — 22:39:28 MUT
+
+The operator reports: "it rang 21.34 and a bit more after. for two times."
+Record two audible events, first approximately **21:34 MUT**, second later at
+an unspecified time. This is an operator report, not independently captured
+device event timing. It follows the proposed sofa test and earlier Guardian
+On Save around 20:22-20:23 with physical Open / 20.
+
+Confirmation is still needed that the watch stayed on the sofa for both events
+and displayed the sedentary reminder text. The report does not give the actual
+placement time, intervening handling or Saves, second ring time or Off cleanup.
+Do not back-calculate a placement time from the selected interval, assume a
+20-minute repeat, or label the worn scenario passed. If the watch remained
+off-wrist with no additional setting changes and showed the sedentary message,
+this would establish audible sedentary output while unworn after Guardian
+configuration for this run, not reliable wear detection or timer semantics.
+
+The first reported event falls inside requested 20:00-22:00 hours. The second
+cannot be classified relative to the 22:00 end until its time is supplied; no
+quiet-hours acceptance follows from this report. At 22:39 the old window has
+ended. Request explicit Guardian Off Save if still enabled and a physical menu
+check without local Save. The later worn test needs a fresh start time and an
+active window covering its observation; do not extend the old wait. Cleanup
+and worn remote functional acceptance remain pending.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

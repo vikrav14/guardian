@@ -941,9 +941,21 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+At 22:39:28 MUT the operator reported two rings, first around **21:34**, then
+another later. This is positive audible-output evidence following the Guardian
+On/menu result and proposed sofa observation. Exact second time, screen text,
+continued off-wrist placement, intervening handling/Saves and Off cleanup remain
+unconfirmed. Confirm the sofa condition and sedentary text before treating this
+as verified off-wrist sedentary behavior; do not infer 20-minute repeat cadence,
+wear detection, schedule enforcement or a passed worn test. The first event is
+inside requested 20:00-22:00; the second time is unknown. At this report time the
+old active window has ended. Request Guardian Off cleanup if still enabled;
+any later worn test needs a new active window. PR remains a supervised draft.
+
 At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
 they plan to leave the watch on the sofa sensor-up, then test while worn after
-dinner. Actual placement time and outcome are not yet supplied. This is a
+dinner. Actual placement time remains unknown; the later sound report is above.
+This was a
 separate stationary off-wrist observation, bounded to about 25 minutes from
 placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
 unchanged, record any prompt, then perform explicit Guardian Off cleanup.
@@ -956,8 +968,8 @@ instruction to inspect without the watch's Save. This is an operator-observed
 On/menu result; the Save time is approximate and no new exact wire audit was
 supplied. A bounded remote-only worn reminder observation was requested through
 20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
-route changes, before the later scenario change above. Timed sound/display
-and subsequent explicit Off cleanup are pending; remote acceptance stays open.
+route changes, before the later scenario change above. The subsequent two-ring
+report does not complete worn acceptance or post-test Off cleanup.
 
 The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
 Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare
