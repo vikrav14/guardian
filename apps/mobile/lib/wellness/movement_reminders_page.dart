@@ -87,19 +87,21 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
       'pilot_not_available' => 'This account and watch are not enabled for the supervised trial.',
       'device_not_linked' || 'active_service_required' => 'Access changed. Check the linked watch and service, then refresh.',
       'gateway_not_configured' => 'The gateway address is missing or invalid. Restart the app with its current address.',
+      'app_update_required' || 'invalid_request' => 'Update and restart both the app and movement gateway, then refresh.',
       'settings_changed' || 'change_in_progress' => 'Another change was made. Refresh before saving again.',
       'turn_off_before_retry' => 'The previous change is unconfirmed. Refresh, then send Off and check the watch.',
       _ => 'The result could not be confirmed. Refresh to check the last request before sending anything else.',
     };
   }
 
-  Future<void> _save() async {
+  Future<void> _save(String action) async {
     if (_busy || _refreshRequired || _state == null || !_allowed) return;
     final settings = MovementSettings(enabled: _enabled, start: _start, end: _end);
     setState(() { _busy = true; _error = null; });
     try {
       final result = await _client!.save(widget.imei,
-        requestId: const Uuid().v4(), expectedVersion: _state!.version, settings: settings);
+        requestId: const Uuid().v4(), expectedVersion: _state!.version,
+        settings: settings, action: action);
       if (mounted) setState(() => _state = result);
     } catch (error) {
       if (mounted) setState(() { _error = _message(error); _refreshRequired = true; });
@@ -145,13 +147,11 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
     };
     final awaiting = state?.status == 'sending';
     final requiresOff = state?.status == 'unconfirmed';
-    // Off remains available for cleanup even if somebody changed the watch
-    // locally since the last reply. There is no authoritative state readback.
-    final alreadyRequested = _enabled && state?.status == 'replies_observed' &&
-        state?.desired?.enabled == _enabled &&
-        state?.desired?.start == _start && state?.desired?.end == _end;
+    // A completed request is not watch readback. Keep an explicit Save available
+    // even when the selection equals the last request. Busy/version/UUID guards
+    // prevent concurrent or automatically replayed writes.
     final canSave = !_busy && !_refreshRequired && state != null &&
-        state.connected && !awaiting && !alreadyRequested && (!requiresOff || !_enabled);
+        state.connected && !awaiting;
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
       appBar: AppBar(title: const Text('Movement reminders')),
@@ -166,17 +166,24 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
               const SizedBox(height: 8),
               Text('Movement reminders for ${widget.name}.'),
               const SizedBox(height: 8),
-              const Text('Save sends these settings to the watch. Check its menu and observe the reminder during this trial.'),
+              const Text('Save On/Off and active hours separately. Each Save changes only that setting. Check the watch after saving.'),
               const SizedBox(height: 20),
-              GuardianCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (state != null) GuardianCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 SwitchListTile.adaptive(
                   key: const ValueKey('movement-switch'), contentPadding: EdgeInsets.zero,
                   title: const Text('Movement reminder'),
                   subtitle: Text(_enabled ? 'Selected: On' : 'Selected: Off'),
                   value: _enabled, onChanged: _busy || awaiting ? null : (value) => setState(() => _enabled = value),
                 ),
-                const Divider(height: 24),
                 const Text('20-minute inactivity interval', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                FilledButton(
+                  key: const ValueKey('movement-save-switch'),
+                  onPressed: canSave && (!requiresOff || !_enabled) ? () => _save('switch') : null,
+                  child: Text(_busy ? 'Please wait…' : 'Save On/Off'),
+                ),
+                const Text('Keeps the current watch hours unchanged.'),
+                const Divider(height: 24),
                 const SizedBox(height: 16),
                 const Text('Active hours · Mauritius time'),
                 const SizedBox(height: 8),
@@ -185,23 +192,32 @@ class _MovementRemindersPageState extends State<MovementRemindersPage> {
                   OutlinedButton(onPressed: _busy || awaiting ? null : () => _pickTime(false), child: Text('Until $_end')),
                 ]),
                 const SizedBox(height: 8),
-                const Text('Check that the watch clock matches Mauritius time. Off keeps the saved active hours.'),
+                const Text('Check that the watch clock matches Mauritius time.'),
+                if (!state.hoursRequested) const Text('These hours have not been requested through Guardian yet.'),
+                const SizedBox(height: 12),
+                FilledButton(
+                  key: const ValueKey('movement-save-hours'),
+                  onPressed: canSave && !requiresOff ? () => _save('hours') : null,
+                  child: Text(_busy ? 'Please wait…' : 'Save active hours'),
+                ),
+                const Text('Keeps the watch On/Off setting unchanged.'),
               ])),
               const SizedBox(height: 16),
               GuardianCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Last request', style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6), Text(status),
-                if (state?.desired != null) Text('Requested: ${state!.desired!.enabled ? 'On' : 'Off'}'),
+                if (state?.desired != null) Text(state?.action == 'hours'
+                  ? 'Requested hours: ${state!.desired!.start}–${state.desired!.end}'
+                  : 'Requested: ${state!.desired!.enabled ? 'On' : 'Off'}'),
                 const SizedBox(height: 8),
                 const Text('The watch setting and reminder behaviour are not automatically verified.'),
                 if (state != null && !state.connected) const Text('Watch connection unavailable. No change will be queued.'),
-                if (requiresOff) const Text('Some settings may have reached the watch. Select Off, save, and check its menu before another On attempt.'),
-                if (state?.reason == 'reply_timeout') const Text('The watch did not reply to every step. Guardian stopped without retrying.'),
+                if (requiresOff) const Text('The last change is unconfirmed. Select Off, use Save On/Off, and check the watch before another change.'),
+                if (state?.reason == 'reply_timeout') const Text('The watch did not reply. Guardian stopped without retrying.'),
                 if (awaiting) const Text('Refresh to check progress. Nothing is resent.'),
               ])),
               if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!)),
               const SizedBox(height: 20),
-              FilledButton(onPressed: canSave ? _save : null, child: Text(_busy ? 'Please wait…' : 'Save to watch')),
               TextButton(onPressed: _busy ? null : _load, child: const Text('Refresh status')),
             ],
           )),

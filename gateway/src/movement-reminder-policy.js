@@ -55,13 +55,19 @@ function movementSettings(value) {
     end: value.end, timezone: 'Indian/Mauritius' };
 }
 
-function movementCommands(settings) {
+function movementAction(action) {
+  if (!['switch', 'hours'].includes(action)) throw new MovementError('app_update_required', 400);
+  return action;
+}
+
+function movementCommands(settings, action) {
   const s = movementSettings(settings);
-  // Disable alone never changes worktime. On is only attempted after both
-  // preceding commands get a reply. Replies still do not prove application.
-  return s.enabled
-    ? ['SEDENTARY,0,20', `SEDENTARYWORKTIME,${s.start}-${s.end},-`, 'SEDENTARY,1,20']
-    : ['SEDENTARY,0,20'];
+  // Match the two independent AnyTracking Save actions in the captures.
+  // A switch Save must not first turn the watch off or rewrite its hours.
+  // An hours Save must not toggle the reminder. No automatic second command.
+  return movementAction(action) === 'switch'
+    ? [`SEDENTARY,${s.enabled ? 1 : 0},20`]
+    : [`SEDENTARYWORKTIME,${s.start}-${s.end},-`];
 }
 
 function movementFrame(protocolId, command) {
@@ -72,9 +78,9 @@ function movementFrame(protocolId, command) {
     movementSettings({ enabled: true, intervalMinutes: 20, start: match[1], end: match[2],
       timezone: 'Indian/Mauritius' });
   }
-  // Exact supplier framing that changed the pilot menu (28 September 2026).
+  // Exact framing from the supplier captures (28 September 2026).
   return Buffer.from(`[3G*${protocolId}*${Buffer.byteLength(command).toString(16).padStart(4, '0')}*${command}]`, 'ascii');
 }
 
 module.exports = { MovementError, movementRuntime, authorizeMovement, movementSettings,
-  movementCommands, movementFrame };
+  movementAction, movementCommands, movementFrame };

@@ -48,7 +48,10 @@ function createMovementTransport({ find = findSocketsForDevice, events = replies
             events.off('reply', onReply);
             target.socket.off('close', onClose);
             target.socket.off('error', onError);
-            resolve({ command, sentAt, appliedStateVerified: false, ...result });
+            // Persist the exact bounded setting bytes used at the socket,
+            // alongside the body. This is handoff evidence, never readback.
+            resolve({ command, sentAt, protocolId, frameHex: frame.toString('hex'),
+              appliedStateVerified: false, ...result });
           }
           function onReply(event) {
             if (event.socket === target.socket && event.session === target.session

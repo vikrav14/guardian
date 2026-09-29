@@ -2,19 +2,21 @@
 
 const admin = require('firebase-admin');
 const { MovementError, movementRuntime, authorizeMovement, movementSettings,
-  movementCommands } = require('./movement-reminder-policy');
+  movementAction, movementCommands } = require('./movement-reminder-policy');
 const { createMovementStore } = require('./movement-reminder-store');
 const { movementTransport } = require('./movement-reminder-transport');
 
 async function executeMovement({ access, payload, store, transport, authorizeAgain = async () => {} }) {
-  if (!payload || Object.keys(payload).sort().join(',') !== 'expectedVersion,requestId,settings'
+  if (payload && !Object.hasOwn(payload, 'action')) throw new MovementError('app_update_required', 400);
+  if (!payload || Object.keys(payload).sort().join(',') !== 'action,expectedVersion,requestId,settings'
       || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(payload.requestId || '')
       || !Number.isSafeInteger(payload.expectedVersion) || payload.expectedVersion < 0) {
     throw new MovementError('invalid_request', 400);
   }
   const settings = movementSettings(payload.settings);
+  const action = movementAction(payload.action);
   const claimed = await store.claim({ ...access, requestId: payload.requestId,
-    expectedVersion: payload.expectedVersion, settings });
+    expectedVersion: payload.expectedVersion, settings, action });
   if (claimed.replay) return claimed.state;
   const evidence = [];
   const identity = { imei: access.imei, requestId: payload.requestId };
@@ -23,8 +25,8 @@ async function executeMovement({ access, payload, store, transport, authorizeAga
   let reason = null;
   try {
     const bound = transport.bind(access.imei);
-    for (const command of movementCommands(settings)) {
-      // Recheck linkage/subscription before each step, including final enable.
+    for (const command of movementCommands(settings, action)) {
+      // Recheck linkage/subscription immediately before the explicit action.
       await authorizeAgain();
       await store.update({ ...identity, patch: { nextCommand: command, evidence: [...evidence] } });
       writeAttempted = true;

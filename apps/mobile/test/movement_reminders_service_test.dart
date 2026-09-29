@@ -29,13 +29,14 @@ void main() {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       expect(body['expectedVersion'], 2);
       expect(body['requestId'], 'test-id');
+      expect(body['action'], 'switch');
       expect(body['settings']['intervalMinutes'], 20);
       expect(body['settings'].containsKey('localTime'), isFalse);
       return http.Response('{"version":3,"status":"replies_observed","connected":true}', 200);
     });
     final service = MovementRemindersService(client: client, token: () async => 'test-token', gatewayUrl: 'https://gateway.example');
     final result = await service.save(imei, requestId: 'test-id', expectedVersion: 2,
-      settings: const MovementSettings(enabled: true, start: '08:00', end: '20:00'));
+      settings: const MovementSettings(enabled: true, start: '08:00', end: '20:00'), action: 'switch');
     expect(result.status, 'replies_observed');
     expect(requests, 1);
     service.close();
@@ -48,7 +49,7 @@ void main() {
       token: () async => 'test-token', gatewayUrl: 'https://gateway.example',
     );
     await expectLater(service.save(imei, requestId: 'test-id', expectedVersion: 0,
-      settings: const MovementSettings(enabled: true, start: '08:00', end: '20:00')), throwsA(isA<http.ClientException>()));
+      settings: const MovementSettings(enabled: true, start: '08:00', end: '20:00'), action: 'switch'), throwsA(isA<http.ClientException>()));
     expect(requests, 1);
     service.close();
   });
@@ -62,5 +63,15 @@ void main() {
     final service = MovementRemindersService(client: client, token: () async => null, gatewayUrl: 'https://gateway.example');
     await expectLater(service.load(imei), throwsA(isA<MovementRequestException>()));
     client.close();
+  });
+
+  test('partial requested state is readable without claiming unsent hours', () {
+    final state = MovementState.fromJson({
+      'action': 'switch', 'desired': {'enabled': true, 'intervalMinutes': 20},
+    });
+    expect(state.desired!.enabled, isTrue);
+    expect(state.action, 'switch');
+    expect(state.hoursRequested, isFalse);
+    expect(state.desired!.start, '08:00');
   });
 }

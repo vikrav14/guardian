@@ -43,8 +43,9 @@ class MovementSettings {
   factory MovementSettings.fromJson(Map<String, dynamic> value) =>
       MovementSettings(
         enabled: value['enabled'] == true,
-        start: value['start'] as String,
-        end: value['end'] as String,
+        // An independent switch request may have no requested hours yet.
+        start: value['start'] as String? ?? '08:00',
+        end: value['end'] as String? ?? '20:00',
       );
 }
 
@@ -55,12 +56,16 @@ class MovementState {
     this.reason,
     this.desired,
     this.connected = false,
+    this.action,
+    this.hoursRequested = false,
   });
   final int version;
   final String status;
   final String? reason;
   final MovementSettings? desired;
   final bool connected;
+  final String? action;
+  final bool hoursRequested;
 
   factory MovementState.fromJson(Map<String, dynamic> value) => MovementState(
     version: value['version'] as int? ?? 0,
@@ -70,6 +75,9 @@ class MovementState {
         ? MovementSettings.fromJson(value['desired'] as Map<String, dynamic>)
         : null,
     connected: value['connected'] == true,
+    action: value['action'] as String?,
+    hoursRequested: value['desired'] is Map<String, dynamic> &&
+        value['desired']['start'] is String && value['desired']['end'] is String,
   );
 }
 
@@ -85,6 +93,7 @@ abstract class MovementReminderClient {
     required String requestId,
     required int expectedVersion,
     required MovementSettings settings,
+    required String action,
   });
 }
 
@@ -150,9 +159,11 @@ class MovementRemindersService implements MovementReminderClient {
     required String requestId,
     required int expectedVersion,
     required MovementSettings settings,
+    required String action,
   }) => _request(imei, {
     'requestId': requestId,
     'expectedVersion': expectedVersion,
     'settings': settings.toJson(),
+    'action': action,
   });
 }

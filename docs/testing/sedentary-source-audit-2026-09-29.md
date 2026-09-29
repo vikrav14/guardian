@@ -201,7 +201,11 @@ check. If local fallback is needed, the previously observed physical Close /
 Save behavior is available. Off dispatch, reply and physical cleanup after
 this observation have not yet been supplied and must not be marked complete.
 
-### Next decision: obtain firmware-specific clarification
+### Earlier escalation proposal (superseded by the software investigation)
+
+At 14:26 and 14:37 the operator explicitly requested no supplier escalation and
+asked to fix the difference from AnyTracking. No message was sent. The questions
+below remain unresolved reference notes, not the current next action.
 
 Retain the exact request/replies above, the supplier comparison, both previously
 reported V52 firmware labels and the no-local-Save/no-reminder observations for
@@ -212,6 +216,27 @@ The supplier has already defined On/Off polarity and the interval's units;
 do not repeat those questions. A further physical trial should answer a specific
 newly supported question, not repeat this wait. No supplier message was sent.
 PR #118 remains draft and customer movement reminders remain gated.
+
+### Follow-up: independent Save actions
+
+Code inspection confirms a concrete workflow difference: the supplier upper
+Save sends one SEDENTARY setting and lower Save sends one WORKTIME setting;
+Guardian inserted an extra Off and coupled both controls into Off/worktime/On.
+There is no supplier evidence requiring that sequence. The connected pilot now
+uses independent explicit `switch` and `hours` actions, with one captured-format
+frame each. It preserves the other component's last-requested state and records
+exact outbound frame hex. Old combined clients fail before a send.
+
+The UI also disabled Save for requested On after a reply despite lacking device
+readback. A fresh explicit Save is now possible after completion, while busy,
+version, UUID, authorization and unconfirmed-change guards remain. A failed
+initial load no longer shows default Off/hours as if they were loaded.
+
+These are verified software discrepancies and targeted corrections, not a
+proven firmware diagnosis. No evidence yet proves that the former sequence
+caused Close / 0 or that this patch resolves it. Validate one isolated On Save
+and the physical menu first, as described in the updated app trial runbook;
+do not begin another timed wait or claim hardware acceptance from unit tests.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

@@ -16,7 +16,8 @@ class PreviewMovementClient implements MovementReminderClient {
   Future<MovementState> load(String imei) async => const MovementState(connected: true);
   @override
   Future<MovementState> save(String imei, {required String requestId,
-    required int expectedVersion, required MovementSettings settings}) async =>
+    required int expectedVersion, required MovementSettings settings,
+    required String action}) async =>
       throw StateError('Synthetic preview does not send commands');
 }
 

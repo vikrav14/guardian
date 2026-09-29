@@ -12,18 +12,24 @@ class FakeMovementClient implements MovementReminderClient {
   int reads = 0;
   final requests = <MovementSettings>[];
   final ids = <String>[];
+  final actions = <String>[];
   Completer<MovementState>? pending;
   bool fail = false;
+  bool failLoad = false;
   @override
-  Future<MovementState> load(String imei) async { reads++; return state; }
+  Future<MovementState> load(String imei) async {
+    reads++;
+    if (failLoad) throw const MovementRequestException('gateway_unavailable');
+    return state;
+  }
   @override
   Future<MovementState> save(String imei, {required String requestId,
-    required int expectedVersion, required MovementSettings settings}) async {
-    requests.add(settings); ids.add(requestId);
+    required int expectedVersion, required MovementSettings settings, required String action}) async {
+    requests.add(settings); ids.add(requestId); actions.add(action);
     expect(expectedVersion, state.version);
     if (fail) throw const MovementRequestException('gateway_unavailable');
     return pending?.future ?? (state = MovementState(version: state.version + 1,
-      status: 'replies_observed', desired: settings, connected: true));
+      status: 'replies_observed', desired: settings, connected: true, action: action));
   }
 }
 
@@ -35,8 +41,11 @@ Widget screen(FakeMovementClient client, {String pilot = imei, double scale = 1}
     })),
 );
 
+final switchSave = find.byKey(const ValueKey('movement-save-switch'));
+final hoursSave = find.byKey(const ValueKey('movement-save-hours'));
+
 Future<void> tapSave(WidgetTester tester) async {
-  final finder = find.text('Save to watch');
+  final finder = switchSave;
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();
@@ -54,10 +63,11 @@ void main() {
     await tapSave(tester);
     expect(client.requests.length, 1);
     expect(client.requests.single.enabled, isTrue);
+    expect(client.actions, ['switch']);
     expect(client.ids.single, matches(RegExp(r'^[a-f0-9-]{36}$')));
     expect(find.text('Watch replied — check the watch'), findsOneWidget);
     expect(find.text('The watch setting and reminder behaviour are not automatically verified.'), findsOneWidget);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNotNull);
   });
 
   testWidgets('lost response requires read-only refresh and unconfirmed enable requires Off', (tester) async {
@@ -67,18 +77,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('movement-switch')));
     await tapSave(tester);
     expect(client.requests.length, 1);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
     client.state = const MovementState(version: 1, status: 'unconfirmed', connected: true,
       desired: MovementSettings(enabled: true, start: '08:00', end: '20:00'));
     await tester.ensureVisible(find.text('Refresh status'));
     await tester.tap(find.text('Refresh status'));
     await tester.pumpAndSettle();
     expect(client.requests.length, 1);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNull);
     await tester.ensureVisible(find.byKey(const ValueKey('movement-switch')));
     await tester.tap(find.byKey(const ValueKey('movement-switch')));
     await tester.pump();
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNotNull);
     client.fail = false;
     await tapSave(tester);
     expect(client.requests.last.enabled, isFalse);
@@ -88,7 +99,7 @@ void main() {
     final client = FakeMovementClient()..state = const MovementState();
     await tester.pumpWidget(screen(client));
     await tester.pumpAndSettle();
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(screen(client, pilot: ''));
     await tester.pumpAndSettle();
@@ -101,7 +112,8 @@ void main() {
     await tester.pumpWidget(screen(client));
     await tester.pumpAndSettle();
     await tapSave(tester);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNull);
+    expect(tester.widget<FilledButton>(hoursSave).onPressed, isNull);
     expect(client.requests.length, 1);
     client.pending!.complete(const MovementState(version: 1, status: 'replies_observed', connected: true));
     await tester.pumpAndSettle();
@@ -113,7 +125,7 @@ void main() {
       desired: MovementSettings(enabled: false, start: '08:00', end: '20:00'));
     await tester.pumpWidget(screen(client));
     await tester.pumpAndSettle();
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(switchSave).onPressed, isNotNull);
     await tapSave(tester);
     expect(client.requests.single.enabled, isFalse);
   });
@@ -125,7 +137,39 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(screen(FakeMovementClient(), scale: 2));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Save to watch'));
+    await tester.ensureVisible(switchSave);
+    await tester.ensureVisible(hoursSave);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hours Save is independent and does not submit the switch action', (tester) async {
+    final client = FakeMovementClient();
+    await tester.pumpWidget(screen(client));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('movement-switch')));
+    await tester.ensureVisible(hoursSave);
+    await tester.tap(hoursSave);
+    await tester.pumpAndSettle();
+    expect(client.actions, ['hours']);
+    expect(find.text('Requested hours: 08:00–20:00'), findsOneWidget);
+  });
+
+  testWidgets('last requested On does not block an explicit On save when watch disagrees', (tester) async {
+    final client = FakeMovementClient()..state = const MovementState(
+      version: 3, status: 'replies_observed', action: 'legacy_combined', connected: true,
+      desired: MovementSettings(enabled: true, start: '00:30', end: '15:00'));
+    await tester.pumpWidget(screen(client));
+    await tester.pumpAndSettle();
+    await tapSave(tester);
+    expect(client.actions, ['switch']);
+    expect(client.requests.single.enabled, isTrue);
+  });
+
+  testWidgets('initial load failure does not display fallback Off/hours as loaded settings', (tester) async {
+    await tester.pumpWidget(screen(FakeMovementClient()..failLoad = true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('movement-switch')), findsNothing);
+    expect(find.text('From 08:00'), findsNothing);
+    expect(find.text('Refresh status'), findsOneWidget);
   });
 }

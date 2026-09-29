@@ -26,6 +26,12 @@ The user next requested connected controls and the physical reminder test.
 see [the app trial runbook](../testing/movement-reminder-app-trial.md).
 It uses an inactivity interval / active-hours contract, scoped captured-format
 sender, durable request audit, version checks and no automatic retries.
+The 29 September correction separates **Save On/Off** from **Save active hours**
+to match the two observed AnyTracking actions. Each Save emits one command; it
+does not silently disable first, toggle from the hours button, or resend on
+Refresh. An explicit switch Save remains available after a completed request
+because requested On is not current device state. Initial load failure hides
+the form rather than presenting fallback values as loaded settings.
 The explicit signed-in account/device pilot permits Jesh's active Family profile
 without changing the subscription. Normal customer Care visibility is unchanged.
 The original preview remains available behind its existing flag.
@@ -66,9 +72,9 @@ product decision plus matching backend/rules changes.
   pilot result is not a persistent readback available to every app user.
 - Show actual applied state only when a supported evidence source exists. Do
   not label the preview switch or a queued request as the current watch state.
-- Use one caregiver save action for the complete setting; avoid exposing the
-  supplier app's two independent Save buttons. Preserve partial failures if
-  interval and active hours require separate commands.
+- Keep the pilot's two explicit Save actions until independent On/Off and hours
+  behavior is established. The initial single-Save preference is superseded for
+  this investigation: its extra Off/hours/On sequence was not supplier-proven.
 
 The timed sound/vibration test, status readback and normal save integration remain
 open in PR #118. This preview is not deployed and is not a release-ready control.

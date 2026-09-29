@@ -9,7 +9,16 @@ The timed inactivity notification, worktime enforcement, movement reset and
 reboot persistence remain unverified. Do not turn a transport reply into a
 hardware acceptance result.
 
-**Latest review, 29 September at 14:22 MUT:** the
+**Current correction, 29 September:** the user requested investigating Guardian
+rather than supplier escalation. The sender now matches the captured independent
+Save actions: switch sends only SEDENTARY On/Off; hours sends only WORKTIME.
+The earlier unrequested Off/hours/On sequence is removed. The UI no longer blocks
+explicit On merely because a previous On received a reply. Exact sent frame hex
+is retained in the request audit. These fix concrete software discrepancies;
+whether they resolve the physical symptom is not yet established. See the next
+validation below; no further timed wait is requested first.
+
+**Previous observation, 29 September at 14:22 MUT:** the
 [source audit and afternoon observation](sedentary-source-audit-2026-09-29.md#guardian-afternoon-observation---29-september-2026)
 record the resolved app-load blocker and exact Guardian Off, worktime
 00:30-15:00, then On / 20 replies at 13:48. The physical watch displayed Close /
@@ -17,7 +26,8 @@ record the resolved app-load blocker and exact Guardian Off, worktime
 reminder was reported by 14:22. Transport evidence is complete for this request;
 physical acceptance is not passed. Mode/volume, detected motion and applied
 firmware state remain unknown. End this observation without another blind
-enable/wait cycle; obtain firmware-specific clarification using the evidence.
+enable/wait cycle. The subsequent software investigation supersedes the earlier
+supplier-escalation proposal; no supplier contact is requested.
 Off cleanup after this observation remains unconfirmed. The earlier AnyTracking
 13:00-14:00 delivery gap is a separate historical result. The source audit also
 finds no documented sedentary readback or local/remote menu equivalence.
@@ -108,21 +118,32 @@ state and per-request audit live in `movementReminderSettings` and
 collections inaccessible to clients; the authenticated gateway is the only path.
 No rule deployment is needed to run this pilot with those rules.
 
-Save On sends, in sequence:
+Each explicit Save now sends one frame:
 
-1. `SEDENTARY,0,20`
-2. `SEDENTARYWORKTIME,<HH:MM>-<HH:MM>,-`
-3. `SEDENTARY,1,20`
+| Action | Body | Other setting |
+| --- | --- | --- |
+| Save On/Off, selected On | `SEDENTARY,1,20` | Hours unchanged |
+| Save On/Off, selected Off | `SEDENTARY,0,20` | Hours unchanged |
+| Save active hours | `SEDENTARYWORKTIME,<HH:MM>-<HH:MM>,-` | On/Off unchanged |
 
 Each uses the captured 3G prefix and lowercase four-digit hex length, with a
-same-session bare-reply wait before the next step. The worktime reply no longer
-gets acknowledged back. Save Off sends only `SEDENTARY,0,20`; it leaves worktime
-unchanged. One same-day window of at least 25 minutes, no weekday/overnight
+same-session bare-reply wait. There is no automatic follow-up command. The
+worktime reply does not get acknowledged back. One same-day window of at least 25 minutes, no weekday/overnight
 semantics, and only the observed 20-minute interval are supported in the trial.
 Arbitrary window values are test inputs, not accepted hardware claims.
 
 The generic command builder and emergency paths are unchanged. This sender is
 scoped to the pilot endpoint. Do not also load the temporary framing preload.
+
+POST requires `action: switch` or `action: hours` as well as the existing
+requestId, expectedVersion and settings fields. Update both the pilot gateway
+and app. Legacy combined-save requests are rejected before claim/write with
+`app_update_required`; they are never silently reinterpreted. The durable
+fingerprint includes action. A new action preserves the other component's
+last-requested values; unsaved form edits are not promoted to sent settings.
+`action: legacy_combined` identifies old audit records on reads. No Firestore
+rules or schema migration is needed. `frameHex` records the exact bounded
+setting frame at socket handoff, not application by the watch.
 
 ## Failure semantics
 
@@ -188,16 +209,34 @@ Wellness → Movement reminders. This local build is not the deployed photo app.
 The gateway launcher uses the Care branch while the supervised trial runs;
 photo/WhatsApp rollout acceptance is outside this test.
 
-## First physical trial
+## Next validation after the independent-Save correction
+
+1. Update and restart both the pilot gateway and pilot Flutter app, keeping the
+   original environment and current Guardian tunnels. Do not use the framing
+   preload or switch routing to AnyTracking for this check.
+2. Open Movement reminders. The page must show **Save On/Off** and **Save active
+   hours**. Leave hours alone. If the last request is unconfirmed, perform the
+   existing explicit Off recovery first; do not bypass that guard.
+3. Select On and press **Save On/Off once**, even if the last request already
+   says On. The audit should show `action: switch`, exactly one SEDENTARY,1,20
+   frame and its reply, with no Off or WORKTIME frame in this request.
+4. Reopen the physical watch menu without pressing its Save. Report the displayed
+   Open/Close and interval immediately. This compares setting reflection first;
+   do not start another 20-minute wait or assume a hardware fix from reply alone.
+5. End the check with an explicit Off when appropriate; record the reply and
+   physical menu separately. A setting check does not establish timed behavior.
+
+## Later physical reminder trial (only after the setting check)
 
 1. Confirm watch clock matches Mauritius time and menu starts closed (Close / 0 on this pilot).
 2. Choose one active window containing the **next 30 minutes**. Do not run a
    20-minute test against the earlier 21:00–23:59 window across midnight. After
    midnight, for example, use 00:05–01:00 only if the current clock fits it.
-3. Select On and Save once. Record the displayed menu, exact watch time and
+3. Save active hours explicitly and record its single frame/reply, then select
+   On and Save On/Off once. Record the displayed menu, exact watch time and
    active hours submitted. Neither a bare reply nor the local menu alone proves
-   whether the remote setting was applied. For the next comparison, use the
-   supplier baseline described in the audit before repeating Guardian trials.
+   whether the remote setting was applied. This is a later, separately agreed
+   observation, not an instruction to repeat the completed 14:22 test now.
 4. Keep the watch worn during ordinary seated inactivity for 20–25 minutes.
    Note any movement, sound, vibration, displayed text and exact time. Do not
    send extra On commands during this observation. No alarm after 25 minutes

@@ -8,13 +8,13 @@ const { MovementError, movementRuntime, authorizeMovement, movementSettings,
   movementFrame } = require('../src/movement-reminder-policy');
 const { createMovementTransport, observeMovementReply } = require('../src/movement-reminder-transport');
 const { executeMovement, createMovementHandler, readSmallJson } = require('../src/movement-reminder-http');
-const { publicMovementState } = require('../src/movement-reminder-store');
+const { publicMovementState, createMovementStore } = require('../src/movement-reminder-store');
 const { decodeFrame, handlePacket, buildAckFrame } = require('../src/protocol/gt06');
 
 const imei = '999999999999999', protocolId = '9999999999', uid = 'pilot-owner';
 const runtime = { enabled: true, imei, uid };
 const settings = { enabled: true, intervalMinutes: 20, start: '21:00', end: '23:59', timezone: 'Indian/Mauritius' };
-const payload = { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0, settings };
+const payload = { requestId: '00000000-0000-4000-8000-000000000001', expectedVersion: 0, settings, action: 'switch' };
 function accessDb({ user = { linkedImeis: [imei] }, owner = {}, subscription = {
   version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active',
 } } = {}) {
@@ -137,28 +137,99 @@ function executionFixture({ failAt = -1, replay = false, failAuditAt = -1 } = {}
   return { store, transport, sent, updates };
 }
 
-test('single Save sequences off/hours/on, while cleanup off sends only one command', async () => {
+test('each explicit Save matches one captured supplier action, with no extra Off or enable', async () => {
   const f = executionFixture();
   const result = await executeMovement({ access: { uid, imei }, payload, ...f });
-  assert.deepEqual(f.sent, ['SEDENTARY,0,20', 'SEDENTARYWORKTIME,21:00-23:59,-', 'SEDENTARY,1,20']);
+  assert.deepEqual(f.sent, ['SEDENTARY,1,20']);
   assert.equal(result.status, 'replies_observed');
   const off = executionFixture();
   await executeMovement({ access: { uid, imei }, payload: { ...payload, settings: { ...settings, enabled: false } }, ...off });
   assert.deepEqual(off.sent, ['SEDENTARY,0,20']);
+  for (const enabled of [true, false]) {
+    const hours = executionFixture();
+    await executeMovement({ access: { uid, imei }, payload: { ...payload, action: 'hours',
+      settings: { ...settings, enabled } }, ...hours });
+    assert.deepEqual(hours.sent, ['SEDENTARYWORKTIME,21:00-23:59,-']);
+  }
 });
 
-test('partial failure, audit failure and mid-operation access revocation prevent final enable', async () => {
-  for (const f of [executionFixture({ failAt: 2 }), executionFixture({ failAuditAt: 4 })]) {
-    const result = await executeMovement({ access: { uid, imei }, payload, ...f });
+test('a lost reply sends no fallback command and failures before dispatch send nothing', async () => {
+  for (const action of ['switch', 'hours']) {
+    const f = executionFixture({ failAt: 1 });
+    const result = await executeMovement({ access: { uid, imei }, payload: { ...payload, action }, ...f });
     assert.equal(result.status, 'unconfirmed');
-    assert.equal(f.sent.includes('SEDENTARY,1,20'), false);
+    assert.equal(f.sent.length, 1);
+  }
+  for (const f of [executionFixture({ failAuditAt: 1 })]) {
+    const result = await executeMovement({ access: { uid, imei }, payload, ...f });
+    assert.equal(result.status, 'not_sent');
+    assert.deepEqual(f.sent, []);
   }
   const f = executionFixture();
-  let authCount = 0;
   await executeMovement({ access: { uid, imei }, payload, ...f, authorizeAgain: async () => {
-    if (++authCount === 2) throw new MovementError('device_not_linked', 403);
+    throw new MovementError('device_not_linked', 403);
   } });
-  assert.deepEqual(f.sent, ['SEDENTARY,0,20']);
+  assert.deepEqual(f.sent, []);
+});
+
+test('legacy combined clients and unknown actions cannot silently send a different workflow', async () => {
+  const { action, ...legacy } = payload;
+  for (const value of [legacy, { ...payload, action: 'combined' }]) {
+    const f = executionFixture();
+    f.store.claim = async () => assert.fail('must reject before claim');
+    await assert.rejects(executeMovement({ access: { uid, imei }, payload: value, ...f }), /app_update_required/);
+    assert.deepEqual(f.sent, []);
+  }
+});
+
+test('real transport writes only the selected supplier frame and retains exact bytes', async () => {
+  for (const action of ['switch', 'hours']) {
+    const f = transportFixture();
+    f.socket.write = frame => {
+      f.socket.frames.push(frame);
+      queueMicrotask(() => f.reply(decodeFrame(frame).command));
+      return true;
+    };
+    const audit = executionFixture();
+    const result = await executeMovement({ access: { uid, imei }, payload: { ...payload, action },
+      store: audit.store, transport: f.transport });
+    assert.equal(f.socket.frames.length, 1);
+    const expected = action === 'switch' ? `[3G*${protocolId}*000e*SEDENTARY,1,20]`
+      : `[3G*${protocolId}*001f*SEDENTARYWORKTIME,21:00-23:59,-]`;
+    assert.equal(f.socket.frames[0].toString('ascii'), expected);
+    assert.equal(result.evidence[0].frameHex, Buffer.from(expected).toString('hex'));
+    assert.equal(result.evidence[0].appliedStateVerified, false);
+  }
+});
+
+test('separate saves preserve the other last-requested control and action is part of replay identity', async () => {
+  const records = new Map();
+  const db = { collection: name => ({ doc: id => {
+    const key = `${name}/${id}`;
+    return { key, get: async () => ({ exists: records.has(key), data: () => records.get(key) }) };
+  } }), runTransaction: async run => run({ get: ref => ref.get(),
+    set: (ref, value, options) => records.set(ref.key, options?.merge
+      ? { ...records.get(ref.key), ...value } : value) }) };
+  const store = createMovementStore(db);
+  const base = { uid, imei, ownerUid: uid, requestId: 'switch-1', expectedVersion: 0, settings, action: 'switch' };
+  await store.claim(base);
+  assert.deepEqual((await store.read(imei)).desired, { enabled: true, intervalMinutes: 20 });
+  await store.update({ imei, requestId: 'switch-1', patch: { status: 'replies_observed' } });
+  await assert.rejects(store.claim({ ...base, action: 'hours' }), /request_id_conflict/);
+  await store.claim({ ...base, requestId: 'hours-1', expectedVersion: 1, action: 'hours',
+    settings: { ...settings, enabled: false } });
+  assert.equal((await store.read(imei)).desired.enabled, true);
+  assert.equal((await store.read(imei)).desired.start, '21:00');
+  await store.update({ imei, requestId: 'hours-1', patch: { status: 'replies_observed' } });
+  await store.claim({ ...base, requestId: 'switch-2', expectedVersion: 2,
+    settings: { ...settings, enabled: false, start: '08:00', end: '09:00' } });
+  const current = await store.read(imei);
+  assert.equal(current.desired.enabled, false);
+  assert.equal(current.desired.start, '21:00');
+  assert.equal(current.action, 'switch');
+  await store.update({ imei, requestId: 'switch-2', patch: { status: 'unconfirmed' } });
+  await assert.rejects(store.claim({ ...base, requestId: 'hours-unsafe', expectedVersion: 3,
+    action: 'hours', settings: { ...settings, enabled: false } }), /turn_off_before_retry/);
 });
 
 test('replay and failed durable claim send nothing; expired processing stays unconfirmed', async () => {

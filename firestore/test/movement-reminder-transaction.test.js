@@ -18,12 +18,13 @@ before(async () => {
 after(async () => { await app.delete(); await env.cleanup(); });
 
 const settings = { enabled: true, intervalMinutes: 20, start: '08:00', end: '20:00', timezone: 'Indian/Mauritius' };
-const input = { uid: 'pilot', ownerUid: 'pilot', imei, requestId: 'first', expectedVersion: 0, settings };
+const input = { uid: 'pilot', ownerUid: 'pilot', imei, requestId: 'first', expectedVersion: 0, settings, action: 'switch' };
 
 test('concurrent requests claim exactly once, survive restart and preserve audit', async () => {
   const result = await Promise.all([createMovementStore(db).claim(input), createMovementStore(db).claim(input)]);
   assert.deepEqual(result.map(r => r.replay).sort(), [false, true]);
   await assert.rejects(createMovementStore(db).claim({ ...input, settings: { ...settings, enabled: false } }), /request_id_conflict/);
+  await assert.rejects(createMovementStore(db).claim({ ...input, action: 'hours' }), /request_id_conflict/);
   await assert.rejects(createMovementStore(db).claim({ ...input, requestId: 'second' }), /settings_changed/);
   await assert.rejects(createMovementStore(db).claim({ ...input, requestId: 'second', expectedVersion: 1 }), /change_in_progress/);
   await createMovementStore(db).update({ imei, requestId: 'first', patch: { status: 'replies_observed', evidence: [{ replyObserved: true }] } });
