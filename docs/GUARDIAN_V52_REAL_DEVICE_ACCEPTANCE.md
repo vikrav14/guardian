@@ -941,6 +941,14 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+At 17:48:15 MUT the operator reported Open / 20 during the requested
+Guardian-through-recorder check, then Guardian Off Save produced Close / 20
+followed by Close / 0. They reported returning the route to port 14062. Record
+this run's remote On/Off menu check as operator-observed pass and cleanup as
+closed. The capture, exact action times and fresh traffic after restoration
+are pending. This does not establish remote timed output or reliable repeated
+application, and no cause for the changed result is established.
+
 The Guardian remote trial received exact SEDENTARY/SEDENTARYWORKTIME replies
 but the operator reported no reminder by 15:56 MUT. Guardian Off cleanup was
 reported at 16:01 (Close / 20 then Close / 0). Next, a physical-watch Open / 20

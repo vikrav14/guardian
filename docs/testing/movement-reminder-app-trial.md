@@ -1,6 +1,17 @@
 # Connected movement reminder trial
 
-**Latest result, reported 29 September at 16:24:51 MUT: local reminder passed.**
+**Latest operator report, 29 September at 17:48:15 MUT: remote menu check passed
+for this run.** During the requested Guardian-through-recorder setting check,
+the operator reported Open / 20, then selected Off and saved in Guardian. The
+watch showed Close / 20 followed by Close / 0. They reported restoring the
+direct Guardian route to port 14062. This is operator-observed On/Off menu
+reflection and closed-state cleanup, not a timed reminder or independent
+applied-state readback. The JSONL capture, exact Save times and fresh post-return
+Guardian traffic have not yet been supplied. Do not attribute the positive
+result to the relay or a framing change; no runtime framing was changed for
+this comparison. Review the capture next and retain earlier failed trials.
+
+**Local control result, reported 29 September at 16:24:51 MUT: reminder passed.**
 After the remote trial below and its Off cleanup, the operator enabled Open / 20
 using the physical watch's Save and confirmed that display at 16:04:56. Guardian
 was to remain unchanged with its last requested state Off. A local observation

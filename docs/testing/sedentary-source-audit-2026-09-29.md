@@ -424,6 +424,18 @@ remain open; no further timer wait is needed to establish this local positive
 control. Existing 21 September local speech reports remain separate historical
 evidence, with unknown timing; this is not claimed to be the first-ever prompt.
 
+## Guardian-through-recorder menu result — reported at 17:48:15 MUT
+
+The operator reported Open / 20, followed by selecting Off and Save in Guardian.
+The physical menu showed Close / 20 and then Close / 0. They reported restoring
+the direct Guardian route to port 14062. This is a positive On/Off menu check
+for this run; the reporter's timestamp is not the exact command timestamp.
+No new timed remote reminder was observed in this short check. The JSONL file
+and fresh post-return Guardian packets remain to be reviewed. No local Save
+was reported in this sequence. Do not infer that the relay, startup ACKs or
+any other unmeasured difference fixed the earlier inconsistent remote result.
+The next action is capture review, with the watch left closed.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking
