@@ -1,5 +1,13 @@
 # Connected movement reminder trial
 
+**Worn-trial enable confirmed, 30 September at 00:05:52 MUT:** in response to
+the Guardian On / physical-menu step, the operator reports **Open / 20**. Record
+this run's physical enable result as operator-observed. Exact Save/wire time and
+the new hours request audit are not supplied. Proceed with the planned watch-worn,
+comfortable seated observation for **25 minutes from the actual settled start**;
+the operator is asked to note that time. Keep 00:00-01:00, On / 20 and routing
+unchanged. No prompt/no-prompt or new Off cleanup result has yet been reported.
+
 **New worn test requested, 29 September at 23:55:49 MUT:** the operator wants
 to proceed now. The starting physical state is the confirmed Close / 0 below.
 Because the trial requires one same-day window, prepare **00:00-01:00 on
@@ -18,9 +26,9 @@ No further Saves, local setting changes, restart or reroute during observation.
 The cutoff is not a guaranteed trigger time. If starting too late for this
 window to contain the full observation, choose a new window before enabling.
 After a reminder or the cutoff, select Off and Save On/Off once in Guardian,
-then reopen the physical menu without Save and record the result. Fresh hours,
-On, worn prompt/no-prompt and subsequent cleanup are all pending; this is a
-new plan, not evidence that any of these actions have already occurred.
+then reopen the physical menu without Save and record the result. Physical
+Open / 20 is now reported above. Exact new hours/On wire evidence, actual settled
+start, worn prompt/no-prompt and subsequent cleanup remain outstanding.
 
 **Latest confirmation, 29 September at 23:48:26 MUT: off-wrist sound/display
 passed for this run by operator observation.** The operator confirms the watch

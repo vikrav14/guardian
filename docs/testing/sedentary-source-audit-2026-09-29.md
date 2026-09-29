@@ -622,8 +622,24 @@ and time, or no prompt at the cutoff. If the full observation cannot fit before
 01:00, choose another window before enabling. An unconfirmed request or closed
 menu needs inspection rather than repetition or a blind timed wait. End after
 a prompt or the cutoff with Guardian Off Save and a separate physical menu
-check. New hours/On handoffs, physical enable, worn result and new cleanup all
-remain pending; the user has authorized the plan, not reported its completion.
+check. The following report supplies physical enable; new exact hours/On wire
+evidence, worn result and subsequent cleanup are not yet supplied.
+
+### Worn-trial physical enable — 30 September at 00:05:52 MUT
+
+The operator quotes the Guardian On / Save On/Off / inspect-without-local-Save
+step and reports **"watch is showing open and 20"**. Record the physical
+Open / 20 result for this separate worn trial. The report timestamp is not an
+exact Save, handoff, reply or observation-start time. No raw audit of the fresh
+00:00-01:00 hours or On accompanies this report.
+
+Proceed with the requested watch-worn, comfortable seated observation for
+25 minutes from the actual settled start and ask the operator to note that
+start. Keep settings and Guardian routing unchanged, record movement and any
+prompt time/sound/text or no prompt at the cutoff, then perform Guardian Off
+and inspect the physical menu separately. No reminder/no-reminder or new Off
+result has been supplied. This confirms the enable menu step, not completed
+worn behavior or full hardware acceptance; the PR remains draft.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

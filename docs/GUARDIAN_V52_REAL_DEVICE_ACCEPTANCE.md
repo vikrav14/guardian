@@ -939,7 +939,14 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ## Native clock, sedentary and talking-clock reminders (PR #118)
 
-### Latest sedentary comparison — 29 September 2026
+### Latest sedentary comparison — 29-30 September 2026
+
+At **00:05:52 MUT on 30 September**, the operator reports **Open / 20** after
+the requested Guardian On/menu check. This run's physical enable is observed.
+Proceed with the separate worn/seated observation for 25 minutes from the
+actual settled start, which the operator is asked to note, within planned
+00:00-01:00 hours. Exact new hours/On wire evidence is not supplied. Worn prompt
+or no-prompt, exact start and later Off cleanup remain pending.
 
 At 23:55:49 MUT the operator requested the separate worn test now, superseding
 the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
@@ -947,8 +954,8 @@ the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
 around 00:05 and a physical Open / 20 check without local Save. Only after that
 check, observe worn/seated for 25 minutes from the recorded actual start (target
 00:05-00:30). Record prompt/no-prompt and finish with Guardian Off plus a separate
-physical menu check. No new setting, prompt or cleanup result is yet supplied;
-full remote acceptance remains open. See the movement runbook for exact steps.
+physical menu check. Physical enable is subsequently reported above; the worn
+result and cleanup remain pending. See the movement runbook for exact steps.
 
 At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
 for both rings and displayed **"Sedentary reminder: do some exercise"**. First
