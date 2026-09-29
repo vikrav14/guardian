@@ -14,10 +14,11 @@ Actual placement time and first-trigger delay remain unknown.
 The second estimate falls roughly around 21:54-22:04 if the first time is
 accurate, straddling the requested 22:00 end. This establishes neither a
 quiet-hours pass nor failure. The operator also reports **selecting Off and
-saving in Guardian now**, at this 23:48 report. Record the Off Save as reported;
-the physical closed-state check, exact Off wire time and long-term suppression
-are not yet supplied. Next reopen the physical menu without its Save and report
-the displayed switch/interval. No repeated Off or new On is requested. A later
+saving in Guardian now**, at this 23:48 report. At **23:52:33 MUT** the operator
+answers **"close 0 yes"** to the instruction to reopen the physical menu without
+its Save. Record the post-Guardian-Off physical menu cleanup as operator-confirmed
+**Close / 0**. Exact Off wire time and sustained suppression remain unverified.
+Leave Off; no further command or timed observation is requested tonight. A later
 worn test needs its own start time and active window; full acceptance stays open.
 
 **Scenario changed at 20:32:12 MUT:** the operator is preparing dinner and
@@ -96,9 +97,9 @@ outcome substitutes for the worn/seated remote test. Afterward, select Off and
 Save On/Off in Guardian and inspect the physical menu separately. After dinner,
 set up a separate worn observation with fresh times and an active window that
 covers it. Two sounds, sedentary text and untouched sofa placement are now
-confirmed by the operator. Off Save is reported at 23:48; inspect the physical
-menu without local Save to complete the menu cleanup check. Do not repeat the
-Off Save just for confirmation. The old 20:00-22:00 window has ended; a worn test
+confirmed by the operator. Off Save is reported at 23:48 and the physical menu
+is confirmed Close / 0 at 23:52. Do not repeat the command; leave the watch Off.
+The old 20:00-22:00 window has ended; a worn test
 needs a newly chosen active window covering its observation. The first
 [connection capture](movement-session-comparison.md) remains a
 successful On/Off-only check. The absent hours Save is explained by the UI

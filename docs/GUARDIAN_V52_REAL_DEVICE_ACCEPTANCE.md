@@ -952,9 +952,10 @@ unverified. The second estimate straddles requested 22:00 end (roughly
 21:54-22:04); do not claim either quiet-hours success or failure.
 
 The operator reports selecting Off and saving in Guardian at this 23:48 report.
-Off Save is operator-reported; the physical closed-state check, exact wire time
-and long-term suppression are pending. Next inspect the menu without its Save;
-do not repeat the command just for confirmation. Any separate worn test needs
+At **23:52:33 MUT**, they confirm **Close / 0** after the instruction to reopen
+the physical menu without local Save. This run's physical Off cleanup is
+operator-confirmed. Exact Off wire time and long-term suppression remain
+unverified. Leave Off; no further command or timed observation tonight. A worn test needs
 a new active window. PR remains a supervised draft and full acceptance is open.
 
 At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
@@ -965,7 +966,7 @@ separate stationary off-wrist observation, bounded to about 25 minutes from
 placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
 unchanged, record any prompt, then perform explicit Guardian Off cleanup.
 The later confirmation above establishes off-wrist sound/display for this run.
-Worn remote acceptance and the physical post-Off menu check remain pending.
+Worn remote acceptance remains pending; the physical Off check is confirmed above.
 
 At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
 and physical **Open / 20**, following the separate hours request below and the
@@ -974,7 +975,7 @@ On/menu result; the Save time is approximate and no new exact wire audit was
 supplied. A bounded remote-only worn reminder observation was requested through
 20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
 route changes, before the later scenario change above. The subsequent two-ring
-report does not complete worn acceptance or post-test Off cleanup.
+report does not complete worn acceptance; subsequent Off menu cleanup is above.
 
 The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
 Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare

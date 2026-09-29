@@ -587,11 +587,20 @@ schedule enforcement nor a failure after the active window is established.
 The operator also says **"i set it to off and saved now"** in response to the
 Guardian Off Save instruction. Record an operator-reported Off Save at the
 23:48 report, not an exact command handoff time or applied-state readback. The
-current physical menu and suppression after Off have not been supplied.
-Request only reopening the physical menu without local Save to report the
-switch/interval; no duplicate Off request or fresh On is needed. The next worn
-test needs its own start and active window. Full remote functional acceptance
-and the physical Off cleanup check remain open; no customer release follows.
+physical menu was requested next, without local Save; its result follows below.
+
+### Physical Off cleanup confirmed — 23:52:33 MUT
+
+The operator replies **"close 0 yes"** to the instruction to reopen the watch's
+Sedentary menu without pressing its Save. Record physical **Close / 0** after
+the reported Guardian Off Save as operator-confirmed cleanup for this run.
+This is a human menu observation, not protocol readback, an exact wire timestamp
+or proof of sustained suppression. No repeat Off, new On, reroute or further
+timed observation is requested tonight; leave the watch Off. The next separate
+worn test needs its own start time and active window. Off-wrist sound/display
+and physical Off cleanup have positive operator evidence; worn remote behavior,
+exact repeat cadence, motion reset and quiet-hours enforcement remain open.
+PR stays draft; no customer release follows from this confirmation.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 
