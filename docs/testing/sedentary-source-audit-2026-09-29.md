@@ -548,8 +548,8 @@ an unspecified time. This is an operator report, not independently captured
 device event timing. It follows the proposed sofa test and earlier Guardian
 On Save around 20:22-20:23 with physical Open / 20.
 
-Confirmation is still needed that the watch stayed on the sofa for both events
-and displayed the sedentary reminder text. The report does not give the actual
+At this report, confirmation was still needed that the watch stayed on the sofa
+for both events and displayed the sedentary reminder text. It did not give the actual
 placement time, intervening handling or Saves, second ring time or Off cleanup.
 Do not back-calculate a placement time from the selected interval, assume a
 20-minute repeat, or label the worn scenario passed. If the watch remained
@@ -564,6 +564,34 @@ ended. Request explicit Guardian Off Save if still enabled and a physical menu
 check without local Save. The later worn test needs a fresh start time and an
 active window covering its observation; do not extend the old wait. Cleanup
 and worn remote functional acceptance remain pending.
+
+### Off-wrist sound/display confirmed; Guardian Off Save reported — 23:48:26 MUT
+
+The operator answers yes to both questions: the watch remained untouched on
+the sofa for both rings, and the screen said **"Sedentary reminder: do some
+exercise"**. They estimate the second event as **maybe 20-30 minutes after**
+the first around 21:34. Record the off-wrist sound/display behavior in this run
+as operator-observed pass following the separate Guardian hours request and On
+Save with physical Open / 20. No new raw wire capture accompanies this report.
+
+This demonstrates a sedentary reminder can sound/display while the watch is
+unworn in this scenario. It cannot be used as evidence that the wearer was
+inactive, and does not establish the watch's wear-detection algorithm, exact
+20-minute repeat, first-trigger delay or movement reset. Actual placement time
+remains unknown. It does not substitute for a separately observed worn trial.
+
+The estimated second time would be roughly 21:54-22:04 if the first time is
+accurate, spanning the requested 22:00 end. Preserve this uncertainty: neither
+schedule enforcement nor a failure after the active window is established.
+
+The operator also says **"i set it to off and saved now"** in response to the
+Guardian Off Save instruction. Record an operator-reported Off Save at the
+23:48 report, not an exact command handoff time or applied-state readback. The
+current physical menu and suppression after Off have not been supplied.
+Request only reopening the physical menu without local Save to report the
+switch/interval; no duplicate Off request or fresh On is needed. The next worn
+test needs its own start and active window. Full remote functional acceptance
+and the physical Off cleanup check remain open; no customer release follows.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

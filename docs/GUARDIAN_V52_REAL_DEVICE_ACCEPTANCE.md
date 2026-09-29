@@ -941,16 +941,21 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
-At 22:39:28 MUT the operator reported two rings, first around **21:34**, then
-another later. This is positive audible-output evidence following the Guardian
-On/menu result and proposed sofa observation. Exact second time, screen text,
-continued off-wrist placement, intervening handling/Saves and Off cleanup remain
-unconfirmed. Confirm the sofa condition and sedentary text before treating this
-as verified off-wrist sedentary behavior; do not infer 20-minute repeat cadence,
-wear detection, schedule enforcement or a passed worn test. The first event is
-inside requested 20:00-22:00; the second time is unknown. At this report time the
-old active window has ended. Request Guardian Off cleanup if still enabled;
-any later worn test needs a new active window. PR remains a supervised draft.
+At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
+for both rings and displayed **"Sedentary reminder: do some exercise"**. First
+sound was reported around **21:34**, second **maybe 20-30 minutes later**.
+Record this run's off-wrist audible/display result after Guardian configuration
+as operator-observed pass. It demonstrates that sedentary output can occur
+while unworn in this scenario; it does not prove wearer inactivity. Exact
+placement time, first-trigger delay, repeat cadence and worn behavior remain
+unverified. The second estimate straddles requested 22:00 end (roughly
+21:54-22:04); do not claim either quiet-hours success or failure.
+
+The operator reports selecting Off and saving in Guardian at this 23:48 report.
+Off Save is operator-reported; the physical closed-state check, exact wire time
+and long-term suppression are pending. Next inspect the menu without its Save;
+do not repeat the command just for confirmation. Any separate worn test needs
+a new active window. PR remains a supervised draft and full acceptance is open.
 
 At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
 they plan to leave the watch on the sofa sensor-up, then test while worn after
@@ -959,8 +964,8 @@ This was a
 separate stationary off-wrist observation, bounded to about 25 minutes from
 placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
 unchanged, record any prompt, then perform explicit Guardian Off cleanup.
-A prompt would establish off-wrist output in this run; silence would not prove
-wear detection. Worn remote acceptance and post-test cleanup remain pending.
+The later confirmation above establishes off-wrist sound/display for this run.
+Worn remote acceptance and the physical post-Off menu check remain pending.
 
 At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
 and physical **Open / 20**, following the separate hours request below and the

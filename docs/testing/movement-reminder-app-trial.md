@@ -1,20 +1,30 @@
 # Connected movement reminder trial
 
-**Latest sound report, 29 September at 22:39:28 MUT:** the operator reports
-"it rang 21.34 and a bit more after. for two times." Record two reported audible
-events, first around **21:34 MUT**, second later with no exact time supplied.
-This follows the proposed sofa test and Guardian On/menu result below. Confirm
-the watch remained off-wrist for both events and the on-screen reminder text
-before classifying this as verified off-wrist sedentary output. Placement time,
-intervening handling/Saves and Off cleanup have not been supplied. Do not infer
-a 20-minute cadence or a passed worn test. The first event is within requested
-20:00-22:00; the second cannot yet establish behavior inside/outside that window.
+**Latest confirmation, 29 September at 23:48:26 MUT: off-wrist sound/display
+passed for this run by operator observation.** The operator confirms the watch
+remained untouched on the sofa for both rings and displayed **"Sedentary
+reminder: do some exercise"**. First sound was reported around **21:34 MUT**;
+the second is remembered as **maybe 20-30 minutes later**, not an exact time.
+This follows the Guardian hours/On setup and physical Open / 20 below. A
+reminder can therefore occur while unworn in this observed scenario; it does
+not establish that the wearer is inactive. Do not infer exact repeat cadence,
+inactivity reset rules, reliable repeated application or a passed worn test.
+Actual placement time and first-trigger delay remain unknown.
+
+The second estimate falls roughly around 21:54-22:04 if the first time is
+accurate, straddling the requested 22:00 end. This establishes neither a
+quiet-hours pass nor failure. The operator also reports **selecting Off and
+saving in Guardian now**, at this 23:48 report. Record the Off Save as reported;
+the physical closed-state check, exact Off wire time and long-term suppression
+are not yet supplied. Next reopen the physical menu without its Save and report
+the displayed switch/interval. No repeated Off or new On is requested. A later
+worn test needs its own start time and active window; full acceptance stays open.
 
 **Scenario changed at 20:32:12 MUT:** the operator is preparing dinner and
 proposes leaving the watch on the sofa with its sensor facing up, then doing
 the worn/seated check after dinner. Treat this as a separate stationary,
-off-wrist observation. Actual placement time remains unknown; the later sound
-report above is the result supplied so far.
+off-wrist observation. Actual placement time remains unknown; the later
+confirmed sound/display result is above.
 The earlier worn observation ending at 20:50 is superseded, not passed or failed.
 
 **Latest On check, reported 29 September at 20:24:43 MUT:** the operator says
@@ -22,8 +32,8 @@ the Guardian Save was around 20:22-20:23 and the physical watch shows **Open / 2
 This follows the separate hours request below and the instruction to inspect
 the watch without pressing its Save. Record an operator-observed remote On
 menu result for this run; the Save time is approximate, with no new immutable
-request audit or exact wire time supplied. The later sound report is recorded
-separately above, with its remaining confirmation needs.
+request audit or exact wire time supplied. The later confirmed off-wrist
+sound/display result is recorded separately above.
 
 **Latest hours check, screenshot 29 September at 20:14:11 MUT:** the app shows
 Selected: Off, From 20:00 / Until 22:00, and Last request: "Watch replied — check
@@ -73,7 +83,7 @@ overlap. A read-only refresh does not display a Save as sending. There is no
 new combined Save or automatic hours command. Regression coverage checks both
 pending actions, completion/failure cleanup and read-only refresh.
 
-**Off-wrist observation plan (now followed by the sound report above):** leave
+**Off-wrist observation plan (historical; confirmed result above):** leave
 On / 20, requested 20:00-22:00 hours
 and the Guardian connection unchanged. Note when the watch is put on the sofa,
 sensor facing up, and leave it untouched for about **25 minutes from placement**.
@@ -85,10 +95,10 @@ silence would not establish wear detection or off-wrist suppression. Neither
 outcome substitutes for the worn/seated remote test. Afterward, select Off and
 Save On/Off in Guardian and inspect the physical menu separately. After dinner,
 set up a separate worn observation with fresh times and an active window that
-covers it. Sound is now reported twice; exact placement, screen text and cleanup
-remain unconfirmed. At the 22:39 report the old active window has ended, so do
-not start another worn wait using that window. If still On, use Guardian Off
-Save and reopen the physical menu without the watch's Save. A later worn test
+covers it. Two sounds, sedentary text and untouched sofa placement are now
+confirmed by the operator. Off Save is reported at 23:48; inspect the physical
+menu without local Save to complete the menu cleanup check. Do not repeat the
+Off Save just for confirmation. The old 20:00-22:00 window has ended; a worn test
 needs a newly chosen active window covering its observation. The first
 [connection capture](movement-session-comparison.md) remains a
 successful On/Off-only check. The absent hours Save is explained by the UI
