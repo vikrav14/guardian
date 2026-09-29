@@ -6,10 +6,15 @@ the operator reported Open / 20, then selected Off and saved in Guardian. The
 watch showed Close / 20 followed by Close / 0. They reported restoring the
 direct Guardian route to port 14062. This is operator-observed On/Off menu
 reflection and closed-state cleanup, not a timed reminder or independent
-applied-state readback. The JSONL capture, exact Save times and fresh post-return
-Guardian traffic have not yet been supplied. Do not attribute the positive
-result to the relay or a framing change; no runtime framing was changed for
-this comparison. Review the capture next and retain earlier failed trials.
+applied-state readback. The JSONL supplied at 17:54:44 shows On sent at
+17:46:29.090 (reply 17:46:29.668) and Off at 17:47:16.090 (reply 17:47:17.132).
+It reports 20 observed frames and a complete capture, with the watch connection
+closing at 17:48:07.488. These are wire times, not exact UI-click times.
+There is no SEDENTARYWORKTIME frame during the recorded connection from
+17:45:13.289 to 17:48:07.488. Whether the requested 17:00-19:00 hours Save was
+pressed, rejected or sent before routing changed is not established. Fresh
+post-return Guardian traffic remains unprovided. Do not attribute the positive
+result to the relay or a framing change; no runtime framing was changed.
 
 **Local control result, reported 29 September at 16:24:51 MUT: reminder passed.**
 After the remote trial below and its Off cleanup, the operator enabled Open / 20
@@ -24,12 +29,13 @@ operator confirmed saving Close / 0 locally, leaving and reopening the menu,
 and seeing Close / 0 persist. Local cleanup is operator-confirmed; long-term
 suppression and reboot persistence remain untested.
 
-**Next diagnostic:** use the standalone
-[Guardian/AnyTracking connection recorder](movement-session-comparison.md).
-Capture surrounding traffic without altering commands or startup ACKs. Start
-with Guardian forwarding and review its trace before a further supplier-route
-comparison. Keep the watch locally closed until the recorder and return route
-are ready; no further blind timed wait is requested.
+**Next diagnostic:** clarify whether Save active hours was pressed after the
+recorder connected. The first [connection capture](movement-session-comparison.md)
+is reviewed: successful On/Off menu reflection occurred with the existing SG
+startup ACKs and no WORKTIME in the captured session. The missing hours frame
+does not prove that WORKTIME causes failures or was never sent on an earlier
+direct connection. Keep the watch closed while resolving that gap; no further
+blind timed wait or supplier reroute is requested yet.
 
 **Earlier remote result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
 the operator confirmed that the physical clock matched Mauritius time and

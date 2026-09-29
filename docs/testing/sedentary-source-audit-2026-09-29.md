@@ -430,11 +430,49 @@ The operator reported Open / 20, followed by selecting Off and Save in Guardian.
 The physical menu showed Close / 20 and then Close / 0. They reported restoring
 the direct Guardian route to port 14062. This is a positive On/Off menu check
 for this run; the reporter's timestamp is not the exact command timestamp.
-No new timed remote reminder was observed in this short check. The JSONL file
-and fresh post-return Guardian packets remain to be reviewed. No local Save
-was reported in this sequence. Do not infer that the relay, startup ACKs or
-any other unmeasured difference fixed the earlier inconsistent remote result.
-The next action is capture review, with the watch left closed.
+No new timed remote reminder was observed in this short check. No local Save
+was reported in this sequence. The capture was supplied at 17:54:44 and is
+reviewed below; fresh post-return Guardian traffic remains unprovided.
+
+### Capture review — supplied 17:54:44 MUT
+
+The standalone Guardian-backend recorder reports 20 frames, no observation
+loss and `captureComplete: true`. This means its bounded frame observation
+completed; it is not firmware readback or restoration verification. Session 2
+connected at 17:45:13.289 and closed at 17:48:07.488. The recorder was stopped
+by the operator at 17:54:22.206. All table times below are Mauritius time.
+
+| Wire event | Sent | Reply | Operator's physical observation |
+| --- | --- | --- | --- |
+| `SEDENTARY,1,20` | 17:46:29.090 | 17:46:29.668 (578 ms) | Open / 20 |
+| `SEDENTARY,0,20` | 17:47:16.090 | 17:47:17.132 (1,042 ms) | Close / 20, then Close / 0 |
+
+Both frames use 3G with lowercase `000e`, matching the earlier supplier
+captures. The On frame also exactly matches the 15:15 Guardian frame whose
+menu observation was Close / 0. No extra setting command is visible between
+On and the explicit Off. Off followed On after 47 seconds; this was not a
+20-minute remote reminder test. The closed display normalizing to zero does
+not justify an interval-zero wire command.
+
+Startup CONFIG,1, ICCID and LK replies use SG; Guardian also replies to RYIMEI,
+appcontacttel, APPANDFNREPORT and eicard. SG startup replies coexisted with this
+successful menu check. Their presence cannot by itself establish the earlier
+failure's cause, nor does this one success establish universal compatibility.
+The relay generated no commands; reconnect/timing effects are not isolated.
+
+**No SEDENTARYWORKTIME frame is present in this recorded connection.** Therefore
+the supplied trace does not verify a 17:00-19:00 hours Save. A command before
+17:45:13 on the prior direct route is outside this recorder's observation.
+The current code routes explicit `action: hours` to one WORKTIME command and
+permits Save even if the values equal the last request; it does not silently
+suppress an unchanged hours Save. UI/API errors, the action not being pressed,
+or an earlier direct handoff still need distinguishing with the operator/audit.
+Do not claim that WORKTIME caused the earlier failure from this absence.
+
+Next clarify the hours action/timing while leaving the watch closed. If it was
+pressed in-session, inspect that immutable request before sending another
+command. Do not reroute to AnyTracking or repeat a timed wait merely to collect
+another acknowledgement. No firmware/runtime fix is established by this trace.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

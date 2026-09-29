@@ -945,9 +945,14 @@ At 17:48:15 MUT the operator reported Open / 20 during the requested
 Guardian-through-recorder check, then Guardian Off Save produced Close / 20
 followed by Close / 0. They reported returning the route to port 14062. Record
 this run's remote On/Off menu check as operator-observed pass and cleanup as
-closed. The capture, exact action times and fresh traffic after restoration
-are pending. This does not establish remote timed output or reliable repeated
-application, and no cause for the changed result is established.
+closed. The subsequently supplied capture records On at 17:46:29.090 with a
+578 ms reply, then Off at 17:47:16.090 with a 1,042 ms reply (all MUT). It reports
+20 frames and complete observation through the 17:48:07.488 connection close.
+No SEDENTARYWORKTIME appears in that recorded connection; the requested
+17:00-19:00 Save and fresh traffic after restoration remain unverified. Existing
+SG startup ACKs were present during this successful menu check. This does not
+establish remote timed output or reliable repeated application, and no cause
+for the changed result is established.
 
 The Guardian remote trial received exact SEDENTARY/SEDENTARYWORKTIME replies
 but the operator reported no reminder by 15:56 MUT. Guardian Off cleanup was
