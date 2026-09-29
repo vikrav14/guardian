@@ -13,6 +13,13 @@ operator confirmed saving Close / 0 locally, leaving and reopening the menu,
 and seeing Close / 0 persist. Local cleanup is operator-confirmed; long-term
 suppression and reboot persistence remain untested.
 
+**Next diagnostic:** use the standalone
+[Guardian/AnyTracking connection recorder](movement-session-comparison.md).
+Capture surrounding traffic without altering commands or startup ACKs. Start
+with Guardian forwarding and review its trace before a further supplier-route
+comparison. Keep the watch locally closed until the recorder and return route
+are ready; no further blind timed wait is requested.
+
 **Earlier remote result, 29 September at 15:56 MUT: no reminder observed.** At 15:29
 the operator confirmed that the physical clock matched Mauritius time and
 reported sound mode on. A bounded worn/seated observation was requested for
@@ -260,7 +267,10 @@ Wellness → Movement reminders. This local build is not the deployed photo app.
 The gateway launcher uses the Care branch while the supervised trial runs;
 photo/WhatsApp rollout acceptance is outside this test.
 
-## Next validation after the independent-Save correction
+## Earlier validation after the independent-Save correction (historical)
+
+This sequence produced the mixed observations recorded above. The connection
+comparison is the current next diagnostic; do not repeat this sequence blindly.
 
 1. Update and restart both the pilot gateway and pilot Flutter app, keeping the
    original environment and current Guardian tunnels. Do not use the framing
