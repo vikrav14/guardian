@@ -941,13 +941,22 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
+they plan to leave the watch on the sofa sensor-up, then test while worn after
+dinner. Actual placement time and outcome are not yet supplied. This is a
+separate stationary off-wrist observation, bounded to about 25 minutes from
+placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
+unchanged, record any prompt, then perform explicit Guardian Off cleanup.
+A prompt would establish off-wrist output in this run; silence would not prove
+wear detection. Worn remote acceptance and post-test cleanup remain pending.
+
 At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
 and physical **Open / 20**, following the separate hours request below and the
 instruction to inspect without the watch's Save. This is an operator-observed
 On/menu result; the Save time is approximate and no new exact wire audit was
-supplied. A bounded remote-only reminder observation is now requested through
+supplied. A bounded remote-only worn reminder observation was requested through
 20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
-route changes. The cutoff is not a guaranteed firing time. Timed sound/display
+route changes, before the later scenario change above. Timed sound/display
 and subsequent explicit Off cleanup are pending; remote acceptance stays open.
 
 The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,

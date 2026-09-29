@@ -511,7 +511,7 @@ an operator-observed remote On/menu result for this run. The approximate
 20:22-20:23 Save time is not an independently measured wire or application time;
 no fresh immutable request audit accompanies this report.
 
-The next observation is bounded through **20:50 MUT**, with the watch worn
+The initial observation plan was bounded through **20:50 MUT**, with the watch worn
 during ordinary comfortable seated activity, still routed to Guardian, and
 On / 20 / requested 20:00-22:00 left unchanged. No additional Save, gateway
 restart or reroute is requested. Record any prompt time, sound/vibration and
@@ -520,6 +520,24 @@ exact trigger time; inactivity reset rules remain unverified. Record material
 movement or setting changes. Explicit Guardian Off cleanup and a separate
 physical menu check follow the result. Prompt and cleanup are pending. No
 supplier reroute is requested; remote timed acceptance remains open.
+
+### Proposed off-wrist comparison — reported at 20:32:12 MUT
+
+The operator says they cannot sit while preparing dinner and proposes leaving
+the watch on the sofa with its sensor facing up, then performing the worn test
+after dinner. Placement and time are not confirmed. The earlier worn 20:50
+plan is superseded; do not record it as a completed silent or successful trial.
+
+Keep On / 20, requested 20:00-22:00 and Guardian routing unchanged. Record the
+placement time and observe about 25 minutes from placement without additional
+Saves or handling. This bounds the observation without assuming the firmware
+resets its inactivity timer at placement. Record prompt time, sound/vibration,
+screen text and handling, or no observed prompt. An off-wrist prompt would not
+verify worn behavior; silence would not prove wear detection or suppression.
+Whether this firmware gates sedentary prompts on wear status is unverified.
+Then use explicit Guardian Off Save and inspect the menu. The later worn test
+needs its own starting time and an active window covering that observation.
+No prompt, placement or Off cleanup result has yet been reported for this plan.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

@@ -1,5 +1,11 @@
 # Connected movement reminder trial
 
+**Scenario changed at 20:32:12 MUT:** the operator is preparing dinner and
+proposes leaving the watch on the sofa with its sensor facing up, then doing
+the worn/seated check after dinner. Treat this as a separate stationary,
+off-wrist observation. The actual placement time and result are not yet supplied.
+The earlier worn observation ending at 20:50 is superseded, not passed or failed.
+
 **Latest On check, reported 29 September at 20:24:43 MUT:** the operator says
 the Guardian Save was around 20:22-20:23 and the physical watch shows **Open / 20**.
 This follows the separate hours request below and the instruction to inspect
@@ -55,17 +61,18 @@ overlap. A read-only refresh does not display a Save as sending. There is no
 new combined Save or automatic hours command. Regression coverage checks both
 pending actions, completion/failure cleanup and read-only refresh.
 
-**Current bounded observation:** with the reported Open / 20 after Guardian On,
-leave On / 20 and the requested 20:00-22:00 hours unchanged. Keep the watch on
-Guardian, worn during ordinary comfortable seated activity until **20:50 MUT**.
-Do not save again in either app or on the watch, restart the gateway or reroute
-during this observation. Record the prompt time, sound/vibration and exact
-screen text if it occurs; otherwise end this observation at 20:50 and report
-no prompt. This cutoff is an observation limit, not a guaranteed firing time:
-the watch's inactivity reset rules and precise start time remain unverified.
-Record any setting changes or substantial movement. After the result, use an
-explicit Guardian Off Save for cleanup and inspect the physical menu separately.
-Neither a timed result nor cleanup is completed yet. The first
+**Current off-wrist observation:** leave On / 20, requested 20:00-22:00 hours
+and the Guardian connection unchanged. Note when the watch is put on the sofa,
+sensor facing up, and leave it untouched for about **25 minutes from placement**.
+This is a new observation window, not an assertion that placement resets the
+firmware timer. Do not save again, restart or reroute during this observation.
+Record any reminder time, sound/vibration and screen text, or no observed prompt
+at the cutoff. A prompt would demonstrate a reminder while unworn in this run;
+silence would not establish wear detection or off-wrist suppression. Neither
+outcome substitutes for the worn/seated remote test. Afterward, select Off and
+Save On/Off in Guardian and inspect the physical menu separately. After dinner,
+set up a separate worn observation with fresh times and an active window that
+covers it. Placement, prompt and cleanup remain unconfirmed. The first
 [connection capture](movement-session-comparison.md) remains a
 successful On/Off-only check. The absent hours Save is explained by the UI
 confusion; it does not explain earlier failed runs that did include WORKTIME.
