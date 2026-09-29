@@ -941,6 +941,14 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
+Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare
+SEDENTARYWORKTIME echo near 20:14 and fresh telemetry after the reported return
+to Guardian. This is hours-request/reply evidence, not applied schedule readback.
+The exact wire body/time and a physical menu check following this hours Save
+have not been supplied. Next observe one explicit On after this separate hours
+Save before beginning a new timed trial. Remote functional acceptance is open.
+
 At 17:48:15 MUT the operator reported Open / 20 during the requested
 Guardian-through-recorder check, then Guardian Off Save produced Close / 20
 followed by Close / 0. They reported returning the route to port 14062. Record
@@ -953,7 +961,8 @@ operator clarified that they pressed only Save On/Off and assumed the hours
 were included because both buttons displayed loading. This explains the absent
 hours request in this run. The shared loading feedback is corrected to identify
 only the active action, without changing wire commands or combining Saves.
-Fresh traffic after restoration remains unprovided. Existing
+Fresh traffic after restoration was later supplied in the 20:10-20:14 excerpt.
+Existing
 SG startup ACKs were present during this successful menu check. This does not
 establish remote timed output or reliable repeated application, and no cause
 for the changed result is established.

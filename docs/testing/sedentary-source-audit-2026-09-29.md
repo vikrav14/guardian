@@ -432,7 +432,8 @@ the direct Guardian route to port 14062. This is a positive On/Off menu check
 for this run; the reporter's timestamp is not the exact command timestamp.
 No new timed remote reminder was observed in this short check. No local Save
 was reported in this sequence. The capture was supplied at 17:54:44 and is
-reviewed below; fresh post-return Guardian traffic remains unprovided.
+reviewed below; fresh post-return Guardian traffic was supplied in the later
+20:10-20:14 excerpt.
 
 ### Capture review — supplied 17:54:44 MUT
 
@@ -482,9 +483,27 @@ sending. No gateway or hardware command changes accompany this fix. This is
 an established UI feedback defect, not an explanation for the earlier failed
 remote tests whose audits contain actual WORKTIME handoffs and replies.
 
-Next update the app and explicitly save a current hours window with the watch
-closed, then inspect that hours request before enabling. No supplier reroute or
-new timed wait is requested yet. Remote timed acceptance remains open.
+### Separate hours request — screenshot at 20:14:11 MUT
+
+The supplied app screenshot shows Selected: Off, the 20-minute interval and
+From 20:00 / Until 22:00. Last request reads "Watch replied — check the watch"
+and "Requested hours: 20:00–22:00". Both Save buttons are idle; this static
+image does not independently demonstrate the corrected in-flight loading state.
+
+The accompanying gateway excerpt contains `echoed back SEDENTARYWORKTIME
+(dropped, not re-acking)` near 20:14, without its own exact timestamp. Fresh
+location and presence logs show communication with Guardian after the reported
+return route restoration. The excerpt does not itself identify the public
+tunnel endpoint. Wi-Fi Home expiration is a separate observation and does not
+negate the recorded command reply.
+
+The screenshot and echo support a completed separate hours request/reply for
+20:00-22:00. They do not independently retain the exact outgoing frame or prove
+the firmware-applied schedule. No new physical menu check or On after this
+hours request has yet been supplied. Next leave the hours unchanged, Save On
+once in Guardian, record the time and inspect the physical menu without local
+Save before any timed observation. No supplier reroute is requested. Remote
+timed acceptance remains open.
 
 ## Earlier comparison procedure (historical; not another immediate trial)
 

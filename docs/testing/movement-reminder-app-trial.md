@@ -1,6 +1,15 @@
 # Connected movement reminder trial
 
-**Latest operator report, 29 September at 17:48:15 MUT: remote menu check passed
+**Latest hours check, screenshot 29 September at 20:14:11 MUT:** the app shows
+Selected: Off, From 20:00 / Until 22:00, and Last request: "Watch replied — check
+the watch" / "Requested hours: 20:00–22:00". The accompanying gateway excerpt
+contains a SEDENTARYWORKTIME echo near 20:14 (the echo line has no independent
+timestamp) and fresh Guardian telemetry. This supports a separate hours request
+and reply; the screenshot is not applied schedule readback. Exact WORKTIME
+bytes, the UI click time and a new physical menu observation are not supplied.
+No On request after this hours Save has yet been reported.
+
+**Earlier operator report, 29 September at 17:48:15 MUT: remote menu check passed
 for this run.** During the requested Guardian-through-recorder setting check,
 the operator reported Open / 20, then selected Off and saved in Guardian. The
 watch showed Close / 20 followed by Close / 0. They reported restoring the
@@ -14,7 +23,8 @@ There is no SEDENTARYWORKTIME frame during the recorded connection from
 17:45:13.289 to 17:48:07.488. At 17:59:02 the operator clarified that they pressed
 only Save On/Off: both buttons showed loading, so they assumed both settings
 were saved. The 17:00-19:00 hours Save was not performed in this test. Fresh
-post-return Guardian traffic remains unprovided. Do not attribute the positive
+post-return Guardian traffic was later supplied in the 20:10-20:14 excerpt.
+Do not attribute the positive
 result to the relay or a framing change; no runtime framing was changed.
 
 **Local control result, reported 29 September at 16:24:51 MUT: reminder passed.**
@@ -38,9 +48,11 @@ overlap. A read-only refresh does not display a Save as sending. There is no
 new combined Save or automatic hours command. Regression coverage checks both
 pending actions, completion/failure cleanup and read-only refresh.
 
-**Next diagnostic:** update the pilot app, then explicitly save the active
-hours while the watch remains closed and inspect that request before another
-On. The first [connection capture](movement-session-comparison.md) remains a
+**Next diagnostic:** leave the requested 20:00-22:00 hours unchanged, select On
+and Save On/Off once, record its local time, then reopen the physical menu
+without pressing the watch's Save. Report the displayed switch and interval
+before starting another timed observation. The first
+[connection capture](movement-session-comparison.md) remains a
 successful On/Off-only check. The absent hours Save is explained by the UI
 confusion; it does not explain earlier failed runs that did include WORKTIME.
 No further timed wait or supplier reroute is requested yet.
