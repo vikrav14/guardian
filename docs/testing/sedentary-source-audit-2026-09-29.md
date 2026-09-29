@@ -602,6 +602,29 @@ and physical Off cleanup have positive operator evidence; worn remote behavior,
 exact repeat cadence, motion reset and quiet-hours enforcement remain open.
 PR stays draft; no customer release follows from this confirmation.
 
+### Worn trial requested across the date boundary — 23:55:49 MUT
+
+The operator requests proceeding with the worn test now. This supersedes the
+earlier stop-for-tonight instruction; it does not undo the confirmed Close / 0
+starting state. Source check: movementSettings requires end minus start of at
+least 25 minutes, so a window spanning 23:xx to 00:xx is invalid. The app also
+validates each time edit separately. Prepare 00:00-01:00 for 30 September while
+Off by editing From first, then Until, and saving active hours once. Both
+backend and UI accept this same-day duration; this is not hardware evidence
+that the watch will enforce those hours.
+
+At approximately 00:05 MUT, with the watch worn, request Guardian On once and
+inspect the physical menu after its reply without local Save. Continue only
+with observed Open / 20. Note the actual seated observation start and observe
+for 25 minutes (target 00:05-00:30) with normal wrist contact, no additional
+settings, restart or route change. Record movement, any sound/vibration, text
+and time, or no prompt at the cutoff. If the full observation cannot fit before
+01:00, choose another window before enabling. An unconfirmed request or closed
+menu needs inspection rather than repetition or a blind timed wait. End after
+a prompt or the cutoff with Guardian Off Save and a separate physical menu
+check. New hours/On handoffs, physical enable, worn result and new cleanup all
+remain pending; the user has authorized the plan, not reported its completion.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking

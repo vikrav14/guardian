@@ -941,6 +941,15 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29 September 2026
 
+At 23:55:49 MUT the operator requested the separate worn test now, superseding
+the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
+00:00-01:00 hours for 30 September, saved separately while Off, then Guardian On
+around 00:05 and a physical Open / 20 check without local Save. Only after that
+check, observe worn/seated for 25 minutes from the recorded actual start (target
+00:05-00:30). Record prompt/no-prompt and finish with Guardian Off plus a separate
+physical menu check. No new setting, prompt or cleanup result is yet supplied;
+full remote acceptance remains open. See the movement runbook for exact steps.
+
 At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
 for both rings and displayed **"Sedentary reminder: do some exercise"**. First
 sound was reported around **21:34**, second **maybe 20-30 minutes later**.
@@ -955,7 +964,7 @@ The operator reports selecting Off and saving in Guardian at this 23:48 report.
 At **23:52:33 MUT**, they confirm **Close / 0** after the instruction to reopen
 the physical menu without local Save. This run's physical Off cleanup is
 operator-confirmed. Exact Off wire time and long-term suppression remain
-unverified. Leave Off; no further command or timed observation tonight. A worn test needs
+unverified. The initial instruction was to leave Off; the later worn request above needs
 a new active window. PR remains a supervised draft and full acceptance is open.
 
 At 20:32:12 MUT the operator changed the proposed test: preparing dinner,

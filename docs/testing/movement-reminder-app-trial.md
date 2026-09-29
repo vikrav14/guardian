@@ -1,5 +1,27 @@
 # Connected movement reminder trial
 
+**New worn test requested, 29 September at 23:55:49 MUT:** the operator wants
+to proceed now. The starting physical state is the confirmed Close / 0 below.
+Because the trial requires one same-day window, prepare **00:00-01:00 on
+30 September** while still Off: change From to 00:00 first, then Until to 01:00,
+and explicitly Save active hours once. This edit order keeps the intermediate
+form valid when changing from 20:00-22:00. Wait for Watch replied; if either
+request is unconfirmed, stop and inspect rather than repeat Save.
+
+Wear the watch with normal sensor contact. At approximately **00:05 MUT**, select
+On and Save On/Off once. After Watch replied, inspect the physical menu without
+its Save; continue only if Open / 20, otherwise report the display before any
+timed wait. Keep it worn, settle into comfortable seated activity and note the
+actual observation start. Observe for **25 minutes from that start** (target
+00:05-00:30), recording movement and any sound/vibration, screen text and time.
+No further Saves, local setting changes, restart or reroute during observation.
+The cutoff is not a guaranteed trigger time. If starting too late for this
+window to contain the full observation, choose a new window before enabling.
+After a reminder or the cutoff, select Off and Save On/Off once in Guardian,
+then reopen the physical menu without Save and record the result. Fresh hours,
+On, worn prompt/no-prompt and subsequent cleanup are all pending; this is a
+new plan, not evidence that any of these actions have already occurred.
+
 **Latest confirmation, 29 September at 23:48:26 MUT: off-wrist sound/display
 passed for this run by operator observation.** The operator confirms the watch
 remained untouched on the sofa for both rings and displayed **"Sedentary
@@ -18,8 +40,8 @@ saving in Guardian now**, at this 23:48 report. At **23:52:33 MUT** the operator
 answers **"close 0 yes"** to the instruction to reopen the physical menu without
 its Save. Record the post-Guardian-Off physical menu cleanup as operator-confirmed
 **Close / 0**. Exact Off wire time and sustained suppression remain unverified.
-Leave Off; no further command or timed observation is requested tonight. A later
-worn test needs its own start time and active window; full acceptance stays open.
+The initial instruction was to leave Off for the night; the later user-requested
+worn plan above supersedes that stop. Full acceptance stays open.
 
 **Scenario changed at 20:32:12 MUT:** the operator is preparing dinner and
 proposes leaving the watch on the sofa with its sensor facing up, then doing
