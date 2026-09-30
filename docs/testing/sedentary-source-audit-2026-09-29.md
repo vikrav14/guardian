@@ -714,6 +714,29 @@ running gateway's read-only Wi-Fi Home session summary, listeners on TCP ports
 and session evidence before any restart or routing change; no exact connection
 failure reason or successful Off is supplied yet.
 
+### Save recovered and physical Off cleanup — 30 September at 17:35:58 MUT
+
+Read-only diagnostics show the same gateway process listening on 9000/9001,
+Wi-Fi Home `sessionConnected: true`, and the Guardian public TCP endpoint
+reachable from the operator's PC. Wi-Fi Home only checks for an open matching
+socket; movement commands require exactly one matching, writable, identified
+session with traffic within five minutes. The statuses are not interchangeable.
+
+At 17:34:32 MUT the operator supplies one established TCP connection on 9000,
+created at **17:34:00 MUT**. The next instruction is Refresh status, explicitly
+select Off and Save On/Off once if available, then inspect the physical watch
+menu without its Save. At **17:35:58 MUT** the operator reports **Close / 20
+then Close / 0**. Record the successful Off/menu cleanup as operator-confirmed
+for the worn run; its earlier pending-cleanup checkpoints are superseded.
+
+Save is usable again, but the precise earlier failure (stale traffic, session
+identity, ambiguity or another readiness condition) was not isolated. No new
+runtime change, guard relaxation, restart or reroute was performed by the
+assistant. The Off wire/reply timestamps and a sustained no-reminder observation
+after Off were not supplied. Leave Off for now; no new timed trial starts from
+this result. Positive worn and sofa sound/display evidence stands, while
+cadence, movement reset, quiet hours and reboot persistence remain unverified.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking

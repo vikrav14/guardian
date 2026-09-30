@@ -941,6 +941,16 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29-30 September 2026
 
+**Current status, 30 September at 17:35:58 MUT:** after the requested refresh,
+Guardian Off Save and physical-menu check without local Save, the operator
+reports **Close / 20 then Close / 0**. The worn run's physical Off cleanup is
+operator-confirmed; pending-cleanup statements in earlier checkpoints below
+are historical. Save became usable following a newly observed connection
+(one established TCP socket created at 17:34:00 MUT). The precise earlier
+connection-block cause remains unresolved; no readiness guard was changed.
+Keep Off for now. This confirms menu cleanup, not sustained Off suppression,
+exact reminder cadence, movement reset, quiet hours or reboot persistence.
+
 At 15:08:07 MUT on 30 September the operator cannot save Off. The app screenshot
 shows Selected: Off but Last request: Requested On, disabled Saves, and Watch
 connection unavailable / no change queued. This does not establish completed

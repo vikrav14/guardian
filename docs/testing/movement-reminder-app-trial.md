@@ -1,5 +1,21 @@
 # Connected movement reminder trial
 
+**Current result, 30 September at 17:35:58 MUT: Off cleanup confirmed by the
+operator.** After the instruction to refresh, select Off and Save On/Off once,
+then inspect the physical menu without local Save, the operator reports
+**Close / 20 followed by Close / 0**. This closes the worn run's outstanding
+physical-menu cleanup; earlier pending-cleanup statements below are historical.
+Save is usable again. Leave the setting Off until the next agreed check.
+
+Read-only diagnostics showed the gateway listening on 9000/9001, a reachable
+Guardian TCP endpoint, and Wi-Fi Home `sessionConnected: true`. The subsequent
+connection check showed one established socket created at **17:34:00 MUT**.
+These observations and the successful Off result do not identify which earlier
+movement-session readiness check failed. No guard or runtime code was changed.
+Exact Off wire/reply timestamps and sustained suppression after Off were not
+captured. Worn and sofa sound/display now have positive operator evidence;
+cadence, movement reset, quiet hours and reboot persistence remain unverified.
+
 **Save blocked on resumption, 30 September at 15:08:07 MUT:** the screenshot
 shows Selected: Off, hours 00:00-01:00, both Saves disabled, Last request:
 Watch replied / Requested: On, and **"Watch connection unavailable. No change
