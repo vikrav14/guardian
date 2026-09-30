@@ -866,6 +866,16 @@ That watcher is no longer started by the reminder scheduler.
   list. Packet observation is in memory only; no per-packet Firestore writes.
   Missing diagnostics (older requests or a restarted gateway) mean unavailable
   evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
+  Optional `commandTimeline` (version 1) records outgoing write attempts around
+  capture: up to 16 prior writes on the capture socket within two minutes, and
+  48 writes during the two-minute image wait across that watch's sessions.
+  Events retain an allowlisted command/source, relative time, byte count and
+  same-session flag; only `UPLOAD` may include a bounded numeric reporting
+  interval. Truncation counts are explicit. No arguments, raw frames, phone
+  numbers, radio IDs or scene details are retained. This metadata is written
+  with existing terminal diagnostics, without per-command Firestore writes.
+  It proves attempts, not execution, interference or absence of firmware work.
+  See `docs/services/incident-photo-command-coordination.md` for scope and plan.
   Decoder failures additionally carry a fixed `decodeError`, numeric/boolean
   `decodeDetails`, and a `rejectedFrameCapture` outcome. The optional rejected
   frame is an operator-selected local diagnostic file, never a Firestore field

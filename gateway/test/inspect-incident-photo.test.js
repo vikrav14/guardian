@@ -55,6 +55,29 @@ test('inspection revalidates stored storage diagnostics and omits raw provider f
   assert.deepEqual([...s.db.rows], before);
 });
 
+test('inspection sanitizes persisted command timelines and makes no writes or device requests', async () => {
+  const s = await savedPhoto();
+  s.auth(s.photoId).receiveDiagnostics.commandTimeline = {
+    version: 1, startedAt: 'private path', endedAt: '2026-10-01T00:00:01.000Z',
+    endReason: 'private secret', duringWriteAttempts: 1, duringDropped: 0,
+    rawFrame: 'private frame', events: [
+      { afterMs: 100, phase: 'during', source: 'downlink', command: 'UPLOAD',
+        reportingIntervalSeconds: 60, bytes: 29, sameSession: true, body: 'private payload' },
+      { afterMs: 500, phase: 'during', source: 'private-source', command: 'private-command',
+        bytes: 20, reportingIntervalSeconds: 'private', sameSession: true },
+      { afterMs: 'private time', command: 'LK' },
+    ],
+  };
+  const before = structuredClone([...s.db.rows]), writes = s.writes.length;
+  const report = await inspectIncidentPhoto(s.probe);
+  const timeline = report.photos[0].commandTimeline;
+  assert.equal(timeline.startedAt, null); assert.equal(timeline.endReason, null);
+  assert.equal(timeline.events.length, 2); assert.equal(timeline.events[0].reportingIntervalSeconds, 60);
+  assert.equal(timeline.events[1].command, 'OTHER'); assert.equal(timeline.events[1].source, 'other');
+  assert.equal(JSON.stringify(report).includes('private'), false);
+  assert.deepEqual([...s.db.rows], before); assert.equal(s.writes.length, writes);
+});
+
 test('inspection exposes only a bounded HTTP status for failed analysis and stays read-only', async () => {
   const s = await savedPhoto();
   for (const httpStatus of [400, 401, 404, 429, 503, 99, 600, 401.5, '401', null, { secret: 'token' }]) {

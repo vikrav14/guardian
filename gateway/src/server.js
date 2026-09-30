@@ -1,4 +1,5 @@
 const net = require('net');
+const { noteDeviceWrite } = require('./photo-command-timeline');
 
 const config = require('./config');
 
@@ -1399,6 +1400,7 @@ const server = net.createServer((socket) => {
 
       for (const ack of acks) {
 
+        noteDeviceWrite(socket, session, ack, 'protocol_ack');
         if (capturedAlarm) wearCapture.writeAlarmAck(socket, ack, capturedAlarm);
         else socket.write(ack);
 

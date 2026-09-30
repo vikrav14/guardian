@@ -1,5 +1,22 @@
 # Guardian V52 real-device acceptance
 
+## Photo command coordination — 1 October 2026
+
+Partial acceptance: live AI schema checks passed, saved-photo recovery/rotation
+worked, and the 00:33 MUT SOS produced five AI-ready photos. Separate falls at
+00:55 and 01:20 produced one and zero photos, respectively, with capture replies
+but no next image before timeout. The operator confirms that fall does not call.
+No competing logged downlink was demonstrated inside those failed waits.
+
+The current addition records a redacted, bounded outgoing-write timeline with
+each photo's existing terminal diagnostics. It does not change scheduling or
+prove an interference fix. Missing/truncated evidence must remain explicit.
+See [the timing audit and coordination plan](services/incident-photo-command-coordination.md)
+for test scope, future priority/defer/expiry rules and hardware acceptance.
+PR #113 stays draft; no new live watch command was sent by this implementation.
+The repository runbook is updated; the GitHub connector cannot access the Wiki
+endpoint in this environment, so Wiki synchronization remains outstanding.
+
 ## Photo AI schema rejection identified — 1 October 2026, 00:12 MUT
 
 The synthetic API diagnostic used `claude-sonnet-4-6` and failed at

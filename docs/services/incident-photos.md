@@ -1,6 +1,14 @@
 # SOS and fall incident photos
 
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
+Latest checkpoint, 1 October: both AI schemas passed the live Sonnet 4.6 API,
+saved-photo AI/orientation recovery succeeded, and a fresh SOS returned all five
+AI-ready photos. Subsequent separate falls produced one or zero images after
+capture replies, so fall capture reliability remains open. The new bounded
+outgoing-command timeline preserves device behaviour while testing the possible
+coordination gap. See [timing, evidence and staged plan](incident-photo-command-coordination.md).
+
+Historical checkpoints below describe the evidence available at each time.
 At 00:12 MUT on 1 October, the synthetic check identified the HTTP 400 cause with
 `claude-sonnet-4-6`: the orientation schema's enum value `A` was rejected against
 `type: ['string', 'null']`. Both nullable enum fields now use `anyOf` with a typed
