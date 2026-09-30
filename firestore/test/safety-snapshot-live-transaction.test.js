@@ -23,18 +23,24 @@ test('real Firestore transactions allow only one incident command across workers
   await db.doc(`safetySnapshotDeviceLocks/${imei}`).delete();
   await db.doc(`incidentPhotoSettings/${imei}`).set({ ownerUid: 'owner', enabled: true,
     consentConfirmed: true, aiConsentConfirmed: false, consentVersion: CONSENT_VERSION });
-  const date = new Date();
+  let date = new Date();
   for (const id of ['firstIncident', 'duplicateIncident']) await db.doc(`alerts/${id}`).set({
     imei, type: 'sos', eventAt: date, incidentPhotoPending: true, incidentPhotoEligible: true,
   });
   const writes = [];
   const socket = { write: (bytes, callback) => { writes.push(bytes.toString()); callback?.(); return true; } };
-  const args = { db, bucket: {}, findSessions: () => [{ socket, session: { imei, protocolId: '9999999999' } }],
+  const session = { imei, protocolId: '9999999999', lastPacketAt: date.getTime() };
+  const args = { db, bucket: {}, findSessions: () => [{ socket, session }],
     runtime: { deviceDispatchAllowed: true, acceptedImeis: [imei], manualTestEnabled: false }, now: () => date };
   const one = createIncidentPhotos({ db, snapshots: createSnapshotController(args), enabled: true, trialOnly: false, now: () => date });
   const two = createIncidentPhotos({ db, snapshots: createSnapshotController(args), enabled: true, trialOnly: false, now: () => date });
   await Promise.all([one.enqueue('firstIncident'), two.enqueue('firstIncident')]);
   await two.enqueue('duplicateIncident');
+  await Promise.all([one.tick('firstIncident'), two.tick('firstIncident')]);
+  assert.deepEqual(writes, [], 'the alarm packet alone cannot trigger capture');
+  assert.deepEqual((await db.doc('incidentPhotos/firstIncident').get()).data().requestIds, []);
+  date = new Date(date.getTime() + 1);
+  session.lastPacketAt = date.getTime();
   await Promise.all([one.tick('firstIncident'), two.tick('firstIncident')]);
   assert.deepEqual(writes, ['[3G*9999999999*0008*rcapture]']);
   const incident = (await db.doc('incidentPhotos/firstIncident').get()).data();
