@@ -8,15 +8,21 @@ watch-mode commands or automatic-answer changes.
 
 ## Resumption checkpoint — 30 September 2026
 
-The operator reports Meta approval and requests the live WhatsApp test, then
-closure of PR #113. Approval is operator-reported until the read-only CLI below
-confirms all seven exact English Utility contracts. The last verified gallery
+The operator requests the live WhatsApp test, then closure of PR #113. On
+30 September, the read-only CLI returned `ready: true`, no contract problems
+for all six callback v3 templates and `guardian_incident_photo_update_v1`, and
+`changesMade: false`. Approval and exact English Utility contracts are checked;
+this did not activate delivery. The last verified gallery
 origin is `https://guardian-fbadd.web.app`; check the current public gateway and
 phone links before activation. The earlier five-photo trial and hosted-gallery
 result stand, but neither establishes SOS/fall WhatsApp delivery.
 
-Integrate current main (including the gated movement-reminder work) before
-testing. The Windows CLI smoke test now checks a corrupt runtime in a separate
+Current main (including the gated movement-reminder work) is integrated.
+The first combined run passed gateway tests, Firestore authorization and Windows
+Hosting safeguards. Flutter stopped at a duplicate `http` dependency introduced
+by the merge; the duplicate is removed while retaining the locked version.
+Flutter checks still need a passing combined run before acceptance is complete.
+The Windows CLI smoke test now checks a corrupt runtime in a separate
 cache instead of overwriting the just-used executable; real CLI startup/cache
 checks and checksum rejection remain required. Wait for the combined CI gates.
 
