@@ -34,7 +34,14 @@ function buildFollowupPlan(id, gallery) {
   const received = gallery.photos.filter(p => p.state === 'available');
   const analysed = received.filter(p => ['ready', 'too_unclear'].includes(p.analysis?.status));
   const facts = gallery.summary.slice(0, 2).map(item => `Photo ${item.photo}: ${item.text}`).join(' ');
-  const summary = facts || (received.length ? 'Photos are available; AI details are unavailable or the views are too unclear.' : 'No incident photos were received.');
+  const unclear = received.filter(p => p.analysis?.status === 'too_unclear');
+  // A failed provider request says nothing about image clarity. Only a stored
+  // too_unclear result supports that explanation in the follow-up parameter.
+  const fallback = !received.length ? 'No incident photos were received.'
+    : unclear.length === received.length ? 'Photos are available; AI found these views too unclear to describe.'
+      : unclear.length ? 'Photos are available; AI found some views too unclear. Other AI descriptions are unavailable.'
+        : 'Photos are available; AI descriptions are unavailable.';
+  const summary = facts || fallback;
   return { templateName: FOLLOWUP_TEMPLATE, components: [
     { type: 'body', parameters: [String(received.length), String(analysed.length), summary]
       .map(text => ({ type: 'text', text })) },

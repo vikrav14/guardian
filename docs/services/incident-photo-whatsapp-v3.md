@@ -8,6 +8,15 @@ watch-mode commands or automatic-answer changes.
 
 ## Resumption checkpoint — 30 September 2026
 
+Latest acceptance: the 20:50 MUT real SOS on `3fbebc9` saved five photos and
+delivered the initial and follow-up WhatsApps. The operator cannot find the
+photo entry or view the images in the app. The 21:09 inspector reports all five
+analyses unavailable with `analysis_http_error`; HTTP status and the running
+app build still need checking. Keep PR #113 draft. The full combined release
+and dashboard CI on `3fbebc9` passed, including 1,535 gateway tests; passing CI
+does not resolve these live failures. The earlier resumption notes below are
+historical checkpoints.
+
 The operator requests the live WhatsApp test, then closure of PR #113. On
 30 September, the read-only CLI returned `ready: true`, no contract problems
 for all six callback v3 templates and `guardian_incident_photo_update_v1`, and
@@ -77,6 +86,14 @@ Avoid capturing bearer URLs in HTTP/proxy access logs. Client access to
   unavailable message when photos or analysis are missing.
 - A reminder that photos cannot establish the wearer's condition or location.
 - One `Photos & AI details` URL button opening the signed-in incident gallery.
+
+The dynamic summary distinguishes unavailable AI from stored `too_unclear`
+results. HTTP/service failures alone say only that AI descriptions are
+unavailable; they never imply blurry, dark or unclear photos. All-unclear and
+mixed outcomes use wording supported by those stored results. The approved
+template name/body/buttons and received/analysed counts are unchanged. This
+changes future summary parameters only; already delivered follow-ups are not
+resent. AI unavailability must not prevent viewing an available original.
 
 The follow-up is independent of initial alert delivery. The worker waits for the
 initial alert's accepted/sent/delivered state, completes or stops the photo

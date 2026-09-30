@@ -21,10 +21,13 @@ async function inspectIncidentPhoto({ db, photoId }) {
     incidentReason: incident.reason || null, photos: rows.map(doc => {
       const row = doc.data() || {};
       const provenance = analysisProvenance(row.analysis);
+      const httpStatus = row.analysis?.diagnostics?.httpStatus;
       // Explicit field selection: never include scene descriptions, identifiers
       // of household members, object paths, hashes or the original image.
       return { requestId: doc.id, sequence: row.sequence, state: row.state, reason: row.reason || null,
         aiStatus: row.analysis?.status || null, aiReason: row.analysis?.reason || null,
+        aiHttpStatus: row.analysis?.reason === 'analysis_http_error' &&
+          Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599 ? httpStatus : null,
         aiModel: provenance.model || null, aiResponseModel: provenance.responseModel || null,
         aiPromptVersion: provenance.promptVersion || null,
         aiInputRotationClockwiseDegrees: [0, 90, 180, 270].includes(row.analysis?.inputRotationClockwiseDegrees)

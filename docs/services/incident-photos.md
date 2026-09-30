@@ -2,9 +2,11 @@
 
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
 On 28 September the operator displayed five supervised-trial photos with AI
-details. On 30 September the initial SOS WhatsApp and the honest zero-photo
-follow-up were delivered, but the real SOS camera path still timed out. Keep the
-PR open and draft until the real-device acceptance below is completed.
+details. On 30 September at 20:50 MUT, a real SOS produced five stored photos
+after the session-readiness fix. All five AI analyses failed with
+`analysis_http_error`; the operator could not find the photo entry or view the
+photos in the app. Capture/storage is proven for that incident; gallery access
+and usable AI are not. Keep the PR open and draft until acceptance is complete.
 
 Historical checkpoints: the single-photo path had four consecutive operator-reported successes after the
 padding correction on 25 September 2026, including two without manual CR. On
@@ -127,8 +129,22 @@ request to the existing connection before a replacement connected approximately
 24 seconds after SOS. The request again timed out with zero received data; both
 the initial WhatsApp and 20:09 zero-photo follow-up arrived. That evidence
 motivates the post-alarm packet check above. It does **not** prove a firmware
-root cause or successful capture after this software change. Test a fresh real
-SOS after the updated gateway is running; do not replay the old incident.
+root cause. A subsequent real SOS at 20:50 MUT on `3fbebc9` opened a replacement
+connection before camera handoff and completed five `image_available` results,
+without storage/decoding failures. The 21:09 inspection confirms all five are
+available, but each analysis is unavailable with `analysis_http_error`.
+This provides no evidence of unclear imagery. The HTTP status is retained in
+`analysis.diagnostics.httpStatus`; the read-only photo inspector now reports it
+as `aiHttpStatus`, revalidated as a bounded integer, without raw provider bodies.
+Inspect this existing incident rather than requesting another SOS.
+
+The operator also reports a missing alert photo entry and cannot view the images.
+Check the running Flutter build and its `GUARDIAN_GATEWAY_URL`: updating only
+the gateway does not update Flutter. The alert entry is hidden when that build
+define is empty. Open the incident's signed-in `/?incident=<alertId>` gallery
+to separate missing navigation from image authorization/loading failures.
+Stored AI failure must not hide available photos. Do not call this end-to-end
+success until the operator can open the images and verify useful descriptions.
 
 The capture and analysis/follow-up workers expose progress separately through
 strict-admin, read-only `GET /ops/incident-photos`. Public health stays unchanged.
@@ -146,7 +162,7 @@ still block its own worker: report its stage before a controlled restart.
 Diagnostics do not automatically unlock a stuck operation, restart a job or
 resend messages. The earlier stall's exact cause remains unverified.
 
-QA still needs actual SOS/fall photos and the signed-in phone gallery, plus the
+QA still needs the signed-in phone gallery, usable AI, fall acceptance, plus the
 v3 call/map actions and the failing second contact's delivery reason. Earlier
 trial photo success and the zero-photo follow-up are useful evidence but do not
 complete real emergency acceptance. Keep the production storage-cost checklist

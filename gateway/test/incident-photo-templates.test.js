@@ -114,6 +114,26 @@ test('partial follow-up counts only received photos and available analysis', () 
   assert.equal(result.components[1].index, '0');
 });
 
+test('follow-up fallback distinguishes failed analysis from actual unclear views without changing the template', () => {
+  for (const [statuses, count, expected] of [
+    [[], '0', 'No incident photos were received.'],
+    [Array(5).fill('unavailable'), '0', 'Photos are available; AI descriptions are unavailable.'],
+    [['pending'], '0', 'Photos are available; AI descriptions are unavailable.'],
+    [['too_unclear', 'too_unclear'], '2', 'Photos are available; AI found these views too unclear to describe.'],
+    [['too_unclear', 'unavailable'], '1', 'Photos are available; AI found some views too unclear. Other AI descriptions are unavailable.'],
+  ]) {
+    const photos = statuses.map(status => ({ state: 'available', analysis: { status,
+      ...(status === 'unavailable' ? { reason: 'analysis_http_error', diagnostics: { httpStatus: 401 } } : {}),
+    } }));
+    photos.push({ state: 'failed', analysis: { status: 'too_unclear' } });
+    const plan = buildFollowupPlan('incident123', { photos, summary: [] });
+    assert.equal(plan.templateName, 'guardian_incident_photo_update_v1');
+    assert.deepEqual(plan.components[0].parameters.map(p => p.text), [String(statuses.length), count, expected]);
+    assert.deepEqual(plan.components[1], { type: 'button', sub_type: 'url', index: '0',
+      parameters: [{ type: 'text', text: 'incident123' }] });
+  }
+});
+
 test('preview and approval check are GET-only; approval includes the exact content, category and buttons', async () => {
   const network = api([...baseline(), ...approved()]);
   const preview = await run(network);

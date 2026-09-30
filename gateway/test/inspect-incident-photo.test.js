@@ -55,6 +55,25 @@ test('inspection revalidates stored storage diagnostics and omits raw provider f
   assert.deepEqual([...s.db.rows], before);
 });
 
+test('inspection exposes only a bounded HTTP status for failed analysis and stays read-only', async () => {
+  const s = await savedPhoto();
+  for (const httpStatus of [400, 401, 404, 429, 503, 99, 600, 401.5, '401', null, { secret: 'token' }]) {
+    s.auth(s.photoId).analysis = { status: 'unavailable', reason: 'analysis_http_error', diagnostics: {
+      httpStatus, body: 'secret provider body', headers: { authorization: 'secret token' },
+    } };
+    const before = structuredClone([...s.db.rows]);
+    const report = await inspectIncidentPhoto(s.probe);
+    const expected = Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599 ? httpStatus : null;
+    assert.equal(report.photos[0].aiHttpStatus, expected);
+    assert.equal(JSON.stringify(report).includes('secret'), false);
+    assert.deepEqual([...s.db.rows], before);
+  }
+  s.auth(s.photoId).analysis = { status: 'unavailable', reason: 'analysis_failed', diagnostics: { httpStatus: 401 } };
+  assert.equal((await inspectIncidentPhoto(s.probe)).photos[0].aiHttpStatus, null);
+  delete s.auth(s.photoId).analysis;
+  assert.equal((await inspectIncidentPhoto(s.probe)).photos[0].aiHttpStatus, null);
+});
+
 test('explicit probe accepts fenced AI output on one saved original and leaves saved analysis intact', async () => {
   const s = await savedPhoto();
   const photoBefore = structuredClone(s.auth(s.photoId));
