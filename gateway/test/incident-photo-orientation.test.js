@@ -21,8 +21,13 @@ test('each selected view is described alone with explicit input-relative orienta
       const body = JSON.parse(request.body);
       assert.equal(body.model, 'configured-model');
       const images = body.messages[0].content.filter(part => part.type === 'image');
+      assert.equal(body.output_config.format.type, 'json_schema');
+      const schema = body.output_config.format.schema;
       if (calls === 1) {
         assert.equal(body.system, ORIENTATION_PROMPT); assert.equal(body.max_tokens, 160);
+        assert.deepEqual(schema, { type: 'object', additionalProperties: false, required: ['view', 'confidence'],
+          properties: { view: { type: ['string', 'null'], enum: ['A', 'B', 'C', 'D', null] },
+            confidence: { type: 'string', enum: ['high', 'low'] } } });
         assert.equal(images.length, 4);
         for (let i = 0; i < 4; i++) {
           assert.equal(images[i].source.media_type, 'image/png');
@@ -31,6 +36,8 @@ test('each selected view is described alone with explicit input-relative orienta
         return response({ view, confidence: 'high' }, 'orientation-provider');
       }
       assert.equal(calls, 2); assert.equal(body.system, PROMPT); assert.equal(body.max_tokens, 900);
+      assert(schema.required.includes('summary')); assert(schema.required.includes('orientation'));
+      assert.equal(schema.properties.view, undefined, 'description must not reuse the selection schema');
       assert.equal(images.length, 1);
       assert.deepEqual(Buffer.from(images[0].source.data, 'base64'), rotatedPhotoPng(original, index * 90));
       assert.match(body.system, /AS DISPLAYED IN THIS REQUEST/);

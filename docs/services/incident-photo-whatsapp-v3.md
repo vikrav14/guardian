@@ -8,6 +8,15 @@ watch-mode commands or automatic-answer changes.
 
 ## Resumption checkpoint — 30 September 2026
 
+**23:16 MUT update:** the follow-up WhatsApp did arrive, but the gallery shows
+only one available original, sideways and without AI; Photo 2 is unavailable.
+Photo 1's recorded AI failure is now `analysis_invalid_json`, not the previous
+HTTP 400. Its final capture-stop reason still needs inspection. Both AI requests
+now use fixed JSON structured-output schemas, and explicit saved-photo recovery
+can replace this failed analysis after access/consent/expiry checks. Software
+coverage does not establish live AI, viewing rotation or repeat five-photo
+completion. Keep PR #113 draft; verify the saved photo before another SOS.
+
 **21:50 MUT update:** the gallery is now reachable and shows a stored original.
 AI and automatic rotation remain unavailable. The latest photo has HTTP 400;
 a text-only API probe explicitly reports insufficient Anthropic API credits.

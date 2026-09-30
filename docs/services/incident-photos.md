@@ -1,6 +1,28 @@
 # SOS and fall incident photos
 
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
+At 23:16 MUT on 30 September, the latest gallery showed one available sideways
+original (received 22:59:47), AI unavailable, and Photo 2 unavailable. The operator
+confirmed the follow-up WhatsApp arrived. The earlier 23:01 inspector had the
+incident still collecting, Photo 1 failed with `analysis_invalid_json`, and
+Photo 2 waiting for an image. Read the final incident/photo failure reason before
+attributing the stopped sequence to a deadline, connection, or image timeout.
+The invalid-JSON result follows an HTTP-success response; the previous API-credit
+error is not the failure reported for this photo. No usable AI or automatic
+rotation is established by this run.
+
+Both orientation selection and scene description now request Anthropic JSON
+structured outputs through `output_config.format`, with separate fixed schemas.
+Local completion, size, content and orientation validation still apply, with no
+automatic retry or prompt-only fallback. Length/count limits remain in the prompt
+and local validation because the API supports only a subset of JSON Schema.
+Use a [supported model](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+such as Haiku 4.5 or Sonnet 4.6; this change does not switch the configured model.
+Explicit recovery below now also accepts `analysis_invalid_json`, allowing the
+existing authorized original to be checked without another SOS. Live recovery
+and display rotation still require operator verification.
+
+Earlier checkpoints:
 On 28 September the operator displayed five supervised-trial photos with AI
 details. On 30 September at 20:50 MUT, a real SOS produced five stored photos
 after the session-readiness fix. All five AI analyses failed with
@@ -532,7 +554,7 @@ screenshot agreed with the selected turn. This justifies separating a selector r
 a secondary abstention for reversible viewing; it is one-image evidence, not a
 general accuracy or capture-reliability claim. No private scene text is retained.
 
-To recover an existing failed orientation or HTTP analysis into the gallery, the operator
+To recover an existing failed orientation, HTTP or JSON analysis into the gallery, the operator
 can explicitly add `--save-analysis` to the confirmed automatic probe:
 
 ```powershell
@@ -541,7 +563,7 @@ npm run incident:inspect -- --photo UUID --probe-ai --probe-orientation --confir
 
 This runs fresh analysis (the previous console-only result was not saved) and
 replaces only `unavailable` analyses with reason `analysis_orientation_uncertain`,
-`analysis_orientation_inconsistent` or `analysis_http_error`. For an HTTP failure,
+`analysis_orientation_inconsistent`, `analysis_http_error` or `analysis_invalid_json`. For an HTTP failure,
 resolve the provider rejection (including insufficient credits) before invoking
 recovery. It is one explicit operation on one still-authorized saved original,
 not a worker retry or a new SOS. Successful output is `analysis_saved`

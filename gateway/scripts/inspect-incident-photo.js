@@ -51,7 +51,7 @@ async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = f
   const photo = (await db.collection('safetySnapshotAuthorizations').doc(photoId).get()).data();
   if (!photo || !validIncidentId(photo.incidentId)) return { outcome: 'probe_blocked', reason: 'incident_photo_not_found' };
   const recoverable = row => row?.analysis?.status === 'unavailable' &&
-    ['analysis_orientation_uncertain', 'analysis_orientation_inconsistent', 'analysis_http_error'].includes(row.analysis.reason);
+    ['analysis_orientation_uncertain', 'analysis_orientation_inconsistent', 'analysis_http_error', 'analysis_invalid_json'].includes(row.analysis.reason);
   if (saveAnalysis && (!recoverable(photo) || rotateClockwise !== null)) {
     return { outcome: 'probe_blocked', reason: 'analysis_not_recoverable' };
   }

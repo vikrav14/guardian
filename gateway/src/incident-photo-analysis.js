@@ -34,6 +34,28 @@ Return ONLY JSON with exactly these keys:
 "orientation":{"clockwiseDegrees":0 or 90 or 180 or 270 or null,"confidence":"high" or "low"}}.
 Each array item must be at most 180 characters. Prefer fewer, non-repetitive details. No advice, links or identities.`;
 
+// Constrain the API response as well as prompting for JSON. Unsupported length
+// constraints stay in descriptions and are enforced by validateAnalysis below.
+const DESCRIPTION_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['status', 'summary', 'visibleDetails', 'uncertainDetails', 'limitations', 'orientation'],
+  properties: {
+    status: { type: 'string', enum: ['ready', 'too_unclear'] },
+    summary: { type: 'string', description: 'One or two non-empty sentences, at most 320 characters.' },
+    visibleDetails: { type: 'array', description: 'Up to 4 extra observations; an empty array is welcome.',
+      items: { type: 'string', description: 'Non-empty, at most 180 characters.' } },
+    uncertainDetails: { type: 'array', description: 'Up to 3 specific ambiguities; an empty array is welcome.',
+      items: { type: 'string', description: 'Non-empty, at most 180 characters.' } },
+    limitations: { type: 'array', description: 'Up to 3 actual image-quality limitations; an empty array is welcome.',
+      items: { type: 'string', description: 'Non-empty, at most 180 characters.' } },
+    orientation: { type: 'object', additionalProperties: false, required: ['clockwiseDegrees', 'confidence'],
+      properties: {
+        clockwiseDegrees: { type: ['integer', 'null'], enum: [0, 90, 180, 270, null] },
+        confidence: { type: 'string', enum: ['high', 'low'] },
+      } },
+  },
+};
+
 // Only fixed codes and bounded protocol metadata may leave this module on
 // failure. Never retain a provider error body or raw model output in diagnostics.
 class PhotoAnalysisError extends Error {
@@ -124,13 +146,14 @@ function analysisRecord(value) {
     version: description.summary ? 3 : description.orientation ? 2 : 1 };
 }
 
-async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, system, imageContent, maxTokens = 900, maxChars = 5000 }) {
+async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, system, schema, imageContent, maxTokens = 900, maxChars = 5000 }) {
   let response;
   try {
     response = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20_000),
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model, max_tokens: maxTokens, system,
+        output_config: { format: { type: 'json_schema', schema } },
         messages: [{ role: 'user', content: imageContent }] }),
     });
   } catch (error) {
@@ -181,7 +204,7 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
       catch { throw new PhotoAnalysisError('analysis_rotation_failed'); }
       if (input.length > 4_000_000) throw new PhotoAnalysisError('analysis_invalid_image');
     }
-    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: PROMPT,
+    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: PROMPT, schema: DESCRIPTION_SCHEMA,
       imageContent: [
         { type: 'image', source: { type: 'base64', media_type: probeRotationClockwiseDegrees === null ? 'image/jpeg' : 'image/png', data: input.toString('base64') } },
         { type: 'text', text: 'Describe only what is visible in the supplied image. Any orientation turn is relative to this supplied image.' },

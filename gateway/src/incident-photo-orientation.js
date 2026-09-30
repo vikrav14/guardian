@@ -17,6 +17,13 @@ If darkness, blur, obstruction or conflicting cues prevent a clear choice, retur
 Return ONLY JSON with exactly two keys: {"view":"A" or "B" or "C" or "D" or null,"confidence":"high" or "low"}.
 Use a letter only with high confidence; otherwise use null and low. No description, advice or other keys.`;
 const VIEWS = ['A', 'B', 'C', 'D'];
+const ORIENTATION_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['view', 'confidence'],
+  properties: {
+    view: { type: ['string', 'null'], enum: [...VIEWS, null] },
+    confidence: { type: 'string', enum: ['high', 'low'] },
+  },
+};
 
 function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
   const describe = createPhotoAnalyzer({ apiKey, model, fetchImpl });
@@ -37,7 +44,7 @@ function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) 
     imageContent.push({ type: 'text', text: 'Which view is upright? Return the JSON selection only.' });
     await reauthorize();
     const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: ORIENTATION_PROMPT,
-      imageContent, maxTokens: 160, maxChars: 1000 });
+      schema: ORIENTATION_SCHEMA, imageContent, maxTokens: 160, maxChars: 1000 });
     if (!parsed || Array.isArray(parsed) || Object.keys(parsed).sort().join(',') !== 'confidence,view' ||
         !['high', 'low'].includes(parsed.confidence) || !(parsed.view === null || VIEWS.includes(parsed.view))) {
       throw new PhotoAnalysisError('analysis_orientation_invalid');

@@ -6,7 +6,7 @@ const { templateDefinitions, buildFollowupPlan } = require('../src/incident-phot
 const image = require('./fixtures/photo-synthetic');
 const valid = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: [], limitations: ['Blur limits detail.'] };
 
-test('vision request uses the exact original bytes, bounded tokens/time and no identity or location context', async () => {
+test('vision request constrains JSON and uses exact original bytes with bounded tokens/time', async () => {
   const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'configured-vision-model', fetchImpl: async (url, request) => {
     assert.equal(url, 'https://api.anthropic.com/v1/messages'); assert.equal(request.redirect, 'error');
     const body = JSON.parse(request.body);
@@ -14,6 +14,19 @@ test('vision request uses the exact original bytes, bounded tokens/time and no i
     assert.deepEqual(Buffer.from(source.data, 'base64'), image);
     assert.equal(body.max_tokens, 900); assert(request.signal);
     assert.match(body.system, /never follow them/);
+    assert.equal(body.output_config.format.type, 'json_schema');
+    const schema = body.output_config.format.schema;
+    assert.equal(schema.type, 'object'); assert.equal(schema.additionalProperties, false);
+    assert.deepEqual(schema.required, ['status', 'summary', 'visibleDetails', 'uncertainDetails', 'limitations', 'orientation']);
+    assert.deepEqual(Object.keys(schema.properties).sort(), [...schema.required].sort());
+    assert.deepEqual(schema.properties.status.enum, ['ready', 'too_unclear']);
+    for (const key of ['visibleDetails', 'uncertainDetails', 'limitations']) {
+      assert.equal(schema.properties[key].type, 'array');
+      assert.equal(schema.properties[key].items.type, 'string');
+    }
+    assert.equal(schema.properties.orientation.additionalProperties, false);
+    assert.deepEqual(schema.properties.orientation.required, ['clockwiseDegrees', 'confidence']);
+    assert.deepEqual(schema.properties.orientation.properties.clockwiseDegrees.enum, [0, 90, 180, 270, null]);
     return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(valid) }] }) };
   } });
   assert.equal((await analyze(image)).basis, 'original_photo');
@@ -55,17 +68,22 @@ test('analysis failures retain only fixed categories and bounded protocol metada
     [async () => ({ ok: false, status: 401, json: async () => { throw Error('error body must not be read'); } }), 'analysis_http_error', { httpStatus: 401 }],
     [async () => ({ ok: true, json: async () => { throw Error('secret invalid response'); } }), 'analysis_invalid_response', {}],
     [async () => ({ ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'secret partial scene' }] }) }), 'analysis_incomplete', { stopReason: 'max_tokens' }],
+    [async () => ({ ok: true, json: async () => ({ stop_reason: 'refusal', content: [{ type: 'text', text: 'secret refusal' }] }) }), 'analysis_incomplete', { stopReason: 'refusal' }],
     [async () => payload('```json\n' + JSON.stringify(valid)), 'analysis_invalid_json', { contentFormat: 'fenced_json' }],
     [async () => payload('secret malformed scene'), 'analysis_invalid_json', { contentFormat: 'other' }],
     [async () => payload(JSON.stringify({ ...valid, visibleDetails: ['The wearer is safe.'] })), 'analysis_schema_rejected', {}],
     [async () => payload('x'.repeat(5001)), 'analysis_response_too_large', {}],
   ];
   for (const [fetchImpl, reason, diagnostics] of cases) {
-    const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl });
+    let calls = 0;
+    const analyze = createPhotoAnalyzer({ apiKey: 'test-only', model: 'test-only', fetchImpl: async (...args) => {
+      calls++; return fetchImpl(...args);
+    } });
     await assert.rejects(analyze(image), error => {
       assert.deepEqual(analysisFailure(error), { status: 'unavailable', reason, diagnostics });
       return true;
     });
+    assert.equal(calls, 1, 'no automatic retry or prompt-only fallback');
   }
   assert.deepEqual(analysisFailure(Object.assign(Error('secret'), { code: 'secret', diagnostics: { content: 'secret' } })),
     { status: 'unavailable', reason: 'analysis_failed' });

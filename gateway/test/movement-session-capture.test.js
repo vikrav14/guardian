@@ -215,5 +215,7 @@ test('expiry closes the relay and retains return guidance without claiming resto
   assert.equal(end.reason, 'capture_window_ended');
   assert.equal(end.restoreCommand, 'ip,return.example.test,23456#');
   assert.equal(end.routingRestored, false);
+  // Server shutdown is logged before the separate client receives its close.
+  await until(() => f.watch.destroyed);
   assert.equal(f.watch.destroyed, true);
 });

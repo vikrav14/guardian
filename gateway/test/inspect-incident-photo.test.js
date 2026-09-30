@@ -169,11 +169,12 @@ const recoveryResult = { status: 'ready', summary: 'A chair is visible.', visibl
 async function recoverablePhoto(reason = 'analysis_orientation_inconsistent') {
   const s = await savedPhoto();
   s.auth(s.photoId).analysis = { status: 'unavailable', reason,
-    ...(reason === 'analysis_http_error' ? { diagnostics: { httpStatus: 400 } } : {}) };
+    ...(reason === 'analysis_http_error' ? { diagnostics: { httpStatus: 400 } } :
+      reason === 'analysis_invalid_json' ? { diagnostics: { contentFormat: 'other' } } : {}) };
   return s;
 }
 
-for (const reason of ['analysis_orientation_inconsistent', 'analysis_http_error']) {
+for (const reason of ['analysis_orientation_inconsistent', 'analysis_http_error', 'analysis_invalid_json']) {
 test(`explicit recovery of ${reason} preserves the entire capture lifecycle`, async () => {
   const s = await recoverablePhoto(reason);
   const before = structuredClone(s.auth(s.photoId));
@@ -237,8 +238,9 @@ test(`competing recovery of ${reason} cannot overwrite a saved result`, async ()
 });
 }
 
-test('another provider rejection during explicit HTTP recovery leaves the saved failure intact', async () => {
-  const s = await recoverablePhoto('analysis_http_error');
+for (const reason of ['analysis_http_error', 'analysis_invalid_json']) {
+test(`another provider rejection during ${reason} recovery leaves the saved failure intact`, async () => {
+  const s = await recoverablePhoto(reason);
   const before = structuredClone(s.auth(s.photoId));
   const incidentBefore = structuredClone(s.db.rows.get('incidentPhotos/trialOne'));
   let calls = 0;
@@ -251,6 +253,35 @@ test('another provider rejection during explicit HTTP recovery leaves the saved 
   assert.equal(calls, 1, 'no automatic retry');
   assert.deepEqual(s.auth(s.photoId), before);
   assert.deepEqual(s.db.rows.get('incidentPhotos/trialOne'), incidentBefore);
+  assert.equal(s.writes.length, 1, 'no new camera command');
+});
+}
+
+test('saved invalid-JSON analysis can recover through both structured vision calls', async () => {
+  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  const s = await recoverablePhoto('analysis_invalid_json');
+  const before = structuredClone(s.auth(s.photoId));
+  let calls = 0;
+  const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'selected-model', fetchImpl: async (url, request) => {
+    calls++;
+    const body = JSON.parse(request.body);
+    assert.equal(body.output_config.format.type, 'json_schema');
+    const selection = body.output_config.format.schema.required.includes('view');
+    assert.equal(selection, calls === 1);
+    const value = selection ? { view: 'D', confidence: 'high' }
+      : { status: 'ready', summary: 'A chair is visible.', visibleDetails: [], uncertainDetails: [], limitations: [],
+        orientation: { clockwiseDegrees: 0, confidence: 'high' } };
+    return { ok: true, json: async () => ({ model: 'selected-model', stop_reason: 'end_turn',
+      content: [{ type: 'text', text: JSON.stringify(value) }] }) };
+  } });
+  const report = await probeOriginal({ ...s.probe, saveAnalysis: true, analyze });
+  assert.equal(calls, 2);
+  assert.equal(report.outcome, 'analysis_saved');
+  assert.equal(report.orientationSelection.verification, 'confirmed');
+  assert.equal(report.inputRotationClockwiseDegrees, 270);
+  assert.equal(s.auth(s.photoId).analysis.summary, 'A chair is visible.');
+  assert.deepEqual({ ...s.auth(s.photoId), analysis: before.analysis }, before);
+  assert.deepEqual(await s.api.image('owner', s.photoId), original);
   assert.equal(s.writes.length, 1, 'no new camera command');
 });
 

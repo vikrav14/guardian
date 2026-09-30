@@ -1,5 +1,22 @@
 # Guardian V52 real-device acceptance
 
+## Real SOS photo acceptance — 30 September 2026, 23:16 MUT
+
+Partial. The operator received the follow-up WhatsApp, then reported one photo,
+no AI analysis and no automatic viewing rotation. The supplied gallery screenshot
+shows one sideways original received at 22:59:47 and an unavailable Photo 2.
+An earlier read-only inspection reported Photo 1 `analysis_invalid_json`, Photo 2
+`waiting_for_image`, and the incident `collecting`; final capture-stop evidence
+is still required. Previous HTTP 400/credit failures do not explain this new
+JSON failure. One earlier real SOS saved five originals, so these separate runs
+must not be combined into a claim of reliable five-photo completion.
+
+The software change requests structured JSON for orientation and description and
+allows an explicit, authorized recovery of the saved invalid-JSON analysis.
+Tests use synthetic images and mocked provider responses; a real saved-photo
+recovery, useful description, correct viewing orientation, app-alert navigation,
+fall flow and recipient delivery still need acceptance. PR #113 stays draft.
+
 
 ## Guardian app integration — 25 September 2026 MUT
 
