@@ -679,6 +679,41 @@ watch's current state before any new activation, then choose the next bounded
 check. No automatic follow-up command, merge or deployment is authorized by
 this pause.
 
+### Save blocked by connection snapshot — 30 September at 15:08:07 MUT
+
+The supplied screenshot (`image(8).png`, successfully inspected) shows the
+local movement page with Selected: Off, From 00:00 / Until 01:00, both Save
+buttons disabled, and Last request: Watch replied / Requested: On. It explicitly
+says **"Watch connection unavailable. No change will be queued."** The operator
+asks whether it expired. Record an unsaved Off selection and connection blocker;
+do not infer applied Off, a service expiry or a watch firmware fault.
+
+Source inspection of `movement_reminders_page.dart` confirms `canSave` requires
+`state.connected`. There is no comparison between the current clock and active
+hours in that guard. `movementSettings` checks time syntax and same-day duration,
+not that the save occurs during the window. The transport returns connected
+only for exactly one matching writable session with a packet within five
+minutes. A disconnected, stale or ambiguous session can produce the displayed
+false value; this screenshot does not distinguish those causes and may itself
+be a stale snapshot. No automatic status poll occurs on this page.
+
+The immediate action is read-only Refresh status. `_load` repopulates the form
+from the last requested values, so explicitly reselect Off afterward before a
+single Save if connection is available. Do not treat the prior unsaved Off
+selection as durable. If still unavailable, inspect the running gateway via
+`npm run wifi-home:check` from the configured original gateway checkout; that
+session flag alone is not equivalent to the movement transport's stricter
+single/fresh-session check. Request current diagnostics before any tunnel
+change or process restart. Worn-run Off cleanup and current physical state
+remain unconfirmed. This update records diagnosis only; guards are unchanged.
+
+At **15:09:25 MUT** the operator reports clicking Refresh with the same result.
+Do not keep treating an old page snapshot as the sole explanation. Collect the
+running gateway's read-only Wi-Fi Home session summary, listeners on TCP ports
+9000/9001 and current ngrok TCP endpoint mappings. These establish local service
+and session evidence before any restart or routing change; no exact connection
+failure reason or successful Off is supplied yet.
+
 ## Earlier comparison procedure (historical; not another immediate trial)
 
 1. Read the physical watch's current clock and date. Record the full AnyTracking

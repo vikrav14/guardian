@@ -941,6 +941,17 @@ Rerun the collector with the recorded UTC start time. The evidence pack includes
 
 ### Latest sedentary comparison — 29-30 September 2026
 
+At 15:08:07 MUT on 30 September the operator cannot save Off. The app screenshot
+shows Selected: Off but Last request: Requested On, disabled Saves, and Watch
+connection unavailable / no change queued. This does not establish completed
+Off cleanup. Source inspection confirms Save depends on a usable connection
+snapshot, not whether active hours have ended. Refresh status, reselect Off
+after the last requested selection reloads, and save once if connection is
+available; otherwise inspect the running gateway read-only. The exact session
+failure and current physical state are not established by the screenshot.
+At 15:09:25 the operator reports the same result after Refresh status. Read-only
+gateway session/listener/tunnel diagnostics are the next step; no Off is confirmed.
+
 At 01:01:16 MUT on 30 September the operator asks to continue tomorrow.
 Pause new tests and timed waits. Guardian Off Save is requested only if not
 already done; this worn run's cleanup remains unconfirmed. Establish current

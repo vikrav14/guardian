@@ -1,5 +1,22 @@
 # Connected movement reminder trial
 
+**Save blocked on resumption, 30 September at 15:08:07 MUT:** the screenshot
+shows Selected: Off, hours 00:00-01:00, both Saves disabled, Last request:
+Watch replied / Requested: On, and **"Watch connection unavailable. No change
+will be queued."** This is an unsaved Off selection, not completed cleanup.
+The connection snapshot blocks Save; the active-hours end does not expire the
+ability to submit Off. Refresh status first. A successful refresh reloads the
+last requested selection, so reselect Off before its single explicit Save when
+connection is available. If the message remains, run the read-only
+`npm run wifi-home:check` from the configured original gateway checkout and
+inspect fresh connection evidence. No restart, reroute or new enable is needed
+to diagnose this screenshot. Current physical state and worn-run cleanup remain
+unconfirmed. No runtime code change is made for this evidence update.
+At **15:09:25 MUT**, the operator reports clicking Refresh status with the same
+result. Collect read-only gateway session status, listeners on 9000/9001 and
+current ngrok TCP endpoints before changing routing or restarting services.
+The unavailable connection remains unresolved; this is not a completed Off Save.
+
 **Paused at the operator's request, 30 September at 01:01:16 MUT:** continue
 in the next session. No further test or timed wait tonight. If not already
 done, complete only Guardian Off / Save On/Off once before leaving the watch.
