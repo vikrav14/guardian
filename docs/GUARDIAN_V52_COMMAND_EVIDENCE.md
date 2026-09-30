@@ -55,6 +55,9 @@ There is no guessed SMS fallback.
 | Fall alert switch | `FON,<0\|1>` | Documented; now dispatched with fall preferences | Keep the separate fall-alert switch aligned with the detector. Confirm local alert behaviour and a real `AL_LTE` event on the exact firmware. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
 | Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
+| Clock alarms | `REMIND,<slot1>,<slot2>,<slot3>` | Partial pilot result; operator once/off | Once-only sound and subsequent visible clearing confirmed. Future cancellation, daily/weekly, all slots, vibration and reboot remain open. Customer dispatch disabled. |
+| Sedentary reminder | Documented `SEDENTARY,1,26` / `SEDENTARY,0,26`; captured pilot `SEDENTARY,1,20` / `SEDENTARY,0,20` | Supplier-defined switch/minutes; local control passed, remote acceptance open | Local Open / 20 Save followed by sound and on-screen exercise reminder reported 29 Sep at 16:24:51 MUT, approximately 20 minutes after enable confirmation. Local Close / 0 Save persisted after reopening, reported 16:26:41. Earlier remote trial received replies but no reminder was reported by 15:56. Remote application/execution, range, worktime enforcement, repeat/reset, effective suppression and reboot remain unverified. |
+| Talking clock | `HSW,0` / `HSW,1` | Pilot wake-screen on/off passed | HSW,1 downlink/reply captured; operator confirms spoken time during the wake test, then silence on waking after running off. Off CLI/downlink not supplied. Repeatability, other triggers, readback and reboot remain unverified; customer dispatch stays disabled. |
 | Reporting interval | `UPLOAD,<seconds>` | Documented | Confirm accepted range and battery impact before changing defaults. |
 | Enable/disable pedometer | `PEDO,1|0` | Live-proven on one V52 for enable | `PEDO,1`, following the full-day sheet, changed the inactive Steps screen into a working counter. `PEDO,0` remains documented only. This configures counting; it does not upload a total. |
 | Configure counting windows | `WALKTIME,...` | Live-proven on one V52 as part of enable sequence | The vendor example's full-day sheet plus `PEDO,1` activated counting. The time-sheet command's independent effect and alternate windows remain unproven. |
@@ -138,3 +141,12 @@ display have independent, default-off gates.
 Vendor documentation, automated tests and real-device acceptance are three
 different forms of evidence. A capability becomes a Guardian product promise
 only after all required real-device and notification checks pass.
+
+## Remaining native reminder acceptance (PR #118)
+
+[Supplier comparison and Windows test runbook](testing/care-reminder-command-acceptance.md)
+separates already-delivered wellbeing/medication software from `REMIND`,
+`SEDENTARY` and `HSW`. Hardware acceptance remains open for all three.
+
+Source and inference limits: [supplier reply received 22 September](testing/care-reminder-supplier-reply-2026-09-22.md).
+These helpers do not establish full hardware/customer acceptance.

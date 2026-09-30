@@ -6,6 +6,28 @@ off, and the template CLI does not change them. The photo branch includes the
 standalone per-watch call-link code from PR #115; it does not include that PR's
 watch-mode commands or automatic-answer changes.
 
+## Resumption checkpoint — 30 September 2026
+
+The operator reports Meta approval and requests the live WhatsApp test, then
+closure of PR #113. Approval is operator-reported until the read-only CLI below
+confirms all seven exact English Utility contracts. The last verified gallery
+origin is `https://guardian-fbadd.web.app`; check the current public gateway and
+phone links before activation. The earlier five-photo trial and hosted-gallery
+result stand, but neither establishes SOS/fall WhatsApp delivery.
+
+Integrate current main (including the gated movement-reminder work) before
+testing. The Windows CLI smoke test now checks a corrupt runtime in a separate
+cache instead of overwriting the just-used executable; real CLI startup/cache
+checks and checksum rejection remain required. Wait for the combined CI gates.
+
+The [storage-cost and retention checklist](https://github.com/vikrav14/guardian/pull/113#issuecomment-5874756446)
+remains a pre-activation item: inspect live bucket recovery/retention settings,
+expired-photo and AI cleanup, lifecycle-backup options and billing visibility.
+Do not change bucket policies or enable capture merely because a template is
+approved. No new gateway flags, messages or cloud deployment accompany this
+resumption code update. Run the read-only template check first, then complete
+the listed checks and coordinate one SOS and one fall acceptance observation.
+
 ## Alert contracts
 
 | New name | Existing source | URL buttons, in order |

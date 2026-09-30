@@ -273,3 +273,15 @@ jobs:
           name: guardian-ui-format-patch
           path: apps/mobile/build/ui-format.patch
           if-no-files-found: warn
+
+      - name: Render supervised movement reminder controls
+        if: ${{ !cancelled() }}
+        run: flutter test --no-pub tool/render_movement_reminder_preview_test.dart --dart-define=MOVEMENT_PREVIEWS=true
+
+      - name: Save movement reminder review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-movement-reminder-previews
+          path: apps/mobile/build/movement-reminder-previews/*.png
+          if-no-files-found: error

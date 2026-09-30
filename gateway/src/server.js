@@ -61,6 +61,7 @@ const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, ob
 const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
 const { selectHomeWifiTracking } = require('./wifi-home-tracking');
 const { observeWifiFencePacket } = require('./wifi-fence-runtime');
+const { observeMovementReply } = require('./movement-reminder-transport');
 
 const {
   incrementEvent,
@@ -1370,6 +1371,7 @@ const server = net.createServer((socket) => {
       }
 
       const { acks, events } = handlePacket(decoded, session);
+      observeMovementReply(decoded, socket, session);
 
       wearWireCapture?.observeIdentity(socket, session);
 
