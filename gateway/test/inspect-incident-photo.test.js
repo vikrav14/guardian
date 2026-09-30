@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, receive, imei } = require('./helpers/photo-harness');
 const { createIncidentPhotos } = require('../src/incident-photos');
-const { createPhotoAnalyzer, PROMPT_VERSION } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, PhotoAnalysisError, PROMPT_VERSION } = require('../src/incident-photo-analysis');
 const { CONSENT_VERSION } = require('../src/incident-photo-policy');
 const { inspectIncidentPhoto, probeOriginal, parseInspectionArgs } = require('../scripts/inspect-incident-photo');
 const original = require('./fixtures/photo-synthetic');
@@ -166,14 +166,16 @@ const recoveryResult = { status: 'ready', summary: 'A chair is visible.', visibl
   inputRotationClockwiseDegrees: 270, model: 'test-model', responseModel: 'test-model', promptVersion: 4,
   orientationSelection: { method: 'four_views_then_description', clockwiseDegrees: 270,
     confidence: 'high', model: 'test-model', responseModel: 'test-model', promptVersion: 1 } };
-async function recoverablePhoto() {
+async function recoverablePhoto(reason = 'analysis_orientation_inconsistent') {
   const s = await savedPhoto();
-  s.auth(s.photoId).analysis = { status: 'unavailable', reason: 'analysis_orientation_inconsistent' };
+  s.auth(s.photoId).analysis = { status: 'unavailable', reason,
+    ...(reason === 'analysis_http_error' ? { diagnostics: { httpStatus: 400 } } : {}) };
   return s;
 }
 
-test('explicit recovery saves only a failed orientation analysis and preserves the entire capture lifecycle', async () => {
-  const s = await recoverablePhoto();
+for (const reason of ['analysis_orientation_inconsistent', 'analysis_http_error']) {
+test(`explicit recovery of ${reason} preserves the entire capture lifecycle`, async () => {
+  const s = await recoverablePhoto(reason);
   const before = structuredClone(s.auth(s.photoId));
   const incidentBefore = structuredClone(s.db.rows.get('incidentPhotos/trialOne'));
   const alertBefore = structuredClone(s.db.rows.get('alerts/trialOne'));
@@ -200,9 +202,9 @@ test('explicit recovery saves only a failed orientation analysis and preserves t
   assert.equal(s.writes.length, 1);
 });
 
-test('recovery rechecks access, original identity and unchanged analysis inside the final transaction', async () => {
+test(`recovery of ${reason} rechecks access, original identity and unchanged analysis in the final transaction`, async () => {
   for (const change of ['consent', 'deleted', 'photo_expiry', 'incident_expiry', 'owner', 'subscription', 'path', 'hash', 'concurrent_analysis']) {
-    const s = await recoverablePhoto();
+    const s = await recoverablePhoto(reason);
     const runTransaction = s.db.runTransaction;
     s.db.runTransaction = async fn => {
       if (change === 'consent') s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
@@ -224,14 +226,32 @@ test('recovery rechecks access, original identity and unchanged analysis inside 
   }
 });
 
-test('competing recovery commands cannot overwrite a saved result', async () => {
-  const s = await recoverablePhoto();
+test(`competing recovery of ${reason} cannot overwrite a saved result`, async () => {
+  const s = await recoverablePhoto(reason);
   const reports = await Promise.all([1, 2].map(() => probeOriginal({ ...s.probe,
     analyze: async () => recoveryResult, saveAnalysis: true })));
   assert.equal(reports.filter(r => r.outcome === 'analysis_saved').length, 1);
   assert.equal(reports.filter(r => r.outcome === 'probe_blocked').length, 1);
   assert.equal(s.auth(s.photoId).analysis.summary, recoveryResult.summary);
   assert.equal(s.writes.length, 1);
+});
+}
+
+test('another provider rejection during explicit HTTP recovery leaves the saved failure intact', async () => {
+  const s = await recoverablePhoto('analysis_http_error');
+  const before = structuredClone(s.auth(s.photoId));
+  const incidentBefore = structuredClone(s.db.rows.get('incidentPhotos/trialOne'));
+  let calls = 0;
+  const report = await probeOriginal({ ...s.probe, saveAnalysis: true, analyze: async () => {
+    calls++;
+    throw new PhotoAnalysisError('analysis_http_error', { httpStatus: 400 });
+  } });
+  assert.deepEqual(report, { outcome: 'probe_failed', status: 'unavailable', reason: 'analysis_http_error',
+    diagnostics: { httpStatus: 400 } });
+  assert.equal(calls, 1, 'no automatic retry');
+  assert.deepEqual(s.auth(s.photoId), before);
+  assert.deepEqual(s.db.rows.get('incidentPhotos/trialOne'), incidentBefore);
+  assert.equal(s.writes.length, 1, 'no new camera command');
 });
 
 test('recovery refuses other analyses before AI and leaves the old failure intact on invalid output', async () => {

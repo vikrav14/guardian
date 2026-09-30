@@ -8,6 +8,17 @@ watch-mode commands or automatic-answer changes.
 
 ## Resumption checkpoint — 30 September 2026
 
+**21:50 MUT update:** the gallery is now reachable and shows a stored original.
+AI and automatic rotation remain unavailable. The latest photo has HTTP 400;
+a text-only API probe explicitly reports insufficient Anthropic API credits.
+The shell probe used Haiku 4.5, not evidence of the running gateway's model.
+Restore API credit access and explicitly select the photo model before a
+confirmed saved-photo recovery. Recovery can now replace an unavailable HTTP
+analysis with a validated description/orientation without taking another photo,
+resending WhatsApps, extending expiry or overwriting successful analysis.
+The 21:23 repeat SOS stopped after Photo 2 timed out with no image; credits do
+not explain that separate watch-capture failure. PR #113 remains draft.
+
 Latest acceptance: the 20:50 MUT real SOS on `3fbebc9` saved five photos and
 delivered the initial and follow-up WhatsApps. The operator cannot find the
 photo entry or view the images in the app. The 21:09 inspector reports all five

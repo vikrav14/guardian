@@ -8,6 +8,17 @@ after the session-readiness fix. All five AI analyses failed with
 photos in the app. Capture/storage is proven for that incident; gallery access
 and usable AI are not. Keep the PR open and draft until acceptance is complete.
 
+Later on 30 September the operator opened the incident gallery and a saved photo
+was visible. A repeat SOS at 21:23 produced one available image; the second
+request received a bare capture reply but no image and timed out. This capture
+failure is separate from AI. At 21:46 the new image's stored AI failure was
+`analysis_http_error` / HTTP 400. At 21:50 a text-only API probe returned an explicit
+insufficient-credit error. That probe used `claude-haiku-4-5-20251001` from the
+command shell; it does not establish the running gateway's photo model. Restore
+API credit access, verify the intended photo model explicitly, then recover one
+saved image using the command below. Failed analyses are not automatically retried.
+Do not claim usable AI, automatic rotation or repeat five-photo reliability yet.
+
 Historical checkpoints: the single-photo path had four consecutive operator-reported successes after the
 padding correction on 25 September 2026, including two without manual CR. On
 26 September, a live saved-original AI probe succeeded and a subsequent gallery
@@ -521,7 +532,7 @@ screenshot agreed with the selected turn. This justifies separating a selector r
 a secondary abstention for reversible viewing; it is one-image evidence, not a
 general accuracy or capture-reliability claim. No private scene text is retained.
 
-To recover an existing failed orientation analysis into the gallery, the operator
+To recover an existing failed orientation or HTTP analysis into the gallery, the operator
 can explicitly add `--save-analysis` to the confirmed automatic probe:
 
 ```powershell
@@ -529,8 +540,11 @@ npm run incident:inspect -- --photo UUID --probe-ai --probe-orientation --confir
 ```
 
 This runs fresh analysis (the previous console-only result was not saved) and
-replaces only `unavailable` analyses with reason `analysis_orientation_uncertain`
-or `analysis_orientation_inconsistent`. Successful output is `analysis_saved`
+replaces only `unavailable` analyses with reason `analysis_orientation_uncertain`,
+`analysis_orientation_inconsistent` or `analysis_http_error`. For an HTTP failure,
+resolve the provider rejection (including insufficient credits) before invoking
+recovery. It is one explicit operation on one still-authorized saved original,
+not a worker retry or a new SOS. Successful output is `analysis_saved`
 with `savedAnalysisChanged: true`. Other failures, pending work and existing
 successful analyses are refused before AI. The final transaction checks current
 access/subscription/consent, incident membership, photo and incident expiry,
