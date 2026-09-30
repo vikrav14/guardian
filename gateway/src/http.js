@@ -3,6 +3,7 @@ const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
+const { createMovementHandler } = require('./movement-reminder-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -103,7 +104,7 @@ function sendJson(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization, ngrok-skip-browser-warning',
     'Content-Length': Buffer.byteLength(body),
   });
   res.end(body);
@@ -113,7 +114,7 @@ function sendOptions(res) {
   res.writeHead(204, {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization, ngrok-skip-browser-warning',
   });
   res.end();
 }
@@ -1024,6 +1025,7 @@ async function handleOpsHttpRequest(req, res, url) {
 function startHttpServer() {
   // Phase 1: Initialize LLM provider, audit, and idempotency on startup
   initializeLlmStack();
+  const handleMovement = createMovementHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1038,6 +1040,8 @@ function startHttpServer() {
         sendJson(res, 200, { ok: true, service: 'guardian-gateway-http' });
         return;
       }
+
+      if (await handleMovement(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {

@@ -936,3 +936,221 @@ Temperature remains blocked until the exact V52 upload shape is captured. Passin
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
 `releaseReady` remains false in the collector by design. Release also requires PR checks, Meta acceptance, Android smoke testing, billing lifecycle, privacy/retention review and resolution or rewording of every Partial/Not implemented promise in the service matrix.
+
+## Native clock, sedentary and talking-clock reminders (PR #118)
+
+### Latest sedentary comparison — 29-30 September 2026
+
+**Current status, 30 September at 17:35:58 MUT:** after the requested refresh,
+Guardian Off Save and physical-menu check without local Save, the operator
+reports **Close / 20 then Close / 0**. The worn run's physical Off cleanup is
+operator-confirmed; pending-cleanup statements in earlier checkpoints below
+are historical. Save became usable following a newly observed connection
+(one established TCP socket created at 17:34:00 MUT). The precise earlier
+connection-block cause remains unresolved; no readiness guard was changed.
+Keep Off for now. This confirms menu cleanup, not sustained Off suppression,
+exact reminder cadence, movement reset, quiet hours or reboot persistence.
+
+At 15:08:07 MUT on 30 September the operator cannot save Off. The app screenshot
+shows Selected: Off but Last request: Requested On, disabled Saves, and Watch
+connection unavailable / no change queued. This does not establish completed
+Off cleanup. Source inspection confirms Save depends on a usable connection
+snapshot, not whether active hours have ended. Refresh status, reselect Off
+after the last requested selection reloads, and save once if connection is
+available; otherwise inspect the running gateway read-only. The exact session
+failure and current physical state are not established by the screenshot.
+At 15:09:25 the operator reports the same result after Refresh status. Read-only
+gateway session/listener/tunnel diagnostics are the next step; no Off is confirmed.
+
+At 01:01:16 MUT on 30 September the operator asks to continue tomorrow.
+Pause new tests and timed waits. Guardian Off Save is requested only if not
+already done; this worn run's cleanup remains unconfirmed. Establish current
+state on resumption before enabling another trial. PR remains draft.
+
+At **00:59:54 MUT on 30 September**, the operator reports the worn watch rang
+and displayed a message at **00:57**, following the Guardian On/menu check.
+They walked 12 steps, say the count remained 12 at the reminder, and report
+counting 26 minutes. Record one positive operator-observed worn sound/display
+result after remote configuration. Exact message wording is not newly supplied.
+The event is later than the planned 00:31 observation checkpoint, so exact
+20-minute timing and the original bounded 25-minute trial are not passed.
+Last movement time, settled start and the 26-minute baseline are not recorded.
+Movement resetting the timer is a plausible hypothesis, not verified behavior;
+unchanged steps do not rule out other motion. The event falls within requested
+00:00-01:00 hours but does not establish quiet-hours enforcement. Request one
+Guardian Off Save and physical menu inspection; this run's cleanup is pending.
+Core worn sound/display has positive evidence; full acceptance remains open.
+
+At **00:05:52 MUT on 30 September**, the operator reports **Open / 20** after
+the requested Guardian On/menu check. This run's physical enable is observed.
+Proceed with the separate worn/seated observation for 25 minutes from the
+actual settled start, which the operator is asked to note, within planned
+00:00-01:00 hours. Exact new hours/On wire evidence is not supplied. The later
+worn result is above; exact start and new Off cleanup remain outstanding.
+
+At 23:55:49 MUT the operator requested the separate worn test now, superseding
+the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
+00:00-01:00 hours for 30 September, saved separately while Off, then Guardian On
+around 00:05 and a physical Open / 20 check without local Save. Only after that
+check, observe worn/seated for 25 minutes from the recorded actual start (target
+00:05-00:30). Record prompt/no-prompt and finish with Guardian Off plus a separate
+physical menu check. Physical enable and worn sound/display are subsequently
+reported above; cleanup remains pending. See the movement runbook for exact steps.
+
+At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
+for both rings and displayed **"Sedentary reminder: do some exercise"**. First
+sound was reported around **21:34**, second **maybe 20-30 minutes later**.
+Record this run's off-wrist audible/display result after Guardian configuration
+as operator-observed pass. It demonstrates that sedentary output can occur
+while unworn in this scenario; it does not prove wearer inactivity. Exact
+placement time, first-trigger delay, repeat cadence and worn behavior remain
+unverified. The second estimate straddles requested 22:00 end (roughly
+21:54-22:04); do not claim either quiet-hours success or failure.
+
+The operator reports selecting Off and saving in Guardian at this 23:48 report.
+At **23:52:33 MUT**, they confirm **Close / 0** after the instruction to reopen
+the physical menu without local Save. This run's physical Off cleanup is
+operator-confirmed. Exact Off wire time and long-term suppression remain
+unverified. The initial instruction was to leave Off; the later worn request above needs
+a new active window. PR remains a supervised draft and full acceptance is open.
+
+At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
+they plan to leave the watch on the sofa sensor-up, then test while worn after
+dinner. Actual placement time remains unknown; the later sound report is above.
+This was a
+separate stationary off-wrist observation, bounded to about 25 minutes from
+placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
+unchanged, record any prompt, then perform explicit Guardian Off cleanup.
+The later confirmation above establishes off-wrist sound/display for this run.
+Worn remote acceptance remains pending; the physical Off check is confirmed above.
+
+At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
+and physical **Open / 20**, following the separate hours request below and the
+instruction to inspect without the watch's Save. This is an operator-observed
+On/menu result; the Save time is approximate and no new exact wire audit was
+supplied. A bounded remote-only worn reminder observation was requested through
+20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
+route changes, before the later scenario change above. The subsequent two-ring
+report does not complete worn acceptance; subsequent Off menu cleanup is above.
+
+The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
+Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare
+SEDENTARYWORKTIME echo near 20:14 and fresh telemetry after the reported return
+to Guardian. This is hours-request/reply evidence, not applied schedule readback.
+The exact hours wire body/time has not been supplied. The later physical
+Open / 20 result does not independently verify the firmware-applied schedule.
+
+At 17:48:15 MUT the operator reported Open / 20 during the requested
+Guardian-through-recorder check, then Guardian Off Save produced Close / 20
+followed by Close / 0. They reported returning the route to port 14062. Record
+this run's remote On/Off menu check as operator-observed pass and cleanup as
+closed. The subsequently supplied capture records On at 17:46:29.090 with a
+578 ms reply, then Off at 17:47:16.090 with a 1,042 ms reply (all MUT). It reports
+20 frames and complete observation through the 17:48:07.488 connection close.
+No SEDENTARYWORKTIME appears in that recorded connection. At 17:59:02 the
+operator clarified that they pressed only Save On/Off and assumed the hours
+were included because both buttons displayed loading. This explains the absent
+hours request in this run. The shared loading feedback is corrected to identify
+only the active action, without changing wire commands or combining Saves.
+Fresh traffic after restoration was later supplied in the 20:10-20:14 excerpt.
+Existing
+SG startup ACKs were present during this successful menu check. This does not
+establish remote timed output or reliable repeated application, and no cause
+for the changed result is established.
+
+The Guardian remote trial received exact SEDENTARY/SEDENTARYWORKTIME replies
+but the operator reported no reminder by 15:56 MUT. Guardian Off cleanup was
+reported at 16:01 (Close / 20 then Close / 0). Next, a physical-watch Open / 20
+Save was confirmed at 16:04:56; with Guardian left at its last requested Off,
+the operator reported sound and "Sedentary reminder: do some exercise" on screen
+at 16:24:51. The latter is a report time, not an independently measured firing
+time. **Local-enable audible/display control passed; remote execution remains
+not accepted.** At 16:26:41 the operator confirmed saving Close / 0 locally and
+seeing it persist after leaving and reopening the menu. Local cleanup passed
+by operator observation; long-term suppression and reboot remain untested.
+
+See the [detailed comparison](testing/sedentary-source-audit-2026-09-29.md#local-enable-control-audibledisplay-reminder-reported-at-162451-mut)
+and [current movement runbook](testing/movement-reminder-app-trial.md). One local
+prompt does not prove remote setting application, quiet hours, motion reset,
+repeat cadence, vibration, persistence or reliable Off suppression. Preserve
+the earlier local speech observations and remote trials below as historical.
+
+Follow the [Windows trial](testing/care-reminder-command-acceptance.md) and
+[supplier reply](testing/care-reminder-supplier-reply-2026-09-22.md).
+Customer controls/automatic dispatch stay disabled. Existing wellness routines
+and Family/Care TAKEPILLS medication reminders are separate.
+
+### Existing pilot evidence — 21 September 2026
+
+- REMIND,02:05-1-1,00:00-0-1,00:00-0-1 was handed off; the once-only entry
+  appeared and the operator confirmed sound, correcting the no-sound report.
+  Vibration and exact firing time were not captured.
+- After REMIND,00:00-0-1,00:00-0-1,00:00-0-1, the operator confirmed the entry
+  disappeared. It had already rung; future cancellation remains untested.
+- The local Sedentary UI offered Open/Close and steps 10–200. Initial silent
+  on-wrist windows were followed by three spoken "Sedentary reminder: do some
+  exercise!" prompts. Times/gaps, detected movement, final state and cleanup
+  remain unknown. Gateway timestamps cannot supply the announcement times.
+- Both VERNO labels are in the linked supplier source record. No HSW physical
+  execution result has been provided.
+
+### Supplier reply received 22 September 2026
+
+Jett defines the sedentary trigger as no detected movement over the set period;
+1 on / 0 off and 26 minutes in SEDENTARY,1,26, with sound when triggered.
+HSW,0 disables and HSW,1 enables talking time.
+
+The helper now supports explicit HSW on/off and SEDENTARY on/off at fixed 26.
+The complete sedentary off body retains 26 and changes the defined flag; Jett
+did not separately paste that complete frame. Range, motion/reset/repeat rules,
+active hours, vibration, HSW speech trigger and reboot persistence remain open.
+
+All trials preview by default and require --send for one authenticated local
+handoff. No watch command was sent during implementation. PR #118 stays draft;
+PR #115 remains paused.
+
+- [x] Record REMIND once-only sound and visible clearing.
+- [x] Record local SEDENTARY speech and supplier inactivity/minutes/flag definitions.
+- [x] Record supplier HSW off/on polarity.
+- [ ] Observe remote SEDENTARY saved setting, timed output and effective off.
+- [x] Operator confirms HSW speech during the enabled wake-screen test and silence after running off; transport limits recorded below.
+- [ ] Verify REMIND future cancellation, daily/weekly/day mapping, slots and reboot.
+- [ ] Verify ranges, reset/repeat, quiet hours and persistence where applicable.
+- [ ] Keep physical results separate from socket handoff and acknowledgement.
+
+### HSW physical wake-screen result — 22 September 2026
+
+**Passed for the observed on/off wake-screen behavior on the pilot.**
+
+The operator ran hsw-on through the prepared CLI. Its request time was
+2026-09-22T09:07:29.440Z (13:07:29.440 Mauritius); it reported HSW,1,
+socket_handoff, commandSent:true and one live session. The supplied gateway
+excerpt confirms the five-byte HSW,1 frame and an HSW command-echo reply.
+The reply line has no standalone timestamp and retains no parameters; do not
+infer an exact response time, a bare response or an applied-state readback.
+
+In response to the instructed physical test, the operator reported that the
+watch says the time aloud. They then explicitly reported running the feature-off
+command and waking the watch, after which it did not say the time aloud.
+
+| Stage | Evidence | Result |
+| --- | --- | --- |
+| Enable | HSW,1 request/downlink and an HSW reply; operator's enabled wake-test observation | Spoken time confirmed by operator |
+| Disable | Operator reports running the instructed hsw-off command, then waking the watch | No spoken time on that wake, confirmed by operator |
+
+The hsw-off CLI result/downlink and exact speech/off times were not supplied.
+The physical result is accepted as an operator observation; do not fabricate
+an independently captured HSW,0 frame, reply or off timestamp. Last reported
+action is off, with silence verified on the subsequent wake. It is not proof of
+restoration to an unknown setting from before the trial.
+
+Do not infer immediate-on-enable speech, every wake/other trigger, hourly speech,
+spoken-time accuracy, reboot/reconnect persistence, durable readback, vibration
+or second-watch acceptance from this one comparison. The helper's
+hardwareAccepted:false and appliedStateVerified:false remain correct automated
+evidence fields; the manual physical result is recorded here separately.
+
+The supplier's off/on interpretation now has a successful pilot physical result.
+No runtime or flag change accompanies this evidence update. PR #118 remains
+draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
+enable/observe/off procedure; no additional HSW test is required now.

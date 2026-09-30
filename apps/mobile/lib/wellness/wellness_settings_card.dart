@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/guardian_entitlements.dart';
 import 'wellness_card.dart';
+import 'movement_reminder_preview.dart';
+import '../services/movement_reminders_service.dart';
 
 /// Shared plan presentation. Availability of a watch measurement is separate
 /// from the subscription's history window.
@@ -9,9 +11,13 @@ class WellnessSettingsCard extends StatelessWidget {
     super.key,
     required this.subscription,
     required this.onOpen,
+    this.onMovementReminders,
+    this.imei = '',
   });
   final GuardianSubscription subscription;
   final VoidCallback onOpen;
+  final VoidCallback? onMovementReminders;
+  final String imei;
 
   @override
   Widget build(BuildContext context) => WellnessSurface(
@@ -33,6 +39,16 @@ class WellnessSettingsCard extends StatelessWidget {
           icon: const Icon(Icons.schedule),
           label: const Text('Wellness routine'),
         ),
+        if (onMovementReminders != null &&
+            (canPreviewMovementReminders(subscription) ||
+                canUseMovementPilot(subscription, imei))) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onMovementReminders,
+            icon: const Icon(Icons.directions_walk_rounded),
+            label: const Text('Movement reminders'),
+          ),
+        ],
       ],
     ),
   );
