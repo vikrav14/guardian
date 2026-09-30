@@ -57,7 +57,7 @@ function setup({ captureRejectedFrame = null } = {}) {
   const db = database(), objects = new Map(), writes = [], logs = [];
   let date = new Date('2026-09-25T00:00:00Z');
   const socket = { writable: true, destroyed: false, write: (data, callback) => { writes.push(Buffer.from(data)); callback?.(); return true; } };
-  const session = { imei, protocolId };
+  const session = { imei, protocolId, lastPacketAt: date.getTime() };
   let matches = [{ socket, session }];
   const bucket = { failSave: false, failDelete: false, pause: null, file: path => ({
     save: async (bytes, options) => {
@@ -78,6 +78,10 @@ function setup({ captureRejectedFrame = null } = {}) {
   };
 }
 async function until(fn) { for (let i = 0; i < 200; i++) { if (fn()) return; await new Promise(resolve => setImmediate(resolve)); } assert.fail('operation did not finish'); }
-async function receive(s, id, bytes = frame()) { s.api.observe(bytes, s.socket, s.session); await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state)); }
+async function receive(s, id, bytes = frame()) {
+  s.session.lastPacketAt = s.args.now().getTime();
+  s.api.observe(bytes, s.socket, s.session);
+  await until(() => !['dispatching', 'waiting_for_image', 'receiving'].includes(s.auth(id).state));
+}
 
 module.exports = { database, setup, frame, receive, until, imei, protocolId };

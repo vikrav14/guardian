@@ -18,8 +18,12 @@ function trial(options = {}) {
   const args = { db: s.db, snapshots: s.api, now: s.args.now, enabled: true, trialOnly: false,
     analyze: async () => result, ...options };
   const api = createIncidentPhotos(args);
-  const alarm = (id = 'alertOne', type = 'sos', extra = {}) => s.db.rows.set(`alerts/${id}`, {
-    imei, type, eventAt: s.args.now(), incidentPhotoEligible: true, incidentPhotoPending: true, notifyStatus: 'accepted', ...extra });
+  const alarm = (id = 'alertOne', type = 'sos', extra = {}) => {
+    s.db.rows.set(`alerts/${id}`, { imei, type, eventAt: s.args.now(), incidentPhotoEligible: true,
+      incidentPhotoPending: true, notifyStatus: 'accepted', ...extra });
+    // Existing sequence tests start with a subsequent watch packet received.
+    s.advance(1); s.session.lastPacketAt = s.args.now().getTime();
+  };
   const incident = (id = 'alertOne') => s.db.rows.get(`incidentPhotos/${id}`);
   return { ...s, incidents: api, incidentArgs: args, alarm, incident };
 }
@@ -88,6 +92,129 @@ test('consent, server-origin, fresh event and explicit runtime enrollment are re
     await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
     assert.equal(s.writes.length, 0, scenario);
   }
+});
+
+test('a real alarm waits without consuming an attempt, then selects a fresh replacement over the silent alarm socket', async () => {
+  const s = trial(); s.alarm();
+  s.session.lastPacketAt = s.db.rows.get('alerts/alertOne').eventAt.getTime();
+  await s.incidents.enqueue('alertOne');
+  const deadline = s.incident().deadlineAt;
+  await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 0);
+  assert.deepEqual(s.incident().requestIds, []);
+  assert.equal(s.incidents.getStatus().lastCaptureOutcome, 'waiting_for_connection');
+  assert.equal([...s.db.rows.keys()].some(key => key.startsWith('safetySnapshotAuthorizations/')), false);
+  const replacementWrites = [];
+  s.advance(24_000);
+  const socket = { writable: true, write(bytes, callback) { replacementWrites.push(bytes.toString()); callback?.(); } };
+  const session = { ...s.session, lastPacketAt: s.args.now().getTime() };
+  s.matches([{ socket: s.socket, session: s.session }, { socket, session }]);
+  await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 0, 'the silent old socket must never receive rcapture');
+  assert.deepEqual(replacementWrites, ['[3G*9705254749*0008*rcapture]']);
+  assert.deepEqual(s.incident().deadlineAt, deadline, 'waiting must not extend the sequence');
+  const id = s.incident().requestIds[0];
+  s.api.observe(frame(), s.socket, s.session);
+  assert.equal(s.auth(id).state, 'waiting_for_image', 'the old socket cannot supply this request');
+  s.api.observe(frame(), socket, session);
+  await until(() => s.auth(id).state === 'available');
+});
+
+test('unreported, stale, future, mismatched and ambiguous post-alarm sessions cannot capture', async () => {
+  for (const kind of ['missing', 'stale', 'future', 'mismatched', 'ambiguous']) {
+    const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+    if (kind === 'missing') delete s.session.lastPacketAt;
+    if (kind === 'stale') s.advance(30_001);
+    if (kind === 'future') s.session.lastPacketAt = s.args.now().getTime() + 1;
+    if (kind === 'mismatched') s.session.protocolId = '0000000000';
+    if (kind === 'ambiguous') s.matches([{ socket: s.socket, session: s.session },
+      { socket: { writable: true }, session: { ...s.session } }]);
+    await s.incidents.tick('alertOne');
+    assert.equal(s.writes.length, 0, kind);
+    assert.deepEqual(s.incident().requestIds, [], kind);
+    assert.equal(s.incident().state, 'collecting', kind);
+  }
+});
+
+test('waiting across restart ends at the original sequence deadline without capture', async () => {
+  const s = trial(); s.alarm(); s.matches([]); await s.incidents.enqueue('alertOne');
+  await s.incidents.tick('alertOne');
+  const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
+  s.advance(12 * 60_000);
+  s.matches([{ socket: s.socket, session: { ...s.session, lastPacketAt: s.args.now().getTime() } }]);
+  await restarted.tick('alertOne');
+  assert.equal(s.writes.length, 0);
+  assert.equal(s.incident().reason, 'sequence_deadline');
+  assert.deepEqual(s.incident().requestIds, []);
+});
+
+test('a handed-off incident capture is never replayed onto a fresh replacement', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  const socket = { writable: true, write() { assert.fail('request replayed'); } };
+  s.advance(24_000);
+  const session = { ...s.session, lastPacketAt: s.args.now().getTime() };
+  s.matches([{ socket, session }]);
+  await s.incidents.tick('alertOne');
+  s.api.observe(frame(), socket, session);
+  assert.equal(s.auth(s.incident().requestIds[0]).state, 'waiting_for_image');
+  s.advance(120_001); await s.api.sweep(); await s.incidents.tick('alertOne');
+  assert.equal(s.incident().reason, 'image_timeout');
+  assert.equal(s.writes.length, 1);
+});
+
+test('late admission and a late camera claim cannot dispatch after their deadlines', async () => {
+  const old = trial(); old.alarm();
+  const admit = old.db.runTransaction;
+  old.db.runTransaction = fn => { old.advance(90_001); return admit(fn); };
+  await old.incidents.enqueue('alertOne');
+  assert.equal(old.incident(), undefined);
+  assert.equal(old.db.rows.get('alerts/alertOne').incidentPhotoStatus, 'unavailable');
+  for (const kind of ['authorization', 'sequence', 'replacement']) {
+    const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+    if (kind === 'sequence') s.db.rows.get('incidentPhotos/alertOne').deadlineAt = new Date(s.args.now().getTime() + 1000);
+    const transact = s.db.runTransaction;
+    let first = true;
+    s.db.runTransaction = async fn => {
+      const value = await transact(fn);
+      if (first) {
+        first = false;
+        s.advance(kind === 'sequence' ? 1001 : kind === 'authorization' ? 120_001 : 1);
+        s.session.lastPacketAt = s.args.now().getTime();
+        if (kind === 'replacement') s.matches([{ socket: { ...s.socket }, session: s.session }]);
+      }
+      return value;
+    };
+    await s.incidents.tick('alertOne');
+    assert.equal(s.writes.length, 0, kind);
+    assert.equal(s.auth(s.incident().requestIds[0]).reason,
+      kind === 'replacement' ? 'watch_disconnected' : 'dispatch_expired');
+  }
+});
+
+test('a slow follow-up query is visible and cannot hold the capture loop', async () => {
+  const s = trial();
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const collection = s.db.collection;
+  s.db.collection = name => {
+    const col = collection(name);
+    if (name === 'incidentPhotos') {
+      const where = col.where;
+      col.where = (field, ...args) => field !== 'followupState' ? where(field, ...args) : {
+        limit: count => ({ get: async () => { await waiting; return where(field, ...args).limit(count).get(); } }),
+      };
+    }
+    return col;
+  };
+  await s.incidents.sweep();
+  assert.equal(s.incidents.getStatus().analysisFollowup.stage, 'followup_queue_read');
+  assert.equal(s.incidents.getStatus().capture.running, false);
+  s.advance(60_001); s.alarm();
+  await s.incidents.sweep();
+  assert.equal(s.writes.length, 1, 'pending analysis/follow-up I/O must not block a fresh alarm');
+  assert.equal(s.incidents.getStatus().analysisFollowup.operationSlow, true);
+  release(); await s.incidents.drain();
+  assert.equal(s.incidents.getStatus().analysisFollowup.running, false);
 });
 
 test('trial-only mode accepts a labelled supervised trial without sending emergency messages', async () => {

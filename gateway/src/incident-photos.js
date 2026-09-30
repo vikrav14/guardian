@@ -3,6 +3,7 @@
 const { asDate } = require('./safety-snapshot-policy');
 const { MAX_PHOTOS, SEQUENCE_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
 const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
+const { createPhotoProgress } = require('./incident-photo-progress');
 const RETENTION_MS = 24 * 60 * 60_000;
 const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
@@ -14,6 +15,9 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
   const settingsRef = imei => db.collection('incidentPhotoSettings').doc(imei);
   const lockRef = imei => db.collection('safetySnapshotDeviceLocks').doc(imei);
   const report = () => log('[incident-photos] operation deferred; private content omitted');
+  const captureProgress = createPhotoProgress({ name: 'capture', now, log });
+  const followupProgress = createPhotoProgress({ name: 'analysis_followup', now, log });
+  let lastCaptureOutcome = null;
 
   async function enqueue(id) {
     if (!validIncidentId(id)) return;
@@ -38,7 +42,9 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const lock = (await tx.get(lockRef(alert.imei))).data() || {};
       const consent = (await tx.get(settingsRef(alert.imei))).data();
       if (!fresh?.incidentPhotoPending || existing.exists) return;
-      if (!allowed || !consentAllows(consent, settings?.ownerUid)) {
+      // A delayed transaction/retry cannot admit an old alarm for new capture.
+      if (!allowed || !eventAt || eventAt > now() || now() - eventAt > 90_000 ||
+          !consentAllows(consent, settings?.ownerUid)) {
         tx.update(alertRef, { incidentPhotoPending: false, incidentPhotoStatus: 'unavailable' });
         return;
       }
@@ -83,8 +89,14 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       await incidentRef(id).update({ state: 'complete', updatedAt: now() });
       return;
     }
-    try { await snapshots.requestIncident(incident.ownerUid, incident.imei, id); }
+    try {
+      await snapshots.requestIncident(incident.ownerUid, incident.imei, id);
+      lastCaptureOutcome = 'request_processed';
+    }
     catch (error) {
+      if (error.code === 'incident_waiting_for_connection') {
+        lastCaptureOutcome = 'waiting_for_connection'; return;
+      }
       if (['incident_waiting_for_photo', 'camera_busy', 'incident_not_active'].includes(error.code)) return;
       await stop(id, error.code === 'watch_offline_or_reconnecting' ? 'watch_disconnected' : 'capture_unavailable');
     }
@@ -182,52 +194,64 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       eventAt: asDate(incident.eventAt), expiresAt: asDate(incident.expiresAt), target: MAX_PHOTOS, photos, summary };
   }
 
-  let sweeping = false;
   let analysisJob = null;
   async function sweep() {
-    if (sweeping || !snapshots) return;
-    sweeping = true;
+    followupProgress.check();
+    if (!snapshots || !captureProgress.begin()) return;
     try {
-      const queue = await db.collection('alerts').where('incidentPhotoPending', '==', true).limit(25).get();
-      for (const doc of queue.docs) await enqueue(doc.id);
-      const active = await db.collection('incidentPhotos').where('state', '==', 'collecting').limit(25).get();
-      for (const doc of active.docs) await tick(doc.id);
-      const work = await db.collection('incidentPhotos').where('followupState', '==', 'pending').limit(25).get();
+      const queue = await captureProgress.step('pending_alerts_read', () =>
+        db.collection('alerts').where('incidentPhotoPending', '==', true).limit(25).get());
+      for (const doc of queue.docs) await captureProgress.step('incident_enqueue', () => enqueue(doc.id));
+      const active = await captureProgress.step('active_incidents_read', () =>
+        db.collection('incidentPhotos').where('state', '==', 'collecting').limit(25).get());
+      for (const doc of active.docs) await captureProgress.step('capture_tick', () => tick(doc.id));
       if (!analysisJob) {
+        followupProgress.begin();
         analysisJob = (async () => {
+          // Even the follow-up query is independent of the capture sweep.
+          const work = await followupProgress.step('followup_queue_read', () =>
+            db.collection('incidentPhotos').where('followupState', '==', 'pending').limit(25).get());
           for (const doc of work.docs) {
             const incident = doc.data();
             if (!(asDate(incident.expiresAt) > now())) {
-              await doc.ref.update({ followupState: 'expired' }); continue;
+              await followupProgress.step('followup_expire', () => doc.ref.update({ followupState: 'expired' })); continue;
             }
-            for (const id of incident.requestIds) await analyzePhoto(id);
-            const fresh = (await doc.ref.get()).data();
+            for (const id of incident.requestIds) await followupProgress.step('photo_analysis', () => analyzePhoto(id));
+            const fresh = (await followupProgress.step('followup_incident_read', () => doc.ref.get())).data();
             if (fresh.state === 'collecting') continue;
-            const photos = await Promise.all(fresh.requestIds.map(id => photoRef(id).get()));
+            const photos = await followupProgress.step('followup_photos_read', () =>
+              Promise.all(fresh.requestIds.map(id => photoRef(id).get())));
             if (photos.some(p => p.data()?.state === 'available' &&
                 ['pending', 'analysing'].includes(p.data()?.analysis?.status))) continue;
-            const alert = (await db.collection('alerts').doc(fresh.id).get()).data();
+            const alert = (await followupProgress.step('followup_alert_read', () =>
+              db.collection('alerts').doc(fresh.id).get())).data();
             // An optional photo update must not overtake the initial alert.
             if (!fresh.trial && ['pending', 'sending'].includes(alert?.notifyStatus)) continue;
-            const claimed = await db.runTransaction(async tx => {
+            const claimed = await followupProgress.step('followup_claim', () => db.runTransaction(async tx => {
               const row = await tx.get(doc.ref);
               if (row.data()?.followupState !== 'pending') return false;
               tx.update(doc.ref, { followupState: 'claimed', followupClaimedAt: now() }); return true;
-            });
+            }));
             if (claimed) {
               // At-most-once transport attempt, including restart/ambiguous send.
               try {
                 const result = fresh.trial || !['accepted', 'partial', 'sent', 'delivered'].includes(alert?.notifyStatus)
-                  ? { ok: false } : await onComplete(fresh);
-                await doc.ref.update({ followupState: result?.ok ? 'accepted' : 'unavailable' });
-              } catch { await doc.ref.update({ followupState: 'unavailable' }); }
+                  ? { ok: false } : await followupProgress.step('followup_send', () => onComplete(fresh));
+                await followupProgress.step('followup_result', () =>
+                  doc.ref.update({ followupState: result?.ok ? 'accepted' : 'unavailable' }));
+              } catch { await followupProgress.step('followup_result', () => doc.ref.update({ followupState: 'unavailable' })); }
             }
           }
-        })().catch(report).finally(() => { analysisJob = null; });
+        })().catch(report).finally(() => { followupProgress.finish(); analysisJob = null; });
       }
-    } finally { sweeping = false; }
+    } finally { captureProgress.finish(); }
   }
-  return { enqueue, tick, sweep, gallery, analyzePhoto, drain: () => analysisJob };
+  function getStatus() {
+    return { version: 1, workerStarted: true, enabled: Boolean(enabled), trialOnly: Boolean(trialOnly),
+      aiEnabled: Boolean(analyze), lastCaptureOutcome,
+      capture: captureProgress.getStatus(), analysisFollowup: followupProgress.getStatus() };
+  }
+  return { enqueue, tick, sweep, gallery, analyzePhoto, getStatus, drain: () => analysisJob };
 }
 
 module.exports = { createIncidentPhotos };

@@ -1,11 +1,16 @@
 # SOS and fall incident photos
 
-Implementation on `feat/v52-remote-photo`; **supervised trial only, not hardware-accepted**.
-The single-photo path has four consecutive operator-reported successes after the
+Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
+On 28 September the operator displayed five supervised-trial photos with AI
+details. On 30 September the initial SOS WhatsApp and the honest zero-photo
+follow-up were delivered, but the real SOS camera path still timed out. Keep the
+PR open and draft until the real-device acceptance below is completed.
+
+Historical checkpoints: the single-photo path had four consecutive operator-reported successes after the
 padding correction on 25 September 2026, including two without manual CR. On
 26 September, a live saved-original AI probe succeeded and a subsequent gallery
-displayed three photos with AI descriptions. Five-photo completion and capture
-during an SOS call remain unverified. No CR, invented wake command, generative
+displayed three photos with AI descriptions. At that point five-photo completion
+and capture during an SOS call were unverified. No CR, invented wake command, generative
 enhancement or photo retry is added.
 
 The 26 September 00:56 MUT supervised trial displayed two photos. A third image
@@ -84,11 +89,69 @@ deadline. No overlapping command, timeout retry or restart replay is permitted.
 The 15-minute manual test cooldown is independent. Manual capture requires its
 own gateway flag and is hidden in normal app builds.
 
+For a real SOS/fall, capture waits for a watch packet received **after** the
+server's alarm receipt time and no more than 30 seconds ago. A writable socket
+or the alarm packet itself is insufficient. Among identity-matched connections,
+exactly one must satisfy this freshness check; a silent old socket does not
+block a fresh replacement. Two fresh connections remain ambiguous and receive
+no command. Supervised trials and manual photos retain their existing unique
+connection policy.
+
+This is a passive check, not evidence that Calling has ended or the firmware's
+camera is ready. It sends no wake command and does not move or retry an already
+handed-off capture. Before dispatch, waiting consumes neither a photo attempt
+nor a camera authorization; the original 12-minute sequence deadline still
+applies. Admission remains limited to alarms at most 90 seconds old, rechecked
+after transaction reads. A claim that returns after its camera authorization
+or sequence deadline cannot send. A connection change during the claim stops
+that attempt rather than silently changing the receiving socket.
+
 The firmware has no verified capture request ID. Correlation remains one active
 request on the same socket within two minutes; it is not proof of exact capture
 time. Exact duplicate JPEGs are rejected within a sequence. Distinct delayed or
 manually generated images inside another request's window remain a hardware
 limitation. Do not advertise verified chronology or five guaranteed captures.
+
+## 30 September SOS acceptance and worker diagnostics
+
+All times here are Mauritius time (UTC+4). At 18:43, SOS while the watch showed
+Calling produced a camera handoff followed by a two-minute timeout with zero
+received chunks/bytes/frames. The first WhatsApp and zero-photo follow-up arrived.
+At 19:34, a second SOS remained photo-pending with no incident document, while
+normal telemetry continued. Restarting the same configured process at 20:04
+cleared that old alert as unavailable without replaying its capture. The precise
+operation responsible for that stalled sweep was not recorded.
+
+At 20:06, the operator cancelled Calling. The restarted worker handed the camera
+request to the existing connection before a replacement connected approximately
+24 seconds after SOS. The request again timed out with zero received data; both
+the initial WhatsApp and 20:09 zero-photo follow-up arrived. That evidence
+motivates the post-alarm packet check above. It does **not** prove a firmware
+root cause or successful capture after this software change. Test a fresh real
+SOS after the updated gateway is running; do not replay the old incident.
+
+The capture and analysis/follow-up workers expose progress separately through
+strict-admin, read-only `GET /ops/incident-photos`. Public health stays unchanged.
+From the configured gateway directory, run `npm run incident:check` (or the
+absolute path to `scripts/inspect-incident-worker.js` in the photo checkout).
+It performs one authenticated loopback GET using the private `ADMIN_API_KEY` and
+does not start Firestore, dispatch, capture or notification workers.
+
+The report includes the running worker's feature switches, current stage,
+stage start/elapsed time, last completion/failure stage and skipped concurrent
+sweeps. A stage pending for 60 seconds has `operationSlow: true` and emits one
+`worker_operation_slow` log per pending stage. The follow-up database query now
+runs independently so it cannot hold the capture sweep. Other pending I/O can
+still block its own worker: report its stage before a controlled restart.
+Diagnostics do not automatically unlock a stuck operation, restart a job or
+resend messages. The earlier stall's exact cause remains unverified.
+
+QA still needs actual SOS/fall photos and the signed-in phone gallery, plus the
+v3 call/map actions and the failing second contact's delivery reason. Earlier
+trial photo success and the zero-photo follow-up are useful evidence but do not
+complete real emergency acceptance. Keep the production storage-cost checklist
+in `incident-photo-whatsapp-v3.md`: active objects expire after 24 hours, while
+the configured bucket's seven-day soft-delete retention can retain billable data.
 
 ## Private gallery and AI
 

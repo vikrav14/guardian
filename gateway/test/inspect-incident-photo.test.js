@@ -15,6 +15,7 @@ async function savedPhoto() {
     consentConfirmed: true, aiConsentConfirmed: true, consentVersion: CONSENT_VERSION });
   s.db.rows.set('alerts/trialOne', { imei, type: 'sos', eventAt: s.args.now(),
     incidentPhotoEligible: true, incidentPhotoPending: true, notifyStatus: 'accepted' });
+  s.advance(1); s.session.lastPacketAt = s.args.now().getTime();
   const incidents = createIncidentPhotos({ db: s.db, snapshots: s.api, now: s.args.now, enabled: true, trialOnly: false });
   await incidents.enqueue('trialOne');
   await incidents.tick('trialOne');

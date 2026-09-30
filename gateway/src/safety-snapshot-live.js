@@ -14,6 +14,9 @@ const { consentAllows, readIncidentAuthorization } = require('./incident-photo-p
 const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
 const COOLDOWN_MS = 15 * 60_000;
+// A writable socket alone is not evidence the watch has resumed after SOS.
+// This is a gateway freshness policy, not a firmware readiness guarantee.
+const INCIDENT_PACKET_FRESH_MS = 30_000;
 const ACTIVE_STATES = ['dispatching', 'waiting_for_image', 'receiving'];
 const privatePath = (owner, imei, id) => `privateSafetySnapshots/${owner}/${imei}/${id}.jpg`;
 function fail(code, status = 409) { throw Object.assign(new Error(code), { code, status }); }
@@ -81,12 +84,18 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     return decision;
   }
 
-  function connection(imei) {
+  function connection(imei, incident = null) {
     const expectedProtocolId = protocolIdFromFullImei(imei);
+    const after = incident && !incident.trial ? asDate(incident.eventAt)?.getTime() : null;
+    const at = now().getTime();
     const matches = findSessions(imei).filter(({ socket, session }) =>
       !socket.destroyed && socket.writable !== false && session.imei === imei &&
-      expectedProtocolId != null && session.protocolId === expectedProtocolId);
+      expectedProtocolId != null && session.protocolId === expectedProtocolId &&
+      (!incident || incident.trial || (Number.isFinite(after) &&
+        Number.isFinite(session.lastPacketAt) && session.lastPacketAt > after &&
+        session.lastPacketAt <= at && at - session.lastPacketAt <= INCIDENT_PACKET_FRESH_MS)));
     // Never fan out a camera request across duplicate/replacement sessions.
+    // A silent pre-alarm socket cannot block a single fresh replacement.
     return matches.length === 1 ? matches[0] : null;
   }
 
@@ -108,16 +117,21 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     try { purpose = normalizePurpose(input?.purpose); } catch { fail('invalid_purpose', 400); }
     if (purpose.length < 8 || input?.consentConfirmed !== true || input?.safetyPurposeConfirmed !== true) fail('consent_and_purpose_required', 400);
     if (!enabledFor(imei)) fail('camera_unavailable', 503);
-    if (!connection(imei)) fail('watch_offline_or_reconnecting');
+    if (!incidentId && !connection(imei)) fail('watch_offline_or_reconnecting');
     // Fixed server-generated ID and transaction lock also serialize different guardians.
     const id = crypto.randomUUID();
     const claimed = await db.runTransaction(async tx => {
       const decision = await access(uid, imei, doc => tx.get(doc));
       const lock = await tx.get(lockRef(imei));
       const last = asDate(lock.data()?.lastRequestedAt);
-      const at = now();
       const incidentClaim = incidentId
-        ? await readIncidentAuthorization(db, tx, incidentId, uid, imei, at) : null;
+        ? await readIncidentAuthorization(db, tx, incidentId, uid, imei, now()) : null;
+      // Recheck after all awaited reads (including transaction retries). Waiting
+      // for a connection creates no authorization, camera lease or attempt.
+      const at = now();
+      if (incidentClaim && !(asDate(incidentClaim.incident.deadlineAt) > at)) fail('incident_not_active');
+      const selected = connection(imei, incidentClaim?.incident);
+      if (!selected) fail(incidentId ? 'incident_waiting_for_connection' : 'watch_offline_or_reconnecting');
       if (asDate(lock.data()?.activeUntil) > at ||
           (asDate(lock.data()?.incidentUntil) > at && lock.data()?.incidentId !== incidentId)) fail('camera_busy');
       if (!incidentId && last && at.getTime() < last.getTime() + COOLDOWN_MS) {
@@ -145,13 +159,21 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         consentConfirmed: true, safetyPurposeConfirmed: true, purpose, createdAt: at,
       });
-      return auth;
+      return { auth, selected, incident: incidentClaim?.incident };
     });
-    const selected = connection(imei);
-    if (!selected) { await finishFailure(id, 'watch_disconnected'); return id; }
+    // A slow claim must not extend the authorization/sequence deadline. A
+    // changed connection after claim is not permission to migrate the request.
+    if (!(claimed.auth.authorizationExpiresAt > now()) ||
+        (claimed.incident && !(asDate(claimed.incident.deadlineAt) > now()))) {
+      await finishFailure(id, 'dispatch_expired'); return id;
+    }
+    const selected = connection(imei, claimed.incident);
+    if (!selected || selected.socket !== claimed.selected.socket) {
+      await finishFailure(id, 'watch_disconnected'); return id;
+    }
     // Install reception before write; reply/upload may race the persistence update.
-    const slot = { id, ...selected, imei, ownerUid: claimed.serviceOwnerUid, uid,
-      expiresAt: claimed.authorizationExpiresAt, startedAt: now(), receiving: false,
+    const slot = { id, ...selected, imei, ownerUid: claimed.auth.serviceOwnerUid, uid,
+      expiresAt: claimed.auth.authorizationExpiresAt, startedAt: now(), receiving: false,
       protocolId: selected.session.protocolId, diagnostics: receiveDiagnostics() };
     pending.set(selected.socket, slot);
     try {

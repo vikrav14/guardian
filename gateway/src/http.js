@@ -914,6 +914,13 @@ async function handleOpsHttpRequest(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/ops/incident-photos') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    sendJson(res, 200, require('./incident-photos-live').getIncidentPhotoRuntimeStatus());
+    return true;
+  }
+
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
@@ -1627,6 +1634,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
     console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
+    console.log('[guardian-http] GET  /ops/incident-photos  (strict admin; read only)');
     console.log('[guardian-http] GET/POST /ops/wifi-fence-validation  (strict admin; observation only)');
   });
 

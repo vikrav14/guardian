@@ -7,6 +7,9 @@ const { buildFollowupPlan, galleryBase } = require('./incident-photo-templates')
 
 let live = null;
 function getIncidentPhotos() { return live; }
+function getIncidentPhotoRuntimeStatus() {
+  return live?.getStatus() || { version: 1, workerStarted: false };
+}
 function configuredPhotoAnalyzer({ env, config, fetchImpl }) {
   if (!asBool(env.INCIDENT_PHOTO_AI_ENABLED)) return null;
   const factory = asBool(env.INCIDENT_PHOTO_AI_ORIENTATION_ENABLED) ? createOrientedPhotoAnalyzer : createPhotoAnalyzer;
@@ -50,7 +53,8 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
     },
   });
   const run = () => live.sweep().catch(() => console.warn('[incident-photos] work deferred'));
+  console.info(`[incident-photos] runtime ${JSON.stringify(live.getStatus())}`);
   const timer = setInterval(run, 3000); timer.unref(); run();
   return live;
 }
-module.exports = { getIncidentPhotos, startIncidentPhotos, configuredPhotoAnalyzer };
+module.exports = { getIncidentPhotos, getIncidentPhotoRuntimeStatus, startIncidentPhotos, configuredPhotoAnalyzer };

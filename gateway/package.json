@@ -43,6 +43,7 @@
     "incident:trial": "node scripts/incident-photo-trial.js",
     "incident:templates": "node scripts/incident-photo-templates.js",
     "incident:inspect": "node scripts/inspect-incident-photo.js",
+    "incident:check": "node scripts/inspect-incident-worker.js",
     "call:templates": "node scripts/check-watch-call-templates.js"
   },
   "engines": {
