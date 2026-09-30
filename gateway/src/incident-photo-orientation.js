@@ -63,4 +63,4 @@ function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) 
   };
 }
 
-module.exports = { createOrientedPhotoAnalyzer, ORIENTATION_PROMPT, ORIENTATION_PROMPT_VERSION };
+module.exports = { createOrientedPhotoAnalyzer, ORIENTATION_PROMPT, ORIENTATION_PROMPT_VERSION, ORIENTATION_SCHEMA };

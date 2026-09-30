@@ -1,5 +1,22 @@
 # Guardian V52 real-device acceptance
 
+## Real SOS photo follow-up — 30 September 2026, 23:58 MUT
+
+Acceptance remains blocked. Logs explain the ten-minute first-request delay:
+the old connection stopped sending at the 22:49:23 SOS, closed at 22:51:57, and
+reconnected at 22:59:37.657. Guardian requested Photo 1 1.245 seconds later and
+saved it at 22:59:47.885. Calling is a hypothesis for the interruption, not proven.
+Photo 2 received a bare capture reply but no image within its receive window,
+which extended past the incident sequence deadline. No image ACK, capture retry
+or camera-readiness command has been established by this evidence.
+
+Explicit recovery of the saved invalid-JSON analysis using `0cf9f4a` returned
+HTTP 400; the stored failure and missing orientation are unchanged. The provider
+reason is not yet known. A new `check-incident-photo-ai.js --run` diagnostic checks
+the production JSON schemas with synthetic text and reports a bounded provider
+error. Its tests do not prove live provider access, image understanding or rotation.
+Keep PR #113 draft; do not repeat SOS to diagnose this API rejection.
+
 ## Real SOS photo acceptance — 30 September 2026, 23:16 MUT
 
 Partial. The operator received the follow-up WhatsApp, then reported one photo,

@@ -217,4 +217,4 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
   };
 }
 
-module.exports = { requestPhotoJson, PhotoAnalysisError, PROMPT, PROMPT_VERSION, validateAnalysis, createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance };
+module.exports = { requestPhotoJson, PhotoAnalysisError, PROMPT, PROMPT_VERSION, DESCRIPTION_SCHEMA, validateAnalysis, createPhotoAnalyzer, analysisFailure, analysisRecord, analysisProvenance };

@@ -1,15 +1,22 @@
 # SOS and fall incident photos
 
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
-At 23:16 MUT on 30 September, the latest gallery showed one available sideways
-original (received 22:59:47), AI unavailable, and Photo 2 unavailable. The operator
-confirmed the follow-up WhatsApp arrived. The earlier 23:01 inspector had the
-incident still collecting, Photo 1 failed with `analysis_invalid_json`, and
-Photo 2 waiting for an image. Read the final incident/photo failure reason before
-attributing the stopped sequence to a deadline, connection, or image timeout.
-The invalid-JSON result follows an HTTP-success response; the previous API-credit
-error is not the failure reported for this photo. No usable AI or automatic
-rotation is established by this run.
+At 23:58 MUT on 30 September, saved-photo recovery returned `probe_failed` /
+`analysis_http_error` / HTTP 400. The original Photo 1 remains available with its
+old `analysis_invalid_json` result and no orientation metadata. This new rejection
+does not prove another credit problem or an unreadable image; the API explanation
+and configured photo model are still needed. No usable AI/rotation is established.
+
+The supplied gateway log explains the first-request delay: after the 22:49:23 SOS,
+the old socket received no more data and its peer closed at 22:51:57. The watch
+reconnected at 22:59:37.657; Photo 1 was requested 1.245 seconds later and saved at
+22:59:47.885. Calling may explain the connection loss but is not established by
+these logs. Photo 2, requested at 23:00:00, received only a 29-byte capture reply
+and no image header/frame before `image_timeout`. Its receive authorization lasted
+until 23:02:00, beyond the 23:01:28 incident `sequence_deadline`; extending the
+sequence alone does not explain the missing image. A later routine CR recovered
+location traffic, not a proven camera-recovery procedure. The follow-up WhatsApp
+arrived and the gallery displayed one sideways photo. Capture reliability is open.
 
 Both orientation selection and scene description now request Anthropic JSON
 structured outputs through `output_config.format`, with separate fixed schemas.
@@ -21,6 +28,24 @@ such as Haiku 4.5 or Sonnet 4.6; this change does not switch the configured mode
 Explicit recovery below now also accepts `analysis_invalid_json`, allowing the
 existing authorized original to be checked without another SOS. Live recovery
 and display rotation still require operator verification.
+
+### Diagnose an AI API rejection before repeating photo recovery
+
+From the usual gateway **configuration directory**, run the script from the photo
+checkout (replace the path for your checkout):
+
+```powershell
+node 'C:\Users\MSI\repos\guardian-photo-check\gateway\scripts\check-incident-photo-ai.js' --run
+```
+
+This makes at most two small **synthetic text** requests using the same configured
+photo model, API endpoint, JSON schemas and token/time limits as orientation and
+description. It stops at the first failure, with no retry or model switch. It
+reports the model and a bounded, credential-scrubbed provider error explanation;
+it never loads Firestore, Storage, a photo, camera dispatch or WhatsApp. Production
+photo errors still omit raw provider bodies. A passing result proves only this
+shell's API/schema configuration, not image analysis or the running gateway's
+configuration. Correct the reported cause before repeating saved-photo recovery.
 
 Earlier checkpoints:
 On 28 September the operator displayed five supervised-trial photos with AI
