@@ -1,11 +1,19 @@
 # SOS and fall incident photos
 
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
-At 23:58 MUT on 30 September, saved-photo recovery returned `probe_failed` /
-`analysis_http_error` / HTTP 400. The original Photo 1 remains available with its
-old `analysis_invalid_json` result and no orientation metadata. This new rejection
-does not prove another credit problem or an unreadable image; the API explanation
-and configured photo model are still needed. No usable AI/rotation is established.
+At 00:12 MUT on 1 October, the synthetic check identified the HTTP 400 cause with
+`claude-sonnet-4-6`: the orientation schema's enum value `A` was rejected against
+`type: ['string', 'null']`. Both nullable enum fields now use `anyOf` with a typed
+enum branch and a separate null branch: view letters in selection, integer
+quarter-turns in description. The allowed values and local checks are unchanged.
+The previous format fails three focused regression checks; all 56 focused tests
+pass with the correction. Live API acceptance of the corrected schemas is pending.
+
+The preceding saved-photo recovery at 23:58 MUT on 30 September returned
+`probe_failed` / `analysis_http_error` / HTTP 400. The original Photo 1 remains
+available with its old `analysis_invalid_json` result and no orientation metadata.
+The schema bug explains this new request rejection, not the earlier malformed
+model response or missing Photo 2. No usable AI/rotation is established by this run.
 
 The supplied gateway log explains the first-request delay: after the 22:49:23 SOS,
 the old socket received no more data and its peer closed at 22:51:57. The watch

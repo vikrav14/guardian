@@ -50,7 +50,7 @@ const DESCRIPTION_SCHEMA = {
       items: { type: 'string', description: 'Non-empty, at most 180 characters.' } },
     orientation: { type: 'object', additionalProperties: false, required: ['clockwiseDegrees', 'confidence'],
       properties: {
-        clockwiseDegrees: { type: ['integer', 'null'], enum: [0, 90, 180, 270, null] },
+        clockwiseDegrees: { anyOf: [{ type: 'integer', enum: [0, 90, 180, 270] }, { type: 'null' }] },
         confidence: { type: 'string', enum: ['high', 'low'] },
       } },
   },

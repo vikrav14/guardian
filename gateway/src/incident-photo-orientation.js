@@ -20,7 +20,9 @@ const VIEWS = ['A', 'B', 'C', 'D'];
 const ORIENTATION_SCHEMA = {
   type: 'object', additionalProperties: false, required: ['view', 'confidence'],
   properties: {
-    view: { type: ['string', 'null'], enum: [...VIEWS, null] },
+    // The live API rejects an enum combined with a nullable type array.
+    // Keep the permitted letters and the abstention branch separately typed.
+    view: { anyOf: [{ type: 'string', enum: VIEWS }, { type: 'null' }] },
     confidence: { type: 'string', enum: ['high', 'low'] },
   },
 };

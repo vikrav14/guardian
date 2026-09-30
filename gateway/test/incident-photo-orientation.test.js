@@ -26,7 +26,7 @@ test('each selected view is described alone with explicit input-relative orienta
       if (calls === 1) {
         assert.equal(body.system, ORIENTATION_PROMPT); assert.equal(body.max_tokens, 160);
         assert.deepEqual(schema, { type: 'object', additionalProperties: false, required: ['view', 'confidence'],
-          properties: { view: { type: ['string', 'null'], enum: ['A', 'B', 'C', 'D', null] },
+          properties: { view: { anyOf: [{ type: 'string', enum: ['A', 'B', 'C', 'D'] }, { type: 'null' }] },
             confidence: { type: 'string', enum: ['high', 'low'] } } });
         assert.equal(images.length, 4);
         for (let i = 0; i < 4; i++) {

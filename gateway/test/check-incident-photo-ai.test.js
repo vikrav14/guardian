@@ -9,6 +9,28 @@ const config = { apiKey: 'test-key-never-print', model: 'claude-test-model' };
 const success = body => new Response(JSON.stringify({ model: config.model, stop_reason: 'end_turn',
   content: [{ type: 'text', text: body.messages[0].content[0].text }] }), { status: 200 });
 
+test('both photo schemas declare a single compatible primitive type at each enum', () => {
+  // The live Sonnet 4.6 API rejected enum A with type ['string', 'null'].
+  // Check all nested enums, including the description's numeric quarter-turns.
+  function check(schema) {
+    if (!schema || typeof schema !== 'object') return;
+    if (Object.hasOwn(schema, 'enum')) {
+      for (const value of schema.enum) {
+        assert(schema.type === 'string' && typeof value === 'string' ||
+          schema.type === 'integer' && Number.isInteger(value) ||
+          schema.type === 'null' && value === null,
+        `Enum ${JSON.stringify(value)} requires a compatible scalar type; got ${JSON.stringify(schema.type)}`);
+      }
+    }
+    for (const value of Object.values(schema)) {
+      if (Array.isArray(value)) value.forEach(check);
+      else check(value);
+    }
+  }
+  check(ORIENTATION_SCHEMA);
+  check(DESCRIPTION_SCHEMA);
+});
+
 test('checks both production schemas with synthetic text only and original API budgets', async () => {
   const requests = [];
   const report = await checkPhotoAi({ ...config, fetchImpl: async (url, request) => {

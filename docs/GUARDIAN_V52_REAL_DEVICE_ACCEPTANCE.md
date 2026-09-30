@@ -1,5 +1,18 @@
 # Guardian V52 real-device acceptance
 
+## Photo AI schema rejection identified — 1 October 2026, 00:12 MUT
+
+The synthetic API diagnostic used `claude-sonnet-4-6` and failed at
+`orientation_schema` with HTTP 400 / `invalid_request_error`: enum `A` did not
+match declared `['string', 'null']`. This is a concrete request-schema failure,
+not evidence of unreadable image content. Both selection and description now
+express their nullable enums as separate `anyOf` branches. The view letters,
+quarter-turn values, null abstention, local validation and budgets are preserved.
+Three regression checks fail on the old format; all 56 focused tests pass after
+the fix. Live verification must still pass both synthetic schema checks, saved
+photo recovery and actual gallery viewing before claiming usable AI/rotation.
+The independent second-photo timeout remains unresolved; PR #113 stays draft.
+
 ## Real SOS photo follow-up — 30 September 2026, 23:58 MUT
 
 Acceptance remains blocked. Logs explain the ten-minute first-request delay:

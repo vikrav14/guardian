@@ -26,7 +26,9 @@ test('vision request constrains JSON and uses exact original bytes with bounded 
     }
     assert.equal(schema.properties.orientation.additionalProperties, false);
     assert.deepEqual(schema.properties.orientation.required, ['clockwiseDegrees', 'confidence']);
-    assert.deepEqual(schema.properties.orientation.properties.clockwiseDegrees.enum, [0, 90, 180, 270, null]);
+    assert.deepEqual(schema.properties.orientation.properties.clockwiseDegrees, {
+      anyOf: [{ type: 'integer', enum: [0, 90, 180, 270] }, { type: 'null' }],
+    });
     return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(valid) }] }) };
   } });
   assert.equal((await analyze(image)).basis, 'original_photo');
