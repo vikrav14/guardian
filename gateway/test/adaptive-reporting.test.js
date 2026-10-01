@@ -10,14 +10,16 @@ const {
   shouldSend,
 } = require('../src/adaptive-reporting');
 
-test('battery policy uses 1m/5m/10m/15m bands', () => {
-  assert.equal(policyForBattery(100).seconds, 60);
-  assert.equal(policyForBattery(60).seconds, 60);
-  assert.equal(policyForBattery(59).seconds, 300);
-  assert.equal(policyForBattery(30).seconds, 300);
+test('normal policy is ten minutes with critical battery safeguard', () => {
+  assert.equal(policyForBattery(100).seconds, 600);
+  assert.equal(policyForBattery(60).seconds, 600);
+  assert.equal(policyForBattery(59).seconds, 600);
+  assert.equal(policyForBattery(30).seconds, 600);
   assert.equal(policyForBattery(29).seconds, 600);
   assert.equal(policyForBattery(15).seconds, 600);
   assert.equal(policyForBattery(14).seconds, 900);
+  assert.equal(policyForBattery(null).seconds, 600);
+  assert.equal(policyForBattery(undefined).seconds, 600);
 });
 
 test('SOS overrides battery policy', () => {

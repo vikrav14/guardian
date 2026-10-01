@@ -4,7 +4,6 @@ const config = require('./config');
 const { buildJourneyDocumentId } = require('./journey-id');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
-const { sendDeviceCommand } = require('./commands');
 const { isFullImei, isProtocolId, normalizeImei } = require('./imei');
 const {
   evaluateDeviceIntelligence,
@@ -479,81 +478,39 @@ async function updateMedicationReminderSync(reminderId, patch) {
   }
 }
 
-async function deliverDeviceCommand(imei, type, params, commandId, reminderId = null) {
-  const ref = db.collection('deviceCommands').doc(commandId);
-  try {
-    const claimed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists) return false;
-      if (snap.data().status !== 'pending') return false;
-      tx.update(ref, { status: 'sending' });
-      return true;
-    });
-    if (!claimed) return;
-  } catch (err) {
-    console.error('[commands] claim failed', err.message);
-    return;
-  }
-
-  try {
-    const outcome = await sendDeviceCommand(db, imei, type, params);
-    await ref.set(
-      { status: 'sent', result: outcome, completedAt: nowTs() },
-      { merge: true }
-    );
-    if (type === 'set_medication_reminder' && reminderId) {
-      await updateMedicationReminderSync(reminderId, {
-        deviceSyncStatus: 'sent',
-        deviceSyncError: null,
-        deviceSyncedAt: nowTs(),
-        updatedAt: nowTs(),
-      });
-    }
-  } catch (err) {
-    console.error('[commands] failed', err.message);
-    await ref.set(
-      { status: 'failed', error: err.message, completedAt: nowTs() },
-      { merge: true }
-    );
-    if (type === 'set_medication_reminder' && reminderId) {
-      await updateMedicationReminderSync(reminderId, {
-        deviceSyncStatus: 'failed',
-        deviceSyncError: err.message,
-        updatedAt: nowTs(),
-      });
-    }
-  }
-}
-
 function startPendingCommandWatcher() {
   if (!enabled || commandWatchUnsub) return;
-
-  commandWatchUnsub = db
-    .collection('deviceCommands')
-    .where('status', '==', 'pending')
-    .onSnapshot(
-      (snap) => {
-        snap.docChanges().forEach((change) => {
-          if (change.type !== 'added' && change.type !== 'modified') return;
-          const data = change.doc.data() || {};
-          if (data.status !== 'pending') return;
-          deliverDeviceCommand(
-            data.imei,
-            data.type,
-            data.params,
-            change.doc.id,
-            data.reminderId || null,
-          ).catch((err) => {
-            console.error('[commands] watcher error', err.message);
-          });
-        });
-      },
-      (err) => {
-        console.error('[commands] watcher failed', err.message);
+  const { createDeviceCommandDispatcher } = require('./device-command-dispatcher');
+  const dispatcher = createDeviceCommandDispatcher({ db,
+    reporting: async (row, { beforeSend }) => {
+      const device = db.collection('devices').doc(row.imei);
+      if ((await device.get()).data()?.locationReportingMode === 'manual') {
+        await device.set({ manualReportingIntervalSeconds: row.params.seconds }, { merge: true });
       }
-    );
-
-  console.log('[commands] watching deviceCommands with status=pending');
+      return require('./adaptive-reporting').applyAdaptiveReporting(db, row.imei,
+        { trigger: 'explicit_setting', force: true, beforeSend });
+    },
+    onResult: async (row, status, reason) => {
+      if (row.type === 'set_medication_reminder' && row.reminderId) {
+        await updateMedicationReminderSync(row.reminderId, {
+          deviceSyncStatus: status === 'sent' ? 'sent' : 'failed',
+          deviceSyncError: reason || null,
+          ...(status === 'sent' ? { deviceSyncedAt: nowTs() } : {}), updatedAt: nowTs(),
+        });
+      }
+    },
+  });
+  const tick = () => dispatcher.tick().catch(() => console.warn('[commands] reconciliation deferred'));
+  commandWatchUnsub = db.collection('deviceCommands').where('status', '==', 'pending')
+    .onSnapshot(snapshot => {
+      for (const change of snapshot.docChanges()) if (change.type !== 'removed') {
+        void dispatcher.prompt(change.doc).catch(() => console.warn('[commands] prompt command failed'));
+      }
+      void tick();
+    }, () => console.warn('[commands] watcher unavailable'));
+  const timer = setInterval(() => { if (dispatcher.hasWork()) void tick(); }, 2000); timer.unref?.();
+  void tick();
+  console.log('[commands] watching bounded intents; deferred settings recheck authorization and session');
 }
 
 function intelligenceConfig() {

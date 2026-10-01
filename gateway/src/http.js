@@ -921,6 +921,21 @@ async function handleOpsHttpRequest(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/ops/command-coordination') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    const coordinator = require('./command-coordinator').commandCoordinator;
+    sendJson(res, 200, { version: 1, normalReportingSeconds: 600, criticalReportingSeconds: 900,
+      cameraWaitLimitSeconds: 120, deferredCommandLimitSeconds: 120, replayAmbiguousActions: false,
+      sessions: [...require('./sessions').getActiveSessions().values()].map(session => ({
+        imei: session.imei, lastPacketAt: session.lastPacketAt, lastLocationAt: session.lastLocationAt,
+        expectedReportingIntervalSeconds: session.expectedReportingIntervalSeconds,
+        outingActive: session.outingActive, outingActiveUntilMs: session.outingActiveUntilMs || null,
+        cameraBusyUntil: coordinator.busyUntil(session.imei),
+      })), photo: require('./incident-photos-live').getIncidentPhotoRuntimeStatus() });
+    return true;
+  }
+
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();

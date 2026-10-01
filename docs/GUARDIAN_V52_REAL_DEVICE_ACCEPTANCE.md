@@ -1,3 +1,21 @@
+## Combined reporting, Home and incident runtime — 2 October 2026
+
+The combined Wi-Fi/photo checkout now runs a 600-second normal reporting policy,
+bounded emergency/outing overrides and shared camera/routine command admission.
+All 1,598 gateway tests and 730 Flutter tests pass; the combined Android build
+was installed on the existing Samsung without replacing its configuration.
+
+Hardware acceptance remains partial: one CR at 03:35:35 MUT produced ten
+location receipts over roughly three minutes, then Home evidence expired at
+122 seconds. No further CR was sent. No normal location-upload packets arrived
+before the CR or during the post-burst observation ending 03:51:37; heartbeats
+continued. Ten-minute upload cadence is **not accepted**. Independent physical
+fall/SOS captures, new AI/gallery results and WhatsApp delivery remain pending.
+Coordination is not a demonstrated fix for the earlier missing fall photos.
+See [the complete acceptance record](testing/reporting-coordination-2026-10-02.md)
+and [policy](services/reporting-command-policy.md). Earlier checkpoints below
+describe their historical runtime, not the current combined launch.
+
 ## Home Wi-Fi app enrollment — 1 October 2026
 
 Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. Initial Android discovery, watch matching and save were physically observed on 1 October; remaining acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).

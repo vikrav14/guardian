@@ -1,5 +1,16 @@
 # Incident photo command coordination
 
+## 2 October 2026: combined implementation
+
+The `feat/guardian-command-coordination` integration includes PR #141 at
+`005829a` and PR #113 at `9c2437e`. The earlier observations below remain
+historical evidence; scheduling is now implemented in this integration branch.
+See [Reporting and command policy](reporting-command-policy.md) for the active
+rules, command-source audit, restart behavior and remaining hardware checks.
+
+Coordination is **not a proven fix for ACK-without-image fall captures**. The
+failed independent fall waits below did not establish a competing write.
+
 Status on 1 October 2026: observation implemented; scheduling arbitration is
 planned, not active. PR #113 remains draft. This work does not establish a fix
 for the V52's intermittent capture replies without images.

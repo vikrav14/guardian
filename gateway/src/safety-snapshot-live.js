@@ -11,6 +11,7 @@ const { storageFailureDetails, storageRuntimeDetails } = require('./safety-snaps
 const { protocolIdFromFullImei } = require('./imei');
 const { consentAllows, readIncidentAuthorization } = require('./incident-photo-policy');
 const { beginPhotoCommandTimeline, noteDeviceWrite } = require('./photo-command-timeline');
+const { commandCoordinator } = require('./command-coordinator');
 
 const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -58,7 +59,7 @@ function decodePhoto(frame, protocolId) {
 }
 
 function createSnapshotController({ db, bucket, findSessions, runtime, now = () => new Date(), log = console.warn,
-  captureRejectedFrame = null }) {
+  captureRejectedFrame = null, coordinator = commandCoordinator }) {
   const pending = new Map();
   const config = runtime || readSafetySnapshotRuntime();
   const ref = id => db.collection('safetySnapshotAuthorizations').doc(id);
@@ -103,6 +104,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   }
 
   async function finishFailure(id, reason, slot = null) {
+    if (slot) coordinator.finishCapture(slot.imei, id);
     slot?.commandTimeline?.stop(reason === 'image_timeout' ? 'expired' : 'failed', now());
     const changed = await db.runTransaction(async tx => {
       const doc = await tx.get(ref(id));
@@ -179,6 +181,8 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     const slot = { id, ...selected, imei, ownerUid: claimed.auth.serviceOwnerUid, uid,
       expiresAt: claimed.auth.authorizationExpiresAt, startedAt: now(), receiving: false,
       protocolId: selected.session.protocolId, diagnostics: receiveDiagnostics() };
+    const admission = coordinator.beginCapture({ ...slot, expiresAt: slot.expiresAt });
+    if (!admission.ok) { await finishFailure(id, admission.error, slot); return id; }
     pending.set(selected.socket, slot);
     try {
       try { slot.commandTimeline = beginPhotoCommandTimeline(slot); }
@@ -356,6 +360,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       slot.diagnostics.acceptedPhotoFrames++;
       slot.receiving = true;
       slot.commandTimeline?.stop('image_received', now());
+      coordinator.finishCapture(slot.imei, slot.id);
       receive(slot, Buffer.from(frame)).catch(report);
     }
     // Dropped images never generate ACKs or raw logs. Counters are bounded to
@@ -364,6 +369,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   }
 
   function disconnect(socket) {
+    coordinator.disconnect(socket);
     const slot = pending.get(socket);
     slot?.commandTimeline?.stop('disconnected', now());
     pending.delete(socket);

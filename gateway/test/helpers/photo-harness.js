@@ -70,7 +70,8 @@ function setup({ captureRejectedFrame = null } = {}) {
     download: async () => [objects.get(path)],
     delete: async () => { if (bucket.failDelete) throw Error('storage_unavailable'); objects.delete(path); },
   }) };
-  const args = { db, bucket, findSessions: () => matches, runtime: { deviceDispatchAllowed: true, acceptedImeis: [imei] }, now: () => date, log: value => logs.push(value), captureRejectedFrame };
+  const coordinator = require('../../src/command-coordinator').createCommandCoordinator({ now: () => +date });
+  const args = { db, bucket, findSessions: () => matches, runtime: { deviceDispatchAllowed: true, acceptedImeis: [imei] }, now: () => date, log: value => logs.push(value), captureRejectedFrame, coordinator };
   const api = createSnapshotController(args);
   return { api, args, db, bucket, objects, writes, logs, socket, session,
     advance: ms => { date = new Date(date.getTime() + ms); }, matches: value => { matches = value; },

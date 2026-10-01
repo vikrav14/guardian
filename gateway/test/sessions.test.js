@@ -148,3 +148,29 @@ test('one stale-location CR also covers packet recovery without duplicate probin
   assert.equal(handleIdleTimeout(socket).action, 'destroy');
   assert.equal(probes, 1);
 });
+
+test('location recovery is bounded even while heartbeats continue; fresh fix resets allowance', t => {
+  const socket = fakeSocket(); let probes = 0;
+  t.after(() => unregisterSession(socket));
+  registerSession(socket, { imei: '861397052547492', onRecoveryProbe: () => { probes++; return true; } });
+  setDeviceReportingContext('861397052547492', { expectedReportingIntervalSeconds: 60, outingActive: true,
+    outingActiveUntilMs: Date.now() + 900000 });
+  assert.equal(handleLocationStale(socket).action, 'probe');
+  noteSessionPacket(socket);
+  assert.equal(handleLocationStale(socket).action, 'probe_already_sent');
+  noteDeviceLocation('861397052547492');
+  assert.equal(handleLocationStale(socket).action, 'probe');
+  getSession(socket).outingActiveUntilMs = Date.now() - 1;
+  assert.equal(handleLocationStale(socket).action, 'outing_expired');
+  assert.equal(probes, 2);
+});
+
+test('policy reconciliation cannot postpone packet silence or critical-battery location timing', t => {
+  const socket = fakeSocket();
+  t.after(() => unregisterSession(socket));
+  registerSession(socket, { imei: '861397052547492', lastPacketAt: Date.now() - 600000 });
+  setDeviceReportingContext('861397052547492', { expectedReportingIntervalSeconds: 600, outingActive: false });
+  assert(getSession(socket).idleTimer._idleTimeout <= 660000);
+  setDeviceReportingContext('861397052547492', { expectedReportingIntervalSeconds: 300, outingActive: true });
+  assert(getSession(socket).locationTimer._idleTimeout >= 360000);
+});

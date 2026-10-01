@@ -4,6 +4,7 @@ const { EventEmitter } = require('node:events');
 const { findSocketsForDevice } = require('./sessions');
 const { MovementError, movementFrame } = require('./movement-reminder-policy');
 const { noteDeviceWrite } = require('./photo-command-timeline');
+const { commandCoordinator } = require('./command-coordinator');
 
 const replies = new EventEmitter();
 // Observe decoded packets synchronously, before unrelated Firestore work.
@@ -15,7 +16,7 @@ function observeMovementReply(decoded, socket, session) {
 }
 
 function createMovementTransport({ find = findSocketsForDevice, events = replies,
-  timeoutMs = 8000, now = Date.now } = {}) {
+  timeoutMs = 8000, now = Date.now, coordinator = commandCoordinator } = {}) {
   function select(imei) {
     const matches = find(imei);
     if (matches.length !== 1) throw new MovementError(matches.length ? 'multiple_sessions' : 'watch_offline');
@@ -38,6 +39,8 @@ function createMovementTransport({ find = findSocketsForDevice, events = replies
         if (current.socket !== target.socket || current.session !== target.session
             || current.session.protocolId !== protocolId) throw new MovementError('session_changed');
         const frame = movementFrame(protocolId, command);
+        const decision = coordinator.decide(imei, command);
+        if (!decision.ok) throw new MovementError(decision.error);
         return new Promise(resolve => {
           const sentAt = new Date(now()).toISOString();
           let settled = false;

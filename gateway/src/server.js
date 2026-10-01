@@ -54,7 +54,7 @@ const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { startProfileWeather } = require('./profile-weather');
-const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
+const { applyAdaptiveReporting, activateSosOverride, startReportingReconciler } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { createWellbeingStore } = require('./care-wellbeing');
 const { claimSosIncident } = require('./sos-incident-window');
@@ -207,6 +207,14 @@ if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
   const retry = setInterval(() => { void journeyReliability.flush(); }, 30000);
   retry.unref?.();
   void journeyReliability.flush();
+}
+
+if (getDb() && typeof startReportingReconciler === 'function') {
+  startReportingReconciler({ db: getDb(),
+    connected: require('./sessions').listConnectedImeis,
+    context: imei => ({ batteryPercent: getLiveDeviceState(imei).batteryPercent,
+      outingActiveUntilMs: require('./live-cache').journeyReportingUntil(imei) }),
+  });
 }
 
 if (config.wifiHomeDisplayPilotEnabled || config.wifiHomeSetupEnabled) {
@@ -849,6 +857,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             const reporting = await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
               batteryPercent: adaptiveBattery,
               outingActive,
+              outingActiveUntilMs: require('./live-cache').journeyReportingUntil(locEvent.imei),
               trigger: journeyReturned
                 ? 'journey_return'
                 : outingActive
@@ -951,6 +960,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             const reporting = await applyAdaptiveReporting(db, event.imei, {
               batteryPercent: event.batteryPercent,
               outingActive: isJourneyActive(event.imei),
+              outingActiveUntilMs: require('./live-cache').journeyReportingUntil(event.imei),
               trigger: isJourneyActive(event.imei)
                 ? 'journey_heartbeat'
                 : 'heartbeat',
@@ -1026,7 +1036,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         if (alarmType === 'sos') {
           const adaptiveDb = getDb();
           if (adaptiveDb) {
-            await runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
+            void runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
               batteryPercent: alarmEvent.batteryPercent,
               outingActive: isJourneyActive(alarmEvent.imei),
             }));
@@ -1399,7 +1409,7 @@ const server = net.createServer((socket) => {
       observeWifiFencePacket(decoded, events);
 
       for (const ack of acks) {
-
+        require('./command-coordinator').commandCoordinator.decide(session.imei, '', { protocolReply: true });
         noteDeviceWrite(socket, session, ack, 'protocol_ack');
         if (capturedAlarm) wearCapture.writeAlarmAck(socket, ack, capturedAlarm);
         else socket.write(ack);

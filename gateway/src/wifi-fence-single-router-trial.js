@@ -62,6 +62,8 @@ function createSingleRouterTrial({ getConfig, getCapture, findSessions }) {
       throw new Error('verified_writable_session_required');
     }
     const frame = buildAckFrame(session.protocolId, command);
+    const decision = require('./command-coordinator').commandCoordinator.decide(session.imei, command);
+    if (!decision.ok) throw new Error(decision.error);
     // Set before write, without an intervening await. An exception or lost HTTP
     // response cannot make a second request send again in this gateway process.
     attempt = { captureId: recording.captureId, requestedAt: new Date(nowMs).toISOString(),

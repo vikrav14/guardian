@@ -847,6 +847,27 @@ fields and prevent legacy pilot enrollment from returning. Updates clear
 `devices/{imei}.homeWifiPresence` and `lastHomeWifiDetection` in the same transaction.
 See `docs/services/home-wifi-setup.md` for authorization, expiry and acceptance.
 
+### Reporting and command coordination (2 October 2026)
+
+- `devices/{imei}.adaptiveReporting`: desired and handed-off intervals remain
+  distinct. `outingActiveUntil` is a bounded movement-evidence lease;
+  `sosActiveUntil`/`sosCooldownUntil` persist emergency deadlines.
+  `commandStatus`, `deferredReason`, and `deferredUntil` describe a camera
+  deferral without claiming a write. `manualReportingIntervalSeconds` retains
+  current explicit manual intent separately from a temporary SOS interval.
+- `deviceCommands/{id}` can be `deferred` within 120 seconds of `createdAt`.
+  `expiresAt`, `error: camera_busy`, and backend-only `coordinationProcess`
+  describe why it has not been sent. A superseded/expired/revoked request is
+  terminal `failed` with a specific reason. `sending` after a gateway restart
+  is ambiguous and never automatically resent.
+- `deviceCommandIntents/{sha256(settingKey)}` is backend-only (no client rule
+  grants access). It retains `commandId` and `createdAtMs` for the newest
+  authorized setting, including after a prompt stop has completed. It stores
+  no raw command, credential, phone number or camera action. Older deferred
+  settings cannot overwrite it. No new composite index is required.
+- Reporting interval fields are socket-handoff intent, not hardware readback.
+  See `docs/services/reporting-command-policy.md`.
+
 ### Live Safety snapshot path (25 September 2026)
 
 The app now uses authenticated `/api/safety-snapshots` gateway routes. It does
