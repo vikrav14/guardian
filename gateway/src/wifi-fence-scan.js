@@ -16,7 +16,19 @@ function integer(value, min, max) {
   return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
 }
 
-function inspectV52WifiScan(args, { includeNames = false } = {}) {
+function readRadioName(raw, width) {
+  if (width === 2) return { name: '', status: 'not_reported' };
+  if (typeof raw !== 'string' || raw.length === 0) return { name: '', status: 'empty' };
+  if (Buffer.byteLength(raw, 'utf8') > 32) return { name: '', status: 'too_long' };
+  const name = raw.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+  return { name, status: name ? 'available' : 'filtered' };
+}
+
+function emptyNameDiagnostics() {
+  return { available: 0, empty: 0, not_reported: 0, too_long: 0, filtered: 0 };
+}
+
+function inspectV52WifiScan(args, { includeNames = false, includeNameDiagnostics = false } = {}) {
   const unavailable = (status, declaredRadios = null) => ({
     status, layout: null, declaredRadios, accessPoints: null, rejectedRadios: null,
   });
@@ -44,12 +56,14 @@ function inspectV52WifiScan(args, { includeNames = false } = {}) {
   if (count === 0) {
     return validLength(0)
       ? { status: 'decoded', layout: 'empty', declaredRadios: 0,
-        accessPoints: [], rejectedRadios: 0 }
+        accessPoints: [], rejectedRadios: 0,
+        ...(includeNameDiagnostics ? { nameDiagnostics: emptyNameDiagnostics() } : {}) }
       : unavailable('invalid_radio_entries', 0);
   }
   for (const width of [3, 2]) {
     if (!validLength(width)) continue;
     const accessPoints = [];
+    const nameDiagnostics = includeNameDiagnostics ? emptyNameDiagnostics() : null;
     let rejectedRadios = 0;
     let valid = true;
     for (let i = 0; i < count; i++) {
@@ -64,17 +78,18 @@ function inspectV52WifiScan(args, { includeNames = false } = {}) {
         const point = { macAddress, signalStrength };
         // Names are opt-in, for authenticated enrollment only. The ordinary
         // tracking/diagnostic path continues to omit them.
-        if (includeNames) {
-          const name = width === 3 ? tail[i * width] : '';
-          point.name = typeof name === 'string' && Buffer.byteLength(name, 'utf8') <= 32
-            ? name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '').trim() : '';
+        if (includeNames || includeNameDiagnostics) {
+          const result = readRadioName(tail[i * width], width);
+          if (includeNames) point.name = result.name;
+          if (nameDiagnostics) nameDiagnostics[result.status]++;
         }
         accessPoints.push(point);
       }
       else rejectedRadios++; // Null/multicast addresses are never Home evidence.
     }
     if (valid) return { status: 'decoded', layout: width === 3 ? 'named' : 'nameless',
-      declaredRadios: count, accessPoints, rejectedRadios };
+      declaredRadios: count, accessPoints, rejectedRadios,
+      ...(nameDiagnostics ? { nameDiagnostics } : {}) };
   }
   return unavailable('invalid_radio_entries', count);
 }

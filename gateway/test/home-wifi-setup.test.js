@@ -97,7 +97,48 @@ test('duplicate network names remain distinct; missing/invalid scans cannot refr
   assert.deepEqual(f.discovery.open(f.discoveryAccess), before);
   f.clock += 1000;
   f.discovery.observe(event(f.clock), new Date(f.clock), fields([]));
+  assert.deepEqual(f.discovery.open(f.discoveryAccess), before);
+  f.clock = start + 121_000;
   assert.deepEqual(f.discovery.open(f.discoveryAccess), []);
+});
+
+test('two router sightings followed by an empty report preserve selection only until the last sighting expires', async () => {
+  const f = await fixture();
+  // Replay the 1 October field sequence: router at +0/+10s, empty at +21s.
+  f.clock += 10_000;
+  f.discovery.observe(event(f.clock), new Date(f.clock + 1000), fields([['My Home', radio, '-39']]));
+  const seen = f.discovery.open(f.discoveryAccess)[0];
+  assert.equal(seen.id, f.choice.id);
+  f.clock += 11_000;
+  f.discovery.observe(event(f.clock), new Date(f.clock + 1000), fields([]));
+  f.clock += 22_000;
+  assert.deepEqual(f.discovery.open(f.discoveryAccess), [seen]);
+  const saved = await f.store.save(f.access, f.payload, f.discovery);
+  assert.equal(saved.enabled, true);
+  assert.equal(f.data.devices[imei].homeWifiPresence, null);
+  f.clock = start + 130_000;
+  f.discovery.observe(event(f.clock), new Date(f.clock), fields([]));
+  assert.deepEqual(f.discovery.open(f.discoveryAccess), []);
+  await assert.rejects(f.store.save(f.access, { ...f.payload, expectedVersion: saved.version }, f.discovery), /network_expired/);
+});
+
+test('partial scans retain unseen fresh radios without renewing them and discovery remains bounded', async () => {
+  const f = await fixture();
+  f.clock += 1000;
+  f.discovery.observe(event(f.clock), new Date(f.clock), fields([['Other', '02:00:00:00:00:02', '-70']]));
+  const choices = f.discovery.open(f.discoveryAccess);
+  assert.equal(choices.length, 2);
+  assert.deepEqual(choices.find(n => n.id === f.choice.id), f.choice);
+  f.clock = start + 120_000;
+  assert.deepEqual(f.discovery.open(f.discoveryAccess).map(n => n.name), ['Other']);
+  for (let i = 3; i <= 10; i++) {
+    f.clock += 1000;
+    f.discovery.observe(event(f.clock), new Date(f.clock), fields([
+      ['Network ' + i, '02:00:00:00:00:' + i.toString(16).padStart(2, '0'), '-60']]));
+    assert.ok(f.discovery.open(f.discoveryAccess).length <= 5);
+  }
+  assert.deepEqual(f.discovery.open(f.discoveryAccess).map(n => n.name),
+    ['Network 10', 'Network 9', 'Network 8', 'Network 7', 'Network 6']);
 });
 
 test('enrollment stores fingerprints, clears old evidence and uses revisions for replace/remove', async () => {

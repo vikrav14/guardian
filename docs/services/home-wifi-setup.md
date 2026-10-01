@@ -37,8 +37,12 @@ and their source-aware alert evaluation are unchanged.
   Firebase tokens are verified with revocation checking. Owner linkage and Home
   ownership are checked server-side; Family/Care entitlement gates enrollment.
 - Only reports received while an authorized setup screen is open enter the
-  discovery cache. Up to 64 discovery contexts, at most five reported radios per
-  scan. Choices expire after 120 seconds, using source and receipt times.
+  discovery cache. Up to 64 discovery contexts, at most five recent radio choices
+  per context. Choices expire after 120 seconds, using source and receipt times.
+  Empty or partial scans retain unreported choices only until their original
+  expiry; only a new sighting of that radio renews its timestamp. When full,
+  newest sightings take priority, then stronger signals. This list is for setup
+  and is not current Home presence evidence.
   Sessions expire ten minutes after the last authorized read and are swept at
   least every 30 seconds. Names/raw radio addresses stay in that bounded memory.
   The default packet parser and diagnostic path still omit names.
@@ -105,3 +109,29 @@ sending a routing SMS alone is not restoration evidence.
    discovery or stale overwrite should succeed.
 7. Separately test real departure/return and router loss; document observations
    without marking untested timing/battery guarantees as accepted.
+
+## 1 October field follow-up: intermittent scans and missing names
+
+At 11:27–11:34 UTC the watch remained connected. Before one operator-requested
+CR at 11:33:19 UTC, the capture contained heartbeats but no location reports.
+Fresh UD_LTE reports at 11:33:23 and 11:33:33 contained the previously configured
+private Home router at -54 and -39 dBm. A report at 11:33:44 declared zero radios.
+No UPLOAD or WIFIFENCE handoffs were recorded. The 10/11-second gaps were during
+the requested burst, not a normal reporting-baseline measurement.
+
+The setup list previously replaced all choices on each scan, so a zero-radio
+report erased still-fresh choices. Regression coverage now preserves choices
+through empty/partial scans, keeps their real timestamps and rejects enrollment
+at the existing expiry. The Home-presence observer and qualification are unchanged.
+
+A subsequent app screenshot showed an Unnamed network. A `named` scan layout
+means name/MAC/signal triplets; the name may still be empty. Diagnostic capture
+version 2 adds `radioNameDiagnostics` counts: `available`, `empty`, `not_reported`,
+`too_long` (over 32 UTF-8 bytes), and `filtered` (no displayable text after
+sanitizing). It records no SSIDs or full radio identifiers. Use the existing
+`wifi-home:fence -- --start` and `--report` commands after restarting the updated
+gateway. Do not invent a name or assume an unnamed nearby radio is Home.
+
+Actual name-field cause, corrected app selection/save/reopen, and physical
+Home/departure/router-loss acceptance remain pending. Requesting CR is a separate
+operator action; opening or refreshing setup remains passive.

@@ -2,6 +2,15 @@
 
 Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. New-flow physical acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).
 
+Field follow-up at 11:27–11:34 UTC: connected watch sent heartbeats only until one
+operator CR, then two fresh named-layout UD_LTE scans of the existing private
+Home router (-54/-39 dBm), followed by a zero-radio report. This exposed premature
+removal of fresh setup choices; regression fix retains them to their original
+120-second expiry without changing Home presence. A later screenshot shows an
+Unnamed network; actual SSID-field cause is unconfirmed. Redacted name-status
+diagnostics were added for the next capture. No normal ten-minute reporting
+baseline, native fence, save/reopen or Home-presence acceptance is established.
+
 # Guardian V52 real-device acceptance
 
 **Status:** Release gate

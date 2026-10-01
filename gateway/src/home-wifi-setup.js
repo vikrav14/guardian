@@ -8,6 +8,7 @@ const COLLECTION = 'homeWifiEnrollments';
 const SCAN_AGE_MS = 120_000;
 const DISCOVERY_MS = 10 * 60_000;
 const MAX_DISCOVERIES = 64;
+const MAX_CHOICES = 5;
 class HomeWifiError extends Error {
   constructor(code, status = 409) { super(code); this.code = code; this.status = status; }
 }
@@ -52,11 +53,17 @@ function createWifiDiscovery({ now = Date.now, randomId = () => crypto.randomByt
       for (const s of targets) {
         if (sourceMs <= s.lastSource) continue;
         s.lastSource = sourceMs;
-        const previous = s.radios;
-        s.radios = scan.accessPoints.map(r => ({ ...r,
-          id: previous.find(p => p.macAddress === r.macAddress)?.id || randomId(),
-          observedMs: sourceMs, expiresAt: Math.min(sourceMs, receivedMs) + SCAN_AGE_MS,
-        })).sort((a, b) => b.signalStrength - a.signalStrength);
+        // Discovery lists recently seen radios, not current Home presence.
+        // Empty/partial scans cannot erase a still-fresh choice or renew it.
+        const recent = new Map(s.radios.map(r => [r.macAddress, r]));
+        for (const r of scan.accessPoints) {
+          recent.set(r.macAddress, { ...r,
+            id: recent.get(r.macAddress)?.id || randomId(),
+            observedMs: sourceMs, expiresAt: Math.min(sourceMs, receivedMs) + SCAN_AGE_MS,
+          });
+        }
+        s.radios = [...recent.values()].sort((a, b) =>
+          b.observedMs - a.observedMs || b.signalStrength - a.signalStrength).slice(0, MAX_CHOICES);
       }
     },
     select(access, id) {

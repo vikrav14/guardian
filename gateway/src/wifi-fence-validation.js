@@ -120,7 +120,7 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
     // Raw scan extraction stays inside this private capture. Do not attach it to
     // production events, where it could change GPS/Home or SOS/Journey selection.
     // No raw argument, SSID, radio MAC or fingerprint is retained in a snapshot.
-    const scan = args === undefined ? null : inspectV52WifiScan(args);
+    const scan = args === undefined ? null : inspectV52WifiScan(args, { includeNameDiagnostics: true });
     const aps = scan ? scan.accessPoints : event.wifiAccessPoints;
     const validScan = Array.isArray(aps) && aps.length <= POLICY.maxAccessPoints;
     if (validScan) {
@@ -150,6 +150,7 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
       radioScanSource: scan ? 'packet_fields' : 'decoded_event',
       radioScanStatus: scan?.status ?? (validScan ? 'event_only' : 'not_reported'),
       radioScanLayout: scan?.layout ?? null,
+      radioNameDiagnostics: scan?.nameDiagnostics ?? null,
       declaredRadios: scan?.declaredRadios ?? null,
       rejectedRadios: scan?.rejectedRadios ?? null,
       radiosReported: validScan ? aps.length : null, homeRouterSeen, signalDbm,
@@ -187,7 +188,7 @@ function createWifiFenceCapture({ imei, routerHash, hashKey, startedAtMs = Date.
   function snapshot(nowMs = Date.now(), includeTimeline = false) {
     const end = stoppedAtMs ?? Math.min(nowMs, expiresAtMs);
     return {
-      captureId, scanDiagnosticsVersion: 1,
+      captureId, scanDiagnosticsVersion: 2,
       observeOnly: true, homeClaim: false, nativeFenceAccepted: false,
       phase: stoppedAtMs != null ? 'stopped' : nowMs >= expiresAtMs ? 'completed' :
         nowMs < lastAtMs ? 'clock_unconfirmed' : 'recording',
