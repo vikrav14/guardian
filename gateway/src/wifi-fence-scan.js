@@ -16,7 +16,7 @@ function integer(value, min, max) {
   return Number.isSafeInteger(n) && n >= min && n <= max ? n : null;
 }
 
-function inspectV52WifiScan(args) {
+function inspectV52WifiScan(args, { includeNames = false } = {}) {
   const unavailable = (status, declaredRadios = null) => ({
     status, layout: null, declaredRadios, accessPoints: null, rejectedRadios: null,
   });
@@ -60,7 +60,17 @@ function inspectV52WifiScan(args) {
         break;
       }
       const macAddress = normalizeRouterId(rawMac);
-      if (macAddress) accessPoints.push({ macAddress, signalStrength });
+      if (macAddress) {
+        const point = { macAddress, signalStrength };
+        // Names are opt-in, for authenticated enrollment only. The ordinary
+        // tracking/diagnostic path continues to omit them.
+        if (includeNames) {
+          const name = width === 3 ? tail[i * width] : '';
+          point.name = typeof name === 'string' && Buffer.byteLength(name, 'utf8') <= 32
+            ? name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, '').trim() : '';
+        }
+        accessPoints.push(point);
+      }
       else rejectedRadios++; // Null/multicast addresses are never Home evidence.
     }
     if (valid) return { status: 'decoded', layout: width === 3 ? 'named' : 'nameless',

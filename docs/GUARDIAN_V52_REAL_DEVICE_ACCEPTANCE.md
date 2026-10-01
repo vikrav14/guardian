@@ -1,3 +1,7 @@
+## Home Wi-Fi app enrollment — 1 October 2026
+
+Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. New-flow physical acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).
+
 # Guardian V52 real-device acceptance
 
 **Status:** Release gate

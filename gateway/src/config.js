@@ -99,6 +99,7 @@ const config = {
     process.env.META_WHATSAPP_SOS_CALLBACK_PILOT_NUMBER || '',
 
   // Private, read-only router observation. Never enables customer Home presence.
+  wifiHomeSetupEnabled: process.env.WIFI_HOME_SETUP_ENABLED === 'true',
   wifiHomeObserveEnabled:
     String(process.env.WIFI_HOME_OBSERVE_ENABLED || 'false').toLowerCase() === 'true',
   wifiHomePilotImei: process.env.WIFI_HOME_PILOT_IMEI || '',
