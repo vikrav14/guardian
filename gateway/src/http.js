@@ -1,8 +1,10 @@
 const http = require('http');
+const handleSnapshotHttp = require('./safety-snapshot-http').createSnapshotHttpHandler();
 const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
+const { handleWatchCallLink } = require('./watch-call-link-http');
 const { createMovementHandler } = require('./movement-reminder-http');
 const {
   resolveCallerContext,
@@ -912,6 +914,13 @@ async function handleOpsHttpRequest(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/ops/incident-photos') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    sendJson(res, 200, require('./incident-photos-live').getIncidentPhotoRuntimeStatus());
+    return true;
+  }
+
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
@@ -1030,6 +1039,9 @@ function startHttpServer() {
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+      if (await handleSnapshotHttp(req, res, url)) return;
+      if (await handleWatchCallLink(req, res, { db: getDb(), pathname: url.pathname })) return;
 
       if (req.method === 'OPTIONS') {
         sendOptions(res);
@@ -1622,6 +1634,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
     console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
+    console.log('[guardian-http] GET  /ops/incident-photos  (strict admin; read only)');
     console.log('[guardian-http] GET/POST /ops/wifi-fence-validation  (strict admin; observation only)');
   });
 

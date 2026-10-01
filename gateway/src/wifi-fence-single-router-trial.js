@@ -2,6 +2,7 @@
 
 const { buildAckFrame } = require('./protocol/gt06');
 const { normalizeRouterId, fingerprintRouter } = require('./wifi-home-observer');
+const { noteDeviceWrite } = require('./photo-command-timeline');
 
 // Operator-requested experiment: II.35 shows indexed entries but does NOT
 // explicitly document a one-entry list. Keep this out of commands.js and the
@@ -66,6 +67,7 @@ function createSingleRouterTrial({ getConfig, getCapture, findSessions }) {
     attempt = { captureId: recording.captureId, requestedAt: new Date(nowMs).toISOString(),
       phase: 'handoff_unknown', captureRecorded: false };
     try {
+      noteDeviceWrite(socket, session, frame, 'wifi_fence_trial', nowMs);
       socket.write(frame);
       attempt.phase = 'queued'; // OS/socket buffering, not watch acceptance.
     } catch {

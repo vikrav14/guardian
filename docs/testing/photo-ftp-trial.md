@@ -1,0 +1,346 @@
+# Photo FTP receiver and Firebase pilot
+
+Status: Windows readiness and the public FTP probe passed in PR #113 on
+24 September 2026. With Python
+3.13.15, the operator completed all nine local FTP checks and received
+`firebase_read_check_passed` for `guardian-fbadd.firebasestorage.app` with
+`firebaseWrites=0` and `uploadPermissionVerified=false`. No watch FTP
+configuration has been changed. Remote-only capture, public FTP connectivity
+from the watch, and live Firebase import/delete have not passed acceptance.
+
+The first public probe at commit `aea1417` returned `ngrok_http_405` before
+obtaining any FTP probe result. It verified the original endpoint configuration
+afterward (`endpointConfigurationRestored=true`), with zero watch commands or
+Firebase writes. The old result did not identify the failing method. Its first
+mutation was endpoint `PUT`, making update-method compatibility the leading
+explanation, not a camera/FTP-upload finding.
+
+The revised probe leaves both existing TCP endpoints unchanged. It binds a
+temporary local bridge on unused port 9002, forwarding the recorder's existing
+public address to FTP control on 2121. It uses no `PUT` and does not delete or
+recreate a randomly allocated TCP address. Only the WhatsApp endpoint is paused
+and restored, while one temporary FTP data endpoint is created and removed. Failures
+now include `failureStage` and safe `failureRequest` method/endpoint/status
+fields. The startup row says `whatsappWebhookPausePlanned`; it does not claim
+the pause has already happened. An agent that rejects `PUT` is covered by
+unit and real local FTP integration tests. The revised public run passed on the
+operator's laptop at commit `5a4f37f`.
+
+### Observed public probe result — 24 September 2026
+
+The operator updated the isolated tools checkout to `5a4f37f` and ran
+`check-photo-ftp-public.js --run --pause-whatsapp`. Its final result was:
+
+```json
+{
+  "outcome": "public_ftp_probe_passed",
+  "probeResult": {
+    "event": "ftp_probe_passed",
+    "bytesVerified": 1024,
+    "watchCommandsSent": false
+  },
+  "failure": null,
+  "failureStage": null,
+  "failureRequest": null,
+  "restoration": {
+    "outcome": "endpoint_configuration_restored",
+    "endpointConfigurationRestored": true,
+    "publicReachabilityVerified": false,
+    "problems": []
+  },
+  "watchCommandsSent": false,
+  "firebaseWrites": 0
+}
+```
+
+The recovery journal is under the operator's `%TEMP%` directory at
+`guardian-photo-public-QMkUPB/restore-endpoints.json`. No wall-clock execution
+timestamp was provided in the output; the date above is the testing session.
+The 1,024 random bytes traversed the public FTP control/data routes successfully.
+Restoration checked the original endpoint configurations through the ngrok API;
+the `publicReachabilityVerified=false` field concerns restored endpoints and
+does not negate the completed FTP transfer. A fresh restored WhatsApp webhook
+was not demonstrated by this result. Cleanup ended the temporary FTP receiver
+arrangement; no live destination remains for watch provisioning.
+
+This completes the laptop/public transport check. Do not repeat it just to obtain
+a photo: this probe transfers random test data and never sends a camera command.
+The next watch-side prerequisite is an actual saved FTP configuration plus a
+supported restoration procedure (or a supplier-confirmed reset). Sections 37–39
+of the supplied protocol only specify setters, not readback/reset. Confirm that
+`PIC,1`/FTP applies to this V52 firmware as well. Once these are established,
+prepare a fresh timed receiver and run one controlled remote-only photo trial.
+Firebase upload/delete can be checked separately, but cannot prove that a remote
+camera command caused an image.
+
+The supplier's sections 37–39 describe `PIC,1`, `FTPIP` and `FTPPWD`. They are
+a separate candidate from the captured `rcapture` / TCP `img` path. The
+controlled 22:23 MUT `rcapture` test returned a bare reply but no image in the
+supplied window. The decoded 21:39:27 MUT sample was manually taken on the
+watch. Neither result proves `rcapture` needs FTP.
+
+## Where Firebase fits
+
+| Component | Role in this trial |
+| --- | --- |
+| Standalone FTP receiver | Accept a file using the watch's documented transfer protocol, then fully decode and validate it |
+| Firebase Storage | Hold the validated JPEG in a private object |
+| Firestore | Record identity, receipt time, digest, dimensions and import/deletion state |
+| Existing Guardian gateway | Continue normal telemetry; these tools are not imported into startup |
+
+Storage does not turn the watch's FTP protocol into an upload by itself. This
+receiver bridges that transport; the operator import remains a separate step.
+It creates no customer snapshot request and enables no app gallery.
+
+## 1. First run: local readiness only
+
+Run this in PowerShell. It creates a detached tools checkout without switching
+the running gateway's branch. Python 3.10+ with the Windows `py` launcher is
+required. Pinned diagnostic dependencies install in a dedicated environment
+under `%LOCALAPPDATA%\Guardian\photo-ftp-python`.
+
+```powershell
+cd C:\Users\MSI\repos\guardian
+git fetch origin feat/v52-remote-photo
+if ($LASTEXITCODE -ne 0) { throw 'Fetch failed.' }
+$guardianPhotoTools = Join-Path $env:TEMP ('guardian-photo-ftp-tools-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+git worktree add --detach $guardianPhotoTools origin/feat/v52-remote-photo
+if ($LASTEXITCODE -ne 0) { throw 'Tools checkout failed.' }
+& (Join-Path $guardianPhotoTools 'gateway\scripts\prepare-photo-ftp.ps1') `
+    -Mode Check -GuardianGateway 'C:\Users\MSI\repos\guardian\gateway'
+```
+
+Expected results: `ftp_self_test_passed`, the current ngrok endpoint table,
+then `firebase_read_check_passed`. The latter checks linked-user access plus
+bucket metadata/IAM readability; it does **not** prove upload permissions.
+No watch commands, IP SMS, endpoint mutations or Firebase writes occur.
+
+The Firebase check uses `firebase-admin` and `dotenv` already installed in the
+running gateway and its `.env`. It requires `FIREBASE_PROJECT_ID` and
+`GOOGLE_APPLICATION_CREDENTIALS` for a matching service account. It defaults
+to `<project>.firebasestorage.app`; the Node tool also accepts the project's
+legacy `<project>.appspot.com` bucket explicitly. Never paste the service-account
+file or FTP session credentials into logs or PR comments.
+
+If more than one user is linked to the watch, re-run the same check with
+`-UserId` set to the intended linked Firebase user UID. Do not select an
+arbitrary matching account. A failed cloud check does not invalidate a passed
+local FTP transfer test, and should not be fixed by making the bucket public.
+
+## 2. Public receiver readiness
+
+FTP needs separate command and passive-data connections:
+
+| Public TCP endpoint | Local upstream |
+| --- | --- |
+| FTP control | `127.0.0.1:2121` |
+| FTP passive data | `127.0.0.1:2122` |
+
+The last supplied account session allowed three endpoints. Guardian TCP plus
+WhatsApp HTTPS leaves only one spare slot. Keeping Guardian while running both
+FTP connections requires using the recorder slot for control and temporarily
+pausing the WhatsApp endpoint to free the data slot, or using a different
+host/plan. The original readiness/Serve tools never change endpoints. The short
+probe below reuses the recorder through a local bridge; its ngrok upstream
+remains `127.0.0.1:9002` throughout.
+
+### Short public probe with endpoint restoration
+
+`check-photo-ftp-public.js` transfers 1,024 random test bytes, then attempts to
+restore the original endpoint configuration. It leaves both TCP endpoints alone,
+temporarily forwards local port 9002 to FTP control on 2121, pauses the WhatsApp
+HTTPS endpoint and creates one passive-data endpoint. Incoming WhatsApp
+messages/delivery webhooks cannot reach the gateway during this interval;
+watch telemetry stays on the existing Guardian route. Do not combine this
+probe with a WhatsApp acceptance test. No watch routing SMS or FTP settings
+are involved and no image is imported to Firebase.
+
+Default invocation is a read-only preview:
+
+```powershell
+node (Join-Path $guardianPhotoTools 'gateway\scripts\check-photo-ftp-public.js')
+```
+
+To perform the temporary test, explicitly run:
+
+```powershell
+node (Join-Path $guardianPhotoTools 'gateway\scripts\check-photo-ftp-public.js') `
+    --run --pause-whatsapp
+```
+
+Expected output: `public_ftp_probe_passed`, `bytesVerified: 1024`, and
+`endpointConfigurationRestored: true`. This proves upload connectivity from
+the laptop through the public endpoints, not from the watch. Endpoint
+restoration means the local ngrok API reports the original configurations;
+it is not proof of a new inbound WhatsApp webhook. Cleanup removes the temporary
+data endpoint and local bridge and restores WhatsApp. It verifies all three
+original endpoint configurations. The temporary FTP arrangement no longer
+exists afterward, so do not use it to provision the watch.
+
+The tool checks the exact three-endpoint layout and refuses active recorder
+connections or nontrivial endpoint policies. Local port 9002 must be unused;
+`recorder_port_in_use_stop_old_recorder` means stop the old recorder in its own
+window before retrying. This failure occurs before endpoint changes, and the
+tool never kills another process. It bounds child processes and
+API calls, handles Ctrl+C with restoration, and writes `restore-endpoints.json`
+before the first change. API response loss after mutation is handled by
+inspecting current endpoints during recovery. It preserves unexpected external
+configuration changes and reports an incomplete restoration instead of
+overwriting them. A killed process, laptop sleep or agent outage can still
+interrupt cleanup. After the agent is online again, use the printed journal:
+
+```powershell
+node (Join-Path $guardianPhotoTools 'gateway\scripts\check-photo-ftp-public.js') `
+    --restore-journal 'PASTE_THE_PRINTED_ABSOLUTE_RESTORE_JOURNAL_PATH'
+```
+
+Do not rerun a failed trial blindly. Preserve its output/journal and check
+the recovery result. The local receiver's session file remains private and
+contains only temporary FTP credentials; this public probe sends no photo.
+Version-one journals from the earlier probe remain supported. If their recorder
+configuration actually changed, legacy recovery uses delete/create operations
+and reports an incomplete restoration if the original address cannot be reclaimed.
+New version-two runs do not need to recreate either TCP endpoint.
+ngrok operations follow the documented local
+[Agent API](https://ngrok.com/docs/gateway/agent/api).
+
+### Longer receiver session for an eventual watch trial
+
+Read actual endpoint URLs for every run. Both FTP endpoints must be reachable;
+control-port reachability alone is insufficient. The server binds locally and
+advertises the translated public passive port. PASV uses the resolved IPv4 of
+the data hostname. EPSV is allowed only when both public hostnames match;
+watch support for these modes is still unknown.
+
+With two prepared endpoints, set `$guardianFtpControlUrl` and
+`$guardianFtpDataUrl` to their actual `tcp://host:port` values, then run:
+
+```powershell
+& (Join-Path $guardianPhotoTools 'gateway\scripts\prepare-photo-ftp.ps1') `
+    -Mode Serve -ControlUrl $guardianFtpControlUrl -DataUrl $guardianFtpDataUrl
+```
+
+The server prints `PRIVATE SESSION FILE` and `ftp_listening`. Leave that
+window running. In another window, set `$guardianPhotoSession` to that printed
+absolute path and run the probe with the same tools path and control URL:
+
+```powershell
+& (Join-Path $guardianPhotoTools 'gateway\scripts\prepare-photo-ftp.ps1') `
+    -Mode Probe -SessionFile $guardianPhotoSession -ControlUrl $guardianFtpControlUrl
+```
+
+`ftp_probe_passed` proves a random 1,024-byte transfer through both public
+connections to this local receiver. It does not prove watch reachability. The
+probe removes its own file and sends no command to the watch.
+
+## 3. Watch trial prerequisites
+
+Use one operator-authorized tabletop capture. Before changing saved FTP
+settings, establish the actual previous FTP destination/login and a supported
+way to restore them. The supplied excerpt has no readback/reset command; do
+not invent one or reuse its example IP, username or password. Returning the
+watch's ordinary `ip,...#` route does not restore FTP settings.
+
+Only after receiver readiness and restoration are resolved should an explicit
+trial configure the real receiver with `FTPIP` / `FTPPWD`, then request the
+documented `PIC,1`. These tools deliberately contain no sender. Preserve the
+documented `CS` versus `SG` framing distinction; the manual's `FTPPWD` request
+and `FTPSWD` reply spelling discrepancy is unresolved. A command acknowledgement
+or filename reply is not an actual photo.
+
+The receiver uses a new random, write-only FTP account for each run, accepts
+only the selected IMEI/protocol-ID timestamp filenames, refuses overwrites,
+and stops after 15 minutes. It accepts at most four validated JPEGs, 12 store
+attempts, 512 KiB per file and 1,024 pixels per dimension. Plain FTP is an
+unencrypted diagnostic transport: these short-lived credentials are never
+Firebase credentials. Filenames/account access are not cryptographic proof
+of watch identity or of a particular request causing the image.
+
+Wait for `ftp_photo_validated` and its `receiptFile`. FTP transfer completion
+can be sent before application validation, so FTP `226` alone is insufficient.
+Invalid or incomplete images are removed. Normal events contain no photo
+bytes or credentials. The local directory contains sensitive photos and
+`session.json`; keep it within the user's private profile. Windows ACLs are
+inherited from that profile; POSIX mode bits are not a Windows ACL guarantee.
+
+Stopping/expiry neither restores watch settings nor changes ngrok. A restart
+uses a fresh session directory; do not delete a prior capture to reuse it.
+
+## 4. Private Firebase import and cleanup
+
+Use the `receiptFile` from the validated transfer as `$guardianPhotoReceipt`.
+Keep `$guardianPhotoUid` set to the intended linked user UID. First preview:
+
+```powershell
+$guardianPhotoPython = Join-Path $env:LOCALAPPDATA 'Guardian\photo-ftp-python\Scripts\python.exe'
+$guardianPhotoImporter = Join-Path $guardianPhotoTools 'gateway\scripts\photo-trial-firebase.js'
+node $guardianPhotoImporter --action import `
+    --project-dir 'C:\Users\MSI\repos\guardian\gateway' `
+    --receipt $guardianPhotoReceipt --python $guardianPhotoPython `
+    --uid $guardianPhotoUid --consent
+```
+
+This fully decodes the JPEG again and checks its digest against the receipt.
+Adding `--write` to the same command explicitly imports it. `--consent` records
+operator confirmation for this test photo; it is not a customer authorization
+or an override of the production safety-snapshot policy.
+
+Successful import returns `photo_stored` and `importId`. The object lives at
+`privatePhotoTrials/{imei}/{importId}.jpg`; metadata lives in
+`photoTrialImports/{importId}`. Existing unmatched-path rules deny customer
+access. Admin SDK access is privileged, so the tool verifies linkage and
+checks bucket-level public IAM bindings, uses a private object ACL when
+applicable, creates no download token/URL, and refuses object overwrites.
+Inherited project IAM still applies; this is not a full project IAM audit.
+
+The record always says `remoteCaptureVerified=false`,
+`requestCorrelationVerified=false`, `customerVisible=false`, and
+`automaticExpiry=false`. Production retention/viewing gates remain pending.
+This diagnostic needs explicit cleanup; it does not implement the production
+policy model's 24-hour expiry.
+
+Set `$guardianPhotoImportId` to the returned ID. Preview deletion, then repeat
+with `--write`:
+
+```powershell
+node $guardianPhotoImporter --action delete `
+    --project-dir 'C:\Users\MSI\repos\guardian\gateway' `
+    --uid $guardianPhotoUid --import-id $guardianPhotoImportId
+```
+
+Deletion verifies stored object identity and uses a generation precondition.
+It removes the live object and retains an audit record marked `deleted`.
+Bucket soft-delete/versioning policies can retain provider-managed copies;
+this is not a guaranteed immediate hard purge. The local JPEG, receipt and
+session directory require separate operator cleanup after evidence is kept.
+If an import reports `cleanup_required`, inspect that record and use the
+same deletion tool; do not claim the upload was rolled back.
+
+## Verification at this checkpoint
+
+56 focused Node tests passed: 33 existing recorder/decoder tests, eight
+Firebase-adapter tests, twelve endpoint-lifecycle tests, and three explicit
+Python-backed acceptance tests. The public-check CLI also ran end to end
+against a local fake ngrok API that rejects PUT and duplicate creates, with
+real FTP control/data proxies and verified restoration. Recovery coverage
+includes a response lost after pausing WhatsApp or creating the data endpoint,
+cancellation after the pause, concurrent recorder edits, occupied port 9002,
+legacy journal recovery and preservation of both existing TCP endpoints.
+Actual public execution returned 405 in the earlier version; the revised
+local-bridge flow passed on the operator's laptop at `5a4f37f` with all
+1,024 bytes verified and the original endpoint configurations restored.
+Real local transfers run through distinct TCP control/data proxies; the
+Firebase adapter uses fakes, not the live project. Full JPEG decoding and
+tampered-receipt rejection were executed. Ordinary `npm test` does not need
+Python; the explicit check is `gateway/acceptance/photo-ftp.check.cjs` with
+`GUARDIAN_PHOTO_PYTHON` configured. The original PowerShell readiness workflow
+and Firebase read-only check now passed on the operator's Windows laptop.
+Public ngrok forwarding from the laptop is now verified. Live Firebase
+writes/deletion, watch FTP compatibility and remote capture remain to be tested.
+No full release CI or customer-readiness
+claim is made.
+
+References: [Firebase Admin Storage](https://firebase.google.com/docs/storage/admin/start),
+[pyftpdlib API](https://pyftpdlib.readthedocs.io/en/latest/api.html), and the
+supplied V52 protocol sections 37–39. See also
+[the TCP photo evidence](photo-reference-capture.md).

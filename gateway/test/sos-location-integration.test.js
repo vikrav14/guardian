@@ -61,6 +61,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './fleet-hemisphere': { correctFleetHemisphere: event => event },
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
+    './safety-snapshot-live': { startSnapshotController: () => null, isPhotoFrame: () => false },
     './ops-metrics': { incrementEvent: noop },
     './live-cache': {
       getLiveDeviceState: () => ({}), updateLiveState: noop,

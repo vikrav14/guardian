@@ -1,0 +1,4 @@
+pyftpdlib==2.2.0
+pyasyncore==1.0.5
+pyasynchat==1.0.5
+Pillow==12.3.0
