@@ -94,12 +94,15 @@ Widget screen(FakeWifiClient client, {double scale = 1}) => MaterialApp(
 final save = find.widgetWithText(FilledButton, 'Save Home Wi-Fi');
 Future<void> selectAndConfirm(WidgetTester tester) async {
   await tester.ensureVisible(find.byKey(const ValueKey('one')));
+  await tester.pumpAndSettle();
   await tester.tap(find.byKey(const ValueKey('one')));
   await tester.pump();
   await tester.ensureVisible(find.byType(CheckboxListTile));
+  await tester.pumpAndSettle();
   await tester.tap(find.byType(CheckboxListTile));
   await tester.pump();
   await tester.ensureVisible(save);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -184,6 +187,7 @@ void main() {
       await tester.pump(const Duration(seconds: 30));
       expect(client.writes, 1);
       await tester.ensureVisible(find.byTooltip('Refresh list'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Refresh list'));
       await tester.pumpAndSettle();
       expect(client.writes, 1);
@@ -197,6 +201,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('one')), findsNothing);
     await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(save).onPressed, isNull);
     await tester.pumpWidget(const SizedBox());
     client.failRead = true;
@@ -218,6 +223,7 @@ void main() {
       await tester.pumpWidget(screen(client));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Remove saved network'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove saved network'));
       await tester.pumpAndSettle();
       expect(client.removals, 0);
@@ -238,6 +244,7 @@ void main() {
       await tester.pumpWidget(screen(FakeWifiClient(), scale: 1.5));
       await tester.pumpAndSettle();
       await selectAndConfirm(tester);
+      expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
