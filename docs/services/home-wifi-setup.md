@@ -1,7 +1,9 @@
 # Guardian Home Wi-Fi setup
 
 Implementation checkpoint: 1 October 2026. Own-app enrollment is implemented;
-live acceptance of this new flow is pending. Existing private Home detection
+initial Android discovery, matching and save were physically observed on
+1 October (see the field result below). Remaining acceptance is pending.
+Existing private Home detection
 results remain valid within their recorded limits. This does not accept native
 Wi-Fi fence provisioning, continuous Home detection, departure alerts or a new
 reporting interval. The photo coordination investigation remains separate.
@@ -223,4 +225,35 @@ the app. Retain any other normal app launch variables.
 4. Confirm Home pin, save once, reopen on Android and Web, restart the gateway,
    replace and remove. Check saved names and existing evidence expiry semantics.
 5. Record phone model/Android version and redacted outcomes here and in the
-   real-device ledger. All physical Android + V52 acceptance remains pending.
+   real-device ledger. The initial scan/match/save result below is observed;
+   the remaining physical checklist is still pending.
+
+### Physical Android discovery and save — 1 October, 19:53 UTC / 23:53 MUT
+
+On a Samsung SM-S918B running Android 16 (API 36), the operator installed and
+opened the native debug app. Native Maps rendering was confirmed at 19:43 UTC
+after configuring the standard Maps SDK for Android and its Android API key.
+The Home setup screenshots independently show the saved Home map rendering.
+
+- The initial screenshot showed one named 2.4 GHz network found by the phone,
+  zero matching watch candidates, and a disabled phone-only row and Save.
+- The later screenshot reports one phone network and one matching watch network.
+  The watch candidate is labelled "Name from phone", at -46 dBm, with an
+  observation time displayed as 1 October 23:51 MUT.
+- The operator reports that the match appeared while waiting, without running
+  the proposed additional manual CR request. No capture was supplied for this
+  step, so it is not evidence of the gateway's complete command history or a
+  measured normal reporting cadence.
+- The operator selected and saved the network. The screenshot shows the saved
+  name, "Home Wi-Fi saved. Waiting for fresh watch reports", and the removal
+  control. This is positive physical evidence for initial discovery, match,
+  selection and save on one phone/watch combination.
+
+SSID, radio suffix, Home coordinates and client keys are omitted from this
+public-facing record. The saved screen still says it is waiting for fresh watch
+reports: enrollment is observed, current Home presence is not yet accepted.
+Reopen on Android/Web, gateway restart, replacement/removal, adverse permission
+and scan cases, and Home/departure/router-loss tests remain pending. Existing
+qualification (three strong reports spanning at least 20 seconds, gaps no more
+than 60 seconds, expiry after 120 seconds) is unchanged; this save does not prove
+continuous Home detection with the previously reported 300-second upload setting.

@@ -66,7 +66,8 @@ SMS commands into production. Never change APN or IMEI from an example value.
   It does not populate legacy SSID matching or provision native watch fences.
   Native Android setup can add names using `wifi_scan` and exact fresh-watch
   radio matching. Web cannot scan phone radios. See `docs/services/home-wifi-setup.md`;
-  new-flow Android/watch device acceptance is pending.
+  initial Android discovery, watch matching and save were physically observed on
+  1 October. Reopen/restart, adverse cases and Home detection acceptance remain pending.
 - Family invites are one-directional: the acceptor links to the inviter's
   device(s), but the inviter's own `familyMembers` list is never updated with
   the acceptor. Known bug, not yet fixed (issue #62).
