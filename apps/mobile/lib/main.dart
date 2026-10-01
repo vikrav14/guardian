@@ -212,7 +212,7 @@ class _FirebaseSetupPage extends StatelessWidget {
                 Text('Guardian', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 12),
                 const Text(
-                  'Firebase Web app config is still missing. See docs/FLUTTER_SETUP.md.',
+                  'This Guardian build has not been configured yet. Please install a configured build.',
                   style: TextStyle(color: GuardianColors.textSecondary),
                 ),
               ],

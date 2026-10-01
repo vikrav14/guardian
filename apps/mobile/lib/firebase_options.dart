@@ -33,13 +33,21 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCTfWyOO0OwIQKjm7nqs0czTz37lDlUT2A',
-    appId: '1:813482800288:web:cc6d6dd3d1ec6d6cc205c5',
+    // Use the registered mu.guardian.guardian Android app, not the Web app ID.
+    // Supply client configuration via --dart-define-from-file; see setup docs.
+    apiKey: String.fromEnvironment('FIREBASE_ANDROID_API_KEY'),
+    appId: String.fromEnvironment('FIREBASE_ANDROID_APP_ID'),
     messagingSenderId: '813482800288',
     projectId: 'guardian-fbadd',
     storageBucket: 'guardian-fbadd.firebasestorage.app',
   );
 
-  static bool get isConfigured =>
-      !web.apiKey.startsWith('REPLACE_') && !web.appId.startsWith('REPLACE_');
+  static bool get isConfigured {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return android.apiKey.isNotEmpty &&
+          android.appId.startsWith('1:813482800288:android:');
+    }
+    return !web.apiKey.startsWith('REPLACE_') &&
+        !web.appId.startsWith('REPLACE_');
+  }
 }

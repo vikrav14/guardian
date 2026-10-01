@@ -87,7 +87,7 @@ class AndroidPhoneWifiScanner implements PhoneWifiScanner {
       // Ensure a late platform error cannot become an unhandled async error
       // while startScan is still in flight.
       unawaited(
-        completed.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
+        completed.then<void>((_) {}, onError: (Object _, StackTrace _) {}),
       );
       _subscription = plugin.onScannedResultsAvailable.listen(
         (points) {

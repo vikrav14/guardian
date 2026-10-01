@@ -191,7 +191,10 @@ release. Local Flutter bootstrap was blocked by automatic approval review after
 an attempted cloud metadata request; Flutter analysis/tests/build validation is
 run in GitHub Actions. A successful compile does not accept real phone scanning.
 
-For a USB-connected Android test phone (USB debugging enabled):
+First complete the native Firebase app configuration in `docs/FLUTTER_SETUP.md`
+and create the ignored `android-config.json`. The old Android options used a
+Web app ID; a native Android ID/API key must come from the existing Firebase
+project. For a USB-connected Android test phone (USB debugging enabled):
 
 ```powershell
 Set-Location C:\Users\MSI\repos\guardian\apps\mobile
@@ -200,11 +203,11 @@ flutter devices
 # Existing Android SDK and Maps key setup: docs/FLUTTER_SETUP.md.
 # With gateway HTTP port 9001 running on this PC, forward it over USB:
 adb -s ANDROID_DEVICE_ID reverse tcp:9001 tcp:9001
-flutter run -d ANDROID_DEVICE_ID --dart-define=GUARDIAN_GATEWAY_URL=http://127.0.0.1:9001
+flutter run -d ANDROID_DEVICE_ID --dart-define-from-file=android-config.json
 ```
 
-Alternatively use the existing reachable **HTTPS** gateway URL in the Dart
-variable. A phone cannot reach the PC through its own localhost without USB
+Alternatively use the existing reachable **HTTPS** gateway URL in
+`android-config.json`. A phone cannot reach the PC through its own localhost without USB
 port forwarding. Do not embed an admin key or private Firebase credentials in
 the app. Retain any other normal app launch variables.
 
