@@ -805,8 +805,8 @@ not a client-accessible Firestore collection.
 Gateway-only Home Wi-Fi configuration. All direct client reads/writes are denied;
 use the owner-authenticated `/app/home-wifi` endpoint. Fields: `version` (monotonic
 integer), `enabled`, `ownerUid`, `updatedAt` (ISO UTC). Enabled records also hold
-`geofenceId`, `homeKey` (digest of verified Home binding), selected display `name`,
-`routerHash` (watch-scoped HMAC-SHA256), and a random private `hashKey`. No raw MAC,
+`geofenceId`, `homeKey` (digest of verified Home binding), selected display `name` (from the watch or an authenticated Android scan
+matched to the exact fresh watch radio), `routerHash` (watch-scoped HMAC-SHA256), and a random private `hashKey`. No raw MAC,
 password or network scan history is persisted. Disabled tombstones omit those
 fields and prevent legacy pilot enrollment from returning. Updates clear
 `devices/{imei}.homeWifiPresence` and `lastHomeWifiDetection` in the same transaction.

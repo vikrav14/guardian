@@ -1,8 +1,8 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { inspectV52WifiScan } = require('./wifi-fence-scan');
-const { fingerprintRouter } = require('./wifi-home-observer');
+const { inspectV52WifiScan, readRadioName } = require('./wifi-fence-scan');
+const { fingerprintRouter, normalizeRouterId } = require('./wifi-home-observer');
 const { loadHomeWifiBinding } = require('./wifi-home-display');
 const COLLECTION = 'homeWifiEnrollments';
 const SCAN_AGE_MS = 120_000;
@@ -35,7 +35,8 @@ function createWifiDiscovery({ now = Date.now, randomId = () => crypto.randomByt
       }
       const s = sessions.get(key);
       s.expiresAt = now() + DISCOVERY_MS;
-      return s.radios.map(r => ({ id: r.id, name: r.name || 'Unnamed network',
+      return s.radios.map(r => ({ id: r.id, name: r.name || r.phoneName || 'Unnamed network',
+        nameSource: r.name ? 'watch' : r.phoneName ? 'phone' : null,
         radioHint: r.macAddress.slice(-5).toUpperCase(), signalDbm: r.signalStrength,
         observedAt: new Date(r.observedMs).toISOString(), expiresAt: new Date(r.expiresAt).toISOString() }));
     },
@@ -57,7 +58,7 @@ function createWifiDiscovery({ now = Date.now, randomId = () => crypto.randomByt
         // Empty/partial scans cannot erase a still-fresh choice or renew it.
         const recent = new Map(s.radios.map(r => [r.macAddress, r]));
         for (const r of scan.accessPoints) {
-          recent.set(r.macAddress, { ...r,
+          recent.set(r.macAddress, { ...r, phoneName: recent.get(r.macAddress)?.phoneName,
             id: recent.get(r.macAddress)?.id || randomId(),
             observedMs: sourceMs, expiresAt: Math.min(sourceMs, receivedMs) + SCAN_AGE_MS,
           });
@@ -70,7 +71,37 @@ function createWifiDiscovery({ now = Date.now, randomId = () => crypto.randomByt
       prune();
       const r = sessions.get(keyFor(access))?.radios.find(r => r.id === id);
       if (!r) throw new HomeWifiError('network_expired');
-      return { ...r };
+      return { ...r, name: r.name || r.phoneName || '' };
+    },
+    matchPhoneNetworks(access, networks) {
+      // Phone input supplies labels only. It cannot create a watch candidate,
+      // refresh its evidence, change its token, or qualify Home presence.
+      if (!Array.isArray(networks) || networks.length > 32) throw new HomeWifiError('invalid_phone_scan', 400);
+      const seen = new Set();
+      const validated = networks.map(point => {
+        if (!point || Object.keys(point).sort().join(',') !== 'bssid,frequency,ssid') {
+          throw new HomeWifiError('invalid_phone_scan', 400);
+        }
+        const macAddress = normalizeRouterId(point.bssid);
+        const name = readRadioName(point.ssid, 3);
+        if (!macAddress || seen.has(macAddress) || name.status !== 'available' ||
+            !Number.isInteger(point.frequency) || point.frequency < 2400 || point.frequency > 2500) {
+          throw new HomeWifiError('invalid_phone_scan', 400);
+        }
+        seen.add(macAddress);
+        return { macAddress, name: name.name };
+      });
+      prune();
+      const radios = sessions.get(keyFor(access))?.radios || [];
+      const matchedIndexes = [];
+      validated.forEach((point, index) => {
+        const radio = radios.find(r => r.macAddress === point.macAddress);
+        if (radio) {
+          radio.phoneName = point.name;
+          matchedIndexes.push(index);
+        }
+      });
+      return matchedIndexes;
     },
     sweep: prune,
     close() { sessions.clear(); },

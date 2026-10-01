@@ -7,9 +7,17 @@ operator CR, then two fresh named-layout UD_LTE scans of the existing private
 Home router (-54/-39 dBm), followed by a zero-radio report. This exposed premature
 removal of fresh setup choices; regression fix retains them to their original
 120-second expiry without changing Home presence. A later screenshot shows an
-Unnamed network; actual SSID-field cause is unconfirmed. Redacted name-status
-diagnostics were added for the next capture. No normal ten-minute reporting
+Unnamed network. At 11:49:38 and 11:49:46 UTC, version-2 diagnostics confirmed
+two radios per fresh report with empty names (available 0, empty 2, all rejection
+counts 0). The Home router was present at -39/-38 dBm. No normal ten-minute reporting
 baseline, native fence, save/reopen or Home-presence acceptance is established.
+
+Android follow-up: `wifi_scan` 0.5.0 supplies nearby 2.4 GHz names through an
+explicit foreground scan. An owner-scoped endpoint matches exact identifiers to
+fresh watch candidates; phone-only networks cannot be saved. No new watch
+commands or Home evidence. Automated matching/security and native-channel
+regressions are added; Android permission, real name matching, save/reopen and
+phone/watch acceptance remain pending. See the runbook's Android checklist.
 
 # Guardian V52 real-device acceptance
 

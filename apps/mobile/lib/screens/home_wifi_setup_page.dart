@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/geofence.dart';
 import '../services/home_wifi_service.dart';
+import '../services/phone_wifi_scanner.dart';
 import '../theme/app_theme.dart';
 import '../widgets/safe_zones/safe_zone_map.dart';
 
@@ -23,16 +24,33 @@ String homeWifiMessage(String code) => switch (code) {
   _ => 'Home Wi-Fi setup is unavailable. Check your connection and refresh.',
 };
 
+String phoneWifiMessage(String code) => switch (code) {
+  'noLocationPermissionRequired' || 'noLocationPermissionDenied' =>
+    'Allow location access for Guardian in Android Settings, then scan again. Android requires it to find Wi-Fi names.',
+  'noLocationPermissionUpgradeAccuracy' =>
+    'Allow precise location for Guardian in Android Settings, then scan again.',
+  'noLocationServiceDisabled' =>
+    'Turn on Location in your phone settings, then scan again.',
+  'scan_rejected' || 'busy' =>
+    'Android could not start a scan. Check that Wi-Fi is on and wait a moment before trying again.',
+  'timeout' =>
+    'The scan did not finish. Check Wi-Fi, Location and Guardian permissions, then try again.',
+  _ =>
+    'Wi-Fi scanning is unavailable. Check your phone settings and try again.',
+};
+
 class HomeWifiSetupPage extends StatefulWidget {
   const HomeWifiSetupPage({
     super.key,
     required this.zone,
     this.client,
     this.mapBuilder,
+    this.scanner,
   });
   final Geofence zone;
   final HomeWifiClient? client;
   final Widget Function(Geofence)? mapBuilder;
+  final PhoneWifiScanner? scanner;
   @override
   State<HomeWifiSetupPage> createState() => _HomeWifiSetupPageState();
 }
@@ -40,6 +58,11 @@ class HomeWifiSetupPage extends StatefulWidget {
 class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
     with WidgetsBindingObserver {
   late final HomeWifiClient _client;
+  late final PhoneWifiScanner _scanner;
+  List<PhoneWifiNetwork> _phoneNetworks = const [];
+  DateTime? _phoneScanExpires;
+  String? _phoneNotice;
+  bool _scanning = false;
   final ScrollController _scroll = ScrollController();
   Timer? _timer;
   HomeWifiState? _state;
@@ -58,13 +81,19 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
   void initState() {
     super.initState();
     _client = widget.client ?? HomeWifiService();
+    _scanner = widget.scanner ?? AndroidPhoneWifiScanner();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_foreground || !mounted) return;
-      setState(
-        () => _ticks++,
-      ); // Expired network choices disable without another HTTP response.
+      setState(() {
+        _ticks++;
+        if (_phoneScanExpires != null && !_phoneFresh) {
+          _phoneNetworks = const [];
+          _phoneScanExpires = null;
+          _phoneNotice = 'Phone scan expired. Scan again to find nearby names.';
+        }
+      }); // Expired network choices disable without another HTTP response.
       if (_ticks % 10 == 0 &&
           DateTime.now().isBefore(_pollUntil) &&
           !_needsRefresh) {
@@ -85,28 +114,52 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
     _timer?.cancel();
     _scroll.dispose();
     if (widget.client == null) _client.close();
+    if (widget.scanner == null) _scanner.close();
     super.dispose();
   }
 
   Future<void> _load({bool manual = false}) async {
-    if (_loading || _saving) return;
+    if (_loading || _saving || _scanning) return;
     if (manual) _pollUntil = DateTime.now().add(const Duration(minutes: 10));
     setState(() => _loading = true);
     try {
-      final state = await _client.load(widget.zone.imei, widget.zone.id);
+      final state = await _client.load(
+        widget.zone.imei,
+        widget.zone.id,
+        phoneNetworks: _phoneFresh && _state?.homeKey != null
+            ? _phoneNetworks
+            : const [],
+        homeKey: _state?.homeKey,
+      );
       if (!mounted) return;
       setState(() {
         if (_state?.homeKey != state.homeKey ||
             _state?.version != state.version) {
           _selected = null;
           _confirmed = false;
+          if (_state != null) {
+            _phoneNetworks = const [];
+            _phoneScanExpires = null;
+          }
         }
+        final before = _state?.networks
+            .where((n) => n.id == _selected)
+            .firstOrNull;
+        final after = state.networks
+            .where((n) => n.id == _selected)
+            .firstOrNull;
+        if (before?.name != after?.name) _confirmed = false;
         if (!state.networks.any(
           (n) => n.id == _selected && n.fresh(DateTime.now()),
         )) {
           _selected = null;
         }
         _state = state;
+        if (_phoneFresh && _phoneNetworks.isNotEmpty) {
+          _phoneNotice =
+              '${_phoneNetworks.length} named 2.4 GHz networks found by your phone. '
+              '${state.phoneMatches.length} also reported by the watch.';
+        }
         _error = null;
         _needsRefresh = false;
       });
@@ -117,6 +170,8 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
             error is HomeWifiException ? error.code : 'setup_unavailable',
           );
           _needsRefresh = true;
+          _phoneNetworks = const [];
+          _phoneScanExpires = null;
         });
       }
     } finally {
@@ -124,9 +179,53 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
     }
   }
 
+  bool get _phoneFresh => _phoneScanExpires?.isAfter(DateTime.now()) == true;
+
+  Future<void> _scanPhone() async {
+    if (_scanning ||
+        _loading ||
+        _saving ||
+        _needsRefresh ||
+        _state?.homeKey == null) {
+      return;
+    }
+    setState(() {
+      _scanning = true;
+      _phoneNotice = null;
+      _phoneNetworks = const [];
+      _phoneScanExpires = null;
+      _selected = null;
+      _confirmed = false;
+    });
+    try {
+      final networks = await _scanner.scan();
+      if (!mounted) return;
+      setState(() {
+        _phoneNetworks = networks;
+        _phoneScanExpires = DateTime.now().add(const Duration(minutes: 2));
+        _phoneNotice = networks.isEmpty
+            ? 'No named 2.4 GHz networks found. Keep your phone near the home router and try again.'
+            : 'Found ${networks.length} named 2.4 GHz networks. Checking which ones the watch has reported.';
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _phoneNotice = phoneWifiMessage(
+            error is PhoneWifiScanException ? error.code : 'unavailable',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+    if (mounted) await _load(manual: true);
+  }
+
   Future<void> _save({bool remove = false}) async {
     final state = _state;
-    if (_saving || _loading || _needsRefresh || state == null) return;
+    if (_saving || _loading || _scanning || _needsRefresh || state == null) {
+      return;
+    }
     if (!remove &&
         (!_confirmed ||
             !state.networks.any(
@@ -217,6 +316,7 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
     final canSave =
         !_saving &&
         !_loading &&
+        !_scanning &&
         !_needsRefresh &&
         _confirmed &&
         state?.homeKey != null &&
@@ -275,7 +375,11 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                                 : 'Saved. Waiting for fresh watch reports.',
                           ),
                           TextButton.icon(
-                            onPressed: _saving || _loading || _needsRefresh
+                            onPressed:
+                                _saving ||
+                                    _loading ||
+                                    _scanning ||
+                                    _needsRefresh
                                 ? null
                                 : () => _save(remove: true),
                             icon: const Icon(Icons.link_off),
@@ -300,6 +404,33 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(homeWifiMessage(state!.homeProblem!)),
                   ),
+                if (_scanner.supported) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Find Wi-Fi names with your phone. Android needs location permission and Location switched on. Nearby names and identifiers are shared with Guardian to match the watch reports.',
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed:
+                        _scanning ||
+                            _loading ||
+                            _saving ||
+                            _needsRefresh ||
+                            state?.homeKey == null
+                        ? null
+                        : _scanPhone,
+                    icon: const Icon(Icons.wifi_find),
+                    label: Text(
+                      _scanning ? 'Scanning nearby Wi-Fi…' : 'Find Wi-Fi names',
+                    ),
+                  ),
+                  if (_scanning) const LinearProgressIndicator(),
+                  if (_phoneNotice != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(_phoneNotice!),
+                    ),
+                ],
                 Row(
                   children: [
                     Expanded(
@@ -309,7 +440,7 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                       ),
                     ),
                     IconButton(
-                      onPressed: _loading || _saving
+                      onPressed: _loading || _saving || _scanning
                           ? null
                           : () => _load(manual: true),
                       tooltip: 'Refresh list',
@@ -339,7 +470,8 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                       leading: const Icon(Icons.wifi),
                       title: Text(network.name),
                       subtitle: Text(
-                        'Radio …${network.radioHint} · ${network.signalDbm} dBm\nSeen ${_time(network.observedAt)}',
+                        'Radio …${network.radioHint} · ${network.signalDbm} dBm\n'
+                        '${network.nameSource == 'phone' ? 'Name from phone · ' : ''}Seen ${_time(network.observedAt)}',
                       ),
                       isThreeLine: true,
                       trailing: Icon(
@@ -348,7 +480,7 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                             : Icons.circle_outlined,
                       ),
                       selected: _selected == network.id,
-                      onTap: _saving || _needsRefresh
+                      onTap: _saving || _scanning || _needsRefresh
                           ? null
                           : () => setState(() {
                               _selected = network.id;
@@ -356,6 +488,33 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                             }),
                     ),
                   ),
+                if (_phoneFresh &&
+                    !_needsRefresh &&
+                    _phoneNetworks.asMap().keys.any(
+                      (index) =>
+                          !(state?.phoneMatches.contains(index) ?? false),
+                    ))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 8),
+                    child: Text(
+                      'Seen only by your phone',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                if (_phoneFresh && !_needsRefresh)
+                  for (var index = 0; index < _phoneNetworks.length; index++)
+                    if (!(state?.phoneMatches.contains(index) ?? false))
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.wifi),
+                          title: Text(_phoneNetworks[index].ssid),
+                          subtitle: Text(
+                            'Radio …${_phoneNetworks[index].radioHint} · 2.4 GHz\nWaiting for the watch to report this network.',
+                          ),
+                          isThreeLine: true,
+                          enabled: false,
+                        ),
+                      ),
                 if (home != null) ...[
                   const SizedBox(height: 16),
                   Text(
@@ -366,12 +525,13 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
                   SizedBox(
                     height: 180,
                     child:
-                        widget.mapBuilder?.call(home) ?? SafeZoneMap(zone: home),
+                        widget.mapBuilder?.call(home) ??
+                        SafeZoneMap(zone: home),
                   ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _confirmed,
-                    onChanged: _saving || _selected == null
+                    onChanged: _saving || _scanning || _selected == null
                         ? null
                         : (value) => setState(() => _confirmed = value == true),
                     title: const Text(

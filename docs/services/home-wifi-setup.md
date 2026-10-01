@@ -10,7 +10,9 @@ reporting interval. The photo coordination investigation remains separate.
 
 Safe Zones → select the active zone named Home → Set up Home Wi-Fi. The service
 owner with a linked watch and an active Family/Care plan can see recent networks
-reported by that watch. Names are labels; same-name radios appear separately with
+reported by that watch. On native Android, tap **Find Wi-Fi names** to add names
+from a phone scan; phone-only networks appear disabled until the watch reports
+the same access point. Names are labels; same-name radios appear separately with
 a short radio suffix. An unnamed radio is labelled explicitly. No network is
 selected automatically. Confirm the selected network and saved Home map pin,
 then press Save Home Wi-Fi. No Wi-Fi password is requested.
@@ -52,7 +54,9 @@ and their source-aware alert evaluation are unchanged.
   normal report. With ten-minute reporting, this can take ten minutes or longer
   if a report lacks Wi-Fi data or connectivity is interrupted.
 - Selection tokens are scoped to owner, watch, zone and pin. The server accepts
-  no client-supplied SSID/MAC to enroll. Pin/owner/plan/scan freshness and the
+  only opaque candidate IDs to enroll. Android name matching uses the separate
+  authenticated phone-scan endpoint described below; phone input never creates
+  or renews a watch candidate. Pin/owner/plan/scan freshness and the
   expected revision are rechecked inside the enrollment transaction. No blind
   automatic save retries; refresh resolves an uncertain result.
 - `homeWifiEnrollments/{imei}` is backend-only, denied to all Firestore clients.
@@ -132,6 +136,88 @@ sanitizing). It records no SSIDs or full radio identifiers. Use the existing
 `wifi-home:fence -- --start` and `--report` commands after restarting the updated
 gateway. Do not invent a name or assume an unnamed nearby radio is Home.
 
-Actual name-field cause, corrected app selection/save/reopen, and physical
-Home/departure/router-loss acceptance remain pending. Requesting CR is a separate
+A follow-up capture at 11:49:38 and 11:49:46 UTC confirms two fresh UD_LTE
+reports, each containing two radios with `available: 0, empty: 2, not_reported: 0,
+too_long: 0, filtered: 0`. The Home router was seen at -39/-38 dBm. These
+samples contain empty SSID fields; they do not prove all firmware modes omit
+names. Corrected app selection/save/reopen and physical Home/departure/router-loss
+acceptance remain pending. Requesting CR is a separate
 operator action; opening or refreshing setup remains passive.
+
+
+## Android phone-assisted names — 1 October 2026
+
+This branch uses the MIT-licensed [`wifi_scan` 0.5.0](https://pub.dev/packages/wifi_scan)
+dependency, pinned with its published archive hash. No plugin fork, iOS target,
+background scanner, Wi-Fi connection or password collection is added. The Web
+build retains watch-based choices and displays the saved name after enrollment.
+
+- Scanning is an explicit Android button, never an automatic permission prompt
+  on page open or a scan on each ten-second gateway refresh. Explain Android's
+  location requirement before asking. Wi-Fi and Location must be enabled; precise
+  foreground location permission is needed on modern Android. No background
+  location permission is requested.
+- Subscribe before starting the native scan. Reject cached results unless their
+  Android boot timestamps advance beyond the pre-scan cache. Bound permission
+  waits to 45 seconds per request and the scan/result wait to 20 seconds. Show
+  actionable denial, Location-disabled, rejected/throttled and timeout messages.
+  Cancel the results subscription after completion/failure and on screen disposal.
+- Keep at most 32 named, valid unicast 2.4 GHz access points in screen memory for
+  two minutes, ordered by phone signal strength. Hidden/empty/overlong names,
+  placeholder or invalid identifiers and other frequency bands are omitted.
+  Duplicate names remain distinct by radio suffix; never match by SSID or signal.
+- `POST /app/home-wifi/phone-scan?imei=...&geofenceId=...` accepts only
+  `{homeKey, networks: [{bssid, ssid, frequency}]}` (8 KiB body, 32 entries).
+  Authenticate and check ownership, Family/Care access and the current Home pin
+  before matching. Recheck authorization after reads. Names are sanitized using
+  the same 32-byte/control-character policy as watch names.
+- Match exact normalized BSSIDs against existing fresh discovery choices in the
+  same owner/watch/zone/pin context. Return ordinary opaque choices plus matched
+  phone-array indexes. Do not return full watch identifiers. Unmatched phone
+  entries are not retained by the gateway. Matching never persists enrollment,
+  renews observation/expiry, or changes Home presence. A reported watch name takes
+  precedence; otherwise a matched phone label remains attached while that
+  candidate lives. Only explicit Save persists the chosen label and fingerprint.
+- The app can resubmit its bounded phone list during ordinary setup polling for
+  two minutes, allowing a later watch report to unlock a previously disabled
+  phone result. It clears phone input after expiry, a binding/revision change or
+  a failed authorized read. Selecting a candidate still requires Home pin
+  confirmation; uncertain save outcomes still require read-only refresh.
+
+### Android test build and physical checklist
+
+The release-gates workflow now compiles a debug Android APK as well as the Web
+release. Local Flutter bootstrap was blocked by automatic approval review after
+an attempted cloud metadata request; Flutter analysis/tests/build validation is
+run in GitHub Actions. A successful compile does not accept real phone scanning.
+
+For a USB-connected Android test phone (USB debugging enabled):
+
+```powershell
+Set-Location C:\Users\MSI\repos\guardian\apps\mobile
+flutter devices
+# Replace ANDROID_DEVICE_ID with the Android ID from the list.
+# Existing Android SDK and Maps key setup: docs/FLUTTER_SETUP.md.
+# With gateway HTTP port 9001 running on this PC, forward it over USB:
+adb -s ANDROID_DEVICE_ID reverse tcp:9001 tcp:9001
+flutter run -d ANDROID_DEVICE_ID --dart-define=GUARDIAN_GATEWAY_URL=http://127.0.0.1:9001
+```
+
+Alternatively use the existing reachable **HTTPS** gateway URL in the Dart
+variable. A phone cannot reach the PC through its own localhost without USB
+port forwarding. Do not embed an admin key or private Firebase credentials in
+the app. Retain any other normal app launch variables.
+
+1. Owner opens Home setup with the V52 nearby. Tap Find Wi-Fi names and grant
+   precise location while using the app. Confirm no password/MAC typing.
+2. Verify the actual 2.4 GHz name appears. A phone-only result stays disabled;
+   it becomes selectable only after a fresh matching watch report. Check
+   duplicates, hidden networks, 5 GHz-only results and intermittent empty watch
+   scans. Refresh reads evidence; it sends no CR or other watch command.
+3. Deny permission, switch Location off, switch Wi-Fi off, retry rapidly and
+   background/close the screen during a scan. Verify messages, bounded waits and
+   no automatic background rescanning. Reopen/scan after restoring permissions.
+4. Confirm Home pin, save once, reopen on Android and Web, restart the gateway,
+   replace and remove. Check saved names and existing evidence expiry semantics.
+5. Record phone model/Android version and redacted outcomes here and in the
+   real-device ledger. All physical Android + V52 acceptance remains pending.

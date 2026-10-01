@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'phone_wifi_scanner.dart';
 
 class HomeWifiException implements Exception {
   const HomeWifiException(this.code);
@@ -16,6 +17,7 @@ class HomeWifiNetwork {
     required this.signalDbm,
     required this.observedAt,
     required this.expiresAt,
+    this.nameSource,
   });
   final String id;
   final String name;
@@ -23,6 +25,7 @@ class HomeWifiNetwork {
   final int signalDbm;
   final DateTime observedAt;
   final DateTime expiresAt;
+  final String? nameSource;
   bool fresh(DateTime now) =>
       !observedAt.isAfter(now) && expiresAt.isAfter(now);
   factory HomeWifiNetwork.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +36,7 @@ class HomeWifiNetwork {
         signalDbm: json['signalDbm'] as int,
         observedAt: DateTime.parse(json['observedAt'] as String),
         expiresAt: DateTime.parse(json['expiresAt'] as String),
+        nameSource: json['nameSource'] as String?,
       );
 }
 
@@ -50,6 +54,7 @@ class HomeWifiState {
     this.radiusMeters,
     this.detectedNow = false,
     this.observedAt,
+    this.phoneMatches = const [],
   });
   final int version;
   final bool enabled;
@@ -63,6 +68,7 @@ class HomeWifiState {
   final bool detectedNow;
   final DateTime? observedAt;
   final List<HomeWifiNetwork> networks;
+  final List<int> phoneMatches;
   factory HomeWifiState.fromJson(Map<String, dynamic> json) {
     final saved = json['saved'] as Map<String, dynamic>;
     final home = json['home'] as Map<String, dynamic>?;
@@ -78,6 +84,7 @@ class HomeWifiState {
       radiusMeters: (home?['radiusMeters'] as num?)?.toDouble(),
       detectedNow: json['detectedNow'] == true,
       observedAt: DateTime.tryParse(json['observedAt'] as String? ?? ''),
+      phoneMatches: (json['phoneMatches'] as List? ?? []).cast<int>(),
       networks: (json['networks'] as List? ?? [])
           .map((e) => HomeWifiNetwork.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -86,7 +93,12 @@ class HomeWifiState {
 }
 
 abstract class HomeWifiClient {
-  Future<HomeWifiState> load(String imei, String geofenceId);
+  Future<HomeWifiState> load(
+    String imei,
+    String geofenceId, {
+    List<PhoneWifiNetwork> phoneNetworks = const [],
+    String? homeKey,
+  });
   Future<void> save(
     String imei,
     String geofenceId, {
@@ -110,7 +122,7 @@ class HomeWifiService implements HomeWifiClient {
   final http.Client _client;
   final Future<String?> Function() _token;
   final String gatewayUrl;
-  Uri _uri(String imei, String? geofenceId) {
+  Uri _uri(String imei, String? geofenceId, {bool phoneScan = false}) {
     final base = Uri.tryParse(gatewayUrl);
     final local =
         base?.scheme == 'http' &&
@@ -125,11 +137,8 @@ class HomeWifiService implements HomeWifiClient {
       throw const HomeWifiException('gateway_not_configured');
     }
     return base.replace(
-      path: '/app/home-wifi',
-      queryParameters: {
-        'imei': imei,
-        'geofenceId': ?geofenceId,
-      },
+      path: phoneScan ? '/app/home-wifi/phone-scan' : '/app/home-wifi',
+      queryParameters: {'imei': imei, 'geofenceId': ?geofenceId},
     );
   }
 
@@ -138,8 +147,9 @@ class HomeWifiService implements HomeWifiClient {
     String imei, {
     String? geofenceId,
     Map<String, dynamic>? body,
+    bool phoneScan = false,
   }) async {
-    final uri = _uri(imei, geofenceId);
+    final uri = _uri(imei, geofenceId, phoneScan: phoneScan);
     final token = await _token();
     if (token == null || token.isEmpty) {
       throw const HomeWifiException('sign_in_required');
@@ -164,10 +174,25 @@ class HomeWifiService implements HomeWifiClient {
   }
 
   @override
-  Future<HomeWifiState> load(String imei, String geofenceId) async =>
-      HomeWifiState.fromJson(
-        await _request('GET', imei, geofenceId: geofenceId),
-      );
+  Future<HomeWifiState> load(
+    String imei,
+    String geofenceId, {
+    List<PhoneWifiNetwork> phoneNetworks = const [],
+    String? homeKey,
+  }) async => HomeWifiState.fromJson(
+    await _request(
+      phoneNetworks.isEmpty ? 'GET' : 'POST',
+      imei,
+      geofenceId: geofenceId,
+      phoneScan: phoneNetworks.isNotEmpty,
+      body: phoneNetworks.isEmpty
+          ? null
+          : {
+              'homeKey': homeKey,
+              'networks': phoneNetworks.map((n) => n.toJson()).toList(),
+            },
+    ),
+  );
   @override
   Future<void> save(
     String imei,

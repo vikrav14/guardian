@@ -179,12 +179,12 @@ test('save rechecks owner, plan, fresh scan and unchanged pin; rejects arbitrary
   await assert.rejects(authorizeHomeWifi({ db: f.db, uid: 'stranger', imei }), /device_not_linked/);
 });
 
-async function request(handler, method, body, token = uid, query = `imei=${imei}&geofenceId=home`) {
+async function request(handler, method, body, token = uid, query = `imei=${imei}&geofenceId=home`, path = '/app/home-wifi') {
   const req = Readable.from(body == null ? [] : [Buffer.from(JSON.stringify(body))]);
   req.method = method; req.headers = token ? { authorization: `Bearer ${token}` } : {};
   const result = {};
   await handler(req, { writeHead(status, headers) { result.status = status; result.headers = headers; },
-    end(text) { result.body = JSON.parse(text); } }, new URL(`http://local/app/home-wifi?${query}`));
+    end(text) { result.body = JSON.parse(text); } }, new URL(`http://local${path}?${query}`));
   return result;
 }
 test('HTTP owner access, no-store responses, revocation, invalid bodies and saved-vs-detected state', async () => {
@@ -207,6 +207,92 @@ test('HTTP owner access, no-store responses, revocation, invalid bodies and save
   assert.equal((await request(handler, 'POST', { ...f.payload, name: 'arbitrary' })).status, 400);
   f.data.users.owner.linkedImeis = [];
   assert.equal((await request(handler, 'GET')).status, 403);
+});
+
+test('phone names match exact fresh radios, remain labels across reports and never manufacture evidence', async () => {
+  const f = await fixture();
+  f.clock += 1000;
+  f.discovery.observe(event(f.clock), new Date(f.clock), fields([['', radio, '-60']]));
+  const before = f.discovery.open(f.discoveryAccess)[0];
+  const phone = [
+    { bssid: '02:00:00:00:00:02', ssid: 'Home', frequency: 2412 },
+    { bssid: radio.toUpperCase(), ssid: 'Real Home', frequency: 2437 },
+  ];
+  assert.deepEqual(f.discovery.matchPhoneNetworks(f.discoveryAccess, phone), [1]);
+  const named = f.discovery.open(f.discoveryAccess)[0];
+  assert.equal(named.name, 'Real Home');
+  assert.equal(named.nameSource, 'phone');
+  assert.equal(named.id, before.id);
+  assert.equal(named.observedAt, before.observedAt);
+  assert.equal(named.expiresAt, before.expiresAt);
+  assert.equal(f.data[COLLECTION][imei], undefined);
+  assert.equal(f.data.devices[imei].homeWifiPresence, undefined);
+  assert.ok(!JSON.stringify(named).includes(radio));
+  f.clock += 1000;
+  f.discovery.observe(event(f.clock), new Date(f.clock), fields([['', radio, '-61']]));
+  assert.equal(f.discovery.open(f.discoveryAccess)[0].name, 'Real Home');
+  const saved = await f.store.save(f.access, f.payload, f.discovery);
+  assert.equal(saved.name, 'Real Home');
+  assert.ok(!JSON.stringify(f.data[COLLECTION]).includes(radio));
+  assert.equal(f.data.devices[imei].homeWifiPresence, null);
+  f.clock += 120_000;
+  assert.deepEqual(f.discovery.matchPhoneNetworks(f.discoveryAccess, phone), []);
+  assert.deepEqual(f.discovery.open(f.discoveryAccess), []);
+  await assert.rejects(f.store.save(f.access, { ...f.payload, expectedVersion: 1 }, f.discovery), /network_expired/);
+});
+
+test('phone names cannot cross setup scope, override watch names or enroll phone-only radios', async () => {
+  const f = await fixture();
+  const phone = [{ bssid: radio, ssid: 'Phone label', frequency: 2412 }];
+  for (const patch of [{ uid: 'other' }, { imei: '999999999999999' }, { homeKey: 'changed' }, { geofenceId: 'school' }]) {
+    assert.deepEqual(f.discovery.matchPhoneNetworks({ ...f.discoveryAccess, ...patch }, phone), []);
+  }
+  f.discovery.matchPhoneNetworks(f.discoveryAccess, phone);
+  assert.equal(f.discovery.open(f.discoveryAccess)[0].name, 'My Home');
+  f.clock += 120_000;
+  assert.deepEqual(f.discovery.matchPhoneNetworks(f.discoveryAccess, phone), []);
+  assert.deepEqual(f.discovery.open(f.discoveryAccess), []);
+});
+
+test('phone scan validation is bounded and atomic; rejects 5 GHz, duplicate or invalid identifiers and names', async () => {
+  const f = await fixture();
+  const point = { bssid: radio, ssid: 'Home', frequency: 2412 };
+  for (const invalid of [null, {}, Array(33).fill(point), [point, point],
+    [{ ...point, frequency: 5180 }], [{ ...point, bssid: 'ff:ff:ff:ff:ff:ff' }],
+    [{ ...point, ssid: 'x'.repeat(33) }], [{ ...point, ssid: '\n' }],
+    [{ ...point, password: 'not-accepted' }]]) {
+    assert.throws(() => f.discovery.matchPhoneNetworks(f.discoveryAccess, invalid), /invalid_phone_scan/);
+  }
+  assert.equal(f.discovery.select(f.discoveryAccess, f.choice.id).phoneName, undefined);
+  f.discovery.matchPhoneNetworks(f.discoveryAccess, [{ ...point, ssid: 'Home\u202e\n' }]);
+  assert.equal(f.discovery.select(f.discoveryAccess, f.choice.id).phoneName, 'Home');
+});
+
+test('phone scan HTTP requires owner, current Home binding and bounded body without saving', async () => {
+  const f = await fixture();
+  const runtime = { ready: true, discovery: f.discovery, status: () => ({}) };
+  const handler = createHomeWifiHandler({ getDb: () => f.db, getRuntime: () => runtime,
+    verifyToken: async token => ({ uid: token }), connected: () => true, now: () => f.clock });
+  const payload = { homeKey: f.payload.homeKey, networks: [{ bssid: radio, ssid: 'Home', frequency: 2412 }] };
+  const send = (body = payload, token = uid, method = 'POST') =>
+    request(handler, method, body, token, undefined, '/app/home-wifi/phone-scan');
+  assert.equal((await send(payload, null)).status, 401);
+  assert.equal((await send(payload, 'family')).status, 403);
+  assert.equal((await send(payload, 'stranger')).status, 403);
+  assert.equal((await send(null, uid, 'GET')).status, 405);
+  assert.equal((await send({ ...payload, extra: true })).status, 400);
+  assert.equal((await send({ ...payload, networks: 'x'.repeat(9000) })).status, 413);
+  assert.equal((await send({ ...payload, homeKey: '0'.repeat(64) })).body.error, 'home_changed');
+  const result = await send();
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.phoneMatches, [0]);
+  assert.equal(result.body.detectedNow, false);
+  assert.ok(!JSON.stringify(result.body).includes(radio));
+  assert.equal(f.data[COLLECTION][imei], undefined);
+  f.data.geofences.home.center.lat = -21;
+  assert.equal((await send()).body.error, 'home_changed');
+  f.data.users.owner.linkedImeis = [];
+  assert.equal((await send()).status, 403);
 });
 
 test('runtime reloads enrollment, feeds normal Home observer, and blocks stale writes after removal', async t => {

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:guardian/models/geofence.dart';
 import 'package:guardian/screens/home_wifi_setup_page.dart';
 import 'package:guardian/services/home_wifi_service.dart';
+import 'package:guardian/services/phone_wifi_scanner.dart';
 
 const zone = Geofence(
   id: 'home',
@@ -26,10 +27,19 @@ class FakeWifiClient implements HomeWifiClient {
   int removals = 0;
   int version = 0;
   bool enabled = false;
+  bool unnamed = false;
+  bool phoneMatch = true;
+  final phoneRequests = <List<PhoneWifiNetwork>>[];
   DateTime at = DateTime.now();
   @override
-  Future<HomeWifiState> load(String imei, String geofenceId) async {
+  Future<HomeWifiState> load(
+    String imei,
+    String geofenceId, {
+    List<PhoneWifiNetwork> phoneNetworks = const [],
+    String? homeKey,
+  }) async {
     if (failRead) throw const HomeWifiException('owner_required');
+    phoneRequests.add(phoneNetworks);
     return HomeWifiState(
       version: version,
       enabled: enabled,
@@ -39,11 +49,20 @@ class FakeWifiClient implements HomeWifiClient {
       lat: zone.lat,
       lng: zone.lng,
       radiusMeters: zone.radiusMeters,
+      phoneMatches: phoneMatch && phoneNetworks.isNotEmpty ? [0] : [],
       networks: [
         for (final id in ['one', 'two'])
           HomeWifiNetwork(
             id: id,
-            name: 'My Home',
+            name: unnamed
+                ? (phoneMatch && phoneNetworks.isNotEmpty && id == 'one'
+                      ? phoneNetworks.first.ssid
+                      : 'Unnamed network')
+                : 'My Home',
+            nameSource:
+                unnamed && phoneMatch && phoneNetworks.isNotEmpty && id == 'one'
+                ? 'phone'
+                : null,
             radioHint: id == 'one' ? '00:01' : '00:02',
             signalDbm: -60,
             observedAt: at,
@@ -80,7 +99,34 @@ class FakeWifiClient implements HomeWifiClient {
   void close() {}
 }
 
-Widget screen(FakeWifiClient client, {double scale = 1}) => MaterialApp(
+class FakePhoneScanner implements PhoneWifiScanner {
+  FakePhoneScanner({this.supported = true});
+  @override
+  final bool supported;
+  String? error;
+  int calls = 0;
+  @override
+  Future<List<PhoneWifiNetwork>> scan() async {
+    calls++;
+    if (error != null) throw PhoneWifiScanException(error!);
+    return const [
+      PhoneWifiNetwork(
+        bssid: '02:00:00:00:00:01',
+        ssid: 'Real Home',
+        frequency: 2412,
+      ),
+    ];
+  }
+
+  @override
+  void close() {}
+}
+
+Widget screen(
+  FakeWifiClient client, {
+  double scale = 1,
+  PhoneWifiScanner? scanner,
+}) => MaterialApp(
   builder: (context, child) => MediaQuery(
     data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
     child: child!,
@@ -88,6 +134,7 @@ Widget screen(FakeWifiClient client, {double scale = 1}) => MaterialApp(
   home: HomeWifiSetupPage(
     zone: zone,
     client: client,
+    scanner: scanner ?? FakePhoneScanner(supported: false),
     mapBuilder: (_) => const Text('Home map'),
   ),
 );
@@ -106,6 +153,130 @@ Future<void> selectAndConfirm(WidgetTester tester) async {
 }
 
 void main() {
+  test(
+    'phone scan is authenticated, bound to Home, and never submitted as enrollment',
+    () async {
+      final seen = <http.Request>[];
+      final service = HomeWifiService(
+        gatewayUrl: 'https://guardian.example',
+        token: () async => 'token',
+        client: MockClient((request) async {
+          seen.add(request);
+          return http.Response(
+            jsonEncode({
+              'saved': {'version': 0, 'enabled': false},
+              'networks': [],
+              'phoneMatches': [0],
+            }),
+            200,
+          );
+        }),
+      );
+      final state = await service.load(
+        zone.imei,
+        zone.id,
+        homeKey: 'pin',
+        phoneNetworks: const [
+          PhoneWifiNetwork(
+            bssid: '02:00:00:00:00:01',
+            ssid: 'Home',
+            frequency: 2412,
+          ),
+        ],
+      );
+      expect(seen.single.url.path, '/app/home-wifi/phone-scan');
+      expect(seen.single.url.queryParameters['geofenceId'], zone.id);
+      expect(seen.single.headers['Authorization'], 'Bearer token');
+      expect(jsonDecode(seen.single.body), {
+        'homeKey': 'pin',
+        'networks': [
+          {'bssid': '02:00:00:00:00:01', 'ssid': 'Home', 'frequency': 2412},
+        ],
+      });
+      expect(state.phoneMatches, [0]);
+      expect(state.enabled, isFalse);
+      service.close();
+    },
+  );
+  testWidgets(
+    'explicit Android scan names verified choices without automatic saving',
+    (tester) async {
+      final client = FakeWifiClient()..unnamed = true;
+      final scanner = FakePhoneScanner();
+      await tester.pumpWidget(screen(client, scanner: scanner));
+      await tester.pumpAndSettle();
+      expect(scanner.calls, 0);
+      await tester.ensureVisible(find.text('Find Wi-Fi names'));
+      await tester.tap(find.text('Find Wi-Fi names'));
+      await tester.pumpAndSettle();
+      expect(scanner.calls, 1);
+      expect(find.text('Real Home'), findsOneWidget);
+      expect(
+        find.textContaining('1 also reported by the watch'),
+        findsOneWidget,
+      );
+      expect(client.writes, 0);
+      await selectAndConfirm(tester);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(client.writes, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets('phone-only networks are visible but cannot be selected', (
+    tester,
+  ) async {
+    final client = FakeWifiClient()
+      ..unnamed = true
+      ..phoneMatch = false;
+    await tester.pumpWidget(
+      screen(client, scanner: FakePhoneScanner(), scale: 1.5),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Find Wi-Fi names'));
+    await tester.tap(find.text('Find Wi-Fi names'));
+    await tester.pumpAndSettle();
+    final row = find.widgetWithText(ListTile, 'Real Home');
+    await tester.ensureVisible(row);
+    expect(tester.widget<ListTile>(row).onTap, isNull);
+    expect(
+      find.textContaining('Waiting for the watch to report this network'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(save);
+    expect(tester.widget<FilledButton>(save).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+    expect(client.writes, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets(
+    'permission and timeout errors stop the spinner and allow retry',
+    (tester) async {
+      for (final code in [
+        'noLocationPermissionDenied',
+        'noLocationServiceDisabled',
+        'timeout',
+      ]) {
+        final scanner = FakePhoneScanner()..error = code;
+        await tester.pumpWidget(screen(FakeWifiClient(), scanner: scanner));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Find Wi-Fi names'));
+        await tester.tap(find.text('Find Wi-Fi names'));
+        await tester.pumpAndSettle();
+        expect(find.text(phoneWifiMessage(code)), findsOneWidget);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Find Wi-Fi names'),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        await tester.pumpWidget(const SizedBox());
+      }
+    },
+  );
   test(
     'service uses authenticated scoped API and never sends raw radio/name fields',
     () async {

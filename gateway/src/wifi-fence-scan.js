@@ -94,4 +94,4 @@ function inspectV52WifiScan(args, { includeNames = false, includeNameDiagnostics
   return unavailable('invalid_radio_entries', count);
 }
 
-module.exports = { inspectV52WifiScan };
+module.exports = { inspectV52WifiScan, readRadioName };
