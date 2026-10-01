@@ -1,5 +1,20 @@
 # Guardian V52 real-device acceptance
 
+## AnyTracking Wi-Fi comparison preparation — 1 October 2026
+
+The operator supplied the AnyTracking Geofence > WiFi Fence > Add screen, with
+an apparently empty list and Name/Wi-Fi/OK controls. This does not establish the
+watch's applied configuration. A standalone redacted comparison recorder now
+captures configuration shape, same-run router aliases, UPLOAD requests, scans
+and generic fence bits. It forwards unchanged bytes and generates no commands.
+The first session is setup/removal only; departure/return and 10-minute normal
+reporting are later acceptance steps. Guardian's existing reporting/Home policies
+are unchanged. See the [comparison runbook](testing/anytracking-wifi-comparison.md).
+No live native-fence success, photo fix or battery improvement is claimed.
+All 40 focused relay/radio tests pass. The Windows launcher has been reviewed,
+but not executed in this Linux workspace; its Windows preflight remains pending.
+
+
 ## Photo command coordination — 1 October 2026
 
 Partial acceptance: live AI schema checks passed, saved-photo recovery/rotation

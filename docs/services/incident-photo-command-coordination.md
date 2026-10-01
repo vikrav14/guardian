@@ -4,6 +4,13 @@ Status on 1 October 2026: observation implemented; scheduling arbitration is
 planned, not active. PR #113 remains draft. This work does not establish a fix
 for the V52's intermittent capture replies without images.
 
+The operator subsequently requested an AnyTracking Wi-Fi comparison before
+choosing a simpler reporting policy. The [standalone comparison recorder and
+runbook](../testing/anytracking-wifi-comparison.md) support that evidence step.
+No automatic interval, Home threshold or command arbitration changes are part
+of the comparison. Supplier behavior and camera interference remain separate
+questions; neither a vendor recommendation nor a successful Save proves them.
+
 Validation: all 1,561 gateway tests pass, including write isolation/redaction,
 bounded history, other-session observation, timeout persistence, unchanged
 downlink bytes, and stopping observation at image arrival. These are software
