@@ -28,7 +28,7 @@ function restorationPlan(options) {
     routingRestored: false, guardianTelemetryPausedDuringComparison: options.backend === 'anytracking' };
 }
 
-function parseArguments(args) {
+function parseArguments(args, { maxMinutes = 20, defaultMinutes = 10 } = {}) {
   const values = {};
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
@@ -37,10 +37,10 @@ function parseArguments(args) {
     if (key === '--run') values[key] = true;
     else { const value = args[++i]; if (!value || value.startsWith('--')) throw Error(USAGE); values[key] = value; }
   }
-  const port = values['--listen-port'] ?? '9002', minutes = values['--minutes'] ?? '10';
+  const port = values['--listen-port'] ?? '9002', minutes = values['--minutes'] ?? String(defaultMinutes);
   if (!Object.hasOwn(BACKENDS, values['--backend'] || '') || !/^\d{10}$/.test(values['--protocol-id'] || '')
       || !/^\d+$/.test(port) || +port < 1024 || +port > 65535 || [9000, 9001].includes(+port)
-      || !/^\d+$/.test(minutes) || +minutes < 1 || +minutes > 20
+      || !/^\d+$/.test(minutes) || +minutes < 1 || +minutes > maxMinutes
       || typeof values['--output'] !== 'string' || !path.isAbsolute(values['--output'])) throw Error(USAGE);
   const options = { backend: values['--backend'], protocolId: values['--protocol-id'],
     returnUrl: values['--return-url'], output: values['--output'], listenPort: +port, minutes: +minutes,
@@ -99,10 +99,11 @@ function frameSummary(frame, protocolId, direction) {
 }
 
 class FrameObserver {
-  constructor({ protocolId, direction, emit }) {
+  constructor({ protocolId, direction, emit, summarize = frameSummary }) {
     this.protocolId = protocolId;
     this.direction = direction;
     this.emit = emit;
+    this.summarize = summarize;
     this.buffer = Buffer.alloc(0);
     this.disabled = false;
   }
@@ -136,7 +137,7 @@ class FrameObserver {
         }
         const frame = this.buffer.subarray(0, total);
         this.buffer = this.buffer.subarray(total);
-        const summary = frameSummary(frame, this.protocolId, this.direction);
+        const summary = this.summarize(frame, this.protocolId, this.direction);
         this.emit(summary ? { event: 'frame', direction: this.direction, ...summary }
           : { event: 'frame_redacted', direction: this.direction, reason: 'unexpected_identity' });
       }
@@ -157,7 +158,7 @@ class FrameObserver {
 async function startRelay(options, { emit = row => console.log(JSON.stringify(row)),
   connect = () => net.createConnection(BACKENDS[options.backend]),
   now = () => new Date(), durationMs = options.minutes * 60000, identifyTimeoutMs = 10000,
-  connectTimeoutMs = 10000, writeLog = fs.writeSync } = {}) {
+  connectTimeoutMs = 10000, writeLog = fs.writeSync, summarize = frameSummary } = {}) {
   const restoration = restorationPlan(options);
   const writer = createLog(options.output, { write: writeLog });
   const sockets = new Set();
@@ -226,7 +227,7 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
         sessionLog({ event: 'upstream_connected' });
         emit({ event: 'upstream_connected', backend: options.backend, session });
         const tap = direction => {
-          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog });
+          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog, summarize });
           pairObservers.push(observer);
           return new Transform({ transform(chunk, encoding, done) {
             try { observer.push(chunk); }

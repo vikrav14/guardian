@@ -3,6 +3,7 @@
 const { EventEmitter } = require('node:events');
 const { findSocketsForDevice } = require('./sessions');
 const { MovementError, movementFrame } = require('./movement-reminder-policy');
+const { noteDeviceWrite } = require('./photo-command-timeline');
 
 const replies = new EventEmitter();
 // Observe decoded packets synchronously, before unrelated Firestore work.
@@ -67,7 +68,10 @@ function createMovementTransport({ find = findSocketsForDevice, events = replies
           target.socket.once('close', onClose);
           target.socket.once('error', onError);
           timer = setTimeout(() => finish({ handoff: true, replyObserved: false, reason: 'reply_timeout' }), timeoutMs);
-          try { target.socket.write(frame, error => { if (error) onError(); }); }
+          try {
+            noteDeviceWrite(target.socket, target.session, frame, 'movement_settings', now());
+            target.socket.write(frame, error => { if (error) onError(); });
+          }
           catch { onError(); }
         });
       },

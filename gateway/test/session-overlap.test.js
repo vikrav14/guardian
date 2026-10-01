@@ -44,6 +44,7 @@ function gateway(t) {
       appendSegment: async () => {}, appendJourney: async () => {},
     },
     './http': { startHttpServer: noop },
+    './safety-snapshot-live': { startSnapshotController: () => null, isPhotoFrame: () => false },
     './device-offline': { scheduleDeviceOffline: device => offline.push(device) },
     './live-cache': {
       ...liveCache,

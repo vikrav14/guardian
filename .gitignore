@@ -8,6 +8,7 @@ __pycache__/
 # Build / output
 dist/
 build/
+.firebase/
 .next/
 out/
 *.egg-info/

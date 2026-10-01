@@ -1,6 +1,7 @@
 const { buildAckFrame } = require('./protocol/gt06');
 const { findSocketsForDevice } = require('./sessions');
 const { noteWifiFenceDownlink } = require('./wifi-fence-runtime');
+const { noteDeviceWrite } = require('./photo-command-timeline');
 
 function redactPhone(value) {
   const phone = String(value || '');
@@ -49,7 +50,8 @@ function sendDownlinkCommand(imeiOrProtocolId, command) {
   const frame = buildAckFrame(protocolId, command);
   const frameStr = frame.toString('ascii');
 
-  for (const { socket } of matches) {
+  for (const { socket, session } of matches) {
+    noteDeviceWrite(socket, session, frame, 'downlink');
     socket.write(frame);
   }
 

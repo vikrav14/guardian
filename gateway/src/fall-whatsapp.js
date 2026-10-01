@@ -9,6 +9,7 @@ async function prepareFallWhatsApp({
   device = {},
   alert = {},
   now = new Date(),
+  alertId = null,
 } = {}) {
   return {
     plan: buildFallTemplatePlan({ device, alert, now }),
