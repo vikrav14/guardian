@@ -66,8 +66,9 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
       ); // Expired network choices disable without another HTTP response.
       if (_ticks % 10 == 0 &&
           DateTime.now().isBefore(_pollUntil) &&
-          !_needsRefresh)
+          !_needsRefresh) {
         unawaited(_load());
+      }
     });
   }
 
@@ -100,20 +101,22 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
         }
         if (!state.networks.any(
           (n) => n.id == _selected && n.fresh(DateTime.now()),
-        ))
+        )) {
           _selected = null;
+        }
         _state = state;
         _error = null;
         _needsRefresh = false;
       });
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = homeWifiMessage(
             error is HomeWifiException ? error.code : 'setup_unavailable',
           );
           _needsRefresh = true;
         });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -126,8 +129,9 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
         (!_confirmed ||
             !state.networks.any(
               (n) => n.id == _selected && n.fresh(DateTime.now()),
-            )))
+            ))) {
       return;
+    }
     if (remove) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -167,7 +171,7 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
           homeKey: state.homeKey!,
         );
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _selected = null;
           _confirmed = false;
@@ -175,14 +179,16 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
               ? 'Home Wi-Fi removed.'
               : 'Home Wi-Fi saved. Waiting for fresh watch reports.';
         });
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _needsRefresh = true;
           _error = error is HomeWifiException
               ? homeWifiMessage(error.code)
               : 'The save result is unconfirmed. Refresh to check the saved setting before trying again.';
         });
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

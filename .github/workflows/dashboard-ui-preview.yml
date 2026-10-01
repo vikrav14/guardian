@@ -29,6 +29,10 @@ on:
       - 'apps/mobile/lib/widgets/layout/guardian_app_header.dart'
       - 'apps/mobile/lib/screens/login_page.dart'
       - 'apps/mobile/lib/screens/safe_zones_page.dart'
+      - 'apps/mobile/lib/screens/home_wifi_setup_page.dart'
+      - 'apps/mobile/lib/services/home_wifi_service.dart'
+      - 'apps/mobile/test/home_wifi_setup_test.dart'
+      - 'apps/mobile/tool/render_home_wifi_preview_test.dart'
       - 'apps/mobile/lib/widgets/safe_zones/**'
       - 'apps/mobile/lib/wellness/**'
       - 'apps/mobile/lib/widgets/cards/**'
@@ -164,6 +168,20 @@ jobs:
       - name: Test profile weather freshness and presentation
         if: ${{ !cancelled() }}
         run: flutter test --no-pub test/profile_weather_test.dart test/profile_weather_panel_test.dart test/linked_profile_weather_test.dart
+
+      - name: Test and render Home Wi-Fi setup
+        if: ${{ !cancelled() }}
+        run: |
+          flutter test --no-pub test/home_wifi_setup_test.dart
+          flutter test --no-pub tool/render_home_wifi_preview_test.dart --dart-define=HOME_WIFI_PREVIEWS=true
+
+      - name: Save Home Wi-Fi review images
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: guardian-home-wifi-previews
+          path: apps/mobile/build/home-wifi-previews/*.png
+          if-no-files-found: error
 
       - name: Render profile weather previews
         if: ${{ !cancelled() }}

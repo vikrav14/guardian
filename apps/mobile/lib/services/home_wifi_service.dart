@@ -128,7 +128,7 @@ class HomeWifiService implements HomeWifiClient {
       path: '/app/home-wifi',
       queryParameters: {
         'imei': imei,
-        if (geofenceId != null) 'geofenceId': geofenceId,
+        'geofenceId': ?geofenceId,
       },
     );
   }
@@ -141,8 +141,9 @@ class HomeWifiService implements HomeWifiClient {
   }) async {
     final uri = _uri(imei, geofenceId);
     final token = await _token();
-    if (token == null || token.isEmpty)
+    if (token == null || token.isEmpty) {
       throw const HomeWifiException('sign_in_required');
+    }
     final request = http.Request(method, uri)
       ..headers.addAll({
         'Authorization': 'Bearer $token',
@@ -156,8 +157,9 @@ class HomeWifiService implements HomeWifiClient {
         .then(http.Response.fromStream)
         .timeout(const Duration(seconds: 20));
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw HomeWifiException(json['error'] as String? ?? 'setup_unavailable');
+    }
     return json;
   }
 
