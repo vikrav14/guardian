@@ -18,6 +18,14 @@ Fresh-session/authorization checks and stopping after failure remain required.
 The earlier 10-second observations and timing table below are historical.
 See [2 October spacing checks](../testing/incident-photo-spacing-2026-10-02.md).
 
+Later on 2 October, a complete matching-watch frame arrived 67.553 seconds after
+the two-minute authorization expired. The subsequent source change grants
+new incident captures at most four minutes, capped by the existing incident
+deadline; manual and already-persisted grants remain unchanged. It sends no
+additional CR/capture and does not accept after expiry. The original running
+gateway stays untouched during passive restoration observation. See the
+[late-arrival investigation and deployment status](../testing/incident-photo-late-arrival-2026-10-02.md).
+
 Status on 1 October 2026: observation implemented; scheduling arbitration is
 planned, not active. PR #113 remains draft. This work does not establish a fix
 for the V52's intermittent capture replies without images.

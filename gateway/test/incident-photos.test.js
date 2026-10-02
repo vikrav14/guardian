@@ -126,12 +126,95 @@ test('a timeout stops the sequence, preserves earlier photo, and restart never r
   advanceWithPacket(s); await s.incidents.tick('alertOne');
   const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await restarted.tick('alertOne'); assert.equal(s.writes.length, 2);
-  s.advance(120_001); await s.api.sweep(); await restarted.tick('alertOne');
+  s.advance(240_001); await s.api.sweep(); await restarted.tick('alertOne');
   assert.equal(s.incident().state, 'stopped');
   assert.equal(s.incident().reason, 'image_timeout');
   await restarted.tick('alertOne'); assert.equal(s.writes.length, 2);
   const gallery = await restarted.gallery('owner', 'alertOne');
   assert.deepEqual(gallery.photos.map(p => p.state), ['available', 'failed']);
+});
+
+test('delayed incident image can arrive after existing recovery without another capture or a renewed deadline', async () => {
+  const s = trial(); s.alarm('alertOne', 'fall'); await s.incidents.enqueue('alertOne');
+  await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0];
+  const expires = +s.auth(id).authorizationExpiresAt;
+  assert.equal(expires - +s.auth(id).createdAt, 240_000);
+  assert.equal(+s.db.rows.get(`safetySnapshotDeviceLocks/${imei}`).activeUntil, expires);
+  s.advance(180_000);
+  await s.api.sweep(); await s.incidents.tick('alertOne');
+  assert.equal(s.auth(id).state, 'waiting_for_image');
+  assert.equal(s.writes.length, 1, 'waiting neither retries capture nor sends CR');
+  for (const [command, options] of [
+    ['CR', {}], ['UPLOAD,60', { emergency: true }], ['LK', { protocolReply: true }],
+    ['CALL,private', {}], ['HRTSTART,0', {}],
+  ]) assert.equal(s.args.coordinator.decide(imei, command, options).ok, true, command);
+  assert.equal(s.args.coordinator.decide(imei, 'HRTSTART,1').error, 'camera_busy');
+  assert.equal(s.args.coordinator.decide(imei, 'UPLOAD,600', { expiresAt: s.args.now() }).error, 'command_expired');
+  // Simulate only the already-authorized recovery write observed in the trace.
+  // The photo controller itself still makes exactly one camera write.
+  require('../src/photo-command-timeline').noteDeviceWrite(s.socket, s.session,
+    Buffer.from('[SG*9705254749*0002*CR]'), 'downlink', s.args.now());
+  s.advance(7553); await receive(s, id);
+  assert.equal(s.auth(id).state, 'available'); assert.equal(s.objects.size, 1);
+  assert.equal(+s.auth(id).authorizationExpiresAt, expires);
+  const timeline = s.auth(id).receiveDiagnostics.commandTimeline;
+  assert(timeline.events.some(e => e.command === 'CR' && e.afterMs === 180_000));
+  assert.equal(+new Date(timeline.endedAt) - +new Date(timeline.startedAt), 187_553);
+  assert.equal(s.args.coordinator.busyUntil(imei), null);
+  await s.incidents.analyzePhoto(id);
+  assert.equal((await s.incidents.gallery('owner', 'alertOne')).summary.length, 1);
+  await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 1);
+  advanceWithPacket(s, 60_000); await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 2, 'normal sequential spacing resumes from actual save');
+});
+
+test('new incident wait is capped by sequence deadline and never accepts at or beyond expiry', async () => {
+  for (const remaining of [90_000, 240_000]) {
+    const s = trial(); s.alarm('alertOne', 'fall'); await s.incidents.enqueue('alertOne');
+    s.incident().deadlineAt = new Date(+s.args.now() + remaining);
+    await s.incidents.tick('alertOne'); const id = s.incident().requestIds[0];
+    const expires = +s.auth(id).authorizationExpiresAt;
+    assert.equal(expires, +s.incident().deadlineAt);
+    s.advance(remaining); s.api.observe(frame(), s.socket, s.session);
+    await s.api.sweep(); await s.incidents.tick('alertOne');
+    assert.equal(s.auth(id).state, 'failed'); assert.equal(s.objects.size, 0);
+    assert.equal(s.writes.length, 1); assert.equal(s.incident().state, 'stopped');
+    assert.equal(+s.auth(id).authorizationExpiresAt, expires);
+  }
+});
+
+test('longer incident wait still rejects lost access, consent, deletion and another session', async () => {
+  for (const reason of ['consent', 'link', 'subscription', 'deletion', 'session', 'disconnect']) {
+    const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+    const id = s.incident().requestIds[0]; s.advance(187_553);
+    if (reason === 'consent') s.db.rows.get(`incidentPhotoSettings/${imei}`).enabled = false;
+    if (reason === 'link') s.db.rows.get('users/owner').linkedImeis = [];
+    if (reason === 'subscription') s.db.rows.get('serviceSubscriptions/owner').status = 'cancelled';
+    if (reason === 'deletion') await s.api.remove('owner', id);
+    if (reason === 'disconnect') { s.api.disconnect(s.socket); await until(() => s.auth(id).state === 'failed'); }
+    if (reason === 'session') s.api.observe(frame(), {}, { ...s.session });
+    else { s.api.observe(frame(), s.socket, s.session); await until(() => !['waiting_for_image', 'receiving'].includes(s.auth(id).state)); }
+    assert.equal(s.objects.size, 0, reason); assert.equal(s.writes.length, 1, reason);
+    assert.notEqual(s.auth(id).state, 'available', reason);
+    s.advance(240_000); await s.api.sweep();
+  }
+});
+
+test('restart keeps old persisted two-minute grants and cannot replay or adopt their late images', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0];
+  const originalExpiry = new Date(+s.auth(id).createdAt + 120_000);
+  s.auth(id).authorizationExpiresAt = originalExpiry;
+  s.db.rows.get(`safetySnapshotDeviceLocks/${imei}`).activeUntil = originalExpiry;
+  const restartedSnapshots = createSnapshotController(s.args);
+  const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: restartedSnapshots });
+  s.advance(120_001); await restartedSnapshots.sweep(); await restarted.tick('alertOne');
+  s.advance(67_552); restartedSnapshots.observe(frame(), s.socket, s.session);
+  await restarted.tick('alertOne');
+  assert.equal(s.auth(id).reason, 'image_timeout'); assert.equal(s.incident().state, 'stopped');
+  assert.equal(+s.auth(id).authorizationExpiresAt, +originalExpiry);
+  assert.equal(s.writes.length, 1); assert.equal(s.objects.size, 0);
 });
 
 test('emergency spacing cannot be selected through a manual input or a fabricated incident', async () => {
@@ -219,7 +302,7 @@ test('a handed-off incident capture is never replayed onto a fresh replacement',
   await s.incidents.tick('alertOne');
   s.api.observe(frame(), socket, session);
   assert.equal(s.auth(s.incident().requestIds[0]).state, 'waiting_for_image');
-  s.advance(120_001); await s.api.sweep(); await s.incidents.tick('alertOne');
+  s.advance(240_001); await s.api.sweep(); await s.incidents.tick('alertOne');
   assert.equal(s.incident().reason, 'image_timeout');
   assert.equal(s.writes.length, 1);
 });
@@ -240,7 +323,7 @@ test('late admission and a late camera claim cannot dispatch after their deadlin
       const value = await transact(fn);
       if (first) {
         first = false;
-        s.advance(kind === 'sequence' ? 1001 : kind === 'authorization' ? 120_001 : 1);
+        s.advance(kind === 'sequence' ? 1001 : kind === 'authorization' ? 240_001 : 1);
         s.session.lastPacketAt = s.args.now().getTime();
         if (kind === 'replacement') s.matches([{ socket: { ...s.socket }, session: s.session }]);
       }
@@ -286,7 +369,7 @@ test('trial-only mode accepts a labelled supervised trial without sending emerge
   await s.incidents.sweep(); await s.incidents.drain();
   assert.equal(s.writes.length, 1);
   assert.equal((await s.incidents.gallery('owner', 'alertOne')).trial, true);
-  s.advance(120_001); await s.api.sweep(); await s.incidents.sweep(); await s.incidents.drain();
+  s.advance(240_001); await s.api.sweep(); await s.incidents.sweep(); await s.incidents.drain();
   assert.equal(sent, 0);
 });
 

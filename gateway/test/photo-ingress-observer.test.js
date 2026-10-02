@@ -95,6 +95,26 @@ test('no request and another identified device produce no scoped traffic logs; r
   s.advance(240_000); s.o.sweep(); assert.equal(s.timers.size, 0);
 });
 
+test('a four-minute grant retains metadata through its deadline and bounded late window', () => {
+  const s = observer();
+  s.o.begin({ id: 'longer-grant', imei, protocolId, socket: s.socket,
+    expiresAt: Date.parse('2026-10-02T11:04:00Z') });
+  s.advance(187_553);
+  s.o.chunk(s.socket, s.session, frame().length);
+  s.o.frames(s.socket, s.session, { frames: [frame()], rest: Buffer.alloc(0) });
+  assert(records(s.logs).some(r => r.kind === 'photo_header' && !r.afterCaptureExpiry));
+  s.advance(52_447);
+  s.o.disposition(s.socket, s.session, 'no_pending_request');
+  assert(records(s.logs).some(r => r.kind === 'photo_disposition' && r.afterCaptureExpiry));
+  assert.equal(s.o.getStatus().activeObservations, 1);
+  s.advance(120_000); s.o.sweep();
+  assert.equal(s.o.getStatus().activeObservations, 0);
+  const end = records(s.logs).find(r => r.kind === 'observation_finished');
+  assert.equal(end.captureExpiresAt, '2026-10-02T11:04:00.000Z');
+  assert.equal(end.observationEndsAt, '2026-10-02T11:06:00.000Z');
+  assert.equal(end.sessions[0].photoHeaders, 1);
+});
+
 test('overlapping observation windows never label a later capture as correlated to the earlier request', () => {
   const s = observer(); s.begin('older'); s.advance(65_000); s.begin('newer');
   s.o.disposition(s.socket, s.session, 'passed_ingress_guard', 'newer');

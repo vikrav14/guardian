@@ -2,7 +2,7 @@
 
 // This gate never stores a frame, credential, or action to replay. Callers may
 // retry only by resolving a still-authorized intent against the current session.
-const CAMERA_WINDOW_MS = 120_000;
+const { MAX_CAPTURE_WINDOW_MS: CAMERA_WINDOW_MS } = require('./photo-capture-window');
 function promptCommand(command, { protocolReply = false, emergency = false } = {}) {
   if (protocolReply || emergency) return true;
   return /^(CR|CALL|MONITOR|FIND)(?:,|$)/i.test(command) ||

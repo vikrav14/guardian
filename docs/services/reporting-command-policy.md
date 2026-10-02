@@ -68,7 +68,9 @@ product wording and hardware acceptance.
 ## Shared command admission
 
 `command-coordinator.js` protects only the interval from camera handoff to
-complete image ingress, failure, disconnect or the original 120-second limit.
+complete image ingress, failure, disconnect or the originally granted deadline:
+120 seconds for manual captures, up to 240 seconds for newly authorized
+incident captures, also capped by the incident's existing sequence deadline.
 Image Storage writes and AI analysis do not hold the device gate. Camera
 authorization, exact session selection, consent, incident deadline and the
 five-photo sequential contract remain in the existing snapshot/incident code.
@@ -114,7 +116,9 @@ The initial SOS/fall notification and its call/map buttons remain independent
 of photos and AI. SOS/fall reporting also runs independently of initial alert
 delivery. The separate Photos & AI follow-up is unchanged. Maximum five
 sequential photos, at least sixty seconds after the previous saved image,
-120-second capture authorization and twelve-minute incident deadline remain.
+up to 240-second incident capture authorization and twelve-minute incident
+deadline apply. Manual captures retain 120 seconds. A deadline is granted once;
+ACKs, recovery, timeout and restart never extend it or revive an expired grant.
 There is no mandatory CR-before-photo and no automatic retry of an ambiguous
 capture. An ACK is not an image; an image is not ready AI; API acceptance of a
 WhatsApp message is not confirmed recipient delivery.
@@ -124,6 +128,16 @@ change preserves fresh-session checks and the existing incident deadline;
 it does not add inactivity-triggered photography or claim camera reliability.
 The strict-admin photo worker status exposes the active spacing policy so a
 running process can be distinguished from edited files awaiting restart.
+
+The longer incident window addresses the 2 October late-arrival evidence:
+a complete frame arrived 187.553 seconds after a request, following the existing
+packet-silence recovery. The former 120-second capture deadline expired before
+the 180-second recovery threshold at a requested 60-second reporting interval.
+It does not add CR commands or change recovery/reporting timers, and it cannot
+guarantee an image, identify its exact capture time or explain every earlier
+failure. See [late-arrival investigation](../testing/incident-photo-late-arrival-2026-10-02.md).
+This source change requires a deliberate deployment after the current passive
+test; a gateway still running `0394eac` retains its original 120-second grants.
 
 ## Operational continuity
 

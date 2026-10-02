@@ -926,7 +926,10 @@ async function handleOpsHttpRequest(req, res, url) {
     if (!(await requireStrictAdmin(req, res))) return true;
     const coordinator = require('./command-coordinator').commandCoordinator;
     sendJson(res, 200, { version: 1, normalReportingSeconds: 600, criticalReportingSeconds: 900,
-      cameraWaitLimitSeconds: 120, deferredCommandLimitSeconds: 120, replayAmbiguousActions: false,
+      cameraWaitLimitSeconds: require('./photo-capture-window').MAX_CAPTURE_WINDOW_MS / 1000,
+      manualCameraWaitLimitSeconds: require('./photo-capture-window').MANUAL_CAPTURE_WINDOW_MS / 1000,
+      incidentCameraWaitLimitSeconds: require('./photo-capture-window').INCIDENT_CAPTURE_WINDOW_MS / 1000,
+      deferredCommandLimitSeconds: 120, replayAmbiguousActions: false,
       sessions: [...require('./sessions').getActiveSessions().values()].map(session => ({
         imei: session.imei, lastPacketAt: session.lastPacketAt, lastLocationAt: session.lastLocationAt,
         expectedReportingIntervalSeconds: session.expectedReportingIntervalSeconds,

@@ -187,8 +187,15 @@ after transaction reads. A claim that returns after its camera authorization
 or sequence deadline cannot send. A connection change during the claim stops
 that attempt rather than silently changing the receiving socket.
 
+New incident captures have an up-front four-minute authorization, shortened
+when the incident's existing twelve-minute deadline is sooner. Manual captures
+retain two minutes. Neither ACK nor recovery traffic renews an authorization;
+existing grants and terminal failures are not migrated or revived on restart.
+The 2 October late-arrival test motivated this bounded waiting change. It adds
+no capture retry or CR and needs separate hardware acceptance after deployment.
+
 The firmware has no verified capture request ID. Correlation remains one active
-request on the same socket within two minutes; it is not proof of exact capture
+request on the same socket within its granted window; it is not proof of exact capture
 time. Exact duplicate JPEGs are rejected within a sequence. Distinct delayed or
 manually generated images inside another request's window remain a hardware
 limitation. Do not advertise verified chronology or five guaranteed captures.

@@ -3,6 +3,7 @@
 // Metadata only. A recent authorized request scopes observation, not permission
 // to accept media. There is no socket write, payload copy or persistent replay.
 const LATE_OBSERVATION_MS = 120_000;
+const { MAX_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
 const MAX_TRACES = 32, MAX_SESSIONS = 12, MAX_EVENTS = 32;
 const DISPOSITIONS = new Set(['no_pending_request', 'duplicate_in_flight',
   'different_session', 'identity_mismatch', 'request_expired', 'passed_ingress_guard']);
@@ -80,7 +81,7 @@ function createPhotoIngressObserver({ now = Date.now, log = () => {},
     if (!socket || !Number.isFinite(expiry) || expiry <= at || traces.has(id)) return;
     if (traces.size >= MAX_TRACES) finish(traces.values().next().value, 'trace_limit');
     const t = { id, imei, protocolId, socket, startedAt: at, expiresAt: expiry,
-      endsAt: Math.min(expiry, at + 120_000) + LATE_OBSERVATION_MS,
+      endsAt: Math.min(expiry, at + MAX_CAPTURE_WINDOW_MS) + LATE_OBSERVATION_MS,
       sessions: new Map(), events: 0, suppressedEvents: 0, logFailures: 0,
       untrackedChunks: 0, untrackedBytes: 0 };
     traces.set(id, t);

@@ -106,6 +106,21 @@ test('only own, documented command builders can dispatch', async () => {
   await assert.rejects(require('../src/commands').sendDeviceCommand(h.db, imei, 'toString', {}), /Unknown device command/);
 });
 
+test('a longer camera wait cannot renew deferred setting expiry or replay an obsolete setting', async () => {
+  const h = commandHarness();
+  assert(h.c.beginCapture({ imei, id: 'long-photo', socket: { writable: true }, expiresAt: h.now() + 240_000 }).ok);
+  h.add('old', 'set_fall_sensitivity', { level: 2 }); await h.dispatcher.tick();
+  h.advance(1000); h.add('new', 'set_fall_sensitivity', { level: 4 }); await h.dispatcher.tick();
+  assert.equal(h.row('old').error, 'superseded');
+  h.advance(121_000); await h.dispatcher.tick();
+  assert.equal(h.row('new').status, 'failed');
+  assert.equal(h.row('new').error, 'command_expired');
+  assert.equal(h.c.decide(imei, 'UPLOAD,600').error, 'camera_busy');
+  h.advance(120_000); await h.dispatcher.tick();
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.c.decide(imei, 'UPLOAD,600').ok, true);
+});
+
 test('a request arriving during an empty reconciliation query is not stranded when polling goes idle', async () => {
   const h = commandHarness();
   let release, observed;

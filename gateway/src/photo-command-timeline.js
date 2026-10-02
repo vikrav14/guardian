@@ -3,6 +3,7 @@
 // Observation only. Never delay, retry, change or acknowledge a device write.
 // A write attempt is not proof of delivery or execution by the watch.
 const LOOKBACK_MS = 120_000;
+const { MAX_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
 const BEFORE_LIMIT = 16;
 const DURING_LIMIT = 48;
 const SOURCES = new Set(['downlink', 'protocol_ack', 'photo_capture', 'movement_settings', 'wifi_fence_trial']);
@@ -26,7 +27,7 @@ function safeCommandTimeline(value) {
     duringWriteAttempts: count(value.duringWriteAttempts),
     duringDropped: count(value.duringDropped),
     events: (Array.isArray(value.events) ? value.events : []).slice(0, BEFORE_LIMIT + DURING_LIMIT)
-      .filter(row => row && Number.isSafeInteger(row.afterMs) && row.afterMs >= -LOOKBACK_MS && row.afterMs <= LOOKBACK_MS)
+      .filter(row => row && Number.isSafeInteger(row.afterMs) && row.afterMs >= -LOOKBACK_MS && row.afterMs <= MAX_CAPTURE_WINDOW_MS)
       .map(row => ({ phase: row.phase === 'before' ? 'before' : 'during', afterMs: row.afterMs,
         source: SOURCES.has(row.source) ? row.source : 'other',
         command: COMMANDS.has(row.command) ? row.command : 'OTHER',
@@ -82,7 +83,7 @@ function createPhotoCommandObserver() {
   }
 
   function begin({ socket, session, startedAt, expiresAt }) {
-    const start = +startedAt, end = Math.min(+expiresAt, start + LOOKBACK_MS);
+    const start = +startedAt, end = Math.min(+expiresAt, start + MAX_CAPTURE_WINDOW_MS);
     const history = recent.get(socket);
     const prior = (history?.events || []).filter(row => row.time >= start - LOOKBACK_MS && row.time <= start);
     const data = { version: 1, startedAt: new Date(start).toISOString(), endedAt: null, endReason: null,

@@ -13,8 +13,8 @@ const { consentAllows, readIncidentAuthorization } = require('./incident-photo-p
 const { beginPhotoCommandTimeline, noteDeviceWrite } = require('./photo-command-timeline');
 const { commandCoordinator } = require('./command-coordinator');
 const { createPhotoIngressObserver } = require('./photo-ingress-observer');
+const { MANUAL_CAPTURE_WINDOW_MS, INCIDENT_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
 
-const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
 const COOLDOWN_MS = 15 * 60_000;
 // A writable socket alone is not evidence the watch has resumed after SOS.
@@ -146,20 +146,26 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         const error = Object.assign(new Error('cooldown_active'), { code: 'cooldown_active', status: 429, retryAt: new Date(last.getTime() + COOLDOWN_MS) });
         throw error;
       }
+      // The incident's fixed overall deadline also bounds its final capture.
+      // Persist once: ACKs, recovery traffic and restart never renew this grant.
+      const authorizationExpiresAt = new Date(Math.min(
+        at.getTime() + (incidentClaim ? INCIDENT_CAPTURE_WINDOW_MS : MANUAL_CAPTURE_WINDOW_MS),
+        incidentClaim ? asDate(incidentClaim.incident.deadlineAt).getTime() : Infinity,
+      ));
       const auth = {
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         purpose, consentConfirmed: true, safetyPurposeConfirmed: true,
         ...(incidentId ? { incidentId, sequence: incidentClaim.incident.requestIds.length + 1,
           analysis: { status: 'pending' } } : {}),
         state: 'dispatching', deviceCommand: 'rcapture', deviceCommandSent: false,
-        createdAt: at, updatedAt: at, authorizationExpiresAt: new Date(at.getTime() + WINDOW_MS),
+        createdAt: at, updatedAt: at, authorizationExpiresAt,
         mediaExpiresAt: new Date(at.getTime() + RETENTION_MS),
         mediaPath: privatePath(decision.ownerUid, imei, id), publicUrl: null,
         cleanupPending: false, correlation: 'same_session_request_window', requestCorrelationVerified: false,
       };
       tx.create(ref(id), auth);
       tx.set(lockRef(imei), { ...lock.data(), lastRequestedAt: at, requestId: id,
-        activeUntil: new Date(at.getTime() + WINDOW_MS) });
+        activeUntil: authorizationExpiresAt });
       if (incidentClaim) tx.update(incidentClaim.ref, {
         requestIds: [...incidentClaim.incident.requestIds, id], updatedAt: at,
       });
