@@ -1425,3 +1425,19 @@ The supplier's off/on interpretation now has a successful pilot physical result.
 No runtime or flag change accompanies this evidence update. PR #118 remains
 draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
 enable/observe/off procedure; no additional HSW test is required now.
+
+## Incident photo sequence comparison — 2 October 2026
+
+Under the minimum 60-second save-to-follow-up policy, the 14:05 MUT SOS produced
+five stored photos, five ready AI analyses and a delivered/read Photos & AI
+follow-up. The separate 14:29 MUT fall produced two stored photos with ready
+analyses. Its third capture received only a 29-byte command reply and no image
+in-window despite 113.461 seconds since the preceding save and no competing
+outgoing command during its wait. Initial and follow-up WhatsApp delivery were
+verified separately; another initial recipient had Meta rejection 131030.
+Screen state was not observed. Camera reliability/root cause remains open.
+
+Bounded metadata-only ingress diagnostics have been added for the next trial,
+including post-timeout and replacement/unidentified-connection observations.
+They do not change photo authorization, commands, spacing or media acceptance.
+See [the detailed evidence and diagnostic limits](testing/incident-photo-spacing-2026-10-02.md).

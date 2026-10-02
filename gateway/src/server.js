@@ -1346,6 +1346,8 @@ const server = net.createServer((socket) => {
     // Preserve incoming bytes before framing can discard noise or decoding can
     // reject a frame. Identity/consent are checked separately before persistence.
     wearWireCapture?.observeChunk(socket, session, chunk);
+    // Numeric byte counts before framing, scoped to recent authorized captures.
+    snapshotController?.observeIngress(socket, session, chunk.length);
 
     lastDataAt = new Date().toISOString();
 

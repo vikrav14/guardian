@@ -62,3 +62,47 @@ public health returned HTTP 200. The existing ngrok process and both tunnels
 remained running. Hash checks confirmed no change to the original `.env`, mobile
 `android-config.json` or preserved private runtime environment. Journey/Wi-Fi
 work was preserved. This is rollout verification, not a new photo trial.
+
+## Subsequent hardware evidence and ingress diagnostics
+
+The 14:05:26 SOS completed five stored images and five ready AI analyses; the
+separate Photos & AI update was delivered/read at 14:14:38. Save-to-next-request
+gaps were 61.664, 161.417, 178.737 and 62.157 seconds. Fresh-session gating can
+make the gap longer than the minimum minute.
+
+The independent fall at 14:29:46 saved two images with ready analyses. Its third
+request at 14:33:11 followed the second save by 113.461 seconds but received only
+a 29-byte rcapture reply, with no image bytes in the two-minute authorization
+window. The command trace contains RCAPTURE only during that wait. It expired
+at 14:35:11 and the periodic sweep persisted failure at 14:35:38. The initial
+alert and separate follow-up were delivered independently. One other intended
+initial recipient was rejected with Meta 131030; contacts were not changed.
+The operator did not observe the screen state. Spacing is not a proven fix.
+
+The new `[photo-ingress]` observer closes a diagnostic gap after the pending
+capture slot is removed. It counts bytes before framing and emits fixed-schema
+header/disposition metadata, including unidentified and replacement connections.
+It never records payloads, raw protocol/device identities, addresses, scene
+text or credentials, and never writes to a socket. Known other devices are
+excluded. Observation lasts through authorization expiry plus 120 seconds;
+authorization, decoder acceptance and media storage rules are unchanged.
+
+Each process retains at most 32 recent request observations, 12 connection
+aliases and 32 ordinary events per observation, plus a terminal summary. Summary
+counters disclose omitted events and untracked chunks/bytes. Timers release
+state even without further traffic. An observation can overlap another request;
+`pendingRequest=another_request` and `observation_not_capture_correlation` prevent
+claiming that an untagged image belongs to the earlier request. No diagnostic
+state or capture is replayed on restart. A two-minute post-expiry observation
+does not rule out arrivals later than that finite period.
+
+The strict-admin command-coordination endpoint exposes metadata-only observer
+readiness and active observation count. Tests cover late images after sweep,
+fragmentation, identified/unidentified replacement sockets, identity changes,
+unsupported headers, privacy, bounds, clock changes, logging failure, valid
+capture preservation and restart without diagnostic replay. No new hardware
+success is claimed for these diagnostics before an operator-triggered test.
+
+Diagnostic regression validation: all 1,609 gateway tests passed, with zero
+failures or skipped tests. The focused ingress/live-capture/incident/timeline/ops
+run passed 62 tests. This validates software behavior, not the camera root cause.

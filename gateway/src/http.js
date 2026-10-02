@@ -932,7 +932,8 @@ async function handleOpsHttpRequest(req, res, url) {
         expectedReportingIntervalSeconds: session.expectedReportingIntervalSeconds,
         outingActive: session.outingActive, outingActiveUntilMs: session.outingActiveUntilMs || null,
         cameraBusyUntil: coordinator.busyUntil(session.imei),
-      })), photo: require('./incident-photos-live').getIncidentPhotoRuntimeStatus() });
+      })), photo: require('./incident-photos-live').getIncidentPhotoRuntimeStatus(),
+      photoIngress: require('./safety-snapshot-live').getSnapshotController()?.ingressDiagnosticsStatus() || null });
     return true;
   }
 

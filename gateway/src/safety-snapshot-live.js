@@ -12,6 +12,7 @@ const { protocolIdFromFullImei } = require('./imei');
 const { consentAllows, readIncidentAuthorization } = require('./incident-photo-policy');
 const { beginPhotoCommandTimeline, noteDeviceWrite } = require('./photo-command-timeline');
 const { commandCoordinator } = require('./command-coordinator');
+const { createPhotoIngressObserver } = require('./photo-ingress-observer');
 
 const WINDOW_MS = 120_000;
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -61,6 +62,7 @@ function decodePhoto(frame, protocolId) {
 function createSnapshotController({ db, bucket, findSessions, runtime, now = () => new Date(), log = console.warn,
   captureRejectedFrame = null, coordinator = commandCoordinator }) {
   const pending = new Map();
+  const ingressObserver = createPhotoIngressObserver({ now: () => +now(), log });
   const config = runtime || readSafetySnapshotRuntime();
   const ref = id => db.collection('safetySnapshotAuthorizations').doc(id);
   const lockRef = imei => db.collection('safetySnapshotDeviceLocks').doc(imei);
@@ -184,6 +186,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     const admission = coordinator.beginCapture({ ...slot, expiresAt: slot.expiresAt });
     if (!admission.ok) { await finishFailure(id, admission.error, slot); return id; }
     pending.set(selected.socket, slot);
+    ingressObserver.begin(slot);
     try {
       try { slot.commandTimeline = beginPhotoCommandTimeline(slot); }
       catch { /* Diagnostics cannot block authorized capture. */ }
@@ -322,6 +325,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   }
 
   function observeTraffic(socket, session, { chunkBytes, frames, rest }) {
+    ingressObserver.frames(socket, session, { frames, rest });
     const slot = pending.get(socket);
     if (!slot || now() >= slot.expiresAt) return;
     const d = slot.diagnostics, afterMs = Math.max(0, now() - slot.startedAt);
@@ -346,6 +350,11 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   function observe(frame, socket, session) {
     if (!isPhotoFrame(frame)) return false;
     const slot = pending.get(socket);
+    const disposition = !slot ? 'no_pending_request' : slot.receiving ? 'duplicate_in_flight'
+      : slot.session !== session ? 'different_session'
+        : slot.imei !== session.imei || slot.protocolId !== session.protocolId ? 'identity_mismatch'
+          : now() >= slot.expiresAt ? 'request_expired' : 'passed_ingress_guard';
+    ingressObserver.disposition(socket, session, disposition, slot?.id);
     if (!slot) {
       // Record a replacement-session arrival as evidence only; never adopt it.
       for (const active of pending.values()) {
@@ -363,12 +372,13 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       coordinator.finishCapture(slot.imei, slot.id);
       receive(slot, Buffer.from(frame)).catch(report);
     }
-    // Dropped images never generate ACKs or raw logs. Counters are bounded to
-    // this request and written once with its terminal state, not per packet.
+    // Dropped images never generate ACKs or raw logs. The separate bounded
+    // observer can retain a metadata-only drop reason after pending removal.
     return true;
   }
 
   function disconnect(socket) {
+    ingressObserver.close(socket);
     coordinator.disconnect(socket);
     const slot = pending.get(socket);
     slot?.commandTimeline?.stop('disconnected', now());
@@ -429,6 +439,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
 
   let sweeping = false;
   async function sweep() {
+    ingressObserver.sweep();
     if (sweeping) return;
     sweeping = true;
     try {
@@ -455,7 +466,8 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   const request = (uid, input) => requestInternal(uid, input);
   const requestIncident = (uid, imei, incidentId) => requestInternal(uid, { imei,
     purpose: 'SOS or fall incident surroundings', consentConfirmed: true, safetyPurposeConfirmed: true }, incidentId);
-  return { request, requestIncident, authorized, observe, observeTraffic, disconnect, list, image, remove, sweep, access };
+  return { request, requestIncident, authorized, observe, observeTraffic, disconnect, list, image, remove, sweep, access,
+    observeIngress: ingressObserver.chunk, ingressDiagnosticsStatus: ingressObserver.getStatus };
 }
 
 let live = null;

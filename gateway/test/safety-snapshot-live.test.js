@@ -15,6 +15,7 @@ const imei = '861397052547492', protocolId = '9705254749';
 const { database, setup, frame, receive, until } = require('./helpers/photo-harness');
 const input = { imei, purpose: 'Check immediate surroundings', consentConfirmed: true, safetyPurposeConfirmed: true };
 function ingress(s, chunk) {
+  s.api.observeIngress(s.socket, s.session, chunk.length);
   const { frames, rest } = extractFrames(Buffer.concat([s.session.buffer || Buffer.alloc(0), chunk]));
   s.session.buffer = Buffer.from(rest);
   s.api.observeTraffic(s.socket, s.session, { chunkBytes: chunk.length, frames, rest });
@@ -35,10 +36,13 @@ test('timeout records a bare reply and continued traffic without implying a phot
   assert.equal(d.photoHeaderSeen, false); assert.equal(d.acceptedPhotoFrames, 0);
   assert.equal(d.bufferedBytes, 0); assert.equal(d.failureStage, null);
   assert.equal(s.writes.length, 1); assert.equal(s.objects.size, 0);
-  assert.equal(s.logs.length, 2);
-  assert(s.logs[1].includes('image_timeout'));
-  // No diagnostics are collected outside the explicit request window.
-  ingress(s, frame()); assert.equal(s.logs.length, 2);
+  const captureLogs = () => s.logs.filter(value => value.startsWith('[safety-snapshot]'));
+  assert.equal(captureLogs().length, 2);
+  assert(captureLogs()[1].includes('image_timeout'));
+  // A late arrival is observed without accepting it or changing terminal state.
+  ingress(s, frame()); assert.equal(captureLogs().length, 2);
+  assert(s.logs.some(value => value.includes('no_pending_request')));
+  assert.equal(s.auth(id).state, 'failed'); assert.equal(s.objects.size, 0);
 });
 
 test('an incomplete photo survives framing as diagnostic evidence, never as a saved image', async () => {
@@ -314,7 +318,9 @@ test('real TCP splitting/coalescing preserves the photo and the following heartb
   const watch = net.connect(server.address().port, '127.0.0.1'); await once(watch, 'connect');
   const [socket] = await connected; t.after(() => { socket.destroy(); watch.destroy(); });
   s.matches([{ socket, session: s.session }]); let buffer = Buffer.alloc(0), heartbeats = 0;
-  socket.on('data', chunk => { const result = extractFrames(Buffer.concat([buffer, chunk])); buffer = Buffer.from(result.rest);
+  socket.on('data', chunk => {
+    s.api.observeIngress(socket, s.session, chunk.length);
+    const result = extractFrames(Buffer.concat([buffer, chunk])); buffer = Buffer.from(result.rest);
     s.api.observeTraffic(socket, s.session, { chunkBytes: chunk.length, frames: result.frames, rest: result.rest });
     for (const bytes of result.frames) { if (isPhotoFrame(bytes)) s.api.observe(bytes, socket, s.session); else heartbeats++; }
   });
