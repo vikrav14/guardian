@@ -104,11 +104,17 @@ new session. Safe automatic reporting is recomputed independently.
 The initial SOS/fall notification and its call/map buttons remain independent
 of photos and AI. SOS reporting also runs independently of initial alert
 delivery. The separate Photos & AI follow-up is unchanged. Maximum five
-sequential photos, at least ten seconds after the previous saved image,
+sequential photos, at least sixty seconds after the previous saved image,
 120-second capture authorization and twelve-minute incident deadline remain.
 There is no mandatory CR-before-photo and no automatic retry of an ambiguous
 capture. An ACK is not an image; an image is not ready AI; API acceptance of a
 WhatsApp message is not confirmed recipient delivery.
+
+The first photo has no added spacing delay. The 2 October follow-up spacing
+change preserves fresh-session checks and the existing incident deadline;
+it does not add inactivity-triggered photography or claim camera reliability.
+The strict-admin photo worker status exposes the active spacing policy so a
+running process can be distinguished from edited files awaiting restart.
 
 ## Operational continuity
 

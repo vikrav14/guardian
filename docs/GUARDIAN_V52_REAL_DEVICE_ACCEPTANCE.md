@@ -1,3 +1,18 @@
+## Wider incident-photo spacing — 2 October 2026
+
+Two operator-triggered SOS checks on the combined gateway produced zero and
+one actual stored image respectively. The second SOS yielded ready AI and an
+authorized gallery entry for its image; the next capture acknowledged without an image and
+timed out. Initial alerts and separate follow-ups have provider delivery
+receipts for one recipient; another initial-alert recipient was rejected with
+Meta 131030. No independent fall trial was performed. Root cause is unresolved.
+
+The operator approved 60-second gaps after saved images, keeping the first
+capture prompt and the five-photo maximum, original deadlines and stop on
+failure. All 1,601 gateway tests pass. This pacing policy still needs a new
+physical SOS/fall acceptance run; no reliability improvement is yet claimed.
+See [spacing regression and hardware evidence](testing/incident-photo-spacing-2026-10-02.md).
+
 ## Combined reporting, Home and incident runtime — 2 October 2026
 
 The combined Wi-Fi/photo checkout now runs a 600-second normal reporting policy,

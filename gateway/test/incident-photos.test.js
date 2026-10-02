@@ -6,10 +6,14 @@ const { setup, frame, receive, until, imei } = require('./helpers/photo-harness'
 const { createIncidentPhotos } = require('../src/incident-photos');
 const { createSnapshotController } = require('../src/safety-snapshot-live');
 const { createSnapshotHttpHandler } = require('../src/safety-snapshot-http');
-const { CONSENT_VERSION, GAP_MS } = require('../src/incident-photo-policy');
+const { CONSENT_VERSION } = require('../src/incident-photo-policy');
 const result = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: ['A shape may be a table.'], limitations: ['The image is blurred.'] };
 function scene(n) {
   return jpeg.encode({ width: 16, height: 16, data: Buffer.alloc(16 * 16 * 4, n * 30) }, 50).data;
+}
+// Model a passive watch packet, not an outgoing wake/location command.
+function advanceWithPacket(s, ms = 60_000) {
+  s.advance(ms); s.session.lastPacketAt = s.args.now().getTime();
 }
 function trial(options = {}) {
   const s = setup();
@@ -43,7 +47,7 @@ test('five sequential distinct images, no CR, exact gaps, one batch across dupli
     await s.incidents.analyzePhoto(id);
     await s.incidents.tick('alertOne');
     assert.equal(s.writes.length, n, 'next capture waits for the spacing boundary');
-    s.advance(GAP_MS);
+    advanceWithPacket(s);
   }
   await s.incidents.tick('alertOne');
   assert.equal(s.writes.length, 5);
@@ -57,11 +61,69 @@ test('five sequential distinct images, no CR, exact gaps, one batch across dupli
   await assert.rejects(s.incidents.gallery('outsider', 'alertOne'), /incident_not_found/);
 });
 
+test('first capture is prompt; the saved image starts a full minute gap across restart and competing workers', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+  const deadline = s.incident().deadlineAt;
+  await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 1, 'first capture does not wait a minute');
+  s.advance(20_000);
+  await receive(s, s.incident().requestIds[0], frame({ image: scene(1) }));
+  const savedAt = s.auth(s.incident().requestIds[0]).receivedAt;
+  assert.equal(s.args.coordinator.busyUntil(imei), null, 'no camera guard during the spacing gap');
+  advanceWithPacket(s, 10_000);
+  await assert.rejects(s.api.requestIncident('owner', imei, 'alertOne'), /incident_waiting_for_photo/);
+  advanceWithPacket(s, 49_999);
+  const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
+  await Promise.all([s.incidents.tick('alertOne'), restarted.tick('alertOne')]);
+  await assert.rejects(s.api.requestIncident('owner', imei, 'alertOne'), /incident_waiting_for_photo/);
+  assert.equal(s.writes.length, 1, '59.999 seconds after save remains too early');
+  advanceWithPacket(s, 1);
+  await Promise.all([s.incidents.tick('alertOne'), restarted.tick('alertOne')]);
+  assert.equal(s.writes.length, 2, 'exactly one follow-up at the boundary');
+  assert.equal(+s.auth(s.incident().requestIds[1]).createdAt - +savedAt, 60_000);
+  assert.deepEqual(s.incident().deadlineAt, deadline);
+  assert.deepEqual(restarted.getStatus().policy,
+    { maxPhotos: 5, followupGapSeconds: 60, sequenceDeadlineSeconds: 720 });
+});
+
+test('a silent watch cannot consume a follow-up attempt after the minute gap', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  await receive(s, s.incident().requestIds[0]);
+  const deadline = s.incident().deadlineAt;
+  s.advance(60_000);
+  await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 1);
+  assert.equal(s.incident().requestIds.length, 1);
+  assert.equal(s.incidents.getStatus().lastCaptureOutcome, 'waiting_for_connection');
+  advanceWithPacket(s, 5000);
+  await s.incidents.tick('alertOne');
+  assert.equal(s.writes.length, 2);
+  assert.deepEqual(s.incident().deadlineAt, deadline);
+});
+
+test('consent, access, expiry and disconnect are rechecked after spacing without another capture', async () => {
+  for (const change of ['consent', 'owner_link', 'subscription', 'deadline', 'disconnect']) {
+    const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+    await receive(s, s.incident().requestIds[0]);
+    advanceWithPacket(s);
+    if (change === 'consent') s.db.rows.get(`incidentPhotoSettings/${imei}`).enabled = false;
+    if (change === 'owner_link') s.db.rows.get('users/owner').linkedImeis = [];
+    if (change === 'subscription') s.db.rows.get('serviceSubscriptions/owner').status = 'cancelled';
+    if (change === 'deadline') s.advance(12 * 60_000);
+    if (change === 'disconnect') s.matches([]);
+    const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
+    await restarted.tick('alertOne');
+    assert.equal(s.writes.length, 1, change);
+    assert.equal(s.incident().requestIds.length, 1, change);
+    assert.equal(s.incident().state, change === 'disconnect' ? 'collecting' : 'stopped', change);
+  }
+});
+
 test('a timeout stops the sequence, preserves earlier photo, and restart never replays a capture', async () => {
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
   await s.incidents.tick('alertOne');
   await receive(s, s.incident().requestIds[0], frame({ image: scene(1) }));
-  s.advance(GAP_MS); await s.incidents.tick('alertOne');
+  advanceWithPacket(s); await s.incidents.tick('alertOne');
   const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await restarted.tick('alertOne'); assert.equal(s.writes.length, 2);
   s.advance(120_001); await s.api.sweep(); await restarted.tick('alertOne');
@@ -230,7 +292,7 @@ test('trial-only mode accepts a labelled supervised trial without sending emerge
 
 test('identical image replay is not counted as a second distinct incident photo', async () => {
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
-  await receive(s, s.incident().requestIds[0]); s.advance(GAP_MS); await s.incidents.tick('alertOne');
+  await receive(s, s.incident().requestIds[0]); advanceWithPacket(s); await s.incidents.tick('alertOne');
   await receive(s, s.incident().requestIds[1]); await s.incidents.tick('alertOne');
   assert.equal(s.incident().state, 'stopped');
   assert.equal(s.incident().reason, 'duplicate_incident_image');
@@ -245,7 +307,7 @@ test('slow AI never blocks the next capture, and deleting during AI cannot resur
   const id = s.incident().requestIds[0]; await receive(s, id);
   const analysis = s.incidents.analyzePhoto(id);
   await until(() => s.auth(id).analysis.status === 'analysing');
-  s.advance(GAP_MS); await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 2);
+  advanceWithPacket(s); await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 2);
   await s.api.remove('owner', id); release(); await analysis;
   assert.equal(s.auth(id).state, 'deleted'); assert.equal(s.auth(id).analysis, null);
 });
@@ -256,7 +318,7 @@ test('revoked household/AI consent and expiry win over analysis and new capture'
   s.db.rows.get(`incidentPhotoSettings/${imei}`).aiConsentConfirmed = false;
   assert.equal((await s.incidents.gallery('owner', 'alertOne')).photos[0].analysis.status, 'unavailable');
   s.db.rows.get(`incidentPhotoSettings/${imei}`).enabled = false;
-  s.advance(GAP_MS); await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 1);
+  advanceWithPacket(s); await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 1);
   assert.equal(s.incident().state, 'stopped');
   s.db.rows.get('users/owner').memberUids = [];
   await assert.rejects(s.incidents.gallery('member', 'alertOne'), /family_membership_not_verified/);

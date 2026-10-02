@@ -1,7 +1,7 @@
 'use strict';
 
 const { asDate } = require('./safety-snapshot-policy');
-const { MAX_PHOTOS, SEQUENCE_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
+const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
 const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
 const { createPhotoProgress } = require('./incident-photo-progress');
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -248,6 +248,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
   }
   function getStatus() {
     return { version: 1, workerStarted: true, enabled: Boolean(enabled), trialOnly: Boolean(trialOnly),
+      policy: { maxPhotos: MAX_PHOTOS, followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 },
       aiEnabled: Boolean(analyze), lastCaptureOutcome,
       capture: captureProgress.getStatus(), analysisFollowup: followupProgress.getStatus() };
   }

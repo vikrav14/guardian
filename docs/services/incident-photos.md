@@ -159,7 +159,12 @@ uses enrolled household consent and an active Family/Care subscription.
 
 One durable device lock collapses duplicate SOS/fall reports into the same gallery
 for 12 minutes. The worker requests **up to five photos**, sequentially, at least
-10 seconds after the previous image was received. It stops at the first failed,
+60 seconds after the previous image was saved. The first photo has no added
+spacing delay. This 2 October pacing change aims to spread context over time;
+it is not proof of firmware readiness or a fix for ACK-without-image failures.
+It does not wait for step inactivity or interpret absent telemetry as stillness.
+The fresh-session, consent and deadline checks apply again to each follow-up.
+It stops at the first failed,
 timed-out, deleted, duplicate-image or disconnected capture, or at the 12-minute
 deadline. No overlapping command, timeout retry or restart replay is permitted.
 The 15-minute manual test cooldown is independent. Manual capture requires its

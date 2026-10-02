@@ -11,6 +11,13 @@ rules, command-source audit, restart behavior and remaining hardware checks.
 Coordination is **not a proven fix for ACK-without-image fall captures**. The
 failed independent fall waits below did not establish a competing write.
 
+After the 2 October SOS checks, the operator approved wider follow-up spacing:
+60 seconds after each saved image, with the first photo prompt and the same
+five-photo maximum, 120-second request window and 12-minute sequence deadline.
+Fresh-session/authorization checks and stopping after failure remain required.
+The earlier 10-second observations and timing table below are historical.
+See [2 October spacing checks](../testing/incident-photo-spacing-2026-10-02.md).
+
 Status on 1 October 2026: observation implemented; scheduling arbitration is
 planned, not active. PR #113 remains draft. This work does not establish a fix
 for the V52's intermittent capture replies without images.

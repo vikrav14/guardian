@@ -3,7 +3,9 @@
 const { asDate } = require('./safety-snapshot-policy');
 const MAX_PHOTOS = 5;
 const SEQUENCE_MS = 12 * 60_000;
-const GAP_MS = 10_000;
+// Follow-ups are spaced from the preceding saved image; the first photo is
+// still eligible immediately. This is a pacing policy, not camera readiness.
+const GAP_MS = 60_000;
 const CONSENT_VERSION = 'incident-photos-v1';
 const validIncidentId = id => /^[A-Za-z0-9_-]{1,80}$/.test(String(id || ''));
 function deny(code) { throw Object.assign(new Error(code), { code, status: 409 }); }
