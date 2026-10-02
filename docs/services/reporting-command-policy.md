@@ -13,16 +13,16 @@ recommends a ten-minute normal interval and temporary faster urgent locating.
 | Context | Normal battery | Below 15% | End condition |
 | --- | --- | --- | --- |
 | Normal automatic reporting | 600 seconds | 900 seconds | Current policy |
-| SOS | 60 seconds | 300 seconds | 30 minutes after SOS |
-| SOS cooldown | 300 seconds | 300 seconds | Next 15 minutes |
+| SOS or fall | 60 seconds | 300 seconds | 30 minutes after alarm receipt |
+| Emergency cooldown | 300 seconds | 300 seconds | Next 15 minutes |
 | Active outing | 60 seconds | 300 seconds | 15 minutes after last accepted journey movement, or confirmed return |
 | Explicit urgent locate (`CR`) | Supplier temporary burst | Same protocol command | Firmware-bounded burst; does not overwrite `UPLOAD` intent |
 
 Unknown battery uses 600 seconds. Null must not coerce to 0% and incorrectly
-select critical-battery behavior. SOS outranks outing, which outranks SOS
-cooldown. Existing manual preferences remain explicit; manual mode cannot
-suppress SOS. Returning from a temporary interval recomputes current battery,
-manual preference, SOS deadlines and journey evidence, rather than restoring
+select critical-battery behavior. Active SOS/fall outranks outing, which outranks
+emergency cooldown. Existing manual preferences remain explicit; manual mode
+cannot suppress either emergency. Returning from a temporary interval recomputes current battery,
+manual preference, emergency deadlines and journey evidence, rather than restoring
 an old interval from a closure.
 
 A 15-second reconciliation worker reads current state for connected devices.
@@ -30,6 +30,15 @@ Deadlines survive process restart; heartbeat receipt does not renew an outing.
 Fresh accepted movement renews its bounded lease. Reconnect reasserts the
 current setting once, unless telemetry already handed it off on that session.
 Command handoff is not firmware readback or measured upload cadence.
+
+Fall previously lacked an emergency reporting override. Both alarm types now
+start reporting independently at receipt, before geolocation completes. Separate
+durable fall deadlines preserve compatibility with existing SOS deadlines. An
+older reporting evaluation cannot overwrite a newer alarm's lease, and late
+processing cannot renew an expired event. Neither this correction nor the
+additional reporting traffic is a proven fix for an acknowledged capture that
+produces no incoming image. Camera requests do not depend on an UPLOAD reply
+or require a preceding CR.
 
 Packet silence allows two applied upload intervals plus 60 seconds, then one
 CR and 90 seconds of grace. Policy evaluation cannot reset packet age. Location
@@ -67,7 +76,7 @@ five-photo sequential contract remain in the existing snapshot/incident code.
 | Source | Decision during camera wait |
 | --- | --- |
 | Protocol replies (`server`/wear ACK transport) | Prompt; no camera delay |
-| SOS/outing reporting, CR recovery or explicit locating | Prompt; camera is not a blanket tracking block |
+| SOS/fall/outing reporting, CR recovery or explicit locating | Prompt; camera is not a blanket tracking block |
 | CALL, MONITOR, FIND, explicit supported stops | Prompt after their existing authorization |
 | Automatic normal reporting/restoration | Defer, persist reason, recompute current policy on next worker pass |
 | Firestore device settings | Defer within original 120-second request lifetime; retain newest authorized intent per setting |
@@ -102,7 +111,7 @@ new session. Safe automatic reporting is recomputed independently.
 ## Photos and WhatsApp
 
 The initial SOS/fall notification and its call/map buttons remain independent
-of photos and AI. SOS reporting also runs independently of initial alert
+of photos and AI. SOS/fall reporting also runs independently of initial alert
 delivery. The separate Photos & AI follow-up is unchanged. Maximum five
 sequential photos, at least sixty seconds after the previous saved image,
 120-second capture authorization and twelve-minute incident deadline remain.

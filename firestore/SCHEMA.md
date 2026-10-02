@@ -851,10 +851,12 @@ See `docs/services/home-wifi-setup.md` for authorization, expiry and acceptance.
 
 - `devices/{imei}.adaptiveReporting`: desired and handed-off intervals remain
   distinct. `outingActiveUntil` is a bounded movement-evidence lease;
-  `sosActiveUntil`/`sosCooldownUntil` persist emergency deadlines.
+  `sosActiveUntil`/`sosCooldownUntil` and `fallActiveUntil`/`fallCooldownUntil`
+  persist separate emergency deadlines. Only alarm transactions extend them;
+  reporting evaluations never write back a stale copy of those deadlines.
   `commandStatus`, `deferredReason`, and `deferredUntil` describe a camera
   deferral without claiming a write. `manualReportingIntervalSeconds` retains
-  current explicit manual intent separately from a temporary SOS interval.
+  current explicit manual intent separately from a temporary emergency interval.
 - `deviceCommands/{id}` can be `deferred` within 120 seconds of `createdAt`.
   `expiresAt`, `error: camera_busy`, and backend-only `coordinationProcess`
   describe why it has not been sent. A superseded/expired/revoked request is

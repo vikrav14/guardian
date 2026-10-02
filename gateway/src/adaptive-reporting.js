@@ -35,14 +35,17 @@ function effectivePolicy({
   nowMs = Date.now(),
   sosActiveUntilMs = 0,
   sosCooldownUntilMs = 0,
+  fallActiveUntilMs = 0,
+  fallCooldownUntilMs = 0,
 }) {
   const battery = batteryValue(batteryPercent);
 
-  if (nowMs < sosActiveUntilMs) {
+  const emergency = nowMs < sosActiveUntilMs ? 'sos' : nowMs < fallActiveUntilMs ? 'fall' : null;
+  if (emergency) {
     if (Number.isFinite(battery) && battery < 15) {
-      return { seconds: 300, reason: 'sos_critical_battery' };
+      return { seconds: 300, reason: `${emergency}_critical_battery` };
     }
-    return { seconds: 60, reason: 'sos_emergency_override' };
+    return { seconds: 60, reason: `${emergency}_emergency_override` };
   }
 
   // Safety while away from a confirmed origin outranks the normal battery
@@ -57,6 +60,9 @@ function effectivePolicy({
 
   if (nowMs < sosCooldownUntilMs) {
     return { seconds: 300, reason: 'sos_cooldown' };
+  }
+  if (nowMs < fallCooldownUntilMs) {
+    return { seconds: 300, reason: 'fall_cooldown' };
   }
 
   return policyForBattery(batteryPercent);
@@ -115,6 +121,8 @@ async function evaluateAdaptiveReporting(db, imei, {
   const adaptive = data.adaptiveReporting || {};
   const sosActiveUntilMs = millis(adaptive.sosActiveUntil);
   const sosCooldownUntilMs = millis(adaptive.sosCooldownUntil);
+  const fallActiveUntilMs = millis(adaptive.fallActiveUntil);
+  const fallCooldownUntilMs = millis(adaptive.fallCooldownUntil);
 
   // Only accepted journey evidence supplies this lease. A heartbeat or worker
   // tick must never extend an outing, including after process restart.
@@ -129,8 +137,11 @@ async function evaluateAdaptiveReporting(db, imei, {
     nowMs,
     sosActiveUntilMs,
     sosCooldownUntilMs,
+    fallActiveUntilMs,
+    fallCooldownUntilMs,
   });
-  if (mode !== 'automatic' && nowMs >= sosActiveUntilMs && nowMs >= sosCooldownUntilMs) {
+  if (mode !== 'automatic' && nowMs >= Math.max(sosActiveUntilMs, sosCooldownUntilMs,
+    fallActiveUntilMs, fallCooldownUntilMs)) {
     const seconds = Number(data.manualReportingIntervalSeconds || data.locationReportingIntervalSeconds);
     if (Number.isInteger(seconds) && seconds > 0) policy = { seconds, reason: 'manual_mode' };
   }
@@ -141,11 +152,12 @@ async function evaluateAdaptiveReporting(db, imei, {
   const lastRequestedSeconds = appliedIntervalSeconds(data, adaptive);
 
   const lastCommandAtMs = millis(adaptive.lastCommandAt);
-  const restoring = /^(sos_|outing_)/.test(adaptive.reason || '') &&
-    !/^(sos_|outing_)/.test(policy.reason);
+  const emergency = /^(sos_|fall_)/.test(policy.reason);
+  const restoring = /^(sos_|fall_|outing_)/.test(adaptive.reason || '') &&
+    !/^(sos_|fall_|outing_)/.test(policy.reason);
   const urgent =
     force || restoring || adaptive.commandStatus === 'deferred' ||
-    policy.reason.startsWith('sos_') ||
+    emergency ||
     policy.reason.startsWith('outing_');
 
   const shouldWrite = reassert || shouldSend({
@@ -161,16 +173,16 @@ async function evaluateAdaptiveReporting(db, imei, {
     batteryPercent: Number.isFinite(batteryValue(batteryPercent)) ? Number(batteryPercent) : null,
     lastEvaluatedAt: new Date(nowMs), trigger,
     outingActiveUntil: new Date(outingUntil),
-    ...(sosActiveUntilMs ? { sosActiveUntil: new Date(sosActiveUntilMs) } : {}),
-    ...(sosCooldownUntilMs ? { sosCooldownUntil: new Date(sosCooldownUntilMs) } : {}),
   };
+  // Alarm transactions own emergency deadlines. Copying a read deadline into
+  // this later write could erase a newer alarm that arrived during send().
   // Persist desired state before attempting a write. A busy camera is a
   // deferral, never evidence that UPLOAD was applied. The worker recomputes.
   const intentChanged = adaptive.desiredIntervalSeconds !== policy.seconds || adaptive.reason !== policy.reason ||
     adaptive.batteryPercent !== intent.batteryPercent || millis(adaptive.outingActiveUntil) !== outingUntil ||
     nowMs - millis(adaptive.lastEvaluatedAt) >= 5 * 60_000;
   if (shouldWrite || intentChanged) await deviceRef.set({ adaptiveReporting: intent,
-    ...(mode !== 'automatic' && policy.reason.startsWith('sos_') && !data.manualReportingIntervalSeconds
+    ...(mode !== 'automatic' && emergency && !data.manualReportingIntervalSeconds
       ? { manualReportingIntervalSeconds: data.locationReportingIntervalSeconds || 600 } : {}),
   }, { merge: true });
   if (!shouldWrite) {
@@ -186,7 +198,7 @@ async function evaluateAdaptiveReporting(db, imei, {
     await beforeSend();
     await send(db, imei, 'set_upload_interval', {
     seconds: policy.seconds,
-  }, { coordination: { emergency: policy.reason.startsWith('sos_') || policy.reason.startsWith('outing_') } }); }
+  }, { coordination: { emergency: emergency || policy.reason.startsWith('outing_') } }); }
   catch (error) {
     if (error.code !== 'camera_busy') throw error;
     setContext(imei, { expectedReportingIntervalSeconds: lastRequestedSeconds, outingActive,
@@ -218,8 +230,6 @@ async function evaluateAdaptiveReporting(db, imei, {
       lastCommandAt: new Date(nowMs),
       lastEvaluatedAt: new Date(nowMs),
       trigger,
-      ...(sosActiveUntilMs ? { sosActiveUntil: new Date(sosActiveUntilMs) } : {}),
-      ...(sosCooldownUntilMs ? { sosCooldownUntil: new Date(sosCooldownUntilMs) } : {}),
     },
   }, { merge: true });
 
@@ -267,31 +277,42 @@ function startReportingReconciler({ db, connected, context = () => ({}), interva
   return { tick, stop: () => clearInterval(timer) };
 }
 
-async function activateSosOverride(db, imei, {
-  batteryPercent,
-  outingActive = false,
+async function activateEmergencyOverride(db, imei, {
+  alarmType,
   nowMs = Date.now(),
+  eventAtMs = nowMs,
+  ...options
 } = {}) {
-  const { sosActiveUntilMs, sosCooldownUntilMs } = markSos(imei, nowMs);
-
-  if (db) {
-    await db.collection('devices').doc(imei).set({
+  if (!['sos', 'fall'].includes(alarmType)) return { changed: false, reason: 'not_emergency' };
+  if (!db || !imei) return { changed: false, reason: 'missing_context' };
+  const deviceRef = db.collection('devices').doc(imei);
+  const activeKey = `${alarmType}ActiveUntil`, cooldownKey = `${alarmType}CooldownUntil`;
+  // Separate durable leases preserve existing SOS state and survive restart.
+  // An older alarm finishing an asynchronous path must not shorten a newer one.
+  // Receipt time bounds the lease; reconciliation never renews it.
+  await db.runTransaction(async tx => {
+    const data = (await tx.get(deviceRef)).data()?.adaptiveReporting || {};
+    tx.set(deviceRef, {
       adaptiveReporting: {
-        sosActiveUntil: new Date(sosActiveUntilMs),
-        sosCooldownUntil: new Date(sosCooldownUntilMs),
+        [activeKey]: new Date(Math.max(millis(data[activeKey]), eventAtMs + SOS_ACTIVE_MS)),
+        [cooldownKey]: new Date(Math.max(millis(data[cooldownKey]), eventAtMs + SOS_ACTIVE_MS + SOS_COOLDOWN_MS)),
         lastEvaluatedAt: new Date(nowMs),
-        trigger: 'sos',
+        trigger: alarmType,
       },
     }, { merge: true });
-  }
+  });
 
   return applyAdaptiveReporting(db, imei, {
-    batteryPercent,
-    outingActive,
-    trigger: 'sos',
+    ...options,
+    trigger: alarmType,
     nowMs,
     force: true,
   });
+}
+
+// Retain the existing entry point for callers outside the alarm dispatcher.
+function activateSosOverride(db, imei, options = {}) {
+  return activateEmergencyOverride(db, imei, { ...options, alarmType: 'sos' });
 }
 
 module.exports = {
@@ -310,4 +331,5 @@ module.exports = {
   markSos,
   applyAdaptiveReporting,
   activateSosOverride,
+  activateEmergencyOverride,
 };

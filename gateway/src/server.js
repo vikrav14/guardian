@@ -54,7 +54,7 @@ const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { startProfileWeather } = require('./profile-weather');
-const { applyAdaptiveReporting, activateSosOverride, startReportingReconciler } = require('./adaptive-reporting');
+const { applyAdaptiveReporting, activateEmergencyOverride, startReportingReconciler } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { createWellbeingStore } = require('./care-wellbeing');
 const { claimSosIncident } = require('./sos-incident-window');
@@ -981,6 +981,20 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             `state=${event.alarmCode || 'unknown'} fields=${event.alarmArgCount ?? 'unknown'}`
         );
 
+        // Emergency tracking applies to both alarm types. Start before
+        // geolocation; reporting does not gate alert or photo processing.
+        if (['sos', 'fall'].includes(event.alarmType)) {
+          const adaptiveDb = getDb();
+          if (adaptiveDb) {
+            void runTrackingSideEffect(event, 'reporting', () => activateEmergencyOverride(adaptiveDb, event.imei, {
+              alarmType: event.alarmType,
+              eventAtMs: eventReceivedAt.getTime(),
+              batteryPercent: event.batteryPercent,
+              outingActive: isJourneyActive(event.imei),
+            }));
+          }
+        }
+
         // Capture pre-alarm evidence before geolocation/reporting/persistence
         // can yield to a later watch observation. Never read it at send time.
         let sosDeviceAtReceipt = null;
@@ -1022,7 +1036,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
-        const alarmAt = alarmType === 'sos' ? eventReceivedAt : new Date();
+        const alarmAt = ['sos', 'fall'].includes(alarmType) ? eventReceivedAt : new Date();
         const sosLocationSnapshot = alarmType === 'sos'
           ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
@@ -1033,16 +1047,6 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
               } : null,
             })
           : null;
-        if (alarmType === 'sos') {
-          const adaptiveDb = getDb();
-          if (adaptiveDb) {
-            void runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
-              batteryPercent: alarmEvent.batteryPercent,
-              outingActive: isJourneyActive(alarmEvent.imei),
-            }));
-          }
-        }
-
         const alarmRaw =
 
           alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};

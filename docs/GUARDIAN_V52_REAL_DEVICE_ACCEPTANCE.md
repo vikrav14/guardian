@@ -1441,3 +1441,31 @@ Bounded metadata-only ingress diagnostics have been added for the next trial,
 including post-timeout and replacement/unidentified-connection observations.
 They do not change photo authorization, commands, spacing or media acceptance.
 See [the detailed evidence and diagnostic limits](testing/incident-photo-spacing-2026-10-02.md).
+
+### Diagnostic fall and reporting correction — 2 October 2026
+
+The independent fall received at 15:24:20 MUT delivered its initial WhatsApp
+alert. One capture at 15:25:55 received a bare reply but produced no image. The
+metadata observer retained the full 120-second authorization and a further
+120 seconds of observation: 63 total incoming bytes on the selected connection,
+two complete frames, zero photo headers, zero incomplete buffers, zero
+untracked bytes and no replacement/unidentified connection traffic. No image
+rejection was recorded. This locates the observed failure before photo parsing,
+Storage and AI; it does not distinguish watch generation from transport loss.
+The separate follow-up was delivered/read at 15:28:15. No retry was sent.
+
+The operator reports that the screen stayed dark after a brief initial display,
+and that a previous five-photo SOS succeeded with the same screen behavior.
+Screen darkness alone is therefore not an established explanation. The earlier
+AnyTracking-only attempt at 22:23 MUT on 24 September also had a reply and
+continuing heartbeat, but no image in its supplied 112.884-second excerpt.
+That finite reference excerpt cannot exclude later or other-transport arrivals.
+
+Code inspection found a separate gap: fall did not activate the bounded
+emergency reporting override. It now uses the same 30-minute active / 15-minute
+cooldown policy and critical-battery safeguard as SOS. Alarm receipt timestamps
+are retained for both types; reporting starts independently of geolocation and
+alert/photo completion. A regression also prevents an older reporting write
+from shortening a newer emergency deadline. All 1,616 gateway tests pass.
+These are software fixes; fall reporting cadence and camera reliability still
+require hardware evidence. No new physical alarm or capture is claimed here.

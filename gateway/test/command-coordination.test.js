@@ -195,7 +195,9 @@ function reportingHarness() {
     else a[key] = value;
   } return a; };
   const ref = { get: async () => ({ data: () => structuredClone(row) }), set: async value => { merge(row, value); } };
-  const db = { collection: () => ({ doc: () => ref }) };
+  const db = { collection: () => ({ doc: () => ref }),
+    runTransaction: async work => work({ get: target => target.get(),
+      set: (target, value, options) => target.set(value, options) }) };
   const writes = [], contexts = [];
   const send = async (_db, _imei, _type, params, options) => { writes.push({ ...params, ...options }); };
   return { db, row, writes, contexts, options: { send, setContext: c => contexts.push(c) } };
@@ -243,4 +245,90 @@ test('manual mode cannot suppress emergency override; original manual intent sur
   assert.equal(h.writes.at(-1).seconds, 60);
   await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 1001 });
   assert.equal(h.writes.at(-1).seconds, 900);
+});
+
+test('fall reporting bypasses a busy camera and restores through cooldown after worker restart', async () => {
+  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
+  const h = reportingHarness(), base = Date.now();
+  h.row.locationReportingIntervalSeconds = 600;
+  h.row.adaptiveReporting.appliedIntervalSeconds = 600;
+  const c = createCommandCoordinator({ now: () => base });
+  c.beginCapture({ imei, id: 'capture', socket: { writable: true }, expiresAt: base + 120000 });
+  const send = async (db, id, type, params, options) => {
+    assert.equal(c.decide(id, `UPLOAD,${params.seconds}`, options.coordination).ok, true);
+    await h.options.send(db, id, type, params, options);
+  };
+  await activateEmergencyOverride(h.db, imei, { ...h.options, send, alarmType: 'fall', nowMs: base });
+  assert.equal(h.writes.at(-1).seconds, 60);
+  assert.equal(h.row.adaptiveReporting.reason, 'fall_emergency_override');
+  assert.equal(+h.row.adaptiveReporting.fallActiveUntil, base + SOS_ACTIVE_MS);
+  assert.equal(h.row.adaptiveReporting.sosActiveUntil, undefined);
+  c.finishCapture(imei, 'capture');
+  const worker = startReportingReconciler({ db: h.db, connected: () => [imei],
+    context: () => ({ ...h.options, nowMs: base + SOS_ACTIVE_MS }), intervalMs: 600000 });
+  await worker.tick(); worker.stop();
+  assert.equal(h.writes.at(-1).seconds, 300);
+  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + SOS_ACTIVE_MS + SOS_COOLDOWN_MS });
+  assert.equal(h.writes.at(-1).seconds, 600);
+  assert.equal(h.row.adaptiveReporting.reason, 'normal_baseline');
+});
+
+test('fall critical battery safeguard and latest manual intent survive emergency expiry', async () => {
+  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
+  const h = reportingHarness(), base = Date.now();
+  h.row.locationReportingMode = 'manual';
+  h.row.locationReportingIntervalSeconds = 900;
+  h.row.adaptiveReporting.appliedIntervalSeconds = 900;
+  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base, batteryPercent: 8 });
+  assert.equal(h.writes.at(-1).seconds, 300);
+  assert.equal(h.row.manualReportingIntervalSeconds, 900);
+  h.row.manualReportingIntervalSeconds = 1200;
+  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + SOS_ACTIVE_MS + SOS_COOLDOWN_MS });
+  assert.equal(h.writes.at(-1).seconds, 1200);
+});
+
+test('older alarm receipt cannot shorten a lease and unrelated alarms cannot create one', async () => {
+  const { activateEmergencyOverride, SOS_ACTIVE_MS } = require('../src/adaptive-reporting');
+  const h = reportingHarness(), base = Date.now();
+  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base });
+  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base - 5000 });
+  assert.equal(+h.row.adaptiveReporting.fallActiveUntil, base + SOS_ACTIVE_MS);
+  const before = structuredClone(h.row), count = h.writes.length;
+  const result = await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'low_battery', nowMs: base });
+  assert.equal(result.changed, false);
+  assert.deepEqual(h.row, before);
+  assert.equal(h.writes.length, count);
+});
+
+test('a reporting write already in flight cannot overwrite a newer emergency deadline', async () => {
+  const { activateEmergencyOverride, SOS_ACTIVE_MS } = require('../src/adaptive-reporting');
+  for (const alarmType of ['sos', 'fall']) {
+    const h = reportingHarness(), base = Date.now();
+    h.row.adaptiveReporting[`${alarmType}ActiveUntil`] = new Date(base - 1000);
+    let release, entered;
+    const paused = new Promise(resolve => { entered = resolve; });
+    const resume = new Promise(resolve => { release = resolve; });
+    const evaluation = applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base,
+      send: async () => { entered(); await resume; } });
+    await paused;
+    // The alarm commits its deadline while the older evaluation is at send().
+    let committed;
+    const commitment = new Promise(resolve => { committed = resolve; });
+    const transaction = h.db.runTransaction;
+    h.db.runTransaction = async fn => { const result = await transaction(fn); committed(); return result; };
+    const alarm = activateEmergencyOverride(h.db, imei, { ...h.options, alarmType, nowMs: base });
+    await commitment;
+    release(); await Promise.all([evaluation, alarm]);
+    assert.equal(+h.row.adaptiveReporting[`${alarmType}ActiveUntil`], base + SOS_ACTIVE_MS);
+    assert.equal(h.writes.at(-1).seconds, 60);
+  }
+});
+
+test('processing an old event does not renew its expired emergency window', async () => {
+  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
+  const h = reportingHarness(), nowMs = Date.now();
+  const eventAtMs = nowMs - SOS_ACTIVE_MS - SOS_COOLDOWN_MS - 1;
+  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs, eventAtMs });
+  assert.equal(h.writes.at(-1).seconds, 600);
+  assert.equal(h.row.adaptiveReporting.reason, 'normal_baseline');
 });

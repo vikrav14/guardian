@@ -58,6 +58,23 @@ test('SOS cooldown uses 5 minute reporting', () => {
   );
 });
 
+test('fall emergency outranks SOS cooldown, and SOS remains prompt during a fall', () => {
+  const now = 1_000_000;
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    sosCooldownUntilMs: now + 5000, fallActiveUntilMs: now + 1000,
+    fallCooldownUntilMs: now + 2000 }), { seconds: 60, reason: 'fall_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 8,
+    fallActiveUntilMs: now + 1000 }), { seconds: 300, reason: 'fall_critical_battery' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    sosActiveUntilMs: now + 1000, fallActiveUntilMs: now + 2000 }),
+  { seconds: 60, reason: 'sos_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now + 1000, batteryPercent: 80,
+    sosActiveUntilMs: now + 1000, fallActiveUntilMs: now + 2000 }),
+  { seconds: 60, reason: 'fall_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    fallCooldownUntilMs: now + 1000, outingActive: true }), { seconds: 60, reason: 'outing_active' });
+});
+
 test('active outing holds one-minute reporting across normal battery bands', () => {
   const now = 1_000_000;
   assert.deepEqual(

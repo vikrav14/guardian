@@ -106,3 +106,28 @@ success is claimed for these diagnostics before an operator-triggered test.
 Diagnostic regression validation: all 1,609 gateway tests passed, with zero
 failures or skipped tests. The focused ingress/live-capture/incident/timeline/ops
 run passed 62 tests. This validates software behavior, not the camera root cause.
+
+## Completed diagnostic fall and subsequent software correction
+
+The 15:24:20 MUT fall had a single capture at 15:25:55. The watch replied but
+no image arrived during authorization or the additional 120-second observation.
+The terminal observer counted 63 bytes in two complete frames on the selected
+connection, with no photo header, incomplete buffer, untracked byte, suppressed
+event, replacement connection or rejection. Actual images/ready analyses: 0/0.
+Initial alert delivery and delivered/read follow-up were verified independently.
+The observer and temporary sleep helper exited; gateway and ngrok stayed up.
+
+The operator's later correction reports a prior five-photo SOS with the same
+screen behavior. Do not promote screen darkness to a cause or require another
+awake-screen trial based solely on the failed capture. Historical AnyTracking
+evidence also includes an ACK-without-image excerpt and separate hands-off
+successes; the missing-image symptom is not unique to Guardian's sequence.
+
+Fall emergency reporting was absent from the dispatcher. The corrected policy
+uses separate durable fall deadlines with the existing SOS duration and battery
+rules, runs independently of initial alerts and camera completion, and restores
+current policy after expiry/restart. A stale evaluation can no longer replace a
+newer emergency deadline. The full gateway suite passes 1,616 tests; focused
+reporting/coordination/dispatcher tests pass 47. This does not establish a camera
+fix. RCAPTURE bytes, session/consent guards, spacing, request deadline and stop on
+timeout remain unchanged. No blind retry, prerequisite CR or FTP change is added.
