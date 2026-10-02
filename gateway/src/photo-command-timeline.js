@@ -4,6 +4,7 @@
 // A write attempt is not proof of delivery or execution by the watch.
 const LOOKBACK_MS = 120_000;
 const { MAX_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
+const { frameMetadata } = require('./photo-protocol-metadata');
 const BEFORE_LIMIT = 16;
 const DURING_LIMIT = 48;
 const SOURCES = new Set(['downlink', 'protocol_ack', 'photo_capture', 'movement_settings', 'wifi_fence_trial']);
@@ -32,6 +33,8 @@ function safeCommandTimeline(value) {
         source: SOURCES.has(row.source) ? row.source : 'other',
         command: COMMANDS.has(row.command) ? row.command : 'OTHER',
         bytes: count(row.bytes), sameSession: row.sameSession === true,
+        ...(['3G', 'SG', 'CS', 'other'].includes(row.prefix) ? { prefix: row.prefix } : {}),
+        ...(typeof row.lengthMatches === 'boolean' ? { lengthMatches: row.lengthMatches } : {}),
         ...(Number.isInteger(row.reportingIntervalSeconds) && row.command === 'UPLOAD' &&
           row.reportingIntervalSeconds >= 1 && row.reportingIntervalSeconds <= 86400
           ? { reportingIntervalSeconds: row.reportingIntervalSeconds } : {}) })),
@@ -56,9 +59,11 @@ function createPhotoCommandObserver() {
       const header = frame.subarray(0, 96).toString('latin1');
       const match = /^\[[a-z0-9]{2}\*\d{10,15}\*[a-f0-9]{4}\*([a-z0-9_]+)(?=[,\]])/i.exec(header);
       const name = match?.[1].toUpperCase();
+      const metadata = frameMetadata(frame);
       const interval = /^\[[a-z0-9]{2}\*\d{10,15}\*[a-f0-9]{4}\*UPLOAD,(\d{1,5})\]$/i.exec(header);
       const row = { source: SOURCES.has(source) ? source : 'other',
         command: COMMANDS.has(name) ? name : 'OTHER', bytes: frame.length,
+        ...(metadata?.prefix ? { prefix: metadata.prefix, lengthMatches: metadata.lengthMatches } : {}),
         ...(interval && +interval[1] >= 1 && +interval[1] <= 86400
           ? { reportingIntervalSeconds: +interval[1] } : {}) };
       const history = recent.get(socket) || { events: [], droppedAt: -Infinity };

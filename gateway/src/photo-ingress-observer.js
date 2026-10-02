@@ -4,6 +4,7 @@
 // to accept media. There is no socket write, payload copy or persistent replay.
 const LATE_OBSERVATION_MS = 120_000;
 const { MAX_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
+const { frameMetadata } = require('./photo-protocol-metadata');
 const MAX_TRACES = 32, MAX_SESSIONS = 12, MAX_EVENTS = 32;
 const DISPOSITIONS = new Set(['no_pending_request', 'duplicate_in_flight',
   'different_session', 'identity_mismatch', 'request_expired', 'passed_ingress_guard']);
@@ -62,7 +63,8 @@ function createPhotoIngressObserver({ now = Date.now, log = () => {},
       }
       s = { session: sessionAlias, relation, chunks: 0, bytes: 0, frames: 0,
         photoHeaders: 0, firstDataAt: null, lastDataAt: null, closedAt: null,
-        bufferedBytes: 0, maxBufferedBytes: 0, incompletePhotoHeader: false };
+        bufferedBytes: 0, maxBufferedBytes: 0, incompletePhotoHeader: false,
+        frameKinds: {}, lastFrameAt: {} };
       t.sessions.set(sessionAlias, s);
     }
     s.relation = relation;
@@ -113,12 +115,24 @@ function createPhotoIngressObserver({ now = Date.now, log = () => {},
         headerMatchesRequest: incomplete[1] === t.protocolId, afterCaptureExpiry: +now() >= t.expiresAt });
       s.incompletePhotoHeader = Boolean(incomplete);
       for (const frame of values) {
+        const metadata = frameMetadata(frame);
+        if (metadata) {
+          const first = !s.frameKinds[metadata.kind];
+          s.frameKinds[metadata.kind] = (s.frameKinds[metadata.kind] || 0) + 1;
+          s.lastFrameAt[metadata.kind] = new Date(+now()).toISOString();
+          if (first && metadata.kind !== 'photo') emit(t, 'first_frame_kind', {
+            session: s.session, relation: s.relation, frameKind: metadata.kind,
+            bytes: metadata.bytes,
+            ...(metadata.prefix ? { prefix: metadata.prefix, lengthMatches: metadata.lengthMatches } : {}),
+            afterCaptureExpiry: +now() >= t.expiresAt });
+        }
         const header = photoHeader(frame);
         if (!header) continue;
         s.photoHeaders++;
         emit(t, 'photo_header', { session: s.session, relation: s.relation, form: 'complete_frame',
           frameBytes: frame.length, headerMatchesRequest: header[1] === t.protocolId,
           receiverRecognizesHeader: frame.subarray(20, 24).equals(Buffer.from('img,')),
+          ...(metadata?.deviceWallTimeUnverified ? { deviceWallTimeUnverified: metadata.deviceWallTimeUnverified } : {}),
           afterCaptureExpiry: +now() >= t.expiresAt });
       }
     });
