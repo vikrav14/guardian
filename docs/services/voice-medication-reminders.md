@@ -70,8 +70,9 @@ turn it into repeated watch-audio delivery or alter that notification contract.
 Section II.29 does not specify the medicine audio codec/profile, rate, duration,
 byte limit, file header, escaping, or chunking. Section II.36 specifies AMR for
 **TK voice chat**; that is not proof that TAKEPILLS uses the same representation.
-Obtain a supplier-approved payload with a known recording or a controlled
-reference-app capture. Also establish:
+The first controlled reference capture below now supplies evidence for one
+AMR-NB profile and the five escape mappings in TAKEPILLS. Limits, playback and
+other configurations are still unverified. Also establish:
 
 - Independent slot behavior: two daily reminders in different slots, update
   one without changing the other, and disable/remove exactly one slot.
@@ -167,4 +168,45 @@ Fifteen focused relay/recorder tests pass, including exact split binary
 forwarding, no generated replies, identity/media filtering, limits, disk failure,
 expiry and a local stop file. The existing expiry test now waits for the client
 socket's asynchronous close before checking it. This is software verification;
-no AnyTracking voice-medication hardware result is yet recorded.
+the reference result below remains separate from playback acceptance.
+
+## First AnyTracking capture, 5 October 2026
+
+The operator routed the pilot through the private recorder and confirmed
+AnyTracking was online after reopening the app. They saved one reminder and
+reported returning the watch to Guardian. Fresh authenticated Guardian session
+traffic verified restoration after the reference connection closed. The recorder
+and temporary sleep helper were stopped; the original Guardian/ngrok processes
+and public endpoints remained unchanged. The temporary recorder tunnel was removed.
+
+At 17:00:59 Mauritius time, AnyTracking sent one `TAKEPILLS` frame with four
+arguments: schedule, reminder number, UTF-16-style hexadecimal text, and binary
+voice data. Its 5,732-byte payload length matched the header. The watch replied
+`TAKEPILLS,1` at 17:01:01, about 1.67 seconds later. The reply alone does not
+establish the meaning of status 1 or that the reminder played.
+
+The voice field contained an AMR-NB file header followed by escaped binary,
+not a hexadecimal or Base64 audio string. Applying the five documented TK
+escape mappings produced 5,574 bytes: the AMR-NB header and 174 complete
+12.2-kbit/s frames (3.48 seconds). All five escape codes occurred in this sample;
+there were no invalid escapes or trailing bytes after frame parsing. This is
+now direct evidence for that representation in this firmware's TAKEPILLS
+command; it is not a claim about all firmware, other bitrates or size limits.
+The same session contained no TK audio transfer. Frame parsing has been checked;
+no independent codec decode is claimed. The operator reported no sound at the
+scheduled time; this disabled-setting trial does not test enabled voice playback.
+
+The captured setting was `17:06-0-2`, with reminder number 1. The operator
+confirmed the scheduled time was 17:06 and reported that nothing happened.
+The enable value is 0 (documented as off), consistent with that report; the
+selected repeat row is not yet confirmed. This sample separates
+the repeat field from the reminder number but does not settle the complete
+repeat/day/slot mapping. The supplied screen shows three named rows, Once,
+Daily and Customize; that screenshot alone does not prove the submitted state.
+
+The capture finished cleanly with 16 observed frames, two privately saved
+TAKEPILLS frames, no framing/storage failure and no private limit reached.
+Private recordings, reminder text, device identifiers and raw frames remain
+outside Git. No Guardian medication command was sent. Actual activation,
+scheduled playback after returning to Guardian, off/removal and persistence
+remain acceptance items.
