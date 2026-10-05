@@ -98,12 +98,26 @@ class IncidentPhotoAccess {
   DateTime get serverNow => DateTime.now().add(_clockOffset);
   bool get windowOpen =>
       endsAt?.isAfter(serverNow) == true &&
-      !['capture_disabled', 'photo_window_closed'].contains(reason);
+      ![
+        'capture_disabled',
+        'photo_window_closed',
+        'photo_feature_unavailable',
+        'photo_window_not_enabled_for_incident',
+      ].contains(reason);
   bool get requestEnabled => windowOpen && canRequest;
   int get minutesLeft => endsAt == null
       ? 0
       : (endsAt!.difference(serverNow).inSeconds / 60).ceil().clamp(0, 60);
   String get message {
+    if (reason == 'photo_feature_unavailable') {
+      return 'Photo requests are not enabled on the service yet.';
+    }
+    if (reason == 'photo_window_not_enabled_for_incident') {
+      return 'This earlier alert has no photo-request window. Check its photos in Alerts.';
+    }
+    if (reason == 'capture_disabled') {
+      return 'Photo requests are switched off for this watch.';
+    }
     if (!windowOpen) {
       return 'Available for one hour after an SOS or fall alert.';
     }

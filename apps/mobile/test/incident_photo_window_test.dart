@@ -13,12 +13,13 @@ class WindowService extends SafetySnapshotService {
   WindowService()
     : super(baseUrl: 'https://gateway.example', token: () async => 'token');
   bool open = true, pending = false, denied = false, ambiguous = false;
+  String? blockedReason;
   Completer<String>? send;
   final keys = <String>[];
   IncidentPhotoAccess get access => IncidentPhotoAccess(
-    canRequest: open && !pending,
+    canRequest: open && !pending && blockedReason == null,
     incidentId: 'incident-one',
-    reason: pending ? 'camera_busy' : null,
+    reason: blockedReason ?? (pending ? 'camera_busy' : null),
     endsAt: DateTime.now().add(Duration(minutes: open ? 47 : -1)),
   );
   @override
@@ -52,6 +53,82 @@ class WindowService extends SafetySnapshotService {
 }
 
 void main() {
+  testWidgets(
+    'Home opens the incident while its automatic photo is still pending',
+    (tester) async {
+      final service = WindowService()..pending = true;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IncidentPhotoAction(imei: 'watch-one', service: service),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        isNotNull,
+      );
+      expect(find.textContaining('47 min left'), findsOneWidget);
+      expect(
+        service.keys,
+        isEmpty,
+        reason: 'Checking or opening access never captures',
+      );
+      await tester.pumpWidget(const SizedBox());
+      service.dispose();
+    },
+  );
+  testWidgets(
+    'service disabled state explains the grey button and unlocks on refreshed access',
+    (tester) async {
+      final service = WindowService()
+        ..blockedReason = 'photo_feature_unavailable';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IncidentPhotoAction(imei: 'watch-one', service: service),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.text('Photo requests are not enabled on the service yet.'),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        isNull,
+      );
+      service.blockedReason = null;
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pump();
+      expect(
+        tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        isNotNull,
+      );
+      expect(service.keys, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      service.dispose();
+    },
+  );
+  test(
+    'legacy incident and withdrawn permission never promise an available photo window',
+    () {
+      for (final reason in [
+        'photo_window_not_enabled_for_incident',
+        'capture_disabled',
+      ]) {
+        final access = IncidentPhotoAccess(
+          canRequest: true,
+          reason: reason,
+          endsAt: DateTime.now().add(const Duration(minutes: 30)),
+        );
+        expect(access.windowOpen, isFalse);
+        expect(access.message, isNot(contains('Available for one hour')));
+      }
+    },
+  );
   test('request window uses server time despite wrong phone clock', () {
     final server = DateTime.now().subtract(const Duration(days: 2));
     final access = IncidentPhotoAccess(

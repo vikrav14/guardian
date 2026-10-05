@@ -88,7 +88,7 @@ function photoPlan({ state = 'available', analysis = 'ready', now = at, access =
       { captureSource: 'guardian', state: 'available', analysis: { status: 'ready' } }],
     summary: [{ photo: 1, text: 'PRIVATE IMAGE DESCRIPTION MUST STAY IN GALLERY' }],
     photoAccess: { canRequest: true, requestWindowEndsAt: new Date(+at + 3600000), ...access } },
-    { incident: { eventAt: at }, device: { nickname: 'Alex' }, now });
+    { incident: { eventAt: at }, device: { nickname: 'Alex' }, now, compactTemplatesApproved: true });
 }
 
 test('concise photo update contains status and exact hour deadline, never private AI descriptions', () => {

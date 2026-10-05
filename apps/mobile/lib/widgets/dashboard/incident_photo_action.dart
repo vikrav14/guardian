@@ -138,7 +138,10 @@ class _IncidentPhotoActionState extends State<IncidentPhotoAction>
           _error ??
               (open
                   ? 'One automatic photo. Request more when needed.'
-                  : 'Available for one hour after an SOS or fall alert.'),
+                  : _access?.message ??
+                        (_service == null
+                            ? 'Photo access is not configured in this app.'
+                            : 'Checking photo access…')),
           style: Theme.of(context).textTheme.bodySmall,
         ),
         if (_error != null)
