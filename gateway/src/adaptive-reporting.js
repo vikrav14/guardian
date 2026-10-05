@@ -204,7 +204,6 @@ async function evaluateAdaptiveReporting(db, imei, {
   });
 
   await deviceRef.set({
-    locationReportingMode: mode,
     locationReportingIntervalSeconds: policy.seconds,
     adaptiveReporting: {
       ...intent,

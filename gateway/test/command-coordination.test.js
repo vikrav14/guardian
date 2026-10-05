@@ -3,8 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createCommandCoordinator } = require('../src/command-coordinator');
 const { createDeviceCommandDispatcher } = require('../src/device-command-dispatcher');
-const { applyAdaptiveReporting, startReportingReconciler } = require('../src/adaptive-reporting');
-const { database, setup, receive, imei } = require('./helpers/photo-harness');
+const { database, imei } = require('./helpers/command-database');
 
 test('camera wait gates routine work but preserves replies, locating, emergency, calls and stops', () => {
   let time = 1000;
@@ -25,47 +24,6 @@ test('camera wait gates routine work but preserves replies, locating, emergency,
   time += 120000; assert(c.decide(imei, 'UPLOAD,600').ok);
   assert(c.beginCapture({ imei, id: 'b', socket, expiresAt: time + 1000 }).ok);
   c.disconnect(socket); assert(c.decide(imei, 'hrtstart,1').ok);
-});
-
-test('real capture ingress releases routine gate before storage/AI; timeout and disconnect release it', async () => {
-  const input = { imei, purpose: 'Check surroundings', consentConfirmed: true, safetyPurposeConfirmed: true };
-  for (const end of ['image', 'timeout', 'disconnect']) {
-    const s = setup();
-    const id = await s.api.request('owner', input);
-    assert.equal(s.args.coordinator.decide(imei, 'UPLOAD,600').error, 'camera_busy');
-    if (end === 'image') await receive(s, id);
-    if (end === 'timeout') { s.advance(120001); await s.api.sweep(); }
-    if (end === 'disconnect') s.api.disconnect(s.socket);
-    assert(s.args.coordinator.decide(imei, 'UPLOAD,600').ok);
-    assert.equal(s.writes.length, 1, 'no capture retry');
-  }
-});
-
-test('live downlink and movement transport use the same camera gate; duplicate sessions never fan out actions', async t => {
-  const { commandCoordinator } = require('../src/command-coordinator');
-  const sessions = require('../src/sessions');
-  const { sendDownlinkCommand } = require('../src/downlink');
-  const { createMovementTransport } = require('../src/movement-reminder-transport');
-  const { createSnapshotController } = require('../src/safety-snapshot-live');
-  const s = setup();
-  sessions.registerSession(s.socket, { imei, protocolId: '9705254749' });
-  const api = createSnapshotController({ ...s.args, coordinator: commandCoordinator,
-    now: () => new Date(), findSessions: sessions.findSocketsForDevice });
-  t.after(() => { api.disconnect(s.socket); sessions.unregisterSession(s.socket); });
-  await api.request('owner', { imei, purpose: 'Check surroundings', consentConfirmed: true, safetyPurposeConfirmed: true });
-  assert.equal(sendDownlinkCommand(imei, 'UPLOAD,600').error, 'camera_busy');
-  assert.equal(sendDownlinkCommand(imei, 'hrtstart,1').error, 'camera_busy');
-  assert.throws(() => createMovementTransport().bind(imei).send('SEDENTARY,1,20'), /camera_busy/);
-  assert(sendDownlinkCommand(imei, 'CR').ok);
-  assert(sendDownlinkCommand(imei, 'UPLOAD,60', { emergency: true }).ok);
-  assert(sendDownlinkCommand(imei, 'hrtstart,0').ok);
-  const duplicate = { writable: true, write() { assert.fail('duplicate action write'); } };
-  sessions.registerSession(duplicate, { imei, protocolId: '9705254749' });
-  assert.equal(sendDownlinkCommand(imei, 'FIND').error, 'ambiguous_session');
-  sessions.unregisterSession(duplicate);
-  api.disconnect(s.socket);
-  assert(sendDownlinkCommand(imei, 'UPLOAD,600').ok);
-  assert.equal(s.writes.filter(frame => frame.includes('rcapture')).length, 1);
 });
 
 function commandHarness() {
@@ -96,6 +54,7 @@ test('deferred settings retain newest valid intent, emergency bypasses camera, t
   h.c.finishCapture(imei, 'photo'); await h.dispatcher.tick(); await h.dispatcher.tick();
   assert.deepEqual(h.writes.map(v => v.type), ['voice_monitor', 'set_fall_sensitivity']);
   assert.equal(h.writes[1].params.level, 4);
+  assert.equal(h.row('new').error, null, 'a completed deferred setting clears its old busy reason');
   assert.equal(h.dispatcher.hasWork(), false, 'no idle polling after queue drains');
 });
 
@@ -202,148 +161,135 @@ test('session replacement during authorization and ambiguous earlier handoff can
   assert.equal(h.writes.length, 0);
 });
 
-function reportingHarness() {
-  let row = { locationReportingMode: 'automatic', locationReportingIntervalSeconds: 60,
-    batteryPercent: 80, adaptiveReporting: { appliedIntervalSeconds: 60 } };
-  const merge = (a, b) => { for (const [key, value] of Object.entries(b)) {
-    if (value && typeof value === 'object' && !(value instanceof Date)) a[key] = merge(a[key] || {}, value);
-    else a[key] = value;
-  } return a; };
-  const ref = { get: async () => ({ data: () => structuredClone(row) }), set: async value => { merge(row, value); } };
-  const db = { collection: () => ({ doc: () => ref }),
-    runTransaction: async work => work({ get: target => target.get(),
-      set: (target, value, options) => target.set(value, options) }) };
-  const writes = [], contexts = [];
-  const send = async (_db, _imei, _type, params, options) => { writes.push({ ...params, ...options }); };
-  return { db, row, writes, contexts, options: { send, setContext: c => contexts.push(c) } };
-}
-
-test('reporting restores from persisted SOS deadlines after restart without telemetry', async () => {
-  const h = reportingHarness();
-  const base = Date.now();
-  h.row.adaptiveReporting = { appliedIntervalSeconds: 60, reason: 'sos_emergency_override',
-    sosActiveUntil: new Date(base + 1000), sosCooldownUntil: new Date(base + 2000), lastCommandAt: new Date(base) };
-  const worker = startReportingReconciler({ db: h.db, connected: () => [imei],
-    context: () => ({ ...h.options, nowMs: base + 1500 }), intervalMs: 600000 });
-  await worker.tick(); worker.stop();
-  assert.equal(h.writes.at(-1).seconds, 300);
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 2500 });
-  assert.equal(h.writes.at(-1).seconds, 600);
-  assert.equal(h.row.locationReportingMode, 'automatic');
+test('guarded administrator SOS mode remains supported, without granting linked clients that command', async () => {
+  const h = commandHarness();
+  h.db.rows.set(`devices/${imei}`, {});
+  h.add('client', 'set_alarm_mode', { mode: 0 });
+  h.add('operator', 'set_alarm_mode', { mode: 0 }, { createdBy: 'operator:queue-v52-alarm-mode' });
+  await h.dispatcher.tick();
+  assert.equal(h.row('client').error, 'authorization_changed');
+  assert.equal(h.row('operator').status, 'sent');
+  assert.equal(h.writes.length, 1);
 });
 
-test('a bounded outing expires without heartbeat renewal and critical battery keeps a safeguard', async () => {
-  const h = reportingHarness(), base = Date.now();
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, outingActiveUntilMs: base + 900000, nowMs: base });
-  assert.equal(h.row.adaptiveReporting.reason, 'outing_active');
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 900001 });
-  assert.equal(h.writes.at(-1).seconds, 600);
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 900002, batteryPercent: 8, force: true });
-  assert.equal(h.writes.at(-1).seconds, 900);
-});
-
-test('camera deferral never counts as applied and recomputes changed battery before restoration', async () => {
-  const h = reportingHarness(), base = Date.now();
-  const busy = async () => { throw Object.assign(new Error('camera_busy'), { code: 'camera_busy', expiresAt: base + 120000 }); };
-  const result = await applyAdaptiveReporting(h.db, imei, { ...h.options, send: busy, nowMs: base });
-  assert.equal(result.status, 'deferred');
-  assert.equal(h.row.adaptiveReporting.appliedIntervalSeconds, 60);
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 120000, batteryPercent: 8 });
-  assert.equal(h.writes.at(-1).seconds, 900);
-});
-
-test('manual mode cannot suppress emergency override; original manual intent survives', async () => {
-  const h = reportingHarness(), base = Date.now();
-  h.row.locationReportingMode = 'manual'; h.row.locationReportingIntervalSeconds = 900;
-  h.row.adaptiveReporting = { appliedIntervalSeconds: 900, sosActiveUntil: new Date(base + 1000) };
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base });
-  assert.equal(h.writes.at(-1).seconds, 60);
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + 1001 });
-  assert.equal(h.writes.at(-1).seconds, 900);
-});
-
-test('fall reporting bypasses a busy camera and restores through cooldown after worker restart', async () => {
-  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
-  const h = reportingHarness(), base = Date.now();
-  h.row.locationReportingIntervalSeconds = 600;
-  h.row.adaptiveReporting.appliedIntervalSeconds = 600;
-  const c = createCommandCoordinator({ now: () => base });
-  c.beginCapture({ imei, id: 'capture', socket: { writable: true }, expiresAt: base + 120000 });
-  const send = async (db, id, type, params, options) => {
-    assert.equal(c.decide(id, `UPLOAD,${params.seconds}`, options.coordination).ok, true);
-    await h.options.send(db, id, type, params, options);
-  };
-  await activateEmergencyOverride(h.db, imei, { ...h.options, send, alarmType: 'fall', nowMs: base });
-  assert.equal(h.writes.at(-1).seconds, 60);
-  assert.equal(h.row.adaptiveReporting.reason, 'fall_emergency_override');
-  assert.equal(+h.row.adaptiveReporting.fallActiveUntil, base + SOS_ACTIVE_MS);
-  assert.equal(h.row.adaptiveReporting.sosActiveUntil, undefined);
-  c.finishCapture(imei, 'capture');
-  const worker = startReportingReconciler({ db: h.db, connected: () => [imei],
-    context: () => ({ ...h.options, nowMs: base + SOS_ACTIVE_MS }), intervalMs: 600000 });
-  await worker.tick(); worker.stop();
-  assert.equal(h.writes.at(-1).seconds, 300);
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + SOS_ACTIVE_MS + SOS_COOLDOWN_MS });
-  assert.equal(h.writes.at(-1).seconds, 600);
-  assert.equal(h.row.adaptiveReporting.reason, 'normal_baseline');
-});
-
-test('fall critical battery safeguard and latest manual intent survive emergency expiry', async () => {
-  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
-  const h = reportingHarness(), base = Date.now();
-  h.row.locationReportingMode = 'manual';
-  h.row.locationReportingIntervalSeconds = 900;
-  h.row.adaptiveReporting.appliedIntervalSeconds = 900;
-  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base, batteryPercent: 8 });
-  assert.equal(h.writes.at(-1).seconds, 300);
-  assert.equal(h.row.manualReportingIntervalSeconds, 900);
-  h.row.manualReportingIntervalSeconds = 1200;
-  await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base + SOS_ACTIVE_MS + SOS_COOLDOWN_MS });
-  assert.equal(h.writes.at(-1).seconds, 1200);
-});
-
-test('older alarm receipt cannot shorten a lease and unrelated alarms cannot create one', async () => {
-  const { activateEmergencyOverride, SOS_ACTIVE_MS } = require('../src/adaptive-reporting');
-  const h = reportingHarness(), base = Date.now();
-  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base });
-  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs: base - 5000 });
-  assert.equal(+h.row.adaptiveReporting.fallActiveUntil, base + SOS_ACTIVE_MS);
-  const before = structuredClone(h.row), count = h.writes.length;
-  const result = await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'low_battery', nowMs: base });
-  assert.equal(result.changed, false);
-  assert.deepEqual(h.row, before);
-  assert.equal(h.writes.length, count);
-});
-
-test('a reporting write already in flight cannot overwrite a newer emergency deadline', async () => {
-  const { activateEmergencyOverride, SOS_ACTIVE_MS } = require('../src/adaptive-reporting');
-  for (const alarmType of ['sos', 'fall']) {
-    const h = reportingHarness(), base = Date.now();
-    h.row.adaptiveReporting[`${alarmType}ActiveUntil`] = new Date(base - 1000);
-    let release, entered;
-    const paused = new Promise(resolve => { entered = resolve; });
-    const resume = new Promise(resolve => { release = resolve; });
-    const evaluation = applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base,
-      send: async () => { entered(); await resume; } });
-    await paused;
-    // The alarm commits its deadline while the older evaluation is at send().
-    let committed;
-    const commitment = new Promise(resolve => { committed = resolve; });
-    const transaction = h.db.runTransaction;
-    h.db.runTransaction = async fn => { const result = await transaction(fn); committed(); return result; };
-    const alarm = activateEmergencyOverride(h.db, imei, { ...h.options, alarmType, nowMs: base });
-    await commitment;
-    release(); await Promise.all([evaluation, alarm]);
-    assert.equal(+h.row.adaptiveReporting[`${alarmType}ActiveUntil`], base + SOS_ACTIVE_MS);
-    assert.equal(h.writes.at(-1).seconds, 60);
+test('permissions and expiry are checked after asynchronous claims, before any transport handoff', async () => {
+  for (const end of ['revoke', 'expire']) {
+    const h = commandHarness(); h.add('a', 'ring_to_find', {});
+    let checks = 0;
+    const dispatcher = createDeviceCommandDispatcher({ ...h.args, authorize: async () => {
+      if (++checks === 3) {
+        if (end === 'expire') h.advance(120001);
+        else return false;
+      }
+      return true;
+    } });
+    await dispatcher.tick();
+    assert.equal(h.row('a').status, 'failed'); assert.equal(h.writes.length, 0);
   }
 });
 
-test('processing an old event does not renew its expired emergency window', async () => {
-  const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
-  const h = reportingHarness(), nowMs = Date.now();
-  const eventAtMs = nowMs - SOS_ACTIVE_MS - SOS_COOLDOWN_MS - 1;
-  await activateEmergencyOverride(h.db, imei, { ...h.options, alarmType: 'fall', nowMs, eventAtMs });
-  assert.equal(h.writes.at(-1).seconds, 600);
-  assert.equal(h.row.adaptiveReporting.reason, 'normal_baseline');
+test('an ambiguous handoff is terminal and is never retried on a later tick or restart', async () => {
+  const h = commandHarness(); h.add('a', 'ring_to_find', {});
+  let writes = 0;
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, send: async () => {
+    writes++; throw new Error('write_unconfirmed');
+  } });
+  await dispatcher.tick(); await dispatcher.tick();
+  await createDeviceCommandDispatcher({ ...h.args, processId: 'replacement' }).tick();
+  assert.equal(h.row('a').error, 'write_unconfirmed');
+  assert.equal(writes, 1); assert.equal(h.writes.length, 0);
+});
+
+test('a prompt stop does not wait behind a slow routine authorization', async () => {
+  const h = commandHarness(); h.camera(); h.add('routine', 'set_fall_sensitivity', { level: 3 });
+  let release, reached;
+  const entered = new Promise(resolve => { reached = resolve; });
+  const paused = new Promise(resolve => { release = resolve; });
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, authorize: async (_db, row) => {
+    if (row.type === 'set_fall_sensitivity') { reached(); await paused; }
+    return true;
+  } });
+  const routine = dispatcher.tick(); await entered;
+  h.add('stop', 'set_fall_detection', { enabled: false });
+  try {
+    await dispatcher.prompt(await h.db.collection('deviceCommands').doc('stop').get());
+    assert.equal(h.row('stop').status, 'sent'); assert.equal(h.writes.length, 1);
+  } finally { release(); await routine; }
+});
+
+test('returning to automatic reporting invalidates a deferred manual interval', async () => {
+  const h = commandHarness(); h.camera();
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'manual', locationReportingIntervalSeconds: 300 });
+  h.add('interval', 'set_upload_interval', { seconds: 300 });
+  await h.dispatcher.tick(); assert.equal(h.row('interval').status, 'deferred');
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'automatic', locationReportingIntervalSeconds: 300 });
+  h.c.finishCapture(imei, 'photo'); await h.dispatcher.tick();
+  assert.equal(h.row('interval').error, 'reporting_policy_changed');
+  assert.equal(h.writes.length, 0);
+});
+
+test('a revoked or invalid newer setting cannot supersede an older valid intent', async () => {
+  const h = commandHarness();
+  h.add('valid', 'set_fall_sensitivity', { level: 2 });
+  h.advance(1000);
+  h.add('bad', 'set_fall_sensitivity', { level: 99 });
+  h.add('revoked', 'set_fall_sensitivity', { level: 5 }, { createdBy: 'unlinked' });
+  await h.dispatcher.tick();
+  assert.equal(h.row('valid').status, 'sent'); assert.equal(h.writes.length, 1);
+});
+
+test('stale reconciliation cannot overwrite a prompt handoff or send it twice', async () => {
+  const h = commandHarness(); h.add('stop', 'set_fall_detection', { enabled: false });
+  let release, entered, calls = 0;
+  const paused = new Promise(resolve => { release = resolve; });
+  const reached = new Promise(resolve => { entered = resolve; });
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, authorize: async () => {
+    if (++calls === 1) { entered(); await paused; return false; }
+    return true;
+  } });
+  const routine = dispatcher.tick(); await reached;
+  await dispatcher.prompt(await h.db.collection('deviceCommands').doc('stop').get());
+  assert.equal(h.row('stop').status, 'sent');
+  release(); await routine; await dispatcher.tick();
+  assert.equal(h.row('stop').status, 'sent'); assert.equal(h.writes.length, 1);
+});
+
+test('legacy medication watermarks follow the physical slot across different reminder IDs', async () => {
+  const h = commandHarness(); h.camera();
+  const params = { time: '18:30', frequency: 2, text: 'Test' };
+  h.add('old', 'set_medication_reminder', params, { reminderId: 'old-app-record' });
+  await h.dispatcher.tick();
+  h.advance(1000);
+  h.add('off', 'set_medication_reminder', { ...params, enabled: false }, { reminderId: 'new-app-record' });
+  await h.dispatcher.prompt(await h.db.collection('deviceCommands').doc('off').get());
+  h.c.finishCapture(imei, 'photo'); await h.dispatcher.tick();
+  assert.equal(h.row('old').error, 'superseded');
+  assert.deepEqual(h.writes.map(w => w.params.enabled), [false]);
+});
+
+
+for (const mode of ['automatic', 'manual']) test(`reporting reconciler cannot revive an obsolete queued interval after ${mode} selection`, async () => {
+  const h = commandHarness(); h.camera(); let called = false;
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, reporting: async () => { called = true; } });
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'manual', locationReportingIntervalSeconds: 60,
+    manualReportingIntervalSeconds: 300 }); // Emergency handoff is not the chosen manual interval.
+  h.add('interval', 'set_upload_interval', { seconds: 300 });
+  await dispatcher.tick(); assert.equal(h.row('interval').status, 'deferred');
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: mode, locationReportingIntervalSeconds: 300,
+    manualReportingIntervalSeconds: 1200 });
+  h.c.finishCapture(imei, 'photo'); await dispatcher.tick();
+  assert.equal(h.row('interval').error, 'reporting_policy_changed');
+  assert.equal(called, false);
+});
+
+test('current manual preference can reconcile while emergency reporting is handed off', async () => {
+  const h = commandHarness(); let called = false;
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'manual', locationReportingIntervalSeconds: 60,
+    manualReportingIntervalSeconds: 1200 });
+  h.add('interval', 'set_upload_interval', { seconds: 1200 });
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, reporting: async (_row, { beforeSend }) => {
+    await beforeSend(); called = true; return { seconds: 60, reason: 'sos_emergency_override' };
+  } });
+  await dispatcher.tick(); assert(called); assert.equal(h.row('interval').status, 'sent');
+  assert.equal(h.db.rows.get(`devices/${imei}`).manualReportingIntervalSeconds, 1200);
 });

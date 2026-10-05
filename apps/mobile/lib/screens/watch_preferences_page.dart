@@ -6,6 +6,8 @@ import '../models/device.dart';
 import '../models/medication_reminder.dart';
 import '../models/watch_alert_profile.dart';
 import '../services/guardian_services.dart';
+import '../services/voice_medication_service.dart';
+import '../widgets/care/voice_medication_card.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
@@ -62,13 +64,14 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     _dialMonitor = widget.device.fallDetectionDialMonitor ?? false;
     _sensitivity = (widget.device.fallDetectionSensitivity ?? 3).toDouble();
     _locationReportingMode = widget.device.locationReportingMode;
-    final savedInterval = widget.device.locationReportingIntervalSeconds;
+    final savedInterval =
+        widget.device.manualReportingIntervalSeconds ??
+        widget.device.locationReportingIntervalSeconds;
     _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
         ? savedInterval!
-        : 60;
+        : 600;
     _watchAlertProfile =
-        widget.device.watchAlertProfile ??
-        WatchAlertProfile.soundAndVibration;
+        widget.device.watchAlertProfile ?? WatchAlertProfile.soundAndVibration;
   }
 
   Future<void> _saveFallDetection() async {
@@ -127,7 +130,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Automatic location reporting enabled. Guardian will adapt to battery and safety events.',
+            'Automatic reporting enabled: normally every 10 minutes, with temporary faster updates for safety events and active journeys.',
           ),
         ),
       );
@@ -146,10 +149,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Use Silent mode?'),
+          title: const Text('Silence incoming calls?'),
           content: const Text(
-            'Silent mode removes sound and vibration from this watch. '
-            'That includes medication reminders and other watch alerts.',
+            'Request no ringing or vibration for incoming calls. '
+            'Medication reminders may still play a tone or recorded voice.',
           ),
           actions: [
             TextButton(
@@ -168,9 +171,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     setState(() => _watchAlertProfile = profile);
   }
 
-  Future<void> _saveWatchAlertProfile(
-    GuardianSubscription subscription,
-  ) async {
+  Future<void> _saveWatchAlertProfile(GuardianSubscription subscription) async {
     setState(() => _savingWatchAlertProfile = true);
     try {
       await DeviceService().updateWatchAlertProfile(
@@ -182,15 +183,15 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_watchAlertProfile.label} request sent to the watch',
+            'Call alert style: ${_watchAlertProfile.label}. Request queued for the watch.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not reach watch: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not queue call alert style: $e')),
+      );
     } finally {
       if (mounted) setState(() => _savingWatchAlertProfile = false);
     }
@@ -309,9 +310,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     onChanged: _onCareDraftChanged,
                   ),
                   const SizedBox(height: GuardianSpacing.lg),
-                  _buildAdaptiveCareSections(
-                    colors,
-                  ),
+                  _buildAdaptiveCareSections(colors),
                 ] else
                   _PlanNotice(decision: careDecision),
               ],
@@ -573,7 +572,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     ),
                     Text(
                       automatic
-                          ? 'Automatic is on. Guardian adapts reporting to battery and safety events.'
+                          ? 'Automatic is on. Normal updates every 10 minutes.'
                           : 'Manual override is on.',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
@@ -623,11 +622,13 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   const SizedBox(width: GuardianSpacing.sm),
                   Expanded(
                     child: Text(
-                      'Currently ${labelFor(_uploadIntervalSeconds)}. '
-                      'Battery policy: 60%+ = 1 min, 30-59% = 5 min, '
-                      '15-29% = 10 min, below 15% = 15 min. '
-                      'During SOS, Guardian temporarily increases reporting '
-                      'to 1 min, or 5 min if the battery is critically low.',
+                      'Normal location updates are requested every 10 minutes '
+                      'at every battery level. SOS, fall alerts and active '
+                      'journeys temporarily use 1-minute updates, or 5 minutes '
+                      'below 15% battery. After temporary activity ends, '
+                      'reporting returns to 10 minutes. Locate now can briefly '
+                      'request faster updates. Signal and GPS availability '
+                      'can delay a fresh location.',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 11.5,
@@ -692,6 +693,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     GuardianThemeColors colors,
     GuardianSubscription subscription,
   ) {
+    if (voiceMedicationPilotImei.isNotEmpty &&
+        widget.device.imei == voiceMedicationPilotImei) {
+      return VoiceMedicationCard(imei: widget.device.imei);
+    }
     return GuardianCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -836,7 +841,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Watch alert style',
+                      'Call alert style',
                       style: TextStyle(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -844,7 +849,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                       ),
                     ),
                     Text(
-                      'Choose how the watch alerts the wearer',
+                      'Choose an alert style for incoming calls',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],
@@ -854,13 +859,18 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'This applies to medication reminders and other watch alerts. '
-            'Changes need a current watch connection.',
+            'Medication reminders are separate and may still play a tone or '
+            'recorded voice. Changes need a current watch connection.',
             style: TextStyle(
               color: colors.textMuted,
               fontSize: 11.5,
               height: 1.35,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'The selected preference is not confirmed by the watch.',
+            style: TextStyle(color: colors.textMuted, fontSize: 11.5),
           ),
           const SizedBox(height: GuardianSpacing.md),
           Column(
@@ -894,7 +904,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Save alert style'),
+                  : const Text('Save call alert style'),
             ),
           ),
         ],

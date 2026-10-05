@@ -220,6 +220,7 @@ class DeviceService {
   }) async {
     await _db.collection('devices').doc(imei).update({
       'locationReportingIntervalSeconds': seconds,
+      'manualReportingIntervalSeconds': seconds,
       'locationReportingMode': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -1596,8 +1597,8 @@ class DeviceCommandService {
     return _enqueue(imei, 'set_upload_interval', {'seconds': seconds});
   }
 
-  /// V52 only. Changes the global watch scene used by medication reminders
-  /// and other watch alerts. The device must have a live TCP connection.
+  /// V52 only. Requests the global ring/vibration scene. Interaction with
+  /// recorded medication voice is unverified. A live TCP connection is needed.
   Future<void> setWatchAlertProfile(
     String imei,
     WatchAlertProfile profile,

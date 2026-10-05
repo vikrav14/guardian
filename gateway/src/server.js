@@ -64,6 +64,7 @@ const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
 const { selectHomeWifiTracking } = require('./wifi-home-tracking');
 const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 const { observeMovementReply } = require('./movement-reminder-transport');
+const { observeMedicationReply } = require('./medication-settings-transport');
 
 const {
   incrementEvent,
@@ -1392,6 +1393,7 @@ const server = net.createServer((socket) => {
       // Observational only: does not decide camera readiness or change replies.
       try { notePhotoTransportPacket(session, events, session.lastPacketAt); } catch { /* Diagnostics only. */ }
       observeMovementReply(decoded, socket, session);
+      observeMedicationReply(decoded, socket, session);
 
       wearWireCapture?.observeIdentity(socket, session);
 

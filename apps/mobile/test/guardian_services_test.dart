@@ -5,6 +5,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/services/guardian_services.dart';
 
 void main() {
+  test(
+    'manual reporting preference survives emergency handoff and automatic selection',
+    () async {
+      const imei = '861000000000001';
+      final db = FakeFirebaseFirestore();
+      final auth = MockFirebaseAuth(
+        mockUser: MockUser(uid: 'u1'),
+        signedIn: true,
+      );
+      await db.collection('users').doc('u1').set({
+        'linkedImeis': [imei],
+      });
+      final ref = db.collection('devices').doc(imei);
+      await ref.set({'online': true});
+      final service = DeviceService(db: db, auth: auth);
+      await service.updateLocationReportingInterval(imei, seconds: 1200);
+      await ref.update({'locationReportingIntervalSeconds': 60});
+      var device = (await service.watchLinkedDevices().first).single;
+      expect(device.locationReportingMode, 'manual');
+      expect(device.manualReportingIntervalSeconds, 1200);
+      expect(device.locationReportingIntervalSeconds, 60);
+      await service.setAutomaticLocationReporting(imei);
+      device = (await service.watchLinkedDevices().first).single;
+      expect(device.locationReportingMode, 'automatic');
+      expect(device.manualReportingIntervalSeconds, 1200);
+    },
+  );
+
   group('DeviceService.watchLinkedDevices', () {
     test('only returns devices in the signed-in user\'s linkedImeis', () async {
       final db = FakeFirebaseFirestore();
@@ -425,7 +453,8 @@ void main() {
         );
         final reminder =
             (await db.collection('medicationReminders').get()).docs.single;
-        final command = (await db.collection('deviceCommands').get()).docs.single;
+        final command =
+            (await db.collection('deviceCommands').get()).docs.single;
         expect(reminder.data()['deviceSyncStatus'], 'pending');
         expect(command.data()['reminderId'], reminder.id);
       },
@@ -456,10 +485,9 @@ void main() {
           imei: 'AAA',
         );
 
-        final visible = await service.watchForDevice(
-          'AAA',
-          subscription: plan('care'),
-        ).first;
+        final visible = await service
+            .watchForDevice('AAA', subscription: plan('care'))
+            .first;
         expect(visible, isEmpty);
         final commands = await db.collection('deviceCommands').get();
         expect(commands.docs, hasLength(2));
@@ -782,38 +810,41 @@ void main() {
       expect(contacts.single.isPrimary, true);
     });
 
-    test('saveContacts persists exactly one selected primary SOS contact', () async {
-      final db = FakeFirebaseFirestore();
-      final auth = MockFirebaseAuth(
-        mockUser: MockUser(uid: 'u1'),
-        signedIn: true,
-      );
-      final service = UserProfileService(db: db, auth: auth);
+    test(
+      'saveContacts persists exactly one selected primary SOS contact',
+      () async {
+        final db = FakeFirebaseFirestore();
+        final auth = MockFirebaseAuth(
+          mockUser: MockUser(uid: 'u1'),
+          signedIn: true,
+        );
+        final service = UserProfileService(db: db, auth: auth);
 
-      await service.saveContacts(const [
-        EmergencyContact(name: 'First', phone: '+23057111111'),
-        EmergencyContact(
-          name: 'Primary',
-          phone: '+23057222222',
-          whatsapp: '+23057222222',
-          isPrimary: true,
-        ),
-        EmergencyContact(
-          name: 'Duplicate primary',
-          phone: '+23057333333',
-          isPrimary: true,
-        ),
-      ]);
+        await service.saveContacts(const [
+          EmergencyContact(name: 'First', phone: '+23057111111'),
+          EmergencyContact(
+            name: 'Primary',
+            phone: '+23057222222',
+            whatsapp: '+23057222222',
+            isPrimary: true,
+          ),
+          EmergencyContact(
+            name: 'Duplicate primary',
+            phone: '+23057333333',
+            isPrimary: true,
+          ),
+        ]);
 
-      final contacts = await service.watchContacts().first;
-      expect(contacts.where((contact) => contact.isPrimary), hasLength(1));
-      expect(contacts[1].name, 'Primary');
-      expect(contacts[1].isPrimary, true);
+        final contacts = await service.watchContacts().first;
+        expect(contacts.where((contact) => contact.isPrimary), hasLength(1));
+        expect(contacts[1].name, 'Primary');
+        expect(contacts[1].isPrimary, true);
 
-      final stored = await db.collection('users').doc('u1').get();
-      final raw = stored.data()!['emergencyContacts'] as List<dynamic>;
-      expect(raw.where((entry) => entry['isPrimary'] == true), hasLength(1));
-    });
+        final stored = await db.collection('users').doc('u1').get();
+        final raw = stored.data()!['emergencyContacts'] as List<dynamic>;
+        expect(raw.where((entry) => entry['isPrimary'] == true), hasLength(1));
+      },
+    );
   });
 
   group('FamilyService invite flow', () {

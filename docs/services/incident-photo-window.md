@@ -82,3 +82,19 @@ Flutter tests cover server-clock expiry, disabled Home controls, pending request
 failed automatic capture, ambiguous response handling and the four-tab navigation.
 Hardware capture success and real message delivery require a separate controlled
 operator-triggered test; software tests do not establish camera reliability.
+
+
+## Integration checkpoint: 5 October 2026
+
+Integrated with main's medication pilot/shared coordinator and merged Home Wi-Fi
+PR #141 in an isolated checkout. Local checks: 1,705 gateway tests, 93 Firestore
+emulator tests, 747 Flutter tests and clean Flutter analysis. Hosting publication
+failure tests and Maps-build checks also pass; CI validates Web/Android builds.
+Original checkouts, the live gateway/ngrok and private launch environment are
+preserved. Merging code does not deploy a new runtime or activate this policy.
+
+At 22:45 Mauritius time all seven revised Meta templates were still pending.
+The photo follow-up remained categorized Marketing and failed the Utility
+contract check. Keep the approval flag false until that is resolved; do not
+substitute a newly approved template without checking its exact contract.
+Earlier image delays/ACK-only failures remain unresolved hardware evidence.

@@ -1055,9 +1055,9 @@ function startHttpServer() {
   // Phase 1: Initialize LLM provider, audit, and idempotency on startup
   initializeLlmStack();
   const handleMovement = createMovementHandler({ getDb });
-  const handleMedication = createMedicationHandler({ getDb });
   const handleHomeWifi = require('./home-wifi-http').createHomeWifiHandler({ getDb,
     getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
+  const handleMedication = createMedicationHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {

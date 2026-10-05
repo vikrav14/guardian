@@ -171,3 +171,13 @@ The Windows acceptance launcher and hardware evidence are tracked in
 `docs/testing/reporting-coordination-2026-10-02.md`. Validate actual reporting,
 Home freshness, independent fall and SOS separately before calling the whole
 hardware behavior accepted.
+
+
+## Main integration, 5 October 2026
+
+PR #113 retains PR #146's durable newest-setting watermarks and transactional
+queue transitions. Manual intent is a separate app preference; deferred rows
+are rejected when mode or intent changes, including when the live reporting
+callback is installed. The policy worker does not write an earlier reporting
+mode over a newer app selection. PR #141 Home enrollment and PR #144 medication
+transport use the same integrated gateway without changing their pilot gates.
