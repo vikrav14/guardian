@@ -1,9 +1,10 @@
 # V52 medication reminders with an optional voice recording
 
 Status: implementation draft opened at the operator's request on 5 October 2026.
-This initial change records the audited protocol, app flow and delivery gates.
-It does not implement or enable audio. Keep the PR draft until implementation
-and exact-watch acceptance are complete.
+This change records the audited protocol, app flow and delivery gates and adds
+an operator-only transparent reference recorder. It does not implement or enable
+Guardian voice reminders. Keep the PR draft until implementation and exact-watch
+acceptance are complete.
 
 ## Intended experience
 
@@ -127,3 +128,43 @@ the old frequency-derived fields and any already-stored device reminders.
 
 The two-way voice-message PR is a sibling feature. Shared audio tooling may be
 reused after its format is proven; these remain separate commands and contracts.
+
+## Reference recorder, 5 October checkpoint
+
+`gateway/scripts/capture-medication-session.js` wraps the existing transparent
+movement relay. It forwards the selected watch's original bytes unchanged to
+AnyTracking or the local Guardian backend, and generates no commands or ACKs.
+It opens no listener/files without `--run`. Raw TAKEPILLS and TK frames only are
+saved to a separate explicitly named private file; other traffic has redacted
+metadata. TK is included in case the supplier transfers a medicine recording
+separately. Capturing it does not prove it belongs to a specific reminder.
+
+Bounds: 20 minutes maximum, 64 private frames, 2 MiB raw bytes; inherited framing,
+session and metadata-row limits also apply. Media never enters the metadata
+file. Full-frame private records include timestamp, exact Base64 bytes and hash;
+their captureRef joins the session/direction in metadata. Keep the private file
+and all real captures outside Git. The terminal summary separately reports
+private-write/limit failure; a complete metadata framing log alone does not
+prove complete private capture. Limits/write errors stop private recording while
+forwarding continues until the relay deadline. Unknown framing stops observation,
+not transparent forwarding.
+
+Use verified current public TCP recorder/return endpoints. The default reference
+backend is not inferred: explicitly select `--backend anytracking`, which uses
+the existing `a.igps123.com:7720` reference route. Forwarding temporarily diverts
+Guardian telemetry/alarms; restore the verified Guardian route before expiry.
+Neither stopping the relay nor creating its optional absolute `--stop-file`
+restores the watch route or undoes a saved reminder.
+
+First trial: confirm a fresh reference connection, inspect existing reminders,
+then use a free slot and a neutral short recording, once-only a few minutes ahead.
+Record save/response time, actual audible playback and app state independently.
+Preserve existing reminders. Inspect the resulting command before expanding to
+two slots, changes or removal; cleanup must use supported app controls and be
+verified. No speculative Guardian TAKEPILLS audio is sent by this recorder.
+
+Fifteen focused relay/recorder tests pass, including exact split binary
+forwarding, no generated replies, identity/media filtering, limits, disk failure,
+expiry and a local stop file. The existing expiry test now waits for the client
+socket's asynchronous close before checking it. This is software verification;
+no AnyTracking voice-medication hardware result is yet recorded.
