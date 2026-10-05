@@ -877,6 +877,31 @@ Medication reminders are available on Guardian Family and Guardian Care.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+### Recorded voice reference result — 5 October 2026
+
+One operator-controlled AnyTracking test on the pilot V52 established audible
+playback of a recorded medication reminder. A transparent recorder captured an
+enabled Once setting for 17:16 MUT in slot 1, with escaped binary AMR-NB audio
+(174 complete 12.2-kbit/s frames, 3.48 seconds). The command was sent at
+17:13:37.978 and received a `TAKEPILLS,1` reply at 17:13:38.410. The operator
+separately confirmed hearing the voice; exact playback seconds were not measured.
+An earlier 17:06 Daily setting was disabled and produced no reported sound.
+
+The same-slot off-setting and reply were captured at 17:19:09.674 and
+17:19:11.514. Cleanup has command/reply evidence, without independent on-watch
+readback or future-suppression verification. Guardian routing restoration was
+verified from a fresh watch packet after the reference session ended. Recorder
+and sleep helper exited, with existing Guardian/ngrok endpoints preserved.
+Private recordings, text and raw frames
+are not committed. See [the detailed evidence](services/voice-medication-reminders.md#enabled-once-playback-5-october-2026).
+
+**Scope:** This is reference-app/watch acceptance for one recorded Once reminder,
+not a pass for Guardian's app, recording UI, storage, permissions or dispatch.
+The pure binary codec is implemented and privately matches the captured frames,
+but these integrated flows are not implemented/enabled by PR #144.
+Daily/weekly execution, independent
+slots, audio limits, offline execution and reboot persistence remain open.
+
 ## Test 8 — steps and daily activity
 
 This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
