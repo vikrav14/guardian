@@ -482,6 +482,12 @@ async function updateMedicationReminderSync(reminderId, patch) {
 function startPendingCommandWatcher() {
   if (!enabled || commandWatchUnsub) return;
   const dispatcher = createDeviceCommandDispatcher({ db,
+    reporting: async (row, { beforeSend }) => {
+      // Recompute the current policy; the queue must never replace the
+      // guardian's newer preference with a value retained during a camera wait.
+      return require('./adaptive-reporting').applyAdaptiveReporting(db, row.imei,
+        { trigger: 'explicit_setting', force: true, beforeSend });
+    },
     onResult: async (row, status, reason) => {
       if (row.type !== 'set_medication_reminder' || !row.reminderId) return;
       await updateMedicationReminderSync(row.reminderId, {

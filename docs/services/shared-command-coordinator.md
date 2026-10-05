@@ -1,8 +1,8 @@
 # Shared watch command coordination
 
 This integration supplies the shared gateway dependency of merged PR #144.
-It extracts command admission and bounded settings dispatch from the combined
-Wi-Fi/photo checkout, without importing its pending photo or reporting policy.
+PR #113 now connects the photo lifecycle and reporting reconciler to this same
+singleton; PR #141 supplies Home Wi-Fi setup alongside it.
 
 ## What uses it
 
@@ -51,17 +51,23 @@ watch-answer administration are not opened through the generic queue.
 
 ## Integration boundary and validation
 
-PR #113 must use this singleton for `beginCapture`, matching `finishCapture` and
-disconnect handling. Its photo controller, access checks, image ingest, AI and
-WhatsApp lifecycle are not present in this main-only extraction; simulated
-leases test the contract here. Real capture lifecycle coverage remains in that
-feature's integration tests. This work is not a proven fix for missing images.
+PR #113 uses this singleton for `beginCapture`, matching `finishCapture` and
+session disconnect. Real controller tests cover receipt, timeout and disconnect
+alongside simulated leases for the other transports. Coordination is not a
+proven fix for missing watch images.
 
-PR #141 and the combined checkout's supplier-aligned 600-second reporting,
-emergency lease/restoration worker and Wi-Fi changes remain separate. This PR
-does not change main's existing battery bands or introduce an automatic replay
-timer. Do not replace the running combined gateway with a main-only checkout
-until the remaining features have been integrated and validated together.
+The integrated automatic reporting policy uses a 600-second normal baseline,
+bounded SOS/fall and outing leases, critical-battery safeguards for temporary
+faster reporting, and restoration from current policy after expiry/reconnect.
+A queued manual setting must still match current manual intent; switching to
+automatic or choosing another interval invalidates it. The app persists manual
+intent separately from emergency handoff values. Saved Home Wi-Fi enrollment
+never extends current Home evidence or creates a repeated CR loop.
+
+Code integration does not replace the running pilot process or turn on pending
+Meta contracts. One automatic photo plus the one-hour guardian request window
+remains behind `INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED`, false by default.
+Enable it only after exact Utility template approval and a controlled rollout.
 
 Validation includes the full gateway suite and Firestore emulator suite, plus
 cross-transport admission, emergency/stop priority, duplicate/replaced sessions,

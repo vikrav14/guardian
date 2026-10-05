@@ -64,10 +64,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     _dialMonitor = widget.device.fallDetectionDialMonitor ?? false;
     _sensitivity = (widget.device.fallDetectionSensitivity ?? 3).toDouble();
     _locationReportingMode = widget.device.locationReportingMode;
-    final savedInterval = widget.device.locationReportingIntervalSeconds;
+    final savedInterval =
+        widget.device.manualReportingIntervalSeconds ??
+        widget.device.locationReportingIntervalSeconds;
     _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
         ? savedInterval!
-        : 60;
+        : 600;
     _watchAlertProfile =
         widget.device.watchAlertProfile ?? WatchAlertProfile.soundAndVibration;
   }
@@ -128,7 +130,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Automatic location reporting enabled. Guardian will adapt to battery and safety events.',
+            'Automatic reporting enabled: normally every 10 minutes, with temporary faster updates for safety events and active journeys.',
           ),
         ),
       );
@@ -570,7 +572,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     ),
                     Text(
                       automatic
-                          ? 'Automatic is on. Guardian adapts reporting to battery and safety events.'
+                          ? 'Automatic is on. Normal updates every 10 minutes.'
                           : 'Manual override is on.',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
@@ -620,11 +622,13 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   const SizedBox(width: GuardianSpacing.sm),
                   Expanded(
                     child: Text(
-                      'Currently ${labelFor(_uploadIntervalSeconds)}. '
-                      'Battery policy: 60%+ = 1 min, 30-59% = 5 min, '
-                      '15-29% = 10 min, below 15% = 15 min. '
-                      'During SOS, Guardian temporarily increases reporting '
-                      'to 1 min, or 5 min if the battery is critically low.',
+                      'Normal location updates are requested every 10 minutes '
+                      'at every battery level. SOS, fall alerts and active '
+                      'journeys temporarily use 1-minute updates, or 5 minutes '
+                      'below 15% battery. After temporary activity ends, '
+                      'reporting returns to 10 minutes. Locate now can briefly '
+                      'request faster updates. Signal and GPS availability '
+                      'can delay a fresh location.',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 11.5,

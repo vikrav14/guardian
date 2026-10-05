@@ -267,3 +267,29 @@ test('legacy medication watermarks follow the physical slot across different rem
   assert.deepEqual(h.writes.map(w => w.params.enabled), [false]);
 });
 
+
+for (const mode of ['automatic', 'manual']) test(`reporting reconciler cannot revive an obsolete queued interval after ${mode} selection`, async () => {
+  const h = commandHarness(); h.camera(); let called = false;
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, reporting: async () => { called = true; } });
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'manual', locationReportingIntervalSeconds: 60,
+    manualReportingIntervalSeconds: 300 }); // Emergency handoff is not the chosen manual interval.
+  h.add('interval', 'set_upload_interval', { seconds: 300 });
+  await dispatcher.tick(); assert.equal(h.row('interval').status, 'deferred');
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: mode, locationReportingIntervalSeconds: 300,
+    manualReportingIntervalSeconds: 1200 });
+  h.c.finishCapture(imei, 'photo'); await dispatcher.tick();
+  assert.equal(h.row('interval').error, 'reporting_policy_changed');
+  assert.equal(called, false);
+});
+
+test('current manual preference can reconcile while emergency reporting is handed off', async () => {
+  const h = commandHarness(); let called = false;
+  h.db.rows.set(`devices/${imei}`, { locationReportingMode: 'manual', locationReportingIntervalSeconds: 60,
+    manualReportingIntervalSeconds: 1200 });
+  h.add('interval', 'set_upload_interval', { seconds: 1200 });
+  const dispatcher = createDeviceCommandDispatcher({ ...h.args, reporting: async (_row, { beforeSend }) => {
+    await beforeSend(); called = true; return { seconds: 60, reason: 'sos_emergency_override' };
+  } });
+  await dispatcher.tick(); assert(called); assert.equal(h.row('interval').status, 'sent');
+  assert.equal(h.db.rows.get(`devices/${imei}`).manualReportingIntervalSeconds, 1200);
+});

@@ -220,6 +220,7 @@ class DeviceService {
   }) async {
     await _db.collection('devices').doc(imei).update({
       'locationReportingIntervalSeconds': seconds,
+      'manualReportingIntervalSeconds': seconds,
       'locationReportingMode': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
     });

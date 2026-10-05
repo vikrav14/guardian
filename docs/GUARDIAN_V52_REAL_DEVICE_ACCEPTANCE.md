@@ -1,3 +1,36 @@
+## Wider incident-photo spacing — 2 October 2026
+
+Two operator-triggered SOS checks on the combined gateway produced zero and
+one actual stored image respectively. The second SOS yielded ready AI and an
+authorized gallery entry for its image; the next capture acknowledged without an image and
+timed out. Initial alerts and separate follow-ups have provider delivery
+receipts for one recipient; another initial-alert recipient was rejected with
+Meta 131030. No independent fall trial was performed. Root cause is unresolved.
+
+The operator approved 60-second gaps after saved images, keeping the first
+capture prompt and the five-photo maximum, original deadlines and stop on
+failure. All 1,601 gateway tests pass. This pacing policy still needs a new
+physical SOS/fall acceptance run; no reliability improvement is yet claimed.
+See [spacing regression and hardware evidence](testing/incident-photo-spacing-2026-10-02.md).
+
+## Combined reporting, Home and incident runtime — 2 October 2026
+
+The combined Wi-Fi/photo checkout now runs a 600-second normal reporting policy,
+bounded emergency/outing overrides and shared camera/routine command admission.
+All 1,598 gateway tests and 730 Flutter tests pass; the combined Android build
+was installed on the existing Samsung without replacing its configuration.
+
+Hardware acceptance remains partial: one CR at 03:35:35 MUT produced ten
+location receipts over roughly three minutes, then Home evidence expired at
+122 seconds. No further CR was sent. No normal location-upload packets arrived
+before the CR or during the post-burst observation ending 03:51:37; heartbeats
+continued. Ten-minute upload cadence is **not accepted**. Independent physical
+fall/SOS captures, new AI/gallery results and WhatsApp delivery remain pending.
+Coordination is not a demonstrated fix for the earlier missing fall photos.
+See [the complete acceptance record](testing/reporting-coordination-2026-10-02.md)
+and [policy](services/reporting-command-policy.md). Earlier checkpoints below
+describe their historical runtime, not the current combined launch.
+
 ## Home Wi-Fi app enrollment — 1 October 2026
 
 Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. Initial Android discovery, watch matching and save were physically observed on 1 October; remaining acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).
@@ -28,6 +61,102 @@ remain pending. Private radio/name/pin details are omitted. See the runbook's
 physical Android result and remaining checklist.
 
 # Guardian V52 real-device acceptance
+
+## AnyTracking Wi-Fi comparison preparation — 1 October 2026
+
+The operator supplied the AnyTracking Geofence > WiFi Fence > Add screen, with
+an apparently empty list and Name/Wi-Fi/OK controls. This does not establish the
+watch's applied configuration. A standalone redacted comparison recorder now
+captures configuration shape, same-run router aliases, UPLOAD requests, scans
+and generic fence bits. It forwards unchanged bytes and generates no commands.
+The first session is setup/removal only; departure/return and 10-minute normal
+reporting are later acceptance steps. Guardian's existing reporting/Home policies
+are unchanged. See the [comparison runbook](testing/anytracking-wifi-comparison.md).
+No live native-fence success, photo fix or battery improvement is claimed.
+All 40 focused relay/radio tests pass. The Windows launcher has been reviewed,
+but not executed in this Linux workspace; its Windows preflight remains pending.
+
+
+## Photo command coordination — 1 October 2026
+
+Partial acceptance: live AI schema checks passed, saved-photo recovery/rotation
+worked, and the 00:33 MUT SOS produced five AI-ready photos. Separate falls at
+00:55 and 01:20 produced one and zero photos, respectively, with capture replies
+but no next image before timeout. The operator confirms that fall does not call.
+No competing logged downlink was demonstrated inside those failed waits.
+
+The current addition records a redacted, bounded outgoing-write timeline with
+each photo's existing terminal diagnostics. It does not change scheduling or
+prove an interference fix. Missing/truncated evidence must remain explicit.
+See [the timing audit and coordination plan](services/incident-photo-command-coordination.md)
+for test scope, future priority/defer/expiry rules and hardware acceptance.
+PR #113 stays draft; no new live watch command was sent by this implementation.
+The repository runbook is updated; the GitHub connector cannot access the Wiki
+endpoint in this environment, so Wiki synchronization remains outstanding.
+
+## Photo AI schema rejection identified — 1 October 2026, 00:12 MUT
+
+The synthetic API diagnostic used `claude-sonnet-4-6` and failed at
+`orientation_schema` with HTTP 400 / `invalid_request_error`: enum `A` did not
+match declared `['string', 'null']`. This is a concrete request-schema failure,
+not evidence of unreadable image content. Both selection and description now
+express their nullable enums as separate `anyOf` branches. The view letters,
+quarter-turn values, null abstention, local validation and budgets are preserved.
+Three regression checks fail on the old format; all 56 focused tests pass after
+the fix. Live verification must still pass both synthetic schema checks, saved
+photo recovery and actual gallery viewing before claiming usable AI/rotation.
+The independent second-photo timeout remains unresolved; PR #113 stays draft.
+
+## Real SOS photo follow-up — 30 September 2026, 23:58 MUT
+
+Acceptance remains blocked. Logs explain the ten-minute first-request delay:
+the old connection stopped sending at the 22:49:23 SOS, closed at 22:51:57, and
+reconnected at 22:59:37.657. Guardian requested Photo 1 1.245 seconds later and
+saved it at 22:59:47.885. Calling is a hypothesis for the interruption, not proven.
+Photo 2 received a bare capture reply but no image within its receive window,
+which extended past the incident sequence deadline. No image ACK, capture retry
+or camera-readiness command has been established by this evidence.
+
+Explicit recovery of the saved invalid-JSON analysis using `0cf9f4a` returned
+HTTP 400; the stored failure and missing orientation are unchanged. The provider
+reason is not yet known. A new `check-incident-photo-ai.js --run` diagnostic checks
+the production JSON schemas with synthetic text and reports a bounded provider
+error. Its tests do not prove live provider access, image understanding or rotation.
+Keep PR #113 draft; do not repeat SOS to diagnose this API rejection.
+
+## Real SOS photo acceptance — 30 September 2026, 23:16 MUT
+
+Partial. The operator received the follow-up WhatsApp, then reported one photo,
+no AI analysis and no automatic viewing rotation. The supplied gallery screenshot
+shows one sideways original received at 22:59:47 and an unavailable Photo 2.
+An earlier read-only inspection reported Photo 1 `analysis_invalid_json`, Photo 2
+`waiting_for_image`, and the incident `collecting`; final capture-stop evidence
+is still required. Previous HTTP 400/credit failures do not explain this new
+JSON failure. One earlier real SOS saved five originals, so these separate runs
+must not be combined into a claim of reliable five-photo completion.
+
+The software change requests structured JSON for orientation and description and
+allows an explicit, authorized recovery of the saved invalid-JSON analysis.
+Tests use synthetic images and mocked provider responses; a real saved-photo
+recovery, useful description, correct viewing orientation, app-alert navigation,
+fall flow and recipient delivery still need acceptance. PR #113 stays draft.
+
+
+## Guardian app integration — 25 September 2026 MUT
+
+The branch now includes the authorized `rcapture` sender, private TCP image
+receiver with full JPEG decoding, Firebase storage, authenticated viewing and
+deletion, retention cleanup, and a Family/Care app screen. It has been brought
+forward onto main `4386b0d` while preserving the historical photo evidence below.
+
+Local validation: **1344 gateway tests passed**, including a real local TCP
+photo exchange, concurrent request serialization, private access, timeouts,
+revocation and upload/deletion races. Both real remote samples also pass the
+new live JPEG decoder. Flutter and Firestore emulator CI are the next checks.
+No live Guardian photo or Firebase write is claimed from these software tests.
+The operator's next action is the direct app capture/delete trial in
+[the Windows app runbook](testing/photo-app-trial.md).
+
 
 **Status:** Release gate
 **Device under test:** One production-equivalent V52 watch and SIM
@@ -1027,7 +1156,120 @@ Pilot evidence, 23 August 2026: one exact V52 acknowledged `hrtstart,1` but did 
 
 Temperature remains blocked until the exact V52 upload shape is captured. Passing this test permits an engineering evidence update; it does not turn on customer flags or establish medical accuracy.
 
-## Final collection
+## Photo follow-up — 25 September 2026 MUT (24 September UTC)
+
+New operator evidence: `Pasted text(6).txt` logs two reference-service
+`rcapture` requests followed by matching-length TCP `img` frames:
+20:26:47.718 -> 20:26:55.373 UTC (7.655 s, 6930 payload bytes) and
+20:30:08.554 -> 20:30:14.275 UTC (5.721 s, 6590 payload bytes).
+The recorder saved both uploads (six private records, two image frames,
+13,678 total raw frame bytes after the second). The operator reports both
+photos appeared promptly in AnyTracking, with deletion of the first there
+before the second. This is new positive upload/gallery evidence; the measured
+delays are to recorder receipt, not measured gallery-display latency.
+
+Immediate operator follow-up: the watch was “absolutely not touched.”
+Combined with both request/upload sequences and reported app pictures, this
+confirms two hands-off remote photos through AnyTracking on this pilot V52.
+The no-watch-camera-interaction check is resolved. Actual screen state and
+wearer indication remain unreported; awake clock-face instructions alone are
+not evidence of the state. A prior watch restart and network/recorder recovery
+mean no awake-state or restart root cause is established. Preserve the earlier
+manual-sample classification. This positive pilot result does not establish
+general reliability or direct Guardian execution.
+
+The subsequently attached private capture
+`guardian-photo-private-20260925-002537-151.jsonl` contains both complete images.
+They decode to distinct 240x240 RGB JPEGs of **6797 and 6450 bytes**; Pillow
+verification, full pixel loading with truncated-image loading disabled, and
+visual inspection all passed. Their post-EOI trailers contain six and one NUL
+bytes, respectively. The offline decoder previously required the two NULs in
+the manual sample; it now accepts only the observed all-zero lengths one, two
+and six while retaining raw trailer metadata. Meaning of the trailer and
+header fields remains unproven. Real images/captures are not committed.
+
+The operator reports restoring the watch IP to Guardian; fresh Guardian
+telemetry has not been independently verified here. Private Guardian
+ingestion/deletion, direct Guardian execution and customer readiness remain
+unverified. Reference-app deletion does not prove server hard deletion or
+deletion of the local capture. The public FTP probe remains historical and is
+not a prerequisite for pursuing the observed TCP path. No new watch FTP
+provisioning is needed for that path.
+
+The recorder's earlier expiry (20:14:36.083 UTC) and missing 9002 listener
+explained the later offline routing problem until the recorder restarted.
+This does not explain the earlier connected-but-no-image trials. Current
+reported forwards after ngrok recovery were Guardian 10595 -> 9000, recorder
+17200 -> 9002 and the existing WhatsApp HTTPS -> 9001; reread current endpoints
+for later sessions.
+
+See [the latest photo evidence and next steps](testing/photo-reference-capture.md).
+PR #113 remains draft. The offline decoder fix passes **35 focused
+relay/private-recorder/decoder tests**, including synthetic trailer rejection
+and two-image extraction coverage. No production feature was activated.
+
+## Photo checkpoint — 24 September 2026
+
+Software follow-up: PR #113 now has a standalone bounded FTP receiver
+with real control/data proxy tests and a separate Firebase private import/delete
+pilot. The combined focused suite passes 56 tests. The operator passed all nine
+local FTP checks on Windows/Python 3.13.15 and the Firebase read-only check for
+`guardian-fbadd.firebasestorage.app`, with zero writes and upload permissions
+still unverified. A separate public-probe CLI now includes tested endpoint
+restoration. The first public attempt returned `ngrok_http_405` with no FTP
+probe result, then verified the original endpoint configuration. The revised
+probe removes its dependency on endpoint PUT, preserves both TCP endpoint
+configurations through a temporary local bridge on unused port 9002, and reports
+exact failure stages. Local integration passed against an agent that rejects
+PUT. The operator's public retry at `5a4f37f` passed: `public_ftp_probe_passed`,
+`bytesVerified=1024`, no failure, and `endpointConfigurationRestored=true` with
+no restoration problems. This proves the laptop's transfer through both public
+FTP connections. `publicReachabilityVerified=false` concerns the restored
+endpoints; a fresh WhatsApp webhook was not established. The probe ended its
+temporary receiver arrangement and sent no watch command or Firebase write.
+Saved watch FTP settings/readback/reset remain unknown; the supplied sections
+37–39 provide setters only. Confirm the firmware's FTP/PIC support and a
+restoration procedure before a live watch trial. Firebase write/delete and
+watch `PIC,1` acceptance remain pending. No FTP settings were changed and no customer photo
+capability is enabled. See
+[the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
+photo but cannot establish that a remote camera request executed.
+
+Jesh / protocol ID `9705254749`: the operator reports photos visible in
+AnyTracking. The recorded reference session contains lowercase `rcapture`
+requests/replies followed by two `img` uploads, 5.064 and 6.057 seconds after
+their requests. TCP payload lengths are 3066 and 5987 bytes, not measured
+JPEG sizes. The operator reports sending the Guardian return SMS to port
+10595; fresh Guardian telemetry after restoration was not supplied in this
+checkpoint. Tunnel ports are temporary and must be read afresh for the next run.
+
+This establishes reference-service capture/upload behavior on one watch.
+Follow-up private file: one 5067-byte `img` payload at 17:39:27.835Z was decoded
+offline by reversing 77 documented escape pairs. The extracted JPEG is 4969
+bytes and 240x240 pixels; it loaded fully with Pillow and was visually inspected.
+No personal image bytes were committed. The operator still reported an empty
+AnyTracking gallery for this attempt. Three requests were present in the file;
+the upload is 205.457 seconds after the preceding request. The operator has now
+confirmed accidentally pressing the camera button on the watch. Classify this
+sample as a locally triggered upload, not remote-request success or measured
+remote latency. The decoded format remains valid evidence; a controlled
+AnyTracking-only request with untouched watch controls is the next test. This
+correction does not establish the trigger of the earlier 17:00/17:01 uploads.
+
+App-only follow-up at 22:23 MUT: `rcapture` sent at 18:23:22.676Z and bare reply
+at 18:23:23.352Z (676 ms). Heartbeat exchange continued through 18:25:15.560Z,
+but no `img` or recorder observation error appears in the supplied excerpt.
+The operator reports two minutes of waiting and an empty AnyTracking gallery.
+Remote-photo execution remains unverified. Next compare a request with the
+watch awake at the ordinary clock screen, camera/gallery closed; this checks
+a device-state hypothesis without changing command syntax.
+
+Live Guardian reception/private storage, fresh-image/request correlation, indication,
+retention/deletion, reconnect/failure handling and a second watch remain
+unverified. No customer flag or device-dispatch acceptance is changed.
+See [the exact timeline and next private capture](testing/photo-reference-capture.md).
+
+## Final collection (release)
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
@@ -1250,3 +1492,55 @@ The supplier's off/on interpretation now has a successful pilot physical result.
 No runtime or flag change accompanies this evidence update. PR #118 remains
 draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
 enable/observe/off procedure; no additional HSW test is required now.
+
+## Incident photo sequence comparison — 2 October 2026
+
+Under the minimum 60-second save-to-follow-up policy, the 14:05 MUT SOS produced
+five stored photos, five ready AI analyses and a delivered/read Photos & AI
+follow-up. The separate 14:29 MUT fall produced two stored photos with ready
+analyses. Its third capture received only a 29-byte command reply and no image
+in-window despite 113.461 seconds since the preceding save and no competing
+outgoing command during its wait. Initial and follow-up WhatsApp delivery were
+verified separately; another initial recipient had Meta rejection 131030.
+Screen state was not observed. Camera reliability/root cause remains open.
+
+Bounded metadata-only ingress diagnostics have been added for the next trial,
+including post-timeout and replacement/unidentified-connection observations.
+They do not change photo authorization, commands, spacing or media acceptance.
+See [the detailed evidence and diagnostic limits](testing/incident-photo-spacing-2026-10-02.md).
+
+### Diagnostic fall and reporting correction — 2 October 2026
+
+The independent fall received at 15:24:20 MUT delivered its initial WhatsApp
+alert. One capture at 15:25:55 received a bare reply but produced no image. The
+metadata observer retained the full 120-second authorization and a further
+120 seconds of observation: 63 total incoming bytes on the selected connection,
+two complete frames, zero photo headers, zero incomplete buffers, zero
+untracked bytes and no replacement/unidentified connection traffic. No image
+rejection was recorded. This locates the observed failure before photo parsing,
+Storage and AI; it does not distinguish watch generation from transport loss.
+The separate follow-up was delivered/read at 15:28:15. No retry was sent.
+
+The operator reports that the screen stayed dark after a brief initial display,
+and that a previous five-photo SOS succeeded with the same screen behavior.
+Screen darkness alone is therefore not an established explanation. The earlier
+AnyTracking-only attempt at 22:23 MUT on 24 September also had a reply and
+continuing heartbeat, but no image in its supplied 112.884-second excerpt.
+That finite reference excerpt cannot exclude later or other-transport arrivals.
+
+Code inspection found a separate gap: fall did not activate the bounded
+emergency reporting override. It now uses the same 30-minute active / 15-minute
+cooldown policy and critical-battery safeguard as SOS. Alarm receipt timestamps
+are retained for both types; reporting starts independently of geolocation and
+alert/photo completion. A regression also prevents an older reporting write
+from shortening a newer emergency deadline. All 1,616 gateway tests pass.
+These are software fixes; fall reporting cadence and camera reliability still
+require hardware evidence. No new physical alarm or capture is claimed here.
+
+## Hardware result — 2 October 2026, 17:25 MUT fall
+
+The 6bd04fb gateway granted the second request its complete 240-second window (17:28:37.262 to 17:32:37.262). It received one capture reply and no photo header, image frame or partial image buffer. The additional 120-second metadata observation also received no photo header: final 97 bytes, three frames on the same connection, no closure/replacement, zero untracked bytes, suppressed events or log failures. The capture-period outgoing trace contained RCAPTURE and one required LK reply, with no competing routine setting or CR.
+
+One photo was stored and fully decoded; its AI analysis and authorized gallery were ready. The initial WhatsApp reached one recipient, and the separate Photos & AI follow-up was delivered at 17:33:19 and read at 17:33:26. The other initial recipient retained Meta error 131030; no allowlist/contact changes were made. The recorder and sleep helper exited after all metadata observations ended; gateway/ngrok remain running.
+
+**Outcome: the four-minute candidate did not resolve this failure.** The earlier delayed frame remains evidence for that earlier request, not an explanation of this run. The upstream delay/failure cause remains unknown. No new hardware reliability claim is supported.

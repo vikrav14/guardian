@@ -7,7 +7,7 @@ const { commandCoordinator: gate } = require('../src/command-coordinator');
 const { sendDownlinkCommand } = require('../src/downlink');
 const { createMovementTransport } = require('../src/movement-reminder-transport');
 const { createMedicationTransport, medicationTransport, observeMedicationReply } = require('../src/medication-settings-transport');
-const { applyAdaptiveReporting, markSos } = require('../src/adaptive-reporting');
+const { applyAdaptiveReporting } = require('../src/adaptive-reporting');
 
 function watch(t, imei = '861000000000001') {
   const socket = new EventEmitter(), frames = [];
@@ -71,16 +71,15 @@ test('routine reporting is recomputed after camera deferral; active SOS reportin
   let data = { locationReportingMode: 'automatic', locationReportingIntervalSeconds: 900,
     adaptiveReporting: { appliedIntervalSeconds: 900 } };
   const db = { collection: () => ({ doc: () => ({ get: async () => ({ data: () => data }),
-    set: async patch => { data = { ...data, ...patch }; } }) }) };
+    set: async patch => { data = { ...data, ...patch, adaptiveReporting: { ...data.adaptiveReporting, ...patch.adaptiveReporting } }; } }) }) };
   assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80 })).status, 'deferred');
   assert.equal(data.locationReportingIntervalSeconds, 900);
   assert.equal(w.frames.length, 0);
   gate.finishCapture(w.imei, 'capture');
-  // Main's battery policy is unchanged in this extraction. Recompute it from
-  // new evidence, not the 60-second value which was blocked above.
-  assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 45 })).seconds, 300);
-  assert(w.frames[0].includes('UPLOAD,300'));
-  w.capture(); markSos(w.imei);
+  // Restoration recomputes the supplier baseline at the current battery.
+  assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 45 })).seconds, 600);
+  assert(w.frames[0].includes('UPLOAD,600'));
+  w.capture(); data.adaptiveReporting.sosActiveUntil = new Date(Date.now() + 60000);
   assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80 })).changed, true);
   assert(w.frames[1].includes('UPLOAD,60'));
 });

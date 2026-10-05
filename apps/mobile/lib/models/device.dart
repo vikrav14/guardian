@@ -168,6 +168,7 @@ class Device {
     this.fallDetectionDialMonitor,
     this.fallDetectionSensitivity,
     this.locationReportingIntervalSeconds,
+    this.manualReportingIntervalSeconds,
     this.locationReportingMode = 'automatic',
     this.watchAlertProfile,
     this.careProfile,
@@ -344,6 +345,7 @@ class Device {
   /// V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
+  final int? manualReportingIntervalSeconds;
   final String locationReportingMode;
 
   /// Last alert profile requested by a guardian. The V52 has no supported
@@ -589,6 +591,11 @@ class Device {
       fallDetectionSensitivity:
           ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
               ?.toInt(),
+      locationReportingMode: data['locationReportingMode'] == 'manual'
+          ? 'manual'
+          : 'automatic',
+      manualReportingIntervalSeconds:
+          (data['manualReportingIntervalSeconds'] as num?)?.toInt(),
       locationReportingIntervalSeconds:
           (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
       watchAlertProfile: data['watchAlertProfile'] is String

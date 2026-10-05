@@ -1,4 +1,6 @@
 const net = require('net');
+const { noteDeviceWrite } = require('./photo-command-timeline');
+const { notePhotoTransportPacket } = require('./photo-transport-diagnostics');
 
 const config = require('./config');
 
@@ -53,7 +55,7 @@ const { startHttpServer } = require('./http');
 
 const { startReminderScheduler } = require('./reminder-scheduler');
 const { startProfileWeather } = require('./profile-weather');
-const { applyAdaptiveReporting, activateSosOverride } = require('./adaptive-reporting');
+const { applyAdaptiveReporting, activateEmergencyOverride, startReportingReconciler } = require('./adaptive-reporting');
 const { sendContinuousReporting } = require('./downlink');
 const { createWellbeingStore } = require('./care-wellbeing');
 const { claimSosIncident } = require('./sos-incident-window');
@@ -131,6 +133,9 @@ const {
 
 initFirestore();
 
+const { startSnapshotController, isPhotoFrame } = require('./safety-snapshot-live');
+const snapshotController = startSnapshotController({ db: getDb(), findSessions: findSocketsForDevice });
+
 const temperatureTrialQuarantine = require('./temperature-trial-quarantine')
   .createTemperatureTrialQuarantine({ pilotImei: config.wifiHomePilotImei });
 const wellbeingStore = config.careWellbeingIngestEnabled === true ? createWellbeingStore({
@@ -204,6 +209,14 @@ if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
   const retry = setInterval(() => { void journeyReliability.flush(); }, 30000);
   retry.unref?.();
   void journeyReliability.flush();
+}
+
+if (getDb() && typeof startReportingReconciler === 'function') {
+  startReportingReconciler({ db: getDb(),
+    connected: require('./sessions').listConnectedImeis,
+    context: imei => ({ batteryPercent: getLiveDeviceState(imei).batteryPercent,
+      outingActiveUntilMs: require('./live-cache').journeyReportingUntil(imei) }),
+  });
 }
 
 if (config.wifiHomeDisplayPilotEnabled || config.wifiHomeSetupEnabled) {
@@ -846,6 +859,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             const reporting = await applyAdaptiveReporting(adaptiveDb, locEvent.imei, {
               batteryPercent: adaptiveBattery,
               outingActive,
+              outingActiveUntilMs: require('./live-cache').journeyReportingUntil(locEvent.imei),
               trigger: journeyReturned
                 ? 'journey_return'
                 : outingActive
@@ -948,6 +962,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             const reporting = await applyAdaptiveReporting(db, event.imei, {
               batteryPercent: event.batteryPercent,
               outingActive: isJourneyActive(event.imei),
+              outingActiveUntilMs: require('./live-cache').journeyReportingUntil(event.imei),
               trigger: isJourneyActive(event.imei)
                 ? 'journey_heartbeat'
                 : 'heartbeat',
@@ -967,6 +982,20 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             `command=${event.alarmCommand || 'unknown'} ` +
             `state=${event.alarmCode || 'unknown'} fields=${event.alarmArgCount ?? 'unknown'}`
         );
+
+        // Emergency tracking applies to both alarm types. Start before
+        // geolocation; reporting does not gate alert or photo processing.
+        if (['sos', 'fall'].includes(event.alarmType)) {
+          const adaptiveDb = getDb();
+          if (adaptiveDb) {
+            void runTrackingSideEffect(event, 'reporting', () => activateEmergencyOverride(adaptiveDb, event.imei, {
+              alarmType: event.alarmType,
+              eventAtMs: eventReceivedAt.getTime(),
+              batteryPercent: event.batteryPercent,
+              outingActive: isJourneyActive(event.imei),
+            }));
+          }
+        }
 
         // Capture pre-alarm evidence before geolocation/reporting/persistence
         // can yield to a later watch observation. Never read it at send time.
@@ -1009,7 +1038,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         }
 
         const alarmType = alarmEvent.alarmType || 'other';
-        const alarmAt = alarmType === 'sos' ? eventReceivedAt : new Date();
+        const alarmAt = ['sos', 'fall'].includes(alarmType) ? eventReceivedAt : new Date();
         const sosLocationSnapshot = alarmType === 'sos'
           ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
@@ -1020,16 +1049,6 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
               } : null,
             })
           : null;
-        if (alarmType === 'sos') {
-          const adaptiveDb = getDb();
-          if (adaptiveDb) {
-            await runTrackingSideEffect(event, 'reporting', () => activateSosOverride(adaptiveDb, alarmEvent.imei, {
-              batteryPercent: alarmEvent.batteryPercent,
-              outingActive: isJourneyActive(alarmEvent.imei),
-            }));
-          }
-        }
-
         const alarmRaw =
 
           alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};
@@ -1177,6 +1196,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
             message: `Device alarm: ${alarmType}`,
 
             eventAt: alarmAt,
+
+            ...(['sos', 'fall'].includes(alarmType)
+              ? { incidentPhotoEligible: true, incidentPhotoPending: true } : {}),
 
             payload: alarmPayload,
 
@@ -1330,6 +1352,8 @@ const server = net.createServer((socket) => {
     // Preserve incoming bytes before framing can discard noise or decoding can
     // reject a frame. Identity/consent are checked separately before persistence.
     wearWireCapture?.observeChunk(socket, session, chunk);
+    // Numeric byte counts before framing, scoped to recent authorized captures.
+    snapshotController?.observeIngress(socket, session, chunk.length);
 
     lastDataAt = new Date().toISOString();
 
@@ -1343,9 +1367,16 @@ const server = net.createServer((socket) => {
 
     session.buffer = Buffer.from(rest);
 
+    // Counts/header flags only, including incomplete uploads before framing.
+    snapshotController?.observeTraffic(socket, session, { chunkBytes: chunk.length, frames, rest });
 
 
     for (const frame of frames) {
+      // Handle private binary media before the text decoder, logs or telemetry.
+      if (isPhotoFrame(frame)) {
+        snapshotController?.observe(frame, socket, session);
+        continue;
+      }
 
       const decoded = decodeFrame(frame);
 
@@ -1359,6 +1390,8 @@ const server = net.createServer((socket) => {
       }
 
       const { acks, events } = handlePacket(decoded, session);
+      // Observational only: does not decide camera readiness or change replies.
+      try { notePhotoTransportPacket(session, events, session.lastPacketAt); } catch { /* Diagnostics only. */ }
       observeMovementReply(decoded, socket, session);
       observeMedicationReply(decoded, socket, session);
 
@@ -1387,7 +1420,8 @@ const server = net.createServer((socket) => {
       observeWifiFencePacket(decoded, events);
 
       for (const ack of acks) {
-
+        require('./command-coordinator').commandCoordinator.decide(session.imei, '', { protocolReply: true });
+        noteDeviceWrite(socket, session, ack, 'protocol_ack');
         if (capturedAlarm) wearCapture.writeAlarmAck(socket, ack, capturedAlarm);
         else socket.write(ack);
 
@@ -1446,6 +1480,7 @@ const server = net.createServer((socket) => {
 
 
   socket.on('close', (hadError) => {
+    snapshotController?.disconnect(socket);
 
     const session = getSession(socket);
     wearWireCapture?.observeClose(socket);

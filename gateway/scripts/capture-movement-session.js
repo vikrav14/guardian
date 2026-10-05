@@ -28,7 +28,7 @@ function restorationPlan(options) {
     routingRestored: false, guardianTelemetryPausedDuringComparison: options.backend === 'anytracking' };
 }
 
-function parseArguments(args) {
+function parseArguments(args, { maxMinutes = 20, defaultMinutes = 10 } = {}) {
   const values = {};
   for (let i = 0; i < args.length; i++) {
     const key = args[i];
@@ -37,10 +37,10 @@ function parseArguments(args) {
     if (key === '--run') values[key] = true;
     else { const value = args[++i]; if (!value || value.startsWith('--')) throw Error(USAGE); values[key] = value; }
   }
-  const port = values['--listen-port'] ?? '9002', minutes = values['--minutes'] ?? '10';
+  const port = values['--listen-port'] ?? '9002', minutes = values['--minutes'] ?? String(defaultMinutes);
   if (!Object.hasOwn(BACKENDS, values['--backend'] || '') || !/^\d{10}$/.test(values['--protocol-id'] || '')
       || !/^\d+$/.test(port) || +port < 1024 || +port > 65535 || [9000, 9001].includes(+port)
-      || !/^\d+$/.test(minutes) || +minutes < 1 || +minutes > 20
+      || !/^\d+$/.test(minutes) || +minutes < 1 || +minutes > maxMinutes
       || typeof values['--output'] !== 'string' || !path.isAbsolute(values['--output'])) throw Error(USAGE);
   const options = { backend: values['--backend'], protocolId: values['--protocol-id'],
     returnUrl: values['--return-url'], output: values['--output'], listenPort: +port, minutes: +minutes,

@@ -31,11 +31,6 @@ class _HomeShellState extends State<HomeShell> {
 
   void _goToTab(int index) => setState(() => _index = index);
 
-  void _sendSos() {
-    _goToTab(0);
-    _dashboardKey.currentState?.sendHelpFromNavigation();
-  }
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -62,7 +57,6 @@ class _HomeShellState extends State<HomeShell> {
               bottomNavigationBar: MobileBottomBar(
                 currentIndex: _index,
                 onTap: _goToTab,
-                onSos: _sendSos,
               ),
               body: Column(
                 children: [

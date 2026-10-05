@@ -4,6 +4,7 @@ const { after, before, test } = require('node:test');
 
 const {
   assertFails,
+  assertSucceeds,
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 const { doc, serverTimestamp, setDoc, getDoc, deleteDoc } = require('firebase/firestore');
@@ -24,6 +25,7 @@ before(async () => {
   });
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'devices', imei), { online: true });
     await setDoc(doc(context.firestore(), 'users', 'linked-user'), {
       serviceOwnerUid: 'linked-user',
       linkedImeis: [imei],
@@ -61,4 +63,13 @@ test('clients cannot impersonate the operator or read/reset newest-command water
     await assertFails(setDoc(ref, { commandId: 'old', createdAtMs: 0 }));
     await assertFails(deleteDoc(ref));
   }
+});
+
+ test('linked guardians may save manual reporting intent but cannot forge emergency policy', async () => {
+  const device = uid => doc(testEnv.authenticatedContext(uid).firestore(), 'devices', imei);
+  await assertSucceeds(setDoc(device('linked-user'), {
+    locationReportingMode: 'manual', manualReportingIntervalSeconds: 1200,
+  }, { merge: true }));
+  await assertFails(setDoc(device('unlinked'), { manualReportingIntervalSeconds: 60 }, { merge: true }));
+  await assertFails(setDoc(device('linked-user'), { adaptiveReporting: { sosActiveUntil: serverTimestamp() } }, { merge: true }));
 });

@@ -1,7 +1,8 @@
 const { buildAckFrame } = require('./protocol/gt06');
 const { findSocketsForDevice } = require('./sessions');
-const { commandCoordinator } = require('./command-coordinator');
 const { noteWifiFenceDownlink } = require('./wifi-fence-runtime');
+const { noteDeviceWrite } = require('./photo-command-timeline');
+const { commandCoordinator } = require('./command-coordinator');
 
 function redactPhone(value) {
   const phone = String(value || '');
@@ -32,7 +33,7 @@ function redactDownlinkCommand(command) {
 }
 
 /**
- * Write one downlink command on the unique live TCP session for the device.
+ * Write a downlink command frame on one unambiguous active device session.
  * Uses the 10-digit protocol id in the frame (e.g. CR → [SG*9705314117*0002*CR]).
  */
 function sendDownlinkCommand(imeiOrProtocolId, command, options = {}) {
@@ -41,11 +42,13 @@ function sendDownlinkCommand(imeiOrProtocolId, command, options = {}) {
   if (matches.length === 0) {
     return { ok: false, error: 'no_active_session', imeiOrProtocolId, command };
   }
-
-  // An action is never broadcast across competing watch connections.
+  // Commands are actions, not broadcasts. Never duplicate one across sockets.
   if (matches.length !== 1) return { ok: false, error: 'ambiguous_session' };
   const decision = commandCoordinator.decide(matches[0].session.imei || imeiOrProtocolId, command, options);
-  if (!decision.ok) return decision;
+  if (!decision.ok) {
+    console.info(`[command-coordination] ${decision.status} reason=${decision.error}`);
+    return decision;
+  }
 
   const protocolId =
     matches[0].session.protocolId ||
@@ -56,7 +59,8 @@ function sendDownlinkCommand(imeiOrProtocolId, command, options = {}) {
   const frame = buildAckFrame(protocolId, command);
   const frameStr = frame.toString('ascii');
 
-  for (const { socket } of matches) {
+  for (const { socket, session } of matches) {
+    noteDeviceWrite(socket, session, frame, 'downlink');
     socket.write(frame);
   }
 

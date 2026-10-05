@@ -193,6 +193,7 @@ test('running pilot confines hardware operations to one session; firmware and re
         createDailyWellnessScheduler: () => ({ tick: async () => {}, snapshot: () => ({}) }),
       };
       if (name === './daily-wellness-store') return { createDailyWellnessStore: () => ({}) };
+      if (name === './command-coordinator') return require('../src/command-coordinator');
       return require(name);
     },
   });

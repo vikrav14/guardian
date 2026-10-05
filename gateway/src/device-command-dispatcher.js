@@ -58,12 +58,12 @@ function createDeviceCommandDispatcher({ db, now = Date.now, coordinator = comma
     if (!Object.hasOwn(BUILDERS, row.type)) return 'unsupported_command';
     try { BUILDERS[row.type](row.params || {}); } catch { return 'invalid_command'; }
     if (!(await authorize(db, row, now()))) return 'authorization_changed';
-    if (row.type === 'set_upload_interval' && !reporting) {
+    if (row.type === 'set_upload_interval') {
       const current = (await db.collection('devices').doc(row.imei).get()).data();
       // The app can switch back to automatic while a manual setting waits.
       // Never restore that obsolete interval when a camera lease ends.
       if (current?.locationReportingMode !== 'manual' ||
-          Number(current.locationReportingIntervalSeconds) !== Number(row.params.seconds)) return 'reporting_policy_changed';
+          Number(current.manualReportingIntervalSeconds ?? current.locationReportingIntervalSeconds) !== Number(row.params.seconds)) return 'reporting_policy_changed';
     }
     return now() >= at + MAX_WAIT_MS ? 'command_expired' : null;
   }

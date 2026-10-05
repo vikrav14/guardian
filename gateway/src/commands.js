@@ -313,7 +313,7 @@ async function sendDeviceCommand(db, imei, type, params, transports = {}) {
     await transports.beforeSend?.();
     const result = tcpSender(imei, text, transports.coordination || {});
     if (!result.ok) {
-      if (result.error !== 'no_active_session') {
+      if (result.error && result.error !== 'no_active_session') {
         throw Object.assign(new Error(result.error), { code: result.error, expiresAt: result.expiresAt });
       }
       throw new Error(
@@ -328,7 +328,8 @@ async function sendDeviceCommand(db, imei, type, params, transports = {}) {
   if (!simNumber) {
     throw new Error('Device has no simNumber on file — set it in device settings first');
   }
-
+  // Looking up the SIM is asynchronous: deferred authorization and expiry
+  // must still hold at the actual transport handoff.
   await transports.beforeSend?.();
   const decision = require('./command-coordinator').commandCoordinator.decide(imei, text, transports.coordination || {});
   if (!decision.ok) throw Object.assign(new Error(decision.error), { code: decision.error });

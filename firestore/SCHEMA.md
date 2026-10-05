@@ -792,6 +792,41 @@ idempotent per device/source/hour.
 
 ## Gateway write map
 
+### Diagnostic-only `photoTrialImports/{importId}`
+
+Created only by the explicit `gateway/scripts/photo-trial-firebase.js` pilot;
+never by gateway startup. Client reads/writes are denied by existing unmatched
+path rules. This is separate from production `safetySnapshotRequests` and
+does not create a customer-visible photo or satisfy its authorization policy.
+The JPEG is a private Storage object, not a Firestore field. No public URL or
+download token is recorded. `importId` hashes IMEI, linked requester UID and
+image SHA-256 to prevent repeat uploads of the same trial image.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| version | number | `1` |
+| imei / protocolId | string | Exact trial device identities |
+| requestedBy | string | Verified linked Firebase user UID |
+| source | string | `ftp_trial_operator_import` |
+| sha256 / bytes / width / height | string / number | Validated JPEG properties |
+| validation | string | `pillow_full_decode`; full decode repeated before import |
+| receivedAt / importedAt / updatedAt | timestamp | Transfer receipt and processing times; not proven camera capture time |
+| consentConfirmed | boolean | Operator confirmed this test-photo import |
+| state | string | `uploading`, `stored`, `failed_cleaned`, `cleanup_required`, `deleted` |
+| bucket / objectPath | string / nullable string | Private bucket and `privatePhotoTrials/{imei}/{importId}.jpg`; path cleared on deletion |
+| generation | string or null | Storage generation for conditional deletion, when known |
+| remoteCaptureVerified / requestCorrelationVerified / customerVisible | boolean | Always `false` in this pilot |
+| automaticExpiry | boolean | `false`; no TTL or deletion scheduler is installed |
+| cleanupRequiredAfterTrial | boolean | Explicit cleanup required; cleared by successful deletion |
+| deletedAt | timestamp | Live-object deletion completed or object was already absent |
+
+Deletion keeps the audit record. Storage provider soft-delete/versioning may
+retain copies under bucket policy. A failed import records cleanup uncertainty;
+it must not be reported as a successful rollback. See
+[the trial runbook](../docs/testing/photo-ftp-trial.md).
+
+### Runtime writes
+
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
 
 | Trigger | Firestore action |
@@ -871,3 +906,103 @@ password or network scan history is persisted. Disabled tombstones omit those
 fields and prevent legacy pilot enrollment from returning. Updates clear
 `devices/{imei}.homeWifiPresence` and `lastHomeWifiDetection` in the same transaction.
 See `docs/services/home-wifi-setup.md` for authorization, expiry and acceptance.
+
+### Reporting and command coordination (2 October 2026)
+
+- `devices/{imei}.adaptiveReporting`: desired and handed-off intervals remain
+  distinct. `outingActiveUntil` is a bounded movement-evidence lease;
+  `sosActiveUntil`/`sosCooldownUntil` and `fallActiveUntil`/`fallCooldownUntil`
+  persist separate emergency deadlines. Only alarm transactions extend them;
+  reporting evaluations never write back a stale copy of those deadlines.
+  `commandStatus`, `deferredReason`, and `deferredUntil` describe a camera
+  deferral without claiming a write. `manualReportingIntervalSeconds` retains
+  current explicit manual intent separately from a temporary emergency interval.
+- `deviceCommands/{id}` can be `deferred` within 120 seconds of `createdAt`.
+  `expiresAt`, `error: camera_busy`, and backend-only `coordinationProcess`
+  describe why it has not been sent. A superseded/expired/revoked request is
+  terminal `failed` with a specific reason. `sending` after a gateway restart
+  is ambiguous and never automatically resent.
+- `deviceCommandIntents/{sha256(settingKey)}` is backend-only (no client rule
+  grants access). It retains `commandId` and `createdAtMs` for the newest
+  authorized setting, including after a prompt stop has completed. It stores
+  no raw command, credential, phone number or camera action. Older deferred
+  settings cannot overwrite it. No new composite index is required.
+- Reporting interval fields are socket-handoff intent, not hardware readback.
+  See `docs/services/reporting-command-policy.md`.
+
+### Live Safety snapshot path (25 September 2026)
+
+The app now uses authenticated `/api/safety-snapshots` gateway routes. It does
+not enqueue the historical backend-only `safetySnapshotRequests` workflow.
+That watcher is no longer started by the reminder scheduler.
+
+- `safetySnapshotAuthorizations/{UUID}`: server-owned request, requester,
+  service owner, IMEI, explicit consent/purpose, `state` (`dispatching`,
+  `waiting_for_image`, `receiving`, `available`, `failed`, `deleted`, `expired`),
+  two-minute authorization deadline and 24-hour media access deadline.
+- `safetySnapshotDeviceLocks/{imei}`: server-only last request time and request
+  ID. A Firestore transaction serializes all guardians/gateway workers and
+  enforces a durable per-watch 15-minute cooldown.
+- `safetySnapshotAudit/{UUID}` is immutable creation evidence. Its backend-only
+  `events` subcollection records command handoff, receipt, view and deletion.
+- `mediaPath` is a deterministic private Storage key:
+  `privateSafetySnapshots/{serviceOwnerUid}/{imei}/{UUID}.jpg`. No Firebase
+  download token or public URL is created. Direct client Storage access is
+  denied; the gateway verifies current membership/plan for each image request.
+- Receipt metadata includes byte size, dimensions, SHA-256, raw device timestamp,
+  `validation: full_pixel_decode`, `correlation: same_session_request_window`
+  and `requestCorrelationVerified: false`. `receivedAt` is gateway time, not a
+  verified capture timestamp. There is no verified on-wire request identifier.
+- Optional `receiveDiagnostics` (version 1) accompanies terminal receive states:
+  fixed-size traffic/frame/rejection counters, relative arrival times, buffered
+  byte counts, image-header flags and a fixed failure-stage label. It contains
+  no raw frames, image data or credentials, and is not exposed in the app HTTP
+  list. Packet observation is in memory only; no per-packet Firestore writes.
+  Missing diagnostics (older requests or a restarted gateway) mean unavailable
+  evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
+  Optional `commandTimeline` (version 1) records outgoing write attempts around
+  capture: up to 16 prior writes on the capture socket within two minutes, and
+  48 writes during the two-minute image wait across that watch's sessions.
+  Events retain an allowlisted command/source, relative time, byte count and
+  same-session flag; only `UPLOAD` may include a bounded numeric reporting
+  interval. Truncation counts are explicit. No arguments, raw frames, phone
+  numbers, radio IDs or scene details are retained. This metadata is written
+  with existing terminal diagnostics, without per-command Firestore writes.
+  It proves attempts, not execution, interference or absence of firmware work.
+  See `docs/services/incident-photo-command-coordination.md` for scope and plan.
+  Decoder failures additionally carry a fixed `decodeError`, numeric/boolean
+  `decodeDetails`, and a `rejectedFrameCapture` outcome. The optional rejected
+  frame is an operator-selected local diagnostic file, never a Firestore field
+  or public Storage object, and is not managed by app media-expiry cleanup.
+- `cleanupPending` and `uploadLeaseUntil` retain interrupted/deferred deletion
+  work. The gateway denies expired/deleted access immediately, then deletes
+  objects while running and after restart. It never resends capture commands.
+- Composite indexes cover the owner/device gallery and bounded timeout/expiry
+  sweeps. Images and raw protocol frames are never Firestore document fields.
+
+
+### Incident photo access window (PR #113 integration)
+
+All of these records remain gateway-owned; direct client reads/writes are denied.
+Authenticated HTTP gallery/image/request routes recheck membership, plan and consent.
+
+- `incidentPhotos/{alertId}`: owner/device/type/event timestamp, `capturePolicy`
+  (`one-auto-guardian-hour-v1` when approved), fixed `requestWindowEndsAt` (event +
+  one hour), automatic-attempt `deadlineAt`, `expiresAt`, `requestIds`, `target: 1`,
+  `state`, `reason`, `nextAt`, `followupState` and `analysisPending`. The original
+  follow-up is independent of subsequent guardian photo analysis. Legacy incidents
+  without this policy keep their bounded five-photo contract.
+- `safetySnapshotAuthorizations`: incident requests add `incidentId`, `sequence`,
+  `captureSource` (`automatic` or `guardian`) and `analysis`. Each incident grant
+  is at most 240 seconds, capped by its applicable incident deadline. Ordinary
+  manual grants remain 120 seconds. Request keys produce deterministic private
+  IDs scoped to guardian and incident; replay never creates another capture.
+- `safetySnapshotDeviceLocks`: `incidentId`/`incidentUntil` preserve the existing
+  12-minute grouping; `requestId`/`activeUntil` serialize current captures. Neither
+  grouping nor delayed message delivery renews the original one-hour access.
+- `devices/{imei}.manualReportingIntervalSeconds` is the linked guardian's
+  current manual preference, separately writable alongside mode/interval. The
+  backend cannot replace that preference with a queued older setting. Current
+  clients store it explicitly; missing fields fall back to the legacy interval.
+  `adaptiveReporting` remains backend-only and represents policy/handoff, not
+  measured packet cadence. Deploy the updated rules before the updated client.

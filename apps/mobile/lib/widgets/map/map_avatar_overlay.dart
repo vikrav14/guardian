@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
@@ -9,10 +10,11 @@ import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../guardian_widgets.dart';
 
-/// Web map avatars rendered as Flutter widgets above the Google Map.
+/// Map avatars rendered as Flutter widgets above the Google Map.
 ///
 /// Bitmap map markers cannot read Firebase Storage token URL bytes without
-/// bucket CORS. [AvatarBubble] uses HTML `<img>` (same as device cards).
+/// bucket CORS on web. Native also reuses [AvatarBubble], avoiding repeated
+/// bitmap uploads to the Android map when watch data changes.
 class MapAvatarOverlay extends StatefulWidget {
   const MapAvatarOverlay({
     super.key,
@@ -37,11 +39,21 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
   Map<String, Offset> _positions = const {};
   var _trackedCameraGeneration = -1;
   var _deviceFingerprint = '';
+  var _projecting = false;
+  var _projectionPending = false;
+  var _active = true;
+  var _requestGeneration = 0;
+  double _pixelRatio = 1;
 
   @override
-  void initState() {
-    super.initState();
-    unawaited(_updatePositions());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _active = TickerMode.valuesOf(context).enabled;
+    // Android projects to physical pixels; web projects to CSS pixels.
+    _pixelRatio = !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+        ? MediaQuery.devicePixelRatioOf(context)
+        : 1;
+    _requestPositions();
   }
 
   @override
@@ -51,7 +63,7 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
     if (widget.controller != oldWidget.controller ||
         widget.cameraGeneration != _trackedCameraGeneration ||
         fingerprint != _deviceFingerprint) {
-      unawaited(_updatePositions());
+      _requestPositions();
     }
   }
 
@@ -64,32 +76,48 @@ class _MapAvatarOverlayState extends State<MapAvatarOverlay> {
         .join('||');
   }
 
-  Future<void> _updatePositions() async {
-    final controller = widget.controller;
-    if (controller == null || !mounted) return;
-
+  void _requestPositions() {
     _deviceFingerprint = _fingerprint(widget.devices);
     _trackedCameraGeneration = widget.cameraGeneration;
+    _requestGeneration++;
+    _projectionPending = true;
+    if (!_projecting && _active) unawaited(_updatePositions());
+  }
 
-    final positions = <String, Offset>{};
-    for (final device in widget.devices) {
-      final location = device.mapDisplayLocation;
-      if (location?.isValid != true) continue;
-      try {
-        final screen = await controller.getScreenCoordinate(
-          LatLng(location!.lat, location.lng),
-        );
-        positions[device.imei] = Offset(
-          screen.x.toDouble(),
-          screen.y.toDouble(),
-        );
-      } catch (_) {
-        // The map may not be ready yet.
+  Future<void> _updatePositions() async {
+    _projecting = true;
+    try {
+      while (mounted && _active && _projectionPending) {
+        _projectionPending = false;
+        final controller = widget.controller;
+        if (controller == null) return;
+        final generation = _requestGeneration;
+        final positions = <String, Offset>{};
+        for (final device in widget.devices) {
+          final location = device.mapDisplayLocation;
+          if (location?.isValid != true) continue;
+          try {
+            final screen = await controller.getScreenCoordinate(
+              LatLng(location!.lat, location.lng),
+            );
+            if (!mounted || !_active) return;
+            if (generation != _requestGeneration) break;
+            positions[device.imei] = Offset(
+              screen.x / _pixelRatio,
+              screen.y / _pixelRatio,
+            );
+          } catch (_) {
+            // A later camera event retries if the map is not ready yet.
+          }
+        }
+        if (!mounted || !_active) return;
+        if (generation == _requestGeneration) {
+          setState(() => _positions = positions);
+        }
       }
+    } finally {
+      _projecting = false;
     }
-
-    if (!mounted) return;
-    setState(() => _positions = positions);
   }
 
   @override
