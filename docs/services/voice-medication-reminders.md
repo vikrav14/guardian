@@ -198,11 +198,12 @@ scheduled time; this disabled-setting trial does not test enabled voice playback
 
 The captured setting was `17:06-0-2`, with reminder number 1. The operator
 confirmed the scheduled time was 17:06 and reported that nothing happened.
-The enable value is 0 (documented as off), consistent with that report; the
-selected repeat row is not yet confirmed. This sample separates
-the repeat field from the reminder number but does not settle the complete
-repeat/day/slot mapping. The supplied screen shows three named rows, Once,
-Daily and Customize; that screenshot alone does not prove the submitted state.
+The enable value is 0 (documented as off), consistent with that report. The
+operator's 17:09 editor screenshot then confirmed Daily selected, time 17:06,
+Enable showing Close, and a recording attached. This supports frequency 2 as
+Daily in the sampled command while the separate reminder number remained 1.
+It does not establish the complete repeat/day/slot mapping. The earlier list
+screen's Once/Daily/Customize row names do not fix a slot's repeat type.
 
 The capture finished cleanly with 16 observed frames, two privately saved
 TAKEPILLS frames, no framing/storage failure and no private limit reached.
