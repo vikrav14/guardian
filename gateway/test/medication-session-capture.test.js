@@ -60,6 +60,16 @@ test('private capture stops at the count and byte limits', t => {
   assert.ok(large.status().rawBytes <= MAX_PRIVATE_BYTES);
 });
 
+test('profile comparison preserves exact mixed-case scene commands and replies privately', t => {
+  const f = fixture(t), capture = createPrivateCapture(f.privateOutput, ID);
+  const commands = [frame('profile,3'), frame('PROFILE,1'), frame('profile')];
+  for (const command of commands) assert.equal(capture.record(command, 'server_to_watch').saved, true);
+  assert.equal(capture.record(frame('profile,3', '9999999999'), 'server_to_watch'), null);
+  assert.equal(capture.record(frame('PROFILEX,3'), 'server_to_watch'), null);
+  capture.close();
+  assert.deepEqual(rows(f.privateOutput).map(r => Buffer.from(r.frameBase64, 'base64')), commands);
+});
+
 test('disk failure is explicit and never returns a successful private recording', t => {
   const f = fixture(t), capture = createPrivateCapture(f.privateOutput, ID, { write: () => 0 });
   const result = capture.record(frame('TAKEPILLS,1'), 'watch_to_server');

@@ -8,6 +8,9 @@ const { BACKENDS, parseArguments: parseRelayArguments, restorationPlan, createLo
   frameSummary, startRelay } = require('./capture-movement-session');
 const MAX_PRIVATE_FRAMES = 64;
 const MAX_PRIVATE_BYTES = 2 * 1024 * 1024;
+// The alert scene is needed to compare pill-tone/vibration behavior. Keep its
+// exact device-addressed bytes private alongside the reminder, not in metadata.
+const PRIVATE_COMMANDS = ['TAKEPILLS', 'TK', 'PROFILE'];
 
 function parseArguments(args) {
   const relayArgs = [], extras = {};
@@ -34,7 +37,7 @@ function createPrivateCapture(output, protocolId, { write = fs.writeSync, now = 
   const record = (frame, direction) => {
     if (!Buffer.isBuffer(frame) || frame.length > 65556 || !['watch_to_server', 'server_to_watch'].includes(direction)) return null;
     const summary = frameSummary(frame, protocolId, direction);
-    if (!summary?.lengthMatches || !['TAKEPILLS', 'TK'].includes(summary.command.toUpperCase())) return null;
+    if (!summary?.lengthMatches || !PRIVATE_COMMANDS.includes(summary.command.toUpperCase())) return null;
     if (closed || writer.failed || limited) return { saved: false, ...status() };
     if (frames >= MAX_PRIVATE_FRAMES || rawBytes + frame.length > MAX_PRIVATE_BYTES) {
       limited = true; close(); return { saved: false, ...status() };
@@ -79,7 +82,7 @@ async function startMedicationCapture(options, dependencies = {}) {
     if (options.stopFile) poll = setInterval(() => {
       if (fs.existsSync(options.stopFile)) void relay.stop('stop_file');
     }, 500);
-    emit({ event: 'medication_capture_ready', privateCommands: ['TAKEPILLS', 'TK'],
+    emit({ event: 'medication_capture_ready', privateCommands: PRIVATE_COMMANDS,
       maxPrivateFrames: MAX_PRIVATE_FRAMES, maxPrivateBytes: MAX_PRIVATE_BYTES,
       commandsGenerated: false, routingRestored: false });
     return { ...relay, privateCapture };
@@ -91,7 +94,7 @@ async function main(args) {
   if (!options.run) {
     console.log(JSON.stringify({ outcome: 'preview', backend: options.backend,
       upstream: BACKENDS[options.backend], minutes: options.minutes,
-      ...restorationPlan(options), privateCommands: ['TAKEPILLS', 'TK'],
+      ...restorationPlan(options), privateCommands: PRIVATE_COMMANDS,
       networkOpened: false, fileCreated: false, commandsGenerated: false }));
     return;
   }

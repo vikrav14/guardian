@@ -201,10 +201,12 @@ reused after its format is proven; these remain separate commands and contracts.
 `gateway/scripts/capture-medication-session.js` wraps the existing transparent
 movement relay. It forwards the selected watch's original bytes unchanged to
 AnyTracking or the local Guardian backend, and generates no commands or ACKs.
-It opens no listener/files without `--run`. Raw TAKEPILLS and TK frames only are
+It opens no listener/files without `--run`. Raw TAKEPILLS, TK and PROFILE frames are
 saved to a separate explicitly named private file; other traffic has redacted
 metadata. TK is included in case the supplier transfers a medicine recording
 separately. Capturing it does not prove it belongs to a specific reminder.
+PROFILE is included for the alert-style comparison; exact prefix, case and mode
+remain private with the addressed frame. A bare reply is not scene readback.
 
 Bounds: 20 minutes maximum, 64 private frames, 2 MiB raw bytes; inherited framing,
 session and metadata-row limits also apply. Media never enters the metadata
@@ -230,7 +232,7 @@ Preserve existing reminders. Inspect the resulting command before expanding to
 two slots, changes or removal; cleanup must use supported app controls and be
 verified. No speculative Guardian TAKEPILLS audio is sent by this recorder.
 
-Fifteen focused relay/recorder tests pass, including exact split binary
+Sixteen focused relay/recorder tests pass, including exact split binary
 forwarding, no generated replies, identity/media filtering, limits, disk failure,
 expiry and a local stop file. The existing expiry test now waits for the client
 socket's asynchronous close before checking it. This is software verification;
@@ -382,3 +384,31 @@ profile reply still is not readback. Do not send an automatic profile override,
 fake a vibration field, or replay the expired reminder. Standard alert, other
 profiles, Daily execution, independent-slot editing, off suppression and
 offline/reboot behavior remain separate acceptance items.
+
+
+## AnyTracking alert-style comparison — 5 October, 21:25 checkpoint
+
+The bounded reference relay now privately includes PROFILE alongside TAKEPILLS
+and TK; ordinary metadata still excludes addressed payloads and media. Sixteen
+focused relay/recorder tests pass. It forwards original bytes unchanged and
+creates no watch command or reply.
+
+After the operator routed the watch, AnyTracking sent `profile,3` (Vibration)
+at 21:20:07.167 MUT in a 3G frame; the watch returned bare `profile` at
+21:20:07.772. Guardian's earlier downlink had the same body/mode but an SG
+prefix. This is a protocol difference to investigate, not evidence that it
+caused the vibration failure. The supplier also uses SG for another command;
+there is no basis for a global prefix replacement.
+
+The actual reminder saved through AnyTracking was enabled Daily, slot 1, at
+21:25 with recorded voice, rather than the proposed Standard/Once comparison.
+Its 5,753-byte frame arrived at 21:21:13.369; status 1 followed at
+21:21:14.431. The observer requested no second save. Physical voice/vibration,
+off cleanup and Guardian restoration are pending at this checkpoint. Daily
+cleanup must be verified separately; acknowledgements prove neither playback
+nor suppression. The capture ends at 21:37:50 MUT and must not be extended
+automatically. No private recording or reminder text is published.
+
+
+Operator outcome, 21:25 trial: Voice only, no vibration. This is an explicit physical/audible observation under AnyTracking after its profile3 command/reply, separate from TAKEPILLS status1. Recorded voice without vibration now occurred through both AnyTracking and Guardian; it is not unique to Guardian's new sender. This does not establish profile readback, universal firmware behavior, or the cause of missing vibration on Guardian's Standard reminder. The SG/3G prefix difference is not supported as the explanation of the voice result, because supplier3G produced the same result. No functional profile/framing change was made on this evidence. Standard/no-audio supplier comparison remains unperformed.
+The operator was asked to disable only the21:25 Daily test reminder and submit once, then restore Guardian using the verified return endpoint. Cleanup and restoration remain pending at this checkpoint. Recorderdeadline21:37:50 unchanged.
