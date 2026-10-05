@@ -4,6 +4,7 @@ const { createPhotoAnalyzer } = require('./incident-photo-analysis');
 const { createOrientedPhotoAnalyzer } = require('./incident-photo-orientation');
 const { asBool } = require('./safety-snapshot-runtime');
 const { buildFollowupPlan, galleryBase } = require('./incident-photo-templates');
+const { isGuardianWindow } = require('./incident-photo-policy');
 
 let live = null;
 function getIncidentPhotos() { return live; }
@@ -21,6 +22,9 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
   const config = require('./config');
   const analyze = configuredPhotoAnalyzer({ env, config });
   live = createIncidentPhotos({ db, snapshots, enabled: asBool(env.INCIDENT_PHOTOS_ENABLED),
+    // Atomic product/notification rollout: an ordinary restart with the old
+    // environment keeps the currently approved notification/capture contract.
+    guardianWindowEnabled: asBool(env.INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED),
     trialOnly: asBool(env.INCIDENT_PHOTOS_TRIAL_ONLY, true), analyze, log: console.warn,
     onComplete: async incident => {
       if (!asBool(env.INCIDENT_PHOTO_FOLLOWUP_APPROVED) || !galleryBase(env.INCIDENT_PHOTOS_APP_URL) || !config.notifyWhatsApp) return { ok: false };
@@ -41,7 +45,14 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
       if (!selected.length) return { ok: false };
       const gallery = await live.gallery(incident.ownerUid, incident.id);
       if (gallery.state === 'expired') return { ok: false };
-      const plan = buildFollowupPlan(incident.id, gallery);
+      if (isGuardianWindow(incident)) {
+        gallery.photos = gallery.photos.filter(photo => photo.captureSource === 'automatic');
+        const sequences = new Set(gallery.photos.map(photo => photo.sequence));
+        gallery.summary = gallery.summary.filter(item => sequences.has(item.photo));
+      }
+      const device = isGuardianWindow(incident)
+        ? (await db.collection('devices').doc(incident.imei).get()).data() || {} : {};
+      const plan = buildFollowupPlan(incident.id, gallery, { incident, device });
       const results = [];
       for (const contact of selected) {
         const result = await sendMetaTemplate(contact.whatsapp || contact.phone, plan.templateName, { languageCode: 'en', components: plan.components });

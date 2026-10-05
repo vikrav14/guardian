@@ -1,14 +1,15 @@
 'use strict';
 
 const { asDate } = require('./safety-snapshot-policy');
-const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, consentAllows, validIncidentId } = require('./incident-photo-policy');
+const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CAPTURE_POLICY, REQUEST_WINDOW_MS, isGuardianWindow,
+  guardianRequestAvailability, consentAllows, validIncidentId } = require('./incident-photo-policy');
 const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
 const { createPhotoProgress } = require('./incident-photo-progress');
 const RETENTION_MS = 24 * 60 * 60_000;
 const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
 
-function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true, analyze = null, now = () => new Date(),
+function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true, guardianWindowEnabled = true, analyze = null, now = () => new Date(),
   onComplete = async () => {}, log = () => {} }) {
   const incidentRef = id => db.collection('incidentPhotos').doc(id);
   const photoRef = id => db.collection('safetySnapshotAuthorizations').doc(id);
@@ -56,12 +57,13 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const at = now();
       const incident = { id, imei: alert.imei, ownerUid: consent.ownerUid, type: alert.type,
         eventAt, trial: alert.incidentPhotoTrial === true, createdAt: at, updatedAt: at, deadlineAt: new Date(at.getTime() + SEQUENCE_MS),
-        expiresAt: new Date(at.getTime() + RETENTION_MS), requestIds: [], target: MAX_PHOTOS,
+        ...(guardianWindowEnabled ? { capturePolicy: CAPTURE_POLICY, requestWindowEndsAt: new Date(+eventAt + REQUEST_WINDOW_MS) } : {}),
+        expiresAt: new Date(at.getTime() + RETENTION_MS), requestIds: [], target: guardianWindowEnabled ? 1 : MAX_PHOTOS,
         state: busy ? 'stopped' : 'collecting', reason: busy ? 'camera_busy' : null,
         nextAt: at, followupState: 'pending' };
       tx.create(incidentRef(id), incident);
       tx.set(lockRef(alert.imei), { ...lock, incidentId: id,
-        incidentUntil: new Date(at.getTime() + SEQUENCE_MS) });
+        incidentUntil: new Date(+at + SEQUENCE_MS) });
       tx.update(alertRef, { incidentPhotoPending: false, photoIncidentId: id });
     });
   }
@@ -76,16 +78,17 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
   async function tick(id) {
     const incident = (await incidentRef(id).get()).data();
     if (incident?.state !== 'collecting') return;
+    if (guardianWindowEnabled && !isGuardianWindow(incident)) return stop(id, 'policy_replaced');
     const settings = (await settingsRef(incident.imei).get()).data();
     if (!enabled || !consentAllows(settings, incident.ownerUid)) return stop(id, 'capture_disabled');
     if (!(asDate(incident.deadlineAt) > now())) return stop(id, 'sequence_deadline');
     if (incident.requestIds.length) {
-      const last = (await photoRef(incident.requestIds.at(-1)).get()).data();
+      const last = (await photoRef(isGuardianWindow(incident) ? incident.requestIds[0] : incident.requestIds.at(-1)).get()).data();
       if (ACTIVE_PHOTO.includes(last?.state)) return;
       // Never send the next command after an ambiguous timeout/failed upload.
       if (last?.state !== 'available') return stop(id, last?.reason || 'photo_unavailable');
     }
-    if (incident.requestIds.length >= MAX_PHOTOS) {
+    if (incident.requestIds.length >= (isGuardianWindow(incident) ? 1 : MAX_PHOTOS)) {
       await incidentRef(id).update({ state: 'complete', updatedAt: now() });
       return;
     }
@@ -100,6 +103,34 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       if (['incident_waiting_for_photo', 'camera_busy', 'incident_not_active'].includes(error.code)) return;
       await stop(id, error.code === 'watch_offline_or_reconnecting' ? 'watch_disconnected' : 'capture_unavailable');
     }
+  }
+
+  async function photoAccess(uid, incident) {
+    const decision = await snapshots.access(uid, incident.imei);
+    if (decision.ownerUid !== incident.ownerUid) fail('incident_not_found', 404);
+    const settings = (await settingsRef(incident.imei).get()).data();
+    const previous = incident.requestIds.length ? (await photoRef(incident.requestIds.at(-1)).get()).data() : null;
+    const access = guardianRequestAvailability(incident, previous, now());
+    if (!enabled || !guardianWindowEnabled || !consentAllows(settings, incident.ownerUid)) Object.assign(access, { canRequest: false, reason: 'capture_disabled' });
+    return { ...access, requestWindowEndsAt: asDate(incident.requestWindowEndsAt), serverAt: now() };
+  }
+
+  async function current(uid, imei) {
+    const decision = await snapshots.access(uid, imei);
+    const lock = (await lockRef(imei).get()).data();
+    const incident = lock?.incidentId ? (await incidentRef(lock.incidentId).get()).data() : null;
+    if (!incident || incident.ownerUid !== decision.ownerUid || incident.imei !== imei || !isGuardianWindow(incident))
+      return { incidentId: null, canRequest: false, reason: 'photo_window_closed', serverAt: now() };
+    return { incidentId: incident.id, type: incident.type, eventAt: asDate(incident.eventAt),
+      ...(await photoAccess(uid, incident)) };
+  }
+
+  async function requestByGuardian(uid, alertId, input) {
+    if (!enabled || !guardianWindowEnabled || !validIncidentId(alertId)) fail('incident_not_active', 409);
+    const alert = (await db.collection('alerts').doc(alertId).get()).data();
+    if (!alert || !['sos', 'fall'].includes(alert.type) || alert.incidentPhotoEligible !== true) fail('incident_not_found', 404);
+    if (trialOnly && alert.incidentPhotoTrial !== true) fail('capture_disabled', 403);
+    return snapshots.requestIncidentByGuardian(uid, alert.imei, alert.photoIncidentId || alertId, input?.requestKey);
   }
 
   async function analyzePhoto(id) {
@@ -182,6 +213,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const active = photo.state === 'available' && asDate(photo.mediaExpiresAt) > now();
       const state = photo.state === 'available' && !active ? 'expired' : photo.state;
       photos.push({ id: photoId, sequence: photo.sequence, state, receivedAt: asDate(photo.receivedAt),
+        captureSource: photo.captureSource || 'automatic',
         mediaExpiresAt: asDate(photo.mediaExpiresAt), reason: photo.reason || null,
         analysis: active ? (aiAllowed ? photo.analysis || { status: 'pending' } : { status: 'unavailable' }) : null });
     }
@@ -191,7 +223,8 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       photo: p.sequence, text: p.analysis.summary || p.analysis.visibleDetails[0],
     }));
     return { id: alertId, type: incident.type, trial: incident.trial, state: incident.state, reason: incident.reason,
-      eventAt: asDate(incident.eventAt), expiresAt: asDate(incident.expiresAt), target: MAX_PHOTOS, photos, summary };
+      eventAt: asDate(incident.eventAt), expiresAt: asDate(incident.expiresAt), target: incident.target || MAX_PHOTOS, photos, summary,
+      ...(isGuardianWindow(incident) ? { capturePolicy: CAPTURE_POLICY, photoAccess: await photoAccess(uid, incident) } : {}) };
   }
 
   let analysisJob = null;
@@ -211,18 +244,31 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
           // Even the follow-up query is independent of the capture sweep.
           const work = await followupProgress.step('followup_queue_read', () =>
             db.collection('incidentPhotos').where('followupState', '==', 'pending').limit(25).get());
-          for (const doc of work.docs) {
+          const manual = await followupProgress.step('manual_analysis_queue_read', () =>
+            db.collection('incidentPhotos').where('analysisPending', '==', true).limit(25).get());
+          for (const doc of new Map([...work.docs, ...manual.docs].map(doc => [doc.id, doc])).values()) {
             const incident = doc.data();
             if (!(asDate(incident.expiresAt) > now())) {
-              await followupProgress.step('followup_expire', () => doc.ref.update({ followupState: 'expired' })); continue;
+              await followupProgress.step('followup_expire', () => doc.ref.update({ followupState: 'expired', analysisPending: false })); continue;
             }
-            for (const id of incident.requestIds) await followupProgress.step('photo_analysis', () => analyzePhoto(id));
+            const analysisIds = isGuardianWindow(incident) && incident.followupState === 'pending'
+              ? incident.requestIds.slice(0, 1) : incident.requestIds;
+            for (const id of analysisIds) await followupProgress.step('photo_analysis', () => analyzePhoto(id));
             const fresh = (await followupProgress.step('followup_incident_read', () => doc.ref.get())).data();
             if (fresh.state === 'collecting') continue;
             const photos = await followupProgress.step('followup_photos_read', () =>
               Promise.all(fresh.requestIds.map(id => photoRef(id).get())));
-            if (photos.some(p => p.data()?.state === 'available' &&
-                ['pending', 'analysing'].includes(p.data()?.analysis?.status))) continue;
+            const unfinished = photo => ACTIVE_PHOTO.includes(photo.data()?.state) ||
+              (photo.data()?.state === 'available' && ['pending', 'analysing'].includes(photo.data()?.analysis?.status));
+            if (fresh.analysisPending && !photos.some(unfinished)) await db.runTransaction(async tx => {
+              const latest = (await tx.get(doc.ref)).data();
+              if (latest.requestIds.length === fresh.requestIds.length) tx.update(doc.ref, { analysisPending: false });
+            });
+            // Extra guardian photos get AI in the gallery without replaying the
+            // one automatic Photos & AI WhatsApp follow-up.
+            if (fresh.followupState !== 'pending') continue;
+            const followupPhotos = isGuardianWindow(fresh) ? photos.slice(0, 1) : photos;
+            if (followupPhotos.some(unfinished)) continue;
             const alert = (await followupProgress.step('followup_alert_read', () =>
               db.collection('alerts').doc(fresh.id).get())).data();
             // An optional photo update must not overtake the initial alert.
@@ -248,11 +294,13 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
   }
   function getStatus() {
     return { version: 1, workerStarted: true, enabled: Boolean(enabled), trialOnly: Boolean(trialOnly),
-      policy: { maxPhotos: MAX_PHOTOS, followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 },
+      policy: guardianWindowEnabled ? { automaticPhotos: 1, guardianWindowSeconds: REQUEST_WINDOW_MS / 1000,
+        followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 }
+        : { maxPhotos: MAX_PHOTOS, followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 },
       aiEnabled: Boolean(analyze), lastCaptureOutcome,
       capture: captureProgress.getStatus(), analysisFollowup: followupProgress.getStatus() };
   }
-  return { enqueue, tick, sweep, gallery, analyzePhoto, getStatus, drain: () => analysisJob };
+  return { enqueue, tick, sweep, gallery, current, requestByGuardian, analyzePhoto, getStatus, drain: () => analysisJob };
 }
 
 module.exports = { createIncidentPhotos };

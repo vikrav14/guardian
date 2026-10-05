@@ -4,22 +4,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  policyForBattery,
   effectivePolicy,
   appliedIntervalSeconds,
   shouldSend,
 } = require('../src/adaptive-reporting');
 
-test('normal policy is ten minutes with critical battery safeguard', () => {
-  assert.equal(policyForBattery(100).seconds, 600);
-  assert.equal(policyForBattery(60).seconds, 600);
-  assert.equal(policyForBattery(59).seconds, 600);
-  assert.equal(policyForBattery(30).seconds, 600);
-  assert.equal(policyForBattery(29).seconds, 600);
-  assert.equal(policyForBattery(15).seconds, 600);
-  assert.equal(policyForBattery(14).seconds, 900);
-  assert.equal(policyForBattery(null).seconds, 600);
-  assert.equal(policyForBattery(undefined).seconds, 600);
+test('normal reporting stays ten minutes across battery thresholds and missing telemetry', () => {
+  for (const batteryPercent of [100, 60, 59, 30, 29, 15, 14, 8, 0, -1, null, undefined, '', 'unknown']) {
+    assert.deepEqual(effectivePolicy({ batteryPercent }), { seconds: 600, reason: 'normal_baseline' });
+  }
 });
 
 test('SOS overrides battery policy', () => {

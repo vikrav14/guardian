@@ -573,7 +573,6 @@ class GuardianBottomNav extends StatelessWidget {
     return MobileBottomBar(
       currentIndex: currentIndex,
       onTap: onTap,
-      onSos: () => onTap(0),
     );
   }
 }

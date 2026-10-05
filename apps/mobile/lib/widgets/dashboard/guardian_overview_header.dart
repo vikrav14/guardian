@@ -22,6 +22,7 @@ class GuardianOverviewHeader extends StatelessWidget {
     this.onWatchStatus,
     this.watchCheckStatus,
     this.weather,
+    this.photoAction,
   });
 
   final Device device;
@@ -32,6 +33,7 @@ class GuardianOverviewHeader extends StatelessWidget {
   final VoidCallback? onWatchStatus;
   final Widget? watchCheckStatus;
   final Widget? weather;
+  final Widget? photoAction;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +50,16 @@ class GuardianOverviewHeader extends StatelessWidget {
           watchCheckStatus: watchCheckStatus,
           weather: weather,
         );
-        final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
+        final actions = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _OverviewActions(onCall: onCall, onJourney: onJourney),
+            if (photoAction != null) ...[
+              const SizedBox(height: 12),
+              photoAction!,
+            ],
+          ],
+        );
 
         return GuardianSurface(
           radius: 16,

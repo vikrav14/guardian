@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/incident_photos.dart';
 import '../services/safety_snapshot_service.dart';
@@ -13,10 +14,15 @@ class IncidentPhotoPage extends StatefulWidget {
     required this.incidentId,
     this.service,
     this.onClose,
+    this.wearerName,
+    this.onCall,
+    this.onLocation,
   });
   final String incidentId;
   final SafetySnapshotService? service;
   final VoidCallback? onClose;
+  final String? wearerName;
+  final VoidCallback? onCall, onLocation;
   @override
   State<IncidentPhotoPage> createState() => _IncidentPhotoPageState();
 }
@@ -29,6 +35,9 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
   bool _foreground = true;
   bool _fresh = false;
   bool _loading = false;
+  bool _requesting = false;
+  String? _requestKey;
+  String? _requestError;
   int _generation = 0;
   String? _error;
   DateTime? _lastRefresh;
@@ -46,6 +55,16 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
       if (mounted) setState(() {});
       final active =
           _feed?.collecting == true ||
+          _requesting ||
+          [
+            'camera_busy',
+            'automatic_photo_pending',
+          ].contains(_feed?.photoAccess?.reason) ||
+          (_feed?.photoAccess?.reason == 'incident_photo_settling' &&
+              _feed?.photoAccess?.retryAt?.isAfter(
+                    _feed!.photoAccess!.serverNow,
+                  ) ==
+                  false) ||
           (_feed?.photos.any(
                 (photo) =>
                     photo.viewable &&
@@ -146,6 +165,44 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
     }
   }
 
+  Future<void> _requestPhoto() async {
+    if (_requesting ||
+        !_fresh ||
+        !_foreground ||
+        _feed?.photoAccess?.requestEnabled != true) {
+      return;
+    }
+    setState(() {
+      _generation++;
+      _fresh = false;
+      _requesting = true;
+      _requestError = null;
+    });
+    // Retain the same intent after an ambiguous transport failure. A repeated
+    // tap can only retrieve that request, never silently create another capture.
+    _requestKey ??= const Uuid().v4();
+    try {
+      await _service.requestIncidentPhoto(widget.incidentId, _requestKey!);
+      _requestKey = null;
+      if (mounted) setState(() => _fresh = false);
+      await _refresh();
+    } catch (error) {
+      if (error is SnapshotFailure && error.code != 'request_status_unknown') {
+        _requestKey = null;
+      }
+      if (mounted) {
+        setState(
+          () => _requestError = error is SnapshotFailure
+              ? error.message
+              : 'Could not check the photo request.',
+        );
+      }
+      await _refresh();
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -159,18 +216,25 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
   Widget build(BuildContext context) {
     final feed = _feed;
     final visible = _foreground && _fresh;
-    final status = switch (feed?.state) {
-      'collecting' ||
-      'preparing' => 'Requesting up to 5 photos, one at a time…',
-      'complete' => 'Photo sequence finished',
-      'stopped' => 'Photo sequence stopped. Available photos are kept below.',
-      'expired' => 'These incident photos have expired.',
-      'unavailable' => 'Photos are not available for this incident.',
-      _ => 'Loading incident photos…',
-    };
+    final access = feed?.photoAccess;
+    final status = access != null
+        ? (feed!.collecting
+              ? 'Requesting the first photo…'
+              : feed.received == 0
+              ? 'No photo received yet.'
+              : 'Available photos and AI details')
+        : switch (feed?.state) {
+            'collecting' || 'preparing' => 'Waiting for incident photos…',
+            'complete' => 'Photo sequence finished',
+            'stopped' =>
+              'Photo sequence stopped. Available photos are kept below.',
+            'expired' => 'These incident photos have expired.',
+            'unavailable' => 'Photos are not available for this incident.',
+            _ => 'Loading incident photos…',
+          };
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Photos & AI details'),
+        title: const Text('Incident photos'),
         leading: widget.onClose == null
             ? null
             : IconButton(
@@ -190,12 +254,21 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.wearerName != null) ...[
+                      Text(
+                        widget.wearerName!,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                     Text(
                       feed?.trial == true
                           ? 'Supervised photo trial'
-                          : feed?.type == 'fall'
-                          ? 'Fall incident'
-                          : 'SOS incident',
+                          : switch (feed?.type) {
+                              'fall' => 'Fall incident',
+                              'sos' => 'SOS incident',
+                              _ => 'Incident photos',
+                            },
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     if (feed?.eventAt != null)
@@ -208,10 +281,84 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                     const Text(
                       'Check on the wearer now. Photos and AI descriptions cannot establish their condition or confirm their current location.',
                     ),
+                    if (widget.onCall != null || widget.onLocation != null) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          if (widget.onCall != null)
+                            OutlinedButton.icon(
+                              onPressed: widget.onCall,
+                              icon: const Icon(Icons.phone_outlined),
+                              label: const Text('Call watch'),
+                            ),
+                          if (widget.onLocation != null)
+                            OutlinedButton.icon(
+                              onPressed: widget.onLocation,
+                              icon: const Icon(Icons.location_on_outlined),
+                              label: const Text('View location'),
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     Text(_error ?? status, key: const Key('incident-status')),
                     if (feed != null)
-                      Text('${feed.received} of up to 5 photos available'),
+                      Text(
+                        '${feed.received} ${feed.received == 1 ? 'photo' : 'photos'} available',
+                      ),
+                    if (access != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        access.windowOpen
+                            ? 'Photo access open · ${access.minutesLeft} min left'
+                            : 'Photo request window closed',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (access.endsAt != null && access.windowOpen)
+                        Text(
+                          'Request photos until ${DateFormat.Hm().format(access.endsAt!.toLocal())}',
+                        ),
+                      if (feed!.photos.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _photo(feed.photos.first, visible),
+                      ],
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        key: const Key('incident-request-photo'),
+                        onPressed:
+                            visible && access.requestEnabled && !_requesting
+                            ? _requestPhoto
+                            : null,
+                        icon: Icon(
+                          _requesting ||
+                                  [
+                                    'camera_busy',
+                                    'automatic_photo_pending',
+                                  ].contains(access.reason)
+                              ? Icons.hourglass_top
+                              : Icons.camera_alt_outlined,
+                        ),
+                        label: Text(
+                          _requesting
+                              ? 'Requesting photo…'
+                              : [
+                                      'camera_busy',
+                                      'automatic_photo_pending',
+                                    ].contains(access.reason) &&
+                                    access.windowOpen
+                              ? 'Waiting for photo…'
+                              : !access.windowOpen
+                              ? 'Photo request window closed'
+                              : _requestKey != null
+                              ? 'Check previous request'
+                              : 'Take another photo',
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(_requestError ?? access.message),
+                    ],
                     if (_error != null)
                       TextButton.icon(
                         onPressed: _refresh,
@@ -231,6 +378,7 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                       ),
                     if (visible &&
                         feed != null &&
+                        (access == null || feed.photos.length > 1) &&
                         feed.photos.any(
                           (p) => p.viewable && p.sceneSummary != null,
                         )) ...[
@@ -250,7 +398,10 @@ class _IncidentPhotoPageState extends State<IncidentPhotoPage>
                         ),
                     ],
                     const SizedBox(height: 24),
-                    for (final photo in feed?.photos ?? <IncidentPhoto>[])
+                    for (final photo
+                        in (feed?.photos ?? <IncidentPhoto>[]).skip(
+                          access == null ? 0 : 1,
+                        ))
                       _photo(photo, visible),
                   ],
                 ),

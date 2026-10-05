@@ -105,7 +105,12 @@ class AlertDetail extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => IncidentPhotoPage(incidentId: alert.id),
+                  builder: (_) => IncidentPhotoPage(
+                    incidentId: alert.id,
+                    wearerName: device?.displayName,
+                    onCall: canCall ? onCall : null,
+                    onLocation: onLocation,
+                  ),
                 ),
               ),
               icon: const Icon(Icons.photo_library_outlined),

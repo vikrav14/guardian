@@ -82,6 +82,53 @@ class IncidentPhoto {
   );
 }
 
+class IncidentPhotoAccess {
+  IncidentPhotoAccess({
+    required this.canRequest,
+    this.incidentId,
+    this.reason,
+    this.endsAt,
+    this.retryAt,
+    DateTime? serverAt,
+  }) : _clockOffset = (serverAt ?? DateTime.now()).difference(DateTime.now());
+  final bool canRequest;
+  final String? incidentId, reason;
+  final DateTime? endsAt, retryAt;
+  final Duration _clockOffset;
+  DateTime get serverNow => DateTime.now().add(_clockOffset);
+  bool get windowOpen =>
+      endsAt?.isAfter(serverNow) == true &&
+      !['capture_disabled', 'photo_window_closed'].contains(reason);
+  bool get requestEnabled => windowOpen && canRequest;
+  int get minutesLeft => endsAt == null
+      ? 0
+      : (endsAt!.difference(serverNow).inSeconds / 60).ceil().clamp(0, 60);
+  String get message {
+    if (!windowOpen) {
+      return 'Available for one hour after an SOS or fall alert.';
+    }
+    return switch (reason) {
+      'camera_busy' ||
+      'automatic_photo_pending' => 'Waiting for the watch’s photo…',
+      'incident_photo_settling' =>
+        retryAt == null
+            ? 'Please wait before the next photo.'
+            : 'Next request available in ${retryAt!.difference(serverNow).inSeconds.clamp(0, 360)} seconds.',
+      _ => 'Each tap requests one photo and its AI analysis.',
+    };
+  }
+
+  factory IncidentPhotoAccess.fromJson(Map<String, dynamic> data) =>
+      IncidentPhotoAccess(
+        canRequest: data['canRequest'] == true,
+        incidentId: data['incidentId'] as String?,
+        reason: data['reason'] as String?,
+        endsAt: DateTime.tryParse(data['requestWindowEndsAt'] as String? ?? ''),
+        retryAt: DateTime.tryParse(data['retryAt'] as String? ?? ''),
+        serverAt: DateTime.tryParse(data['serverAt'] as String? ?? ''),
+      );
+}
+
 class IncidentPhotoFeed {
   const IncidentPhotoFeed({
     required this.type,
@@ -90,6 +137,7 @@ class IncidentPhotoFeed {
     this.eventAt,
     this.reason,
     this.trial = false,
+    this.photoAccess,
   });
   final String type;
   final String state;
@@ -97,6 +145,7 @@ class IncidentPhotoFeed {
   final bool trial;
   final DateTime? eventAt;
   final List<IncidentPhoto> photos;
+  final IncidentPhotoAccess? photoAccess;
   int get received => photos.where((photo) => photo.viewable).length;
   bool get collecting => ['preparing', 'collecting'].contains(state);
   factory IncidentPhotoFeed.fromJson(Map<String, dynamic> data) =>
@@ -105,6 +154,11 @@ class IncidentPhotoFeed {
         state: data['state'] as String,
         reason: data['reason'] as String?,
         trial: data['trial'] == true,
+        photoAccess: data['photoAccess'] is Map<String, dynamic>
+            ? IncidentPhotoAccess.fromJson(
+                data['photoAccess'] as Map<String, dynamic>,
+              )
+            : null,
         eventAt: DateTime.tryParse(data['eventAt'] as String? ?? ''),
         photos: (data['photos'] as List<dynamic>)
             .map((item) => IncidentPhoto.fromJson(item as Map<String, dynamic>))

@@ -6,6 +6,7 @@ const config = require('./config');
 const { getDb } = require('./firestore');
 const { handleWatchCallLink } = require('./watch-call-link-http');
 const { createMovementHandler } = require('./movement-reminder-http');
+const { createMedicationHandler } = require('./medication-settings-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -1054,6 +1055,7 @@ function startHttpServer() {
   // Phase 1: Initialize LLM provider, audit, and idempotency on startup
   initializeLlmStack();
   const handleMovement = createMovementHandler({ getDb });
+  const handleMedication = createMedicationHandler({ getDb });
   const handleHomeWifi = require('./home-wifi-http').createHomeWifiHandler({ getDb,
     getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
 
@@ -1076,6 +1078,7 @@ function startHttpServer() {
       }
 
       if (await handleMovement(req, res, url)) return;
+      if (await handleMedication(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {

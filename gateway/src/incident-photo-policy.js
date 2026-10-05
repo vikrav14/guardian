@@ -7,6 +7,10 @@ const SEQUENCE_MS = 12 * 60_000;
 // still eligible immediately. This is a pacing policy, not camera readiness.
 const GAP_MS = 60_000;
 const CONSENT_VERSION = 'incident-photos-v1';
+const CAPTURE_POLICY = 'one-auto-guardian-hour-v1';
+const REQUEST_WINDOW_MS = 60 * 60_000;
+const LATE_UPLOAD_GUARD_MS = 120_000;
+const isGuardianWindow = incident => incident?.capturePolicy === CAPTURE_POLICY;
 const validIncidentId = id => /^[A-Za-z0-9_-]{1,80}$/.test(String(id || ''));
 function deny(code) { throw Object.assign(new Error(code), { code, status: 409 }); }
 function consentAllows(settings, ownerUid, { ai = false } = {}) {
@@ -17,11 +21,24 @@ function consentAllows(settings, ownerUid, { ai = false } = {}) {
 
 // Called inside the same transaction as the shared camera lock. Only the
 // server-owned incident record can authorize the shorter emergency spacing.
-async function readIncidentAuthorization(db, tx, incidentId, uid, imei, at) {
+async function readIncidentAuthorization(db, tx, incidentId, uid, imei, at, { guardian = false } = {}) {
   if (!validIncidentId(incidentId)) deny('invalid_incident');
   const ref = db.collection('incidentPhotos').doc(incidentId);
   const incident = (await tx.get(ref)).data();
   const settings = (await tx.get(db.collection('incidentPhotoSettings').doc(imei))).data();
+  if (isGuardianWindow(incident)) {
+    if (incident.ownerUid !== uid || incident.imei !== imei || !consentAllows(settings, uid)) deny('incident_not_active');
+    const previous = incident.requestIds.length
+      ? (await tx.get(db.collection('safetySnapshotAuthorizations').doc(incident.requestIds.at(-1)))).data() : null;
+    const decision = guardianRequestAvailability(incident, previous, at);
+    if (guardian) {
+      if (!decision.canRequest) deny(decision.reason);
+    } else if (incident.state !== 'collecting' || incident.requestIds.length || !(asDate(incident.deadlineAt) > at)) {
+      deny('incident_not_active');
+    }
+    return { ref, incident, captureDeadlineAt: guardian ? asDate(incident.requestWindowEndsAt) : asDate(incident.deadlineAt) };
+  }
+  if (guardian) deny('incident_not_active');
   if (!incident || incident.ownerUid !== uid || incident.imei !== imei ||
       incident.state !== 'collecting' || !consentAllows(settings, uid) ||
       !(asDate(incident.deadlineAt) > at) || incident.requestIds.length >= MAX_PHOTOS ||
@@ -33,8 +50,27 @@ async function readIncidentAuthorization(db, tx, incidentId, uid, imei, at) {
       deny('incident_waiting_for_photo');
     }
   }
-  return { ref, incident };
+  return { ref, incident, captureDeadlineAt: asDate(incident.deadlineAt) };
+}
+
+// No delayed dispatch: a disabled action must be tapped again when eligible.
+// A failed capture gets a bounded quiet period because V52 uploads carry no
+// request ID. It does not renew or accept an expired request.
+function guardianRequestAvailability(incident, previous, at) {
+  if (!isGuardianWindow(incident) || !(asDate(incident.requestWindowEndsAt) > at))
+    return { canRequest: false, reason: 'photo_window_closed' };
+  if (!incident.requestIds.length && incident.state === 'collecting')
+    return { canRequest: false, reason: 'automatic_photo_pending' };
+  if (['dispatching', 'waiting_for_image', 'receiving'].includes(previous?.state))
+    return { canRequest: false, reason: 'camera_busy' };
+  const saved = asDate(previous?.receivedAt);
+  const expires = asDate(previous?.authorizationExpiresAt);
+  const retryAt = saved ? new Date(+saved + GAP_MS)
+    : expires ? new Date(+expires + LATE_UPLOAD_GUARD_MS) : null;
+  if (retryAt > at) return { canRequest: false, reason: 'incident_photo_settling', retryAt };
+  return { canRequest: true, reason: null, retryAt: null };
 }
 
 module.exports = { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CONSENT_VERSION, validIncidentId,
-  consentAllows, readIncidentAuthorization };
+  CAPTURE_POLICY, REQUEST_WINDOW_MS, LATE_UPLOAD_GUARD_MS, isGuardianWindow,
+  guardianRequestAvailability, consentAllows, readIncidentAuthorization };

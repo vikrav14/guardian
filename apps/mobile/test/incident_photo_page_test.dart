@@ -13,6 +13,8 @@ class FakeIncidentPhotos extends SafetySnapshotService {
   int imageLoads = 0;
   int requests = 0;
   bool denied = false;
+  String type = 'sos';
+  SnapshotFailure? failure;
   bool deleted = false;
   Uint8List? imageBytes;
   Map<String, dynamic>? orientation;
@@ -20,6 +22,7 @@ class FakeIncidentPhotos extends SafetySnapshotService {
   Completer<IncidentPhotoFeed>? pending;
   @override
   Future<IncidentPhotoFeed> loadIncident(String id) async {
+    if (failure != null) throw failure!;
     if (denied) throw const SnapshotFailure('family_membership_not_verified');
     if (pending != null) {
       final next = pending!;
@@ -27,7 +30,7 @@ class FakeIncidentPhotos extends SafetySnapshotService {
       return next.future;
     }
     return IncidentPhotoFeed(
-      type: 'sos',
+      type: type,
       state: 'collecting',
       photos: [
         IncidentPhoto(
@@ -76,6 +79,35 @@ class FakeIncidentPhotos extends SafetySnapshotService {
 }
 
 void main() {
+  testWidgets('failed fall load stays neutral and retry reveals the fall', (
+    tester,
+  ) async {
+    final service = FakeIncidentPhotos()
+      ..type = 'fall'
+      ..failure = const SnapshotFailure('photo_service_unreachable');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IncidentPhotoPage(incidentId: 'incident1', service: service),
+      ),
+    );
+    expect(find.text('Incident photos'), findsNWidgets(2));
+    expect(find.text('SOS incident'), findsNothing);
+    await tester.pump();
+    expect(find.text('Incident photos'), findsNWidgets(2));
+    expect(
+      find.text(const SnapshotFailure('photo_service_unreachable').message),
+      findsOneWidget,
+    );
+    expect(find.text('SOS incident'), findsNothing);
+    service.failure = null;
+    await tester.tap(find.text('Retry connection'));
+    await tester.pump();
+    expect(find.text('Fall incident'), findsOneWidget);
+    expect(find.text('1 photo available'), findsOneWidget);
+    expect(service.requests, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('incident URLs contain an identifier only and reject malformed IDs', () {
     expect(
       incidentFromUri(Uri.parse('https://guardian.example/?incident=abc_123')),
@@ -341,7 +373,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('1 of up to 5 photos available'), findsOneWidget);
+      expect(find.text('1 photo available'), findsOneWidget);
       expect(find.text('Guardian AI photo insights'), findsOneWidget);
       expect(find.text('A chair is visible.'), findsOneWidget);
       expect(find.text('An object may be a table.'), findsOneWidget);

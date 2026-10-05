@@ -120,7 +120,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     if (changed) reportReceive(slot, reason);
   }
 
-  async function requestInternal(uid, input, incidentId = null) {
+  async function requestInternal(uid, input, incidentId = null, guardian = false) {
     if (!incidentId && config.manualTestEnabled === false) fail('manual_photos_disabled', 403);
     const imei = String(input?.imei || '');
     let purpose;
@@ -129,17 +129,21 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     if (!enabledFor(imei)) fail('camera_unavailable', 503);
     if (!incidentId && !connection(imei)) fail('watch_offline_or_reconnecting');
     // Fixed server-generated ID and transaction lock also serialize different guardians.
-    const id = crypto.randomUUID();
+    if (guardian && !/^[a-f0-9-]{36}$/.test(input?.requestKey || '')) fail('invalid_request_key', 400);
+    const digest = guardian ? crypto.createHash('sha256').update(`${uid}:${incidentId}:${input.requestKey}`).digest('hex') : null;
+    const id = digest ? `${digest.slice(0, 8)}-${digest.slice(8, 12)}-${digest.slice(12, 16)}-${digest.slice(16, 20)}-${digest.slice(20, 32)}` : crypto.randomUUID();
     const claimed = await db.runTransaction(async tx => {
       const decision = await access(uid, imei, doc => tx.get(doc));
+      const existing = guardian ? (await tx.get(ref(id))).data() : null;
+      if (existing) return { replay: true };
       const lock = await tx.get(lockRef(imei));
       const last = asDate(lock.data()?.lastRequestedAt);
       const incidentClaim = incidentId
-        ? await readIncidentAuthorization(db, tx, incidentId, uid, imei, now()) : null;
+        ? await readIncidentAuthorization(db, tx, incidentId, decision.ownerUid, imei, now(), { guardian }) : null;
       // Recheck after all awaited reads (including transaction retries). Waiting
       // for a connection creates no authorization, camera lease or attempt.
       const at = now();
-      if (incidentClaim && !(asDate(incidentClaim.incident.deadlineAt) > at)) fail('incident_not_active');
+      if (incidentClaim && !(incidentClaim.captureDeadlineAt > at)) fail('incident_not_active');
       const selected = connection(imei, incidentClaim?.incident);
       if (!selected) fail(incidentId ? 'incident_waiting_for_connection' : 'watch_offline_or_reconnecting');
       if (asDate(lock.data()?.activeUntil) > at ||
@@ -152,12 +156,13 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       // Persist once: ACKs, recovery traffic and restart never renew this grant.
       const authorizationExpiresAt = new Date(Math.min(
         at.getTime() + (incidentClaim ? INCIDENT_CAPTURE_WINDOW_MS : MANUAL_CAPTURE_WINDOW_MS),
-        incidentClaim ? asDate(incidentClaim.incident.deadlineAt).getTime() : Infinity,
+        incidentClaim ? +incidentClaim.captureDeadlineAt : Infinity,
       ));
       const auth = {
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         purpose, consentConfirmed: true, safetyPurposeConfirmed: true,
         ...(incidentId ? { incidentId, sequence: incidentClaim.incident.requestIds.length + 1,
+          captureSource: guardian ? 'guardian' : 'automatic',
           analysis: { status: 'pending' } } : {}),
         state: 'dispatching', deviceCommand: 'rcapture', deviceCommandSent: false,
         createdAt: at, updatedAt: at, authorizationExpiresAt,
@@ -170,17 +175,19 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
         activeUntil: authorizationExpiresAt });
       if (incidentClaim) tx.update(incidentClaim.ref, {
         requestIds: [...incidentClaim.incident.requestIds, id], updatedAt: at,
+        ...(guardian ? { analysisPending: true } : {}),
       });
       tx.create(db.collection('safetySnapshotAudit').doc(id), {
         requestId: id, imei, requestedBy: uid, serviceOwnerUid: decision.ownerUid,
         consentConfirmed: true, safetyPurposeConfirmed: true, purpose, createdAt: at,
       });
-      return { auth, selected, incident: incidentClaim?.incident };
+      return { auth, selected, incident: incidentClaim?.incident, captureDeadlineAt: incidentClaim?.captureDeadlineAt };
     });
+    if (claimed.replay) return id;
     // A slow claim must not extend the authorization/sequence deadline. A
     // changed connection after claim is not permission to migrate the request.
     if (!(claimed.auth.authorizationExpiresAt > now()) ||
-        (claimed.incident && !(asDate(claimed.incident.deadlineAt) > now()))) {
+        (claimed.incident && !(claimed.captureDeadlineAt > now()))) {
       await finishFailure(id, 'dispatch_expired'); return id;
     }
     const selected = connection(imei, claimed.incident);
@@ -481,7 +488,9 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   const request = (uid, input) => requestInternal(uid, input);
   const requestIncident = (uid, imei, incidentId) => requestInternal(uid, { imei,
     purpose: 'SOS or fall incident surroundings', consentConfirmed: true, safetyPurposeConfirmed: true }, incidentId);
-  return { request, requestIncident, authorized, observe, observeTraffic, disconnect, list, image, remove, sweep, access,
+  const requestIncidentByGuardian = (uid, imei, incidentId, requestKey) => requestInternal(uid, { imei, requestKey,
+    purpose: 'Guardian requested incident surroundings', consentConfirmed: true, safetyPurposeConfirmed: true }, incidentId, true);
+  return { request, requestIncident, requestIncidentByGuardian, authorized, observe, observeTraffic, disconnect, list, image, remove, sweep, access,
     observeIngress: ingressObserver.chunk, ingressDiagnosticsStatus: ingressObserver.getStatus };
 }
 

@@ -13,11 +13,17 @@ urgent locating, then returning to 10 minutes or one hour. It also describes two
 and the [official V52 guide, page 2](https://ireachfar.com/wp-content/uploads/2023/07/User-Guide-RF-V52-Smart-GPS-Watch-U.pdf).
 These statements do not establish exact behavior on the pilot firmware.
 
-Guardian currently uses battery-dependent 1/5/10/15-minute normal reporting.
+At the original comparison checkpoint, Guardian used battery-dependent
+1/5/10/15-minute normal reporting. The 5 October integration change removes the
+normal battery tiers in favor of 600 seconds; see
+[reporting-command-policy.md](../services/reporting-command-policy.md) for the
+current bounded emergency/outing exceptions and rollout status.
 Its passive Home observer requires three observations, gaps no greater than
 60 seconds, and expires evidence after 120 seconds. A change to 10 minutes alone
-would conflict with those rules. Manual mode also bypasses automatic SOS interval
-overrides; do not use it as a shortcut. Native fence provisioning/removal and
+cannot sustain current Home evidence under those rules. At the original
+checkpoint, manual mode also bypassed automatic SOS interval overrides; do not
+use it as a shortcut. The integration branch now preserves emergency overrides
+in manual mode. Native fence provisioning/removal and
 independent departure behavior remain unproven. The earlier single-router trial
 did not resolve this. Recording AnyTracking is the next source of evidence.
 

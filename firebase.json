@@ -2,6 +2,7 @@
   "hosting": {
     "site": "guardian-fbadd",
     "public": "apps/mobile/build/web",
+    "predeploy": ["node scripts/verify-guardian-web-build.cjs"],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }],
     "headers": [

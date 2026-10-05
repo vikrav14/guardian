@@ -31,6 +31,19 @@ function createSnapshotHttpHandler({ controller = getSnapshotController, inciden
       catch { json(401, { error: 'sign_in_required' }); return true; }
       const api = controller();
       if (!api) { json(503, { error: 'camera_unavailable' }); return true; }
+      if (url.pathname === '/api/incident-photos/active' && req.method === 'GET') {
+        const service = incidents();
+        if (!service) json(503, { error: 'camera_unavailable' });
+        else json(200, await service.current(identity.uid, String(url.searchParams.get('imei') || '')));
+        return true;
+      }
+      const requestMatch = /^\/api\/incident-photos\/([A-Za-z0-9_-]{1,80})\/requests$/.exec(url.pathname);
+      if (requestMatch && req.method === 'POST') {
+        const service = incidents();
+        if (!service) json(503, { error: 'camera_unavailable' });
+        else json(202, { requestId: await service.requestByGuardian(identity.uid, requestMatch[1], await readJson(req)) });
+        return true;
+      }
       const incidentMatch = /^\/api\/incident-photos\/([A-Za-z0-9_-]{1,80})$/.exec(url.pathname);
       if (incidentMatch && req.method === 'GET') {
         const service = incidents();

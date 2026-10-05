@@ -244,7 +244,6 @@ void main() {
                       MobileBottomBar(
                         currentIndex: selected,
                         onTap: (_) {},
-                        onSos: () {},
                       ),
                       const SizedBox(height: 12),
                     ],

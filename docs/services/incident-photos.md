@@ -1,5 +1,10 @@
 # SOS and fall incident photos
 
+Current product policy (5 October 2026): [one automatic photo followed by a
+one-hour guardian request window](incident-photo-window.md). The five-photo
+sequence below is historical. Revised WhatsApp templates and hardware rollout
+must be verified separately; local implementation is not a camera-reliability claim.
+
 Implementation on `feat/v52-remote-photo`; **real SOS/fall rollout acceptance is incomplete**.
 Latest checkpoint, 1 October: both AI schemas passed the live Sonnet 4.6 API,
 saved-photo AI/orientation recovery succeeded, and a fresh SOS returned all five

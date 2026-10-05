@@ -188,7 +188,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
         } else {
           const recipientPrepared = withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
             db, imei, alertId, alert, device, contact: c,
-          }), { type: 'sos' });
+          }), { type: 'sos', device, alert });
           entry.channels.whatsapp = redactCallLinkResult(await sendPreparedSosWhatsApp(
             waTarget,
             recipientPrepared
@@ -208,7 +208,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
         } else {
           const recipientPrepared = withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
             db, imei, alertId, alert, device, contact: c,
-          }), { type: 'fall' });
+          }), { type: 'fall', device, alert });
           entry.channels.whatsapp = redactCallLinkResult(await sendPreparedFallWhatsApp(
             waTarget,
             recipientPrepared

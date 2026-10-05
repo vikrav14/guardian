@@ -27,6 +27,22 @@ function baseline() {
   })));
 }
 const definitions = () => templateDefinitions({ appUrl, callOrigin, baseTemplates: baseline() });
+
+test('guardian-hour templates preserve call/map buttons and replace the five-photo promise', () => {
+  const legacy = definitions();
+  const next = templateDefinitions({ appUrl, callOrigin, baseTemplates: baseline(), guardianWindow: true });
+  assert.equal(next.length, 7);
+  assert.equal(new Set(next.slice(0, 6).map(row => row.components.find(c => c.type === 'BODY').text)).size, 6,
+    'fresh, historical and unavailable location contracts remain distinct');
+  for (let i = 0; i < 6; i++) {
+    assert(next[i].name.endsWith('_v5'));
+    assert.deepEqual(next[i].components.find(c => c.type === 'BUTTONS'), legacy[i].components.find(c => c.type === 'BUTTONS'));
+    const body = next[i].components.find(c => c.type === 'BODY').text;
+    assert(body.includes('One photo may follow'));assert(!body.includes('up to 5'));
+  }
+  assert.equal(next[6].name, 'guardian_incident_photo_update_v3');
+  assert(!next[6].components.find(c => c.type === 'BODY').text.includes('up to 5'));
+});
 const approved = () => definitions().map(row => ({ ...row, status: 'APPROVED' }));
 function api(rows, handler) {
   const requests = [];

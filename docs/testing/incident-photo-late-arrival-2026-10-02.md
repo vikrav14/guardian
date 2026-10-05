@@ -76,3 +76,16 @@ thresholds remain unchanged; a delayed or absent image can still time out.
 The actual discarded frame cannot be recovered by this change. A new supervised
 SOS/fall trial after deliberate deployment is required. Leave the current
 gateway and recorder untouched until the bounded reporting observation ends.
+
+## Rollout checkpoint — 2 October, 17:23 MUT
+
+Commit 6bd04fb was loaded in gateway PID 12660 after the previous bounded recorder and sleep helper exited. Runtime reports an incident maximum of 240 seconds and manual maximum of 120 seconds; max five / 60-second spacing / 720-second sequence deadline remain unchanged. HTTP health passed, the watch reconnected, and no pending capture or prior sequence replay was observed. Existing 300-second fall cooldown persisted. Protected configuration hashes and ngrok PID 10500 are unchanged. A new operator-triggered hardware test is prepared, with passive observation bounded to 18:00 MUT. Hardware effectiveness remains unverified.
+
+
+## Hardware result — 2 October 2026, 17:25 MUT fall
+
+The 6bd04fb gateway granted the second request its complete 240-second window (17:28:37.262 to 17:32:37.262). It received one capture reply and no photo header, image frame or partial image buffer. The additional 120-second metadata observation also received no photo header: final 97 bytes, three frames on the same connection, no closure/replacement, zero untracked bytes, suppressed events or log failures. The capture-period outgoing trace contained RCAPTURE and one required LK reply, with no competing routine setting or CR.
+
+One photo was stored and fully decoded; its AI analysis and authorized gallery were ready. The initial WhatsApp reached one recipient, and the separate Photos & AI follow-up was delivered at 17:33:19 and read at 17:33:26. The other initial recipient retained Meta error 131030; no allowlist/contact changes were made. The recorder and sleep helper exited after all metadata observations ended; gateway/ngrok remain running.
+
+**Outcome: the four-minute candidate did not resolve this failure.** The earlier delayed frame remains evidence for that earlier request, not an explanation of this run. The upstream delay/failure cause remains unknown. No new hardware reliability claim is supported.

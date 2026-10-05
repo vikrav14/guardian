@@ -1,13 +1,22 @@
 'use strict';
-const { validIncidentId } = require('./incident-photo-policy');
+const { validIncidentId, CAPTURE_POLICY } = require('./incident-photo-policy');
 const { asBool } = require('./safety-snapshot-runtime');
 const { DYNAMIC_CALL_TEMPLATES } = require('./watch-call-links');
 const { checkCallTemplates } = require('./watch-call-template-contract');
+const { compactAlertParameters, compactPhotoParameters } = require('./incident-message-copy');
 const FOLLOWUP_TEMPLATE = 'guardian_incident_photo_update_v1';
+const GUARDIAN_FOLLOWUP_TEMPLATE = 'guardian_incident_photo_update_v3';
+const GUARDIAN_PHOTO_NOTICE = '\n\nOne photo may follow. Request more in Guardian for 1 hour after this alert. Keep checking on the wearer; do not wait for photos.';
 const PHOTO_NOTICE = '\n\nIncident photos may follow, if available (up to 5). Keep checking on the wearer; do not wait for photos.';
 const V3_TEMPLATES = Object.freeze(Object.fromEntries(Object.entries(DYNAMIC_CALL_TEMPLATES)
   .map(([type, states]) => [type, Object.freeze(Object.fromEntries(Object.entries(states)
     .map(([state, name]) => [state, name.replace(/_v2$/, '_v3')])))])));
+const V4_TEMPLATES = Object.freeze(Object.fromEntries(Object.entries(V3_TEMPLATES)
+  .map(([type, states]) => [type, Object.freeze(Object.fromEntries(Object.entries(states)
+    .map(([state, name]) => [state, name.replace(/_v3$/, '_v4')])))])));
+const V5_TEMPLATES = Object.freeze(Object.fromEntries(Object.entries(V4_TEMPLATES)
+  .map(([type, states]) => [type, Object.freeze(Object.fromEntries(Object.entries(states)
+    .map(([state, name]) => [state, name.replace(/_v4$/, '_v5')])))])));
 
 function galleryBase(value) {
   try {
@@ -18,19 +27,30 @@ function galleryBase(value) {
   } catch { return null; }
 }
 
-// After recipient-specific v2 link issuance, change only the approved name.
-// Body facts, bearer token and frozen map remain exactly as prepared.
-function withIncidentPhotoTemplate(prepared, { type, env = process.env } = {}) {
+// Compact copy uses the same frozen incident evidence. Recipient-specific call
+// tokens and map coordinates are never changed by the presentation layer.
+function withIncidentPhotoTemplate(prepared, { type, device, alert, env = process.env } = {}) {
   const plan = prepared?.plan;
-  const names = V3_TEMPLATES[type];
+  const compact = asBool(env.INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED);
+  const names = (compact ? V5_TEMPLATES : V3_TEMPLATES)[type];
   const enabled = type === 'sos' ? env.INCIDENT_PHOTO_SOS_V3_ENABLED : env.INCIDENT_PHOTO_FALL_V3_ENABLED;
   if (!names || !asBool(enabled) || !plan?.dynamicCallLink ||
       plan.templateName !== DYNAMIC_CALL_TEMPLATES[type][plan.locationState]) return prepared;
-  return { ...prepared, plan: { ...plan, templateName: names[plan.locationState] } };
+  if (!compact) return { ...prepared, plan: { ...plan, templateName: names[plan.locationState] } };
+  const bodyParameters = compactAlertParameters({ type, device, alert, plan });
+  // Keep an existing approved alert if its frozen evidence cannot be read.
+  if (!bodyParameters) return prepared;
+  const components = plan.components.map(component => component.type === 'body'
+    ? { type: 'body', parameters: bodyParameters.map(text => ({ type: 'text', text })) } : component);
+  return { ...prepared, plan: { ...plan, templateName: names[plan.locationState], bodyParameters, components } };
 }
 
-function buildFollowupPlan(id, gallery) {
+function buildFollowupPlan(id, gallery, context = {}) {
   if (!validIncidentId(id)) throw Error('invalid_incident');
+  if (gallery.capturePolicy === CAPTURE_POLICY) return { templateName: GUARDIAN_FOLLOWUP_TEMPLATE, components: [
+    { type: 'body', parameters: compactPhotoParameters(gallery, context).map(text => ({ type: 'text', text })) },
+    { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: id }] },
+  ] };
   const received = gallery.photos.filter(p => p.state === 'available');
   const analysed = received.filter(p => ['ready', 'too_unclear'].includes(p.analysis?.status));
   const facts = gallery.summary.slice(0, 2).map(item => `Photo ${item.photo}: ${item.text}`).join(' ');
@@ -67,7 +87,7 @@ function writableComponents(components) {
   });
 }
 
-function templateDefinitions({ appUrl, callOrigin, baseTemplates } = {}) {
+function templateDefinitions({ appUrl, callOrigin, baseTemplates, guardianWindow = false } = {}) {
   const base = galleryBase(appUrl);
   if (!base) throw Error('A deployed HTTPS app URL without query or fragment is required.');
   if (!Array.isArray(baseTemplates)) throw Error('Read the six existing v2 templates before preparing v3.');
@@ -78,10 +98,34 @@ function templateDefinitions({ appUrl, callOrigin, baseTemplates } = {}) {
   for (const type of ['sos', 'fall']) for (const state of ['fresh', 'last_known', 'unavailable']) {
     const original = baseTemplates.find(row => row.name === DYNAMIC_CALL_TEMPLATES[type][state] && row.language === 'en');
     const components = writableComponents(original.components);
+    if (guardianWindow) {
+      const photoNotice = state === 'last_known'
+        ? 'One photo may follow. The map shows an earlier position; keep checking on the wearer.'
+        : state === 'unavailable'
+          ? 'One photo may follow. Check on the wearer directly if you cannot reach the watch.'
+          : 'One photo may follow. Do not wait to check on the wearer.';
+      definitions.push({ name: V5_TEMPLATES[type][state], language: 'en', category: 'UTILITY', components: [
+        { type: 'BODY', text: `${type === 'sos' ? '🚨 *SOS from {{1}}*' : '⚠️ *Fall alert for {{1}}*'}\nAlert time: {{2}}\n\n*Please call the watch now.*\n\n{{3}}\n{{4}}\n\n${photoNotice}`,
+          example: { body_text: [['Alex', '5 Oct 2026, 13:22 GMT+4', state === 'unavailable' ? 'Location unavailable at the alert.'
+            : state === 'last_known' ? 'Current position unconfirmed. Last GPS: Example village · 8 mins before alert receipt.'
+              : 'GPS: Example village · less than 1 min before alert receipt.', 'Watch online · battery 80%']] } },
+        components.find(component => component.type === 'BUTTONS'),
+      ] });
+      continue;
+    }
     const body = components.find(component => component.type === 'BODY');
     body.text += PHOTO_NOTICE;
     if (body.text.length > 1024) throw Error('The revised body exceeds the template limit. No templates changed.');
     definitions.push({ name: V3_TEMPLATES[type][state], language: 'en', category: 'UTILITY', components });
+  }
+  if (guardianWindow) {
+    definitions.push({ name: GUARDIAN_FOLLOWUP_TEMPLATE, language: 'en', category: 'UTILITY', components: [
+      { type: 'BODY', text: '📷 *Photo update for {{1}}*\nAlert time: {{2}}\n\n{{3}}\n{{4}}\n\n{{5}}\n\nPhotos and AI cannot confirm the wearer’s condition. Open Guardian for photos and AI details.',
+        example: { body_text: [['Alex', '5 Oct 2026, 13:22 GMT+4', 'The automatic incident photo is available.',
+          'AI description ready in Guardian (unverified).', 'Additional photo requests close at 5 Oct 2026, 14:22 GMT+4.']] } },
+      { type: 'BUTTONS', buttons: [{ type: 'URL', text: 'Photos & AI details', url: `${base}{{1}}`, example: [`${base}sampleIncident123`] }] },
+    ] });
+    return definitions;
   }
   definitions.push({ name: FOLLOWUP_TEMPLATE, language: 'en', category: 'UTILITY', components: [
     { type: 'HEADER', format: 'TEXT', text: 'Guardian incident update' },
@@ -114,4 +158,5 @@ function checkPhotoTemplates(templates, definitions) {
 }
 
 module.exports = { galleryBase, withIncidentPhotoTemplate, buildFollowupPlan,
-  templateDefinitions, checkPhotoTemplates, FOLLOWUP_TEMPLATE, PHOTO_NOTICE, V3_TEMPLATES };
+  templateDefinitions, checkPhotoTemplates, FOLLOWUP_TEMPLATE, PHOTO_NOTICE, V3_TEMPLATES,
+  GUARDIAN_FOLLOWUP_TEMPLATE, GUARDIAN_PHOTO_NOTICE, V4_TEMPLATES, V5_TEMPLATES };

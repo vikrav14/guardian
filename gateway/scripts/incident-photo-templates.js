@@ -9,6 +9,8 @@ function parseArgs(args) {
     if (['--preview', '--check', '--submit'].includes(flag)) {
       if (modeSet) throw Error('Choose one of --preview, --check or --submit.');
       options.mode = flag.slice(2); modeSet = true;
+    } else if (flag === '--guardian-window') {
+      options.guardianWindow = true;
     } else if (['--app-url', '--call-origin'].includes(flag)) {
       const key = flag === '--app-url' ? 'appUrl' : 'callOrigin';
       if (options[key] || !args[i + 1] || args[i + 1].startsWith('--')) throw Error(`Provide one value for ${flag}.`);
@@ -51,6 +53,7 @@ async function manageTemplates({ options, settings, env = process.env, fetchImpl
     appUrl: options.appUrl || env.INCIDENT_PHOTOS_APP_URL,
     callOrigin: options.callOrigin || settings.watchCallPublicOrigin,
     baseTemplates: templates,
+    guardianWindow: options.guardianWindow === true,
   });
   const checks = checkPhotoTemplates(templates, definitions);
   // Inspect every target before the first write. A later conflicting template

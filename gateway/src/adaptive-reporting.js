@@ -3,10 +3,7 @@
 const { sendDeviceCommand } = require('./commands');
 const { setDeviceReportingContext } = require('./sessions');
 
-const BATTERY_POLICY = Object.freeze([
-  { min: 15, seconds: 600, reason: 'normal_baseline' },
-  { min: 0, seconds: 900, reason: 'battery_critical' },
-]);
+const NORMAL_REPORTING_SECONDS = 600;
 
 const SOS_ACTIVE_MS = 30 * 60 * 1000;
 const SOS_COOLDOWN_MS = 15 * 60 * 1000;
@@ -17,17 +14,6 @@ const OUTING_LEASE_MS = 15 * 60_000;
 const millis = value => value?.toMillis?.() || (value == null ? 0 : +new Date(value)) || 0;
 const batteryValue = value => value == null || value === '' ? NaN : Number(value);
 
-
-function policyForBattery(batteryPercent) {
-  const battery = batteryValue(batteryPercent);
-  if (!Number.isFinite(battery)) {
-    return { seconds: 600, reason: 'battery_unknown' };
-  }
-  for (const band of BATTERY_POLICY) {
-    if (battery >= band.min) return { seconds: band.seconds, reason: band.reason };
-  }
-  return { seconds: 900, reason: 'battery_critical' };
-}
 
 function effectivePolicy({
   batteryPercent,
@@ -42,14 +28,14 @@ function effectivePolicy({
 
   const emergency = nowMs < sosActiveUntilMs ? 'sos' : nowMs < fallActiveUntilMs ? 'fall' : null;
   if (emergency) {
-    if (Number.isFinite(battery) && battery < 15) {
+    if (Number.isFinite(battery) && battery < CRITICAL_BATTERY_PERCENT) {
       return { seconds: 300, reason: `${emergency}_critical_battery` };
     }
     return { seconds: 60, reason: `${emergency}_emergency_override` };
   }
 
-  // Safety while away from a confirmed origin outranks the normal battery
-  // bands. The real V52 test showed that dropping to 300 seconds during an
+  // A bounded outing temporarily overrides normal reporting. The real V52
+  // test showed that dropping to 300 seconds during an
   // outing can leave a long indoor interval with no recovery opportunity.
   if (outingActive) {
     if (Number.isFinite(battery) && battery < CRITICAL_BATTERY_PERCENT) {
@@ -65,7 +51,9 @@ function effectivePolicy({
     return { seconds: 300, reason: 'fall_cooldown' };
   }
 
-  return policyForBattery(batteryPercent);
+  // Battery alone never changes the normal ten-minute baseline. The safeguard
+  // above only limits temporary faster reporting during an emergency/outing.
+  return { seconds: NORMAL_REPORTING_SECONDS, reason: 'normal_baseline' };
 }
 
 function appliedIntervalSeconds(data = {}, adaptive = {}) {
@@ -316,7 +304,7 @@ function activateSosOverride(db, imei, options = {}) {
 }
 
 module.exports = {
-  BATTERY_POLICY,
+  NORMAL_REPORTING_SECONDS,
   SOS_ACTIVE_MS,
   SOS_COOLDOWN_MS,
   NORMAL_COMMAND_COOLDOWN_MS,
@@ -324,7 +312,6 @@ module.exports = {
   CRITICAL_BATTERY_PERCENT,
   OUTING_LEASE_MS,
   startReportingReconciler,
-  policyForBattery,
   effectivePolicy,
   appliedIntervalSeconds,
   shouldSend,

@@ -7,6 +7,7 @@ const { createIncidentPhotos } = require('../src/incident-photos');
 const { createSnapshotController } = require('../src/safety-snapshot-live');
 const { createSnapshotHttpHandler } = require('../src/safety-snapshot-http');
 const { CONSENT_VERSION } = require('../src/incident-photo-policy');
+const { randomUUID } = require('node:crypto');
 const result = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: ['A shape may be a table.'], limitations: ['The image is blurred.'] };
 function scene(n) {
   return jpeg.encode({ width: 16, height: 16, data: Buffer.alloc(16 * 16 * 4, n * 30) }, 50).data;
@@ -29,16 +30,18 @@ function trial(options = {}) {
     s.advance(1); s.session.lastPacketAt = s.args.now().getTime();
   };
   const incident = (id = 'alertOne') => s.db.rows.get(`incidentPhotos/${id}`);
-  return { ...s, incidents: api, incidentArgs: args, alarm, incident };
+  const manual = () => api.requestByGuardian('owner', 'alertOne', { requestKey: randomUUID() });
+  return { ...s, incidents: api, incidentArgs: args, alarm, incident, manual };
 }
 
-test('five sequential distinct images, no CR, exact gaps, one batch across duplicate SOS/fall and workers', async () => {
+test('first automatic image and four explicit guardian images, no CR or overlapping workers', async () => {
   const s = trial(); s.alarm(); s.alarm('duplicateFall', 'fall');
   const other = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await Promise.all([s.incidents.enqueue('alertOne'), other.enqueue('alertOne')]);
   await other.enqueue('duplicateFall');
   assert.equal(s.db.rows.get('alerts/duplicateFall').photoIncidentId, 'alertOne');
   for (let n = 1; n <= 5; n++) {
+    if (n > 1) await s.manual();
     await s.incidents.tick('alertOne');
     await other.tick('alertOne');
     assert.equal(s.writes.length, n);
@@ -71,19 +74,20 @@ test('first capture is prompt; the saved image starts a full minute gap across r
   const savedAt = s.auth(s.incident().requestIds[0]).receivedAt;
   assert.equal(s.args.coordinator.busyUntil(imei), null, 'no camera guard during the spacing gap');
   advanceWithPacket(s, 10_000);
-  await assert.rejects(s.api.requestIncident('owner', imei, 'alertOne'), /incident_waiting_for_photo/);
+  await assert.rejects(s.manual(), /incident_photo_settling/);
   advanceWithPacket(s, 49_999);
   const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await Promise.all([s.incidents.tick('alertOne'), restarted.tick('alertOne')]);
-  await assert.rejects(s.api.requestIncident('owner', imei, 'alertOne'), /incident_waiting_for_photo/);
+  await assert.rejects(s.manual(), /incident_photo_settling/);
   assert.equal(s.writes.length, 1, '59.999 seconds after save remains too early');
   advanceWithPacket(s, 1);
-  await Promise.all([s.incidents.tick('alertOne'), restarted.tick('alertOne')]);
+  const competing = await Promise.allSettled([s.manual(), restarted.requestByGuardian('member', 'alertOne', { requestKey: randomUUID() })]);
+  assert.equal(competing.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(s.writes.length, 2, 'exactly one follow-up at the boundary');
   assert.equal(+s.auth(s.incident().requestIds[1]).createdAt - +savedAt, 60_000);
   assert.deepEqual(s.incident().deadlineAt, deadline);
   assert.deepEqual(restarted.getStatus().policy,
-    { maxPhotos: 5, followupGapSeconds: 60, sequenceDeadlineSeconds: 720 });
+    { automaticPhotos: 1, guardianWindowSeconds: 3600, followupGapSeconds: 60, sequenceDeadlineSeconds: 720 });
 });
 
 test('a silent watch cannot consume a follow-up attempt after the minute gap', async () => {
@@ -92,11 +96,11 @@ test('a silent watch cannot consume a follow-up attempt after the minute gap', a
   const deadline = s.incident().deadlineAt;
   s.advance(60_000);
   await s.incidents.tick('alertOne');
+  await assert.rejects(s.manual(), /incident_waiting_for_connection/);
   assert.equal(s.writes.length, 1);
   assert.equal(s.incident().requestIds.length, 1);
-  assert.equal(s.incidents.getStatus().lastCaptureOutcome, 'waiting_for_connection');
   advanceWithPacket(s, 5000);
-  await s.incidents.tick('alertOne');
+  await s.manual();
   assert.equal(s.writes.length, 2);
   assert.deepEqual(s.incident().deadlineAt, deadline);
 });
@@ -109,13 +113,13 @@ test('consent, access, expiry and disconnect are rechecked after spacing without
     if (change === 'consent') s.db.rows.get(`incidentPhotoSettings/${imei}`).enabled = false;
     if (change === 'owner_link') s.db.rows.get('users/owner').linkedImeis = [];
     if (change === 'subscription') s.db.rows.get('serviceSubscriptions/owner').status = 'cancelled';
-    if (change === 'deadline') s.advance(12 * 60_000);
+    if (change === 'deadline') s.advance(60 * 60_000);
     if (change === 'disconnect') s.matches([]);
     const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
     await restarted.tick('alertOne');
+    await assert.rejects(s.manual());
     assert.equal(s.writes.length, 1, change);
     assert.equal(s.incident().requestIds.length, 1, change);
-    assert.equal(s.incident().state, change === 'disconnect' ? 'collecting' : 'stopped', change);
   }
 });
 
@@ -123,12 +127,12 @@ test('a timeout stops the sequence, preserves earlier photo, and restart never r
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
   await s.incidents.tick('alertOne');
   await receive(s, s.incident().requestIds[0], frame({ image: scene(1) }));
-  advanceWithPacket(s); await s.incidents.tick('alertOne');
+  advanceWithPacket(s); await s.incidents.tick('alertOne'); await s.manual();
   const restarted = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await restarted.tick('alertOne'); assert.equal(s.writes.length, 2);
   s.advance(240_001); await s.api.sweep(); await restarted.tick('alertOne');
-  assert.equal(s.incident().state, 'stopped');
-  assert.equal(s.incident().reason, 'image_timeout');
+  assert.equal(s.incident().state, 'complete');
+  assert.equal(s.auth(s.incident().requestIds[1]).reason, 'image_timeout');
   await restarted.tick('alertOne'); assert.equal(s.writes.length, 2);
   const gallery = await restarted.gallery('owner', 'alertOne');
   assert.deepEqual(gallery.photos.map(p => p.state), ['available', 'failed']);
@@ -166,7 +170,9 @@ test('delayed incident image can arrive after existing recovery without another 
   assert.equal((await s.incidents.gallery('owner', 'alertOne')).summary.length, 1);
   await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 1);
   advanceWithPacket(s, 60_000); await s.incidents.tick('alertOne');
-  assert.equal(s.writes.length, 2, 'normal sequential spacing resumes from actual save');
+  assert.equal(s.writes.length, 1, 'no automatic follow-up');
+  await s.manual();
+  assert.equal(s.writes.length, 2, 'explicit guardian request respects spacing from actual save');
 });
 
 test('new incident wait is capped by sequence deadline and never accepts at or beyond expiry', async () => {
@@ -397,9 +403,10 @@ test('trial-only mode accepts a labelled supervised trial without sending emerge
 test('identical image replay is not counted as a second distinct incident photo', async () => {
   const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
   await receive(s, s.incident().requestIds[0]); advanceWithPacket(s); await s.incidents.tick('alertOne');
+  await s.manual();
   await receive(s, s.incident().requestIds[1]); await s.incidents.tick('alertOne');
-  assert.equal(s.incident().state, 'stopped');
-  assert.equal(s.incident().reason, 'duplicate_incident_image');
+  assert.equal(s.incident().state, 'complete');
+  assert.equal(s.auth(s.incident().requestIds[1]).reason, 'duplicate_incident_image');
   assert.equal(s.auth(s.incident().requestIds[1]).receiveDiagnostics.rejectionReason, 'duplicate_incident_image');
   assert.equal((await s.incidents.gallery('owner', 'alertOne')).photos.filter(p => p.state === 'available').length, 1);
 });
@@ -411,7 +418,7 @@ test('slow AI never blocks the next capture, and deleting during AI cannot resur
   const id = s.incident().requestIds[0]; await receive(s, id);
   const analysis = s.incidents.analyzePhoto(id);
   await until(() => s.auth(id).analysis.status === 'analysing');
-  advanceWithPacket(s); await s.incidents.tick('alertOne'); assert.equal(s.writes.length, 2);
+  advanceWithPacket(s); await s.incidents.tick('alertOne'); await s.manual(); assert.equal(s.writes.length, 2);
   await s.api.remove('owner', id); release(); await analysis;
   assert.equal(s.auth(id).state, 'deleted'); assert.equal(s.auth(id).analysis, null);
 });

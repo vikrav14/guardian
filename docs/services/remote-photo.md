@@ -1,5 +1,9 @@
 # Safety snapshot
 
+The customer workflow was revised on 5 October 2026 to [one automatic photo and
+one hour of guardian-requested photos](incident-photo-window.md). The older
+five-photo proposal below is retained as historical context.
+
 | Field | Value |
 | --- | --- |
 | Service | `remote-photo`, Family and Care |

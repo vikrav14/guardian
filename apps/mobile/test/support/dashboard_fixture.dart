@@ -239,7 +239,6 @@ Widget dashboardFixtureHost(
               bottomNavigationBar: MobileBottomBar(
                 currentIndex: 0,
                 onTap: (_) {},
-                onSos: () {},
               ),
               body: SingleChildScrollView(child: content),
             ),

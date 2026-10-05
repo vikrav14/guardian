@@ -1,7 +1,14 @@
 # Reporting and command policy
 
-Implementation checkpoint: 2 October 2026, integration branch
+Implementation checkpoint: 5 October 2026, integration branch
 `feat/guardian-command-coordination` (Home Wi-Fi #141 + incident photos #113).
+
+The fixed normal baseline was loaded into the combined gateway on 5 October at
+15:10 MUT using the preserved environment. A reconnect handed off `UPLOAD,600`
+at 15:11. This confirms command handoff, not measured ten-minute packet cadence.
+The change is local to the integration checkout; it has not been merged to main.
+All 1,653 gateway tests and 10 watch-preferences tests passed; Flutter analysis
+reported no issues. Revised app settings text is not yet deployed/installed.
 
 ## Location reporting
 
@@ -12,14 +19,19 @@ recommends a ten-minute normal interval and temporary faster urgent locating.
 
 | Context | Normal battery | Below 15% | End condition |
 | --- | --- | --- | --- |
-| Normal automatic reporting | 600 seconds | 900 seconds | Current policy |
+| Normal automatic reporting | 600 seconds | 600 seconds | Current policy; no battery tiers |
 | SOS or fall | 60 seconds | 300 seconds | 30 minutes after alarm receipt |
 | Emergency cooldown | 300 seconds | 300 seconds | Next 15 minutes |
 | Active outing | 60 seconds | 300 seconds | 15 minutes after last accepted journey movement, or confirmed return |
 | Explicit urgent locate (`CR`) | Supplier temporary burst | Same protocol command | Firmware-bounded burst; does not overwrite `UPLOAD` intent |
 
-Unknown battery uses 600 seconds. Null must not coerce to 0% and incorrectly
-select critical-battery behavior. Active SOS/fall outranks outing, which outranks
+Normal automatic reporting uses 600 seconds at every battery level, including
+unknown battery. The former normal 60/300/600/900-second battery ladder on
+`main`, and the integration branch's remaining 900-second critical-battery
+exception, are removed. The app settings no longer advertise those tiers.
+The below-15% safeguard only limits temporary faster emergency/outing reporting.
+Null must not coerce to 0% and incorrectly select that safeguard.
+Active SOS/fall outranks outing, which outranks
 emergency cooldown. Existing manual preferences remain explicit; manual mode
 cannot suppress either emergency. Returning from a temporary interval recomputes current battery,
 manual preference, emergency deadlines and journey evidence, rather than restoring
@@ -73,7 +85,11 @@ complete image ingress, failure, disconnect or the originally granted deadline:
 incident captures, also capped by the incident's existing sequence deadline.
 Image Storage writes and AI analysis do not hold the device gate. Camera
 authorization, exact session selection, consent, incident deadline and the
-five-photo sequential contract remain in the existing snapshot/incident code.
+incident photo policy remain in the existing snapshot/incident code. The one
+automatic photo plus one-hour guardian-request workflow is documented in
+[incident-photo-window.md](incident-photo-window.md); its activation remains
+gated on approved WhatsApp contracts. Until then, the existing five-photo
+sequential runtime policy stays active.
 
 | Source | Decision during camera wait |
 | --- | --- |

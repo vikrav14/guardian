@@ -7,6 +7,60 @@ import 'package:http/testing.dart';
 import 'package:guardian/services/safety_snapshot_service.dart';
 
 void main() {
+  test(
+    'connection failure gives a private read error without retrying',
+    () async {
+      var requests = 0;
+      final service = SafetySnapshotService(
+        baseUrl: 'https://gateway.example',
+        token: () async => 'private-token',
+        client: MockClient((_) async {
+          requests++;
+          throw http.ClientException('private transport details');
+        }),
+      );
+      addTearDown(service.dispose);
+      await expectLater(
+        service.loadIncident('incident1'),
+        throwsA(
+          isA<SnapshotFailure>()
+              .having((e) => e.code, 'code', 'photo_service_unreachable')
+              .having((e) => e.message, 'message', isNot(contains('private'))),
+        ),
+      );
+      expect(requests, 1);
+    },
+  );
+
+  test('lost camera response stays ambiguous and is never replayed', () async {
+    var requests = 0;
+    final service = SafetySnapshotService(
+      baseUrl: 'https://gateway.example',
+      token: () async => 'token',
+      client: MockClient((_) async {
+        requests++;
+        throw http.ClientException('response lost');
+      }),
+    );
+    addTearDown(service.dispose);
+    await expectLater(
+      service.requestSnapshot(
+        imei: '861397052547492',
+        purpose: 'Check surroundings',
+        consentConfirmed: true,
+        safetyPurposeConfirmed: true,
+      ),
+      throwsA(
+        isA<SnapshotFailure>().having(
+          (e) => e.code,
+          'code',
+          'request_status_unknown',
+        ),
+      ),
+    );
+    expect(requests, 1);
+  });
+
   testWidgets('late sign-in token cannot send a timed-out camera request', (
     tester,
   ) async {

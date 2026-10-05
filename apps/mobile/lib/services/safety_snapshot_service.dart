@@ -25,6 +25,15 @@ class SnapshotFailure implements Exception {
     'watch_offline_or_reconnecting' || 'watch_disconnected' =>
       'The watch is offline or reconnecting. Try again when it is connected.',
     'camera_busy' => 'The watch is handling another photo request.',
+    'automatic_photo_pending' =>
+      'The first photo is being requested. Please wait.',
+    'incident_photo_settling' =>
+      'Please wait for the previous photo request to finish settling.',
+    'photo_window_closed' ||
+    'incident_not_active' => 'The photo request window has closed.',
+    'capture_disabled' => 'Photo permission is no longer available.',
+    'incident_waiting_for_connection' =>
+      'Waiting for a fresh watch connection. Try again when the watch checks in.',
     'cooldown_active' => 'Please wait before requesting another photo.',
     'camera_unavailable' => 'Photos are not available for this watch yet.',
     'incident_not_found' ||
@@ -35,6 +44,8 @@ class SnapshotFailure implements Exception {
       'Your sign-in check timed out. Retry the connection or sign in again.',
     'photo_service_timeout' =>
       'The photo service took too long to respond. Retry the connection.',
+    'photo_service_unreachable' =>
+      'Cannot connect to the photo service. Check your internet connection and retry.',
     'request_status_unknown' =>
       'The photo request may have reached the watch. Check its status before requesting another photo.',
     'family_plan_required' ||
@@ -101,18 +112,28 @@ class SafetySnapshotService {
             'ngrok-skip-browser-warning': '1',
           });
     if (body != null) request.body = jsonEncode(body);
-    // A timeout never retries a camera request automatically.
-    final response = await _client
-        .send(request)
-        .then(http.Response.fromStream)
-        .timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => throw SnapshotFailure(
-            method == 'POST'
-                ? 'request_status_unknown'
-                : 'photo_service_timeout',
-          ),
-        );
+    // A transport failure may occur after a camera request reaches the server.
+    // Never replay it or expose the raw exception (which can contain its URL).
+    final http.Response response;
+    try {
+      response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw SnapshotFailure(
+              method == 'POST'
+                  ? 'request_status_unknown'
+                  : 'photo_service_timeout',
+            ),
+          );
+    } on http.ClientException {
+      throw SnapshotFailure(
+        method == 'POST'
+            ? 'request_status_unknown'
+            : 'photo_service_unreachable',
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String code = 'photo_service_error';
       try {
@@ -136,6 +157,33 @@ class SafetySnapshotService {
     return IncidentPhotoFeed.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  Future<IncidentPhotoAccess> activeIncident(String imei) async {
+    final response = await _request(
+      'GET',
+      '/api/incident-photos/active',
+      query: {'imei': imei},
+    );
+    return IncidentPhotoAccess.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<String> requestIncidentPhoto(
+    String incidentId,
+    String requestKey,
+  ) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(incidentId)) {
+      throw const SnapshotFailure('incident_not_found');
+    }
+    final response = await _request(
+      'POST',
+      '/api/incident-photos/$incidentId/requests',
+      body: {'requestKey': requestKey},
+    );
+    return (jsonDecode(response.body) as Map<String, dynamic>)['requestId']
+        as String;
   }
 
   Future<SnapshotFeed> load(String imei) async {
