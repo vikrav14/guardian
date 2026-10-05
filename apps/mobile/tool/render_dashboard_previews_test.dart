@@ -241,10 +241,7 @@ void main() {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (final selected in [0, 1, 3]) ...[
-                      MobileBottomBar(
-                        currentIndex: selected,
-                        onTap: (_) {},
-                      ),
+                      MobileBottomBar(currentIndex: selected, onTap: (_) {}),
                       const SizedBox(height: 12),
                     ],
                   ],

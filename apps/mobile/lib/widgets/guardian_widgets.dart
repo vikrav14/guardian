@@ -570,9 +570,6 @@ class GuardianBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MobileBottomBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-    );
+    return MobileBottomBar(currentIndex: currentIndex, onTap: onTap);
   }
 }
