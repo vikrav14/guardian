@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
 const { createMovementHandler } = require('./movement-reminder-http');
+const { createMedicationHandler } = require('./medication-settings-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -1028,6 +1029,7 @@ function startHttpServer() {
   const handleMovement = createMovementHandler({ getDb });
   const handleHomeWifi = require('./home-wifi-http').createHomeWifiHandler({ getDb,
     getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
+  const handleMedication = createMedicationHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1046,6 +1048,7 @@ function startHttpServer() {
       }
 
       if (await handleMovement(req, res, url)) return;
+      if (await handleMedication(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {

@@ -1,5 +1,12 @@
 # Guardian Home Wi-Fi setup
 
+Integration checkpoint, 5 October 2026: updated against main after PR #144
+(voice medication) and PR #146 (shared coordinator). Android keeps both the
+explicit Wi-Fi scan permissions and recording permission; the gateway registers
+both authenticated feature handlers. Local validation: 1,388 gateway tests,
+78 Firestore emulator tests, 34 focused Flutter tests and clean Flutter analysis.
+This update changes no runtime configuration and sends no watch commands.
+
 Implementation checkpoint: 1 October 2026. Own-app enrollment is implemented;
 initial Android discovery, matching and save were physically observed on
 1 October (see the field result below). Remaining acceptance is pending.

@@ -14,7 +14,8 @@ function observeMovementReply(decoded, socket, session) {
 }
 
 function createMovementTransport({ find = findSocketsForDevice, events = replies,
-  timeoutMs = 8000, now = Date.now } = {}) {
+  timeoutMs = 8000, now = Date.now,
+  coordinator = require('./command-coordinator').commandCoordinator } = {}) {
   function select(imei) {
     const matches = find(imei);
     if (matches.length !== 1) throw new MovementError(matches.length ? 'multiple_sessions' : 'watch_offline');
@@ -36,6 +37,8 @@ function createMovementTransport({ find = findSocketsForDevice, events = replies
         const current = select(imei);
         if (current.socket !== target.socket || current.session !== target.session
             || current.session.protocolId !== protocolId) throw new MovementError('session_changed');
+        const decision = coordinator.decide(imei, command);
+        if (!decision.ok) throw new MovementError(decision.error);
         const frame = movementFrame(protocolId, command);
         return new Promise(resolve => {
           const sentAt = new Date(now()).toISOString();

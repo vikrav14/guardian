@@ -99,10 +99,11 @@ function frameSummary(frame, protocolId, direction) {
 }
 
 class FrameObserver {
-  constructor({ protocolId, direction, emit }) {
+  constructor({ protocolId, direction, emit, summarize = frameSummary }) {
     this.protocolId = protocolId;
     this.direction = direction;
     this.emit = emit;
+    this.summarize = summarize;
     this.buffer = Buffer.alloc(0);
     this.disabled = false;
   }
@@ -136,7 +137,7 @@ class FrameObserver {
         }
         const frame = this.buffer.subarray(0, total);
         this.buffer = this.buffer.subarray(total);
-        const summary = frameSummary(frame, this.protocolId, this.direction);
+        const summary = this.summarize(frame, this.protocolId, this.direction);
         this.emit(summary ? { event: 'frame', direction: this.direction, ...summary }
           : { event: 'frame_redacted', direction: this.direction, reason: 'unexpected_identity' });
       }
@@ -157,7 +158,7 @@ class FrameObserver {
 async function startRelay(options, { emit = row => console.log(JSON.stringify(row)),
   connect = () => net.createConnection(BACKENDS[options.backend]),
   now = () => new Date(), durationMs = options.minutes * 60000, identifyTimeoutMs = 10000,
-  connectTimeoutMs = 10000, writeLog = fs.writeSync } = {}) {
+  connectTimeoutMs = 10000, writeLog = fs.writeSync, summarize = frameSummary } = {}) {
   const restoration = restorationPlan(options);
   const writer = createLog(options.output, { write: writeLog });
   const sockets = new Set();
@@ -226,7 +227,7 @@ async function startRelay(options, { emit = row => console.log(JSON.stringify(ro
         sessionLog({ event: 'upstream_connected' });
         emit({ event: 'upstream_connected', backend: options.backend, session });
         const tap = direction => {
-          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog });
+          const observer = new FrameObserver({ protocolId: options.protocolId, direction, emit: sessionLog, summarize });
           pairObservers.push(observer);
           return new Transform({ transform(chunk, encoding, done) {
             try { observer.push(chunk); }

@@ -68,9 +68,9 @@ function alarmModeCommand(mode) {
  * V52 global alert scene.
  *
  * 1: sound + vibration, 2: sound, 3: vibration, 4: silent.
- * This affects medication reminders and other watch alerts. The device has
- * no supported read-back command, so a successful socket handoff is not proof
- * that the firmware applied the scene.
+ * Interaction with TAKEPILLS recorded voice is not established. The device
+ * has no supported read-back command, so a successful socket handoff is not
+ * proof that the firmware applied the scene.
  */
 function watchAlertProfileCommand(mode) {
   const n = Number(mode);
@@ -297,17 +297,25 @@ const BUILDERS = {
  * no transport substitution: an unavailable V52 session fails clearly.
  */
 async function sendDeviceCommand(db, imei, type, params, transports = {}) {
+  if (type === 'set_medication_reminder' && db
+      && (await db.collection('medicationVoiceDevices').doc(imei).get()).exists) {
+    throw new Error('managed_medication_settings_required');
+  }
   const tcpSender = transports.sendDownlinkCommand || sendDownlinkCommand;
   const smsSender = transports.sendSms || sendSms;
   const builder = BUILDERS[type];
-  if (!builder) {
+  if (!Object.hasOwn(BUILDERS, type)) {
     throw new Error(`Unknown device command type: ${type}`);
   }
   const text = builder(params || {});
 
   if (TCP_ONLY_TYPES.has(type)) {
-    const result = tcpSender(imei, text);
+    await transports.beforeSend?.();
+    const result = tcpSender(imei, text, transports.coordination || {});
     if (!result.ok) {
+      if (result.error !== 'no_active_session') {
+        throw Object.assign(new Error(result.error), { code: result.error, expiresAt: result.expiresAt });
+      }
       throw new Error(
         `Device has no active connection right now — ${type} requires a live session (no SMS fallback exists for this command)`
       );
@@ -321,11 +329,16 @@ async function sendDeviceCommand(db, imei, type, params, transports = {}) {
     throw new Error('Device has no simNumber on file — set it in device settings first');
   }
 
+  await transports.beforeSend?.();
+  const decision = require('./command-coordinator').commandCoordinator.decide(imei, text, transports.coordination || {});
+  if (!decision.ok) throw Object.assign(new Error(decision.error), { code: decision.error });
   const result = await smsSender(simNumber, text);
   return { text, channel: 'sms', simNumber, result };
 }
 
 module.exports = {
+  BUILDERS,
+  TCP_ONLY_TYPES,
   sendDeviceCommand,
   centerNumberCommand,
   sosNumberCommand,
