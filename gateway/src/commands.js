@@ -68,9 +68,9 @@ function alarmModeCommand(mode) {
  * V52 global alert scene.
  *
  * 1: sound + vibration, 2: sound, 3: vibration, 4: silent.
- * This affects medication reminders and other watch alerts. The device has
- * no supported read-back command, so a successful socket handoff is not proof
- * that the firmware applied the scene.
+ * Interaction with TAKEPILLS recorded voice is not established. The device
+ * has no supported read-back command, so a successful socket handoff is not
+ * proof that the firmware applied the scene.
  */
 function watchAlertProfileCommand(mode) {
   const n = Number(mode);

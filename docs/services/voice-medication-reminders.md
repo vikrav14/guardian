@@ -2,7 +2,8 @@
 
 Status: implemented as a restricted Android/Web pilot in draft PR #144 on
 5 October 2026. The operator confirmed one audible AnyTracking Once reminder;
-Guardian's new app-to-watch flow still needs its own controlled playback test.
+The first Guardian Once reminder also played audibly at the operator's report;
+its vibration/profile interaction remains unverified (see the latest checkpoint).
 Keep this PR draft until that acceptance and the remaining hardware gates pass.
 
 ## Implemented pilot
@@ -73,7 +74,7 @@ pass. These counts do not substitute for real watch playback.
 Extend the existing Medication reminders editor, available on Family and Care.
 Keep time, repeat days and the visible reminder text. Add **Reminder sound**:
 
-- **Standard alert**: preserve the existing choice and watch alert-profile behavior.
+- **Standard alert**: a reminder without a recorded clip; its interaction with the requested watch profile still requires hardware acceptance.
 - **Your voice**: record a short message, stop, play the preview, replace or remove
   it, then save it with the reminder. Request microphone permission only when
   recording starts. A denied permission must leave the existing reminder intact.
@@ -340,3 +341,44 @@ all five escapes, high bytes, independent slots, on/off, surrogate pairs, malfor
 audio, explicit settings and raw/escaped payload bounds. App recording/preview,
 private storage and sender coordination are now implemented as described above;
 Guardian-to-watch acceptance remains open.
+
+## Guardian Once playback and alert-style mismatch — 5 October 2026
+
+The first managed Guardian voice reminder was saved at 18:42:02.058 MUT for
+18:46, enabled Once in independent slot 1. Its encoded duration was 9.92 seconds.
+The binary write evidence records 18:42:02.842, 16,288 total frame bytes, followed
+by `TAKEPILLS,1` at 18:42:03.475. The operator subsequently reported hearing the
+recorded voice and no vibration. This is one Guardian app-to-watch audible
+playback result; the exact audible start second was not independently recorded.
+The saved protocol evidence deliberately continues to say `playbackVerified:
+false`: a device reply itself is not the source of the operator observation.
+
+The app displayed Vibration from its cached requested profile. The latest profile
+request was mode 3, created 22 September at 23:19:32.189 MUT and marked sent at
+23:19:32.461. No new profile request accompanied the 5 October voice save. Sent
+means transport handoff, not watch readback. Persistence through elapsed time,
+restarts and the intervening supplier reference session is unverified.
+
+Supplier section II.19 defines `profile,1..4` for ring/vibration and a bare
+`profile` reply. Section II.29 defines the independent TAKEPILLS schedule, slot,
+text and audio fields; it contains no per-reminder vibration field or explicit
+rule for how recorded speech interacts with the global scene. The new Guardian
+sender sends TAKEPILLS only: it neither reads/changes the cached profile nor
+sends a vibration command. Do not infer that it switched vibration off, that
+the firmware ignores profile, or that Vibration/Silent necessarily mute speech.
+
+The UI wording is corrected to distinguish requested scene from confirmed watch
+state, avoid promising that Silent mutes voice, and describe the unverified
+interaction in the recording editor. The save notification now says queued,
+which matches its Firestore enqueue operation. No transport/profile behavior
+was changed and no watch command was sent during this audit. These copy changes
+are in PR144; installation/deployment is deferred while the separate map-fix
+task owns the combined Android/Web rollout.
+
+Next controlled check, if the operator elects it: explicitly save Vibration on
+the current connection, record command/reply separately, then save one neutral
+Once voice reminder and observe speech and vibration independently. A bare
+profile reply still is not readback. Do not send an automatic profile override,
+fake a vibration field, or replay the expired reminder. Standard alert, other
+profiles, Daily execution, independent-slot editing, off suppression and
+offline/reboot behavior remain separate acceptance items.

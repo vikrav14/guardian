@@ -828,6 +828,12 @@ class _VoiceMedicationEditorState extends State<VoiceMedicationEditor>
                     'Only linked guardians can access the recording.',
                     style: TextStyle(fontSize: 12, color: c.textMuted),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Recorded voice uses a separate watch setting. Vibration '
+                    'and muting are not yet verified for recordings.',
+                    style: TextStyle(fontSize: 12, color: c.textMuted),
+                  ),
                 ],
                 const SizedBox(height: 14),
                 SwitchListTile.adaptive(

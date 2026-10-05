@@ -150,8 +150,8 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Use Silent mode?'),
           content: const Text(
-            'Silent mode removes sound and vibration from this watch. '
-            'That includes medication reminders and other watch alerts.',
+            'This requests no ringing or vibration. Recorded voice reminders '
+            'may still be audible; Silent mode has not been verified with recordings.',
           ),
           actions: [
             TextButton(
@@ -184,7 +184,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_watchAlertProfile.label} request sent to the watch',
+            '${_watchAlertProfile.label} request queued for the watch',
           ),
         ),
       );
@@ -849,7 +849,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                       ),
                     ),
                     Text(
-                      'Choose how the watch alerts the wearer',
+                      'Choose an alert style to request',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],
@@ -859,7 +859,8 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'This applies to medication reminders and other watch alerts. '
+            'The selected style is a saved request, not a confirmed watch setting. '
+            'Recorded voice reminders may behave differently. '
             'Changes need a current watch connection.',
             style: TextStyle(
               color: colors.textMuted,

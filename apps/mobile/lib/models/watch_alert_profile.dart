@@ -1,8 +1,8 @@
 /// The V52 watch's global alert scene.
 ///
-/// This changes how the watch presents medication reminders and other watch
-/// alerts. It does not select a reminder tone or prove that the watch applied
-/// the setting; the device has no supported profile read-back command.
+/// This requests the documented ring/vibration scene. Its interaction with
+/// TAKEPILLS recorded voice is unverified. The cached choice is not confirmed
+/// watch state; the device has no supported profile read-back command.
 enum WatchAlertProfile {
   sound(
     mode: 2,

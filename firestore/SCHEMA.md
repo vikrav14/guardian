@@ -131,7 +131,7 @@ Live device state. Document ID = device IMEI (digits only).
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
 | fallDetection | map \| null | App-cached V52 request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. |
-| watchAlertProfile | string \| null | App-cached V52 request, not confirmed device state: `sound` \| `sound_and_vibration` \| `vibration` \| `silent`. The global scene affects medication reminders and other watch alerts. |
+| watchAlertProfile | string \| null | App-cached V52 request, not confirmed device state: `sound` \| `sound_and_vibration` \| `vibration` \| `silent`. Global ring/vibration scene request; interaction with recorded medication voice is unverified. |
 | locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |

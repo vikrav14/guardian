@@ -928,6 +928,22 @@ alert-profile interaction and offline/reboot behavior before broader release.
 Weekly voice remains withheld pending weekday-order evidence. The unchanged
 guardian WhatsApp reminder contract is a separate delivery check.
 
+### Guardian audible Once result — 5 October, 18:46 schedule
+
+The operator reported that the new medication reminder spoke the recorded voice
+but did not vibrate. The canonical managed voice reminder is Once, slot1, 9.92s,
+saved at 18:42:02.058 MUT for 18:46. Write evidence is 18:42:02.842, with a
+status-1 reply at 18:42:03.475. This establishes one audible Guardian voice
+reminder based on the operator's observation; exact playback time is unmeasured.
+
+The selected Vibration option was a cached mode3 request from 22 September,
+marked sent at 23:19:32.461 MUT. There was no new profile command today. Neither
+the selection nor old handoff proves the current firmware scene. The voice code
+does not modify profile or request vibration. Voice/vibration/muting interaction
+remains unresolved; no automatic override or new test command was sent. See the
+service document's alert-style checkpoint. Guardian Once playback is now partial
+acceptance; other modes/slots, off suppression, Daily and persistence remain open.
+
 ## Test 8 — steps and daily activity
 
 This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
