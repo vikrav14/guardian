@@ -830,8 +830,8 @@ class _VoiceMedicationEditorState extends State<VoiceMedicationEditor>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Recorded voice uses a separate watch setting. Vibration '
-                    'and muting are not yet verified for recordings.',
+                    'Recorded reminders may play aloud even when Call alert '
+                    'style is set to Vibration or Silent.',
                     style: TextStyle(fontSize: 12, color: c.textMuted),
                   ),
                 ],

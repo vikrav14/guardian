@@ -432,3 +432,27 @@ Result: recorded voice with no vibration occurred under both Guardian and
 AnyTracking. Supplier Standard/no-audio behavior, other scene modes and the
 reason for the standard Guardian reminder's missing vibration remain unresolved.
 No functional framing/profile change is justified by this comparison alone.
+
+## Call alert wording — 5 October 2026
+
+Following the supplier comparison, the operator requested that the app present
+this preference for incoming calls only. The card is now Call alert style;
+option descriptions and the Silent confirmation refer to incoming calls.
+Medication reminders are explicitly separate and may still play a tone or
+recorded voice. The recording editor repeats that Vibration/Silent must not be
+relied on to suppress its audio. The selected value is identified as a preference
+that the watch has not confirmed, and enqueue success is described as queued.
+
+This narrows the product description; it does not alter the global profile
+command, assert firmware exclusivity to calls, or prove the four call modes.
+No watch setting, call, reminder or gateway process is changed by this UI update.
+The combined checkout retains the completed Wi-Fi, photos, reporting, map/avatar
+fixes and soft sage styling. Existing configuration and pilot flags are preserved.
+
+Validation for the call-alert copy: 19 focused combined Flutter checks passed,
+including existing narrow/large-text preferences and recording-editor cases.
+Targeted analysis of the three changed app sources found no issues. Android
+debug and Web release builds succeeded with the existing android-config.json,
+gateway URL and both movement/voice pilot defines. Android replacement install
+succeeded on the connected Samsung. The Maps/build predeploy guard passed.
+No new watch command or hardware acceptance claim is introduced by these checks.

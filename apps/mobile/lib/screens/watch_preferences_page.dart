@@ -69,8 +69,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
         ? savedInterval!
         : 60;
     _watchAlertProfile =
-        widget.device.watchAlertProfile ??
-        WatchAlertProfile.soundAndVibration;
+        widget.device.watchAlertProfile ?? WatchAlertProfile.soundAndVibration;
   }
 
   Future<void> _saveFallDetection() async {
@@ -148,10 +147,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Use Silent mode?'),
+          title: const Text('Silence incoming calls?'),
           content: const Text(
-            'This requests no ringing or vibration. Recorded voice reminders '
-            'may still be audible; Silent mode has not been verified with recordings.',
+            'Request no ringing or vibration for incoming calls. '
+            'Medication reminders may still play a tone or recorded voice.',
           ),
           actions: [
             TextButton(
@@ -170,9 +169,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     setState(() => _watchAlertProfile = profile);
   }
 
-  Future<void> _saveWatchAlertProfile(
-    GuardianSubscription subscription,
-  ) async {
+  Future<void> _saveWatchAlertProfile(GuardianSubscription subscription) async {
     setState(() => _savingWatchAlertProfile = true);
     try {
       await DeviceService().updateWatchAlertProfile(
@@ -184,15 +181,15 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_watchAlertProfile.label} request queued for the watch',
+            'Call alert style: ${_watchAlertProfile.label}. Request queued for the watch.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not reach watch: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not queue call alert style: $e')),
+      );
     } finally {
       if (mounted) setState(() => _savingWatchAlertProfile = false);
     }
@@ -311,9 +308,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     onChanged: _onCareDraftChanged,
                   ),
                   const SizedBox(height: GuardianSpacing.lg),
-                  _buildAdaptiveCareSections(
-                    colors,
-                  ),
+                  _buildAdaptiveCareSections(colors),
                 ] else
                   _PlanNotice(decision: careDecision),
               ],
@@ -694,7 +689,8 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     GuardianThemeColors colors,
     GuardianSubscription subscription,
   ) {
-    if (voiceMedicationPilotImei.isNotEmpty && widget.device.imei == voiceMedicationPilotImei) {
+    if (voiceMedicationPilotImei.isNotEmpty &&
+        widget.device.imei == voiceMedicationPilotImei) {
       return VoiceMedicationCard(imei: widget.device.imei);
     }
     return GuardianCard(
@@ -841,7 +837,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Watch alert style',
+                      'Call alert style',
                       style: TextStyle(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -849,7 +845,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                       ),
                     ),
                     Text(
-                      'Choose an alert style to request',
+                      'Choose an alert style for incoming calls',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],
@@ -859,14 +855,18 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'The selected style is a saved request, not a confirmed watch setting. '
-            'Recorded voice reminders may behave differently. '
-            'Changes need a current watch connection.',
+            'Medication reminders are separate and may still play a tone or '
+            'recorded voice. Changes need a current watch connection.',
             style: TextStyle(
               color: colors.textMuted,
               fontSize: 11.5,
               height: 1.35,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'The selected preference is not confirmed by the watch.',
+            style: TextStyle(color: colors.textMuted, fontSize: 11.5),
           ),
           const SizedBox(height: GuardianSpacing.md),
           Column(
@@ -900,7 +900,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Save alert style'),
+                  : const Text('Save call alert style'),
             ),
           ),
         ],
