@@ -1,3 +1,32 @@
+## Home Wi-Fi app enrollment — 1 October 2026
+
+Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. Initial Android discovery, watch matching and save were physically observed on 1 October; remaining acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).
+
+Field follow-up at 11:27–11:34 UTC: connected watch sent heartbeats only until one
+operator CR, then two fresh named-layout UD_LTE scans of the existing private
+Home router (-54/-39 dBm), followed by a zero-radio report. This exposed premature
+removal of fresh setup choices; regression fix retains them to their original
+120-second expiry without changing Home presence. A later screenshot shows an
+Unnamed network. At 11:49:38 and 11:49:46 UTC, version-2 diagnostics confirmed
+two radios per fresh report with empty names (available 0, empty 2, all rejection
+counts 0). The Home router was present at -39/-38 dBm. No normal ten-minute reporting
+baseline, native fence, save/reopen or Home-presence acceptance is established.
+
+Android follow-up: `wifi_scan` 0.5.0 supplies nearby 2.4 GHz names through an
+explicit foreground scan. An owner-scoped endpoint matches exact identifiers to
+fresh watch candidates; phone-only networks cannot be saved. No new watch
+commands or Home evidence. Automated matching/security and native-channel
+regressions are added. At 19:53 UTC / 23:53 MUT, the operator's Samsung SM-S918B
+(Android 16 / API 36) screenshot and report confirm initial phone name discovery,
+one matching watch candidate (name from phone, -46 dBm, displayed observation
+23:51 MUT), selection and save. The match appeared without running the proposed
+additional manual CR step. The saved screen still waits for fresh watch reports;
+this is enrollment evidence, not accepted current Home presence. No new packet
+capture or complete command history was supplied. Android/Web reopen, gateway
+restart, replacement/removal, adverse permission/scan cases and Home detection
+remain pending. Private radio/name/pin details are omitted. See the runbook's
+physical Android result and remaining checklist.
+
 # Guardian V52 real-device acceptance
 
 **Status:** Release gate

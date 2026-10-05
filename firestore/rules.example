@@ -384,6 +384,12 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    // Private radio fingerprints and enrollment revisions are gateway-only.
+    // The authenticated HTTP API exposes a selected label and fresh choices.
+    match /homeWifiEnrollments/{imei} {
+      allow read, write: if false;
+    }
+
     match /geofences/{geofenceId} {
       allow read: if linkedTo(resource.data.imei);
       allow create: if signedIn()

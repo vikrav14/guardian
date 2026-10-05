@@ -206,7 +206,7 @@ if (config.journeyJournalEnabled === true && !config.firestoreDisabled) {
   void journeyReliability.flush();
 }
 
-if (config.wifiHomeDisplayPilotEnabled) {
+if (config.wifiHomeDisplayPilotEnabled || config.wifiHomeSetupEnabled) {
   try { startWifiHomeDisplayPilot(getDb(), {
     recoverWalk: (points, batch, current, signal) => recoverHomeWifiWalk({
       db: getDb(), imei: config.wifiHomePilotImei, points, batch, current, signal,

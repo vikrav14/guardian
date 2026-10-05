@@ -24,6 +24,7 @@ class SafeZonesOverview extends StatefulWidget {
     required this.onDelete,
     required this.onExpand,
     this.onAlerts,
+    this.onHomeWifi,
     this.busyZoneIds = const {},
     this.alertsLoading = false,
     this.alertsUnavailable = false,
@@ -38,6 +39,7 @@ class SafeZonesOverview extends StatefulWidget {
   final ValueChanged<Geofence> onDelete;
   final ValueChanged<Geofence> onExpand;
   final VoidCallback? onAlerts;
+  final ValueChanged<Geofence>? onHomeWifi;
   final Set<String> busyZoneIds;
   final bool alertsLoading;
   final bool alertsUnavailable;
@@ -242,6 +244,11 @@ class _SafeZonesOverviewState extends State<SafeZonesOverview> {
                 onToggle: () => widget.onToggle(zone),
                 onDelete: () => widget.onDelete(zone),
                 onAlerts: widget.onAlerts,
+                onHomeWifi:
+                    zone.name.trim().toLowerCase() == 'home' &&
+                        widget.onHomeWifi != null
+                    ? () => widget.onHomeWifi!(zone)
+                    : null,
               );
               if (!wide) {
                 return Column(
@@ -276,6 +283,7 @@ class _ZoneDetails extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     this.onAlerts,
+    this.onHomeWifi,
   });
 
   final Geofence zone;
@@ -287,6 +295,7 @@ class _ZoneDetails extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback? onAlerts;
+  final VoidCallback? onHomeWifi;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +363,14 @@ class _ZoneDetails extends StatelessWidget {
                 : 'Arrival and departure alerts are paused for this zone.',
             style: _body(context),
           ),
+          if (onHomeWifi != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onHomeWifi,
+              icon: const Icon(Icons.wifi),
+              label: const Text('Set up Home Wi-Fi'),
+            ),
+          ],
           Divider(height: 32, color: colors.border),
           if (alertsUnavailable)
             Text(

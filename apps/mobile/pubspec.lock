@@ -1234,6 +1234,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+  wifi_scan:
+    dependency: "direct main"
+    description:
+      name: wifi_scan
+      sha256: ab7ff7d5c4d248677d7584c18912f547f7b7d775405512977dfb679bcdcc9a5f
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   xdg_directories:
     dependency: transitive
     description:
