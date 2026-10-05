@@ -13,6 +13,7 @@ const { consentAllows, readIncidentAuthorization } = require('./incident-photo-p
 const { beginPhotoCommandTimeline, noteDeviceWrite } = require('./photo-command-timeline');
 const { commandCoordinator } = require('./command-coordinator');
 const { createPhotoIngressObserver } = require('./photo-ingress-observer');
+const { createPhotoTransportDiagnostics } = require('./photo-transport-diagnostics');
 const { MANUAL_CAPTURE_WINDOW_MS, INCIDENT_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
 
 const RETENTION_MS = 24 * 60 * 60_000;
@@ -69,6 +70,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
   const enabledFor = imei => config.deviceDispatchAllowed && config.acceptedImeis.includes(imei);
   const report = () => log('[safety-snapshot] operation failed; private payload omitted');
   const diagnostics = slot => ({ ...slot.diagnostics,
+    ...(slot.transport ? { transport: slot.transport.snapshot() } : {}),
     ...(slot.commandTimeline ? { commandTimeline: slot.commandTimeline.snapshot() } : {}) });
   const reportReceive = (slot, outcome) => {
     // Fixed schema; no exception text, identities, purpose, token or media.
@@ -197,13 +199,20 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       try { slot.commandTimeline = beginPhotoCommandTimeline(slot); }
       catch { /* Diagnostics cannot block authorized capture. */ }
       const captureFrame = Buffer.from(`[3G*${selected.session.protocolId}*0008*rcapture]`, 'ascii');
+      try { slot.transport = createPhotoTransportDiagnostics(selected.socket, selected.session, now); }
+      catch { /* Diagnostics cannot change capture authorization or dispatch. */ }
       noteDeviceWrite(selected.socket, selected.session, captureFrame, 'photo_capture', now());
-      selected.socket.write(captureFrame, error => {
+      let writeResult;
+      try { writeResult = selected.socket.write(captureFrame, error => {
+        slot.transport?.callback(error);
+        try { log(`[photo-transport] ${JSON.stringify({ requestId: id, event: 'write_callback',
+          transport: slot.transport?.snapshot() || null })}`); } catch { /* Diagnostics only. */ }
         if (error) {
           if (pending.get(selected.socket) === slot) pending.delete(selected.socket);
           finishFailure(id, 'send_failed', slot).catch(report);
         }
-      });
+      }); } catch (error) { slot.transport?.threw(error); throw error; }
+      slot.transport?.returned(writeResult);
       await db.runTransaction(async tx => {
         const doc = await tx.get(ref(id));
         tx.update(ref(id), {

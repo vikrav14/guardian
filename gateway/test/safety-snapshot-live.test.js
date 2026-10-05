@@ -45,6 +45,47 @@ test('timeout records a bare reply and continued traffic without implying a phot
   assert.equal(s.auth(id).state, 'failed'); assert.equal(s.objects.size, 0);
 });
 
+test('an uncompleted backpressured camera write times out once without claiming delivery or retrying', async () => {
+  const s = setup(); let attempts = 0;
+  Object.assign(s.socket, { bytesWritten: 10, writableLength: 0, write(bytes) {
+    attempts++; this.bytesWritten += bytes.length; this.writableLength = bytes.length; return false;
+  } });
+  const id = await s.api.request('owner', input);
+  s.advance(120_001); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics.transport;
+  assert.equal(s.auth(id).reason, 'image_timeout'); assert.equal(attempts, 1);
+  assert.equal(d.writeReturned, false); assert.equal(d.afterWrite.writableLength, 29);
+  assert.equal(d.callback.outcome, 'not_observed'); assert.equal(s.objects.size, 0);
+});
+
+test('a delayed successful write callback followed by no image remains a timeout', async () => {
+  const s = setup(); let callback; let attempts = 0;
+  s.socket.write = (_, done) => { attempts++; callback = done; return true; };
+  const id = await s.api.request('owner', input);
+  s.advance(300); callback();
+  s.advance(120_001); await s.api.sweep();
+  const d = s.auth(id).receiveDiagnostics.transport;
+  assert.equal(d.callback.outcome, 'completed'); assert.equal(d.callback.afterMs, 300);
+  assert.equal(d.evidence, 'node_stream_not_watch_delivery');
+  assert.equal(s.auth(id).reason, 'image_timeout'); assert.equal(attempts, 1); assert.equal(s.objects.size, 0);
+});
+
+test('async and thrown write errors preserve failure handling and omit private errors', async () => {
+  for (const kind of ['async', 'throw']) {
+    const s = setup(); let callback; let attempts = 0;
+    const error = Object.assign(Error('private_transport_response'), { code: 'EPIPE' });
+    s.socket.write = (_, done) => { attempts++; if (kind === 'throw') throw error; callback = done; return false; };
+    const id = await s.api.request('owner', input);
+    if (callback) callback(error);
+    await until(() => s.auth(id).state === 'failed');
+    const d = s.auth(id).receiveDiagnostics.transport;
+    assert.equal(kind === 'throw' ? d.throwCode : d.callback.errorCode, 'EPIPE');
+    assert.equal(s.auth(id).reason, kind === 'throw' ? 'send_or_persistence_failed' : 'send_failed');
+    assert.equal(attempts, 1); assert.equal(s.objects.size, 0);
+    assert(!JSON.stringify(s.logs).includes(error.message));
+  }
+});
+
 test('an incomplete photo survives framing as diagnostic evidence, never as a saved image', async () => {
   const s = setup(), id = await s.api.request('owner', input);
   const incomplete = frame().subarray(0, -1);
@@ -332,6 +373,8 @@ test('real TCP splitting/coalescing preserves the photo and the following heartb
   assert.equal(s.auth(id).receiveDiagnostics.photoFrames, 1);
   assert.equal(s.auth(id).receiveDiagnostics.acceptedPhotoFrames, 1);
   assert.equal(s.auth(id).receiveDiagnostics.failureStage, null);
+  assert.equal(s.auth(id).receiveDiagnostics.transport.callback.outcome, 'completed');
+  assert.equal(s.auth(id).receiveDiagnostics.transport.callback.counters.writableLength, 0);
 });
 
 test('authenticated HTTP routes enforce token verification, no-store media and deletion', async t => {

@@ -307,6 +307,27 @@ test('a handed-off incident capture is never replayed onto a fresh replacement',
   assert.equal(s.writes.length, 1);
 });
 
+test('no-ACK capture on a subsequently silent connection stops despite a reporting replacement', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+  // Reproduce the observed order: a post-alarm packet, first capture, then a
+  // replacement. This does not assign a firmware/call cause to that ordering.
+  s.advance(856); s.session.lastPacketAt = +s.args.now();
+  s.advance(4500); await s.incidents.tick('alertOne');
+  const id = s.incident().requestIds[0];
+  const replacement = { writable: true, write() { assert.fail('ambiguous request replayed'); } };
+  s.advance(18_900);
+  const replacementSession = { ...s.session, lastPacketAt: +s.args.now() };
+  s.matches([{ socket: s.socket, session: s.session }, { socket: replacement, session: replacementSession }]);
+  await s.incidents.tick('alertOne');
+  assert.equal(s.auth(id).state, 'waiting_for_image');
+  s.advance(156_600); s.api.disconnect(s.socket);
+  await until(() => s.auth(id).state === 'failed'); await s.incidents.tick('alertOne');
+  assert.equal(s.incident().reason, 'watch_disconnected');
+  assert.equal(s.auth(id).receiveDiagnostics.bytes, 0);
+  assert.equal(s.auth(id).receiveDiagnostics.rcaptureReplies, 0);
+  assert.equal(s.writes.length, 1); assert.equal(s.objects.size, 0);
+});
+
 test('late admission and a late camera claim cannot dispatch after their deadlines', async () => {
   const old = trial(); old.alarm();
   const admit = old.db.runTransaction;
