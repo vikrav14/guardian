@@ -540,6 +540,11 @@ service cloud.firestore {
       allow write: if false; // gateway Admin SDK only
     }
 
+    // Gateway-only newest-intent watermarks; clients cannot reset ordering.
+    match /deviceCommandIntents/{intentId} {
+      allow read, write: if false;
+    }
+
     match /deviceCommands/{commandId} {
       allow read: if linkedTo(resource.data.imei);
       allow create: if linkedTo(request.resource.data.imei)

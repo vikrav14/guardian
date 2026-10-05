@@ -244,6 +244,7 @@ function noteDeviceLocation(imeiOrProtocolId, nowMs = Date.now()) {
 }
 
 function unregisterSession(socket) {
+  require('./command-coordinator').commandCoordinator.disconnect(socket);
   const session = sessions.get(socket);
   if (session) {
     clearIdleTimer(session);

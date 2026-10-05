@@ -8,14 +8,9 @@ function observeMedicationReply(decoded, socket, session) {
   if (!decoded.error && decoded.command === 'TAKEPILLS' && decoded.args?.length === 1
       && ['0', '1'].includes(decoded.args[0])) events.emit('reply', { decoded, socket, session });
 }
-function optionalCoordination() {
-  // This PR is also reviewable on main. Runtime sending requires the combined
-  // coordinator; never create a second gate unaware of an active camera lease.
-  try { return require('./command-coordinator').commandCoordinator; }
-  catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; return null; }
-}
+const { commandCoordinator } = require('./command-coordinator');
 function createMedicationTransport({ find = findSocketsForDevice, replies = events,
-  coordinator = optionalCoordination(), now = Date.now, timeoutMs = 10000, noteWrite } = {}) {
+  coordinator = commandCoordinator, now = Date.now, timeoutMs = 10000, noteWrite } = {}) {
   const busy = new Set(), uncertain = new WeakSet();
   function select(imei) {
     const matches = find(imei);

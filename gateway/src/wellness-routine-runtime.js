@@ -68,6 +68,8 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     findSocketsForDevice(target).some(({ session }) => session.imei === imei);
   function assertMeasurementAvailable(targetImei, command) {
     if (!targetsPilot(targetImei)) return;
+    const decision = require('./command-coordinator').commandCoordinator.decide(imei, command);
+    if (!decision.ok) throw Object.assign(new Error(decision.error), { code: decision.error });
     if (/^REMOVE(?:,|$)/i.test(command)) {
       conditionalTrial.cancel('removal_setting_changed');
       return;
@@ -164,7 +166,8 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     const context = await read();
     if (!context) return null;
     const request = context.request;
-    const blockedReason = !context.enabled ? 'routine_disabled'
+    const blockedReason = require('./command-coordinator').commandCoordinator.busyUntil(imei) ? 'camera_busy'
+      : !context.enabled ? 'routine_disabled'
       : !context.authorized || +context.validUntil <= Date.now() ? 'access_or_consent_unavailable'
       : request?.version !== 2 ? 'legacy_routine_requires_times'
       : context.state.mayBeRunning || context.state.temperatureMayBeRunning ? 'native_schedule_stop_pending'
