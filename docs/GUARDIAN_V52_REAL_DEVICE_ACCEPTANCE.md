@@ -877,6 +877,73 @@ Medication reminders are available on Guardian Family and Guardian Care.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+### Recorded voice reference result — 5 October 2026
+
+One operator-controlled AnyTracking test on the pilot V52 established audible
+playback of a recorded medication reminder. A transparent recorder captured an
+enabled Once setting for 17:16 MUT in slot 1, with escaped binary AMR-NB audio
+(174 complete 12.2-kbit/s frames, 3.48 seconds). The command was sent at
+17:13:37.978 and received a `TAKEPILLS,1` reply at 17:13:38.410. The operator
+separately confirmed hearing the voice; exact playback seconds were not measured.
+An earlier 17:06 Daily setting was disabled and produced no reported sound.
+
+The same-slot off-setting and reply were captured at 17:19:09.674 and
+17:19:11.514. Cleanup has command/reply evidence, without independent on-watch
+readback or future-suppression verification. Guardian routing restoration was
+verified from a fresh watch packet after the reference session ended. Recorder
+and sleep helper exited, with existing Guardian/ngrok endpoints preserved.
+Private recordings, text and raw frames
+are not committed. See [the detailed evidence](services/voice-medication-reminders.md#enabled-once-playback-5-october-2026).
+
+**Scope:** This is reference-app/watch acceptance for one recorded Once reminder,
+not a pass for Guardian's app, recording UI, storage, permissions or dispatch.
+The binary codec privately matches the captured frames. PR #144 now implements
+recording/preview, private storage, explicit slots and the coordinated sender.
+They are enabled only for the operator-authorized pilot; no Guardian playback
+pass is claimed yet.
+Daily/weekly execution, independent
+slots, audio limits, offline execution and reboot persistence remain open.
+
+### Guardian implementation checkpoint — 5 October 2026
+
+Android APK installed on the connected Samsung; release Web build and Firestore
+rules deployed. The combined gateway retains Wi-Fi, incident-photo, reporting,
+Firebase/Maps and tunnel configuration. Voice pilot activation adds only the
+matching authorized account/device flags. Fresh watch telemetry was verified
+after its guarded idle restart; no reminder or recording was sent by this rollout.
+
+Software checks: 1,351 gateway tests on the PR branch, 1,667 on combined code;
+75 / 91 Firestore emulator tests respectively; 55 focused Flutter tests. Record
+permission/background transitions, bounds, responsive UI, private access,
+transactional slots, retries/idempotency, expiry, reconnect, restart ambiguity
+and capture coordination are covered. Runtime sender depends on the combined
+shared command coordinator and fails closed without it.
+
+Next exact-watch gate: record a short neutral message through Guardian, preview
+it, save Once a few minutes ahead in an unused slot, and record API outcome,
+TAKEPILLS reply and operator-heard playback separately. Do not overwrite the
+three legacy Daily records sharing slot 2; they remain preserved. Also verify
+independent slot edits, standard alert, Daily execution, removal/off suppression,
+alert-profile interaction and offline/reboot behavior before broader release.
+Weekly voice remains withheld pending weekday-order evidence. The unchanged
+guardian WhatsApp reminder contract is a separate delivery check.
+
+### Guardian audible Once result — 5 October, 18:46 schedule
+
+The operator reported that the new medication reminder spoke the recorded voice
+but did not vibrate. The canonical managed voice reminder is Once, slot1, 9.92s,
+saved at 18:42:02.058 MUT for 18:46. Write evidence is 18:42:02.842, with a
+status-1 reply at 18:42:03.475. This establishes one audible Guardian voice
+reminder based on the operator's observation; exact playback time is unmeasured.
+
+The selected Vibration option was a cached mode3 request from 22 September,
+marked sent at 23:19:32.461 MUT. There was no new profile command today. Neither
+the selection nor old handoff proves the current firmware scene. The voice code
+does not modify profile or request vibration. Voice/vibration/muting interaction
+remains unresolved; no automatic override or new test command was sent. See the
+service document's alert-style checkpoint. Guardian Once playback is now partial
+acceptance; other modes/slots, off suppression, Daily and persistence remain open.
+
 ## Test 8 — steps and daily activity
 
 This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
