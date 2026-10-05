@@ -897,10 +897,36 @@ are not committed. See [the detailed evidence](services/voice-medication-reminde
 
 **Scope:** This is reference-app/watch acceptance for one recorded Once reminder,
 not a pass for Guardian's app, recording UI, storage, permissions or dispatch.
-The pure binary codec is implemented and privately matches the captured frames,
-but these integrated flows are not implemented/enabled by PR #144.
+The binary codec privately matches the captured frames. PR #144 now implements
+recording/preview, private storage, explicit slots and the coordinated sender.
+They are enabled only for the operator-authorized pilot; no Guardian playback
+pass is claimed yet.
 Daily/weekly execution, independent
 slots, audio limits, offline execution and reboot persistence remain open.
+
+### Guardian implementation checkpoint — 5 October 2026
+
+Android APK installed on the connected Samsung; release Web build and Firestore
+rules deployed. The combined gateway retains Wi-Fi, incident-photo, reporting,
+Firebase/Maps and tunnel configuration. Voice pilot activation adds only the
+matching authorized account/device flags. Fresh watch telemetry was verified
+after its guarded idle restart; no reminder or recording was sent by this rollout.
+
+Software checks: 1,351 gateway tests on the PR branch, 1,667 on combined code;
+75 / 91 Firestore emulator tests respectively; 55 focused Flutter tests. Record
+permission/background transitions, bounds, responsive UI, private access,
+transactional slots, retries/idempotency, expiry, reconnect, restart ambiguity
+and capture coordination are covered. Runtime sender depends on the combined
+shared command coordinator and fails closed without it.
+
+Next exact-watch gate: record a short neutral message through Guardian, preview
+it, save Once a few minutes ahead in an unused slot, and record API outcome,
+TAKEPILLS reply and operator-heard playback separately. Do not overwrite the
+three legacy Daily records sharing slot 2; they remain preserved. Also verify
+independent slot edits, standard alert, Daily execution, removal/off suppression,
+alert-profile interaction and offline/reboot behavior before broader release.
+Weekly voice remains withheld pending weekday-order evidence. The unchanged
+guardian WhatsApp reminder contract is a separate delivery check.
 
 ## Test 8 — steps and daily activity
 

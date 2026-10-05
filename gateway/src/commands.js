@@ -297,6 +297,10 @@ const BUILDERS = {
  * no transport substitution: an unavailable V52 session fails clearly.
  */
 async function sendDeviceCommand(db, imei, type, params, transports = {}) {
+  if (type === 'set_medication_reminder' && db
+      && (await db.collection('medicationVoiceDevices').doc(imei).get()).exists) {
+    throw new Error('managed_medication_settings_required');
+  }
   const tcpSender = transports.sendDownlinkCommand || sendDownlinkCommand;
   const smsSender = transports.sendSms || sendSms;
   const builder = BUILDERS[type];

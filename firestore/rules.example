@@ -397,13 +397,30 @@ service cloud.firestore {
       allow read: if linkedTo(resource.data.imei)
         && activePlanAtLeast('family');
       allow create: if signedIn()
+        && !request.resource.data.keys().hasAny(['managed', 'slot', 'mode', 'version', 'durationMs', 'evidence'])
+        && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(request.resource.data.imei))
         && linkedTo(request.resource.data.imei)
         && activePlanAtLeast('family')
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if linkedTo(resource.data.imei)
+      allow update: if linkedTo(resource.data.imei)
+        && !resource.data.keys().hasAny(['managed'])
+        && !request.resource.data.keys().hasAny(['managed', 'slot', 'mode', 'version', 'durationMs', 'evidence'])
+        && request.resource.data.imei == resource.data.imei
+        && request.resource.data.createdBy == resource.data.createdBy
+        && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(resource.data.imei))
+        && activePlanAtLeast('family')
+        && resource.data.createdBy == request.auth.uid;
+      allow delete: if linkedTo(resource.data.imei)
+        && !resource.data.keys().hasAny(['managed'])
+        && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(resource.data.imei))
         && activePlanAtLeast('family')
         && resource.data.createdBy == request.auth.uid;
     }
+
+    // Audio and command evidence are served only by the authenticated gateway.
+    match /medicationVoicePrivate/{id} { allow read, write: if false; }
+    match /medicationVoiceDevices/{id} { allow read, write: if false; }
+    match /medicationVoiceRequests/{id} { allow read, write: if false; }
 
     // Care routines use an audited request -> backend-owned canonical record
     // workflow. Clients can never author canonical state or audit evidence.
@@ -543,7 +560,8 @@ service cloud.firestore {
         )
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
-          || activePlanAtLeast('family')
+          || (activePlanAtLeast('family')
+            && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(request.resource.data.imei)))
         );
       allow update, delete: if false; // gateway Admin SDK only
     }

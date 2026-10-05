@@ -6,6 +6,8 @@ import '../models/device.dart';
 import '../models/medication_reminder.dart';
 import '../models/watch_alert_profile.dart';
 import '../services/guardian_services.dart';
+import '../services/voice_medication_service.dart';
+import '../widgets/care/voice_medication_card.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
@@ -692,6 +694,9 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     GuardianThemeColors colors,
     GuardianSubscription subscription,
   ) {
+    if (voiceMedicationPilotImei.isNotEmpty && widget.device.imei == voiceMedicationPilotImei) {
+      return VoiceMedicationCard(imei: widget.device.imei);
+    }
     return GuardianCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,7 @@
 'use strict';
 
-// Pure codec only: no imports into the live dispatcher, storage, logging or I/O.
+// Pure codec: no storage, logging or I/O. The guarded medication sender owns
+// authorization, slot ownership, session selection and dispatch.
 // Evidence: 5 Oct 2026 AnyTracking TAKEPILLS capture and operator-confirmed
 // Once playback. See docs/services/voice-medication-reminders.md.
 const MAX_PAYLOAD_BYTES = 0xffff;
@@ -70,7 +71,7 @@ function textHex(text) {
  * This module neither authorizes nor dispatches a command. Weekly voice is
  * withheld until the conflicting weekday-order evidence is resolved.
  */
-function buildMedicationVoiceFrame({ protocolId, slot, time, enabled, frequency, week, text, audio } = {}) {
+function buildMedicationSettingsFrame({ protocolId, slot, time, enabled, frequency, week, text, audio } = {}) {
   if (typeof protocolId !== 'string' || !/^\d{10}$/.test(protocolId)) {
     throw new Error('medication_voice_invalid_protocol_id');
   }
@@ -81,12 +82,16 @@ function buildMedicationVoiceFrame({ protocolId, slot, time, enabled, frequency,
   if (typeof enabled !== 'boolean') throw new Error('medication_voice_enabled_required');
   if (frequency === 3 || week != null) throw new Error('medication_voice_weekly_unverified');
   if (frequency !== 1 && frequency !== 2) throw new Error('medication_voice_invalid_frequency');
-  inspectMedicationVoice(audio);
+  if (audio != null) inspectMedicationVoice(audio);
   const prefix = Buffer.from(`TAKEPILLS,${time}-${enabled ? 1 : 0}-${frequency},${slot},${textHex(text)},`, 'ascii');
-  const voice = encodeVoiceBytes(audio, MAX_PAYLOAD_BYTES - prefix.length);
+  const voice = audio == null ? Buffer.alloc(0) : encodeVoiceBytes(audio, MAX_PAYLOAD_BYTES - prefix.length);
   const payload = Buffer.concat([prefix, voice]);
   const length = payload.length.toString(16).toUpperCase().padStart(4, '0');
   return Buffer.concat([Buffer.from(`[3G*${protocolId}*${length}*`, 'ascii'), payload, Buffer.from(']')]);
 }
 
-module.exports = { buildMedicationVoiceFrame, inspectMedicationVoice };
+function buildMedicationVoiceFrame(value) {
+  inspectMedicationVoice(value?.audio);
+  return buildMedicationSettingsFrame(value);
+}
+module.exports = { buildMedicationVoiceFrame, buildMedicationSettingsFrame, inspectMedicationVoice };

@@ -1,18 +1,80 @@
 # V52 medication reminders with an optional voice recording
 
-Status: implementation draft opened at the operator's request on 5 October 2026.
-This change records the audited protocol, app flow and delivery gates and adds
-an operator-only transparent reference recorder plus a capture-matched binary
-codec. The Guardian recording UI and authorized sender are not implemented or
-enabled. Keep the PR draft until integration and exact-watch acceptance are complete.
+Status: implemented as a restricted Android/Web pilot in draft PR #144 on
+5 October 2026. The operator confirmed one audible AnyTracking Once reminder;
+Guardian's new app-to-watch flow still needs its own controlled playback test.
+Keep this PR draft until that acceptance and the remaining hardware gates pass.
 
-## Intended experience
+## Implemented pilot
+
+The Medication reminders card in Watch preferences now offers **Standard alert**
+or **Your voice**, alongside a label, local Mauritius time, Once/Every day and
+an enabled switch. Recording begins only on an explicit tap after microphone
+permission, shows elapsed time, stops at ten seconds, and stops when leaving the
+app. The guardian can listen, replace the recording, reopen it privately, edit
+the schedule, turn it off or request removal. The responsive editor was checked
+at 320/390/1280 logical pixels with enlarged text and on the connected Samsung.
+It adds no navigation tab. Text is not synthesized into speech.
+
+The pilot accepts 0.5–10 seconds of 8 kHz mono PCM16, then encodes AMR-NB at
+12.2 kbit/s locally in a bounded gateway worker. The vendored Apache-2.0
+OpenCORE encoder and its provenance are under `gateway/vendor/opencore-amr`.
+Ten seconds is a conservative application cap, not an established watch limit.
+New recordings still need intelligibility/playback acceptance on this firmware.
+
+`GET/POST /app/medication-reminders` and the authenticated `/audio` preview route
+require a Firebase user token, linked device, active Family/Care service and
+matching server pilot UID/device flags. Enable explicitly with
+`VOICE_MEDICATION_PILOT_ENABLED`, `VOICE_MEDICATION_PILOT_IMEI`,
+`VOICE_MEDICATION_PILOT_UID` and the app's `GUARDIAN_VOICE_MEDICATION_PILOT_IMEI`.
+Identity values stay in private configuration. Recordings never enter public
+Firestore fields, command logs or fixtures; previews use private/no-store HTTP.
+
+Each device has a transactional three-slot registry independent of frequency.
+Existing records keep their old frequency-derived slot reservation, including
+uncertain legacy deletions. Duplicate legacy records on one physical slot are
+preserved and cannot be edited through this sender until deliberately reconciled.
+The card counts physical slots, allowing a new reminder in an unused slot. No
+automatic migration, overwrite, reset or legacy replay occurs. Once a device
+uses the managed flow, rules and the legacy dispatcher reject its old medication
+write path. Weekly legacy rows are preserved, but this pilot edits only Once and
+Daily: weekday ordering is unresolved. This is not a general migration rollout.
+
+Requests carry an idempotency key and expected revision. The server binds one
+fresh watch session, claims a 45-second operation lease, rechecks authorization,
+and uses the shared command coordinator before the binary write. Routine work
+may wait up to 25 seconds behind capture; explicit Off remains prompt. It marks
+the write durably before dispatch, waits up to ten seconds for a matching reply,
+and never automatically retries or replays ambiguous work after reconnect or
+restart. An uncertain connection cannot enable another reminder until reconnect;
+a bare late reply cannot confirm an Off on that connection. Removal retains the
+record/audio/slot until an eligible same-session status-1 reply is observed.
+
+The app distinguishes a watch reply from an unconfirmed/not-sent result. Neither
+proves audible playback or medication adherence. Code 0 is treated conservatively
+as unsuccessful, with its precise firmware meaning still an acceptance item.
+Guardian WhatsApp medication scheduling is unchanged and is separate from the
+watch's programmed audio.
+
+Runtime dependency: sending requires the shared coordinator in the combined
+pending reporting/photo work. This PR fails closed on main without that module;
+merge/integrate that dependency before enabling the sender elsewhere.
+
+Software validation: 1,351 isolated-branch gateway tests; 1,667 combined gateway
+tests; 75 isolated / 91 combined Firestore emulator tests; 55 focused Flutter
+tests. Coverage includes access revocation, bounds/Unicode/framing, slot
+contention, revisions/idempotency, expiry, camera deferral, prompt Off, timeout,
+session replacement, interrupted operations, private preview/deletion, microphone
+permission/background handling and responsive layouts. Android and Web builds
+pass. These counts do not substitute for real watch playback.
+
+## Experience and acceptance principles
 
 Extend the existing Medication reminders editor, available on Family and Care.
 Keep time, repeat days and the visible reminder text. Add **Reminder sound**:
 
 - **Standard alert**: preserve the existing choice and watch alert-profile behavior.
-- **My voice**: record a short message, stop, play the preview, replace or remove
+- **Your voice**: record a short message, stop, play the preview, replace or remove
   it, then save it with the reminder. Request microphone permission only when
   recording starts. A denied permission must leave the existing reminder intact.
 
@@ -71,8 +133,8 @@ Section II.29 does not specify the medicine audio codec/profile, rate, duration,
 byte limit, file header, escaping, or chunking. Section II.36 specifies AMR for
 **TK voice chat**; that is not proof that TAKEPILLS uses the same representation.
 The first controlled reference capture below now supplies evidence for one
-AMR-NB profile and the five escape mappings in TAKEPILLS. Limits, playback and
-other configurations are still unverified. Also establish:
+AMR-NB profile and the five escape mappings in TAKEPILLS. Other durations, Guardian-generated audio and
+other configurations still need acceptance. Also establish:
 
 - Independent slot behavior: two daily reminders in different slots, update
   one without changing the other, and disable/remove exactly one slot.
@@ -111,13 +173,14 @@ the old frequency-derived fields and any already-stored device reminders.
 - [x] Read sections II.20, II.28 and II.29 and the three non-audio examples;
   compare the existing app/schema/builder and identify unresolved fields.
 - [ ] Obtain exact TAKEPILLS voice encoding, limits, slot and response evidence.
-- [ ] Implement slot ownership, migration, private assets and authenticated APIs;
-  update `firestore/SCHEMA.md` and rules together.
+- [x] Implement pilot slot ownership, private assets and authenticated APIs;
+  update schema/rules. Conflicting legacy slots are preserved and fail closed;
+  broader migration remains a separate acceptance task.
 - [x] Implement a pure binary voice-frame builder and compare it privately to
   the captured disabled Daily / enabled Once command bytes.
-- [ ] Implement the authorized sender, response lifecycle and command coordination.
-- [ ] Add Android/Web record, preview, replace/remove and sync/error states.
-- [ ] Test Unicode, framing lengths, binary delimiters if applicable, slot
+- [x] Implement the authorized sender, response lifecycle and command coordination.
+- [x] Add Android/Web record, preview, replace/remove and sync/error states.
+- [x] Software-test Unicode, framing lengths, binary delimiters, slot
   capacity, concurrent edits, revocation, expiry, interrupted upload, unknown
   response, reconnect/restart and deletion/off behavior.
 - [ ] Test overlapping medication configuration, SOS/fall and photo capture;
@@ -125,9 +188,9 @@ the old frequency-derived fields and any already-stored device reminders.
 - [ ] With an operator-approved neutral test recording, verify actual audible
   playback, displayed text, chosen days/time, independent slots, off, global
   alert profiles, reboot and gateway-disconnected execution separately.
-- [ ] Record results in the V52 acceptance ledger and update the QA Wiki when
-  implementation changes what is built. Enable the app option only after the
-  target firmware and platform acceptance pass.
+- [x] Record current evidence in the V52 ledger and QA Wiki. Restrict the live
+  app to the operator-authorized pilot pending Guardian playback acceptance;
+  do not enable a general rollout before target firmware/platform acceptance.
 
 The two-way voice-message PR is a sibling feature. Shared audio tooling may be
 reused after its format is proven; these remain separate commands and contracts.
@@ -258,12 +321,14 @@ The audio validator deliberately accepts only the observed mono AMR-NB
 12.2-kbit/s profile, with complete 32-byte speech frames, good-quality headers
 and canonical zero padding. It checks file structure, not intelligibility.
 The storage layout is grounded in [RFC 4867 sections 5.1 and 5.3](https://www.rfc-editor.org/rfc/rfc4867.html#section-5).
-Other bitrates, AMR-WB, SID/DTX, weekly voice settings and empty audio are outside
-this initial voice-only codec. Existing text-only reminder behavior is unchanged.
+Other bitrates, AMR-WB, SID/DTX and weekly voice settings remain outside the
+codec. The integrated settings builder now also permits the documented empty
+voice field, retaining its final comma, for Standard alert. Legacy devices keep
+their old command path; managed pilot devices cannot mix the two writers.
 
-There are no network, storage or logging side effects and no live-dispatch
-imports. Future callers must enforce linked-device consent/access, transactional
-slot ownership, revisions, a single current session, coordination and expiry.
+The codec has no network, storage or logging side effects. The integrated
+sender enforces linked-device access, transactional slot ownership, revisions,
+a single current session, coordination and expiry.
 The Buffer must never enter the generic text command logger. Status 1 is recorded
 as a device response, never as proof that a guardian or wearer heard the recording.
 
@@ -273,4 +338,5 @@ or committing the private inputs. Fifty-four focused tests pass across the new
 codec, legacy medication/command behavior and the relay/recorder. Tests cover
 all five escapes, high bytes, independent slots, on/off, surrogate pairs, malformed
 audio, explicit settings and raw/escaped payload bounds. App recording/preview,
-private storage, sender coordination and Guardian-to-watch acceptance remain open.
+private storage and sender coordination are now implemented as described above;
+Guardian-to-watch acceptance remains open.

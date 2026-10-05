@@ -631,8 +631,9 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 
 App-side record of what's been scheduled, since the V52 has no "list my
 reminders" query command. This is what the app displays/edits; saving or
-deleting also enqueues a matching `deviceCommands` entry
-(`set_medication_reminder`) so the watch stays in sync.
+deleting uses the legacy `deviceCommands` path, except the restricted managed
+voice pilot described below. Neither path proves playback. There is no watch
+readback of the complete reminder schedule.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -655,6 +656,50 @@ deleting also enqueues a matching `deviceCommands` entry
 | lastDelivery | map \| null | Meta provider outcome, `wamid`, status timestamps and bounded errors without message contents. |
 | lastDeliveryError | string \| null | Bounded operational error. |
 | acknowledgementStatus | string | Currently `not_supported`; must not be presented as acknowledged. |
+
+### Managed voice pilot (`managed: "voice-v1"`)
+
+The authorized gateway writes these fields; clients may only read the public
+reminder for a linked Family/Care device. Once `medicationVoiceDevices/{imei}`
+exists, client legacy medication writes and medication `deviceCommands` creation
+are rejected, as is legacy gateway dispatch for that device. Other device command
+types are unaffected. Existing records are not rewritten automatically.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| managed | string | `voice-v1`; cannot be set by clients. |
+| ownerUid | string | Server-resolved service owner. `createdBy` remains recording owner. |
+| mode | string | `alert` or `voice`. |
+| slot | number | Transactionally reserved physical slot 1–3; independent of frequency. |
+| version | integer | Monotonic revision; expected revision required for writes. |
+| requestId | UUID | Idempotent save identity, never reused with different intent. |
+| durationMs | number | Encoded recording duration; zero for Standard alert. |
+| leaseUntilMs | epoch ms | Bounded 45-second operation. No replay when it expires. |
+| deleteRequested | boolean | Off requested before deletion; not proof the watch is off. |
+| deviceSyncStatus | string | `waiting`, `sending`, `reply_observed`, `rejected`, `not_sent`, `unconfirmed`. |
+| evidence | map | Sent/reply times, observed reply code, byte count, bounded reason and `playbackVerified: false`; no audio/text. |
+
+`frequency` accepts Once (1) / Daily (2) here; `week` is null. Expired waiting or
+sending states are projected as unconfirmed by the API. A status-1 reply allows
+requested deletion to set `deletedAt`, remove the private clip and release the
+managed slot. Ambiguous Off retains all three. Existing legacy tombstones remain
+reserved because transport handoff does not prove their slot was cleared.
+
+### Server-private medication collections
+
+All client reads/writes are denied, including linked users. Admin SDK access is
+through the restricted medication API; no public download URLs are created.
+
+| Collection | Stored fields | Retention / use |
+| --- | --- | --- |
+| `medicationVoicePrivate/{reminderId}` | `version`, Base64 `pcm` (8 kHz mono PCM16) and `amr` (AMR-NB) | Active desired clip; replaced atomically with revision; removed on switch to Standard alert or confirmed removal. Authenticated preview checks device, creator, mode and matching version. |
+| `medicationVoiceDevices/{imei}` | `slots` map of physical slot to reminder ID, `requestId`, `leaseUntilMs` | Per-device allocation and single operation lease. Registry persists to prevent the old writer from re-entering. |
+| `medicationVoiceRequests/{requestId}` | SHA-256 `fingerprint`, reminder `id`, `imei`, epoch-ms `at`, `status`, optional `reason` | Durable idempotency audit; no text/audio. Retained without automatic TTL so old request IDs cannot silently resend. |
+
+An enabled setting with an ambiguous result cannot be silently retried. A new
+explicit Off and safe session are required. No command/audio job is replayed on
+gateway restart. App list state describes saved intent and observed response,
+not a watch readback or medication adherence.
 
 ## `notificationLogs/{logId}`
 
