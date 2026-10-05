@@ -1,10 +1,10 @@
 # V52 medication reminders with an optional voice recording
 
-Status: implemented as a restricted Android/Web pilot in draft PR #144 on
-5 October 2026. The operator confirmed one audible AnyTracking Once reminder;
+Status: merged to main as a restricted Android/Web pilot in PR #144 on
+5 October 2026 (`89ac972`). The operator confirmed one audible AnyTracking Once reminder;
 The first Guardian Once reminder also played audibly at the operator's report;
 its vibration/profile interaction remains unverified (see the latest checkpoint).
-Keep this PR draft until that acceptance and the remaining hardware gates pass.
+Keep the restricted pilot gates until the remaining hardware acceptance passes.
 
 ## Implemented pilot
 
@@ -57,9 +57,11 @@ as unsuccessful, with its precise firmware meaning still an acceptance item.
 Guardian WhatsApp medication scheduling is unchanged and is separate from the
 watch's programmed audio.
 
-Runtime dependency: sending requires the shared coordinator in the combined
-pending reporting/photo work. This PR fails closed on main without that module;
-merge/integrate that dependency before enabling the sender elsewhere.
+Runtime dependency: sending now uses the shared coordinator directly on main;
+see [shared command coordination](shared-command-coordinator.md). Its camera
+admission contract is shared with the pending photo integration. The restricted
+account/device/runtime flags still govern availability. The running combined
+gateway must be preserved until the remaining Wi-Fi/photo features reach main.
 
 Software validation: 1,351 isolated-branch gateway tests; 1,667 combined gateway
 tests; 75 isolated / 91 combined Firestore emulator tests; 55 focused Flutter

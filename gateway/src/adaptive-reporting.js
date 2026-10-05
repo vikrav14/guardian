@@ -192,9 +192,16 @@ async function applyAdaptiveReporting(db, imei, {
     return { changed: false, seconds: policy.seconds, reason: policy.reason };
   }
 
-  await sendDeviceCommand(db, imei, 'set_upload_interval', {
-    seconds: policy.seconds,
-  });
+  try {
+    await sendDeviceCommand(db, imei, 'set_upload_interval', {
+      seconds: policy.seconds,
+    }, { coordination: { emergency: policy.reason.startsWith('sos_') || policy.reason.startsWith('outing_') } });
+  } catch (error) {
+    if (error.code !== 'camera_busy') throw error;
+    // No captured restore value or replay timer. A later policy evaluation
+    // recomputes from current evidence; deferred intent is never called applied.
+    return { changed: false, status: 'deferred', reason: 'camera_busy', seconds: policy.seconds };
+  }
 
   setDeviceReportingContext(imei, {
     expectedReportingIntervalSeconds: policy.seconds,
