@@ -45,7 +45,7 @@ class AccountPage extends StatelessWidget {
               maxLength: 15,
               decoration: const InputDecoration(
                 labelText: 'IMEI',
-                hintText: 'e.g. 861397053141170',
+                hintText: '15-digit IMEI on the watch',
                 counterText: '',
               ),
             ),
@@ -58,7 +58,7 @@ class AccountPage extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Link'),
+            child: const Text('Link watch'),
           ),
         ],
       ),
@@ -72,9 +72,7 @@ class AccountPage extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Watch linked - it will appear when the gateway receives data',
-            ),
+            content: Text('Watch linked — waiting for its first update'),
           ),
         );
       }
@@ -575,7 +573,7 @@ Future<void> _confirmUnlinkPendant(BuildContext context, Device device) async {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: GuardianColors.danger),
+          style: GuardianControlStyles.destructive(ctx),
           onPressed: () => Navigator.pop(ctx, true),
           child: const Text('Unlink'),
         ),
@@ -938,8 +936,8 @@ Future<void> _showDeviceSettingsDialog(
                                 child: const Text('Cancel'),
                               ),
                               FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: GuardianColors.danger,
+                                style: GuardianControlStyles.destructive(
+                                  confirmCtx,
                                 ),
                                 onPressed: () =>
                                     Navigator.pop(confirmCtx, true),
@@ -955,9 +953,7 @@ Future<void> _showDeviceSettingsDialog(
                         );
                         if (ctx.mounted) Navigator.pop(ctx);
                       },
-                style: TextButton.styleFrom(
-                  foregroundColor: GuardianColors.danger,
-                ),
+                style: GuardianControlStyles.destructiveLink(ctx),
                 child: const Text('Unlink watch'),
               ),
               TextButton(

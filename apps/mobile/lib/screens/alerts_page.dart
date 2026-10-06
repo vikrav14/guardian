@@ -1,3 +1,4 @@
+import '../navigation/home_shell_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -406,10 +407,12 @@ class _AlertsPageState extends State<AlertsPage> {
                     final wide = constraints.maxWidth >= 880;
                     final mobileDetail = !wide && _mobileDetail;
                     final inbox = _inbox(visible, selected?.id);
+                    final shell = HomeShellScope.maybeOf(context);
+                    final active = shell == null || shell.currentIndex == 4;
                     return PopScope(
-                      canPop: !mobileDetail,
+                      canPop: !mobileDetail || !active,
                       onPopInvokedWithResult: (didPop, result) {
-                        if (!didPop && mobileDetail) _showInbox();
+                        if (!didPop && mobileDetail && active) _showInbox();
                       },
                       child: ListView(
                         controller: _scroll,

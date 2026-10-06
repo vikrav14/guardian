@@ -442,19 +442,14 @@ class _ZoneDetails extends StatelessWidget {
                   ? 'Pause zone'
                   : 'Activate zone',
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.textPrimary,
-              minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              side: BorderSide(color: colors.border),
-            ),
+            style: GuardianControlStyles.secondary(context),
           ),
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: busy ? null : onDelete,
             icon: const Icon(Icons.delete_outline_rounded, size: 20),
             label: const Text('Delete zone'),
-            style: _textButton(context),
+            style: GuardianControlStyles.destructiveLink(context),
           ),
         ],
       ),
@@ -532,17 +527,10 @@ TextStyle _title(BuildContext context) => TextStyle(
   fontWeight: FontWeight.w700,
   height: 1.25,
 );
-ButtonStyle _primary(BuildContext context) => FilledButton.styleFrom(
-  backgroundColor: GuardianColors.forest,
-  foregroundColor: Colors.white,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-);
-ButtonStyle _textButton(BuildContext context) => TextButton.styleFrom(
-  foregroundColor: context.guardianColors.textPrimary,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-);
+ButtonStyle _primary(BuildContext context) =>
+    GuardianControlStyles.primary(context);
+ButtonStyle _textButton(BuildContext context) =>
+    GuardianControlStyles.link(context);
 
 Future<bool> confirmSafeZoneDeletion(
   BuildContext context,
@@ -563,6 +551,7 @@ Future<bool> confirmSafeZoneDeletion(
               child: const Text('Keep zone'),
             ),
             FilledButton(
+              style: GuardianControlStyles.destructive(context),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Delete zone'),
             ),

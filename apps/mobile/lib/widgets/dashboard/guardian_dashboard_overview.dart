@@ -821,11 +821,5 @@ TextStyle _bodyStyle(BuildContext context, {bool strong = false}) => TextStyle(
   height: 1.5,
 );
 
-ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
-  foregroundColor: context.guardianColors.textPrimary,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-  textStyle: Theme.of(
-    context,
-  ).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
-);
+ButtonStyle _textButtonStyle(BuildContext context) =>
+    GuardianControlStyles.link(context);

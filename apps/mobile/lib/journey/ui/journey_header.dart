@@ -273,7 +273,7 @@ class _DatePickerButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: Container(
           constraints: BoxConstraints(maxWidth: compact ? 128 : 220),
-          height: compact ? 38 : 42,
+          height: 48,
           padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 12),
           decoration: BoxDecoration(
             border: Border.all(color: colors.border),
@@ -339,8 +339,8 @@ class _HeaderIconButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(13),
           child: Container(
-            width: 40,
-            height: 40,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               border: Border.all(
                 color: active ? GuardianColors.safe : colors.border,

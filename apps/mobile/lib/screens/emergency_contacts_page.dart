@@ -47,38 +47,44 @@ class EmergencyContactsPage extends StatelessWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add contact'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Name'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: waCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'WhatsApp (optional)',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Name'),
                 ),
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                value: makePrimary,
-                title: const Text('Primary SOS contact'),
-                subtitle: const Text(
-                  'Guardian Essential sends SOS WhatsApp to this contact.',
+                const SizedBox(height: 12),
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone number',
+                    helperText: 'Include the country code: +230 for Mauritius.',
+                    helperMaxLines: 3,
+                  ),
                 ),
-                onChanged: (value) =>
-                    setDialogState(() => makePrimary = value == true),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: waCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'WhatsApp (optional)',
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: makePrimary,
+                  title: const Text('Primary SOS contact'),
+                  subtitle: const Text(
+                    'Guardian Essential sends SOS WhatsApp to this contact.',
+                  ),
+                  onChanged: (value) =>
+                      setDialogState(() => makePrimary = value == true),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -87,7 +93,7 @@ class EmergencyContactsPage extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save'),
+              child: const Text('Save contact'),
             ),
           ],
         ),

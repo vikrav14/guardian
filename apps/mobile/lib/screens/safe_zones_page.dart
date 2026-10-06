@@ -32,6 +32,7 @@ class SafeZonesPage extends StatelessWidget {
 
     final created = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
@@ -57,14 +58,17 @@ class SafeZonesPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       controller: nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Zone name'),
+                      decoration: const InputDecoration(
+                        labelText: 'Zone name',
+                        hintText: 'e.g. Home, School, Grand-mère’s',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: radiusCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        labelText: 'Radius (meters)',
+                        labelText: 'Radius (metres)',
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -73,9 +77,9 @@ class SafeZonesPage extends StatelessWidget {
                         Expanded(
                           child: Text(
                             pickedLocation != null
-                                ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
+                                ? 'Centre: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
                                       '${pickedLocation!.longitude.toStringAsFixed(4)}'
-                                : "Center: pendant's current location",
+                                : "Centre: watch’s current location",
                             style: TextStyle(
                               fontSize: 12,
                               color: context.guardianColors.textSecondary,
@@ -105,7 +109,7 @@ class SafeZonesPage extends StatelessWidget {
                                 ),
                               ),
                             );
-                            if (picked != null) {
+                            if (picked != null && ctx.mounted) {
                               setLocal(() => pickedLocation = picked);
                             }
                           },
@@ -123,7 +127,7 @@ class SafeZonesPage extends StatelessWidget {
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Create'),
+                  child: const Text('Create zone'),
                 ),
               ],
             );

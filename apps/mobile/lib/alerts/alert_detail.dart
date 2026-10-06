@@ -291,7 +291,7 @@ class _SosLocation extends StatelessWidget {
                   : 'Incident map unavailable',
             ),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
+              minimumSize: const Size.fromHeight(48),
             ),
           ),
           if (network != null) ...[

@@ -47,7 +47,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final radiusLabel = '${widget.radiusMeters.round()} m radius';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Choose safe zone center')),
+      appBar: AppBar(title: const Text('Choose safe zone centre')),
       body: Stack(
         alignment: Alignment.center,
         children: [

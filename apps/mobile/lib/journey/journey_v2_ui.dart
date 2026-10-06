@@ -202,73 +202,63 @@ class _JourneyTopBar extends StatelessWidget {
     final isToday =
         day.year == now.year && day.month == now.month && day.day == now.day;
 
+    final dayButton = OutlinedButton.icon(
+      onPressed: onChooseDay,
+      icon: const Icon(Icons.calendar_month_rounded, size: 18),
+      label: Text(isToday ? 'Today' : DateFormat('EEE, d MMM').format(day)),
+    );
+    final heading = Row(
+      children: [
+        IconButton(
+          tooltip: 'Back',
+          onPressed: onBack,
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: 12),
+        _JourneyAvatar(deviceName: deviceName, avatarUrl: avatarUrl),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$deviceName · Journey',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '$tripCount trips | ${totalKm.toStringAsFixed(1)} km | ${_compactDuration(totalDuration)}',
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
     return GuardianSurface(
       padding: const EdgeInsets.all(18),
       radius: 24,
-      child: Row(
-        children: [
-          _SquareAction(icon: Icons.arrow_back_rounded, onTap: onBack),
-          const SizedBox(width: 12),
-          _JourneyAvatar(deviceName: deviceName, avatarUrl: avatarUrl),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600 ||
+              MediaQuery.textScalerOf(context).scale(14) > 21) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$deviceName \u00B7 Journey',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.35,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '$tripCount trips | ${totalKm.toStringAsFixed(1)} km | '
-                  '${_compactDuration(totalDuration)}',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onChooseDay,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              decoration: BoxDecoration(
-                color: colors.canvas,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.calendar_month_rounded,
-                    size: 16,
-                    color: GuardianColors.safe,
-                  ),
-                  const SizedBox(width: 7),
-                  Text(
-                    isToday ? 'Today' : DateFormat('EEE, d MMM').format(day),
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+              children: [heading, const SizedBox(height: 12), dayButton],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: heading),
+              const SizedBox(width: 16),
+              dayButton,
+            ],
+          );
+        },
       ),
     );
   }
@@ -322,31 +312,6 @@ class _JourneyAvatar extends StatelessWidget {
                 ),
               ),
             ),
-    );
-  }
-}
-
-class _SquareAction extends StatelessWidget {
-  const _SquareAction({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: colors.canvas,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(icon, size: 20),
-      ),
     );
   }
 }
@@ -2210,14 +2175,16 @@ class _ReplayShell extends StatelessWidget {
             tooltip: replay.isPlaying ? 'Pause replay' : 'Play replay',
             onPressed: replay.canReplay ? replay.toggle : null,
             style: IconButton.styleFrom(
-              fixedSize: const Size(40, 40),
+              fixedSize: const Size(48, 48),
               backgroundColor: replay.isPlaying
-                  ? const Color(0xFF555BD3)
-                  : const Color(0xFF555BD3).withValues(alpha: 0.10),
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.10),
               foregroundColor: replay.isPlaying
-                  ? Colors.white
-                  : const Color(0xFF555BD3),
-              side: const BorderSide(color: Color(0xFF555BD3)),
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : Theme.of(context).colorScheme.primary,
+              side: BorderSide(color: Theme.of(context).colorScheme.primary),
             ),
             icon: Icon(
               replay.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -2241,10 +2208,12 @@ class _ReplayShell extends StatelessWidget {
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 3,
-                activeTrackColor: const Color(0xFF555BD3),
+                activeTrackColor: Theme.of(context).colorScheme.primary,
                 inactiveTrackColor: colors.border,
-                thumbColor: const Color(0xFF555BD3),
-                overlayColor: const Color(0xFF555BD3).withValues(alpha: 0.10),
+                thumbColor: Theme.of(context).colorScheme.primary,
+                overlayColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.10),
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
               ),
@@ -2274,7 +2243,7 @@ class _ReplayShell extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             onTap: replay.canReplay ? replay.cycleSpeed : null,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 42),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
               decoration: BoxDecoration(
                 color: colors.surface,
