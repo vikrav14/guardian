@@ -1,11 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../theme/colors.dart';
 
-/// The Guardian pin mark: a location pin inside a black ring with a gold
-/// arc. Pairs with [GuardianWordmark] to form the full logo -- see
+/// The Guardian pin mark: a location pin inside a ring carrying Mauritius'
+/// red, blue, yellow and green bands. Pairs with [GuardianWordmark] -- see
 /// [GuardianPinLogo] and [GuardianHeaderBrandMark] for the combined lockups
 /// that drive both marks' dots from one shared [_BlinkCycle].
 const _ink = Color(0xFF14171A);
@@ -69,37 +67,32 @@ class _RingPainter extends CustomPainter {
   const _RingPainter();
 
   static const _strokeFactor = 0.1;
-  static const _goldStart = 0.44; // ~25°, measured clockwise from 3 o'clock
-  static const _goldSweep = 2.27; // ~130°, centred on the bottom (6 o'clock)
+  static const _flagBands = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFFEA2839),
+      Color(0xFFEA2839),
+      Color(0xFF1A206D),
+      Color(0xFF1A206D),
+      Color(0xFFFFD500),
+      Color(0xFFFFD500),
+      Color(0xFF00A551),
+      Color(0xFF00A551),
+    ],
+    stops: [0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1],
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
     final strokeWidth = size.width * _strokeFactor;
     final radius = size.width / 2 - strokeWidth / 2;
-    final rect = Rect.fromCircle(
-      center: Offset(size.width / 2, size.height / 2),
-      radius: radius,
-    );
-
-    final gold = Paint()
-      ..color = _gold
+    final ring = Paint()
+      // Hard stops keep the four horizontal flag bands distinct.
+      ..shader = _flagBands.createShader(Offset.zero & size)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    final black = Paint()
-      ..color = _ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(rect, _goldStart, _goldSweep, false, gold);
-    canvas.drawArc(
-      rect,
-      _goldStart + _goldSweep,
-      2 * math.pi - _goldSweep,
-      false,
-      black,
-    );
+      ..strokeWidth = strokeWidth;
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, ring);
   }
 
   @override
