@@ -668,6 +668,12 @@ service cloud.firestore {
     // expiring, re-authorized gateway landing page, never Firestore clients.
     match /watchCallLinks/{linkId} { allow read, write: if false; }
 
+    // Voice metadata and originals/PCM are served only by the re-authorizing
+    // gateway. Clients cannot forge delivery results or fetch private audio.
+    match /voiceMessages/{id} { allow read, write: if false; }
+    match /voiceMessagePrivate/{id} { allow read, write: if false; }
+    match /voiceMessageDevices/{id} { allow read, write: if false; }
+
     match /watchCallPolicies/{imei} {
       allow read, write: if false;
     }

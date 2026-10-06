@@ -1,5 +1,31 @@
 # Guardian Firestore Schema
 
+## Ordinary voice-message pilot (PR #145)
+
+All three collections deny direct client reads and writes, including linked
+guardians. The gateway uses Firebase bearer authentication, current membership,
+trusted active Family/Care entitlement and exact account/device pilot gates.
+
+- `voiceMessages/{id}`: `uid`, `ownerUid`, `imei`, incoming/outgoing direction,
+  SHA-256 idempotency fingerprint, server receipt `createdAtMs`, `expiresAtMs`,
+  `dispatchUntilMs`, duration, status, sanitized reason, `playedBy`, deletion
+  tombstone. Incoming `notification` stores one push-attempt status and time,
+  plus provider accepted/failed counts when available; this is not a delivery
+  receipt. No registration tokens or audio are copied to this field. Outgoing
+  IDs are UUIDv4; incoming IDs hash device/day/audio bytes.
+- `voiceMessagePrivate/{id}`: same ownership scope, `expiresAtMs`, original AMR
+  and playback PCM as base64. The 30-second bound keeps the combined asset below
+  Firestore's document limit. Never client-readable, logged or exposed as URLs.
+- `voiceMessageDevices/{imei}`: UTC-day count (120 new clips across both
+  directions), next permitted send time, and durable `pendingId`. Ambiguous
+  writes keep `pendingId`; restarting or deleting audio does not clear it.
+
+Metadata + audio + delivery claim commit in a transaction. The IMEI/createdAtMs
+descending index supports authorized history. Audio access ends at 24 hours;
+gateway cleanup removes expired assets every minute in batches. Minimal metadata
+is deleted after seven days. Gateway downtime delays physical cleanup but does
+not extend access. See [voice-message policy](../docs/services/voice-chat-app.md).
+
 ## Wellness edition access — 14 September 2026
 
 `activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be

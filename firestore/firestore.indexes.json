@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "voiceMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "imei", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "alerts",
       "queryScope": "COLLECTION",
       "fields": [
@@ -132,6 +140,8 @@
     }
   ],
   "fieldOverrides": [
+    { "collectionGroup": "voiceMessagePrivate", "fieldPath": "amr", "indexes": [] },
+    { "collectionGroup": "voiceMessagePrivate", "fieldPath": "pcm", "indexes": [] },
     {
       "collectionGroup": "activityDays",
       "fieldPath": "expiresAt",

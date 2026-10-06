@@ -8,6 +8,8 @@ import '../../theme/app_theme.dart';
 import 'dashboard_section_icon.dart';
 import 'guardian_overview_header.dart';
 import 'incident_photo_action.dart';
+import 'voice_message_action.dart';
+import '../../services/voice_messages_service.dart';
 
 /// Presentation only. Watch actions, entitlements and map evidence are supplied
 /// by the page, so changes here do not change location or safety policy.
@@ -133,6 +135,16 @@ class GuardianDashboardOverview extends StatelessWidget {
             onWatchStatus: onWatchStatus,
             watchCheckStatus: watchCheckStatus,
             weather: weather,
+            voiceAction:
+                voiceMessagesPilotImei.isNotEmpty &&
+                    selected.imei == voiceMessagesPilotImei
+                ? VoiceMessageAction(
+                    key: ValueKey('voice-action-${selected.imei}'),
+                    imei: selected.imei,
+                    wearerName: selected.displayName,
+                    wearerAvatarUrl: selected.avatarUrl,
+                  )
+                : null,
             photoAction: IncidentPhotoAction(
               key: ValueKey('photo-action-${selected.imei}'),
               imei: selected.imei,

@@ -30,6 +30,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
     './watch-sms-policy': require('../src/watch-sms-policy'),
+    './voice-message-runtime': { createVoiceReceiver: () => ({ observe: () => false, startCleanup: () => null }) },
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },

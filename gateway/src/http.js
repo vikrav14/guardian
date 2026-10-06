@@ -7,6 +7,7 @@ const { getDb } = require('./firestore');
 const { handleWatchCallLink } = require('./watch-call-link-http');
 const { createMovementHandler } = require('./movement-reminder-http');
 const { createMedicationHandler } = require('./medication-settings-http');
+const { createVoiceHandler } = require('./voice-message-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -1059,6 +1060,7 @@ function startHttpServer() {
   const handleHomeWifi = require('./home-wifi-http').createHomeWifiHandler({ getDb,
     getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
   const handleMedication = createMedicationHandler({ getDb });
+  const handleVoice = createVoiceHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1080,6 +1082,7 @@ function startHttpServer() {
 
       if (await handleMovement(req, res, url)) return;
       if (await handleMedication(req, res, url)) return;
+      if (await handleVoice(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {
