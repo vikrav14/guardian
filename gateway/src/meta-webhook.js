@@ -63,11 +63,13 @@ function extractMessageText(message = {}) {
   }
 
   if (type === 'button') {
+    if (/^ACK [A-Za-z0-9_-]{1,128}$/.test(message.button?.payload || '')) return message.button.payload;
     return String(message.button?.text || '').trim();
   }
 
   if (type === 'interactive') {
     if (message.interactive?.type === 'button_reply') {
+      if (/^ACK [A-Za-z0-9_-]{1,128}$/.test(message.interactive?.button_reply?.id || '')) return message.interactive.button_reply.id;
       return String(message.interactive?.button_reply?.title || '').trim();
     }
     if (message.interactive?.type === 'list_reply') {

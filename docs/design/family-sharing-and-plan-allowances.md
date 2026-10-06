@@ -175,9 +175,22 @@ actual Flutter Family widgets with synthetic data at phone and desktop sizes,
 including enlarged text. The existing weather artwork and Mauritius logo are
 unchanged.
 
-The remaining launch work is two-account handset/provider acceptance, an
-acknowledgement UI/template button, reviewed legacy notification migration and
-the real billing/provisioning integration. Shared identity projections are
-seeded during provisioning and updated by gateway writes; direct owner profile
-edits need projection refresh support before customer rollout. No real messages
-were sent and no production subscriptions or membership records were changed.
+Managed owner name/avatar edits now go through one authorized transaction that
+updates the raw profile, both shared projections and the circle name. Firestore
+rejects direct managed identity writes so relatives cannot retain a stale avatar.
+SOS/fall details include an explicit “I'm responding” action and the confirmed
+responders. The app and WhatsApp ACK payloads use the same authorization and
+idempotency checks; neither resolves an incident or consumes the answer allowance.
+
+The remaining launch work is two-account handset/provider acceptance, an approved
+WhatsApp template button, reviewed legacy notification migration and the real
+billing/provisioning integration. No real messages were sent and no production
+subscriptions or membership records were changed.
+
+### Interactive local review
+
+See [the local review guide](../testing/family-sharing-review.md). It runs the
+actual Flutter app, family API and Firebase rules against an isolated demo project
+with synthetic accounts. A separately labelled WhatsApp simulator exercises the
+same link, grant and allowance handlers without calling a provider. It is not
+evidence of actual watch, push, Meta or billing delivery.

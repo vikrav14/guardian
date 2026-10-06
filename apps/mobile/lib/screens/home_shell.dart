@@ -19,7 +19,8 @@ import '../services/voice_notification.dart';
 import '../services/voice_messages_service.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.initialIndex = 0});
+  final int initialIndex;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -35,6 +36,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    _index = widget.initialIndex;
     _subscriptions = UserProfileService().watchSubscription();
     VoiceNotifications.opened.addListener(_openVoice);
     _voiceReceived = VoiceNotifications.received.stream.listen((target) {

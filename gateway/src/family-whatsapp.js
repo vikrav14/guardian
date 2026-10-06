@@ -54,12 +54,8 @@ async function handleFamilyWhatsApp({ db, message, send, now = Date.now() }) {
     const alert = (await db.collection('alerts').doc(ack[1]).get()).data();
     const service = services.find(s => s.imei === alert?.imei);
     if (service && ['sos', 'fall'].includes(alert.type) && can(service, uid, 'alerts', now)) {
-      await db.runTransaction(async tx => {
-        const fresh = (await tx.get(db.collection('familyServices').doc(service.imei))).data();
-        const ref = db.collection('familyAcknowledgements').doc(hash(`${ack[1]}:${uid}`));
-        if (!can(fresh, uid, 'alerts', now) || (await tx.get(ref)).exists) return;
-        tx.create(ref, { alertId: ack[1], imei: service.imei, uid, acknowledgedAtMs: now });
-      });
+      try { await require('./family-response').acknowledge(db, { uid, imei: service.imei, alertId: ack[1], phone, source: 'whatsapp', now }); }
+      catch (error) { if (!error.code) throw error; }
     }
     return true; // No allowance use and no automatic resolution, even on provider retries.
   }

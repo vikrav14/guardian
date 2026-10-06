@@ -52,3 +52,6 @@ gateway/data/
 
 # Private, read-only wearing-status pilot captures
 gateway/data/wear-checks/
+
+# Isolated family review emulator data and process logs
+.guardian-review/

@@ -164,6 +164,28 @@ function createFamilyStore(db, { now = Date.now, random = () => crypto.randomByt
       return { settings: require('./family-device-view').deviceSettings(data) };
     });
   }
-  return { list, invite, accept, update, whatsapp, link, settings };
+  async function profile(uid, imei, input) {
+    const allowed = ['name', 'nickname', 'relationship', 'avatarUrl'];
+    if (!input || !Object.keys(input).length || Object.keys(input).some(key => !allowed.includes(key))) fail('invalid_profile', 400);
+    const patch = {};
+    for (const [key, value] of Object.entries(input)) {
+      if (value !== null && (typeof value !== 'string' || value.length > (key === 'avatarUrl' ? 4096 : 100))) fail('invalid_profile', 400);
+      patch[key] = value?.trim() || null;
+      if (key === 'avatarUrl' && patch[key] && !/^https?:\/\//.test(patch[key])) fail('invalid_profile', 400);
+    }
+    return db.runTransaction(async tx => {
+      const { ref, service } = await readService(tx, imei, uid, true);
+      const watchRef = db.collection('devices').doc(imei), watch = (await tx.get(watchRef)).data();
+      if (!watch) fail('watch_not_found', 404);
+      const merged = { ...watch, ...patch };
+      const fields = Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, value ?? admin.firestore.FieldValue.delete()]));
+      tx.update(watchRef, { ...fields, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      tx.set(db.collection('familyDeviceProfiles').doc(imei), fields, { merge: true });
+      tx.set(db.collection('familyDeviceViews').doc(imei), fields, { merge: true });
+      tx.update(ref, { wearerName: merged.nickname || merged.name || 'Family member' });
+      return { ok: true };
+    });
+  }
+  return { list, invite, accept, update, whatsapp, link, settings, profile };
 }
 module.exports = { createFamilyStore, hash, validImei };

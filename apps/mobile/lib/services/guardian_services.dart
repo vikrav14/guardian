@@ -20,6 +20,7 @@ import '../journey/journey_utils.dart';
 import 'guardian_entitlements.dart';
 import 'imei_utils.dart';
 import 'shared_device_stream.dart';
+import 'family_sharing_service.dart';
 
 export 'guardian_entitlements.dart';
 
@@ -122,8 +123,28 @@ class DeviceService {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  Future<bool> _saveSharedProfile(
+    String imei,
+    Map<String, dynamic> patch,
+  ) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+    final user = (await _db.collection('users').doc(uid).get()).data();
+    if (!(user?['familyServiceImeis'] as List? ?? const []).contains(imei)) {
+      return false;
+    }
+    final client = FamilySharingService(auth: _auth);
+    try {
+      await client.change('profile', patch, imei: imei);
+    } finally {
+      client.close();
+    }
+    return true;
+  }
+
   Future<void> renameDevice(String imei, String name) async {
     final trimmed = name.trim();
+    if (await _saveSharedProfile(imei, {'name': trimmed})) return;
     await _db.collection('devices').doc(imei).update({
       'name': trimmed.isEmpty ? FieldValue.delete() : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -137,6 +158,12 @@ class DeviceService {
   }) async {
     final trimmedNickname = nickname.trim();
     final trimmedRelationship = relationship.trim();
+    if (await _saveSharedProfile(imei, {
+      'nickname': trimmedNickname,
+      'relationship': trimmedRelationship,
+    })) {
+      return;
+    }
     await _db.collection('devices').doc(imei).update({
       'nickname': trimmedNickname.isEmpty
           ? FieldValue.delete()
@@ -166,6 +193,7 @@ class DeviceService {
 
   Future<void> updateAvatarUrl(String imei, String? avatarUrl) async {
     final trimmed = avatarUrl?.trim();
+    if (await _saveSharedProfile(imei, {'avatarUrl': trimmed})) return;
     await _db.collection('devices').doc(imei).update({
       'avatarUrl': trimmed == null || trimmed.isEmpty
           ? FieldValue.delete()

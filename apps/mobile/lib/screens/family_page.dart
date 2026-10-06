@@ -94,7 +94,10 @@ class _FamilyPageState extends State<FamilyPage> {
                         : 'Share this code privately with the invited person. They must sign in with the email you selected and accept it in Family. The code expires in 7 days.',
                   ),
                   const SizedBox(height: 16),
-                  SelectableText(code),
+                  Semantics(
+                    label: code,
+                    child: ExcludeSemantics(child: SelectableText(code)),
+                  ),
                 ],
               ),
             ),
@@ -218,10 +221,15 @@ class _FamilyPageState extends State<FamilyPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
             children: [
-              const GuardianPageHeader(
+              GuardianPageHeader(
                 eyebrow: 'YOUR TRUSTED CIRCLE',
                 title: 'Family',
                 subtitle: 'Choose who can help, and what they can see.',
+                action: IconButton(
+                  tooltip: 'Refresh family',
+                  onPressed: _busy || _loading ? null : _load,
+                  icon: const Icon(Icons.refresh),
+                ),
               ),
               const SizedBox(height: 20),
               if (_loading) const Center(child: CircularProgressIndicator()),

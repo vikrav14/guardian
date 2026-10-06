@@ -11,6 +11,7 @@ const { POLICY_VERSION, permissions } = require('../../gateway/src/family-policy
 const { linkNumber, handleFamilyWhatsApp } = require('../../gateway/src/family-whatsapp');
 const { managedContacts, claimSafetyDelivery } = require('../../gateway/src/family-notifications');
 const { provisionFamilyService } = require('../../gateway/src/family-provision');
+const { acknowledge } = require('../../gateway/src/family-response');
 const projectId = 'guardian-family-sharing-test', imei = '999999999999991';
 let env, app, db, store;
 before(async () => {
@@ -37,6 +38,50 @@ async function join(uid, extra = {}) {
   const invite = await store.invite('owner', imei, { email: `${uid}@example.test`, role: 'viewer', ...extra });
   await store.accept(identity(uid), invite.code); return invite;
 }
+
+test('managed profile changes atomically synchronize identity and cleared avatar without exposing telemetry', async () => {
+  await store.profile('owner', imei, { nickname: 'Amira', avatarUrl: 'https://example.test/avatar.png' });
+  for (const collection of ['devices', 'familyDeviceViews', 'familyDeviceProfiles']) {
+    const row = (await db.doc(`${collection}/${imei}`).get()).data();
+    assert.equal(row.nickname, 'Amira'); assert.equal(row.avatarUrl, 'https://example.test/avatar.png');
+    if (collection !== 'devices') assert.equal(row.stepsRaw, undefined);
+  }
+  assert.equal((await db.doc(`familyServices/${imei}`).get()).data().wearerName, 'Amira');
+  await store.profile('owner', imei, { avatarUrl: null });
+  for (const collection of ['devices', 'familyDeviceViews', 'familyDeviceProfiles'])
+    assert.equal((await db.doc(`${collection}/${imei}`).get()).data().avatarUrl, undefined);
+  await join('member', { permissions: { settings: true } });
+  await assert.rejects(store.profile('member', imei, { nickname: 'Forged' }), /owner_required/);
+  const owner = env.authenticatedContext('owner').firestore();
+  await assertFails(updateDoc(doc(owner, `devices/${imei}`), { nickname: 'Bypassed sync' }));
+  await assertSucceeds(updateDoc(doc(owner, `devices/${imei}`), { simNumber: '+23057000000' }));
+});
+
+test('family response is authorized, idempotent, readable by alert members and independent of resolution/quota', async () => {
+  await join('member', { role: 'alerts' });
+  await Promise.all(Array.from({ length: 4 }, () => acknowledge(db, { uid: 'member', imei, alertId: 'sos' })));
+  assert.equal((await db.collection('familyAcknowledgements').get()).size, 1);
+  assert.equal((await db.collection('alerts/sos/responses').get()).size, 1);
+  assert.equal((await db.doc('alerts/sos').get()).data().resolved, false);
+  assert.equal((await db.collection(`familyServices/${imei}/usage`).get()).size, 0);
+  const member = env.authenticatedContext('member').firestore();
+  await assertSucceeds(getDoc(doc(member, 'alerts/sos/responses/member')));
+  await assertFails(setDoc(doc(member, 'alerts/sos/responses/owner'), { uid: 'owner' }));
+  await assert.rejects(acknowledge(db, { uid: 'other', imei, alertId: 'sos' }), /access_not_shared/);
+  await assert.rejects(acknowledge(db, { uid: 'owner', imei: '999999999999992', alertId: 'sos' }), /alert_unavailable/);
+  await db.doc('alerts/sos').update({ resolved: true });
+  await assert.rejects(acknowledge(db, { uid: 'owner', imei, alertId: 'sos' }), /alert_already_resolved/);
+  await store.update('owner', imei, { action: 'revoke', uid: 'member' });
+  await assertFails(getDoc(doc(member, 'alerts/sos/responses/member')));
+  await assert.rejects(acknowledge(db, { uid: 'member', imei, alertId: 'sos' }), /access_not_shared/);
+});
+
+test('WhatsApp response rechecks the verified phone before recording a response', async () => {
+  const link = await store.link('owner'); await linkNumber(db, link.code, '23057000000', Date.now());
+  await assert.rejects(acknowledge(db, { uid: 'owner', imei, alertId: 'sos', source: 'whatsapp', phone: '+23057000001' }), /access_not_shared/);
+  await acknowledge(db, { uid: 'owner', imei, alertId: 'sos', source: 'whatsapp', phone: '+23057000000' });
+  assert.equal((await db.doc('alerts/sos/responses/owner').get()).data().source, 'whatsapp');
+});
 test('personal invitations require exact verified recipient, acceptance is one-use, owner immutable', async () => {
   const invitation = await store.invite('owner', imei, { email: 'member@example.test', role: 'caregiver' });
   await assert.rejects(store.accept(identity('other'), invitation.code), /invitation_not_available/);

@@ -239,8 +239,9 @@ service cloud.firestore {
       // confirmed device state; see commands.js).
       allow update: if sharedWith(imei, 'settings')
         && (!request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['name', 'nickname', 'relationship', 'avatarUrl', 'simNumber'])
-            || linkedTo(imei))
+              .hasAny(['name', 'nickname', 'relationship', 'avatarUrl'])
+            || (!managedWatch(imei) && linkedTo(imei)))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['simNumber']) || linkedTo(imei))
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'name',
@@ -588,6 +589,10 @@ service cloud.firestore {
     }
 
     match /alerts/{alertId} {
+      match /responses/{uid} {
+        allow read: if sharedWith(get(/databases/$(database)/documents/alerts/$(alertId)).data.imei, 'alerts');
+        allow write: if false;
+      }
       allow read: if sharedWith(resource.data.imei, 'alerts');
       allow update: if sharedWith(resource.data.imei, 'alerts')
         && request.resource.data.diff(resource.data).affectedKeys()

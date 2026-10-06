@@ -41,6 +41,8 @@ function createFamilyHandler({ getDb, verifyToken = token => admin.auth().verify
           case '/app/family/whatsapp': result = await store.whatsapp(identity.uid, imei, input); break;
           case '/app/family/link': result = await store.link(identity.uid); break;
           case '/app/family/settings': result = await store.settings(identity.uid, imei); break;
+          case '/app/family/profile': result = await store.profile(identity.uid, imei, input); break;
+          case '/app/family/respond': result = await require('./family-response').acknowledge(db, { uid: identity.uid, imei, alertId: input.alertId }); break;
           default: fail('not_found', 404);
         }
         reply(200, result || { ok: true });
