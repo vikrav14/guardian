@@ -48,6 +48,10 @@ Logs and process IDs are in the ignored `.guardian-review` directory.
 Test users are `vikesh@guardian.test`, `neelam@guardian.test` and
 `ravi@guardian.test`. The review-only password is `Guardian-review-2026!`;
 the picker signs in for you. These identities exist only in the emulator.
+Test sign-in sessions stay in memory: after reloading, choose an account again.
+Invitations, permissions and usage remain in the running emulator. This also
+prevents the release-web SDK from trying to refresh an emulator session before
+its local Auth connection is configured.
 
 The initial seed is idempotent. Restarting just the API preserves emulator state;
 stopping the emulators clears this disposable test data. Other hardware-dependent

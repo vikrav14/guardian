@@ -33,6 +33,10 @@ Future<void> main() async {
     ),
   );
   await FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9195);
+  // A release-web reload can restore a persisted user before FlutterFire
+  // connects its Auth emulator. Keep disposable review sessions in memory so
+  // startup never tries to refresh an emulator token against the cloud SDK.
+  await FirebaseAuth.instance.setPersistence(Persistence.NONE);
   FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8185);
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: false,
@@ -73,9 +77,15 @@ class _ReviewRootState extends State<_ReviewRoot> {
         email: '$person@guardian.test',
         password: 'Guardian-review-2026!',
       );
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(() => _error = 'The local test service is unavailable.');
+        final reason = error is FirebaseAuthException
+            ? error.code
+            : 'unavailable';
+        setState(
+          () => _error =
+              'Test sign-in failed ($reason). Check the local review service.',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
