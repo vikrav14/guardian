@@ -1,8 +1,11 @@
 # V52 recorded voice messages in Guardian
 
 Status: implementation draft opened at the operator's request on 5 October 2026.
-This first commit contains the source audit, app flow and acceptance plan only.
-No TK receiver, audio sender, app inbox or microphone behavior is activated.
+Preparation resumed on 6 October after the operator requested integration of
+PRs #147/#148 and then continuation here. The branch still contains the source
+audit, app flow and acceptance plan only. No TK receiver, audio sender, app inbox
+or microphone behavior is activated. See the updated
+[reference evidence and controlled check](../testing/voice-chat-reference.md).
 
 ## Product flow
 
@@ -69,12 +72,29 @@ do not double-escape delimiters, treat bytes as UTF-8, or copy sample identities
 This section does not prove an SOS-triggered recording command, AMR-NB/WB
 profile, maximum clip length, playback receipt, or a transaction identifier.
 
+Offline inspection on 6 October found a complete supplier-to-watch `TK` frame
+in the existing bounded 5 October reference. It contained correctly escaped
+AMR-NB, 8 kHz mono, mode 7 (12.2 kb/s), 79 complete frames / 1.58 seconds. A
+subsequent exact `TK,1` receive-result frame was recorded. No clip was played by
+the inspection, and the operator did not confirm audible playback or associate
+that clip with a specific supplier-app action. This validates one captured
+downlink structure; incoming watch clips, duration limits and physical playback
+remain separate acceptance requirements. The metadata-only evidence is in the
+linked reference note; private audio is excluded from the repository.
+
 ## Existing implementation and reusable work
 
 Main `0acf707acf7cfb22a23a3fa1bf3c0cc299f907a0` and the currently combined
 checkout do not contain a complete TK audio/app flow. The parser acknowledges
 `TKQ`; that separate packet does not implement `TK` media delivery. The generic
 command/downlink path builds and logs ASCII strings and must not carry audio.
+
+The 6 October integration baseline also includes the merged voice-medication
+feature. Its bounded worker-based PCM-to-AMR encoder, synthetic codec tests and
+Flutter recording/preview patterns are reusable. The medication sender's slot
+ownership, schedule, settings ACK handling and ten-second product cap are not
+the ordinary voice-message contract. Preserve those paths while introducing a
+separate binary TK transport and conversation authorization/storage model.
 
 Closed [PR #117](https://github.com/vikrav14/guardian/pull/117), head
 `02ae910a95f8ca17d36bf5d18a7be343042a9c58`, contains a prior **SOS-bound,
@@ -148,5 +168,6 @@ must not depend on the pending SOS/fall Meta template approvals.
   gate only after the app and hardware checks pass.
 
 Sibling medication-reminder scope: [PR #144](https://github.com/vikrav14/guardian/pull/144).
-TAKEPILLS voice encoding remains a separate evidence requirement; do not infer
-its payload from this TK contract.
+PR #144 has since merged after independent TAKEPILLS wire and audible-playback
+verification. That evidence and the new TK downlink observation remain separate;
+neither establishes watch-to-Guardian voice playback or all TK firmware limits.
