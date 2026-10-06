@@ -8,7 +8,6 @@ import 'package:guardian/main.dart';
 import 'package:guardian/navigation/home_shell_scope.dart';
 import 'package:guardian/theme/app_theme.dart';
 import 'package:guardian/widgets/guardian_widgets.dart';
-import 'package:guardian/widgets/navigation/guardian_navigation.dart';
 
 Widget _wrap(Widget child, {Locale locale = const Locale('en')}) {
   return MaterialApp(
@@ -117,35 +116,12 @@ void main() {
       expect(find.text('Safe zones'), findsOneWidget);
       expect(find.text('Alerts'), findsOneWidget);
       expect(find.text('Account'), findsOneWidget);
-      expect(find.text('Hold 3 sec'), findsOneWidget);
+      expect(find.text('Hold 3 sec'), findsNothing);
 
       await tester.tap(find.text('Alerts'));
       expect(tapped, 2);
     },
   );
-
-  testWidgets('SOS requires a full three-second hold', (tester) async {
-    var sosTriggered = false;
-    await tester.pumpWidget(
-      _wrap(
-        MobileBottomBar(
-          currentIndex: 0,
-          onTap: (_) {},
-          onSos: () => sosTriggered = true,
-        ),
-      ),
-    );
-
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('SOS')),
-    );
-    await tester.pump(const Duration(milliseconds: 2900));
-    expect(sosTriggered, isFalse);
-
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(sosTriggered, isTrue);
-    await gesture.up();
-  });
 
   testWidgets('GuardianBottomNav shows French labels when locale is fr', (
     tester,

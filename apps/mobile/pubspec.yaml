@@ -52,6 +52,9 @@ dependencies:
   image_picker: ^1.2.3
   web: ^1.1.1
   pointer_interceptor: ^0.10.1
+  wifi_scan: 0.5.0
+  record: 7.1.1
+  audioplayers: 6.8.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

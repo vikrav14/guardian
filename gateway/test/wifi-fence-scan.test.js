@@ -71,13 +71,15 @@ test('raw A and V scans reach capture without changing production events or rene
   assert.deepEqual({ decoded: gps.decoded, events: gps.events }, before);
   assert.deepEqual(gps.acks.map(x => x.toString()), acks);
   const out = getWifiFenceValidation(start + 30_000, true).capture;
-  assert.equal(out.scanDiagnosticsVersion, 1);
+  assert.equal(out.scanDiagnosticsVersion, 2);
   assert.equal(out.counts.freshRouterSightings, 4);
   const row = out.timeline.at(-1);
   assert.equal(row.gpsValid, true);
   assert.equal(row.radioScanSource, 'packet_fields');
   assert.equal(row.radioScanStatus, 'decoded');
   assert.equal(row.radioScanLayout, 'named');
+  assert.deepEqual(row.radioNameDiagnostics,
+    { available: 1, empty: 0, not_reported: 0, too_long: 0, filtered: 0 });
   assert.equal(row.declaredRadios, 1);
   assert.equal(row.radiosReported, 1);
   assert.equal(row.homeRouterSeen, true);
@@ -106,6 +108,37 @@ test('declared cell count locates named and nameless Wi-Fi, including an empty S
   const nameless = inspectV52WifiScan(fields({ wifi: ['1', routerId, '-68'] }));
   assert.equal(nameless.layout, 'nameless');
   assert.equal(nameless.accessPoints[0].macAddress, routerId);
+});
+
+test('name diagnostics distinguish missing and rejected names without retaining SSIDs in the capture', () => {
+  const cases = [
+    { name: 'Private Home', status: 'available' },
+    { name: '', status: 'empty' },
+    { name: 'Private Oversized Name '.repeat(2), status: 'too_long' },
+    { name: '\u202e\n', status: 'filtered' },
+    { name: null, status: 'not_reported' },
+  ];
+  for (const c of cases) {
+    const wifi = ['1', ...(c.name === null ? [] : [c.name]), routerId, '-68'];
+    const args = fields({ wifi });
+    const ordinary = inspectV52WifiScan(args);
+    assert.equal(ordinary.nameDiagnostics, undefined);
+    assert.equal(ordinary.accessPoints[0].name, undefined);
+    const scan = inspectV52WifiScan(args, { includeNameDiagnostics: true });
+    assert.equal(scan.nameDiagnostics[c.status], 1);
+    assert.equal(Object.values(scan.nameDiagnostics).reduce((sum, n) => sum + n), 1);
+    assert.equal(scan.accessPoints[0].name, undefined);
+    const named = inspectV52WifiScan(args, { includeNames: true });
+    assert.equal(named.accessPoints[0].name, c.status === 'available' ? c.name : '');
+    const capture = createWifiFenceCapture(options);
+    capture.recordPacket({ imei, type: 'location', location: { recordedAt: new Date(start) } },
+      { command: 'UD_LTE', args }, start);
+    const out = capture.snapshot(start, true);
+    assert.deepEqual(out.timeline[0].radioNameDiagnostics, scan.nameDiagnostics);
+    for (const secret of ['Private Home', 'Private Oversized', routerId, hashKey]) {
+      assert.ok(!JSON.stringify(out).includes(secret));
+    }
+  }
 });
 
 test('missing, explicit zero, rejected addresses and malformed scans remain distinguishable', () => {

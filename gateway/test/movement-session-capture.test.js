@@ -215,5 +215,27 @@ test('expiry closes the relay and retains return guidance without claiming resto
   assert.equal(end.reason, 'capture_window_ended');
   assert.equal(end.restoreCommand, 'ip,return.example.test,23456#');
   assert.equal(end.routingRestored, false);
+  // Server shutdown is logged before the separate client receives its close.
+  await until(() => f.watch.destroyed);
   assert.equal(f.watch.destroyed, true);
+});
+
+test('Wi-Fi comparison uses the same transparent relay with isolated redacted summaries', { timeout: 5000 }, async t => {
+  const { createSummary } = require('../scripts/capture-wifi-session');
+  const f = await fixture(t, { summarize: createSummary() });
+  const upload = frame('CONFIG,private:123');
+  f.watch.write(upload);
+  await until(() => Buffer.concat(f.received).length === upload.length);
+  assert.equal(f.watchData.length, 0);
+  const downlink = Buffer.concat([frame('WIFIFENCE,1,02:aa:bb:cc:dd:01'), frame('UPLOAD,600'), frame('CR')]);
+  f.upstreamSockets[0].write(downlink);
+  await until(() => Buffer.concat(f.watchData).length === downlink.length);
+  assert.deepEqual(Buffer.concat(f.watchData), downlink);
+  assert.deepEqual(Buffer.concat(f.received), upload);
+  await f.relay.stop();
+  const rows = readRows(f.output);
+  assert.equal(rows.find(r => r.command === 'WIFIFENCE').fenceArguments[1].alias, 'router_1');
+  assert.equal(rows.find(r => r.command === 'UPLOAD').requestedUploadSeconds, 600);
+  assert.equal(JSON.stringify(rows).includes('02:aa:bb:cc:dd:01'), false);
+  assert.equal(rows.at(-1).captureComplete, true);
 });

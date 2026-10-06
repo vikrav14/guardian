@@ -60,10 +60,14 @@ SMS commands into production. Never change APN or IMEI from an example value.
   hardcoded demo IMEI (`AuthService.demoImei` in `auth_service.dart`).
 - `gateway/.env`'s `WRITE_LOCATION_HISTORY` must be `true` for route history
   to have any data (defaults to `false`).
-- WiFi safe-zone matching has real, tested evaluation logic
-  (`gateway/src/geofence.js`), but the GT06 decoder never populates a WiFi
-  SSID field from real device packets — the feature is structurally dead in
-  production until that decoding exists.
+- Legacy SSID-only safe-zone matching (`gateway/src/geofence.js`) is not fed
+  by production telemetry. Home Wi-Fi now has a separate owner-authenticated
+  radio enrollment flow and passive observer behind `WIFI_HOME_SETUP_ENABLED`.
+  It does not populate legacy SSID matching or provision native watch fences.
+  Native Android setup can add names using `wifi_scan` and exact fresh-watch
+  radio matching. Web cannot scan phone radios. See `docs/services/home-wifi-setup.md`;
+  initial Android discovery, watch matching and save were physically observed on
+  1 October. Reopen/restart, adverse cases and Home detection acceptance remain pending.
 - Family invites are one-directional: the acceptor links to the inviter's
   device(s), but the inviter's own `familyMembers` list is never updated with
   the acceptor. Known bug, not yet fixed (issue #62).

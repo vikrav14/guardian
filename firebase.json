@@ -1,4 +1,22 @@
 {
+  "hosting": {
+    "site": "guardian-fbadd",
+    "public": "apps/mobile/build/web",
+    "predeploy": ["node scripts/verify-guardian-web-build.cjs"],
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "X-Frame-Options", "value": "DENY" }
+        ]
+      }
+    ]
+  },
   "firestore": {
     "rules": "firestore/rules.example",
     "indexes": "firestore/firestore.indexes.json"

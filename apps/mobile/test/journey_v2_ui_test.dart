@@ -10,9 +10,7 @@ import 'package:guardian/journey/journey_v2_static_map.dart';
 import 'package:guardian/journey/journey_v2_ui.dart';
 
 Future<void> pumpJourneyUi(WidgetTester tester) async {
-  // The replay halo intentionally breathes forever, so pumpAndSettle would
-  // correctly never settle. Advance enough time for layout/navigation while
-  // leaving the continuous animation running.
+  // Advance layout/navigation without waiting for native map raster work.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
 }
@@ -115,6 +113,13 @@ void main() {
       find.byKey(const ValueKey('journey-fit-complete-route')),
       findsOneWidget,
     );
+    expect(find.textContaining('Journey history'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('journey-toggle-source-evidence')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const ValueKey('journey-open-details')));
+    await pumpJourneyUi(tester);
     expect(
       find.byKey(const ValueKey('journey-toggle-source-evidence')),
       findsOneWidget,
@@ -135,6 +140,22 @@ void main() {
       find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
     );
     expect(fullScreenMap.showSourceEvidence, isTrue);
+    expect(
+      find.byType(JourneyV2StaticMap, skipOffstage: false),
+      findsOneWidget,
+      reason: 'The preview must release its native map while expanded.',
+    );
+    await tester.tap(find.byKey(const ValueKey('journey-close-details')));
+    await pumpJourneyUi(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('journey-close-fullscreen-map')),
+    );
+    await pumpJourneyUi(tester);
+    expect(find.byKey(const ValueKey('journey-map-trip-3')), findsOneWidget);
+    expect(
+      find.byType(JourneyV2StaticMap, skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('trip row remains selectable', (tester) async {
@@ -458,6 +479,8 @@ void main() {
     expect(find.text('Confirmed Home'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
+    await pumpJourneyUi(tester);
+    await tester.tap(find.byKey(const ValueKey('journey-open-details')));
     await pumpJourneyUi(tester);
     await tester.tap(
       find.byKey(const ValueKey('journey-toggle-source-evidence')),

@@ -181,6 +181,7 @@ test('running pilot confines hardware operations to one session; firmware and re
       if (name === './sessions') return { findSocketsForDevice: imei => { assert.equal(imei, pilot.imei); return matches; } };
       if (name === './downlink') return { sendDownlinkCommand: (imei, command) => { sent.push([imei, command]); return { ok: true }; } };
       if (name === './care-wellbeing') return { validConsent: () => true };
+      if (name === './command-coordinator') return require('../src/command-coordinator');
       if (name === './entitlements') return {};
       if (name === './wellness-routine') return { ...require('../src/wellness-routine'),
         createRoutineController: () => ({ tick: async () => {} }) };
@@ -192,6 +193,7 @@ test('running pilot confines hardware operations to one session; firmware and re
         createDailyWellnessScheduler: () => ({ tick: async () => {}, snapshot: () => ({}) }),
       };
       if (name === './daily-wellness-store') return { createDailyWellnessStore: () => ({}) };
+      if (name === './command-coordinator') return require('../src/command-coordinator');
       return require(name);
     },
   });

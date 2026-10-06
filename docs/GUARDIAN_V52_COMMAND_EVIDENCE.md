@@ -38,8 +38,10 @@ treated as interchangeable.
 
 ## TCP data commands
 
-These commands are wrapped as `[SG*<10-digit protocol ID>*<hex length>*<data>]`
-and require an active V52 gateway session. There is no SMS fallback.
+Most existing Guardian commands are wrapped as `[SG*<10-digit protocol ID>*<hex length>*<data>]`
+and require an active V52 gateway session. Preserve the observed `3G` prefix for the
+photo reference exchange below; do not generalize one prefix across firmware commands.
+There is no guessed SMS fallback.
 
 | Action | Data payload | Evidence | Acceptance still required |
 |---|---|---|---|
@@ -52,7 +54,7 @@ and require an active V52 gateway session. There is no SMS fallback.
 | Fall detection | `FALLDOWN,<enabled>,<dial>` | Documented | Confirm watch setting and a controlled fall event. |
 | Fall alert switch | `FON,<0\|1>` | Documented; now dispatched with fall preferences | Keep the separate fall-alert switch aligned with the detector. Confirm local alert behaviour and a real `AL_LTE` event on the exact firmware. |
 | Fall sensitivity | `LSSET,<level>+6` | Documented | Confirm supported levels and real sensitivity effect. |
-| Medication reminder | `TAKEPILLS,...` | Documented | Confirm once, daily and weekly execution on the real watch. |
+| Medication reminder | `TAKEPILLS,...` | Partial live result: recorded Once playback | 5 October 2026: AnyTracking sent enabled Once/slot 1 with escaped binary AMR-NB; the watch replied and the operator separately heard the recording. Same-slot off command/reply captured. Guardian Android/Web UI, private storage and coordinated sender are implemented behind matching pilot UID/device gates; A Guardian Once reminder saved at 18:42 for 18:46 also received a reply and operator-reported audible playback, without vibration; the displayed vibration profile was a cached September request, not current watch readback. Daily/weekly playback, other slots, limits, independent off suppression, offline execution and reboot remain open. See `services/voice-medication-reminders.md`. |
 | Clock alarms | `REMIND,<slot1>,<slot2>,<slot3>` | Partial pilot result; operator once/off | Once-only sound and subsequent visible clearing confirmed. Future cancellation, daily/weekly, all slots, vibration and reboot remain open. Customer dispatch disabled. |
 | Sedentary reminder | Documented `SEDENTARY,1,26` / `SEDENTARY,0,26`; captured pilot `SEDENTARY,1,20` / `SEDENTARY,0,20` | Supplier-defined switch/minutes; local control passed, remote acceptance open | Local Open / 20 Save followed by sound and on-screen exercise reminder reported 29 Sep at 16:24:51 MUT, approximately 20 minutes after enable confirmation. Local Close / 0 Save persisted after reopening, reported 16:26:41. Earlier remote trial received replies but no reminder was reported by 15:56. Remote application/execution, range, worktime enforcement, repeat/reset, effective suppression and reboot remain unverified. |
 | Talking clock | `HSW,0` / `HSW,1` | Pilot wake-screen on/off passed | HSW,1 downlink/reply captured; operator confirms spoken time during the wake test, then silence on waking after running off. Off CLI/downlink not supplied. Repeatability, other triggers, readback and reboot remain unverified; customer dispatch stays disabled. |
@@ -74,7 +76,31 @@ and require an active V52 gateway session. There is no SMS fallback.
 
 The V52 datasheet lists the sensors, but a sensor claim does not establish a command or upload schema. Customer display remains off until the separate real-device gate passes.
 
-## Alarm decoding guardrail
+## Photo reference evidence, 24 September 2026
+
+On Jesh, AnyTracking sent `[3G*9705254749*0008*rcapture]` and the watch returned
+a bare `rcapture` reply. Two later watch-to-server `img` frames were captured
+in the same relay session (payload lengths 3066 and 5987 bytes). The operator
+reports seeing the photos in AnyTracking. The request-to-upload intervals
+were 5.064 and 6.057 seconds; these are not measured app-display latencies.
+The subsequently supplied private sample at 17:39:27.835Z has the envelope
+`img,5,260924213927,` followed by escaped binary JPEG and two NUL bytes. Applying
+the supplied protocol's five media escapes restores a viewable 240x240 JPEG
+of 4969 bytes. The operator subsequently confirmed that this recovered image
+was triggered by accidentally pressing the camera button on the watch. It is
+local-photo upload/format evidence, not remote-command success, and its interval
+after the preceding request must not be reported as remote-capture latency.
+The value `5`, timestamp timezone semantics, trailer meaning,
+remote-request correlation, further variants and ACK requirements remain
+unverified. This evidence supersedes assuming
+`PIC,1`/FTP for this watch's observed AnyTracking path. Guardian has no enabled
+photo dispatcher or receiver. A controlled app-only follow-up at 22:23 MUT
+sent the same `rcapture` frame, received a bare reply after 676 ms and continued
+heartbeat exchange, but produced no `img` in the supplied excerpt and no
+AnyTracking picture reported by the operator. This is not remote-capture
+acceptance. See [the evidence and private-capture runbook](testing/photo-reference-capture.md).
+
+## Alarm decoding guardrail (existing branch baseline)
 
 The V52 alarm state is the eight-character hexadecimal field at argument index
 15 of the full LTE layout. Production mappings are SOS bit 16, low battery 17,

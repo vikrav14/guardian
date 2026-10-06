@@ -2,14 +2,17 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart' show DateFormat;
 
 import '../models/geofence.dart';
 import '../models/location_history_point.dart';
 import '../theme/app_theme.dart';
-import '../widgets/map/map_avatar_overlay.dart';
-import '../widgets/map/person_map_marker.dart';
+import '../safe_zones/safe_zone_logic.dart' show haversineMeters;
+import 'journey_replay_overlay.dart';
+import 'journey_endpoint_icons.dart';
 import 'journey_v2_data.dart';
 
 class JourneyV2StaticMapController {
@@ -44,6 +47,7 @@ class JourneyV2StaticMap extends StatefulWidget {
     this.originGeofence,
     this.controller,
     this.onPointSelected,
+    this.mapPadding = EdgeInsets.zero,
   });
 
   final JourneyV2Route route;
@@ -57,82 +61,86 @@ class JourneyV2StaticMap extends StatefulWidget {
   final Geofence? originGeofence;
   final JourneyV2StaticMapController? controller;
   final ValueChanged<int>? onPointSelected;
+  final EdgeInsets mapPadding;
 
   @override
   State<JourneyV2StaticMap> createState() => _JourneyV2StaticMapState();
 }
 
-class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
-    with TickerProviderStateMixin {
+class _JourneyV2StaticMapState extends State<JourneyV2StaticMap> {
   GoogleMapController? _controller;
   final ValueNotifier<int> _cameraGeneration = ValueNotifier<int>(0);
-  BitmapDescriptor? _replayAvatarIcon;
-  late final AnimationController _pulseController;
-  late final AnimationController _movementController;
-  LatLng? _movementFrom;
-  LatLng? _movementTo;
+  bool _animateReplay = false;
+  bool _fitting = false;
+  bool _fitPending = false;
+  late List<LocationHistoryPoint> _points;
   MapType _mapType = MapType.normal;
+  ({BitmapDescriptor start, BitmapDescriptor end})? _endpointIcons;
+  Object? _endpointStyle;
+  int _iconGeneration = 0;
 
   static const _routeColor = Color(0xFF4F5CCB);
   static const _gpsEvidenceColor = Color(0xFF2563EB);
   static const _googleEvidenceColor = Color(0xFF7C3AED);
-  static const _replayColor = Color(0xFFFFA000);
-
-  List<LocationHistoryPoint> get _points =>
-      journeyV2StaticMapPoints(widget.route);
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 950),
-    )..addListener(_rebuildAnimation);
-    _movementController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 680),
-    )..addListener(_rebuildAnimation);
-    if (widget.showReplayPosition) {
-      _startPulse();
-      unawaited(_loadReplayAvatarIcon());
-    }
+    _points = journeyV2StaticMapPoints(widget.route);
     widget.controller?._attach(_fitRoute);
   }
 
-  void _rebuildAnimation() {
-    if (mounted) setState(() {});
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _prepareEndpointIcons();
   }
 
-  void _startPulse() {
-    if (!_pulseController.isAnimating) {
-      _pulseController.repeat(reverse: true);
-    }
-  }
-
-  Future<void> _loadReplayAvatarIcon() async {
-    if (kIsWeb || !widget.showReplayPosition) return;
-
-    final name = widget.deviceName.trim().isEmpty
-        ? 'Wearer'
-        : widget.deviceName.trim();
-    final identityKey = widget.deviceImei.trim().isEmpty
-        ? name
-        : widget.deviceImei.trim();
-
-    try {
-      final icon = await PersonMapMarker.create(
-        initials: initialsFor(name),
-        color: avatarColorForKey(identityKey),
-        selected: false,
-        surfaceColor: Colors.white,
-        imageUrl: widget.avatarUrl,
-      );
-      if (!mounted) return;
-      setState(() => _replayAvatarIcon = icon);
-    } catch (_) {
-      // The orange replay core remains a reliable fallback if avatar rendering
-      // is unavailable on a platform or the image cannot be loaded.
-    }
+  void _prepareEndpointIcons() {
+    final colors = context.guardianColors;
+    final journey = widget.route.record;
+    final style = (
+      journeyV2DepartureCaption(widget.route),
+      journeyV2ArrivalCaption(widget.route),
+      journey.routeStartAnchored
+          ? journey.confirmedDepartureAt
+          : (_points.isEmpty
+                ? journey.startAt
+                : _points.first.recordedAt ?? journey.startAt),
+      journey.confirmedReturnAt,
+      colors.surface,
+      colors.textSecondary,
+      MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0),
+    );
+    if (style == _endpointStyle) return;
+    _endpointStyle = style;
+    _endpointIcons = null;
+    final generation = ++_iconGeneration;
+    unawaited(() async {
+      try {
+        final start = await journeyEndpointIcon(
+          caption: style.$1,
+          time: DateFormat.Hm().format(style.$3),
+          departure: true,
+          surface: style.$5,
+          foreground: style.$6,
+          pixelRatio: style.$7,
+        );
+        final end = await journeyEndpointIcon(
+          caption: style.$2,
+          time: DateFormat.Hm().format(style.$4),
+          departure: false,
+          surface: style.$5,
+          foreground: style.$6,
+          pixelRatio: style.$7,
+        );
+        if (!mounted || generation != _iconGeneration) return;
+        setState(() => _endpointIcons = (start: start, end: end));
+      } catch (_) {
+        // Endpoint captions remain available in Journey details if rendering
+        // fails. Never fall back to the misleading red/green default pins.
+      }
+    }());
   }
 
   @override
@@ -142,113 +150,60 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       oldWidget.controller?._detach(_fitRoute);
       widget.controller?._attach(_fitRoute);
     }
-    if (oldWidget.route.record.id != widget.route.record.id ||
+    final routeChanged =
+        oldWidget.route.record.id != widget.route.record.id ||
         oldWidget.route.record.polyline != widget.route.record.polyline ||
         oldWidget.route.presentation?.generatedAt !=
-            widget.route.presentation?.generatedAt) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _fitRoute());
+            widget.route.presentation?.generatedAt;
+    if (oldWidget.route != widget.route) {
+      _points = journeyV2StaticMapPoints(widget.route);
+      _prepareEndpointIcons();
     }
-    if (oldWidget.currentIndex != widget.currentIndex) {
-      _animateReplayMovement(oldWidget.currentIndex, widget.currentIndex);
+    if (routeChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_fitRoute());
+      });
     }
-    final avatarChanged =
-        oldWidget.deviceName != widget.deviceName ||
-        oldWidget.deviceImei != widget.deviceImei ||
-        oldWidget.avatarUrl != widget.avatarUrl;
-    if (oldWidget.showReplayPosition != widget.showReplayPosition) {
-      if (widget.showReplayPosition) {
-        _startPulse();
-        unawaited(_loadReplayAvatarIcon());
-      } else {
-        _pulseController.stop();
-        _pulseController.value = 0;
-        _replayAvatarIcon = null;
-      }
-    } else if (widget.showReplayPosition && avatarChanged) {
-      _replayAvatarIcon = null;
-      unawaited(_loadReplayAvatarIcon());
-    }
-  }
-
-  void _animateReplayMovement(int fromIndex, int toIndex) {
-    final points = _points;
-    if (points.isEmpty ||
-        fromIndex < 0 ||
-        fromIndex >= points.length ||
-        toIndex < 0 ||
-        toIndex >= points.length) {
-      return;
-    }
-
-    final crossesTrackingGap = !widget.route.hasPresentation &&
-        widget.route.record.routeGaps.any(
-      (gap) =>
-          gap.fromPointIndex == fromIndex && gap.toPointIndex == toIndex,
-    );
-    if (crossesTrackingGap) {
-      _movementController.stop();
-      _movementFrom = null;
-      _movementTo = null;
-      return;
-    }
-
-    _movementFrom = _displayReplayPoint(
-      fallback: LatLng(points[fromIndex].lat, points[fromIndex].lng),
-    );
-    _movementTo = LatLng(points[toIndex].lat, points[toIndex].lng);
-    _movementController.forward(from: 0);
-  }
-
-  LatLng _displayReplayPoint({required LatLng fallback}) {
-    final from = _movementFrom;
-    final to = _movementTo;
-    if (from == null || to == null || !_movementController.isAnimating) {
-      return fallback;
-    }
-    final progress = Curves.easeInOutCubic.transform(
-      _movementController.value,
-    );
-    return LatLng(
-      from.latitude + ((to.latitude - from.latitude) * progress),
-      from.longitude + ((to.longitude - from.longitude) * progress),
-    );
+    // Do not interpolate across a tracking gap or when selecting another trip.
+    _animateReplay =
+        !routeChanged &&
+        (widget.route.hasPresentation ||
+            !widget.route.record.routeGaps.any(
+              (gap) =>
+                  gap.fromPointIndex == oldWidget.currentIndex &&
+                  gap.toPointIndex == widget.currentIndex,
+            ));
   }
 
   @override
   void dispose() {
     widget.controller?._detach(_fitRoute);
-    _pulseController.dispose();
-    _movementController.dispose();
     _cameraGeneration.dispose();
-    _controller?.dispose();
+    // GoogleMap owns and disposes its controller exactly once.
+    _controller = null;
     super.dispose();
   }
 
   Future<void> _fitRoute() async {
-    final controller = _controller;
-    final points = _points;
-    if (controller == null || points.isEmpty) return;
-
-    if (points.length == 1) {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(points.first.lat, points.first.lng),
-          16,
-        ),
-      );
-      return;
-    }
-
-    final bounds = journeyV2Bounds(points);
-    if (bounds == null) return;
-
+    _fitPending = true;
+    if (_fitting || !mounted) return;
+    _fitting = true;
     try {
-      await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 44));
-    } catch (_) {
-      final middle = points[points.length ~/ 2];
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(middle.lat, middle.lng), 14),
-      );
+      while (mounted && _fitPending) {
+        _fitPending = false;
+        final controller = _controller;
+        final bounds = journeyV2Bounds(_points);
+        if (controller == null || bounds == null) return;
+        try {
+          await controller.animateCamera(
+            CameraUpdate.newLatLngBounds(bounds, 44),
+          );
+        } catch (_) {
+          // Navigation may have disposed the map while the fit was pending.
+        }
+      }
+    } finally {
+      _fitting = false;
     }
   }
 
@@ -316,13 +271,14 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         : widget.currentIndex >= latLngs.length
         ? latLngs.length - 1
         : widget.currentIndex;
-    final replayPoint = _displayReplayPoint(fallback: latLngs[replayIndex]);
-    final replayBaseRadius = journeyV2ReplayHaloRadius(points);
-    final replayCoreRadius = (replayBaseRadius * 0.38)
-        .clamp(11.0, 55.0)
-        .toDouble();
+    final replayPoint = latLngs[replayIndex];
 
-    final markers = journeyV2EndpointMarkers(widget.route, points);
+    final markers = journeyV2EndpointMarkers(
+      widget.route,
+      points,
+      startIcon: _endpointIcons?.start,
+      endIcon: _endpointIcons?.end,
+    );
     final circles = journeyV2EndpointCircles(
       widget.route,
       points,
@@ -336,72 +292,11 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
     }
     final polylines = <Polyline>{};
 
-    final replayAvatarIcon = _replayAvatarIcon;
-    if (widget.showReplayPosition &&
-        !kIsWeb &&
-        replayAvatarIcon != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('journey-replay-avatar'),
-          position: replayPoint,
-          icon: replayAvatarIcon,
-          anchor: const Offset(0.5, 0.5),
-          zIndexInt: 40,
-        ),
-      );
-    }
-
-    if (widget.showReplayPosition) {
-      final pulse = Curves.easeInOut.transform(_pulseController.value);
-      circles.add(
-        Circle(
-          circleId: const CircleId('journey-replay-pulse'),
-          center: replayPoint,
-          radius: replayBaseRadius * (1 + (0.9 * pulse)),
-          fillColor: _replayColor.withValues(
-            alpha: 0.14 - (0.07 * pulse),
-          ),
-          strokeColor: _replayColor.withValues(
-            alpha: 0.78 - (0.34 * pulse),
-          ),
-          strokeWidth: 2,
-          zIndex: 30,
-        ),
-      );
-      circles.add(
-        Circle(
-          circleId: const CircleId('journey-replay-position'),
-          center: replayPoint,
-          radius: replayCoreRadius,
-          fillColor: _replayColor,
-          strokeColor: Colors.white,
-          strokeWidth: 4,
-          zIndex: 31,
-        ),
-      );
-    }
-
-    if (widget.onPointSelected != null) {
-      for (var index = 0; index < latLngs.length; index++) {
-        circles.add(
-          Circle(
-            circleId: CircleId('journey-point-hit-$index'),
-            center: latLngs[index],
-            radius: 22,
-            fillColor: Colors.transparent,
-            strokeColor: Colors.transparent,
-            strokeWidth: 0,
-            consumeTapEvents: true,
-            onTap: () => widget.onPointSelected!(index),
-            zIndex: 20,
-          ),
-        );
-      }
-    }
-
-    for (var gapIndex = 0;
-        !hasPresentation && gapIndex < widget.route.record.routeGaps.length;
-        gapIndex++) {
+    for (
+      var gapIndex = 0;
+      !hasPresentation && gapIndex < widget.route.record.routeGaps.length;
+      gapIndex++
+    ) {
       final gap = widget.route.record.routeGaps[gapIndex];
       final stoppedIndex = gap.fromPointIndex;
       final resumeIndex = gap.toPointIndex;
@@ -478,7 +373,9 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         );
         polylines.add(
           Polyline(
-            polylineId: PolylineId('journey-presentation-${segment.source}-$index'),
+            polylineId: PolylineId(
+              'journey-presentation-${segment.source}-$index',
+            ),
             points: segmentPoints,
             color: color.withValues(alpha: revealGpsBridge ? 0.74 : 0.96),
             width: 3,
@@ -548,9 +445,7 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
         polylines.add(
           Polyline(
             polylineId: PolylineId('journey-route-replayed-$index'),
-            points: [
-              for (final point in segment) LatLng(point.lat, point.lng),
-            ],
+            points: [for (final point in segment) LatLng(point.lat, point.lng)],
             color: _routeColor,
             width: 4,
             startCap: Cap.roundCap,
@@ -573,19 +468,20 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
                 zoom: 13,
               ),
               onMapCreated: (controller) {
+                if (!mounted) return;
                 _controller = controller;
                 _cameraGeneration.value++;
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _fitRoute(),
-                );
-                Future<void>.delayed(const Duration(milliseconds: 350), () {
-                  if (mounted) _fitRoute();
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) unawaited(_fitRoute());
                 });
               },
               markers: markers,
               circles: circles,
               polylines: polylines,
               mapType: _mapType,
+              padding: widget.mapPadding,
+              style:
+                  '[{"featureType":"poi","stylers":[{"visibility":"off"}]},{"featureType":"transit","stylers":[{"visibility":"off"}]}]',
               compassEnabled: false,
               mapToolbarEnabled: false,
               myLocationButtonEnabled: false,
@@ -593,34 +489,46 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
               zoomControlsEnabled: false,
               rotateGesturesEnabled: false,
               tiltGesturesEnabled: false,
+              gestureRecognizers: {
+                Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+              },
+              onTap: widget.onPointSelected == null
+                  ? null
+                  : (position) {
+                      final index = journeyV2NearestPointIndex(
+                        points,
+                        position,
+                      );
+                      if (index != null) widget.onPointSelected?.call(index);
+                    },
               onCameraMove: (_) {
-                if (kIsWeb) _cameraGeneration.value++;
+                if (mounted) _cameraGeneration.value++;
               },
               onCameraIdle: () {
-                if (kIsWeb) _cameraGeneration.value++;
+                if (mounted) _cameraGeneration.value++;
               },
             ),
           ),
-          if (kIsWeb && widget.showReplayPosition)
+          if (widget.showReplayPosition)
             Positioned.fill(
               child: ValueListenableBuilder<int>(
                 valueListenable: _cameraGeneration,
                 builder: (context, generation, _) {
-                  return JourneyMapAvatarOverlay(
+                  return JourneyReplayOverlay(
                     controller: _controller,
-                    slots: [
-                      JourneyMapAvatarSlot(
-                        id: 'journey-replay-avatar',
-                        latLng: replayPoint,
-                        selected: false,
-                      ),
-                    ],
+                    position: replayPoint,
+                    animatePosition: _animateReplay,
                     cameraGeneration: generation,
                     deviceName: widget.deviceName,
-                    imei: widget.deviceImei.trim().isEmpty
+                    identityKey: widget.deviceImei.trim().isEmpty
                         ? widget.deviceName
                         : widget.deviceImei,
                     avatarUrl: widget.avatarUrl,
+                    recordedAt:
+                        replayIndex == 0 &&
+                            widget.route.record.routeStartAnchored
+                        ? widget.route.record.confirmedDepartureAt
+                        : points[replayIndex].recordedAt,
                   );
                 },
               ),
@@ -630,43 +538,23 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
               right: 16,
               top: 72,
               child: Material(
-                color: Colors.white.withValues(alpha: 0.96),
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(12),
                 elevation: 2,
-                child: InkWell(
+                child: IconButton(
                   key: const ValueKey('journey-map-type-toggle'),
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => setState(() {
+                  tooltip: _mapType == MapType.normal ? 'Satellite' : 'Map',
+                  onPressed: () => setState(() {
                     _mapType = _mapType == MapType.normal
                         ? MapType.satellite
                         : MapType.normal;
                   }),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _mapType == MapType.normal
-                              ? Icons.satellite_alt_rounded
-                              : Icons.map_outlined,
-                          size: 17,
-                          color: GuardianColors.forest,
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          _mapType == MapType.normal ? 'Satellite' : 'Map',
-                          style: const TextStyle(
-                            color: GuardianColors.forest,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
+                  icon: Icon(
+                    _mapType == MapType.normal
+                        ? Icons.satellite_alt_rounded
+                        : Icons.map_outlined,
+                    size: 22,
+                    color: colors.textPrimary,
                   ),
                 ),
               ),
@@ -675,6 +563,32 @@ class _JourneyV2StaticMapState extends State<JourneyV2StaticMap>
       ),
     );
   }
+}
+
+/// Hit-test the route without allocating a native circle for every point.
+/// Keep the original 22 metre hit radius and replay indexes, including the
+/// provider-derived display points when a presentation is available.
+int? journeyV2NearestPointIndex(
+  List<LocationHistoryPoint> points,
+  LatLng position, {
+  double radiusMeters = 22,
+}) {
+  int? nearest;
+  var distance = radiusMeters;
+  for (var index = 0; index < points.length; index++) {
+    final point = points[index];
+    final candidate = haversineMeters(
+      position.latitude,
+      position.longitude,
+      point.lat,
+      point.lng,
+    );
+    if (candidate <= distance) {
+      nearest = index;
+      distance = candidate;
+    }
+  }
+  return nearest;
 }
 
 /// Google map circles are measured in metres. Scale the replay halo with the
@@ -702,42 +616,50 @@ double journeyV2ReplayHaloRadius(List<LocationHistoryPoint> points) {
       metresPerLatitudeDegree *
       math.cos(middleLatitudeRadians).abs();
   final diagonalMetres = math.sqrt(
-    (latitudeMetres * latitudeMetres) +
-        (longitudeMetres * longitudeMetres),
+    (latitudeMetres * latitudeMetres) + (longitudeMetres * longitudeMetres),
   );
 
   return (diagonalMetres * 0.0045).clamp(24.0, 260.0).toDouble();
 }
 
-/// Default Google marker hues are not consistently honoured on web. Confirmed
-/// round trips therefore use colored circles below instead of a pin that can
-/// incorrectly render red. Non-return journeys retain endpoint pins.
+String journeyV2DepartureCaption(JourneyV2Route route) {
+  final origin = route.record.originGeofenceName?.trim();
+  return route.record.routeStartAnchored && origin != null && origin.isNotEmpty
+      ? 'Left $origin'
+      : 'First recorded';
+}
+
+String journeyV2ArrivalCaption(JourneyV2Route route) =>
+    route.record.hasConfirmedReturn
+    ? 'Returned ${route.record.originGeofenceName!.trim()}'
+    : 'Last recorded';
+
+/// Custom neutral labels only: never show default red/green endpoint pins.
 Set<Marker> journeyV2EndpointMarkers(
   JourneyV2Route route,
-  List<LocationHistoryPoint> points,
-) {
-  if (points.isEmpty) return <Marker>{};
-
-  if (route.record.hasConfirmedReturn) return <Marker>{};
+  List<LocationHistoryPoint> points, {
+  BitmapDescriptor? startIcon,
+  BitmapDescriptor? endIcon,
+}) {
+  if (points.isEmpty || startIcon == null || endIcon == null) return <Marker>{};
 
   final start = LatLng(points.first.lat, points.first.lng);
   final end = LatLng(points.last.lat, points.last.lng);
-  final origin = route.record.originGeofenceName?.trim();
 
   return <Marker>{
     Marker(
       markerId: const MarkerId('journey-start'),
       position: start,
-      infoWindow: InfoWindow(
-        title: origin == null || origin.isEmpty ? 'Departure' : 'Left $origin',
-      ),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      infoWindow: InfoWindow(title: journeyV2DepartureCaption(route)),
+      icon: startIcon,
+      anchor: const Offset(0.5, 53 / 58),
     ),
     Marker(
       markerId: const MarkerId('journey-arrival'),
       position: end,
-      infoWindow: const InfoWindow(title: 'Last recorded location'),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      infoWindow: InfoWindow(title: journeyV2ArrivalCaption(route)),
+      icon: endIcon,
+      anchor: const Offset(0.5, 5 / 58),
     ),
   };
 }
@@ -750,7 +672,8 @@ Set<Circle> journeyV2EndpointCircles(
   if (!route.record.hasConfirmedReturn || points.isEmpty) return <Circle>{};
 
   final configuredZone = originGeofence;
-  final hasConfiguredSafeZone = configuredZone != null &&
+  final hasConfiguredSafeZone =
+      configuredZone != null &&
       configuredZone.active &&
       _basicValid(configuredZone.lat, configuredZone.lng) &&
       configuredZone.radiusMeters > 0;
@@ -779,7 +702,7 @@ Set<Circle> journeyV2EndpointCircles(
       circleId: const CircleId('journey-origin-core'),
       center: center,
       radius: 13,
-      fillColor: GuardianColors.safe,
+      fillColor: const Color(0xFF596B72),
       strokeColor: Colors.white,
       strokeWidth: 3,
       zIndex: 25,
@@ -822,11 +745,14 @@ List<LocationHistoryPoint> journeyV2RecordedGpsEvidencePoints(
   List<LocationHistoryPoint> validGpsPoints(
     Iterable<LocationHistoryPoint> points,
   ) {
-    return points.where((point) {
-      if (!_basicValid(point.lat, point.lng)) return false;
-      final source = (point.source ?? point.accuracySource ?? '').toLowerCase();
-      return point.gpsValid == true || source == 'gps';
-    }).toList(growable: false);
+    return points
+        .where((point) {
+          if (!_basicValid(point.lat, point.lng)) return false;
+          final source = (point.source ?? point.accuracySource ?? '')
+              .toLowerCase();
+          return point.gpsValid == true || source == 'gps';
+        })
+        .toList(growable: false);
   }
 
   final usableEvidence = validGpsPoints(route.usablePoints);
@@ -1041,9 +967,7 @@ typedef JourneyV2EvidenceSegment = ({
   List<LocationHistoryPoint> points,
 });
 
-List<JourneyV2EvidenceSegment> journeyV2EvidenceSegments(
-  JourneyV2Route route,
-) {
+List<JourneyV2EvidenceSegment> journeyV2EvidenceSegments(JourneyV2Route route) {
   final output = <JourneyV2EvidenceSegment>[];
   for (final continuous in journeyV2StaticMapSegments(route)) {
     if (continuous.length < 2) continue;
@@ -1059,7 +983,10 @@ List<JourneyV2EvidenceSegment> journeyV2EvidenceSegments(
         current.add(continuous[index]);
         continue;
       }
-      output.add((approximate: approximate, points: List.unmodifiable(current)));
+      output.add((
+        approximate: approximate,
+        points: List.unmodifiable(current),
+      ));
       approximate = nextApproximate;
       current = <LocationHistoryPoint>[
         continuous[index - 1],
@@ -1125,15 +1052,18 @@ List<JourneyV2PresentationMapSegment> journeyV2PresentationMapSegments(
   final output = <JourneyV2PresentationMapSegment>[];
   for (final segment in presentation.segments) {
     final coordinates = journeyV2DecodePolylineWebSafe(segment.polyline);
-    final points = [
-      for (final coordinate in coordinates)
-        LocationHistoryPoint(
-          lat: coordinate.lat,
-          lng: coordinate.lng,
-          source: segment.source,
-          gpsValid: segment.source == 'gps',
-        ),
-    ].where((point) => _basicValid(point.lat, point.lng)).toList(growable: false);
+    final points =
+        [
+              for (final coordinate in coordinates)
+                LocationHistoryPoint(
+                  lat: coordinate.lat,
+                  lng: coordinate.lng,
+                  source: segment.source,
+                  gpsValid: segment.source == 'gps',
+                ),
+            ]
+            .where((point) => _basicValid(point.lat, point.lng))
+            .toList(growable: false);
     if (points.length >= 2) {
       output.add((source: segment.source, points: List.unmodifiable(points)));
     }
@@ -1161,9 +1091,11 @@ List<LocationHistoryPoint> _webSafePresentationPoints(
     for (final coordinateIndex in indexes) {
       final coordinate = coordinates[coordinateIndex];
       final ratio = coordinateIndex / (coordinates.length - 1);
-      final offsetMs = segment.fromOffsetMs +
+      final offsetMs =
+          segment.fromOffsetMs +
           ((segment.toOffsetMs - segment.fromOffsetMs) * ratio).round();
-      final sourcePointIndex = segment.fromPointIndex +
+      final sourcePointIndex =
+          segment.fromPointIndex +
           ((segment.toPointIndex - segment.fromPointIndex) * ratio).round();
       final point = LocationHistoryPoint(
         lat: coordinate.lat,
@@ -1171,14 +1103,13 @@ List<LocationHistoryPoint> _webSafePresentationPoints(
         source: segment.source,
         accuracySource: segment.source,
         gpsValid: segment.source == 'gps',
-        recordedAt: route.record.startAt.add(
-          Duration(milliseconds: offsetMs),
-        ),
+        recordedAt: route.record.startAt.add(Duration(milliseconds: offsetMs)),
         sourcePointIndex: sourcePointIndex,
       );
       if (!_basicValid(point.lat, point.lng)) continue;
       final previous = output.isEmpty ? null : output.last;
-      final duplicate = previous != null &&
+      final duplicate =
+          previous != null &&
           (previous.lat - point.lat).abs() < 0.0000001 &&
           (previous.lng - point.lng).abs() < 0.0000001 &&
           previous.recordedAt == point.recordedAt;

@@ -37,7 +37,7 @@ async function executeMovement({ access, payload, store, transport, authorizeAga
     }
     status = 'replies_observed';
   } catch (error) {
-    status = writeAttempted ? 'unconfirmed' : 'not_sent';
+    status = error?.code === 'camera_busy' ? 'not_sent' : writeAttempted ? 'unconfirmed' : 'not_sent';
     reason = error instanceof MovementError ? error.code : 'operation_interrupted';
   }
   // If this fails, the durable sending record expires to unconfirmed. Never
