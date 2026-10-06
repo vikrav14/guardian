@@ -59,3 +59,18 @@ During the next operator-triggered SOS/fall check on Guardian, record carrier SM
 receipt separately from platform alarm receipt, initial WhatsApp delivery, calls,
 and photo/AI results. Do not generate an alarm just to validate this setting.
 No changes to contacts or emergency notification delivery are part of this work.
+
+## Guardian rollout, 6 October 2026
+
+All 1,722 gateway tests passed. With no active or queued incident work and no
+remaining ingress observation, the combined local gateway loaded commit
+`76aecf2` at 14:24:21 MUT. The original working directory, private environment
+and ngrok process/endpoints were preserved, including the photo availability
+changes from PR #147.
+
+Fresh watch telemetry created the session intent at 14:24:42.689. The fixed off
+command was handed off at 14:24:42.695; its bare reply was observed at
+14:24:43.026. Only one SMS-switch downlink was recorded. Further telemetry
+arrived and photo/AI worker cycles completed. This verifies the Guardian sender
+and reply path, not carrier SMS suppression or reboot persistence. No test alarm,
+call or capture was generated during rollout.
