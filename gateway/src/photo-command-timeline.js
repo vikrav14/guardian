@@ -10,7 +10,7 @@ const DURING_LIMIT = 48;
 const SOURCES = new Set(['downlink', 'protocol_ack', 'photo_capture', 'movement_settings', 'wifi_fence_trial']);
 const COMMANDS = new Set(('CR UPLOAD RCAPTURE CONFIG ICCID RYIMEI APPCONTACTTEL APPANDFNREPORT ' +
   'LK TKQ TK EICARD AL AL_LTE UD UD_LTE SEDENTARY SEDENTARYWORKTIME HRTSTART BODYTEMP BODYTEMP2 ' +
-  'REMOVE VERNO FIND MONITOR CALL CENTER SOS1 SOS2 SOS3 PHBX WIFIFENCE FALLDOWN LSSET TAKEPILLS HSW REMIND').split(' '));
+  'REMOVE VERNO FIND MONITOR CALL CENTER SOS1 SOS2 SOS3 PHBX WIFIFENCE FALLDOWN LSSET TAKEPILLS HSW REMIND SMSONOFF').split(' '));
 const END_REASONS = new Set(['image_received', 'failed', 'disconnected', 'expired']);
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
 const iso = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)

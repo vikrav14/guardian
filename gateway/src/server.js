@@ -66,6 +66,7 @@ const { selectHomeWifiTracking } = require('./wifi-home-tracking');
 const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 const { observeMovementReply } = require('./movement-reminder-transport');
 const { observeMedicationReply } = require('./medication-settings-transport');
+const watchSmsPolicy = require('./watch-sms-policy').createWatchSmsPolicy();
 
 const {
   incrementEvent,
@@ -1451,6 +1452,8 @@ const server = net.createServer((socket) => {
 
       });
 
+      watchSmsPolicy.observe(decoded, events, socket, session);
+
     }
 
   });
@@ -1482,6 +1485,7 @@ const server = net.createServer((socket) => {
 
 
   socket.on('close', (hadError) => {
+    watchSmsPolicy.disconnect(socket);
     snapshotController?.disconnect(socket);
 
     const session = getSession(socket);
