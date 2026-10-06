@@ -13,6 +13,7 @@ async function provisionFamilyService(db, manifest, { apply = false } = {}) {
       !Array.isArray(verifiedMemberUids) || verifiedMemberUids.length > 20 ||
       verifiedMemberUids.some(uid => !/^[^/\s]{1,128}$/.test(uid))) fail('invalid_manifest', 400);
   const members = [...new Set([ownerUid, ...verifiedMemberUids])];
+  const preserveExisting = manifest.migration?.preserveExistingNotifications === true;
   return db.runTransaction(async tx => {
     const ref = db.collection('familyServices').doc(imei), existing = await tx.get(ref);
     const contractRef = db.collection('familyContracts').doc(hash(contractId));
@@ -28,12 +29,43 @@ async function provisionFamilyService(db, manifest, { apply = false } = {}) {
       if (!user) fail('member_not_found');
       profiles.push({ uid, user });
     }
+    let subscription = { version: 1, managedBy: 'guardian_admin', plan, status: 'active' };
+    let legacyNotifications;
+    if (preserveExisting) {
+      // Only an already linked service owner can use this migration. Reference
+      // the existing subscription; do not manufacture a new paid agreement.
+      const owner = profiles.find(profile => profile.uid === ownerUid).user;
+      const sourcePath = `serviceSubscriptions/${ownerUid}`;
+      if (manifest.migration.sourceSubscription !== sourcePath ||
+          contractId !== `migration:${sourcePath}:${imei}` ||
+          (owner.serviceOwnerUid || ownerUid) !== ownerUid ||
+          !linked.docs.some(doc => doc.id === ownerUid)) fail('existing_owner_required');
+      subscription = (await tx.get(db.doc(sourcePath))).data();
+      if (subscription?.plan !== plan || !require('./entitlements').evaluateSubscription(subscription).serviceActive)
+        fail('active_matching_subscription_required');
+      const contacts = [];
+      for (const { uid, user } of profiles.filter(profile => linked.docs.some(doc => doc.id === profile.uid))) {
+        const entitlement = await require('./entitlements').loadEntitlementsForUser({
+          collection: name => ({ doc: id => ({ get: () => tx.get(db.collection(name).doc(id)) }) }),
+        }, { ...user, uid });
+        if (!entitlement.serviceActive) continue;
+        for (const [index, contact] of (user.emergencyContacts || []).entries()) {
+          if (!contact?.phone) continue;
+          contacts.push({ guardianUid: uid, name: contact.name || 'Contact',
+            phone: String(contact.phone).trim(), whatsapp: contact.whatsapp ? String(contact.whatsapp).trim() : null,
+            isPrimary: contact.isPrimary === true, contactIndex: index,
+            // Preserve each existing contact's entitlement, including Essential limits.
+            sourceSubscriptionOwnerUid: entitlement.ownerUid });
+        }
+      }
+      legacyNotifications = { contacts, preservedAt: new Date(), sourceSubscription: sourcePath };
+    }
     // Preserve legacy members' access in the reviewed migration; narrow it
     // afterwards with an explicit owner action. Do not silently drop people.
     const all = Object.fromEntries(PERMISSIONS.map(key => [key, true]));
     const service = { imei, ownerUid, wearerName: watch.nickname || watch.name || 'Family member',
       policyVersion: POLICY_VERSION, contractHash: hash(contractId), invites: {},
-      subscription: { version: 1, managedBy: 'guardian_admin', plan, status: 'active' },
+      subscription, ...(legacyNotifications ? { legacyNotifications } : {}),
       members: Object.fromEntries(profiles.map(({ uid, user }) => [uid, {
         name: user.displayName || user.email || 'Family member', email: user.email || null,
         status: 'active', role: uid === ownerUid ? 'owner' : 'caregiver', permissions: all,
@@ -41,11 +73,15 @@ async function provisionFamilyService(db, manifest, { apply = false } = {}) {
       }])), createdAt: new Date() };
     const preview = { imei, ownerUid, plan, people: members.length, limit: PLANS[plan].people,
       overLimit: members.length > PLANS[plan].people, whatsappRecipients: 0,
-      warning: 'WhatsApp safety recipients must link and consent before the service is activated for customers.' };
+      notificationRouting: preserveExisting ? 'legacy_preserved' : 'family',
+      preservedContacts: legacyNotifications?.contacts.length || 0,
+      warning: preserveExisting
+        ? 'Existing alert contacts are preserved. New WhatsApp recipient selection remains pending verified linking and a reviewed cutover.'
+        : 'WhatsApp safety recipients must link and consent before the service is activated for customers.' };
     if (!apply) return { applied: false, ...preview };
     // Existing safety routes need a separately reviewed, consent-preserving
     // cutover. Never silently replace a live contact list with zero recipients.
-    if (profiles.some(({ user }) => (user.emergencyContacts || []).some(contact => contact?.phone || contact?.whatsapp)))
+    if (!preserveExisting && profiles.some(({ user }) => (user.emergencyContacts || []).some(contact => contact?.phone || contact?.whatsapp)))
       fail('existing_notification_migration_required');
     // Creating authority also changes routing, so activation must be a separately
     // reviewed deployment. This utility is not run by startup, billing or tests.

@@ -10,8 +10,9 @@ import 'package:guardian/theme/colors.dart';
 import 'package:guardian/widgets/navigation/guardian_navigation.dart';
 
 class _Client implements FamilySharingClient {
-  _Client({this.owner = true, this.error});
+  _Client({this.owner = true, this.error, this.preserved = false});
   final bool owner;
+  final bool preserved;
   final Object? error;
   final List<Map<String, dynamic>> changes = [];
   @override
@@ -33,6 +34,7 @@ class _Client implements FamilySharingClient {
         },
         'usage': {'used': 24, 'reserved': 0},
         'overLimit': false,
+        'notificationRouting': preserved ? 'legacy_preserved' : 'family',
         'pending': [],
         'members': [
           {
@@ -127,6 +129,32 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 void main() {
+  testWidgets(
+    'preserved alert routing is explicit and cannot be silently replaced',
+    (tester) async {
+      final client = _Client(preserved: true);
+      await _pump(tester, client);
+      await tester.tap(find.text('WhatsApp'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Your existing alert contacts are still active.'),
+        findsOneWidget,
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -450));
+      await tester.pumpAndSettle();
+      final selections = tester
+          .widgetList<SwitchListTile>(find.byType(SwitchListTile))
+          .where(
+            (tile) =>
+                tile.title is Text &&
+                ['Vikesh', 'Neelam'].contains((tile.title! as Text).data),
+          );
+      expect(selections.length, 2);
+      expect(selections.every((tile) => tile.onChanged == null), isTrue);
+      expect(find.text('Link my WhatsApp'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   setUpAll(() async {
     if (Platform.environment['GUARDIAN_FAMILY_REVIEW_DIR'] != null) {
       final font = File('C:/Windows/Fonts/segoeui.ttf');
