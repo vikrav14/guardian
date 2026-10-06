@@ -63,26 +63,50 @@ class _GuardianNavigationShellState extends State<GuardianNavigationShell> {
         currentIndex: _index,
         onTap: _goToTab,
       ),
-      body: NavigatorPopHandler<Object?>(
-        onPopWithResult: (result) =>
-            widget.navigatorKey.currentState!.maybePop(result),
-        child: Navigator(
-          key: widget.navigatorKey,
-          observers: [_routes],
-          onGenerateRoute: (_) => MaterialPageRoute<void>(
-            builder: (context) {
-              final index = HomeShellScope.maybeOf(context)!.currentIndex;
-              return Column(
-                children: [
-                  widget.headerBuilder(_goToTab),
-                  Expanded(
-                    child: IndexedStack(index: index, children: widget.pages),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final media = MediaQuery.of(context);
+          // The shell already reserves the bottom bar's height. Only the part
+          // of the keyboard overlapping this body belongs to inner scaffolds;
+          // passing the full inset would subtract the bar a second time.
+          final belowBody = (media.size.height - constraints.maxHeight).clamp(
+            0.0,
+            media.size.height,
+          );
+          final keyboardInset = (media.viewInsets.bottom - belowBody).clamp(
+            0.0,
+            media.viewInsets.bottom,
+          );
+          return MediaQuery(
+            data: media.copyWith(
+              viewInsets: media.viewInsets.copyWith(bottom: keyboardInset),
+            ),
+            child: NavigatorPopHandler<Object?>(
+              onPopWithResult: (result) =>
+                  widget.navigatorKey.currentState!.maybePop(result),
+              child: Navigator(
+                key: widget.navigatorKey,
+                observers: [_routes],
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (context) {
+                    final index = HomeShellScope.maybeOf(context)!.currentIndex;
+                    return Column(
+                      children: [
+                        widget.headerBuilder(_goToTab),
+                        Expanded(
+                          child: IndexedStack(
+                            index: index,
+                            children: widget.pages,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+        },
       ),
     ),
   );

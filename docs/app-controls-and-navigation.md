@@ -36,6 +36,21 @@ Back returns one level. Selecting a tab returns to that destination's root,
 respecting any page that prevents leaving during an operation. Confirmations
 remain modal. Login has no authenticated navigation. The safe-zone map picker
 and its containing form use the nested navigator so leaving cancels the flow.
+The shell passes only the keyboard inset overlapping its body to nested pages,
+so the bottom bar's reserved height is not counted twice.
+
+## Safe-zone creation
+
+`SafeZoneEditorPage` replaces the cramped creation dialog with a responsive
+page: a person/place card and a boundary card, side by side on wider screens.
+Home, School and Grand-mère’s presets complement editable names; radius presets
+complement a validated 50–5,000 metre field. Confirm the centre in the map picker
+before saving, then review the circle in the form. A watch's last reported
+position is only a starting point for the picker, never an implicitly saved
+centre. Keyboard dismissal preserves the draft, and Create stays above the
+keyboard. Save failures preserve all values; pending saves block repeated
+submissions and navigation. Leaving the form or picker via a tab discards the
+unsaved draft without changing live safe zones.
 
 ## Verification
 
@@ -56,6 +71,11 @@ and its containing form use the nested navigator so leaving cancels the flow.
   disposal failure and `_dependents.isEmpty` cascade before the fix. Regression
   coverage checks Cancel, Android Back, reopening and accepting a trimmed code
   through a fake client; no live invitations or settings are submitted.
+- Safe-zone editor tests cover keyboard geometry at 320 px / enlarged text,
+  390 px and desktop width; validation and exact saved coordinates/radius;
+  picker cancellation, back/tab navigation, saving guards and recoverable
+  failures. Physical-phone review checks keyboard layout and a selected-centre
+  preview without creating a live zone.
 
 Screenshots and device-specific verification remain local; do not commit
 account details, phone numbers, device identifiers or private build settings.
