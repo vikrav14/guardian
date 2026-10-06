@@ -2,9 +2,10 @@
 
 Status: implemented as a gated pilot in PR #145 on 6 October 2026, after
 PRs #147/#148 merged. The branch now contains binary TK receive/send, private
-storage, audio conversion and the Android/Web conversation. The running gateway
-has not been changed or enabled for voice messages. Guardian-to-watch and
-watch-to-Guardian physical acceptance remain pending. See the updated
+storage, audio conversion and the Android/Web conversation. The exact-account
+pilot was installed and enabled at 17:12 MUT. The operator confirmed audible
+short clips in both Guardian Android directions at 17:17. Web hardware playback,
+long clips and adverse-case acceptance remain pending. See the updated
 [reference evidence and controlled check](../testing/voice-chat-reference.md).
 
 ## Product flow
@@ -14,6 +15,22 @@ below Call watch / View journey and above incident Photos.
 Use the selected wearer's identity consistently, with an unread count when
 available. Keep the existing bottom navigation; open a dedicated conversation
 screen from the wearer context.
+
+The conversation uses the wearer's and guardian's profile avatars, with initials
+when no photo is available, and incoming/outgoing bubbles with actual playback
+progress. The Home action shares View journey's typography and button style.
+
+New, durably stored incoming clips trigger one best-effort FCM attempt to the
+authorized pilot guardian's registered devices. The notice is generic and
+contains no audio or wearer name. Receipt replies remain independent of push
+success; duplicate uploads do not create another notification. Android supports
+foreground, background and cold-start taps; Web uses an in-app banner when open
+and a conversation link from its background notification. A tap rechecks the
+signed-in recipient and live message access before opening the conversation.
+An already-open conversation refreshes without autoplay or another popup.
+Provider acceptance does not establish phone delivery. Notification permission,
+registered tokens and network availability are required; real phone receipt and
+tap-to-open still need acceptance for this revision. Push failure is not retried.
 
 - **Watch to guardian:** the wearer records a message using the watch's voice
   message function. An authorized guardian sees an incoming clip, duration,
@@ -234,5 +251,7 @@ gateway environment or deploy a new runtime automatically.
   cap. New messages do not autoplay. Playback marks only **Played here**.
 
 The controlled supplier reference proves short clips in both directions.
-Thirty-second playback, Guardian Android/Web microphone and speaker behavior,
-offline/late-result recovery and multi-guardian policy remain release checks.
+The Guardian Android pilot also passed audible 4.00-second outgoing and
+3.86-second incoming clips. Thirty-second playback, Web microphone/speaker
+behavior, offline/late-result recovery and multi-guardian policy remain release
+checks.

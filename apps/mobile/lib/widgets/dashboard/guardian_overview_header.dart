@@ -8,6 +8,7 @@ import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../guardian_widgets.dart';
 import 'profile_weather_panel.dart';
+import 'dashboard_action_style.dart';
 
 /// A person-first overview. Connection status describes the watch connection;
 /// location provenance and freshness belong to the separate location card.
@@ -376,24 +377,8 @@ class _OverviewActions extends StatelessWidget {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(10),
     );
-    final textStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      fontSize: 14,
-      fontWeight: FontWeight.w700,
-    );
-    final secondaryStyle = OutlinedButton.styleFrom(
-      foregroundColor: colors.textPrimary,
-      disabledForegroundColor: colors.textSecondary,
-      minimumSize: const Size(48, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      side: BorderSide(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? colors.accent
-            : GuardianColors.forest,
-      ),
-      shape: shape,
-      textStyle: textStyle,
-      tapTargetSize: MaterialTapTargetSize.padded,
-    );
+    final textStyle = dashboardActionTextStyle(context);
+    final secondaryStyle = dashboardSecondaryActionStyle(context);
     final journey = OutlinedButton(
       onPressed: onJourney,
       style: secondaryStyle,

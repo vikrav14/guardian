@@ -6,6 +6,7 @@ const { voiceTransport } = require('./voice-message-transport');
 const { convertVoice } = require('./voice-message-audio');
 const { buildAckFrame } = require('./protocol/gt06');
 const { noteDeviceWrite } = require('./photo-command-timeline');
+const { notifyIncomingVoice } = require('./voice-message-notify');
 function createVoiceReceiver({
   getDb,
   runtime = voiceRuntime(),
@@ -14,6 +15,7 @@ function createVoiceReceiver({
   authorize = authorizeVoice,
   convert = convertVoice,
   note = noteDeviceWrite,
+  notify = notifyIncomingVoice,
 } = {}) {
   const busy = new Set();
   function observe(frame, socket, session) {
@@ -65,7 +67,7 @@ function createVoiceReceiver({
         const pcm = await convert(value.audio, 'decode');
         const access = await authorize({ db, uid: runtime.uid, imei, runtime });
         const store = storeFactory(db);
-        await store.put({
+        const stored = await store.put({
           access,
           id: store.incomingId(imei, value.audio),
           direction: 'incoming',
@@ -74,6 +76,11 @@ function createVoiceReceiver({
           durationMs: value.durationMs,
         });
         ack(1); // Only after durable private media + metadata transaction commits.
+        if (stored && !stored.replay) {
+          // Independent of ACK and receive lock; push failure cannot turn a
+          // durably accepted clip into a rejection or trigger another upload.
+          void Promise.resolve().then(() => notify({ db, access, row: stored.row, runtime })).catch(() => {});
+        }
       } catch {
         ack(0);
       } finally {

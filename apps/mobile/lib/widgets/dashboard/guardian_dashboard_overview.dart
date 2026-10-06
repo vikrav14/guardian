@@ -142,6 +142,7 @@ class GuardianDashboardOverview extends StatelessWidget {
                     key: ValueKey('voice-action-${selected.imei}'),
                     imei: selected.imei,
                     wearerName: selected.displayName,
+                    wearerAvatarUrl: selected.avatarUrl,
                   )
                 : null,
             photoAction: IncidentPhotoAction(

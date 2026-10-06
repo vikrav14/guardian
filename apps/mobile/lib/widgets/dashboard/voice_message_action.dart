@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../screens/voice_messages_page.dart';
 import '../../services/voice_messages_service.dart';
+import '../../services/voice_notification.dart';
+import 'dashboard_action_style.dart';
 
 /// Wearer-scoped, read-only entry point. Opening it never sends a recording.
 class VoiceMessageAction extends StatefulWidget {
@@ -10,8 +12,10 @@ class VoiceMessageAction extends StatefulWidget {
     required this.imei,
     required this.wearerName,
     this.client,
+    this.wearerAvatarUrl,
   });
   final String imei, wearerName;
+  final String? wearerAvatarUrl;
   final VoiceMessagesClient? client;
   @override
   State<VoiceMessageAction> createState() => _VoiceMessageActionState();
@@ -22,6 +26,7 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
   late final VoiceMessagesClient _client;
   Timer? _timer;
   StreamSubscription<void>? _auth;
+  StreamSubscription<VoiceNotificationTarget>? _notifications;
   VoiceInbox? _inbox;
   bool _foreground = true, _loading = false;
   int _generation = 0;
@@ -31,6 +36,9 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
     _client = widget.client ?? VoiceMessagesService();
     WidgetsBinding.instance.addObserver(this);
     _auth = _client.accessChanges.listen((_) => _invalidate());
+    _notifications = VoiceNotifications.received.stream.listen((target) {
+      if (target.imei == widget.imei) unawaited(_refresh());
+    });
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_foreground && TickerMode.valuesOf(context).enabled) {
         unawaited(_refresh());
@@ -81,6 +89,7 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     unawaited(_auth?.cancel());
+    unawaited(_notifications?.cancel());
     if (widget.client == null) _client.close();
     super.dispose();
   }
@@ -91,6 +100,7 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: OutlinedButton.icon(
+        style: dashboardSecondaryActionStyle(context),
         key: ValueKey('voice-messages-${widget.imei}'),
         onPressed: () async {
           await Navigator.of(context).push(
@@ -98,6 +108,7 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
               builder: (_) => VoiceMessagesPage(
                 imei: widget.imei,
                 wearerName: widget.wearerName,
+                wearerAvatarUrl: widget.wearerAvatarUrl,
               ),
             ),
           );
@@ -106,7 +117,7 @@ class _VoiceMessageActionState extends State<VoiceMessageAction>
         icon: Badge(
           isLabelVisible: _inbox!.unread > 0,
           label: Text('${_inbox!.unread}'),
-          child: const Icon(Icons.chat_bubble_outline),
+          child: const Icon(Icons.chat_bubble_outline, size: 18),
         ),
         label: Text(
           _inbox!.unread > 0

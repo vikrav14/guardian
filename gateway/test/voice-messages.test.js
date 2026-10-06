@@ -13,6 +13,7 @@ const {
 const { convertVoice, wav } = require('../src/voice-message-audio');
 const { createVoiceTransport } = require('../src/voice-message-transport');
 const { createVoiceReceiver } = require('../src/voice-message-runtime');
+const { notifyIncomingVoice } = require('../src/voice-message-notify');
 const { createVoiceStore } = require('../src/voice-message-store');
 const { sendVoice, createVoiceHandler } = require('../src/voice-message-http');
 const {
@@ -492,6 +493,70 @@ test('disabled or mismatched receiver never leaks binary media to text decoder o
     r.observe(buildVoiceFrame(protocolId, synthetic()), f.socket, f.session),
   );
   assert.equal(f.socket.frames.length, 0);
+});
+
+test('incoming notification is private, authorized and claimed once across duplicate attempts', async () => {
+  const { db, rows } = memoryDb();
+  rows.get('users/' + uid).fcmTokens = ['token-a', 'token-a', 'token-b'];
+  const store = createVoiceStore(db), audio = synthetic();
+  const stored = await store.put({ access, id: store.incomingId(imei, audio), direction: 'incoming', audio, pcm: Buffer.alloc(16000), durationMs: 1000 });
+  const sent = [];
+  const args = { db, access, row: stored.row, runtime, messaging: () => ({ sendEachForMulticast: async message => {
+    sent.push(message); return { successCount: 2, failureCount: 0 };
+  } }) };
+  await Promise.all([notifyIncomingVoice(args), notifyIncomingVoice(args)]);
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0].tokens, ['token-a', 'token-b']);
+  assert.deepEqual(sent[0].notification, { title: 'New voice message', body: 'Open Guardian to listen and reply.' });
+  assert.equal(sent[0].data.recipientUid, uid);
+  assert.equal(sent[0].android.notification.channelId, 'guardian_messages');
+  assert.equal(sent[0].android.notification.visibility, 'private');
+  assert.equal(rows.get('voiceMessages/' + stored.row.id).notification.accepted, 2);
+  assert(!JSON.stringify(sent[0]).includes(audio.toString('base64')));
+});
+
+test('notification skips missing tokens, revoked access and deleted/expired audio', async () => {
+  for (const condition of ['no_tokens', 'revoked', 'deleted', 'expired']) {
+    const { db, rows } = memoryDb(), store = createVoiceStore(db), audio = synthetic();
+    if (condition !== 'no_tokens') rows.get('users/' + uid).fcmTokens = ['token'];
+    const { row } = await store.put({ access, id: store.incomingId(imei, audio), direction: 'incoming', audio, pcm: Buffer.alloc(16000), durationMs: 1000 });
+    if (condition === 'revoked') rows.get('users/' + uid).linkedImeis = [];
+    if (condition === 'deleted') rows.get('voiceMessages/' + row.id).deletedAtMs = Date.now();
+    if (condition === 'expired') rows.get('voiceMessages/' + row.id).expiresAtMs = Date.now() - 1;
+    let sends = 0;
+    await notifyIncomingVoice({ db, access, row, runtime, messaging: () => ({ sendEachForMulticast: async () => { sends++; } }) });
+    assert.equal(sends, 0, condition);
+  }
+});
+
+test('push uncertainty never retries and does not alter received audio', async () => {
+  const { db, rows } = memoryDb(), store = createVoiceStore(db), audio = synthetic();
+  rows.get('users/' + uid).fcmTokens = ['token'];
+  const { row } = await store.put({ access, id: store.incomingId(imei, audio), direction: 'incoming', audio, pcm: Buffer.alloc(16000), durationMs: 1000 });
+  let sends = 0;
+  const args = { db, access, row, runtime, timeoutMs: 5, messaging: () => ({ sendEachForMulticast: () => { sends++; return new Promise(() => {}); } }) };
+  await notifyIncomingVoice(args);
+  await notifyIncomingVoice(args);
+  assert.equal(sends, 1);
+  assert.equal(rows.get('voiceMessages/' + row.id).notification.status, 'unconfirmed');
+  assert.equal(rows.get('voiceMessages/' + row.id).status, 'received');
+  assert(rows.has('voiceMessagePrivate/' + row.id));
+});
+
+test('receiver acknowledges durable clip independently of push failure and does not push duplicates', async () => {
+  const f = fixture(), { db } = memoryDb(), store = createVoiceStore(db);
+  let attempts = 0;
+  const receiver = createVoiceReceiver({ getDb: () => db, runtime,
+    storeFactory: () => store, convert: async () => Buffer.alloc(16000), note: () => {},
+    notify: async () => { attempts++; assert.equal(f.socket.frames.at(-1).toString(), buildAckFrame(protocolId, 'TK,1').toString()); throw Error('push failed'); },
+  });
+  receiver.observe(buildVoiceFrame(protocolId, synthetic()), f.socket, f.session);
+  await new Promise(setImmediate);
+  receiver.observe(buildVoiceFrame(protocolId, synthetic()), f.socket, f.session);
+  await new Promise(setImmediate);
+  assert.equal(attempts, 1);
+  assert.equal(f.socket.frames.length, 2);
+  assert(f.socket.frames.every(frame => frame.toString() === buildAckFrame(protocolId, 'TK,1').toString()));
 });
 test('live authorization requires explicit gate, exact pilot, current family link and active service', async () => {
   const { db, rows } = memoryDb();

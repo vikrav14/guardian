@@ -9,7 +9,10 @@ trusted active Family/Care entitlement and exact account/device pilot gates.
 - `voiceMessages/{id}`: `uid`, `ownerUid`, `imei`, incoming/outgoing direction,
   SHA-256 idempotency fingerprint, server receipt `createdAtMs`, `expiresAtMs`,
   `dispatchUntilMs`, duration, status, sanitized reason, `playedBy`, deletion
-  tombstone. Outgoing IDs are UUIDv4; incoming IDs hash device/day/audio bytes.
+  tombstone. Incoming `notification` stores one push-attempt status and time,
+  plus provider accepted/failed counts when available; this is not a delivery
+  receipt. No registration tokens or audio are copied to this field. Outgoing
+  IDs are UUIDv4; incoming IDs hash device/day/audio bytes.
 - `voiceMessagePrivate/{id}`: same ownership scope, `expiresAtMs`, original AMR
   and playback PCM as base64. The 30-second bound keeps the combined asset below
   Firestore's document limit. Never client-readable, logged or exposed as URLs.

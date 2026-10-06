@@ -99,9 +99,12 @@ class Recorder implements ReminderRecorder {
 class Player implements VoiceClipPlayer {
   Completer<void>? pendingStart;
   final completions = StreamController<void>.broadcast();
+  final positions = StreamController<Duration>.broadcast();
   int plays = 0, stops = 0;
   @override
   Stream<void> get completed => completions.stream;
+  @override
+  Stream<Duration> get position => positions.stream;
   @override
   Future<void> play(Uint8List wav) async {
     expect(String.fromCharCodes(wav.take(4)), 'RIFF');
@@ -117,6 +120,7 @@ class Player implements VoiceClipPlayer {
   @override
   Future<void> dispose() async {
     await completions.close();
+    await positions.close();
   }
 }
 
@@ -141,6 +145,51 @@ Future<void> screen(
 }
 
 void main() {
+  testWidgets(
+    'sender avatars distinguish the conversation and playback progress follows the player',
+    (t) async {
+      final semantics = t.ensureSemantics();
+      t.view.physicalSize = const Size(800, 1000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      final client = InboxClient()
+        ..inbox = VoiceInbox(
+          connected: true,
+          messages: [
+            clip(),
+            clip(id: 'outgoing', incoming: false, status: 'reply_observed'),
+          ],
+        );
+      final recorder = Recorder(), player = Player();
+      await screen(t, client, recorder, player);
+      expect(find.bySemanticsLabel('Family member avatar'), findsOneWidget);
+      expect(find.bySemanticsLabel('Your avatar'), findsOneWidget);
+      final incoming = find.byKey(const ValueKey('voice-bubble-incoming'));
+      final outgoing = find.byKey(const ValueKey('voice-bubble-outgoing'));
+      expect(t.getTopLeft(incoming).dx, lessThan(t.getTopLeft(outgoing).dx));
+      await t.tap(
+        find.descendant(of: incoming, matching: find.byTooltip('Play message')),
+      );
+      await t.pumpAndSettle();
+      player.positions.add(const Duration(milliseconds: 500));
+      await t.pumpAndSettle();
+      expect(
+        t
+            .widget<LinearProgressIndicator>(
+              find.descendant(
+                of: incoming,
+                matching: find.byType(LinearProgressIndicator),
+              ),
+            )
+            .value,
+        .5,
+      );
+      expect(player.plays, 1);
+      await t.pumpWidget(const SizedBox());
+      semantics.dispose();
+    },
+  );
   testWidgets(
     'discard invalidates a preview still starting and never sends the draft',
     (t) async {
