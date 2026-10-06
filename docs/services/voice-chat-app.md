@@ -78,13 +78,19 @@ AMR-NB, 8 kHz mono, mode 7 (12.2 kb/s), 79 complete frames / 1.58 seconds. A
 subsequent exact `TK,1` receive-result frame was recorded. No clip was played by
 the inspection, and the operator did not confirm audible playback or associate
 that clip with a specific supplier-app action. This validates one captured
-downlink structure; incoming watch clips, duration limits and physical playback
-remain separate acceptance requirements. The metadata-only evidence is in the
-linked reference note; private audio is excluded from the repository.
+historical downlink structure. In a separate controlled 6 October comparison,
+the selected watch exchanged a 5.24-second app-to-watch clip and a 6.96-second
+watch-to-app clip. Both were complete AMR-NB mode 7 files with all five escapes
+and exact `TK,1` results. The operator confirmed audible playback on the watch
+and in AnyTracking; an initial app-silence report was corrected as low phone
+volume. A subsequent bare `TK` is recorded separately with unverified meaning.
+The linked reference note contains metadata only. No Guardian voice deployment,
+maximum duration, transaction correlation or general reliability is established.
+Private audio is excluded from the repository.
 
 ## Existing implementation and reusable work
 
-Main `0acf707acf7cfb22a23a3fa1bf3c0cc299f907a0` and the currently combined
+Main `2b477228ac52526c9e0b81b6f80784e103aa18ea` and the currently combined
 checkout do not contain a complete TK audio/app flow. The parser acknowledges
 `TKQ`; that separate packet does not implement `TK` media delivery. The generic
 command/downlink path builds and logs ASCII strings and must not carry audio.
@@ -149,9 +155,11 @@ must not depend on the pending SOS/fall Meta template approvals.
 - [x] Inspect supplier II.36, verify source hash and compare current parsing/app
   paths with closed #117's historical scope.
 - [x] Define incoming playback, outgoing record/preview/send and honest states.
-- [ ] Capture a wearer-recorded clip and a supplier-app outgoing clip with known
-  harmless content; establish codec/profile, escaping, byte limits, results and
-  how the watch displays/plays a received message.
+- [x] Capture short wearer-recorded and supplier-app outgoing clips; verify
+  codec/profile, framing, escaping, results and operator-reported playback in
+  both directions (6 October supplier reference).
+- [ ] Establish accepted byte/duration limits and timeout/reconnect behavior;
+  the short reference clips do not validate the proposed 30-second cap.
 - [ ] Implement private binary receive/store/ACK, bounded authorized send and
   server-owned delivery metadata, with cleanup and conversion where required.
 - [ ] Implement Android/Web wearer-scoped conversation, recording, playback,
@@ -169,5 +177,5 @@ must not depend on the pending SOS/fall Meta template approvals.
 
 Sibling medication-reminder scope: [PR #144](https://github.com/vikrav14/guardian/pull/144).
 PR #144 has since merged after independent TAKEPILLS wire and audible-playback
-verification. That evidence and the new TK downlink observation remain separate;
-neither establishes watch-to-Guardian voice playback or all TK firmware limits.
+verification. TAKEPILLS and the bidirectional TK reference remain separate;
+neither establishes playback in Guardian's future inbox or all TK firmware limits.
