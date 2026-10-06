@@ -33,6 +33,7 @@ function createFamilyStore(db, { now = Date.now, random = () => crypto.randomByt
         ? Object.entries(service.invites || {}).filter(([, v]) => v.status === 'pending' && v.expiresAtMs > now())
           .map(([id, v]) => ({ id, email: v.email, role: v.role, expiresAtMs: v.expiresAtMs })) : [];
       rows.push({ imei, wearerName: service.wearerName, ownerUid: service.ownerUid,
+        notificationRouting: service.legacyNotifications ? 'legacy_preserved' : 'family',
         subscription: service.subscription, limits: policy(service),
         members: Object.entries(service.members).map(([id, row]) => publicMember(id, row)),
         pending, usage: { month: monthKey(now()), used: usage.used || 0, reserved: usage.reserved || 0 },
@@ -133,6 +134,7 @@ function createFamilyStore(db, { now = Date.now, random = () => crypto.randomByt
         if (!input.enabled) service.members[uid].whatsapp = false;
       } else if (input.action === 'select') {
         checkOwner(service, uid, now());
+        if (service.legacyNotifications) fail('legacy_notifications_preserved');
         if (typeof input.enabled !== 'boolean') fail('invalid_request', 400);
         const member = activeMember(service, input.uid, now());
         if (!member) fail('member_not_active');

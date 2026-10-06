@@ -12,6 +12,23 @@ async function managedContacts(db, imei, now = Date.now()) {
   if (!service) return null;
   const entitlements = serviceEntitlements(service, now);
   if (!entitlements.serviceActive) return [];
+  if (service.legacyNotifications) {
+    // A private, operator-reviewed snapshot keeps the pre-migration recipients.
+    // Newly invited members cannot inject contacts through their user profile.
+    const contacts = [];
+    for (const contact of service.legacyNotifications.contacts || []) {
+      if (!can(service, contact.guardianUid, 'alerts', now)) continue;
+      const profile = (await db.collection('users').doc(contact.guardianUid).get()).data();
+      if (!(profile?.linkedImeis || []).includes(imei) ||
+          !(profile?.emergencyContacts || []).some(current =>
+            String(current?.phone || '').trim() === contact.phone &&
+            (current?.whatsapp ? String(current.whatsapp).trim() : null) === contact.whatsapp)) continue;
+      const source = (await db.collection('serviceSubscriptions').doc(contact.sourceSubscriptionOwnerUid).get()).data();
+      const previous = require('./entitlements').evaluateSubscription(source, { now: new Date(now), ownerUid: contact.sourceSubscriptionOwnerUid });
+      if (previous.serviceActive) contacts.push({ ...contact, entitlements: previous });
+    }
+    return contacts;
+  }
   const selected = selectedRecipients(service, now);
   const result = [];
   for (const uid of selected) {
@@ -31,7 +48,7 @@ async function claimSafetyDelivery(db, imei, alertId, uid, phone, now = Date.now
     const channel = (await tx.get(db.collection('familyChannels').doc(uid))).data();
     const number = (await tx.get(db.collection('familyNumbers').doc(hash(phone)))).data();
     const member = service?.members?.[uid];
-    if (previous.exists || !can(service, uid, 'alerts', now) || !member.whatsapp || !member.whatsappConsent ||
+    if (service?.legacyNotifications || previous.exists || !can(service, uid, 'alerts', now) || !member.whatsapp || !member.whatsappConsent ||
         !serviceEntitlements(service, now).serviceActive || !channel?.verifiedAtMs ||
         channel.phone !== phone || number?.uid !== uid || !selectedRecipients(service, now).includes(uid)) return false;
     tx.create(ref, { imei, alertId, uid, handoffAtMs: now });

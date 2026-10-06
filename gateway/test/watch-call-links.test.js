@@ -94,6 +94,22 @@ test('expiry is enforced without cleanup; late alerts cannot mint fresh links', 
   assert.equal(await issueWatchCallLink(f), null);
 });
 
+test('reviewed migration preserves only existing authorized contact links until cutover', async () => {
+  const f = fixture(); const token = await issueWatchCallLink(f);
+  const family = { ownerUid: 'owner', subscription: f.subscription,
+    members: { owner: { status: 'active' } },
+    legacyNotifications: { contacts: [{ ...f.contact, sourceSubscriptionOwnerUid: 'owner' }] } };
+  f.docs.set(`familyServices/${f.imei}`, family);
+  assert.equal((await resolveWatchCallLink(f.db, token)).number, f.device.simNumber);
+  family.members.owner.status = 'revoked';
+  assert.equal(await resolveWatchCallLink(f.db, token), null);
+  family.members.owner.status = 'active';
+  family.legacyNotifications.contacts[0].phone = '+23050000009';
+  assert.equal(await resolveWatchCallLink(f.db, token), null);
+  delete family.legacyNotifications;
+  assert.equal(await resolveWatchCallLink(f.db, token), null);
+});
+
 test('inherited access requires backend-verified family membership on every open', async () => {
   const f = fixture();
   f.user.serviceOwnerUid = 'payer';

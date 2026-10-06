@@ -237,3 +237,65 @@ test('admin provisioning is preview-first, keeps reviewed members and binds one 
   await assert.rejects(provisionFamilyService(db, { ...manifest, imei: third }, { apply: true }), /service_or_contract_already_exists/);
   assert.equal((await db.doc(`familyServices/${imei}`).get()).data().subscription.plan, 'family');
 });
+
+test('reviewed existing service migration preserves alerts without fabricating consent or widening recipients', async () => {
+  const watch = '999999999999992';
+  await db.doc(`devices/${watch}`).set({ nickname: 'Existing wearer' });
+  await db.doc('users/owner').update({ linkedImeis: [imei, watch],
+    emergencyContacts: [{ name: 'Existing contact', phone: '+23057000000', whatsapp: '+23057000000' }] });
+  const subscription = { version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active', currentPeriodEnd: new Date(Date.now() + 86400000) };
+  await db.doc('serviceSubscriptions/owner').set(subscription);
+  const manifest = { imei: watch, ownerUid: 'owner', plan: 'family',
+    contractId: `migration:serviceSubscriptions/owner:${watch}`,
+    migration: { sourceSubscription: 'serviceSubscriptions/owner', preserveExistingNotifications: true } };
+  const preview = await provisionFamilyService(db, manifest);
+  assert.equal(preview.preservedContacts, 1);
+  assert.equal((await db.doc(`familyServices/${watch}`).get()).exists, false);
+  await assert.rejects(provisionFamilyService(db, { ...manifest, ownerUid: 'other' }, { apply: true }), /review_all_existing_members/);
+  await assert.rejects(provisionFamilyService(db, { ...manifest, plan: 'care' }, { apply: true }), /active_matching_subscription_required/);
+  await assert.rejects(provisionFamilyService(db, { ...manifest, contractId: 'fake-contract' }, { apply: true }), /existing_owner_required/);
+  await db.doc('serviceSubscriptions/owner').update({ status: 'cancelled' , currentPeriodEnd: new Date(1) });
+  await assert.rejects(provisionFamilyService(db, manifest, { apply: true }), /active_matching_subscription_required/);
+  await db.doc('serviceSubscriptions/owner').set(subscription);
+  await provisionFamilyService(db, manifest, { apply: true });
+  const service = (await db.doc(`familyServices/${watch}`).get()).data();
+  assert.equal(service.subscription.currentPeriodEnd.toMillis(), subscription.currentPeriodEnd.getTime());
+  assert.equal(service.members.owner.whatsappConsent, false);
+  assert.equal((await db.doc('familyChannels/owner').get()).exists, false);
+  assert.deepEqual((await managedContacts(db, watch)).map(c => c.phone), ['+23057000000']);
+  const list = await store.list('owner');
+  assert.equal(list.services.find(s => s.imei === watch).notificationRouting, 'legacy_preserved');
+  assert.equal(JSON.stringify(list).includes('+23057000000'), false);
+  const invitation = await store.invite('owner', watch, { email: 'member@example.test', role: 'viewer' });
+  await store.accept(identity('member'), invitation.code);
+  await db.doc('users/member').update({ emergencyContacts: [{ phone: '+23058000000' }] });
+  assert.deepEqual((await managedContacts(db, watch)).map(c => c.phone), ['+23057000000']);
+  await db.doc('users/owner').update({ emergencyContacts: [{ phone: '+23059000000' }] });
+  assert.deepEqual(await managedContacts(db, watch), []);
+  await db.doc('users/owner').update({ emergencyContacts: [{ name: 'Existing contact', phone: '+23057000000', whatsapp: '+23057000000' }] });
+  assert.deepEqual((await managedContacts(db, watch)).map(c => c.phone), ['+23057000000']);
+  await assert.rejects(store.whatsapp('owner', watch, { action: 'select', uid: 'owner', enabled: true }), /legacy_notifications_preserved/);
+  await store.whatsapp('owner', watch, { action: 'consent', enabled: true });
+  await db.doc(`familyServices/${watch}`).update({ 'members.owner.status': 'revoked' });
+  assert.deepEqual(await managedContacts(db, watch), []);
+  await db.doc(`familyServices/${watch}`).update({ 'members.owner.status': 'active' });
+  const { cutoverFamilyNotifications } = require('../../gateway/src/family-notification-cutover');
+  const cutover = { imei: watch, ownerUid: 'owner', recipientUids: ['owner'] };
+  await assert.rejects(cutoverFamilyNotifications(db, { ...cutover, ownerUid: 'member' }), /owner_required/);
+  await assert.rejects(cutoverFamilyNotifications(db, { ...cutover, recipientUids: ['owner', 'member', 'other'] }), /whatsapp_recipient_limit/);
+  await assert.rejects(cutoverFamilyNotifications(db, cutover, { apply: true }), /recipient_must_link_and_consent/);
+  const wrongLink = await store.link('owner'); await linkNumber(db, wrongLink.code, '23059000000', Date.now());
+  await assert.rejects(cutoverFamilyNotifications(db, cutover, { apply: true }), /existing_recipient_not_ready/);
+  const rightLink = await store.link('owner'); await linkNumber(db, rightLink.code, '23057000000', Date.now());
+  assert.equal((await cutoverFamilyNotifications(db, cutover)).applied, false);
+  assert.ok((await db.doc(`familyServices/${watch}`).get()).data().legacyNotifications);
+  await store.whatsapp('owner', watch, { action: 'consent', enabled: false });
+  await assert.rejects(cutoverFamilyNotifications(db, cutover, { apply: true }), /recipient_must_link_and_consent/);
+  await store.whatsapp('owner', watch, { action: 'consent', enabled: true });
+  assert.equal((await cutoverFamilyNotifications(db, cutover, { apply: true })).notificationRouting, 'family');
+  assert.equal((await db.doc(`familyServices/${watch}`).get()).data().legacyNotifications, undefined);
+  const contacts = await managedContacts(db, watch);
+  assert.equal(contacts.length, 1);
+  assert.equal(contacts[0].managedFamily, true);
+  assert.equal(contacts[0].phone, '+23057000000');
+});

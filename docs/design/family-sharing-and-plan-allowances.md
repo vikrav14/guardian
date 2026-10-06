@@ -165,6 +165,39 @@ clients, but managed-watch joins through that route are rejected. The new UI
 uses only the personal per-wearer flow. No production data was changed while
 developing this PR.
 
+### Existing live-service transition
+
+An existing active Family/Care subscription can be provisioned without changing
+its billing terms or dropping its alert contacts. In addition to the reviewed
+watch, owner, plan and member list, the operator manifest uses:
+
+```json
+{
+  "contractId": "migration:serviceSubscriptions/OWNER_UID:WATCH_IMEI",
+  "migration": {
+    "sourceSubscription": "serviceSubscriptions/OWNER_UID",
+    "preserveExistingNotifications": true
+  }
+}
+```
+
+The owner must already be linked and own that active subscription. Provisioning
+copies its status and period boundaries, and privately snapshots only the
+existing entitled contacts. Newly invited members cannot add contacts to that
+route. Removing an original contact, revoking its guardian's access or expiring
+the service stops its eligibility. Existing authorized call-back links remain
+usable during the transition. No verified-number record or consent is created.
+
+The Family page identifies this transition and blocks new recipient selection.
+Each future recipient must use **Link my WhatsApp** and give consent. After
+reviewing those real-channel checks, run
+`node scripts/activate-family-notifications.js --manifest <file>` with `imei`,
+`ownerUid` and `recipientUids`. Preview verifies every number, consent, permission,
+plan cap and existing recipient. `--apply-reviewed-cutover` atomically selects
+those recipients and ends legacy routing. It refuses to drop an existing
+recipient whose number has not been linked. Neither utility sends test messages
+or creates a payment, and both default to preview only.
+
 ### Review evidence
 
 The gateway, Flutter and Firestore emulator suites cover verified invitations,

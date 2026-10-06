@@ -81,8 +81,17 @@ async function authorizeLink(db, record, now) {
         hash(recipient) === record.recipientHash;
     });
   if (!contactStillListed) return null;
-  // Legacy bearer links cannot survive a switch to managed per-person grants.
-  if ((await db.collection('familyServices').doc(record.imei).get()).exists) return null;
+  // A reviewed transition preserves only the original contact links. Fully
+  // managed services still reject legacy bearer links after the cutover.
+  const family = (await db.collection('familyServices').doc(record.imei).get()).data();
+  if (family) {
+    const { can, serviceEntitlements } = require('./family-policy');
+    if (!serviceEntitlements(family, +now).serviceActive || !can(family, record.guardianUid, 'alerts', +now) ||
+        !(family.legacyNotifications?.contacts || []).some(contact =>
+          contact.guardianUid === record.guardianUid && contact.sourceSubscriptionOwnerUid === record.ownerUid &&
+          hash(phone(contact.phone) || '') === record.contactHash &&
+          hash(phone(contact.whatsapp || contact.phone) || '') === record.recipientHash)) return null;
+  }
   const entitlements = await loadEntitlementsForUser(db, { ...user, uid: record.guardianUid }, { now });
   if (entitlements.ownerUid !== record.ownerUid ||
       !hasEntitlement(entitlements, FEATURE.SOS_ALERTS) ||

@@ -401,6 +401,12 @@ class _FamilyPageState extends State<FamilyPage> {
                     ),
                 ],
                 if (_section == 1) ...[
+                  if (circle.preservesExistingNotifications)
+                    const GuardianCard(
+                      child: Text(
+                        'Your existing alert contacts are still active. Link your WhatsApp and give consent below. Guardian support will verify the recipients before switching to the new list.',
+                      ),
+                    ),
                   GuardianCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,7 +460,10 @@ class _FamilyPageState extends State<FamilyPage> {
                             : 'Waiting for their consent',
                       ),
                       value: member['whatsapp'] == true,
-                      onChanged: !owner || _busy
+                      onChanged:
+                          !owner ||
+                              _busy ||
+                              circle.preservesExistingNotifications
                           ? null
                           : (value) => _change('whatsapp', {
                               'action': 'select',

@@ -49,6 +49,8 @@ class FamilySharingException implements Exception {
     'access_not_shared' => 'Your access to this wearer is no longer available.',
     'whatsapp_recipient_limit' =>
       'Your plan’s WhatsApp recipient places are full. Deselect someone first.',
+    'legacy_notifications_preserved' =>
+      'Your existing alert contacts are still active. Link your WhatsApp first; Guardian support will complete the switch.',
     'recipient_must_link_and_consent' =>
       'This person must link their WhatsApp number and agree to safety messages first.',
     'location_required' =>
@@ -79,6 +81,8 @@ class FamilyCircle {
   Map<String, dynamic> get limits => data['limits'] as Map<String, dynamic>;
   Map<String, dynamic> get usage => data['usage'] as Map<String, dynamic>;
   bool get overLimit => data['overLimit'] == true;
+  bool get preservesExistingNotifications =>
+      data['notificationRouting'] == 'legacy_preserved';
   bool active(Map<String, dynamic> member) =>
       member['status'] == 'active' &&
       (member['untilMs'] == null ||
