@@ -19,6 +19,11 @@ button shape or hard-coded foreground colour.
   from action colours. Preserve their meaning and appearance.
 - Use +230 guidance, Mauritius scheduling context, and local spelling where
   relevant. Keep existing consent, roles, subscription and watch behaviour.
+- Simple dialog inputs use `TextFormField` with `initialValue` / `onChanged`,
+  so the field owns its controller until unmount. Do not dispose controllers
+  immediately after `await showDialog`: that future resolves before the closing
+  animation ends, which can crash a focused field. More complex editors should
+  own their controllers in the dialog widget's State.
 
 ## Navigation
 
@@ -44,7 +49,13 @@ and its containing form use the nested navigator so leaving cancels the flow.
 - Physical Samsung review verified Home/weather, Family, Watch settings,
   Movement reminders and switching from a nested page with the bottom bar.
   Account, emergency contacts, watch preferences and wellness were also
-  inspected before the update. Further device review requires reconnection.
+  inspected before the update. The final APK, including the focused-dialog
+  crash fix, was installed on 7 October. Repeating focus + Cancel in invitation,
+  watch-linking, safe-zone and contact forms now succeeds on the phone.
+- A focused invitation cancellation test reproduced the original controller
+  disposal failure and `_dependents.isEmpty` cascade before the fix. Regression
+  coverage checks Cancel, Android Back, reopening and accepting a trimmed code
+  through a fake client; no live invitations or settings are submitted.
 
 Screenshots and device-specific verification remain local; do not commit
 account details, phone numbers, device identifiers or private build settings.

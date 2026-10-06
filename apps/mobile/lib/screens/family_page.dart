@@ -127,13 +127,13 @@ class _FamilyPageState extends State<FamilyPage> {
   }
 
   Future<void> _join() async {
-    final controller = TextEditingController();
+    var invitationCode = '';
     final code = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Accept a personal invitation'),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          onChanged: (value) => invitationCode = value,
           autocorrect: false,
           decoration: const InputDecoration(
             labelText: 'Invitation code',
@@ -146,14 +146,13 @@ class _FamilyPageState extends State<FamilyPage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(context, invitationCode.trim()),
             child: const Text('Accept'),
           ),
         ],
       ),
     );
-    controller.dispose();
-    if (code != null && code.isNotEmpty) {
+    if (mounted && code != null && code.isNotEmpty) {
       await _change('accept', {'code': code});
     }
   }

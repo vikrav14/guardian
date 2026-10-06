@@ -25,7 +25,7 @@ class AccountPage extends StatelessWidget {
   final bool watchOnly;
 
   Future<void> _linkPendant(BuildContext context) async {
-    final ctrl = TextEditingController();
+    var imei = '';
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -39,8 +39,8 @@ class AccountPage extends StatelessWidget {
               'by the status SMS (ts#).',
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
+            TextFormField(
+              onChanged: (value) => imei = value,
               keyboardType: TextInputType.number,
               maxLength: 15,
               decoration: const InputDecoration(
@@ -64,11 +64,10 @@ class AccountPage extends StatelessWidget {
       ),
     );
     if (ok != true || !context.mounted) {
-      ctrl.dispose();
       return;
     }
     try {
-      await DeviceService().linkPendant(ctrl.text);
+      await DeviceService().linkPendant(imei);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -82,8 +81,6 @@ class AccountPage extends StatelessWidget {
           context,
         ).showSnackBar(SnackBar(content: Text('$e')));
       }
-    } finally {
-      ctrl.dispose();
     }
   }
 
@@ -637,14 +634,12 @@ Future<void> _showDeviceSettingsDialog(
   Device device,
   GuardianSubscription subscription,
 ) async {
-  final nicknameCtrl = TextEditingController(text: device.nickname ?? '');
-  final relationshipCtrl = TextEditingController(
-    text: device.relationship ?? device.relationshipLabel,
-  );
-  final simCtrl = TextEditingController(text: device.simNumber ?? '');
-  final centerCtrl = TextEditingController();
-  final sosCtrl = TextEditingController();
-  final monitorCtrl = TextEditingController();
+  var nickname = device.nickname ?? '';
+  var relationship = device.relationship ?? device.relationshipLabel;
+  var sim = device.simNumber ?? '';
+  var center = '';
+  var sos = '';
+  var monitor = '';
   var busy = false;
 
   await showDialog<void>(
@@ -719,8 +714,9 @@ Future<void> _showDeviceSettingsDialog(
                     ],
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: nicknameCtrl,
+                  TextFormField(
+                    initialValue: nickname,
+                    onChanged: (value) => nickname = value,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       labelText: 'Nickname (optional)',
@@ -728,8 +724,9 @@ Future<void> _showDeviceSettingsDialog(
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: relationshipCtrl,
+                  TextFormField(
+                    initialValue: relationship,
+                    onChanged: (value) => relationship = value,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       labelText: 'Relationship',
@@ -744,8 +741,8 @@ Future<void> _showDeviceSettingsDialog(
                           : () => run(
                               () => DeviceService().updatePersonIdentity(
                                 device.imei,
-                                nickname: nicknameCtrl.text,
-                                relationship: relationshipCtrl.text,
+                                nickname: nickname,
+                                relationship: relationship,
                               ),
                               'Person details saved',
                             ),
@@ -753,8 +750,9 @@ Future<void> _showDeviceSettingsDialog(
                     ),
                   ),
                   const Divider(height: 24),
-                  TextField(
-                    controller: simCtrl,
+                  TextFormField(
+                    initialValue: sim,
+                    onChanged: (value) => sim = value,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: "Watch's SIM number",
@@ -770,7 +768,7 @@ Future<void> _showDeviceSettingsDialog(
                           : () => run(
                               () => DeviceService().setSimNumber(
                                 device.imei,
-                                simCtrl.text,
+                                sim,
                               ),
                               'SIM number saved',
                             ),
@@ -804,8 +802,9 @@ Future<void> _showDeviceSettingsDialog(
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: centerCtrl,
+                  TextFormField(
+                    initialValue: center,
+                    onChanged: (value) => center = value,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Set center number',
@@ -819,15 +818,16 @@ Future<void> _showDeviceSettingsDialog(
                           : () => run(
                               () => DeviceCommandService().setCenterNumber(
                                 device.imei,
-                                centerCtrl.text,
+                                center,
                               ),
                               'Command queued',
                             ),
                       child: const Text('Send'),
                     ),
                   ),
-                  TextField(
-                    controller: sosCtrl,
+                  TextFormField(
+                    initialValue: sos,
+                    onChanged: (value) => sos = value,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Set SOS number 1',
@@ -842,7 +842,7 @@ Future<void> _showDeviceSettingsDialog(
                               () => DeviceCommandService().setSosNumber(
                                 device.imei,
                                 1,
-                                sosCtrl.text,
+                                sos,
                               ),
                               'Command queued',
                             ),
@@ -871,8 +871,9 @@ Future<void> _showDeviceSettingsDialog(
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: monitorCtrl,
+                  TextFormField(
+                    initialValue: monitor,
+                    onChanged: (value) => monitor = value,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'Your number to receive the silent call',
@@ -887,7 +888,7 @@ Future<void> _showDeviceSettingsDialog(
                           : () => run(
                               () => DeviceCommandService().startVoiceMonitor(
                                 device.imei,
-                                monitorCtrl.text,
+                                monitor,
                               ),
                               'Listen-in command queued',
                             ),
@@ -966,11 +967,4 @@ Future<void> _showDeviceSettingsDialog(
       );
     },
   );
-
-  nicknameCtrl.dispose();
-  relationshipCtrl.dispose();
-  simCtrl.dispose();
-  centerCtrl.dispose();
-  sosCtrl.dispose();
-  monitorCtrl.dispose();
 }

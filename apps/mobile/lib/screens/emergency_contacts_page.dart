@@ -37,9 +37,9 @@ class EmergencyContactsPage extends StatelessWidget {
     UserProfileService service,
     List<EmergencyContact> existing,
   ) async {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController(text: '+230');
-    final waCtrl = TextEditingController();
+    var name = '';
+    var phone = '+230';
+    var whatsapp = '';
     var makePrimary = existing.isEmpty;
 
     final ok = await showDialog<bool>(
@@ -51,13 +51,15 @@ class EmergencyContactsPage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: nameCtrl,
+                TextFormField(
+                  initialValue: name,
+                  onChanged: (value) => name = value,
                   decoration: const InputDecoration(labelText: 'Name'),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: phoneCtrl,
+                TextFormField(
+                  initialValue: phone,
+                  onChanged: (value) => phone = value,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
                     labelText: 'Phone number',
@@ -66,8 +68,9 @@ class EmergencyContactsPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: waCtrl,
+                TextFormField(
+                  initialValue: whatsapp,
+                  onChanged: (value) => whatsapp = value,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
                     labelText: 'WhatsApp (optional)',
@@ -101,7 +104,7 @@ class EmergencyContactsPage extends StatelessWidget {
     );
 
     if (ok == true && context.mounted) {
-      if (nameCtrl.text.trim().isEmpty || phoneCtrl.text.trim().isEmpty) {
+      if (name.trim().isEmpty || phone.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Name and phone are required')),
         );
@@ -114,18 +117,14 @@ class EmergencyContactsPage extends StatelessWidget {
         await service.saveContacts([
           ...nextExisting,
           EmergencyContact(
-            name: nameCtrl.text.trim(),
-            phone: phoneCtrl.text.trim(),
-            whatsapp: waCtrl.text.trim().isEmpty ? null : waCtrl.text.trim(),
+            name: name.trim(),
+            phone: phone.trim(),
+            whatsapp: whatsapp.trim().isEmpty ? null : whatsapp.trim(),
             isPrimary: makePrimary,
           ),
         ]);
       }
     }
-
-    nameCtrl.dispose();
-    phoneCtrl.dispose();
-    waCtrl.dispose();
   }
 
   @override

@@ -25,8 +25,8 @@ class SafeZonesPage extends StatelessWidget {
       return;
     }
 
-    final nameCtrl = TextEditingController(text: 'Home');
-    final radiusCtrl = TextEditingController(text: '150');
+    var zoneName = 'Home';
+    var radiusText = '150';
     var imei = devices.first.imei;
     LatLng? pickedLocation;
 
@@ -56,16 +56,18 @@ class SafeZonesPage extends StatelessWidget {
                       decoration: const InputDecoration(labelText: 'Device'),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: nameCtrl,
+                    TextFormField(
+                      initialValue: zoneName,
+                      onChanged: (value) => zoneName = value,
                       decoration: const InputDecoration(
                         labelText: 'Zone name',
                         hintText: 'e.g. Home, School, Grand-mère’s',
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: radiusCtrl,
+                    TextFormField(
+                      initialValue: radiusText,
+                      onChanged: (value) => radiusText = value,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Radius (metres)',
@@ -96,9 +98,9 @@ class SafeZonesPage extends StatelessWidget {
                                 ? LatLng(loc!.lat, loc.lng)
                                 : const LatLng(-20.2642, 57.4791);
                             final radius =
-                                double.tryParse(radiusCtrl.text.trim()) ?? 150;
+                                double.tryParse(radiusText.trim()) ?? 150;
                             final zoneStyle = styleForCategory(
-                              categoryFromZoneName(nameCtrl.text),
+                              categoryFromZoneName(zoneName),
                             );
                             final picked = await Navigator.of(ctx).push<LatLng>(
                               MaterialPageRoute(
@@ -137,8 +139,6 @@ class SafeZonesPage extends StatelessWidget {
     );
 
     if (created != true || !context.mounted) {
-      nameCtrl.dispose();
-      radiusCtrl.dispose();
       return;
     }
 
@@ -158,19 +158,17 @@ class SafeZonesPage extends StatelessWidget {
             ),
           ),
         );
-        nameCtrl.dispose();
-        radiusCtrl.dispose();
         return;
       }
       lat = loc.lat;
       lng = loc.lng;
     }
 
-    final radius = double.tryParse(radiusCtrl.text.trim()) ?? 150;
+    final radius = double.tryParse(radiusText.trim()) ?? 150;
     try {
       await GeofenceService().create(
         imei: imei,
-        name: nameCtrl.text,
+        name: zoneName,
         lat: lat,
         lng: lng,
         radiusMeters: radius.clamp(50, 5000),
@@ -186,9 +184,6 @@ class SafeZonesPage extends StatelessWidget {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
-    } finally {
-      nameCtrl.dispose();
-      radiusCtrl.dispose();
     }
   }
 
