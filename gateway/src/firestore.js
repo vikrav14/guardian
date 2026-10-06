@@ -210,6 +210,12 @@ async function upsertDevice(imei, patch = {}) {
     Object.assign(data, seeded);
   }
   await ref.set(data, { merge: true });
+  if (process.env.FAMILY_SHARING_ENABLED === 'true') {
+    await db.collection('familyDeviceViews').doc(canonicalImei).set(
+      require('./family-device-view').deviceView(data), { merge: true });
+    await db.collection('familyDeviceProfiles').doc(canonicalImei).set(
+      require('./family-device-view').deviceProfile(data), { merge: true });
+  }
   if (data.location) locationProvenanceSeeded.add(canonicalImei);
   incrementMetric('firestoreWrites');
 }

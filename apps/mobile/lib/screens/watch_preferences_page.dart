@@ -38,7 +38,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
   late Set<String> _adaptivePriorities;
 
   late bool _fallEnabled;
-  late bool _dialMonitor;
   late double _sensitivity;
   bool _savingFall = false;
 
@@ -61,7 +60,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
         ? {...GuardianCarePriority.defaultsFor(_adaptiveProfile)}
         : {...widget.device.carePriorities};
     _fallEnabled = widget.device.fallDetectionEnabled ?? false;
-    _dialMonitor = widget.device.fallDetectionDialMonitor ?? false;
     _sensitivity = (widget.device.fallDetectionSensitivity ?? 3).toDouble();
     _locationReportingMode = widget.device.locationReportingMode;
     final savedInterval =
@@ -80,7 +78,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       await DeviceService().updateFallDetectionPrefs(
         widget.device.imei,
         enabled: _fallEnabled,
-        dialMonitorOnFall: _dialMonitor,
+        dialMonitorOnFall: false,
         sensitivityLevel: _sensitivity.round(),
       );
       if (!mounted) return;
@@ -278,17 +276,18 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
-                WellnessSettingsCard(
-                  subscription: subscription,
-                  onOpen: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => WellnessRoutinePage(
-                        imei: widget.device.imei,
-                        subscription: subscription,
+                if (widget.device.allowsShared('wellbeing'))
+                  WellnessSettingsCard(
+                    subscription: subscription,
+                    onOpen: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => WellnessRoutinePage(
+                          imei: widget.device.imei,
+                          subscription: subscription,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildLocationUpdatesCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
@@ -298,7 +297,8 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                 ],
                 _buildFallDetectionCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
-                if (medicationDecision.allowed) ...[
+                if (medicationDecision.allowed &&
+                    widget.device.allowsShared('reminders')) ...[
                   _buildMedicationCard(colors, subscription),
                   if (careDecision.allowed)
                     const SizedBox(height: GuardianSpacing.lg),
@@ -463,16 +463,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           if (_fallEnabled) ...[
             const Divider(height: GuardianSpacing.xl),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Auto-dial monitor number on fall',
-                style: TextStyle(fontSize: 13.5),
-              ),
-              value: _dialMonitor,
-              onChanged: (v) => setState(() => _dialMonitor = v),
-            ),
-            const SizedBox(height: GuardianSpacing.sm),
             Row(
               children: [
                 Text(

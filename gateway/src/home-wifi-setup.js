@@ -112,6 +112,7 @@ async function authorizeHomeWifi({ db, uid, imei, read = ref => ref.get() }) {
   if (!/^[^/\s]{1,128}$/.test(uid || '') || !/^\d{15}$/.test(imei || '')) {
     throw new HomeWifiError('invalid_request', 400);
   }
+  await require('./family-policy').watchAccess(db, uid, imei, 'owner', { read });
   const snap = await read(db.collection('users').doc(uid));
   const user = snap.data();
   if (!snap.exists || !Array.isArray(user?.linkedImeis) || !user.linkedImeis.includes(imei)) {

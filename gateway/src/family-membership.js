@@ -155,6 +155,12 @@ async function processFamilyJoin(db, requestId, { now = new Date() } = {}) {
     // Copy only the owner's current server-visible links. Invitation payloads
     // are never an authorization source.
     const linkedImeis = uniqueStrings(owner.linkedImeis);
+    for (const imei of linkedImeis) {
+      if ((await tx.get(db.collection('familyServices').doc(imei))).exists) {
+        tx.set(requestRef, { status: 'rejected', reason: 'personal_invitation_required', processedAt: new Date() }, { merge: true });
+        return { ok: false, reason: 'personal_invitation_required' };
+      }
+    }
     if (linkedImeis.length > 0) {
       requesterPatch.linkedImeis = admin.firestore.FieldValue.arrayUnion(...linkedImeis);
     }

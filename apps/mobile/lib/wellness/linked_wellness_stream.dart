@@ -8,13 +8,17 @@ Stream<List<T>> watchLinkedWellnessData<T>(
   FirebaseFirestore db,
   FirebaseAuth auth,
   String imei,
-  Stream<List<T>> Function() query,
-) {
+  Stream<List<T>> Function() query, {
+  String permission = 'wellbeing',
+}) {
   late StreamController<List<T>> controller;
   StreamSubscription<User?>? authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? userSub;
   StreamSubscription<List<T>>? dataSub;
   List<String>? activeLinkedImeis;
+  bool? activeGrant;
+  int? activeUntil;
+  Timer? expiry;
   var authGeneration = 0;
   var dataGeneration = 0;
   var closed = false;
@@ -25,6 +29,8 @@ Stream<List<T>> watchLinkedWellnessData<T>(
           final generation = ++authGeneration;
           ++dataGeneration;
           activeLinkedImeis = null;
+          activeGrant = null;
+          expiry?.cancel();
           controller.add(<T>[]);
           await userSub?.cancel();
           await dataSub?.cancel();
@@ -40,14 +46,28 @@ Stream<List<T>> watchLinkedWellnessData<T>(
                           ?.whereType<String>()
                           .toList(growable: false) ??
                       const <String>[];
+                  final grant =
+                      (snap.data()?['familyAccess'] as Map?)?[imei] as Map?;
+                  final until = grant?['untilMs'] as int?;
+                  final permitted =
+                      (until == null ||
+                          until > DateTime.now().millisecondsSinceEpoch) &&
+                      (grant == null ||
+                          grant['owner'] == true ||
+                          (grant['permissions'] as Map?)?[permission] == true);
                   // The owner document also contains unrelated fields such as
                   // FCM tokens and profile data. Those updates must not tear
                   // down live Wellness streams or blank the current cards.
                   if (activeLinkedImeis != null &&
-                      _sameLinkedImeis(activeLinkedImeis!, linked)) {
+                      _sameLinkedImeis(activeLinkedImeis!, linked) &&
+                      activeGrant == permitted &&
+                      activeUntil == until) {
                     return;
                   }
                   activeLinkedImeis = linked;
+                  activeGrant = permitted;
+                  activeUntil = until;
+                  expiry?.cancel();
                   final dataToken = ++dataGeneration;
                   await dataSub?.cancel();
                   if (closed ||
@@ -56,7 +76,25 @@ Stream<List<T>> watchLinkedWellnessData<T>(
                     return;
                   }
                   controller.add(<T>[]);
-                  if (!linked.contains(imei)) return;
+                  if (!linked.contains(imei) || !permitted) return;
+                  if (until != null) {
+                    void expireWhenDue() {
+                      final remaining =
+                          until - DateTime.now().millisecondsSinceEpoch + 1;
+                      if (remaining <= 0) {
+                        ++dataGeneration;
+                        dataSub?.cancel();
+                        if (!closed) controller.add(<T>[]);
+                      } else if (!closed && dataToken == dataGeneration) {
+                        expiry = Timer(
+                          Duration(milliseconds: remaining.clamp(1, 86400000)),
+                          expireWhenDue,
+                        );
+                      }
+                    }
+
+                    expireWhenDue();
+                  }
                   dataSub = query().listen(
                     (values) {
                       if (!closed && dataToken == dataGeneration) {
@@ -65,6 +103,7 @@ Stream<List<T>> watchLinkedWellnessData<T>(
                     },
                     onError: (Object error, StackTrace stack) {
                       if (!closed && dataToken == dataGeneration) {
+                        controller.add(<T>[]);
                         controller.addError(error, stack);
                       }
                     },
@@ -73,6 +112,8 @@ Stream<List<T>> watchLinkedWellnessData<T>(
                 onError: (Object error, StackTrace stack) {
                   ++dataGeneration;
                   dataSub?.cancel();
+                  expiry?.cancel();
+                  if (!closed) controller.add(<T>[]);
                   if (!closed) controller.addError(error, stack);
                 },
               );
@@ -82,6 +123,8 @@ Stream<List<T>> watchLinkedWellnessData<T>(
           ++dataGeneration;
           activeLinkedImeis = null;
           dataSub?.cancel();
+          expiry?.cancel();
+          if (!closed) controller.add(<T>[]);
           if (!closed) controller.addError(error, stack);
         },
       );
@@ -90,6 +133,7 @@ Stream<List<T>> watchLinkedWellnessData<T>(
       closed = true;
       ++authGeneration;
       ++dataGeneration;
+      expiry?.cancel();
       await authSub?.cancel();
       await userSub?.cancel();
       await dataSub?.cancel();

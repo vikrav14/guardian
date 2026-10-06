@@ -18,6 +18,7 @@ function fakeDb() {
     updates,
     db: {
       collection(name) {
+        if (name === 'familyServices') return { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) };
         if (name === 'medicationReminders') {
           return { where() { return this; }, async get() { return { docs: [reminderDoc] }; } };
         }

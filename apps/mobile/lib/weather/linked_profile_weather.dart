@@ -23,6 +23,7 @@ Stream<Map<String, dynamic>> watchProfileWeather(String imei) =>
           .doc('current')
           .snapshots()
           .map((doc) => [doc.data() ?? <String, dynamic>{}]),
+      permission: 'location',
     ).map((rows) => rows.firstOrNull ?? <String, dynamic>{});
 
 /// Owns the selected-profile subscription. Switching profile, unlinking,

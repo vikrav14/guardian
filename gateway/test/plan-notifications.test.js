@@ -12,6 +12,7 @@ function sub(plan) {
 function fakeDb(users) {
   return {
     collection(name) {
+      if (name === 'familyServices') return { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) };
       if (name === 'serviceSubscriptions') {
         return {
           doc(uid) {

@@ -11,8 +11,8 @@ List<GuardianDestination> guardianDestinations(BuildContext context) {
   return [
     (icon: GuardianNavigationSymbol.home, label: 'Home'),
     (icon: GuardianNavigationSymbol.safeZones, label: t.navSafeZones),
-    (icon: GuardianNavigationSymbol.alerts, label: t.navAlerts),
-    (icon: GuardianNavigationSymbol.account, label: t.navAccount),
+    (icon: GuardianNavigationSymbol.family, label: t.navFamily),
+    (icon: GuardianNavigationSymbol.watch, label: t.navWatch),
   ];
 }
 

@@ -29,6 +29,7 @@ function chatHarness({ plan = 'family', status = 'active', devices = { A: watch(
   linkedImeis = Object.keys(devices), failRead = false, failTool = false } = {}) {
   const calls = { tools: [], reads: [], audit: [], provider: 0, fallback: 0 };
   const tables = {
+    familyServices: {},
     users: { guardian: { phone: from, linkedImeis,
       emergencyContacts: [{ phone: contactPhone, name: 'Test contact' }] } },
     devices,

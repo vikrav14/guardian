@@ -3,6 +3,8 @@
   "appTitle": "Guardian",
   "navMap": "Map",
   "navSafeZones": "Safe zones",
+  "navFamily": "Family",
+  "navWatch": "Watch",
   "navAlerts": "Alerts",
   "navAccount": "Account",
   "callButton": "Call",

@@ -13,7 +13,8 @@ async function authorizeMedication({ db, uid, imei, runtime, now = new Date() })
   const snap = await db.collection('users').doc(uid).get();
   const user = { ...snap.data(), uid };
   if (!snap.exists || !user.linkedImeis?.includes(imei)) throw new MedicationError('device_not_linked', 403);
-  const access = await loadEntitlementsForUser(db, user, { now });
+  try { await require('./family-policy').watchAccess(db, uid, imei, 'reminders', { now: +now }); } catch { throw new MedicationError('device_not_linked', 403); }
+  const access = await loadEntitlementsForUser(db, user, { now, imei });
   if (!access.serviceActive || !['family', 'care'].includes(access.plan)) throw new MedicationError('active_service_required', 403);
   return { uid, imei, ownerUid: access.ownerUid };
 }

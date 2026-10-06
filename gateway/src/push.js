@@ -16,11 +16,13 @@ function requiredFeatureForAlert(alert) {
  * registered (i.e. have the app installed and notifications enabled).
  */
 async function findRecipientsForImei(db, imei, alert = {}) {
+  const managed = (await db.collection('familyServices').doc(imei).get()).data();
   const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
   const recipients = [];
   for (const doc of snap.docs) {
     const data = doc.data() || {};
-    const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data });
+    if (managed && !require('./family-policy').can(managed, doc.id, 'alerts')) continue;
+    const entitlements = await loadEntitlementsForUser(db, { uid: doc.id, ...data }, { imei });
     if (!hasEntitlement(entitlements, requiredFeatureForAlert(alert))) continue;
     const tokens = Array.isArray(data.fcmTokens) ? data.fcmTokens : [];
     if (tokens.length) recipients.push({ uid: doc.id, tokens });

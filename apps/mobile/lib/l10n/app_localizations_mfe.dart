@@ -18,6 +18,12 @@ class AppLocalizationsMfe extends AppLocalizations {
   String get navSafeZones => 'Zonn sekirite';
 
   @override
+  String get navFamily => 'Lafami';
+
+  @override
+  String get navWatch => 'Mont';
+
+  @override
   String get navAlerts => 'Alert';
 
   @override

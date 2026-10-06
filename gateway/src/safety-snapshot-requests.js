@@ -54,7 +54,10 @@ async function processSnapshotRequest(db, requestId, { now = new Date(), cooldow
     const subscriptionRef = db.collection('serviceSubscriptions').doc(ownerUid);
     const ownerSnap = ownerUid === requesterUid ? userSnap : await tx.get(ownerRef);
     const subscriptionSnap = await tx.get(subscriptionRef);
-    const access = assessSnapshotAccess({ requesterUid, user, owner: ownerSnap.exists ? ownerSnap.data() || {} : null, subscription: subscriptionSnap.exists ? subscriptionSnap.data() || {} : null, imei, now });
+    let shared;
+    try { shared = await require('./family-policy').watchAccess(db, requesterUid, imei, 'photos', { read: ref => tx.get(ref), now: +now }); }
+    catch { tx.set(requestRef, { status: 'rejected', reason: 'access_not_shared', processedAt: now }, { merge: true }); return { ok: false, reason: 'access_not_shared' }; }
+    const access = shared.managed ? { ok: true, ownerUid: shared.service.ownerUid, plan: shared.entitlements.plan } : assessSnapshotAccess({ requesterUid, user, owner: ownerSnap.exists ? ownerSnap.data() || {} : null, subscription: subscriptionSnap.exists ? subscriptionSnap.data() || {} : null, imei, now });
     if (!access.ok) {
       tx.set(requestRef, { status: 'rejected', reason: access.reason, processedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       return access;

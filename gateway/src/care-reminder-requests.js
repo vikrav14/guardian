@@ -75,7 +75,10 @@ async function processCareReminderRequest(db, requestId, { now = new Date() } = 
     const subscriptionRef = db.collection('serviceSubscriptions').doc(ownerUid);
     const ownerSnap = ownerUid === requesterUid ? userSnap : await tx.get(ownerRef);
     const subscriptionSnap = await tx.get(subscriptionRef);
-    const access = assessCareReminderAccess({
+    let shared;
+    try { shared = await require('./family-policy').watchAccess(db, requesterUid, imei, 'reminders', { read: ref => tx.get(ref), now: +now }); }
+    catch { tx.set(requestRef, { status: 'rejected', reason: 'access_not_shared', processedAt: now }, { merge: true }); return { ok: false, reason: 'access_not_shared' }; }
+    const access = shared.managed ? { ok: shared.entitlements.plan === 'care', reason: 'care_plan_required', ownerUid: shared.service.ownerUid, plan: shared.entitlements.plan } : assessCareReminderAccess({
       requesterUid,
       user,
       owner: ownerSnap.exists ? ownerSnap.data() || {} : null,

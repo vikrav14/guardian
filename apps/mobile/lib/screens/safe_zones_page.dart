@@ -326,7 +326,7 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                         builder: (_) => HomeWifiSetupPage(zone: zone),
                       ),
                     ),
-                    onAlerts: home == null ? null : () => home.goToTab(2),
+                    onAlerts: home == null ? null : () => home.goToTab(4),
                   ),
                 );
               },

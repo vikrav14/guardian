@@ -76,8 +76,8 @@ test('getPricing exposes MUR rates object', () => {
   assert.equal(pricing.subscription.annualMur, 1500);
   assert.equal(pricing.subscription.essentialMonthlyMur, 199);
   assert.equal(pricing.subscription.basicMonthlyMur, 199);
-  assert.equal(pricing.subscription.familyMonthlyMur, 399);
-  assert.equal(pricing.subscription.careMonthlyMur, 699);
+  assert.equal(pricing.subscription.familyMonthlyMur, 1000);
+  assert.equal(pricing.subscription.careMonthlyMur, 1300);
 });
 
 test('estimateCostSensitivity returns baseline and scenario deltas', () => {

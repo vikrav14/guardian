@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_wifi_presence.dart';
 import 'watch_alert_profile.dart';
+import '../services/guardian_entitlements.dart';
 
 class DeviceLocation {
   const DeviceLocation({
@@ -136,6 +137,8 @@ class Device {
   const Device({
     required this.imei,
     required this.online,
+    this.sharedPermissions,
+    this.sharedSubscription,
     this.name,
     this.nickname,
     this.relationship,
@@ -177,6 +180,10 @@ class Device {
   });
 
   final String imei;
+  final Map<String, bool>? sharedPermissions;
+  final GuardianSubscription? sharedSubscription;
+  bool allowsShared(String permission) =>
+      sharedPermissions == null || sharedPermissions?[permission] == true;
 
   /// Legacy friendly label retained for existing device documents.
   final String? name;
@@ -523,10 +530,27 @@ class Device {
     return intelligence.insights.any(isActive);
   }
 
-  factory Device.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? <String, dynamic>{};
+  factory Device.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    Map<String, bool>? sharedPermissions,
+    GuardianSubscription? sharedSubscription,
+  }) => Device.fromData(
+    doc.id,
+    doc.data() ?? <String, dynamic>{},
+    sharedPermissions: sharedPermissions,
+    sharedSubscription: sharedSubscription,
+  );
+
+  factory Device.fromData(
+    String imei,
+    Map<String, dynamic> data, {
+    Map<String, bool>? sharedPermissions,
+    GuardianSubscription? sharedSubscription,
+  }) {
     return Device(
-      imei: doc.id,
+      imei: imei,
+      sharedPermissions: sharedPermissions,
+      sharedSubscription: sharedSubscription,
       name: data['name'] as String?,
       nickname: data['nickname'] as String?,
       relationship: data['relationship'] as String?,

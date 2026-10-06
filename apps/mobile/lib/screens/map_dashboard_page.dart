@@ -447,7 +447,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             _showUnavailable('Open Alerts from Guardian navigation.');
             return;
           }
-          home.goToTab(2);
+          home.goToTab(4);
         },
         onJourney: () => _openHistory(
           device,
@@ -659,7 +659,14 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       ).map((rows) => rows.firstOrNull ?? <String, dynamic>{});
 
   Widget _buildDashboardContent(Device? selected) {
-    final entitlementScope = GuardianEntitlementsScope.of(context);
+    final inheritedScope = GuardianEntitlementsScope.of(context);
+    final entitlementScope = selected?.sharedSubscription == null
+        ? inheritedScope
+        : GuardianEntitlementsScope(
+            subscription: selected!.sharedSubscription,
+            checking: false,
+            child: const SizedBox.shrink(),
+          );
     final home = HomeShellScope.maybeOf(context);
     final aiDecision = entitlementScope.decision(GuardianFeature.guardianAi);
     final whatsappDecision = entitlementScope.decision(
@@ -673,7 +680,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     );
 
     return GuardianDashboardOverview(
-      weather: selected == null
+      weather: selected == null || !selected.allowsShared('location')
           ? null
           : LinkedProfileWeather(
               key: ValueKey('profile-weather-${selected.imei}'),
@@ -681,6 +688,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             ),
       watchCheckStatus:
           selected != null &&
+              selected.allowsShared('wellbeing') &&
               entitlementScope.subscription != null &&
               entitlementScope
                   .decision(GuardianFeature.wellnessReadings)
@@ -701,6 +709,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           : null,
       wellness:
           selected != null &&
+              selected.allowsShared('wellbeing') &&
               entitlementScope
                   .decision(GuardianFeature.activitySteps)
                   .allowed &&
@@ -729,17 +738,24 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       geofences: _geofences,
       loading: _dashboard.loading,
       hasError: _dashboard.error != null,
-      map: selected == null ? const SizedBox.shrink() : _buildMapCard(selected),
+      map: selected == null || !selected.allowsShared('location')
+          ? const SizedBox.shrink()
+          : _buildMapCard(selected),
       mapStatus: selected == null ? '' : _mapStatus(selected),
       insight: buildGuardianAiInterpretation(selected),
-      aiEnabled: aiDecision.allowed,
+      aiEnabled:
+          aiDecision.allowed && (selected?.allowsShared('wellbeing') ?? false),
       helpEnabled: whatsappDecision.allowed,
-      careEnabled: careSummaryDecision.allowed,
+      careEnabled:
+          careSummaryDecision.allowed &&
+          (selected?.allowsShared('wellbeing') ?? false),
       todaySummary: buildTodaySummary(selected),
       activityStatus: buildTodayActivityStatus(selected),
       onSelect: _dashboard.select,
-      onCall: selected == null ? null : () => _callDevice(selected),
-      onJourney: selected == null
+      onCall: selected == null || selected.simNumber?.isNotEmpty != true
+          ? null
+          : () => _callDevice(selected),
+      onJourney: selected == null || !selected.allowsShared('history')
           ? null
           : () => _openHistory(
               selected,
@@ -758,7 +774,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       onWatchStatus: selected == null
           ? null
           : () => _showWatchStatusFact(selected),
-      onLocationDetails: selected == null
+      onLocationDetails: selected == null || !selected.allowsShared('location')
           ? null
           : () => _showLocationFact(selected),
       onSafeZones: home == null ? null : () => home.goToTab(1),

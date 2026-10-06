@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../widgets/layout/guardian_app_header.dart';
 import '../widgets/navigation/guardian_navigation.dart';
 import 'account_page.dart';
+import 'family_page.dart';
 import 'alerts_page.dart';
 import 'map_dashboard_page.dart';
 import 'safe_zones_page.dart';
@@ -135,8 +136,10 @@ class _HomeShellState extends State<HomeShell> {
     final pages = [
       MapDashboardPage(key: _dashboardKey),
       SafeZonesPage(),
+      const FamilyPage(),
+      const AccountPage(watchOnly: true),
       AlertsPage(),
-      AccountPage(),
+      const AccountPage(),
     ];
     return StreamBuilder<GuardianSubscription>(
       stream: _subscriptions,
@@ -161,8 +164,8 @@ class _HomeShellState extends State<HomeShell> {
                 children: [
                   GuardianAppHeader(
                     onHome: () => _goToTab(0),
-                    onAlerts: () => _goToTab(2),
-                    onAccount: () => _goToTab(3),
+                    onAlerts: () => _goToTab(4),
+                    onAccount: () => _goToTab(5),
                   ),
                   Expanded(
                     child: IndexedStack(index: _index, children: pages),

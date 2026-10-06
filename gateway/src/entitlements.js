@@ -185,7 +185,14 @@ function verifiedFamilyMember(owner, memberUid) {
     .includes(String(memberUid));
 }
 
-async function loadEntitlementsForUser(db, user, { now = new Date() } = {}) {
+async function loadEntitlementsForUser(db, user, { now = new Date(), imei = null } = {}) {
+  if (imei && db && user?.uid) {
+    const service = (await db.collection('familyServices').doc(imei).get()).data();
+    if (service) {
+      if (!require('./family-policy').activeMember(service, user.uid, +now)) return inactiveContext('access_not_shared');
+      return evaluateSubscription(service.subscription, { now, ownerUid: service.ownerUid });
+    }
+  }
   if (!db || !user?.uid) return inactiveContext('missing_user');
   const ownerUid = String(user.serviceOwnerUid || user.uid);
   let accessThrough = 'owner';

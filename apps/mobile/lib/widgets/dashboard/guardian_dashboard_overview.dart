@@ -137,7 +137,8 @@ class GuardianDashboardOverview extends StatelessWidget {
             weather: weather,
             voiceAction:
                 voiceMessagesPilotImei.isNotEmpty &&
-                    selected.imei == voiceMessagesPilotImei
+                    selected.imei == voiceMessagesPilotImei &&
+                    selected.allowsShared('voice')
                 ? VoiceMessageAction(
                     key: ValueKey('voice-action-${selected.imei}'),
                     imei: selected.imei,
@@ -145,17 +146,36 @@ class GuardianDashboardOverview extends StatelessWidget {
                     wearerAvatarUrl: selected.avatarUrl,
                   )
                 : null,
-            photoAction: IncidentPhotoAction(
-              key: ValueKey('photo-action-${selected.imei}'),
-              imei: selected.imei,
-              wearerName: selected.displayName,
-              onCall: onCall,
-              onLocation: onLocationDetails,
-            ),
+            photoAction: !selected.allowsShared('photos')
+                ? null
+                : IncidentPhotoAction(
+                    key: ValueKey('photo-action-${selected.imei}'),
+                    imei: selected.imei,
+                    wearerName: selected.displayName,
+                    onCall: onCall,
+                    onLocation: onLocationDetails,
+                  ),
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
             builder: (context, constraints) {
+              if (!selected.allowsShared('location')) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _DashboardNotice(
+                      icon: Icons.lock_outline_rounded,
+                      title: 'Location is not shared',
+                      message:
+                          'You can still use the features shared with you. The owner can change your access in Family.',
+                    ),
+                    if (wellness != null) ...[
+                      const SizedBox(height: 20),
+                      wellness!,
+                    ],
+                  ],
+                );
+              }
               final location = _LocationPanel(
                 device: selected,
                 map: map,
@@ -165,11 +185,12 @@ class GuardianDashboardOverview extends StatelessWidget {
               final details = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SafeZonesPanel(
-                    device: selected,
-                    geofences: geofences,
-                    onManage: onSafeZones,
-                  ),
+                  if (selected.allowsShared('zones'))
+                    _SafeZonesPanel(
+                      device: selected,
+                      geofences: geofences,
+                      onManage: onSafeZones,
+                    ),
                   if (wellness != null &&
                       constraints.maxWidth >= 960 &&
                       MediaQuery.textScalerOf(context).scale(14) <= 20) ...[

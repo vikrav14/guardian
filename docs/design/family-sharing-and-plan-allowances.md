@@ -1,7 +1,7 @@
 # Family sharing and plan allowances
 
-Status: implementation in progress. This document records the agreed product scope;
-it does not claim that the controls are already deployed.
+Status: implemented for review in draft PR #150, behind a default-off gateway
+switch. This is not a production activation or migration.
 
 ## Commercial policy
 
@@ -86,3 +86,98 @@ Required evidence before marking this PR ready:
 No production membership migration, billing change or deployment is implied by
 opening the draft PR. The implementation and release evidence must identify the
 actual compatibility/migration path for legacy owner-scoped subscriptions.
+
+## Implementation and rollout boundary
+
+`familyServices/{imei}` is the backend-owned authority for a paid watch and its
+members. The versioned policy leaves legacy `serviceSubscriptions/{ownerUid}`
+agreements intact. Each new service has a unique contract binding. Client IMEI
+links, editable phone fields, legacy invite codes and emergency-contact entries
+cannot grant access to a managed service. Owner access cannot be transferred or
+removed through the member API.
+
+The Family page contains People, WhatsApp and Plan views. Invitations are bound
+to the recipient's verified account email, expire after seven days, reserve a
+place while pending, and are checked again in a transaction on acceptance.
+Custom access may be ongoing, seven days or thirty days. Revocation updates the
+authoritative grant and clears the app's stream-selection cache. Device views
+carry the selected wearer's own subscription, so a Care wearer cannot lend Care
+entitlements to a different Family wearer.
+
+Raw telemetry is owner-only for managed watches. Relatives with location access
+read an allowlisted location/status projection; other members use a separate
+identity/status projection so the wearer and permitted actions remain visible
+without a map. Delegated settings load a freshly authorized configuration-only
+response, excluding positions and SIM numbers. History, wellbeing, reminders,
+settings, safe zones, alerts, voice and incident-photo authorization retain
+their separate checks. Existing device pilots, owner-only enrollment/contact
+management and wearer-consent requirements remain applicable. Granting a
+permission does not activate a firmware feature or expand a device pilot.
+Open wellbeing/weather streams clear on permission removal or expiry. The
+outgoing SOS-call and fall auto-dial controls are removed: the supported watch
+sends Guardian alerts and cannot initiate a call.
+
+An authenticated app member links a number by sending a short-lived one-use
+code from WhatsApp. The private verified-number index, not `users.phone` or
+`users.whatsapp`, identifies managed senders. Each member separately consents
+to safety messages for each wearer. Only the owner selects recipients, within
+the edition's cap. Routine reminder WhatsApp fan-out is disabled for managed
+services. Existing legacy services keep their established routing.
+
+Managed WhatsApp answers are intentionally deterministic in this first release:
+location and battery/status questions. Other requests go to the app. No LLM
+call is made on this route, avoiding unbounded model costs. Monthly usage is
+shared across members and resets on the Mauritius calendar boundary. Durable
+reservations count against the limit during processing; provider rejection
+refunds a reservation, provider acceptance commits it, and an ambiguous network
+handoff remains reserved for operator reconciliation without automatic resend.
+Duplicate messages cannot create another answer. Non-answer notices are bounded
+to one per person/reason/day. SOS/fall delivery has an independent durable claim.
+`ACK <alert-id>` records a response without marking the alert resolved; delivery
+receipts cannot create that record. An acknowledgement UI and approved template
+button still require a separate live-channel acceptance pass before launch.
+
+### Operator setup and outstanding live acceptance
+
+1. Deploy reviewed rules, gateway and app together in a non-production test
+   environment. Set `FAMILY_SHARING_ENABLED=true` only for that reviewed rollout.
+   It is false by default. Build the app with the authenticated gateway URL.
+2. Preview `node scripts/provision-family-service.js --manifest <file>` with a
+   reviewed manifest containing `imei`, `ownerUid`, `plan`, `contractId` and
+   `verifiedMemberUids`. The contract ID must represent an actual paid service;
+   the utility does not create a payment, order or billing agreement.
+3. Provision only after reviewing ownership and every existing linked member,
+   using `--apply-reviewed-migration`. Existing members are preserved even when
+   over the new limit; additions remain blocked. A live legacy emergency-contact
+   list blocks automatic migration with `existing_notification_migration_required`.
+   Its verified recipients and consent need a separately reviewed cutover;
+   this PR does not silently disable their safety delivery.
+4. Complete two-account handset acceptance: personal invite, role change,
+   expiry/revocation, wearer switching and the available watch actions. Confirm
+   number linking, consent, selected safety templates and allowance exhaustion
+   against the real Meta channel with authorized test recipients. Gateway unit
+   tests and emulator tests are not evidence of actual device/provider delivery.
+5. Only after that acceptance, activate customer services. Do not treat a draft
+   PR, a generated APK or a provider `accepted` result as delivery confirmation.
+
+The legacy account-wide invitation generator remains in the backend for old
+clients, but managed-watch joins through that route are rejected. The new UI
+uses only the personal per-wearer flow. No production data was changed while
+developing this PR.
+
+### Review evidence
+
+The gateway, Flutter and Firestore emulator suites cover verified invitations,
+concurrent quota reservations, relinking a WhatsApp number before delivery,
+cross-wearer access, role removal, non-location wearer cards and configuration
+reads without raw telemetry. Responsive screenshots were rendered from the
+actual Flutter Family widgets with synthetic data at phone and desktop sizes,
+including enlarged text. The existing weather artwork and Mauritius logo are
+unchanged.
+
+The remaining launch work is two-account handset/provider acceptance, an
+acknowledgement UI/template button, reviewed legacy notification migration and
+the real billing/provisioning integration. Shared identity projections are
+seeded during provisioning and updated by gateway writes; direct owner profile
+edits need projection refresh support before customer rollout. No real messages
+were sent and no production subscriptions or membership records were changed.

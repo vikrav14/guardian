@@ -25,6 +25,10 @@ const {
  * Find guardian users who linked this IMEI and collect emergency contacts.
  */
 async function findContactsForImei(db, imei) {
+  if (db) {
+    const managed = await require('./family-notifications').managedContacts(db, imei);
+    if (managed !== null) return managed;
+  }
   const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
   const contacts = [];
   for (const doc of snap.docs) {
@@ -161,9 +165,11 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   }
 
   for (const c of contacts) {
+    if (c.managedFamily && (!(isSos || isFall) || !config.notifyWhatsApp ||
+        !await require('./family-notifications').claimSafetyDelivery(db, imei, alertId, c.guardianUid, c.whatsapp))) continue;
     const entry = { name: c.name, phone: c.phone, channels: {} };
 
-    if (config.notifySms) {
+    if (config.notifySms && !c.managedFamily) {
       entry.channels.sms = await sendSms(c.phone, text);
     } else {
       entry.channels.sms = { ok: false, skipped: true, reason: 'NOTIFY_SMS=false' };
@@ -186,7 +192,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
             fallbackUsed: false,
           };
         } else {
-          const recipientPrepared = withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
+          const recipientPrepared = c.managedFamily ? prepared : withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
             db, imei, alertId, alert, device, contact: c,
           }), { type: 'sos', device, alert });
           entry.channels.whatsapp = redactCallLinkResult(await sendPreparedSosWhatsApp(
@@ -206,7 +212,7 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
               fallbackUsed: false,
           };
         } else {
-          const recipientPrepared = withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
+          const recipientPrepared = c.managedFamily ? prepared : withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
             db, imei, alertId, alert, device, contact: c,
           }), { type: 'fall', device, alert });
           entry.channels.whatsapp = redactCallLinkResult(await sendPreparedFallWhatsApp(

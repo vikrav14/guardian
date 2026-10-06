@@ -28,6 +28,7 @@ function fakeDb({ liveDevice = {}, logs = [] } = {}) {
 
   return {
     collection(name) {
+      if (name === 'familyServices') return { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) };
       if (name === 'users') {
         return {
           where() {

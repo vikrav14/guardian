@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
-enum GuardianNavigationSymbol { home, safeZones, alerts, account, sos }
+enum GuardianNavigationSymbol {
+  home,
+  safeZones,
+  family,
+  watch,
+  alerts,
+  account,
+  sos,
+}
 
 /// Small native vectors keep the navigation's two-tone treatment consistent
 /// across platforms without an additional icon font or image dependency.
@@ -68,6 +76,54 @@ class _NavigationIconPainter extends CustomPainter {
     }
 
     switch (symbol) {
+      case GuardianNavigationSymbol.family:
+        canvas.drawCircle(const Offset(9, 8), 3, wash);
+        canvas.drawCircle(const Offset(9, 8), 3, stroke);
+        canvas.drawCircle(const Offset(17, 9), 2.5, stroke);
+        shape(
+          Path()
+            ..moveTo(2, 21)
+            ..lineTo(2, 19)
+            ..cubicTo(2, 12, 16, 12, 16, 19)
+            ..lineTo(16, 21)
+            ..close(),
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(17, 14)
+            ..cubicTo(21, 14, 22, 17, 22, 20),
+          stroke,
+        );
+      case GuardianNavigationSymbol.watch:
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(5, 6, 14, 12),
+            const Radius.circular(3),
+          ),
+          wash,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(5, 6, 14, 12),
+            const Radius.circular(3),
+          ),
+          stroke,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(8, 6)
+            ..lineTo(9, 2)
+            ..lineTo(15, 2)
+            ..lineTo(16, 6)
+            ..moveTo(8, 18)
+            ..lineTo(9, 22)
+            ..lineTo(15, 22)
+            ..lineTo(16, 18)
+            ..moveTo(12, 9)
+            ..lineTo(12, 12)
+            ..lineTo(15, 13),
+          stroke,
+        );
       case GuardianNavigationSymbol.home:
         shape(
           Path()

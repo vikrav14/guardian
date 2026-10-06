@@ -19,7 +19,7 @@ function accessDb({ user = { linkedImeis: [imei] }, owner = {}, subscription = {
   version: 1, managedBy: 'guardian_admin', plan: 'family', status: 'active',
 } } = {}) {
   return { collection: name => ({ doc: id => ({ get: async () => {
-    const data = name === 'users' ? (id === uid ? user : owner) : subscription;
+    const data = name === 'familyServices' ? undefined : name === 'users' ? (id === uid ? user : owner) : subscription;
     return { exists: !!data, data: () => data };
   } }) }) };
 }
