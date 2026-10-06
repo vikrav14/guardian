@@ -64,13 +64,48 @@ The photo follow-up uses `guardian_incident_photo_update_v3`; it describes the
 automatic attempt and AI availability, with scene descriptions kept in Guardian.
 It uses the persisted photo-window end time, never a new hour from message delivery.
 The previously submitted `_v4` / photo `_v2` drafts are superseded, not activated.
-Existing template versions are preserved. Before activation, verify all seven
-new template contracts are approved; then enable
-`INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED=true` in the preserved private environment.
-The live factory uses that same flag for capture policy and notification names.
-A restart before approval therefore retains the prior live behavior, rather than
-sending an unapproved follow-up. The new behavior is not live until this flag is
-verified and activated at an idle boundary.
+Existing template versions are preserved. App activation is independent of Meta
+copy approval: explicitly set `INCIDENT_PHOTO_GUARDIAN_WINDOW_ENABLED=true` to use
+one automatic attempt and the one-hour app window for new incidents. Keep
+`INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED=false` until all seven new Meta contracts
+pass approval/category/content checks. While pending, the existing approved
+initial-alert and photo-follow-up templates remain in use. Their legacy "up to 5"
+wording is an upper bound, not a promise of five automatic attempts. The initial
+follow-up counts only the automatic attempt; guardian requests do not send more
+WhatsApp messages. The app shows the actual one-photo policy and remaining hour.
+
+For backward compatibility, if ENABLED is absent, APPROVED remains its fallback.
+An unchanged old environment retains its prior behavior. Activate at an idle
+boundary. Do not retrofit an old incident into a new capture grant or renew an
+expired request. The Home action explains a disabled service or an older incident
+instead of implying that no SOS/fall occurred. A pending/failed automatic photo
+does not disable opening an authorized, unexpired incident window; the separate
+request action still enforces the pending capture and late-upload guard.
+
+## SOS reconnection candidate
+
+The 5 October 12:56 and 23:15 SOS failures both used an original connection that
+received an immediate UPLOAD echo, became silent, and was replaced shortly after
+the first camera write. Neither received a camera ACK or image. Closing the old
+socket under packet-idle policy stopped each request. This is distinct from
+ACKed-but-late images; a gateway cannot prove a call/modem/firmware cause here.
+
+`INCIDENT_PHOTO_SOS_SETTLE_ENABLED=true` enables a bounded pilot candidate: for
+the first non-trial SOS capture, require a heartbeat or location received on the
+selected socket at least 30 seconds after the alarm, still fresh within 30 seconds
+at dispatch. The alarm's own location, command echoes, unknown bytes and elapsed
+time alone cannot satisfy it. A single eligible replacement may be selected;
+multiple eligible sockets still fail closed. This passively waits without a
+camera grant, CR or retry, retains the original 12-minute first-attempt deadline,
+and rechecks identity, consent, access and socket after awaited reads. Initial
+notifications/calls and emergency tracking are independent. Fall first captures
+and later explicit guardian requests retain existing behavior.
+
+The 30-second settling interval is an engineering candidate, not a supplier
+guarantee or proof of camera readiness. It adds at least 30 seconds to the first
+SOS photo, potentially longer until telemetry arrives. It does not repair an
+ACKed upload delay or guarantee delivery. Hardware acceptance remains pending.
+After a command is sent, reconnect never migrates or automatically replays it.
 
 ## Validation
 
@@ -95,6 +130,7 @@ preserved. Merging code does not deploy a new runtime or activate this policy.
 
 At 22:45 Mauritius time all seven revised Meta templates were still pending.
 The photo follow-up remained categorized Marketing and failed the Utility
-contract check. Keep the approval flag false until that is resolved; do not
-substitute a newly approved template without checking its exact contract.
+contract check. Keep the template approval flag false until that is resolved;
+the separate app-window flag may be enabled using the existing approved copy.
+Do not substitute a new template without checking its exact contract.
 Earlier image delays/ACK-only failures remain unresolved hardware evidence.

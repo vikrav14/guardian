@@ -15,6 +15,8 @@ const { commandCoordinator } = require('./command-coordinator');
 const { createPhotoIngressObserver } = require('./photo-ingress-observer');
 const { createPhotoTransportDiagnostics } = require('./photo-transport-diagnostics');
 const { MANUAL_CAPTURE_WINDOW_MS, INCIDENT_CAPTURE_WINDOW_MS } = require('./photo-capture-window');
+const { readIncidentPhotoRollout } = require('./incident-photo-rollout');
+const { initialSosConnectionReady } = require('./incident-photo-readiness');
 
 const RETENTION_MS = 24 * 60 * 60_000;
 const COOLDOWN_MS = 15 * 60_000;
@@ -61,7 +63,7 @@ function decodePhoto(frame, protocolId) {
 }
 
 function createSnapshotController({ db, bucket, findSessions, runtime, now = () => new Date(), log = console.warn,
-  captureRejectedFrame = null, coordinator = commandCoordinator }) {
+  captureRejectedFrame = null, coordinator = commandCoordinator, initialSosSettleEnabled = false }) {
   const pending = new Map();
   const ingressObserver = createPhotoIngressObserver({ now: () => +now(), log });
   const config = runtime || readSafetySnapshotRuntime();
@@ -99,6 +101,7 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     const matches = findSessions(imei).filter(({ socket, session }) =>
       !socket.destroyed && socket.writable !== false && session.imei === imei &&
       expectedProtocolId != null && session.protocolId === expectedProtocolId &&
+      (!initialSosSettleEnabled || initialSosConnectionReady(incident, session, at)) &&
       (!incident || incident.trial || (Number.isFinite(after) &&
         Number.isFinite(session.lastPacketAt) && session.lastPacketAt > after &&
         session.lastPacketAt <= at && at - session.lastPacketAt <= INCIDENT_PACKET_FRESH_MS)));
@@ -512,7 +515,8 @@ function startSnapshotController({ db, findSessions, env = process.env }) {
       emulatorEnabled: Boolean(process.env.STORAGE_EMULATOR_HOST || process.env.FIREBASE_STORAGE_EMULATOR_HOST),
     }))}`);
     const captureRejectedFrame = createRejectedPhotoCapture(env.SAFETY_SNAPSHOT_REJECTED_FRAME_FILE);
-    live = createSnapshotController({ db, bucket, findSessions, runtime, captureRejectedFrame });
+    live = createSnapshotController({ db, bucket, findSessions, runtime, captureRejectedFrame,
+      initialSosSettleEnabled: readIncidentPhotoRollout(env).initialSosSettleEnabled });
   } catch {
     console.warn('[safety-snapshot] initialization failed; camera unavailable');
     return null;

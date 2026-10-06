@@ -5,6 +5,7 @@ const { createOrientedPhotoAnalyzer } = require('./incident-photo-orientation');
 const { asBool } = require('./safety-snapshot-runtime');
 const { buildFollowupPlan, galleryBase } = require('./incident-photo-templates');
 const { isGuardianWindow } = require('./incident-photo-policy');
+const { readIncidentPhotoRollout } = require('./incident-photo-rollout');
 
 let live = null;
 function getIncidentPhotos() { return live; }
@@ -21,10 +22,10 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
   if (!db || !snapshots) return null;
   const config = require('./config');
   const analyze = configuredPhotoAnalyzer({ env, config });
+  const rollout = readIncidentPhotoRollout(env);
   live = createIncidentPhotos({ db, snapshots, enabled: asBool(env.INCIDENT_PHOTOS_ENABLED),
-    // Atomic product/notification rollout: an ordinary restart with the old
-    // environment keeps the currently approved notification/capture contract.
-    guardianWindowEnabled: asBool(env.INCIDENT_PHOTO_GUARDIAN_WINDOW_APPROVED),
+    guardianWindowEnabled: rollout.guardianWindowEnabled,
+    initialSosSettleEnabled: rollout.initialSosSettleEnabled,
     trialOnly: asBool(env.INCIDENT_PHOTOS_TRIAL_ONLY, true), analyze, log: console.warn,
     onComplete: async incident => {
       if (!asBool(env.INCIDENT_PHOTO_FOLLOWUP_APPROVED) || !galleryBase(env.INCIDENT_PHOTOS_APP_URL) || !config.notifyWhatsApp) return { ok: false };
@@ -52,7 +53,8 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
       }
       const device = isGuardianWindow(incident)
         ? (await db.collection('devices').doc(incident.imei).get()).data() || {} : {};
-      const plan = buildFollowupPlan(incident.id, gallery, { incident, device });
+      const plan = buildFollowupPlan(incident.id, gallery, { incident, device,
+        compactTemplatesApproved: rollout.compactTemplatesApproved });
       const results = [];
       for (const contact of selected) {
         const result = await sendMetaTemplate(contact.whatsapp || contact.phone, plan.templateName, { languageCode: 'en', components: plan.components });

@@ -5,12 +5,13 @@ const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CAPTURE_POLICY, REQUEST_WINDOW_MS, isGu
   guardianRequestAvailability, consentAllows, validIncidentId } = require('./incident-photo-policy');
 const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
 const { createPhotoProgress } = require('./incident-photo-progress');
+const { SOS_SETTLE_MS } = require('./incident-photo-readiness');
 const RETENTION_MS = 24 * 60 * 60_000;
 const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
 
 function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true, guardianWindowEnabled = true, analyze = null, now = () => new Date(),
-  onComplete = async () => {}, log = () => {} }) {
+  onComplete = async () => {}, log = () => {}, initialSosSettleEnabled = false }) {
   const incidentRef = id => db.collection('incidentPhotos').doc(id);
   const photoRef = id => db.collection('safetySnapshotAuthorizations').doc(id);
   const settingsRef = imei => db.collection('incidentPhotoSettings').doc(imei);
@@ -117,10 +118,14 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
 
   async function current(uid, imei) {
     const decision = await snapshots.access(uid, imei);
+    if (!enabled || !guardianWindowEnabled)
+      return { incidentId: null, canRequest: false, reason: 'photo_feature_unavailable', serverAt: now() };
     const lock = (await lockRef(imei).get()).data();
     const incident = lock?.incidentId ? (await incidentRef(lock.incidentId).get()).data() : null;
-    if (!incident || incident.ownerUid !== decision.ownerUid || incident.imei !== imei || !isGuardianWindow(incident))
+    if (!incident || incident.ownerUid !== decision.ownerUid || incident.imei !== imei)
       return { incidentId: null, canRequest: false, reason: 'photo_window_closed', serverAt: now() };
+    if (!isGuardianWindow(incident))
+      return { incidentId: null, canRequest: false, reason: 'photo_window_not_enabled_for_incident', serverAt: now() };
     return { incidentId: incident.id, type: incident.type, eventAt: asDate(incident.eventAt),
       ...(await photoAccess(uid, incident)) };
   }
@@ -298,6 +303,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
         followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 }
         : { maxPhotos: MAX_PHOTOS, followupGapSeconds: GAP_MS / 1000, sequenceDeadlineSeconds: SEQUENCE_MS / 1000 },
       aiEnabled: Boolean(analyze), lastCaptureOutcome,
+      ...(initialSosSettleEnabled ? { initialSosSettleSeconds: SOS_SETTLE_MS / 1000 } : {}),
       capture: captureProgress.getStatus(), analysisFollowup: followupProgress.getStatus() };
   }
   return { enqueue, tick, sweep, gallery, current, requestByGuardian, analyzePhoto, getStatus, drain: () => analysisJob };

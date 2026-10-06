@@ -1,6 +1,7 @@
 const net = require('net');
 const { noteDeviceWrite } = require('./photo-command-timeline');
 const { notePhotoTransportPacket } = require('./photo-transport-diagnostics');
+const { noteIncidentPhotoTelemetry } = require('./incident-photo-readiness');
 
 const config = require('./config');
 
@@ -1392,6 +1393,7 @@ const server = net.createServer((socket) => {
       const { acks, events } = handlePacket(decoded, session);
       // Observational only: does not decide camera readiness or change replies.
       try { notePhotoTransportPacket(session, events, session.lastPacketAt); } catch { /* Diagnostics only. */ }
+      noteIncidentPhotoTelemetry(session, events, session.lastPacketAt);
       observeMovementReply(decoded, socket, session);
       observeMedicationReply(decoded, socket, session);
 

@@ -47,7 +47,7 @@ function withIncidentPhotoTemplate(prepared, { type, device, alert, env = proces
 
 function buildFollowupPlan(id, gallery, context = {}) {
   if (!validIncidentId(id)) throw Error('invalid_incident');
-  if (gallery.capturePolicy === CAPTURE_POLICY) return { templateName: GUARDIAN_FOLLOWUP_TEMPLATE, components: [
+  if (gallery.capturePolicy === CAPTURE_POLICY && context.compactTemplatesApproved === true) return { templateName: GUARDIAN_FOLLOWUP_TEMPLATE, components: [
     { type: 'body', parameters: compactPhotoParameters(gallery, context).map(text => ({ type: 'text', text })) },
     { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: id }] },
   ] };
