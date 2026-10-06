@@ -83,3 +83,39 @@ test('routine reporting is recomputed after camera deferral; active SOS reportin
   assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80 })).changed, true);
   assert(w.frames[1].includes('UPLOAD,60'));
 });
+
+test('fixed SMS-off uses the real coordinator and sender, exact byte length, and bare reply', async t => {
+  const { createWatchSmsPolicy } = require('../src/watch-sms-policy');
+  const { decodeFrame, handlePacket } = require('../src/protocol/gt06');
+  const w = watch(t, '861397000000010'); w.session.protocolId = '9700000001';
+  const callbacks = new Map(); let next = 0;
+  const policy = createWatchSmsPolicy({
+    schedule: fn => { const id = ++next; callbacks.set(id, fn); return id; },
+    cancel: id => callbacks.delete(id), log: () => {},
+  });
+  const packet = text => {
+    const decoded = decodeFrame(Buffer.from(text));
+    const { acks, events } = handlePacket(decoded, w.session);
+    for (const ack of acks) w.socket.write(ack);
+    policy.observe(decoded, events, w.socket, w.session);
+  };
+  const run = () => {
+    for (const [id, callback] of [...callbacks]) { callbacks.delete(id); callback(); }
+  };
+  w.capture();
+  packet('[3G*9700000001*0002*LK]'); run();
+  assert.deepEqual(w.frames, ['[SG*9700000001*0002*LK]'], 'required reply precedes and bypasses routine deferral');
+  assert.equal(w.session.watchSmsPolicy.reason, 'camera_busy');
+  assert.equal(sendDownlinkCommand(w.imei, 'SMSONOFF,1', { emergency: true }).error, 'watch_sms_fixed_off');
+  assert.equal(sendDownlinkCommand(w.imei, 'SMSONOFF,0', { expectedSocket: {} }).error, 'session_changed');
+  gate.finishCapture(w.imei, 'capture'); run();
+  assert.equal(w.frames[1], '[SG*9700000001*000A*SMSONOFF,0]');
+  packet('[3G*9700000001*0008*SMSONOFF]');
+  assert.equal(w.frames.length, 2, 'bare setting reply is not itself acknowledged');
+  assert.equal(w.session.watchSmsPolicy.status, 'reply_observed');
+  assert.equal(w.session.watchSmsPolicy.suppressionVerified, false);
+  packet('[3G*9700000001*0002*LK]'); run();
+  assert.equal(w.frames.filter(frame => frame.includes('SMSONOFF')).length, 1);
+  policy.disconnect(w.socket);
+  assert.equal(callbacks.size, 0);
+});

@@ -936,6 +936,7 @@ async function handleOpsHttpRequest(req, res, url) {
         expectedReportingIntervalSeconds: session.expectedReportingIntervalSeconds,
         outingActive: session.outingActive, outingActiveUntilMs: session.outingActiveUntilMs || null,
         cameraBusyUntil: coordinator.busyUntil(session.imei),
+        watchSmsPolicy: session.watchSmsPolicy || { desired: 'off', status: 'awaiting_telemetry', suppressionVerified: false },
       })), photo: require('./incident-photos-live').getIncidentPhotoRuntimeStatus(),
       photoIngress: require('./safety-snapshot-live').getSnapshotController()?.ingressDiagnosticsStatus() || null });
     return true;

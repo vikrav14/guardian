@@ -29,6 +29,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   const stepReports = [];
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
+    './watch-sms-policy': require('../src/watch-sms-policy'),
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },

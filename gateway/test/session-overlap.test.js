@@ -25,6 +25,7 @@ function gateway(t) {
   const captures = [];
   const wearDisconnects = [];
   const modules = {
+    './watch-sms-policy': require('../src/watch-sms-policy'),
     net: { createServer: callback => {
       accept = callback;
       return { on: noop, listen: noop };
