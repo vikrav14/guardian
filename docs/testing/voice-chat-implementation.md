@@ -14,11 +14,11 @@ software checkpoint; the live gateway and installed app have not been replaced.
 - Full Firestore emulator suite: 96 passing tests, including real concurrent
   voice transactions, private collection denial for linked and unrelated users,
   private audio deletion, expiry and retention of uncertain dispatch locks.
-- Eleven Flutter conversation/service tests cover explicit record/preview/send, no autoplay,
+- Twelve Flutter conversation/service tests cover explicit record/preview/send, no autoplay,
   private playback/deletion, recording duration bounds, permission/background
   races, late audio downloads, no resend after timeout, offline/revoked access,
   unread action and a 320-pixel screen with larger text.
-- The complete Flutter suite passed all 761 tests. Flutter analysis passed.
+- The complete Flutter suite passed all 762 tests. Flutter analysis passed.
   Android debug APK and Web release compiled; these
   are development validations, not installation or hosting deployment receipts.
 - The implemented 390-pixel conversation was visually reviewed using synthetic

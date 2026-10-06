@@ -17,7 +17,7 @@ class VoiceMessageException implements Exception {
     'sign_in_required',
   ].contains(code);
   String get message => switch (code) {
-    'watch_offline' || 'watch_session_not_ready' =>
+    'watch_offline' || 'watch_session_not_ready' || 'watch_not_ready' =>
       'The watch is offline. Connect it before sending a message.',
     'camera_busy' =>
       'The watch is taking an incident photo. Please wait before sending.',

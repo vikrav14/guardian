@@ -140,6 +140,7 @@ class _VoiceMessagesPageState extends State<VoiceMessagesPage>
       }
     } catch (error) {
       if (!_valid || generation != _generation) return;
+      _playGeneration++;
       setState(() {
         _inbox = null;
         _error = _message(error);
@@ -174,9 +175,17 @@ class _VoiceMessagesPageState extends State<VoiceMessagesPage>
           'Allow microphone access to record a voice message.',
         );
       }
-      if (!_valid || generation != _generation) return;
+      if (!_valid ||
+          generation != _generation ||
+          _inbox == null ||
+          _error != null) {
+        return;
+      }
       final stream = await _recorder.start();
-      if (!_valid || generation != _generation) {
+      if (!_valid ||
+          generation != _generation ||
+          _inbox == null ||
+          _error != null) {
         await _recorder.stop();
         return;
       }
@@ -642,6 +651,7 @@ class _VoiceMessagesPageState extends State<VoiceMessagesPage>
                           children: [
                             TextButton(
                               onPressed: () {
+                                _playGeneration++;
                                 unawaited(_player.stop());
                                 setState(() {
                                   _draft = null;

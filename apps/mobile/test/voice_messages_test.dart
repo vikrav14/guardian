@@ -97,6 +97,7 @@ class Recorder implements ReminderRecorder {
 }
 
 class Player implements VoiceClipPlayer {
+  Completer<void>? pendingStart;
   final completions = StreamController<void>.broadcast();
   int plays = 0, stops = 0;
   @override
@@ -105,6 +106,7 @@ class Player implements VoiceClipPlayer {
   Future<void> play(Uint8List wav) async {
     expect(String.fromCharCodes(wav.take(4)), 'RIFF');
     plays++;
+    await pendingStart?.future;
   }
 
   @override
@@ -139,6 +141,32 @@ Future<void> screen(
 }
 
 void main() {
+  testWidgets(
+    'discard invalidates a preview still starting and never sends the draft',
+    (t) async {
+      final client = InboxClient(),
+          recorder = Recorder(),
+          player = Player()..pendingStart = Completer<void>();
+      await screen(t, client, recorder, player);
+      await t.tap(find.text('Record a message'));
+      await t.pumpAndSettle();
+      recorder.bytes.add(Uint8List(16000));
+      await t.pump();
+      await t.tap(find.text('Stop recording'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Preview'));
+      await t.pump();
+      await t.tap(find.text('Discard'));
+      await t.pumpAndSettle();
+      final stopped = player.stops;
+      player.pendingStart!.complete();
+      await t.pumpAndSettle();
+      expect(player.stops, greaterThan(stopped));
+      expect(find.text('Send'), findsNothing);
+      expect(client.sends, isEmpty);
+      await t.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'an uncertain send is never replayed by refresh or recorded again while unresolved',
     (t) async {
