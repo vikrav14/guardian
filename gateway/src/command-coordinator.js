@@ -12,6 +12,7 @@ function promptCommand(command, { protocolReply = false, emergency = false } = {
 
 function createCommandCoordinator({ now = Date.now } = {}) {
   const captures = new Map();
+  const voices = new Map();
   function active(imei) {
     const lease = captures.get(imei);
     if (lease && (lease.expiresAt <= now() || lease.socket.destroyed)) {
@@ -27,6 +28,11 @@ function createCommandCoordinator({ now = Date.now } = {}) {
     const lease = active(imei);
     if (lease && !promptCommand(command, options)) {
       return { ok: false, status: 'skipped', error: 'camera_busy', expiresAt: lease.expiresAt };
+    }
+    const voice = voices.get(imei);
+    if (voice && (voice.expiresAt <= now() || voice.socket.destroyed)) voices.delete(imei);
+    else if (voice && !promptCommand(command, options) && !/^RCAPTURE(?:,|$)/i.test(command)) {
+      return { ok: false, status: 'skipped', error: 'voice_busy', expiresAt: voice.expiresAt };
     }
     return { ok: true, status: 'ready' };
   }
@@ -44,8 +50,18 @@ function createCommandCoordinator({ now = Date.now } = {}) {
   }
   function disconnect(socket) {
     for (const [imei, lease] of captures) if (lease.socket === socket) captures.delete(imei);
+    for (const [imei, lease] of voices) if (lease.socket === socket) voices.delete(imei);
   }
+  function beginVoice({ imei, id, socket, expiresAt }) {
+    const decision = decide(imei, 'TK', { expiresAt });
+    if (!decision.ok) return decision;
+    if (socket.destroyed || socket.writable === false) return { ok: false, error: 'watch_offline' };
+    voices.set(imei, { id, socket, expiresAt: Math.min(+expiresAt, now() + 10000) });
+    return { ok: true };
+  }
+  function finishVoice(imei, id) { if (voices.get(imei)?.id === id) voices.delete(imei); }
   return { decide, beginCapture, finishCapture, disconnect,
+    beginVoice, finishVoice,
     busyUntil: imei => active(imei)?.expiresAt || null };
 }
 const commandCoordinator = createCommandCoordinator();

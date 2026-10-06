@@ -26,6 +26,7 @@ function gateway(t) {
   const wearDisconnects = [];
   const modules = {
     './watch-sms-policy': require('../src/watch-sms-policy'),
+    './voice-message-runtime': { createVoiceReceiver: () => ({ observe: () => false, startCleanup: () => null }) },
     net: { createServer: callback => {
       accept = callback;
       return { on: noop, listen: noop };

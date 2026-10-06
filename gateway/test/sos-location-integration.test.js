@@ -34,6 +34,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
   }
   const modules = {
     './watch-sms-policy': require('../src/watch-sms-policy'),
+    './voice-message-runtime': { createVoiceReceiver: () => ({ observe: () => false, startCleanup: () => null }) },
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },

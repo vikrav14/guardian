@@ -23,6 +23,7 @@ class GuardianOverviewHeader extends StatelessWidget {
     this.watchCheckStatus,
     this.weather,
     this.photoAction,
+    this.voiceAction,
   });
 
   final Device device;
@@ -34,6 +35,7 @@ class GuardianOverviewHeader extends StatelessWidget {
   final Widget? watchCheckStatus;
   final Widget? weather;
   final Widget? photoAction;
+  final Widget? voiceAction;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +56,7 @@ class GuardianOverviewHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _OverviewActions(onCall: onCall, onJourney: onJourney),
+            ?voiceAction,
             if (photoAction != null) ...[
               const SizedBox(height: 12),
               photoAction!,

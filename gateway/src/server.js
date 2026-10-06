@@ -67,6 +67,8 @@ const { observeWifiFencePacket } = require('./wifi-fence-runtime');
 const { observeMovementReply } = require('./movement-reminder-transport');
 const { observeMedicationReply } = require('./medication-settings-transport');
 const watchSmsPolicy = require('./watch-sms-policy').createWatchSmsPolicy();
+const voiceMessages = require('./voice-message-runtime').createVoiceReceiver({ getDb });
+voiceMessages.startCleanup();
 
 const {
   incrementEvent,
@@ -1375,6 +1377,7 @@ const server = net.createServer((socket) => {
 
     for (const frame of frames) {
       // Handle private binary media before the text decoder, logs or telemetry.
+      if (voiceMessages.observe(frame, socket, session)) continue;
       if (isPhotoFrame(frame)) {
         snapshotController?.observe(frame, socket, session);
         continue;

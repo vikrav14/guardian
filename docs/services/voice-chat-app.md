@@ -1,22 +1,23 @@
 # V52 recorded voice messages in Guardian
 
-Status: implementation draft opened at the operator's request on 5 October 2026.
-Preparation resumed on 6 October after the operator requested integration of
-PRs #147/#148 and then continuation here. The branch still contains the source
-audit, app flow and acceptance plan only. No TK receiver, audio sender, app inbox
-or microphone behavior is activated. See the updated
+Status: implemented as a gated pilot in PR #145 on 6 October 2026, after
+PRs #147/#148 merged. The branch now contains binary TK receive/send, private
+storage, audio conversion and the Android/Web conversation. The running gateway
+has not been changed or enabled for voice messages. Guardian-to-watch and
+watch-to-Guardian physical acceptance remain pending. See the updated
 [reference evidence and controlled check](../testing/voice-chat-reference.md).
 
 ## Product flow
 
-Add **Voice messages** to the wearer's Home card/actions and wearer details.
+The selected **Action button** design adds **Voice messages** to the wearer's Home card,
+below Call watch / View journey and above incident Photos.
 Use the selected wearer's identity consistently, with an unread count when
 available. Keep the existing bottom navigation; open a dedicated conversation
 screen from the wearer context.
 
 - **Watch to guardian:** the wearer records a message using the watch's voice
   message function. An authorized guardian sees an incoming clip, duration,
-  receipt time and Play/Pause control in that wearer's conversation.
+  receipt time and Play/Stop control in that wearer's conversation.
 - **Guardian to watch:** the guardian taps Record, explicitly grants microphone
   access, records, stops, previews, then taps Send. Include cancel/delete draft
   and clear upload or delivery errors. Do not autoplay incoming clips.
@@ -33,8 +34,8 @@ container/codec is not necessarily AMR. Validate conversion to the accepted
 watch format on the server and serve an authorized compatible playback version
 where needed. Do not assume raw AMR playback works on both clients.
 
-Initial product proposals, to validate before implementation: retain clips for
-24 hours with a visible expiry, and cap a recording at 30 seconds. These are
+Implemented product bounds: retain clips for
+24 hours with a visible expiry notice, and cap a recording at 30 seconds. These are
 Guardian bounds, not claimed firmware limits. Enforce the smaller accepted
 device byte/duration limits, including frame overhead and escaping. Preserve
 existing service entitlement patterns; confirm package placement before release.
@@ -160,9 +161,9 @@ must not depend on the pending SOS/fall Meta template approvals.
   both directions (6 October supplier reference).
 - [ ] Establish accepted byte/duration limits and timeout/reconnect behavior;
   the short reference clips do not validate the proposed 30-second cap.
-- [ ] Implement private binary receive/store/ACK, bounded authorized send and
+- [x] Implement private binary receive/store/ACK, bounded authorized send and
   server-owned delivery metadata, with cleanup and conversion where required.
-- [ ] Implement Android/Web wearer-scoped conversation, recording, playback,
+- [x] Implement Android/Web wearer-scoped conversation, recording, playback,
   unread state, expired media and offline/error handling.
 - [ ] Test all five escapes, chunk boundaries, malformed lengths/media, oversized
   clips, storage failure, repeated uploads, late ACKs, cross-family access,
@@ -178,4 +179,60 @@ must not depend on the pending SOS/fall Meta template approvals.
 Sibling medication-reminder scope: [PR #144](https://github.com/vikrav14/guardian/pull/144).
 PR #144 has since merged after independent TAKEPILLS wire and audible-playback
 verification. TAKEPILLS and the bidirectional TK reference remain separate;
-neither establishes playback in Guardian's future inbox or all TK firmware limits.
+neither establishes playback in Guardian's inbox or all TK firmware limits.
+
+## Implemented pilot and rollout
+
+Gateway flags are `VOICE_MESSAGES_ENABLED=true`, `VOICE_MESSAGES_PILOT_IMEI`
+and `VOICE_MESSAGES_PILOT_UID`; all three must match a current linked user with
+an active server-owned Family/Care entitlement. The Flutter build additionally
+requires `GUARDIAN_VOICE_MESSAGES_PILOT_IMEI` and `GUARDIAN_GATEWAY_URL`.
+The Home button remains absent when eligibility cannot be verified. Broader
+package placement and multi-guardian access are not released by this pilot.
+
+Deploy the `voiceMessages` IMEI/createdAtMs index and private collection rules
+before enabling a supervised pilot. This PR does not modify the existing
+gateway environment or deploy a new runtime automatically.
+
+- `/app/voice-messages` supports authenticated GET history and POST send;
+  `/audio`, `/played` and `/delete` recheck current access. Audio is a private
+  authenticated WAV response with no-store headers, never a public URL.
+- PCM16 mono 8 kHz is converted in a worker to the captured AMR-NB mode 7
+  format. Incoming audio is validated and decoded to PCM in a worker. Workers
+  have a five-second limit and two-job bound. Binary payloads bypass generic
+  text logging even with the pilot disabled. Bare TK is consumed without reply.
+- Audio and metadata commit atomically in private Firestore documents before
+  incoming TK,1. Storage/authorization failure uses TK,0. Malformed, disabled
+  or unmatched frames do not receive a success ACK. No raw audio is logged.
+- Outgoing audio uses SG TK, one current socket, explicit Send, a UUID request,
+  a 30-second dispatch lease and a 10-second reply observation. Delivery state
+  is persisted before writing bytes. Node write completion is not receipt.
+- An exact same-session TK,1 is shown as **Watch replied**, not heard. TK,0 is
+  rejected. Silence, disconnect or ambiguous persistence produces **Send
+  unconfirmed** and latches further sends across gateway restarts. There is
+  no automatic replay, reconnect resend or app retry. Recovery of that latch
+  currently requires operator investigation; there is no customer unlock.
+- TK has no message ID. The one-active-send rule, one-minute spacing and
+  ambiguity latch reduce misassociation; a delayed duplicate result from an
+  earlier successful send still cannot be conclusively correlated. This
+  limitation remains part of physical acceptance, not a delivery guarantee.
+- A bounded voice lease holds routine settings until the reply window ends.
+  Calls, protocol ACKs, stop commands and emergency camera/location work stay
+  prompt. A live incident capture rejects a new outgoing voice send. Hardware
+  overlap behavior still needs acceptance; software never adds photo retries.
+- Both directions share a 120-new-message/device/UTC-day storage cap. Incoming
+  byte-identical audio is deduplicated per UTC day, because TK supplies no
+  message identifier. Identical intentional clips in that day are also folded;
+  a retransmission across midnight can appear again. No exactly-once claim.
+- Media becomes inaccessible at 24 hours. A minute cleanup task removes expired
+  audio in batches; a stopped gateway cannot perform physical deletion until
+  resumed. Minimal receipt/idempotency metadata is kept up to seven days.
+  Delete removes both PCM and AMR while retaining any uncertain-send latch.
+- The app keeps drafts in memory, never uploads before Send, stops recording
+  and playback on background/auth changes, and clears private conversation
+  data when access fails. The microphone has an explicit stop and 30-second
+  cap. New messages do not autoplay. Playback marks only **Played here**.
+
+The controlled supplier reference proves short clips in both directions.
+Thirty-second playback, Guardian Android/Web microphone and speaker behavior,
+offline/late-result recovery and multi-guardian policy remain release checks.
