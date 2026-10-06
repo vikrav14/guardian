@@ -19,11 +19,15 @@ async function authorizeCommand(db, row, now) {
   if (row.type === 'set_alarm_mode') return row.createdBy === 'operator:queue-v52-alarm-mode'
     && (await db.collection('devices').doc(row.imei).get()).exists;
   if (['set_phonebook_contact', 'set_watch_answer_mode'].includes(row.type)) return false;
+  try {
+    await require('./family-policy').watchAccess(db, row.createdBy, row.imei,
+      row.type === 'set_medication_reminder' ? 'reminders' : 'settings', { now });
+  } catch { return false; }
   const snap = await db.collection('users').doc(row.createdBy).get();
   const user = { ...snap.data(), uid: row.createdBy };
   if (!snap.exists || !user.linkedImeis?.includes(row.imei)) return false;
   if (['set_watch_alert_profile', 'set_medication_reminder'].includes(row.type)) {
-    const access = await loadEntitlementsForUser(db, user, { now: new Date(now) });
+    const access = await loadEntitlementsForUser(db, user, { now: new Date(now), imei: row.imei });
     return access.serviceActive && ['family', 'care'].includes(access.plan);
   }
   return true;

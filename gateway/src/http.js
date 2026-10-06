@@ -1061,6 +1061,7 @@ function startHttpServer() {
     getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
   const handleMedication = createMedicationHandler({ getDb });
   const handleVoice = createVoiceHandler({ getDb });
+  const handleFamily = require('./family-http').createFamilyHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1083,6 +1084,7 @@ function startHttpServer() {
       if (await handleMovement(req, res, url)) return;
       if (await handleMedication(req, res, url)) return;
       if (await handleVoice(req, res, url)) return;
+      if (await handleFamily(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {
@@ -1607,6 +1609,11 @@ function startHttpServer() {
           incrementMetric('whatsappInbound');
 
           try {
+            if (process.env.FAMILY_SHARING_ENABLED === 'true' &&
+                await require('./family-whatsapp').handleFamilyWhatsApp({ db: getDb(), message, send: sendMetaText })) {
+              metaInboundDeduper.markDone(message.id);
+              continue;
+            }
             const { reply } = await handleChat({
               from: normalizeE164(message.from),
               text: message.text,

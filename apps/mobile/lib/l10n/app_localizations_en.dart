@@ -18,6 +18,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navSafeZones => 'Safe zones';
 
   @override
+  String get navFamily => 'Family';
+
+  @override
+  String get navWatch => 'Watch';
+
+  @override
   String get navAlerts => 'Alerts';
 
   @override

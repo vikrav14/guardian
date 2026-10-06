@@ -89,6 +89,8 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
     const ownerUid = String(user.serviceOwnerUid || uid);
     const owner = ownerUid === uid ? userSnap : await reader(db.collection('users').doc(ownerUid));
     const sub = await reader(db.collection('serviceSubscriptions').doc(ownerUid));
+    const shared = await require('./family-policy').watchAccess(db, uid, imei, 'photos', { now: +now(), read: reader });
+    if (shared.managed) return { ok: true, ownerUid: shared.service.ownerUid, plan: shared.entitlements.plan };
     const decision = assessSnapshotAccess({ requesterUid: uid, user, owner: owner.data(), subscription: sub.data(), imei, now: now() });
     if (!decision.ok) fail(decision.reason, 403);
     return decision;

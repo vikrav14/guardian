@@ -119,9 +119,11 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
     const userDoc = typeof uid === 'string' && uid.length > 0 && !uid.includes('/')
       ? await db.collection('users').doc(uid).get() : null;
     const user = userDoc?.data();
-    const access = user ? await loadEntitlementsForUser(db, { ...user, uid }, { now: new Date() }) : null;
+    const access = user ? await loadEntitlementsForUser(db, { ...user, uid }, { now: new Date(), imei }) : null;
     const now = new Date();
-    const linked = user?.linkedImeis?.includes(imei) === true && access?.serviceActive === true;
+    let permitted = false;
+    if (uid) { try { await require('./family-policy').watchAccess(db, uid, imei, 'wellbeing'); permitted = true; } catch { /* revoked */ } }
+    const linked = permitted && user?.linkedImeis?.includes(imei) === true && access?.serviceActive === true;
     const requestTime = date(request?.updatedAt);
     const requestValid = (request?.version === 1 || parseDailyRoutine(request)) &&
       Number.isFinite(+requestTime) && requestTime != null &&

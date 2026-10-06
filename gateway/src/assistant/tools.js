@@ -121,9 +121,14 @@ async function resolveCallerContext(db, fromRaw) {
         ? CALLER_ROLES.ADMIN
         : CALLER_ROLES.GUARDIAN;
 
-    const linkedImeis = Array.isArray(matchedUser.linkedImeis)
+    let linkedImeis = Array.isArray(matchedUser.linkedImeis)
       ? [...new Set(matchedUser.linkedImeis.filter(Boolean).map(String))]
       : [];
+    const legacyImeis = [];
+    for (const imei of linkedImeis) {
+      if (!(await db.collection('familyServices').doc(imei).get()).exists) legacyImeis.push(imei);
+    }
+    linkedImeis = legacyImeis;
     const entitlements = await loadEntitlementsForUser(db, matchedUser);
 
     const devices = [];

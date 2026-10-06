@@ -35,6 +35,8 @@ async function runReminderCheck(db, options = {}) {
   for (const reminderDoc of remindersSnap.docs) {
     const reminder = reminderDoc.data() || {};
     if (!reminderDue(reminder, now)) continue;
+    // Managed circles keep routine reminders in the app; never fan out paid routine WhatsApp messages.
+    if ((await db.collection('familyServices').doc(reminder.imei).get()).exists) continue;
     const uid = String(reminder.createdBy || '');
     if (!uid) continue;
 

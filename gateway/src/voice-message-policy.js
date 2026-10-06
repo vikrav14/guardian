@@ -28,7 +28,8 @@ async function authorizeVoice({ db, uid, imei, runtime, now = new Date() }) {
     user = { ...snap.data(), uid };
   if (!snap.exists || !user.linkedImeis?.includes(imei))
     throw new VoiceError('device_not_linked', 403);
-  const access = await loadEntitlementsForUser(db, user, { now });
+  try { await require('./family-policy').watchAccess(db, uid, imei, 'voice', { now: +now }); } catch { throw new VoiceError('device_not_linked', 403); }
+  const access = await loadEntitlementsForUser(db, user, { now, imei });
   if (!access.serviceActive || !['family', 'care'].includes(access.plan))
     throw new VoiceError('active_service_required', 403);
   return { imei, uid, ownerUid: access.ownerUid };

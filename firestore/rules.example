@@ -10,8 +10,68 @@ service cloud.firestore {
     }
 
     function linkedTo(imei) {
-      return signedIn() && imei in userDoc().linkedImeis;
+      return sharedWith(imei, 'owner');
     }
+
+    function managedWatch(imei) {
+      return exists(/databases/$(database)/documents/familyServices/$(imei));
+    }
+    function familyService(imei) {
+      return get(/databases/$(database)/documents/familyServices/$(imei)).data;
+    }
+    function familyActive(sub) {
+      return sub.get('version', 0) == 1
+        && sub.get('managedBy', '') in ['guardian_admin', 'billing', 'migration']
+        && sub.get('plan', '') in ['family', 'care']
+        && ((sub.get('status', '') == 'active'
+              && (sub.get('currentPeriodEnd', null) == null || sub.currentPeriodEnd > request.time))
+          || (sub.get('status', '') == 'trialing' && sub.get('trialEndsAt', request.time) > request.time)
+          || (sub.get('status', '') in ['grace_period', 'past_due'] && sub.get('graceEndsAt', request.time) > request.time)
+          || (sub.get('status', '') == 'cancelled' && sub.get('currentPeriodEnd', request.time) > request.time));
+    }
+    function familyMember(imei) {
+      let circle = familyService(imei);
+      let member = circle.get('members', {}).get(request.auth.uid, {});
+      return member.get('status', '') == 'active'
+        && (member.get('untilMs', null) == null || member.untilMs > request.time.toMillis());
+    }
+    function sharedWith(imei, permission) {
+      return signedIn() && (
+        (!managedWatch(imei) && imei in userDoc().get('linkedImeis', []))
+        || (managedWatch(imei) && familyMember(imei)
+          && familyActive(familyService(imei).subscription)
+          && (familyService(imei).ownerUid == request.auth.uid
+            || familyService(imei).members[request.auth.uid].get('permissions', {}).get(permission, false) == true))
+      );
+    }
+    function watchPlanAtLeast(imei, requiredPlan) {
+      return (!managedWatch(imei) && activePlanAtLeast(requiredPlan))
+        || (managedWatch(imei) && familyActive(familyService(imei).subscription)
+          && (requiredPlan != 'care' || familyService(imei).subscription.plan == 'care'));
+    }
+    // Index fields help the UI choose streams; only the service document grants access.
+    match /familyServices/{imei} {
+      allow get: if signedIn() && familyMember(imei);
+      allow list, write: if false;
+      match /usage/{month} { allow get: if signedIn() && familyMember(imei); allow list, write: if false; }
+    }
+    match /familyDeviceViews/{imei} {
+      allow read: if sharedWith(imei, 'location');
+      allow write: if false;
+    }
+    match /familyDeviceProfiles/{imei} {
+      allow get: if signedIn() && managedWatch(imei) && familyMember(imei)
+        && familyActive(familyService(imei).subscription);
+      allow list, write: if false;
+    }
+    match /familyInvites/{id} { allow read, write: if false; }
+    match /familyChannels/{id} { allow read, write: if false; }
+    match /familyLinkCodes/{id} { allow read, write: if false; }
+    match /familyNumbers/{id} { allow read, write: if false; }
+    match /familyAnswers/{id} { allow read, write: if false; }
+    match /familyNotices/{id} { allow read, write: if false; }
+    match /familyAcknowledgements/{id} { allow read, write: if false; }
+    match /familyDeliveries/{id} { allow read, write: if false; }
 
     function effectiveServiceOwnerUid() {
       return userDoc().get('serviceOwnerUid', request.auth.uid);
@@ -69,11 +129,11 @@ service cloud.firestore {
     // because Firestore's rules evaluator cannot reliably execute timezone
     // calendar methods. They cover the app's Mauritius-day query bounds with
     // a small boundary margin.
-    function wellnessHistoryAllowed(recordedAt) {
-      let plan = serviceSubscription().get('plan', '');
+    function wellnessHistoryAllowed(imei, recordedAt) {
+      let plan = managedWatch(imei) ? familyService(imei).subscription.plan : serviceSubscription().get('plan', '');
       return recordedAt is timestamp
         && recordedAt <= request.time
-        && activePlanAtLeast('essential')
+        && watchPlanAtLeast(imei, 'essential')
         && (plan == 'care'
           || (plan == 'family'
             && recordedAt >= request.time - duration.value(169, 'h'))
@@ -110,13 +170,13 @@ service cloud.firestore {
       return serviceSubscription().get('plan', '') == 'essential' ? 1 : 5;
     }
 
-    function historyAllowed(recordedAt) {
+    function historyAllowed(imei, recordedAt) {
       // Family and Care have retained history, so their collection queries do
       // not need a per-document time predicate. Essential remains restricted
       // to records inside its seven-day window.
-      return activePlanAtLeast('family')
+      return watchPlanAtLeast(imei, 'family')
         || (
-          activePlanAtLeast('essential')
+          watchPlanAtLeast(imei, 'essential')
           && recordedAt is timestamp
           && recordedAt >= request.time - duration.value(7, 'd')
         );
@@ -135,13 +195,13 @@ service cloud.firestore {
           'subscription',
           'serviceOwnerUid',
           'memberUids',
-          'familyMembers'
+          'familyMembers', 'familyServiceImeis', 'familyAccess'
         ]);
     }
 
     function validNewUserAuthorityFields() {
       return !request.resource.data.keys()
-          .hasAny(['subscription', 'serviceOwnerUid', 'memberUids'])
+          .hasAny(['subscription', 'serviceOwnerUid', 'memberUids', 'familyServiceImeis', 'familyAccess'])
         && (
           !('familyMembers' in request.resource.data)
           || (request.resource.data.familyMembers is list
@@ -177,7 +237,11 @@ service cloud.firestore {
       // preference they asked the pendant for (V46/V48/V52 only -- the
       // device has no read-back command, so this is a request cache, not
       // confirmed device state; see commands.js).
-      allow update: if linkedTo(imei)
+      allow update: if sharedWith(imei, 'settings')
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['name', 'nickname', 'relationship', 'avatarUrl'])
+            || (!managedWatch(imei) && linkedTo(imei)))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['simNumber']) || linkedTo(imei))
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly([
               'name',
@@ -197,42 +261,42 @@ service cloud.firestore {
         && (
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['careProfile', 'carePriorities'])
-          || activePlanAtLeast('care')
+          || watchPlanAtLeast(imei, 'care')
         )
         && (
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['watchAlertProfile'])
-          || activePlanAtLeast('family')
+          || watchPlanAtLeast(imei, 'family')
         );
       allow create, delete: if false;
 
       // Area weather for this profile. The gateway owns location selection,
       // provider credentials and freshness; clients cannot forge conditions.
       match /weather/{weatherId} {
-        allow read: if weatherId == 'current' && linkedTo(imei);
+        allow read: if weatherId == 'current' && sharedWith(imei, 'location');
         allow write: if false;
       }
 
       match /locations/{locationId} {
-        allow read: if linkedTo(imei)
-          && historyAllowed(resource.data.recordedAt);
+        allow read: if sharedWith(imei, 'history')
+          && historyAllowed(imei, resource.data.recordedAt);
         allow write: if false;
       }
 
       match /segments/{segmentId} {
-        allow read: if linkedTo(imei)
-          && historyAllowed(resource.data.from);
+        allow read: if sharedWith(imei, 'history')
+          && historyAllowed(imei, resource.data.from);
         allow write: if false;
       }
 
       match /journeys/{journeyId} {
-        allow read: if linkedTo(imei)
-          && historyAllowed(resource.data.startAt);
+        allow read: if sharedWith(imei, 'history')
+          && historyAllowed(imei, resource.data.startAt);
         allow write: if false;
 
         match /presentations/{presentationId} {
-          allow read: if linkedTo(imei)
-            && historyAllowed(resource.data.journeyStartAt)
+          allow read: if sharedWith(imei, 'history')
+            && historyAllowed(imei, resource.data.journeyStartAt)
             && resource.data.expiresAt is timestamp
             && resource.data.expiresAt > request.time;
           allow write: if false;
@@ -243,18 +307,18 @@ service cloud.firestore {
       // their edition's history window. The backend owns writes and wearing
       // remains unconfirmed.
       match /wellbeingReadings/{readingId} {
-        allow get: if linkedTo(imei)
-          && activePlanAtLeast('family')
+        allow get: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'family')
           && resource.data.get('displayable', false) == true
-          && wellnessHistoryAllowed(resource.data.get('observedAt', null))
+          && wellnessHistoryAllowed(imei, resource.data.get('observedAt', null))
           && activeWellbeingConsent(imei);
         // Queries are constrained to the edition's calendar window by the
         // query bounds. A list rule cannot additionally require <= request.time
         // because a valid full-day query ends at the next calendar boundary.
-        allow list: if linkedTo(imei)
-          && activePlanAtLeast('family')
+        allow list: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'family')
           && resource.data.displayable == true
-          && (activePlanAtLeast('care')
+          && (watchPlanAtLeast(imei, 'care')
             || resource.data.observedAt >= request.time - duration.value(169, 'h'))
           && resource.data.observedAt < request.time + duration.value(26, 'h')
           && activeWellbeingConsent(imei);
@@ -267,7 +331,7 @@ service cloud.firestore {
       // Wearing data quality is available on every active edition. Raw
       // tracker bits and diagnostic captures remain backend-only.
       match /wearStatus/{statusId} {
-        allow read: if statusId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow read: if statusId == 'current' && sharedWith(imei, 'wellbeing') && watchPlanAtLeast(imei, 'essential');
         allow write: if false;
       }
       // Manual observations are separate from gateway-owned wearing evidence.
@@ -276,7 +340,7 @@ service cloud.firestore {
       match /wearChecks/{checkId} {
         function validCheck() {
           let data = request.resource.data;
-          return checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential')
+          return checkId == 'current' && sharedWith(imei, 'wellbeing') && watchPlanAtLeast(imei, 'essential')
             && data.keys().hasOnly(['version', 'state', 'observedAt', 'recordedAt', 'recordedBy'])
             && data.version == 1 && data.state in ['worn', 'removed']
             && data.recordedBy == request.auth.uid
@@ -285,14 +349,14 @@ service cloud.firestore {
             && data.observedAt >= request.time - duration.value(60, 's')
             && data.observedAt <= request.time + duration.value(60, 's');
         }
-        allow get: if checkId == 'current' && linkedTo(imei) && activePlanAtLeast('essential');
+        allow get: if checkId == 'current' && sharedWith(imei, 'wellbeing') && watchPlanAtLeast(imei, 'essential');
         allow create: if validCheck();
         allow update: if validCheck() && request.resource.data.observedAt >= resource.data.observedAt;
         allow list, delete: if false;
       }
       match /wellnessRoutine/{statusId} {
-        allow get: if statusId == 'current' && linkedTo(imei)
-          && activePlanAtLeast('family');
+        allow get: if statusId == 'current' && sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'family');
         allow list, write: if false;
       }
       // Durable scheduler claims/counters are internal. The gateway copies
@@ -307,21 +371,21 @@ service cloud.firestore {
         allow read, write: if false;
       }
       match /activityDays/{localDate} {
-        allow get: if linkedTo(imei)
-          && activePlanAtLeast('essential')
+        allow get: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'essential')
           && resource.data.get('displayable', false) == true
-          && wellnessHistoryAllowed(resource.data.get('lastObservedAt', null));
-        allow list: if linkedTo(imei)
-          && activePlanAtLeast('care')
+          && wellnessHistoryAllowed(imei, resource.data.get('lastObservedAt', null));
+        allow list: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'care')
           && resource.data.displayable == true
           && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
-        allow list: if linkedTo(imei)
-          && activePlanAtLeast('family')
+        allow list: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'family')
           && resource.data.displayable == true
           && resource.data.lastObservedAt >= request.time - duration.value(169, 'h')
           && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
-        allow list: if linkedTo(imei)
-          && activePlanAtLeast('essential')
+        allow list: if sharedWith(imei, 'wellbeing')
+          && watchPlanAtLeast(imei, 'essential')
           && resource.data.displayable == true
           && resource.data.lastObservedAt >= request.time - duration.value(25, 'h')
           && resource.data.lastObservedAt < request.time + duration.value(26, 'h');
@@ -378,8 +442,8 @@ service cloud.firestore {
         ) && data.requestedBy == request.auth.uid
           && data.updatedAt == request.time;
       }
-      allow get: if linkedTo(imei) && activePlanAtLeast('family');
-      allow create, update: if linkedTo(imei) && activePlanAtLeast('family')
+      allow get: if sharedWith(imei, 'wellbeing') && watchPlanAtLeast(imei, 'family');
+      allow create, update: if sharedWith(imei, 'wellbeing') && watchPlanAtLeast(imei, 'family')
         && validScheduleRequest()
         && (request.resource.data.routine == 'manual' || activeWellbeingConsent(imei));
       allow list, delete: if false;
@@ -392,35 +456,35 @@ service cloud.firestore {
     }
 
     match /geofences/{geofenceId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if sharedWith(resource.data.imei, 'zones');
       allow create: if signedIn()
-        && linkedTo(request.resource.data.imei)
+        && sharedWith(request.resource.data.imei, 'zones')
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if linkedTo(resource.data.imei)
+      allow update, delete: if sharedWith(resource.data.imei, 'zones')
         && resource.data.createdBy == request.auth.uid;
     }
 
     match /medicationReminders/{reminderId} {
-      allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('family');
+      allow read: if sharedWith(resource.data.imei, 'reminders')
+        && watchPlanAtLeast(resource.data.imei, 'family');
       allow create: if signedIn()
         && !request.resource.data.keys().hasAny(['managed', 'slot', 'mode', 'version', 'durationMs', 'evidence'])
         && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(request.resource.data.imei))
-        && linkedTo(request.resource.data.imei)
-        && activePlanAtLeast('family')
+        && sharedWith(request.resource.data.imei, 'reminders')
+        && watchPlanAtLeast(request.resource.data.imei, 'family')
         && request.resource.data.createdBy == request.auth.uid;
-      allow update: if linkedTo(resource.data.imei)
+      allow update: if sharedWith(resource.data.imei, 'reminders')
         && !resource.data.keys().hasAny(['managed'])
         && !request.resource.data.keys().hasAny(['managed', 'slot', 'mode', 'version', 'durationMs', 'evidence'])
         && request.resource.data.imei == resource.data.imei
         && request.resource.data.createdBy == resource.data.createdBy
         && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(resource.data.imei))
-        && activePlanAtLeast('family')
+        && watchPlanAtLeast(resource.data.imei, 'family')
         && resource.data.createdBy == request.auth.uid;
-      allow delete: if linkedTo(resource.data.imei)
+      allow delete: if sharedWith(resource.data.imei, 'reminders')
         && !resource.data.keys().hasAny(['managed'])
         && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(resource.data.imei))
-        && activePlanAtLeast('family')
+        && watchPlanAtLeast(resource.data.imei, 'family')
         && resource.data.createdBy == request.auth.uid;
     }
 
@@ -433,8 +497,8 @@ service cloud.firestore {
     // workflow. Clients can never author canonical state or audit evidence.
     match /careReminderRequests/{requestId} {
       allow create: if signedIn()
-        && activePlanAtLeast('care')
-        && linkedTo(request.resource.data.imei)
+        && watchPlanAtLeast(request.resource.data.imei, 'care')
+        && sharedWith(request.resource.data.imei, 'reminders')
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.action in ['upsert', 'delete']
@@ -463,23 +527,23 @@ service cloud.firestore {
     }
 
     match /careReminderSchedules/{scheduleId} {
-      allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care')
+      allow read: if sharedWith(resource.data.imei, 'reminders')
+        && watchPlanAtLeast(resource.data.imei, 'care')
         && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
       allow create, update, delete: if false;
     }
 
     match /careReminderAudit/{auditId} {
-      allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('care')
+      allow read: if sharedWith(resource.data.imei, 'reminders')
+        && watchPlanAtLeast(resource.data.imei, 'care')
         && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
       allow create, update, delete: if false;
     }
 
     match /safetySnapshotRequests/{requestId} {
       allow create: if signedIn()
-        && activePlanAtLeast('family')
-        && linkedTo(request.resource.data.imei)
+        && watchPlanAtLeast(request.resource.data.imei, 'family')
+        && sharedWith(request.resource.data.imei, 'photos')
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.safetyPurposeConfirmed == true
@@ -511,26 +575,30 @@ service cloud.firestore {
 
     match /safetySnapshotAuthorizations/{authorizationId} {
       allow read: if !('incidentId' in resource.data)
-        && linkedTo(resource.data.imei)
-        && activePlanAtLeast('family')
+        && sharedWith(resource.data.imei, 'photos')
+        && watchPlanAtLeast(resource.data.imei, 'family')
         && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
       allow create, update, delete: if false;
     }
 
     match /safetySnapshotAudit/{auditId} {
-      allow read: if linkedTo(resource.data.imei)
-        && activePlanAtLeast('family')
+      allow read: if sharedWith(resource.data.imei, 'photos')
+        && watchPlanAtLeast(resource.data.imei, 'family')
         && resource.data.serviceOwnerUid == effectiveServiceOwnerUid();
       allow create, update, delete: if false;
     }
 
     match /alerts/{alertId} {
-      allow read: if linkedTo(resource.data.imei);
-      allow update: if linkedTo(resource.data.imei)
+      match /responses/{uid} {
+        allow read: if sharedWith(get(/databases/$(database)/documents/alerts/$(alertId)).data.imei, 'alerts');
+        allow write: if false;
+      }
+      allow read: if sharedWith(resource.data.imei, 'alerts');
+      allow update: if sharedWith(resource.data.imei, 'alerts')
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['resolved', 'resolvedAt']);
       // App "Send help alert" â€” gateway still owns device-originated alerts.
-      allow create: if linkedTo(request.resource.data.imei)
+      allow create: if sharedWith(request.resource.data.imei, 'alerts')
         && request.resource.data.type == 'sos'
         && request.resource.data.severity == 'critical'
         && request.resource.data.resolved == false
@@ -601,18 +669,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /watchPhonebookSettings/{imei} {
-      allow read: if linkedTo(imei);
+      allow read: if sharedWith(imei, 'settings');
       allow write: if false;
     }
     match /watchPhonebookRequests/{requestId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if sharedWith(resource.data.imei, 'settings');
       allow create: if request.resource.data.keys().hasOnly([
           'imei', 'name', 'phone', 'requestedBy', 'createdAt', 'expiresAt', 'status', 'policyRevision'
         ])
         && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
         && request.resource.data.imei is string
         && request.resource.data.imei.matches('^[0-9]{15}$')
-        && linkedTo(request.resource.data.imei)
+        && sharedWith(request.resource.data.imei, 'settings')
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.name is string
@@ -638,18 +706,18 @@ service cloud.firestore {
     match /watchEmergencyJobs/{imei} { allow read, write: if false; }
     match /watchEmergencyEvents/{eventId} { allow read, write: if false; }
     match /watchEmergencySettings/{imei} {
-      allow read: if linkedTo(imei);
+      allow read: if sharedWith(imei, 'settings');
       allow write: if false;
     }
     match /watchEmergencyRequests/{requestId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if sharedWith(resource.data.imei, 'settings');
       allow create: if request.resource.data.keys().hasOnly([
           'imei', 'enabled', 'requestedBy', 'revision', 'consentAccepted', 'createdAt', 'expiresAt', 'status'
         ])
         && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
         && request.resource.data.imei is string
         && request.resource.data.imei.matches('^[0-9]{15}$')
-        && linkedTo(request.resource.data.imei)
+        && sharedWith(request.resource.data.imei, 'settings')
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.enabled is bool
@@ -660,7 +728,7 @@ service cloud.firestore {
         && request.resource.data.expiresAt <= request.time + duration.value(90, 's')
         && get(/databases/$(database)/documents/watchEmergencyPolicies/$(request.resource.data.imei)).data.managerUid == request.auth.uid
         && get(/databases/$(database)/documents/watchEmergencyPolicies/$(request.resource.data.imei)).data.revision == request.resource.data.revision
-        && (!request.resource.data.enabled || activePlanAtLeast('family'));
+        && (!request.resource.data.enabled || watchPlanAtLeast(request.resource.data.imei, 'family'));
       allow update, delete: if false;
     }
 
@@ -678,18 +746,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
     match /watchCallSettings/{imei} {
-      allow read: if linkedTo(imei);
+      allow read: if sharedWith(imei, 'settings');
       allow write: if false;
     }
     match /watchCallRequests/{requestId} {
-      allow read: if linkedTo(resource.data.imei);
+      allow read: if sharedWith(resource.data.imei, 'settings');
       allow create: if request.resource.data.keys().hasOnly([
           'imei', 'mode', 'requestedBy', 'createdAt', 'expiresAt', 'status', 'consentAccepted', 'policyRevision'
         ])
         && requestId.matches('^[A-Za-z0-9_-]{1,128}$')
         && request.resource.data.imei is string
         && request.resource.data.imei.matches('^[0-9]{15}$')
-        && linkedTo(request.resource.data.imei)
+        && sharedWith(request.resource.data.imei, 'settings')
         && request.resource.data.requestedBy == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time
@@ -705,7 +773,7 @@ service cloud.firestore {
           (request.resource.data.mode == 'manual' && request.resource.data.consentAccepted == false)
           || (request.resource.data.mode == 'auto'
             && request.resource.data.consentAccepted == true
-            && activePlanAtLeast('family')
+            && watchPlanAtLeast(request.resource.data.imei, 'family')
             && get(/databases/$(database)/documents/watchCallPolicies/$(request.resource.data.imei)).data.autoEnabled == true)
         );
       allow update, delete: if false;
@@ -716,8 +784,8 @@ service cloud.firestore {
     }
 
     match /deviceCommands/{commandId} {
-      allow read: if linkedTo(resource.data.imei);
-      allow create: if linkedTo(request.resource.data.imei)
+      allow read: if sharedWith(resource.data.imei, 'settings');
+      allow create: if sharedWith(request.resource.data.imei, 'settings')
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.status == 'pending'
         // Phonebook additions use the dedicated authenticated request service;
@@ -730,12 +798,12 @@ service cloud.firestore {
           || (
             request.resource.data.get('params', {}).keys().hasOnly(['mode'])
             && request.resource.data.params.get('mode', 0) in [1, 2, 3, 4]
-            && activePlanAtLeast('family')
+            && watchPlanAtLeast(request.resource.data.imei, 'family')
           )
         )
         && (
           request.resource.data.get('type', '') != 'set_medication_reminder'
-          || (activePlanAtLeast('family')
+          || (watchPlanAtLeast(request.resource.data.imei, 'family')
             && !exists(/databases/$(database)/documents/medicationVoiceDevices/$(request.resource.data.imei)))
         );
       allow update, delete: if false; // gateway Admin SDK only

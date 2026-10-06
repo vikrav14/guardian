@@ -18,6 +18,7 @@ const activeFamily = {
 function fakeDb({ users = [], devices = {} } = {}) {
   return {
     collection(name) {
+      if (name === 'familyServices') return { doc: () => ({ get: async () => ({ exists: false, data: () => undefined }) }) };
       if (name === 'users') {
         return {
           async get() {

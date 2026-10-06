@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../main.dart';
@@ -10,6 +9,7 @@ import '../services/device_avatar_service.dart';
 import '../services/guardian_avatar_service.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
+import '../services/family_sharing_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
@@ -20,32 +20,9 @@ import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
 
 class AccountPage extends StatelessWidget {
-  const AccountPage({super.key});
+  const AccountPage({super.key, this.watchOnly = false});
 
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _createInvite(BuildContext context) async {
-    try {
-      final code = await FamilyService().createInviteCode();
-      if (!context.mounted) return;
-      await Clipboard.setData(ClipboardData(text: code));
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Invite code $code copied. Share it with family.'),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not create invite: $e')));
-    }
-  }
+  final bool watchOnly;
 
   Future<void> _linkPendant(BuildContext context) async {
     final ctrl = TextEditingController();
@@ -112,58 +89,6 @@ class AccountPage extends StatelessWidget {
     }
   }
 
-  Future<void> _acceptInvite(BuildContext context) async {
-    final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Join a family'),
-        content: TextField(
-          controller: ctrl,
-          textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(
-            labelText: 'Invite code',
-            hintText: 'e.g. AB12CD',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Join'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !context.mounted) {
-      ctrl.dispose();
-      return;
-    }
-    try {
-      await FamilyService().acceptInviteCode(ctrl.text);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Join request sent. Guardian will verify the invitation and family plan.',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$e')));
-      }
-    } finally {
-      ctrl.dispose();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -172,7 +97,6 @@ class AccountPage extends StatelessWidget {
         : 'Guardian user';
     final email = user?.email ?? '';
     final initials = initialsFor(name);
-    final family = FamilyService();
     final t = AppLocalizations.of(context)!;
     final colors = context.guardianColors;
     final entitlementScope = GuardianEntitlementsScope.of(context);
@@ -218,271 +142,151 @@ class AccountPage extends StatelessWidget {
             118,
           ),
           children: [
-            const GuardianPageHeader(
-              eyebrow: 'YOUR GUARDIAN CIRCLE',
-              title: 'Account & family',
-              subtitle: 'People, watch and preferences in one calm place.',
+            GuardianPageHeader(
+              eyebrow: watchOnly ? 'YOUR WATCH' : 'YOUR ACCOUNT',
+              title: watchOnly ? 'Watch' : 'Account',
+              subtitle: watchOnly
+                  ? 'Settings and care routines for each wearer.'
+                  : 'Your profile, plan and personal preferences.',
             ),
             const SizedBox(height: GuardianSpacing.lg),
-            GuardianCard(
-              child: Column(
+            if (!watchOnly)
+              GuardianCard(
+                child: Column(
+                  children: [
+                    AccountAvatarEditor(initials: initials),
+                    const SizedBox(height: GuardianSpacing.xs),
+                    Text(name, style: textTheme.titleMedium),
+                    Text(
+                      email.isEmpty ? accountRole : '$accountRole - $email',
+                      style: textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: GuardianSpacing.lg),
+            if (watchOnly) const GuardianSectionTitle('Watches'),
+            const SizedBox(height: GuardianSpacing.sm),
+            if (watchOnly)
+              StreamBuilder<List<Device>>(
+                stream: DeviceService().watchLinkedDevices(),
+                builder: (context, snapshot) {
+                  final devices = snapshot.data ?? <Device>[];
+
+                  return GuardianListGroup(
+                    children: [
+                      if (devices.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(GuardianSpacing.md),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: colors.border),
+                            ),
+                          ),
+                          child: Text(
+                            'No watches linked yet. Add the 15-digit IMEI from '
+                            'the device label.',
+                            style: textTheme.bodyMedium,
+                          ),
+                        ),
+                      for (var i = 0; i < devices.length; i++)
+                        _DeviceRow(
+                          device: devices[i],
+                          subscription: subscription,
+                          showDivider: i < devices.length - 1,
+                          onUnlink: () =>
+                              _confirmUnlinkPendant(context, devices[i]),
+                        ),
+                      GuardianSettingsRow(
+                        icon: Icons.link_rounded,
+                        label: 'Link a watch',
+                        showDivider: devices.isNotEmpty,
+                        onTap: () => _linkPendant(context),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            const SizedBox(height: GuardianSpacing.lg),
+            if (!watchOnly) GuardianSectionTitle(t.settingsHeading),
+            const SizedBox(height: GuardianSpacing.sm),
+            if (!watchOnly)
+              GuardianListGroup(
                 children: [
-                  AccountAvatarEditor(initials: initials),
-                  const SizedBox(height: GuardianSpacing.xs),
-                  Text(name, style: textTheme.titleMedium),
-                  Text(
-                    email.isEmpty ? accountRole : '$accountRole - $email',
-                    style: textTheme.bodyMedium,
+                  GuardianSettingsRow(
+                    icon: Icons.sms_rounded,
+                    label: alertDeliveryLabel,
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Alert delivery'),
+                          content: Text(alertDeliveryDescription),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  GuardianSettingsRow(
+                    icon: Icons.contact_phone_rounded,
+                    label: 'Emergency contacts',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const EmergencyContactsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  GuardianSettingsRow(
+                    icon: Icons.workspace_premium_rounded,
+                    label: t.subscriptionLabel,
+                    trailing: subscriptionPresentation.trailingLabel,
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(t.subscriptionLabel),
+                          content: Text(subscriptionPresentation.message),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  GuardianSettingsRow(
+                    icon: Icons.translate_rounded,
+                    label: t.languageSettingLabel,
+                    onTap: () => _showLanguagePicker(context),
+                  ),
+                  GuardianSettingsRow(
+                    icon: Icons.palette_rounded,
+                    label: 'Theme',
+                    trailing:
+                        (GuardianApp.themeOf(context) ??
+                                GuardianThemeId.defaultTheme)
+                            .displayName,
+                    onTap: () => showThemePickerDialog(context),
+                  ),
+                  GuardianSettingsRow(
+                    icon: Icons.logout_rounded,
+                    label: t.signOut,
+                    danger: true,
+                    showDivider: false,
+                    onTap: () => AuthService().signOut(),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: GuardianSpacing.lg),
-            const GuardianSectionTitle('Watches'),
-            const SizedBox(height: GuardianSpacing.sm),
-            StreamBuilder<List<Device>>(
-              stream: DeviceService().watchLinkedDevices(),
-              builder: (context, snapshot) {
-                final devices = snapshot.data ?? <Device>[];
-
-                return GuardianListGroup(
-                  children: [
-                    if (devices.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(GuardianSpacing.md),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: colors.border),
-                          ),
-                        ),
-                        child: Text(
-                          'No watches linked yet. Add the 15-digit IMEI from '
-                          'the device label.',
-                          style: textTheme.bodyMedium,
-                        ),
-                      ),
-                    for (var i = 0; i < devices.length; i++)
-                      _DeviceRow(
-                        device: devices[i],
-                        subscription: subscription,
-                        showDivider: i < devices.length - 1,
-                        onUnlink: () =>
-                            _confirmUnlinkPendant(context, devices[i]),
-                      ),
-                    GuardianSettingsRow(
-                      icon: Icons.link_rounded,
-                      label: 'Link a watch',
-                      showDivider: devices.isNotEmpty,
-                      onTap: () => _linkPendant(context),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: GuardianSpacing.lg),
-            const GuardianSectionTitle('Family circle'),
-            const SizedBox(height: GuardianSpacing.sm),
-            StreamBuilder<List<FamilyMember>>(
-              stream: family.watchFamilyMembers(),
-              builder: (context, memberSnap) {
-                return StreamBuilder<List<FamilyInvite>>(
-                  stream: family.watchMyInvites(),
-                  builder: (context, inviteSnap) {
-                    final members = memberSnap.data ?? const <FamilyMember>[];
-                    final invites = inviteSnap.data ?? const <FamilyInvite>[];
-                    final pending = invites
-                        .where((i) => i.status == 'pending')
-                        .toList();
-                    return StreamBuilder<List<FamilyJoinRequest>>(
-                      stream: family.watchMyJoinRequests(),
-                      builder: (context, requestSnap) {
-                        final requests =
-                            requestSnap.data ?? const <FamilyJoinRequest>[];
-                        final ownerUid = subscription?.ownerUid;
-                        final isOwner = user != null && ownerUid == user.uid;
-                        final active = subscription?.serviceActive == true;
-                        final limit = subscription?.caregiverLimit ?? 0;
-                        final full = active && members.length >= limit;
-
-                        String inviteMessage() {
-                          if (entitlementScope.error != null) {
-                            return 'Guardian could not verify the family plan. Try again when the connection is restored.';
-                          }
-                          if (entitlementScope.checking) {
-                            return 'Guardian is still checking the family plan.';
-                          }
-                          if (!active) {
-                            return 'An active Guardian service plan is required before inviting a caregiver.';
-                          }
-                          if (!isOwner) {
-                            return 'Only the family plan owner can invite caregivers.';
-                          }
-                          if (full) {
-                            return '${subscription!.planLabel} includes up to $limit caregiver${limit == 1 ? '' : 's'}.';
-                          }
-                          return '';
-                        }
-
-                        return GuardianListGroup(
-                          children: [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(GuardianSpacing.md),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: colors.border),
-                                ),
-                              ),
-                              child: Text(
-                                active
-                                    ? '${members.length} of $limit caregiver${limit == 1 ? '' : 's'} used on ${subscription!.planLabel}.'
-                                    : subscriptionPresentation.message,
-                                style: textTheme.bodyMedium,
-                              ),
-                            ),
-                            for (final member in members)
-                              _PersonRow(
-                                name: member.displayName,
-                                subtitle: member.email ?? 'Family caregiver',
-                                showDivider: true,
-                              ),
-                            for (final invite in pending)
-                              _PersonRow(
-                                name: 'Invite ${invite.code}',
-                                subtitle:
-                                    'Waiting to be accepted - tap to copy',
-                                showDivider: true,
-                                onTap: () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(text: invite.code),
-                                  );
-                                  if (context.mounted) {
-                                    _showMessage(
-                                      context,
-                                      'Copied ${invite.code}',
-                                    );
-                                  }
-                                },
-                              ),
-                            for (final request in requests)
-                              _PersonRow(
-                                name: 'Join request ${request.inviteCode}',
-                                subtitle: request.status == 'pending'
-                                    ? 'Guardian is verifying this request'
-                                    : request.status == 'accepted'
-                                    ? 'Accepted'
-                                    : request.reason ?? 'Not accepted',
-                                showDivider: true,
-                              ),
-                            GuardianSettingsRow(
-                              icon: full
-                                  ? Icons.group_off_outlined
-                                  : Icons.person_add_rounded,
-                              label: full
-                                  ? 'Caregiver limit reached'
-                                  : 'Invite a family member',
-                              onTap: () {
-                                final message = inviteMessage();
-                                if (message.isNotEmpty) {
-                                  _showMessage(context, message);
-                                  return;
-                                }
-                                _createInvite(context);
-                              },
-                            ),
-                            GuardianSettingsRow(
-                              icon: Icons.group_add_rounded,
-                              label: 'Have a code? Join a family',
-                              showDivider: false,
-                              onTap: () => _acceptInvite(context),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: GuardianSpacing.lg),
-            GuardianSectionTitle(t.settingsHeading),
-            const SizedBox(height: GuardianSpacing.sm),
-            GuardianListGroup(
-              children: [
-                GuardianSettingsRow(
-                  icon: Icons.sms_rounded,
-                  label: alertDeliveryLabel,
-                  onTap: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Alert delivery'),
-                        content: Text(alertDeliveryDescription),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('OK'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                GuardianSettingsRow(
-                  icon: Icons.contact_phone_rounded,
-                  label: 'Emergency contacts',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const EmergencyContactsPage(),
-                      ),
-                    );
-                  },
-                ),
-                GuardianSettingsRow(
-                  icon: Icons.workspace_premium_rounded,
-                  label: t.subscriptionLabel,
-                  trailing: subscriptionPresentation.trailingLabel,
-                  onTap: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(t.subscriptionLabel),
-                        content: Text(subscriptionPresentation.message),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('OK'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                GuardianSettingsRow(
-                  icon: Icons.translate_rounded,
-                  label: t.languageSettingLabel,
-                  onTap: () => _showLanguagePicker(context),
-                ),
-                GuardianSettingsRow(
-                  icon: Icons.palette_rounded,
-                  label: 'Theme',
-                  trailing:
-                      (GuardianApp.themeOf(context) ??
-                              GuardianThemeId.defaultTheme)
-                          .displayName,
-                  onTap: () => showThemePickerDialog(context),
-                ),
-                GuardianSettingsRow(
-                  icon: Icons.logout_rounded,
-                  label: t.signOut,
-                  danger: true,
-                  showDivider: false,
-                  onTap: () => AuthService().signOut(),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -699,28 +503,56 @@ class _DeviceRow extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, size: 18),
-            tooltip: 'Watch settings',
-            onPressed: () {
-              final verifiedSubscription = subscription;
-              if (verifiedSubscription == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Guardian is still verifying this family account.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => WatchSettingsPage(
-                    device: device,
-                    subscription: verifiedSubscription,
-                  ),
-                ),
-              );
-            },
+            tooltip: device.allowsShared('settings')
+                ? 'Watch settings'
+                : 'Watch settings are not shared',
+            onPressed: !device.allowsShared('settings')
+                ? null
+                : () async {
+                    final verifiedSubscription =
+                        device.sharedSubscription ?? subscription;
+                    if (verifiedSubscription == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Guardian is still verifying this family account.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    var settingsDevice = device;
+                    if (device.sharedPermissions != null) {
+                      final sharing = FamilySharingService();
+                      try {
+                        settingsDevice = await sharing.loadWatchSettings(
+                          device,
+                        );
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not load watch settings: $error',
+                              ),
+                            ),
+                          );
+                        }
+                        return;
+                      } finally {
+                        sharing.close();
+                      }
+                    }
+                    if (!context.mounted) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => WatchSettingsPage(
+                          device: settingsDevice,
+                          subscription: verifiedSubscription,
+                        ),
+                      ),
+                    );
+                  },
           ),
         ],
       ),
@@ -1145,60 +977,4 @@ Future<void> _showDeviceSettingsDialog(
   centerCtrl.dispose();
   sosCtrl.dispose();
   monitorCtrl.dispose();
-}
-
-class _PersonRow extends StatelessWidget {
-  const _PersonRow({
-    required this.name,
-    required this.subtitle,
-    required this.showDivider,
-    this.onTap,
-  });
-
-  final String name;
-  final String subtitle;
-  final bool showDivider;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final textTheme = Theme.of(context).textTheme;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: GuardianSpacing.sm,
-          vertical: GuardianSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          border: showDivider
-              ? Border(bottom: BorderSide(color: colors.border))
-              : null,
-        ),
-        child: Row(
-          children: [
-            AvatarBubble(
-              initials: initialsFor(name),
-              color: avatarColorForKey(name),
-              size: 30,
-            ),
-            const SizedBox(width: GuardianSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: textTheme.titleMedium?.copyWith(fontSize: 13),
-                  ),
-                  Text(subtitle, style: textTheme.labelSmall),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

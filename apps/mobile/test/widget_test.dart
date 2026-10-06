@@ -114,11 +114,11 @@ void main() {
 
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Safe zones'), findsOneWidget);
-      expect(find.text('Alerts'), findsOneWidget);
-      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Family'), findsOneWidget);
+      expect(find.text('Watch'), findsOneWidget);
       expect(find.text('Hold 3 sec'), findsNothing);
 
-      await tester.tap(find.text('Alerts'));
+      await tester.tap(find.text('Family'));
       expect(tapped, 2);
     },
   );
@@ -135,8 +135,8 @@ void main() {
 
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Zones sûres'), findsOneWidget);
-    expect(find.text('Alertes'), findsOneWidget);
-    expect(find.text('Compte'), findsOneWidget);
+    expect(find.text('Famille'), findsOneWidget);
+    expect(find.text('Montre'), findsOneWidget);
   });
 
   testWidgets('HomeShellScope exposes sidebar collapse to descendants', (

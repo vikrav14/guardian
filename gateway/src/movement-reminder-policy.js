@@ -26,7 +26,8 @@ async function authorizeMovement({ db, uid, imei, runtime, now = new Date() }) {
   if (!snap.exists || !Array.isArray(user.linkedImeis) || !user.linkedImeis.includes(imei)) {
     throw new MovementError('device_not_linked', 403);
   }
-  const access = await loadEntitlementsForUser(db, user, { now });
+  try { await require('./family-policy').watchAccess(db, uid, imei, 'reminders', { now: +now }); } catch { throw new MovementError('device_not_linked', 403); }
+  const access = await loadEntitlementsForUser(db, user, { now, imei });
   if (!access.serviceActive || !['family', 'care'].includes(access.plan)) {
     throw new MovementError('active_service_required', 403);
   }

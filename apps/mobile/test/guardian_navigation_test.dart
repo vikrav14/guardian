@@ -85,9 +85,9 @@ void main() {
         reducedMotion: true,
       );
       expect(
-        tester.getSemantics(find.bySemanticsLabel('Account')),
+        tester.getSemantics(find.bySemanticsLabel('Watch')),
         matchesSemantics(
-          label: 'Account',
+          label: 'Watch',
           isButton: true,
           hasSelectedState: true,
           isSelected: true,
@@ -113,13 +113,13 @@ void main() {
     }
   });
 
-  testWidgets('each destination keeps its existing shell index', (
+  testWidgets('each primary destination selects its shell index', (
     tester,
   ) async {
     final destinations = <int>[];
     await _pumpBar(tester, onTap: destinations.add);
 
-    for (final label in ['Home', 'Safe zones', 'Alerts', 'Account']) {
+    for (final label in ['Home', 'Safe zones', 'Family', 'Watch']) {
       await tester.tap(find.text(label));
     }
     expect(destinations, [0, 1, 2, 3]);

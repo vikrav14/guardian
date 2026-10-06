@@ -161,6 +161,7 @@ class _OverviewIdentity extends StatelessWidget {
               ],
             );
             final conditions = weather ?? const ProfileWeatherPanel();
+            if (!device.allowsShared('location')) return profile;
             final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
             if (constraints.maxWidth >= 620 && textScale <= 1.3) {
               return Row(

@@ -81,6 +81,8 @@ async function authorizeLink(db, record, now) {
         hash(recipient) === record.recipientHash;
     });
   if (!contactStillListed) return null;
+  // Legacy bearer links cannot survive a switch to managed per-person grants.
+  if ((await db.collection('familyServices').doc(record.imei).get()).exists) return null;
   const entitlements = await loadEntitlementsForUser(db, { ...user, uid: record.guardianUid }, { now });
   if (entitlements.ownerUid !== record.ownerUid ||
       !hasEntitlement(entitlements, FEATURE.SOS_ALERTS) ||
