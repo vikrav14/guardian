@@ -105,7 +105,7 @@ The synthetic photo contract checker now needs Firestore budget access as well a
 
 Deploy the backend-only rules before enabling the feature. Configure Firestore TTL on `expiresAt` for `aiSelections` (1 day), `aiBudgetDays` (35 days), and `aiAttempts` (95 days). TTL is delayed cleanup, not authorisation. Monthly buckets are retained for operations; they contain hashed scope, counters and pricing metadata, not user text or media. No new composite index is required by these queries. Existing alerts indexes are reused.
 
-Rollout order: complete the isolated qualification and menu preview and read-only app review; verify rules/TTL and ledger credentials; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; compare the bounded pilot's budget report with provider usage. Keep the new experience off until these gates pass. The synthetic qualification does not restart or configure live processes.
+Rollout order: complete the isolated qualification and menu preview and read-only app review; verify rules/TTL and ledger credentials; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; compare the bounded pilot's budget report with provider usage. For an operator-authorized deployed pilot, keep remaining phone/WhatsApp and restricted-family acceptance explicit before merge. The synthetic qualification does not restart or configure live processes.
 
 Rollback: disable the UI/API flag to restore the previous app surfaces and rules presentation; no watch settings change. That flag does **not** remove the shared cost boundary. If reverting the gateway revision, retain the ledger/rules rather than deleting billing evidence. Initial alerts and calling remain independent of AI.
 
@@ -114,8 +114,8 @@ Rollback: disable the UI/API flag to restore the previous app surfaces and rules
 Run `npm test` from gateway and `flutter analyze` / `flutter test` from apps/mobile.
 Regression coverage includes old/forged cards, duplicate delivery, permission loss
 during a read, multi-wearer pagination, channel identity, retired Ask routes, app
-link parsing/resolution and read-only app lifecycle. Menu links still need a
-controlled signed-in phone/WhatsApp pilot before deployment.
+link parsing/resolution and read-only app lifecycle. The menu is deployed to the controlled pilot; signed-in phone/WhatsApp link
+acceptance remains pending.
 
 To build a synthetic preview using the real menu builders (no live records,
 transport, provider or watch):
@@ -129,3 +129,37 @@ synthetic question replay is historical and no longer contains a composer.
 See [the acceptance record](../ai/GUARDIAN_AI_ACCEPTANCE.md) for executed checks,
 historical spend and remaining release gates. No live message or watch test is
 required for software validation.
+
+## Deployed pilot — 7 October 2026
+
+The operator-authorized combined pilot was deployed at 22:47–22:50 Mauritius
+time. Gateway and Web run the PR #140 menu-only experience; the matching Android
+build (29856649) was installed on the test Samsung without removing app data.
+Release `5e65276b-dcf1-47c9-b212-2bdc81b10484` uses PR base `3b9f237` plus the
+coordinated incident-readings, launch/logo and photo best-view overlays. Those
+overlays are separate work and are not claimed as part of this PR's code diff.
+
+- Combined release: **1,873 gateway tests and 845 Flutter tests passed**, clean
+  Flutter analysis, successful Web release and Android builds. The PR-only
+  baseline below remains distinct from these combined counts.
+- Backend budget rules match the source. TTL on `expiresAt` is ACTIVE for
+  `aiSelections`, `aiBudgetDays` and `aiAttempts`. A temporary ledger-access probe
+  was read and removed; the managed-owner overview left the ledger unchanged.
+- Both local and public gateway health passed. The read-only overview requires
+  sign-in (401 without credentials), while Ask and dev-chat return 410. Fresh
+  identified watch telemetry arrived after the idle-checked restart; ngrok and
+  both tunnel addresses were preserved. The runtime error log was empty at check.
+- The public Web release marker and exact JavaScript bundle hash match the built
+  artifact. Android's installed version was checked with the package manager.
+- A separately authorized refresh of an existing saved photo exercised the shared
+  budget: two completed Sonnet 4.6 calls, USD0.010452 / planning Rs0.5226, with no
+  unconfirmed or over-reservation attempts. This is ledger usage, not an invoice.
+  Original image/capture fields, incident, delivery and readings were preserved;
+  no new photo or alarm was generated. This is not a new live capture acceptance.
+
+PR #140 remains draft. Real WhatsApp menu delivery/display, signed-in destination
+links on the phone, restricted/revoked-family access and phone lifecycle still
+need controlled acceptance. Software tests cover these paths but do not replace
+those observations. The saved-photo visual orientation check is also unconfirmed.
+The existing incident-readings follow-up template is still pending approval, so
+its separate delivery flag remains off.

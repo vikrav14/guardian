@@ -13,9 +13,44 @@ alerts/photos submenu, typed text returning to the menu, and a Journey result
 with a visible Main menu button returning in one tap. Transport/webhook tests
 cover reply-button payloads, the selected wearer, Switch wearer and revocation. The synthetic menu preview sends nothing to a watch or WhatsApp.
 
+## Deployed pilot — 7 October 2026
+
+The operator-authorized combined pilot was deployed at 22:47–22:50 Mauritius
+time. Gateway and Web run the PR #140 menu-only experience; the matching Android
+build (29856649) was installed on the test Samsung without removing app data.
+Release `5e65276b-dcf1-47c9-b212-2bdc81b10484` uses PR base `3b9f237` plus the
+coordinated incident-readings, launch/logo and photo best-view overlays. Those
+overlays are separate work and are not claimed as part of this PR's code diff.
+
+- Combined release: **1,873 gateway tests and 845 Flutter tests passed**, clean
+  Flutter analysis, successful Web release and Android builds. The PR-only
+  baseline below remains distinct from these combined counts.
+- Backend budget rules match the source. TTL on `expiresAt` is ACTIVE for
+  `aiSelections`, `aiBudgetDays` and `aiAttempts`. A temporary ledger-access probe
+  was read and removed; the managed-owner overview left the ledger unchanged.
+- Both local and public gateway health passed. The read-only overview requires
+  sign-in (401 without credentials), while Ask and dev-chat return 410. Fresh
+  identified watch telemetry arrived after the idle-checked restart; ngrok and
+  both tunnel addresses were preserved. The runtime error log was empty at check.
+- The public Web release marker and exact JavaScript bundle hash match the built
+  artifact. Android's installed version was checked with the package manager.
+- A separately authorized refresh of an existing saved photo exercised the shared
+  budget: two completed Sonnet 4.6 calls, USD0.010452 / planning Rs0.5226, with no
+  unconfirmed or over-reservation attempts. This is ledger usage, not an invoice.
+  Original image/capture fields, incident, delivery and readings were preserved;
+  no new photo or alarm was generated. This is not a new live capture acceptance.
+
+PR #140 remains draft. Real WhatsApp menu delivery/display, signed-in destination
+links on the phone, restricted/revoked-family access and phone lifecycle still
+need controlled acceptance. Software tests cover these paths but do not replace
+those observations. The saved-photo visual orientation check is also unconfirmed.
+The existing incident-readings follow-up template is still pending approval, so
+its separate delivery flag remains off.
+
 ## Historical question-selector result, 7 October 2026
 
-PR #140 remains draft. The AI foundation is not deployed or enabled. Main,
+At the time of the following historical qualification, PR #140 was draft and
+the AI foundation was not deployed or enabled. Main,
 including merged PR #153, is integrated into the branch. The live watch gateway,
 ngrok, its private environment and notification paths were untouched by these tests.
 
