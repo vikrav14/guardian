@@ -10,6 +10,7 @@ import 'alert_response_panel.dart';
 import '../screens/incident_photo_page.dart';
 import '../services/safety_snapshot_service.dart';
 import '../services/intelligence_service.dart';
+import '../services/guardian_entitlements.dart';
 import '../widgets/intelligence_view.dart';
 
 class AlertDetail extends StatelessWidget {
@@ -138,7 +139,8 @@ class AlertDetail extends StatelessWidget {
             ),
           ],
           if (guardianIntelligenceEnabled &&
-              device?.sharedSubscription != null &&
+              device?.sharedSubscription?.has(GuardianFeature.guardianAi) ==
+                  true &&
               (sos || alert.type.toLowerCase() == 'fall')) ...[
             const SizedBox(height: 20),
             IntelligenceView(
