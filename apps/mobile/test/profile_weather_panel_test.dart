@@ -50,6 +50,27 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('weather cleans saved fragments while preserving its artwork', (
+    tester,
+  ) async {
+    final data = weatherTestData()
+      ..['placeName'] = 'Grand Baie · near C'
+      ..['locationObservedAt'] = weatherTestNow
+          .subtract(const Duration(minutes: 21))
+          .toIso8601String();
+    await _pump(
+      tester,
+      ProfileWeatherPanel(
+        weather: ProfileWeather.fromMap(data),
+        now: weatherTestNow,
+      ),
+    );
+    expect(find.text('Near Grand Baie'), findsOneWidget);
+    expect(find.textContaining('near C'), findsNothing);
+    expect(find.byType(WeatherArtwork), findsOneWidget);
+    expect(find.textContaining('Last known location'), findsOneWidget);
+  });
+
   testWidgets(
     'weather shows observation age, place and wind without replacing rain',
     (tester) async {

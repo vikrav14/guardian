@@ -13,6 +13,7 @@ import 'support/dashboard_fixture.dart';
 
 class _Maps extends MethodChannelGoogleMapsFlutter {
   int calls = 0;
+  int pointerDowns = 0;
   Completer<ScreenCoordinate>? pending;
   final positions = <LatLng>[];
   final created = <int>{};
@@ -30,7 +31,11 @@ class _Maps extends MethodChannelGoogleMapsFlutter {
         onPlatformViewCreated(creationId);
       });
     }
-    return const SizedBox();
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => pointerDowns++,
+      child: const SizedBox.expand(),
+    );
   }
 
   @override
@@ -80,11 +85,13 @@ void main() {
   Widget host({
     int generation = 0,
     bool active = true,
+    bool selected = true,
     ValueChanged<String>? onSelect,
   }) {
     return _Host(
       generation: generation,
       active: active,
+      selected: selected,
       onSelect: onSelect ?? (_) {},
     );
   }
@@ -101,8 +108,23 @@ void main() {
     expect(marker.top, 92); // Physical y 400 / DPR 2 - marker height 108.
     expect(maps.positions.single, const LatLng(-20.15, 57.55));
     expect(find.text('AM'), findsOneWidget);
-    await tester.tap(find.text('Alex Morgan'));
+    await tester.tapAt(tester.getCenter(find.text('Alex Morgan')));
+    expect(selected, isNull);
+    expect(maps.pointerDowns, 1); // Touches pass through the selected photo.
+  });
+
+  testWidgets('another person can still be selected from their avatar', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(
+      host(selected: false, onSelect: (imei) => selected = imei),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('AM'));
     expect(selected, 'demo-watch-a');
+    expect(maps.pointerDowns, 0);
   });
 
   testWidgets(
@@ -143,10 +165,12 @@ class _Host extends StatefulWidget {
   const _Host({
     required this.generation,
     required this.active,
+    required this.selected,
     required this.onSelect,
   });
   final int generation;
   final bool active;
+  final bool selected;
   final ValueChanged<String> onSelect;
 
   @override
@@ -178,7 +202,7 @@ class _HostState extends State<_Host> {
                 MapAvatarOverlay(
                   controller: controller,
                   devices: [device],
-                  selectedImei: device.imei,
+                  selectedImei: widget.selected ? device.imei : null,
                   cameraGeneration: widget.generation,
                   onSelect: widget.onSelect,
                 ),

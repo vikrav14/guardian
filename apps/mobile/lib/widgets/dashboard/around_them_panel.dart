@@ -35,7 +35,7 @@ class AroundThemPanel extends StatelessWidget {
         .where((zone) => zone.imei == d.imei && zone.active)
         .toList(growable: false);
 
-    final place = d.mapDisplayLocation?.placeLabel?.trim();
+    final place = d.mapDisplayLocation?.displayPlaceLabel;
     final locationValue = d.hasHomeWifiConflict
         ? 'Location uncertain'
         : place != null && place.isNotEmpty

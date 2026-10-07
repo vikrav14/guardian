@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/weather/linked_profile_weather.dart';
+import 'package:guardian/models/device.dart';
+import 'package:guardian/models/home_wifi_presence.dart';
 
 import 'support/profile_weather_fixture.dart';
 
@@ -14,6 +16,73 @@ Future<void> _flushWeather(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'returning Home hides trip weather until conditions for the saved pin arrive',
+    (tester) async {
+      final events = StreamController<Map<String, dynamic>>();
+      Stream<Map<String, dynamic>> source(String _) => events.stream;
+      var clock = weatherTestNow;
+      final observed = clock.subtract(const Duration(seconds: 30));
+      final until = clock.add(const Duration(seconds: 90));
+      final homeDevice = Device(
+        imei: 'sample',
+        online: true,
+        homeWifiPresence: HomeWifiPresence(
+          lat: -20.05,
+          lng: 57.59,
+          observedAt: observed,
+          expiresAt: until,
+          policyVersion: 4,
+          radiusMeters: 100,
+        ),
+        lastHomeWifiDetection: LastHomeWifiDetection(
+          lat: -20.05,
+          lng: 57.59,
+          observedAt: observed,
+          qualifiedUntil: until,
+        ),
+      );
+      Future<void> show(Device device) => tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LinkedProfileWeather(
+              imei: 'sample',
+              device: device,
+              source: source,
+              clock: () => clock,
+            ),
+          ),
+        ),
+      );
+      await show(homeDevice);
+      events.add(weatherTestData()..['placeName'] = 'Grand Baie');
+      await _flushWeather(tester);
+      expect(find.text('Near Grand Baie'), findsNothing);
+      expect(find.text('Updating weather…'), findsOneWidget);
+      events.add(
+        weatherTestData()
+          ..['placeName'] = 'Home'
+          ..['location'] = {'lat': -20.05, 'lng': 57.59, 'source': 'home_wifi'}
+          ..['locationBasis'] = 'home_wifi'
+          ..['homePresenceExpiresAt'] = until.toIso8601String()
+          ..['locationObservedAt'] = observed.toIso8601String(),
+      );
+      await _flushWeather(tester);
+      expect(find.text('Near Home'), findsOneWidget);
+      expect(find.text('25°C'), findsOneWidget);
+      clock = clock.add(const Duration(minutes: 2));
+      await tester.pump(const Duration(minutes: 2));
+      expect(find.text('Last known area · Home'), findsOneWidget);
+      // Leaving Home cannot keep showing the previous Home projection.
+      await show(const Device(imei: 'sample', online: true));
+      await _flushWeather(tester);
+      expect(find.text('Last known area · Home'), findsNothing);
+      expect(find.text('Updating weather…'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      unawaited(events.close());
+    },
+  );
+
   testWidgets(
     'switching profiles clears old weather and ignores its later events',
     (tester) async {

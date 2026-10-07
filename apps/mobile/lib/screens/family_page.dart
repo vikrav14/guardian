@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/family_sharing_service.dart';
+import 'family_access_page.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/layout/guardian_page_frame.dart';
@@ -76,46 +77,7 @@ class _FamilyPageState extends State<FamilyPage> {
       if (!mounted) return;
       if (showCode) {
         setState(() => _busy = false);
-        final code = result['code'] as String;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(
-              action == 'link' ? 'Link your WhatsApp' : 'Personal invitation',
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    action == 'link'
-                        ? 'Send this exact message from your own WhatsApp number to Guardian within 10 minutes. Then refresh this page.'
-                        : 'Share this code privately with the invited person. They must sign in with the email you selected and accept it in Family. The code expires in 7 days.',
-                  ),
-                  const SizedBox(height: 16),
-                  Semantics(
-                    label: code,
-                    child: ExcludeSemantics(child: SelectableText(code)),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: code));
-                  _message('Code copied');
-                },
-                child: const Text('Copy code'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-        );
+        await _showCode(result['code'] as String, whatsapp: action == 'link');
       } else {
         _message(action == 'accept' ? 'Invitation accepted' : 'Saved');
       }
@@ -124,6 +86,46 @@ class _FamilyPageState extends State<FamilyPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _showCode(String code, {bool whatsapp = false}) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(whatsapp ? 'Link your WhatsApp' : 'Personal invitation'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                whatsapp
+                    ? 'Send this exact message from your own WhatsApp number to Guardian within 10 minutes. Then refresh this page.'
+                    : 'Share this code privately with the invited person. They must sign in with the email you selected and accept it in Family. The code expires in 7 days.',
+              ),
+              const SizedBox(height: 16),
+              Semantics(
+                label: code,
+                child: ExcludeSemantics(child: SelectableText(code)),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: code));
+              _message('Code copied');
+            },
+            child: const Text('Copy code'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _join() async {
@@ -161,21 +163,30 @@ class _FamilyPageState extends State<FamilyPage> {
     FamilyCircle circle, [
     Map<String, dynamic>? member,
   ]) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (_) => _AccessDialog(member: member, wearer: circle.name),
+    Map<String, dynamic>? response;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => FamilyAccessPage(
+          member: member,
+          wearer: circle.name,
+          onSave: (value) async {
+            response = await _client
+                .change(member == null ? 'invite' : 'member', {
+                  ...value,
+                  if (member != null) 'action': 'permissions',
+                  if (member != null) 'uid': member['uid'],
+                }, imei: circle.imei);
+          },
+        ),
+      ),
     );
-    if (result != null) {
-      await _change(
-        member == null ? 'invite' : 'member',
-        {
-          ...result,
-          if (member != null) 'action': 'permissions',
-          if (member != null) 'uid': member['uid'],
-        },
-        imei: circle.imei,
-        showCode: member == null,
-      );
+    if (saved != true || !mounted) return;
+    await _load();
+    if (!mounted) return;
+    if (member == null) {
+      await _showCode(response!['code'] as String);
+    } else {
+      _message('Access updated');
     }
   }
 
@@ -535,149 +546,4 @@ class _FamilyPageState extends State<FamilyPage> {
       ),
     );
   }
-}
-
-class _AccessDialog extends StatefulWidget {
-  const _AccessDialog({this.member, required this.wearer});
-  final Map<String, dynamic>? member;
-  final String wearer;
-  @override
-  State<_AccessDialog> createState() => _AccessDialogState();
-}
-
-class _AccessDialogState extends State<_AccessDialog> {
-  final _email = TextEditingController();
-  late String _role;
-  late Map<String, bool> _permissions;
-  int _duration = 0;
-  @override
-  void initState() {
-    super.initState();
-    _role = widget.member?['role'] as String? ?? 'viewer';
-    _permissions = widget.member == null
-        ? familyPreset(_role)
-        : Map<String, bool>.from(widget.member!['permissions'] as Map);
-  }
-
-  @override
-  void dispose() {
-    _email.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      widget.member == null
-          ? 'Invite someone for ${widget.wearer}'
-          : 'Access for ${widget.member!['name']}',
-    ),
-    content: SizedBox(
-      width: 480,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.member == null)
-              TextField(
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-                autocorrect: false,
-                decoration: const InputDecoration(
-                  labelText: 'Their Guardian account email',
-                ),
-              ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _role,
-              decoration: const InputDecoration(labelText: 'Start with a role'),
-              items: familyRoleLabels.entries
-                  .map(
-                    (v) => DropdownMenuItem(value: v.key, child: Text(v.value)),
-                  )
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() {
-                    _role = v;
-                    _permissions = familyPreset(v);
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Fine-tune access. Watch features still depend on the plan, availability and wearer consent.',
-            ),
-            for (final entry in familyPermissionLabels.entries)
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(entry.value),
-                value: _permissions[entry.key] == true,
-                onChanged: (value) => setState(() {
-                  _permissions[entry.key] = value;
-                  if (entry.key == 'location' && !value) {
-                    _permissions['history'] = false;
-                    _permissions['zones'] = false;
-                  }
-                  if (['history', 'zones'].contains(entry.key) && value) {
-                    _permissions['location'] = true;
-                  }
-                }),
-              ),
-            DropdownButtonFormField<int>(
-              initialValue: _duration,
-              decoration: const InputDecoration(labelText: 'Access duration'),
-              items: [
-                DropdownMenuItem(
-                  value: 0,
-                  child: Text(
-                    widget.member?['untilMs'] != null
-                        ? 'Keep current expiry'
-                        : 'Ongoing',
-                  ),
-                ),
-                const DropdownMenuItem(value: 7, child: Text('7 days')),
-                const DropdownMenuItem(value: 30, child: Text('30 days')),
-                if (widget.member?['untilMs'] != null)
-                  const DropdownMenuItem(
-                    value: -1,
-                    child: Text('Make ongoing'),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _duration = v ?? 0),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Joining does not subscribe this person to WhatsApp messages.',
-            ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, {
-          if (widget.member == null) 'email': _email.text.trim(),
-          'role': _role,
-          'permissions': _permissions,
-          'untilMs': _duration > 0
-              ? DateTime.now()
-                    .add(Duration(days: _duration))
-                    .millisecondsSinceEpoch
-              : _duration < 0
-              ? null
-              : widget.member?['untilMs'],
-        }),
-        child: Text(
-          widget.member == null ? 'Create invitation' : 'Save access',
-        ),
-      ),
-    ],
-  );
 }

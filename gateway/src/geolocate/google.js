@@ -259,7 +259,11 @@ function reverseGeocodeCacheKey(lat, lng) {
 
 function cleanPlacePart(value) {
   const cleaned = String(value || '').trim().replace(/\s+/g, ' ');
-  return cleaned && cleaned.length <= 100 ? cleaned : null;
+  // Some returned premises/routes are just "B" or "C". Skip those and
+  // continue looking for useful context; retain complete road codes like B13.
+  const meaningful = cleaned.replace(/[^\p{L}\p{N}]/gu, '');
+  return [...meaningful].length >= 2 && /\p{L}/u.test(cleaned) && cleaned.length <= 100
+    ? cleaned : null;
 }
 
 function firstAddressComponent(results, types) {

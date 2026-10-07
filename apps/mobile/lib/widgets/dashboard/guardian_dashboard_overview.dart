@@ -278,7 +278,7 @@ class _LocationPanel extends StatelessWidget {
     final inset = compact ? 12.0 : 24.0;
     final location = device.mapDisplayLocation;
     final hasLocation = location?.isValid == true;
-    final place = location?.placeLabel?.trim();
+    final place = location?.displayPlaceLabel;
     final fixLabel = deviceMapLocationFixLabel(device);
     final recorded = location?.recordedAt;
     final age = recorded == null ? null : DateTime.now().difference(recorded);

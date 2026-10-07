@@ -54,6 +54,30 @@ unsaved draft without changing live safe zones.
 
 ## Verification
 
+`FamilyAccessPage` uses a full page with separate person, permissions and
+duration sections. The email field and save action remain usable above the
+keyboard; failed requests retain the draft. Existing role defaults, dependent
+location permissions, expiry and separate WhatsApp consent stay enforced.
+
+Home map gestures claim native map touches inside the scrolling dashboard.
+The selected avatar passes touches through on mobile so a pinch can start over
+the photo; other avatars retain their selection action. Plus/minus and centring
+controls remain available.
+
+Place labels discard incomplete nearby fragments such as `near B` while
+retaining complete road codes such as `B13`. Weather uses the area name without
+nearby street detail. Its location selector now honours qualified Home Wi-Fi
+evidence and, with an explicit last-known label, a remembered Home detection
+under 24 hours old. A newer accepted GPS departure supersedes remembered Home.
+The app hides a cached forecast for a different area while Home weather is
+pending. Expired Home evidence cannot claim current presence. The five-minute
+weather sweep and ten-minute provider cache remain unchanged.
+
+Physical-phone checks cover invitation keyboard/permissions and two-pointer
+zoom in/out, with map zoom values checked through the debug service. Tests also
+cover incomplete labels, Home arrival/departure/expiry, and a provider request
+crossing Home-evidence expiry without relabelling the fetched conditions.
+
 - Flutter suite: navigation/back/cancellation, Family permissions and consent,
   watch preferences and reminders, wellness, voice, photos, maps and alerts.
 - Control tests cover all seven palettes, 4.5:1 action-text contrast, enlarged

@@ -3,6 +3,8 @@
 const WeatherProvider = require('./context/weatherProvider');
 const { selectWeatherLocation } = require('./weather-reply');
 const { normalizeLocationSource } = require('./location-provenance');
+const { readHomeWifiDisplay } = require('./wifi-home-display-policy');
+const { readLastHomeWifiDetection } = require('./last-home-wifi-detection');
 
 const MAX_AGE_MS = 60 * 60_000;
 const MAX_LOCATION_AGE_MS = 24 * 60 * 60_000;
@@ -36,12 +38,26 @@ function weatherCondition(code) {
 }
 
 function areaName(value) {
-  return typeof value === 'string'
-    ? value.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 100)
-    : '';
+  if (typeof value !== 'string') return '';
+  // Weather is for the observed area, not a nearby road or building.
+  const area = value.replace(/[\u0000-\u001f\u007f<>]/g, '')
+    .split(/\s*·\s*near\s*/i)[0].replace(/^\s*near\s+/i, '').trim().slice(0, 100);
+  return [...area.replace(/[^\p{L}\p{N}]/gu, '')].length >= 2 && /\p{L}/u.test(area)
+    ? area : '';
 }
 
 function selectedLocation(device, now = Date.now()) {
+  // Use the same qualified Home evidence as the map, never the phone's
+  // position or a heartbeat. A historical Home sighting is labelled as such.
+  const home = readHomeWifiDisplay(device, { now: new Date(now) });
+  const rememberedHome = home ? null : readLastHomeWifiDetection(device, { now: new Date(now) });
+  const homeLocation = home || rememberedHome;
+  const homeObservedAt = dateMs(homeLocation?.recordedAt);
+  if (homeLocation && fresh(homeObservedAt, now, MAX_LOCATION_AGE_MS)) {
+    return { location: homeLocation, observedAt: homeObservedAt,
+      source: homeLocation.source, retainedSatellite: false,
+      locationBasis: home ? 'home_wifi' : 'last_known_home' };
+  }
   const selection = selectWeatherLocation(device, { now: new Date(now) });
   const valid = ({ location, source }) => location && finite(location.lat, -90, 90) &&
     finite(location.lng, -180, 180) && !(location.lat === 0 && location.lng === 0) &&
@@ -122,6 +138,8 @@ function buildWeatherProjection({ device, weather, now = Date.now() }) {
       areaName(weather.location) || 'Recorded area',
     locationObservedAt: new Date(selection.observedAt).toISOString(),
     locationBasis: selection.locationBasis,
+    homePresenceExpiresAt: selection.locationBasis === 'home_wifi'
+      ? location.expiresAt.toISOString() : null,
     observedAt: new Date(observedAt).toISOString(),
     fetchedAt: new Date(fetchedAt).toISOString(),
     expiresAt: new Date(Math.min(selection.observedAt + MAX_LOCATION_AGE_MS, observedAt + MAX_AGE_MS,
@@ -163,6 +181,11 @@ function startProfileWeather({
     }
     // Recheck ages after the network request, not just at its start.
     const projection = buildWeatherProjection({ device, weather, now: now() });
+    // Home evidence can expire while the provider request is in flight. Do
+    // not attach conditions fetched for Home to a different fallback fix.
+    if (projection.state === 'available' &&
+        (projection.location.lat !== selection.location.lat ||
+         projection.location.lng !== selection.location.lng)) return;
     const fingerprint = projection.state === 'unavailable'
       ? `${projection.state}:${projection.reason}` : JSON.stringify(projection);
     if (written.get(document.id) === fingerprint || stopped) return;

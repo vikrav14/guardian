@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../location/place_label.dart' as place_labels;
 import 'home_wifi_presence.dart';
 import 'watch_alert_profile.dart';
 import '../services/guardian_entitlements.dart';
@@ -22,6 +23,7 @@ class DeviceLocation {
   final DateTime? recordedAt;
   final int? satellites;
   final String? placeLabel;
+  String? get displayPlaceLabel => place_labels.displayPlaceLabel(placeLabel);
   final String? source;
   final bool? gpsValid;
   final double? accuracyMeters;
