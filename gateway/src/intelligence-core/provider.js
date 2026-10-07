@@ -37,6 +37,7 @@ async function anthropicMessage({ apiKey, body, fetchImpl = fetch, feature }) {
   await scope.authorize();
   const headers = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
   const countBody = { model, messages: body.messages, ...(body.system ? { system: body.system } : {}),
+    ...(body.output_config ? { output_config: body.output_config } : {}),
     ...(body.tools?.length ? { tools: body.tools } : {}) };
   const count = await jsonRequest('https://api.anthropic.com/v1/messages/count_tokens', countBody, headers, fetchImpl);
   return meteredCall({ model, inputTokens: count.input_tokens, maxTokens: body.max_tokens, feature, perform: async () => {

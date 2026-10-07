@@ -4,7 +4,7 @@
 
 PR #140 implements the first release documented in [the product contract](../ai/GUARDIAN_AI.md). New app surfaces and HTTP routes are opt-in. The common provider budget boundary applies to all provider callers in this revision, including existing photo AI and WhatsApp. Do not deploy this revision assuming only the new screen flag changes behaviour.
 
-No live model evaluation, physical-phone acceptance or production activation has been performed for this release. Watch alarms, photographs and audio are not needed for the automated tests.
+The bounded synthetic live-model qualification passed on 7 October 2026. Physical-phone acceptance with managed family accounts and production activation remain pending. Watch alarms, new photographs and audio were not needed. See [acceptance cases, measured costs and the remaining gates](../ai/GUARDIAN_AI_ACCEPTANCE.md).
 
 ## WhatsApp navigation
 
@@ -71,7 +71,7 @@ The synthetic photo contract checker now needs Firestore budget access as well a
 
 Deploy the backend-only rules before enabling the feature. Configure Firestore TTL on `expiresAt` for `aiSelections` (1 day), `aiBudgetDays` (35 days), and `aiAttempts` (95 days). TTL is delayed cleanup, not authorisation. Monthly buckets are retained for operations; they contain hashed scope, counters and pricing metadata, not user text or media. No new composite index is required by these queries. Existing alerts indexes are reused.
 
-Rollout order: rules/TTL; validate selected model and ledger credentials with synthetic data; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; check budget report; run a bounded quality/cost qualification. This PR does not restart or configure live processes.
+Rollout order: complete the isolated qualification and app replay review; verify rules/TTL and ledger credentials; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; compare the bounded pilot's budget report with provider usage. Keep the new experience off until these gates pass. The synthetic qualification does not restart or configure live processes.
 
 Rollback: disable the UI/API flag to restore the previous app surfaces and rules presentation; no watch settings change. That flag does **not** remove the shared cost boundary. If reverting the gateway revision, retain the ledger/rules rather than deleting billing evidence. Initial alerts and calling remain independent of AI.
 
@@ -80,12 +80,18 @@ Rollback: disable the UI/API flag to restore the previous app surfaces and rules
 - Gateway unit/regression suite plus new price, reservation, monthly allowance, duplicate/restart, ambiguous completion, both photo stages, Gemini thought-signature/usage, permission, media-deletion and HTTP tests.
 - Real Firestore emulator transactions for competing budget reservations; client read/list/write/delete denial for all four AI collections.
 - Flutter authenticated GET/POST, no automatic POST retry, narrow/large-text layout, expiry, revoked access, changing wearer and backgrounding tests; full app analysis/test suite and release Web compile.
-- Preview uses synthetic facts and a local fallback font, never wearer data. Native phone installation and paid provider quality evaluation remain separate acceptance steps.
+- The separate local review entry point replays saved synthetic provider results through the real answer widget, without Firebase startup, credentials or model calls. Native phone and real-family acceptance remain separate steps.
 
 See the PR for the executed test counts and any build limitations. Do not interpret unit tests as a successful live provider response, a reliable prediction or a completed emergency.
 
-Executed locally on 7 October 2026: 1,784 gateway tests; 823 full Flutter tests;
-113 Firestore emulator tests; Flutter analysis; enabled Web release and Android
-debug builds. The final small view changes additionally passed the targeted
-Intelligence suite. Build gateway URL was a placeholder; no build was installed
-or published. Live quality/cost and managed-family pilot acceptance remain open.
+Executed locally after integrating main including PR #153 on 7 October 2026:
+1,832 gateway tests; 831 full Flutter tests; 115 Firestore emulator tests; clean
+Flutter analysis; separate review Web release build. Earlier enabled Web release
+and Android debug builds used a placeholder gateway URL and were not installed
+or published. Final Haiku qualification: 21/21 fixed synthetic scenarios, 13
+generations, zero additional generations on repeats, Rs0.4702 at configured rates.
+All four paid evaluation runs total Rs1.6466. Earlier unavailable answers were
+incorrectly scored as negative-case passes; the acceptance record preserves the
+corrected results and the structured-output fix. These small text cases do not
+measure photo processing, WhatsApp tool loops or production workload economics.
+Managed-family pilot acceptance remains open.

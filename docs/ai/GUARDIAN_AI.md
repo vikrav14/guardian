@@ -1,6 +1,6 @@
 # Guardian Intelligence — implementation and product contract
 
-PR #140 now contains the first implementation, based on current main. It replaces the original RSS-first proposal with a shared cost/access foundation and three app experiences. The new screens are disabled by default. No production gateway, watch setting, deployed app or paid model qualification was changed by this implementation.
+PR #140 now contains the first implementation, based on current main. It replaces the original RSS-first proposal with a shared cost/access foundation and three app experiences. The new screens are disabled by default. A bounded live-model qualification with synthetic records passed on 7 October 2026; the AI foundation has not been deployed or enabled on the live gateway or public app. See the [acceptance record](GUARDIAN_AI_ACCEPTANCE.md).
 
 ## First release
 
@@ -65,7 +65,7 @@ Sources checked for this implementation: [Anthropic pricing](https://platform.cl
 ## Next stages and release gates
 
 1. **This PR:** shared budgets/access/usage, recorded Today and incident views, constrained Ask, compatibility cleanup, synthetic tests and builds.
-2. **Pilot qualification:** deploy backend-only rules and TTL policy, select one priced model, run a bounded labelled evaluation set, verify real app access/revocation and provider usage, then enable the screens. A successful software test is not a qualified model or a device acceptance result.
+2. **Pilot qualification:** the final 21-case synthetic Haiku run passed after correcting keyword shortcuts, unavailable-answer scoring and JSON output using a static schema. Next verify backend-only rules/TTL, real app access/revocation and metered provider usage in a controlled managed-family pilot. A small synthetic pass is not a device acceptance result or a production reliability guarantee.
 3. **Routine learning:** build daily derived features from authorised history; require 2–4 weeks of usable coverage, distinguish missing observations from behaviour changes, and test false-positive rates before exposing deviations. No LLM per location packet.
 4. **Useful summaries:** consent-aware journey, activity, wellness and medication-schedule summaries; weekly reports reuse the same derived facts. No diagnosis, adherence inference or claim of current safety.
 5. **External context:** deduplicate each source event once, deterministic geography/freshness first, shared extraction only where useful; app-first, preference-controlled insights. Same-town news is not proof a wearer is affected.
