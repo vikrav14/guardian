@@ -33,7 +33,8 @@ import '../widgets/map/map_avatar_overlay.dart';
 import 'journey_page.dart';
 
 class MapDashboardPage extends StatefulWidget {
-  const MapDashboardPage({super.key});
+  const MapDashboardPage({super.key, this.initialImei});
+  final String? initialImei;
 
   @override
   State<MapDashboardPage> createState() => MapDashboardPageState();
@@ -51,6 +52,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   MapType _mapType = MapType.normal;
   bool _sendingHelp = false;
   bool _didInitialFit = false;
+  bool _didSelectLinkedWearer = false;
 
   static const LatLng _mauritius = LatLng(-20.2642, 57.4791);
 
@@ -70,6 +72,12 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   void _onDashboardChanged() {
     if (!mounted) return;
+    if (!_didSelectLinkedWearer &&
+        widget.initialImei != null &&
+        _devices.any((device) => device.imei == widget.initialImei)) {
+      _didSelectLinkedWearer = true;
+      _dashboard.select(widget.initialImei!);
+    }
     setState(() {});
     _followSelected();
   }
@@ -482,7 +490,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       return;
     }
 
-    final message = 'Hi Guardian, I need help with ${device.displayName}.';
+    const message = 'menu';
     if (isMobileGuardianPlatform) {
       final opened = await launchUrl(
         guardianWhatsAppMobileUri(number: number, message: message),
@@ -799,6 +807,15 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.initialImei != null &&
+        (!_didSelectLinkedWearer ||
+            !_devices.any((device) => device.imei == widget.initialImei))) {
+      return Center(
+        child: _dashboard.loading
+            ? const CircularProgressIndicator()
+            : const Text('This wearer is no longer available.'),
+      );
+    }
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
       body: SafeArea(

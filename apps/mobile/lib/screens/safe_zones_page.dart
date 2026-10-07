@@ -13,7 +13,8 @@ import 'safe_zone_editor_page.dart';
 import 'home_wifi_setup_page.dart';
 
 class SafeZonesPage extends StatelessWidget {
-  const SafeZonesPage({super.key});
+  const SafeZonesPage({super.key, this.initialImei});
+  final String? initialImei;
 
   Future<void> _createZone(BuildContext context, List<Device> devices) async {
     if (devices.isEmpty) {
@@ -48,13 +49,19 @@ class SafeZonesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: GuardianPageFrame(child: _SafeZonesBody(onCreateZone: _createZone)),
+      body: GuardianPageFrame(
+        child: _SafeZonesBody(
+          onCreateZone: _createZone,
+          initialImei: initialImei,
+        ),
+      ),
     );
   }
 }
 
 class _SafeZonesBody extends StatefulWidget {
-  const _SafeZonesBody({required this.onCreateZone});
+  const _SafeZonesBody({required this.onCreateZone, this.initialImei});
+  final String? initialImei;
 
   final Future<void> Function(BuildContext context, List<Device> devices)
   onCreateZone;
@@ -64,9 +71,27 @@ class _SafeZonesBody extends StatefulWidget {
 }
 
 class _SafeZonesBodyState extends State<_SafeZonesBody> {
-  late final _devices = DeviceService().watchLinkedDevices();
-  late final _zones = GeofenceService().watchAll();
-  late final _alerts = AlertService().watchLinkedAlerts();
+  late final _devices = DeviceService().watchLinkedDevices().map(
+    (rows) => rows
+        .where(
+          (d) => widget.initialImei == null || d.imei == widget.initialImei,
+        )
+        .toList(),
+  );
+  late final _zones = GeofenceService().watchAll().map(
+    (rows) => rows
+        .where(
+          (z) => widget.initialImei == null || z.imei == widget.initialImei,
+        )
+        .toList(),
+  );
+  late final _alerts = AlertService().watchLinkedAlerts().map(
+    (rows) => rows
+        .where(
+          (a) => widget.initialImei == null || a.imei == widget.initialImei,
+        )
+        .toList(),
+  );
   final _busyZoneIds = <String>{};
 
   Future<void> _changeZone(Geofence zone, {bool delete = false}) async {
@@ -170,7 +195,10 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                     busyZoneIds: _busyZoneIds,
                     // IndexedStack retains pages. Avoid loading an off-screen
                     // Maps platform view while another primary tab is active.
-                    mapBuilder: home != null && home.currentIndex != 1
+                    mapBuilder:
+                        widget.initialImei == null &&
+                            home != null &&
+                            home.currentIndex != 1
                         ? (_, _) => const SizedBox.shrink()
                         : null,
                     onAdd: () => widget.onCreateZone(context, devices),

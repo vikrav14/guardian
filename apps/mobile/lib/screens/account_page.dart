@@ -115,7 +115,7 @@ class AccountPage extends StatelessWidget {
     final alertDeliveryDescription = whatsappAlertsDecision.allowed
         ? 'Guardian safety alerts can use app notifications, configured SMS, and WhatsApp. Delivery still depends on an active provider configuration and approved WhatsApp templates.'
         : sosWhatsappDecision.allowed
-        ? 'Guardian Essential sends a physical watch SOS to the app and to one primary emergency contact on WhatsApp. WhatsApp questions, routine alerts, fall alerts, AI, and watch commands require Guardian Family or Guardian Care. Delivery still depends on notification permission, active provider configuration, and approved Meta templates.'
+        ? 'Guardian Essential sends a physical watch SOS to the app and to one primary emergency contact on WhatsApp. The WhatsApp menu, routine alerts, fall alerts, AI, and watch commands require Guardian Family or Guardian Care. Delivery still depends on notification permission, active provider configuration, and approved Meta templates.'
         : 'Core safety alerts use the configured app and SMS channels. WhatsApp safety alerts require an active eligible Guardian plan.';
     final accountRole = subscription?.serviceActive == true
         ? subscription!.ownerUid == user?.uid

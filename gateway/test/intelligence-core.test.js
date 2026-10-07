@@ -125,7 +125,7 @@ test('HTTP endpoint verifies identity, gates the feature and never accepts suppl
   const { Readable } = require('node:stream');
   const { createIntelligenceHandler } = require('../src/intelligence-core/http');
   const calls = [];
-  const handler = createIntelligenceHandler({ enabled: true, getDb: () => database(), verifyToken: async token => {
+  const handler = createIntelligenceHandler({ enabled: true, getProvider: () => { throw Error('must not initialize AI'); }, getDb: () => database(), verifyToken: async token => {
     if (token !== 'valid') throw Error('private token detail'); return { uid: 'owner' };
   }, factory: () => ({ answer: async input => { calls.push(input); return { mode: 'recorded' }; } }) });
   async function request(path, method = 'GET', body = '', token = 'valid', h = handler) {
@@ -137,9 +137,9 @@ test('HTTP endpoint verifies identity, gates the feature and never accepts suppl
   const ok = await request('/app/intelligence?imei=' + imei);
   assert.equal(ok.status, 200); assert.equal(ok.headers['Cache-Control'], 'no-store, private');
   assert.equal(calls[0].uid, 'owner');
-  assert.equal((await request('/app/intelligence/ask?imei=' + imei, 'POST', JSON.stringify({ question: 'hello', plan: 'care' }))).status, 400);
+  assert.equal((await request('/app/intelligence/ask?imei=' + imei, 'POST', JSON.stringify({ question: 'hello', plan: 'care' }))).status, 410);
   assert.equal((await request('/app/intelligence', 'GET', '', 'bad')).status, 401);
-  assert.equal((await request('/app/intelligence/ask', 'POST', 'x'.repeat(2049))).status, 413);
+  assert.equal((await request('/app/intelligence/ask', 'POST', 'x'.repeat(2049))).status, 410);
   assert.equal((await request('/app/intelligence', 'GET', '', 'valid', createIntelligenceHandler({ enabled: false }))).status, 503);
   assert.equal(calls.length, 1);
 });
@@ -215,14 +215,15 @@ test('managed per-wearer grants, revocation and subscription are authoritative',
   db.rows.delete(`familyServices/${imei}`);
   await assert.rejects(authorizeIntelligence(db, 'owner', imei), /access_not_shared/);
 });
-test('evidence excludes forbidden location and old battery remains explicitly old', async () => {
+test('alerts-only evidence excludes location and watch status; permitted old battery stays labelled old', async () => {
   const db = managedDb();
   db.rows.get(`devices/${imei}`).location = { lat: -20, lng: 57, placeLabel: 'Private place', recordedAt: new Date(clock) };
   const a = await authorizeIntelligence(db, 'member', imei);
   const packet = await collectEvidence(db, a, { now: clock });
   assert(!JSON.stringify(packet).includes('Private place'));
-  assert(packet.facts.some(f => f.kind === 'battery' && /old/.test(f.text)));
-  assert(!packet.facts.some(f => f.kind === 'location'));
+  assert(!packet.facts.some(f => ['location', 'battery', 'connection'].includes(f.kind)));
+  const owner = await collectEvidence(db, await authorizeIntelligence(db, 'owner', imei), { now: clock });
+  assert(owner.facts.some(f => f.kind === 'battery' && /old/.test(f.text)));
 });
 const packet = () => ({ wearerName: 'Test', incidentId: null, facts: [{ id: 'one', kind: 'battery', text: 'Recorded battery 70%.', source: 'watch' }],
   gaps: [], asOf: clock, validUntil: clock + 60000, fingerprint: 'fingerprint' });

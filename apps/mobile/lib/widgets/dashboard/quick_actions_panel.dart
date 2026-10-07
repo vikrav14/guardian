@@ -5,7 +5,7 @@ import '../../theme/app_theme.dart';
 /// Quick Actions panel — three primary guardian actions.
 ///
 /// Separate from hero per spec (section 3.2).
-/// Actions: Call watch, View location, Ask Guardian (via WhatsApp/AI).
+/// Actions: Call watch, View location, WhatsApp menu (via WhatsApp/AI).
 class QuickActionsPanel extends StatelessWidget {
   const QuickActionsPanel({
     required this.onCall,
@@ -42,7 +42,7 @@ class QuickActionsPanel extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _QuickActionButton(
-            label: 'Ask Guardian',
+            label: 'WhatsApp menu',
             onPressed: onAskGuardian,
             color: GuardianColors.whatsapp,
             textColor: Colors.white,

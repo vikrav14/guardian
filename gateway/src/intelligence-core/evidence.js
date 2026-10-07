@@ -21,13 +21,15 @@ async function collectEvidence(db, access, { now = Date.now(), incidentId = null
   const readingAt = past(device.batteryUpdatedAt);
   const freshness = batteryFreshness({ lastHeartbeatAt: heartbeatAt == null ? null : new Date(heartbeatAt),
     batteryUpdatedAt: readingAt == null ? null : new Date(readingAt) }, { now: new Date(now) });
-  add('connection', `${freshness.online ? 'A recent watch check-in is recorded' : 'No current watch check-in is recorded'}. Last check-in: ${time(heartbeatAt)}.`,
-    { at: heartbeatAt, priority: freshness.online ? 7 : 1, target: { screen: 'watch' } });
-  const battery = Number(device.batteryPercent);
-  if (device.batteryPercent != null && Number.isFinite(battery) && battery >= 0 && battery <= 100) {
-    add('battery', `Battery last reported ${battery}%${readingAt == null ? '; its reading time is unavailable' :
-      ` at ${time(readingAt)}${now - readingAt > 1800000 ? '; this reading is old' : ''}`}.`,
-      { at: readingAt, priority: battery < 15 ? 1 : 8, target: { screen: 'watch' } });
+  if (allowed('location')) {
+    add('connection', `${freshness.online ? 'A recent watch check-in is recorded' : 'No current watch check-in is recorded'}. Last check-in: ${time(heartbeatAt)}.`,
+      { at: heartbeatAt, priority: freshness.online ? 7 : 1, target: { screen: 'watch' } });
+    const battery = Number(device.batteryPercent);
+    if (device.batteryPercent != null && Number.isFinite(battery) && battery >= 0 && battery <= 100) {
+      add('battery', `Battery last reported ${battery}%${readingAt == null ? '; its reading time is unavailable' :
+        ` at ${time(readingAt)}${now - readingAt > 1800000 ? '; this reading is old' : ''}`}.`,
+        { at: readingAt, priority: battery < 15 ? 1 : 8, target: { screen: 'watch' } });
+    }
   }
   if (allowed('location')) {
     const location = buildLocationReplyData(device, { now: new Date(now) });

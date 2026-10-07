@@ -47,7 +47,7 @@ class _IntelligenceReviewState extends State<IntelligenceReview> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Guardian Intelligence · review')),
+    appBar: AppBar(title: const Text('Guardian · historical evidence replay')),
     body: FutureBuilder<Map<String, dynamic>>(
       future: _report,
       builder: (context, snapshot) {
@@ -82,7 +82,7 @@ class _IntelligenceReviewState extends State<IntelligenceReview> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Explore the app’s real answer panel using saved test results. This page makes no AI calls and cannot contact a watch.',
+                    'Historical selector results in the read-only evidence panel. Ask Guardian has been removed. This replay makes no AI calls and cannot contact a watch.',
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -138,7 +138,6 @@ class _IntelligenceReviewState extends State<IntelligenceReview> {
                           ? 'synthetic-incident'
                           : null,
                       client: client,
-                      showComposer: true,
                       onEvidence: (fact) => showDialog<void>(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -212,18 +211,6 @@ class _ReplayClient implements IntelligenceClient {
   @override
   Future<IntelligenceAnswer> load(String imei, {String? incidentId}) async =>
       _answer(selected);
-  @override
-  Future<IntelligenceAnswer> ask(
-    String imei,
-    String question, {
-    String? incidentId,
-  }) async {
-    final matches =
-        (selected['question'] as String).toLowerCase() ==
-        question.trim().toLowerCase();
-    return _answer(matches ? selected : null);
-  }
-
   @override
   void close() {}
 }

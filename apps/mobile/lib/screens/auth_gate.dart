@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import 'home_shell.dart';
+import '../navigation/whatsapp_menu_target.dart';
 import '../models/incident_photos.dart';
 import 'login_page.dart';
 
@@ -21,6 +22,7 @@ class _AuthGateState extends State<AuthGate> {
   Future<void>? _profileFuture;
   String? _profileUid;
   final String? _incidentId = incidentFromUri(Uri.base);
+  final _menuTarget = WhatsAppMenuTarget.fromUri(Uri.base);
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +79,11 @@ class _AuthGateState extends State<AuthGate> {
                 ),
               );
             }
-            return HomeShell(initialIncidentId: _incidentId);
+            return HomeShell(
+              key: ValueKey(user.uid),
+              initialIncidentId: _incidentId,
+              initialMenuTarget: _menuTarget,
+            );
           },
         );
       },

@@ -1064,7 +1064,7 @@ function startHttpServer() {
   const handleMedication = createMedicationHandler({ getDb });
   const handleVoice = createVoiceHandler({ getDb });
   const handleFamily = require('./family-http').createFamilyHandler({ getDb });
-  const handleIntelligence = require('./intelligence-core/http').createIntelligenceHandler({ getDb, getProvider: () => llmProvider });
+  const handleIntelligence = require('./intelligence-core/http').createIntelligenceHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1506,21 +1506,8 @@ function startHttpServer() {
         return;
       }
 
-      if (req.method === 'POST' && url.pathname === '/dev/chat') {
-        const raw = await readBody(req);
-        const payload = raw ? JSON.parse(raw) : {};
-        const from = String(payload.from || '').trim();
-        if (!from) {
-          sendJson(res, 400, { error: 'from required' });
-          return;
-        }
-        const text = payload.text || payload.body || '';
-        if (!text.trim()) {
-          sendJson(res, 400, { error: 'text required' });
-          return;
-        }
-        const { reply } = await handleChat({ from, text: text.trim() });
-        sendJson(res, 200, { reply });
+      if (url.pathname === '/dev/chat') {
+        sendJson(res, 410, { error: 'chat_removed', message: 'Use the WhatsApp menu.' });
         return;
       }
 
@@ -1613,28 +1600,9 @@ function startHttpServer() {
           incrementMetric('whatsappInbound');
 
           try {
-            if (process.env.FAMILY_SHARING_ENABLED === 'true' &&
-                await require('./family-whatsapp').handleFamilyWhatsApp({ db: getDb(), message, send: sendMetaText })) {
-              metaInboundDeduper.markDone(message.id);
-              continue;
-            }
-            const { reply } = await handleChat({
-              from: normalizeE164(message.from),
-              text: message.text,
-            });
-
-            const wa = await sendMetaText(message.from, reply);
-
-            if (wa.ok) {
-              metaInboundDeduper.markDone(message.id);
-              console.log(
-                `[meta-webhook] replied id=${message.id} outbound=${wa.messageId || 'unknown'}`
-              );
-            } else {
-              metaInboundDeduper.release(message.id);
-              shouldRetry = true;
-              console.error('[meta-webhook] Meta reply send failed', wa);
-            }
+            await require('./family-whatsapp').handleFamilyWhatsApp({ db: getDb(), message, send: sendMetaText,
+              enabled: process.env.FAMILY_SHARING_ENABLED === 'true' });
+            metaInboundDeduper.markDone(message.id);
           } catch (err) {
             metaInboundDeduper.release(message.id);
             shouldRetry = true;
@@ -1665,7 +1633,7 @@ function startHttpServer() {
   server.listen(config.httpPort, config.host, () => {
     console.log(`[guardian-http] listening on ${config.host}:${config.httpPort}`);
     console.log('[guardian-http] GET/POST /webhooks/meta/whatsapp');
-    console.log('[guardian-http] POST /dev/chat  { "from": "<e164-phone>", "text": "Where is mum?" }');
+
     console.log('[guardian-http] GET  /ops/metrics  (admin key if ADMIN_API_KEY set)');
     console.log('[guardian-http] GET  /ops/fleet');
     console.log('[guardian-http] GET  /ops/finance');

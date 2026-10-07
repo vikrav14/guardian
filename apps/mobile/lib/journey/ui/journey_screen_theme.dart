@@ -55,7 +55,7 @@ abstract final class JourneyScreenTheme {
   /// Bottom offset for floating playback bar (above map attribution).
   static double get playbackBottomOffset => mapAttributionInset;
 
-  /// Bottom offset for Ask Guardian (sits above playback, left side).
+  /// Bottom offset for Journey summary (sits above playback, left side).
   static double get assistantBottomOffset =>
       mapAttributionInset + playbackCollapsedHeight + spacing2;
 

@@ -32,7 +32,8 @@ function createFamilyStore(db, { now = Date.now, random = () => crypto.randomByt
       const pending = service.ownerUid === uid
         ? Object.entries(service.invites || {}).filter(([, v]) => v.status === 'pending' && v.expiresAtMs > now())
           .map(([id, v]) => ({ id, email: v.email, role: v.role, expiresAtMs: v.expiresAtMs })) : [];
-      rows.push({ imei, wearerName: service.wearerName, ownerUid: service.ownerUid,
+      rows.push({ imei, menuKey: require('./whatsapp-menu').key({ imei }),
+        menuScreens: require('./whatsapp-menu').appDestinations(service, uid, now()), wearerName: service.wearerName, ownerUid: service.ownerUid,
         notificationRouting: service.legacyNotifications ? 'legacy_preserved' : 'family',
         subscription: service.subscription, limits: policy(service),
         members: Object.entries(service.members).map(([id, row]) => publicMember(id, row)),

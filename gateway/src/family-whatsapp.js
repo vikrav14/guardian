@@ -25,32 +25,37 @@ async function linkNumber(db, text, from, now) {
   return true; // Confirmation is shown in the authenticated app, without a paid outbound message.
 }
 
-function locationAnswer(service, device) {
-  const location = device.lastSatelliteLocation || device.location;
-  const at = location?.recordedAt?.toDate?.() || (location?.recordedAt ? new Date(location.recordedAt) : null);
-  if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng) ||
-      Math.abs(location.lat) > 90 || Math.abs(location.lng) > 180 || !at || !Number.isFinite(+at)) return null;
-  return `${service.wearerName || 'Your family member'}: last recorded location at ${at.toISOString()}.\n` +
-    `https://www.google.com/maps?q=${location.lat},${location.lng}\nThis is a recorded position, not a confirmation of their current presence.`;
-}
-
-async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./whatsapp-meta').sendMetaList, now = Date.now() }) {
-  if (!db) return false;
-  if (await linkNumber(db, message.text || '', message.from, now)) return true;
+async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./whatsapp-meta').sendMetaList,
+  now = Date.now(), enabled = true }) {
+  // This handler owns every inbound text. Unknown callers never fall through to AI.
+  if (!db || !menu.recentInbound(message, now)) return true;
+  const startedAt = Date.now();
+  const handoffNow = () => now + Math.max(0, Date.now() - startedAt);
   const phone = `+${digits(message.from)}`;
+  if (enabled && await linkNumber(db, message.text || '', message.from, now)) return true;
   const number = (await db.collection('familyNumbers').doc(hash(phone)).get()).data();
-  if (!number) return false;
-  const uid = number.uid, channel = (await db.collection('familyChannels').doc(uid).get()).data();
-  if (!channel?.verifiedAtMs || channel.phone !== phone) return true;
+  if (!enabled || !number) {
+    await menu.sendNavigation({ db, uid: `unlinked:${hash(phone)}`, message, now, send,
+      text: enabled ? 'Open Guardian → Family → WhatsApp → Link my WhatsApp to use the menu. Safety alerts keep their existing settings.'
+        : 'The WhatsApp menu is unavailable. Please open Guardian. Safety alerts keep their existing settings.' });
+    return true;
+  }
+  const uid = number.uid;
+  const channelValid = async () => {
+    const channel = (await db.collection('familyChannels').doc(uid).get()).data();
+    const linked = (await db.collection('familyNumbers').doc(hash(phone)).get()).data();
+    return channel?.phone === phone && !!channel?.verifiedAtMs && linked?.uid === uid;
+  };
+  if (!await channelValid()) return true;
   const allowance = createAllowanceStore(db, { now: () => now });
-  const notice = async (reason, text) => { if (await allowance.claimNotice(uid, reason)) await send(message.from, text); };
+  const notice = async text => menu.sendNavigation({ db, uid, message, now, send, text, authorize: channelValid });
   const user = (await db.collection('users').doc(uid).get()).data();
   const services = [];
-  for (const imei of [...new Set(user?.familyServiceImeis || [])].slice(0, 30)) {
+  for (const imei of [...new Set(user?.familyServiceImeis || [])].filter(v => /^\d{15}$/.test(v)).slice(0, 30)) {
     const service = (await db.collection('familyServices').doc(imei).get()).data();
     if (activeMember(service, uid, now) && serviceEntitlements(service, now).serviceActive) services.push({ ...service, imei });
   }
-  const ack = /^ACK ([A-Za-z0-9_-]{1,128})$/i.exec(message.text.trim());
+  const ack = /^ACK ([A-Za-z0-9_-]{1,128})$/i.exec((message.text || '').trim());
   if (ack) {
     const alert = (await db.collection('alerts').doc(ack[1]).get()).data();
     const service = services.find(s => s.imei === alert?.imei);
@@ -58,69 +63,57 @@ async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./w
       try { await require('./family-response').acknowledge(db, { uid, imei: service.imei, alertId: ack[1], phone, source: 'whatsapp', now }); }
       catch (error) { if (!error.code) throw error; }
     }
-    return true; // No allowance use and no automatic resolution, even on provider retries.
+    return true;
   }
-  let text = message.text.trim().toLowerCase(), service;
   const chosen = menu.selection(message.menuSelection);
-  const navigation = menu.isMenuRequest(text) || !!message.menuSelection;
-  if (navigation && !menu.recentInbound(message, now)) return true;
-  if (chosen && chosen.action !== 'page') service = services.find(s => menu.key(s) === chosen.target);
-  if (navigation) {
-    // IDs identify a choice, never grant access. Rebuild from current membership
-    // on every tap; do not route a stale row to a different remaining wearer.
-    if (chosen && chosen.action !== 'page' && !service) {
-      await notice('menu_access', 'This wearer is no longer available here. Send menu to see your current shared access.');
-      return true;
-    }
-    if (!services.length) { await notice('menu_access', 'No active wearer is shared with this number. Open Guardian to check your access.'); return true; }
-    if (!chosen || chosen.action === 'wearer' || chosen.action === 'page') {
-      const selected = service || (services.length === 1 ? services[0] : null);
-      await menu.sendNavigation({ db, uid, message, now, send, sendMenu,
-        menu: selected && chosen?.action !== 'page' ? menu.optionsMenu(selected, uid, now, services.length > 1)
-          : menu.wearerMenu(services, chosen?.action === 'page' ? Number(chosen.target) : 0) });
-      return true;
-    }
-    if (chosen.action === 'app') {
-      await menu.sendNavigation({ db, uid, message, now, send, sendMenu }); return true;
-    }
-    text = chosen.action; // Canonical read-only intent; ignore the client-supplied title.
+  const service = chosen && chosen.action !== 'page' ? services.find(s => menu.key(s) === chosen.target) : null;
+  if (chosen && chosen.action !== 'page' && !service) {
+    await notice('This wearer is no longer available here. Send menu to see your current shared access.'); return true;
   }
-  const matched = services.filter(s => text.startsWith(`${s.imei.slice(-6)} `));
-  if (!service && matched.length === 1) { service = matched[0]; text = text.slice(7); }
-  else if (!service && services.length === 1) service = services[0];
-  if (!service) {
-    await notice('choose_wearer', 'Open Guardian to choose a wearer. For a shared watch, prefix your WhatsApp question with the last six digits of its watch ID.');
+  if (!services.length) { await notice('No active wearer is shared with this number. Open Guardian to check your access.'); return true; }
+  const authorize = async (selected, action) => {
+    if (!await channelValid()) return false;
+    const fresh = (await db.collection('familyServices').doc(selected.imei).get()).data();
+    const current = handoffNow();
+    if (!activeMember(fresh, uid, current) || !serviceEntitlements(fresh, current).serviceActive) return false;
+    // Both menus and answers can contain several permission scopes (Today
+    // includes alerts and location). Recheck the complete scope before handoff.
+    if (JSON.stringify(menu.appDestinations(fresh, uid, current)) !== JSON.stringify(menu.appDestinations(selected, uid, now))) return false;
+    return !action || !menu.ACTIONS[action] || menu.allowed(fresh, uid, action, current);
+  };
+  const navigate = async (selected, payload, action) => menu.sendNavigation({ db, uid, message, now, send, sendMenu, menu: payload,
+    authorize: async () => selected ? authorize(selected, action) : (await Promise.all(services.map(s => authorize(s)))).every(Boolean) });
+  // Every ordinary typed message, including old questions, returns navigation.
+  if (!chosen || chosen.action === 'wearer' || chosen.action === 'page') {
+    const selected = service || (services.length === 1 && chosen?.action !== 'page' ? services[0] : null);
+    await navigate(selected, selected ? menu.optionsMenu(selected, uid, now, services.length > 1)
+      : menu.wearerMenu(services, chosen?.action === 'page' ? Number(chosen.target) : 0));
     return true;
   }
-  const intent = /^(where|location|position|ou\b|où\b)/.test(text) ? 'location'
-    : /^(battery|batterie|watch status|status)/.test(text) ? 'battery' : null;
-  // Bounded deterministic replies are the first managed-circle release. No model calls.
-  if (!intent || !can(service, uid, 'location', now)) {
-    await notice('use_app', 'Use the Guardian app for the information and controls shared with you. WhatsApp currently answers location and battery questions.');
-    return true;
+  if (menu.GROUPS[chosen.action]) {
+    await navigate(service, menu.subMenu(service, uid, chosen.action, now, services.length > 1)); return true;
   }
-  const device = (await db.collection('devices').doc(service.imei).get()).data() || {};
-  const reply = intent === 'location' ? locationAnswer(service, device)
-    : Number.isFinite(device.batteryPercent) ? `${service.wearerName || 'Your family member'}: last reported watch battery ${device.batteryPercent}%. Open Guardian to check the reading time and connection.` : null;
-  if (!reply) { await notice('no_reading', 'No confirmed reading is available yet. Check the wearer in Guardian.'); return true; }
+  if (!menu.allowed(service, uid, chosen.action, now)) {
+    await notice('This option is not shared with you. Send menu to see your current access.'); return true;
+  }
+  if (!menu.READS.has(chosen.action)) {
+    await navigate(service, menu.resultMenu(service, menu.appReply(service, chosen.action), services.length > 1), chosen.action); return true;
+  }
+  let reply;
+  try { reply = await require('./whatsapp-records').recordedReply(db, service, uid, chosen.action, now); }
+  catch { await notice('Recorded information is unavailable. Open Guardian to check the wearer.'); return true; }
   const claim = await allowance.reserve({ uid, imei: service.imei, messageId: message.id });
   if (!claim.allowed) {
-    if (claim.reason === 'allowance_reached') await notice('allowance', 'This wearer’s shared monthly WhatsApp answer allowance is used. Continue in the Guardian app. SOS and fall alerts are unaffected.');
+    if (claim.reason === 'allowance_reached') await notice('This wearer’s shared monthly WhatsApp answer allowance is used. Continue in Guardian. Menu navigation, SOS and fall alerts are unaffected.');
     return true;
   }
-  const fresh = (await db.collection('familyServices').doc(service.imei).get()).data();
-  const currentChannel = (await db.collection('familyChannels').doc(uid).get()).data();
-  if (currentChannel?.phone !== phone || !currentChannel?.verifiedAtMs ||
-      !can(fresh, uid, 'location', Date.now()) || !serviceEntitlements(fresh).serviceActive) {
-    await allowance.transition(message.id, 'failed'); return true;
-  }
+  if (!await authorize(service, chosen.action)) { await allowance.transition(message.id, 'failed'); return true; }
   if (!await allowance.transition(message.id, 'sending')) return true;
   try {
-    const result = await send(message.from, reply);
-    // A transport timeout may have delivered. Keep that reservation for review.
+    const result = await sendMenu(message.from, menu.resultMenu(service, reply, services.length > 1));
     if (result.ok) await allowance.transition(message.id, 'sent');
     else if (result.skipped || result.status >= 400) await allowance.transition(message.id, 'failed');
-  } catch { /* Handoff uncertain: no automatic paid retry. */ }
+  } catch { /* Ambiguous handoff: no automatic resend. */ }
   return true;
 }
-module.exports = { handleFamilyWhatsApp, linkNumber, locationAnswer };
+module.exports = { handleFamilyWhatsApp, linkNumber };

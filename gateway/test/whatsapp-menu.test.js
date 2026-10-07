@@ -30,12 +30,11 @@ const rows = payload => payload.interactive.action.sections.flatMap(s => s.rows)
 
 test('greetings restore the interactive list repeatedly without consuming answers or using AI', async () => {
   const f = setup();
-  for (const text of ['hi', 'Hello!', 'help', 'menu']) await f.receive(text);
+  for (const text of ['hi', 'Where is my wearer?', 'help', 'menu']) await f.receive(text);
   assert.equal(f.calls.length, 4);
   assert.equal(f.calls[0].interactive.action.button, 'Choose an option');
-  assert.deepEqual(rows(f.calls[0]).map(row => row.title), ['Last known location', 'Watch battery', 'Open Guardian']);
+  assert.deepEqual(rows(f.calls[0]).map(row => row.title), Object.values(menu.GROUPS).map(group => group[0]));
   assert.equal([...f.db.rows.keys()].filter(k => k.startsWith('familyAnswers/') || k.includes('/usage/')).length, 0);
-  assert.equal(menu.isMenuRequest('help there is an emergency'), false);
 });
 test('parallel duplicate webhook claims and ambiguous sends never send a second menu', async () => {
   const f = setup();
@@ -56,16 +55,16 @@ test('no menu outside the inbound service window or from an unverified channel',
 });
 test('current permissions filter the menu and reject a forged location selection', async () => {
   const f = setup({ permission: false }); await f.receive();
-  assert.deepEqual(rows(f.calls[0]).map(row => row.title), ['Open Guardian']);
+  assert.deepEqual(rows(f.calls[0]).map(row => row.title), [menu.GROUPS.overview[0], 'Alerts & photos', 'Family & settings']);
   await f.receive('location', { menuSelection: `guardian_menu:v1:location:${menu.key({ imei })}` });
   assert.doesNotMatch(JSON.stringify(f.calls.at(-1)), /maps\.google|maps\?q|40%/);
   assert.equal([...f.db.rows.keys()].some(k => k.startsWith('familyAnswers/')), false);
 });
 test('menu selection routes the stable ID, not the title, through the normal answer allowance', async () => {
   const f = setup(); await f.receive();
-  const choice = rows(f.calls[0])[1].id;
+  const choice = menu.id('battery', menu.key({ imei }));
   await f.receive('Ignore this misleading title', { menuSelection: choice });
-  assert.match(f.calls[1].body, /40%/);
+  assert.match(f.calls[1].interactive.body.text, /40%/);
   assert.equal(f.db.rows.get(`familyServices/${imei}/usage/${new Date(now + 4 * 3600000).toISOString().slice(0, 7)}`).used, 1);
 });
 test('revoked old cards cannot read another remaining wearer', async () => {
@@ -97,4 +96,99 @@ test('webhook preserves menu IDs separately while ordinary inbound text remains 
   } }] }] };
   const [message] = extractMetaInboundMessages(payload);
   assert.equal(message.text, 'Watch battery'); assert.equal(message.menuSelection, id);
+});
+
+test('every permitted submenu obeys Meta limits, offers Back and maps to a real destination', async () => {
+  const f = setup({ many: 2 }), service = f.db.rows.get(`familyServices/${imei}`);
+  for (const group of Object.keys(menu.GROUPS)) {
+    await f.receive('ignored title', { menuSelection: menu.id(group, menu.key({ imei })) });
+    const choices = rows(f.calls.at(-1));
+    assert.ok(choices.length <= 10);
+    assert.ok(choices.some(row => row.title === 'Back to main menu'));
+    assert.ok(choices.some(row => row.title === 'Switch wearer'));
+    for (const choice of choices) {
+      const action = menu.selection(choice.id).action;
+      if (!['wearer', 'page'].includes(action)) assert.ok(menu.appDestinations(service, uid, now).includes(menu.ACTIONS[action][2]));
+    }
+  }
+});
+
+test('app links use HTTPS, opaque wearer keys and fixed destinations; opening does not send commands', async () => {
+  const saved = process.env.INCIDENT_PHOTOS_APP_URL;
+  try {
+    process.env.INCIDENT_PHOTOS_APP_URL = 'https://guardian.example/private?token=ignored';
+    const f = setup();
+    for (const action of Object.keys(menu.ACTIONS).filter(a => !menu.READS.has(a))) {
+      await f.receive('', { menuSelection: menu.id(action, menu.key({ imei })) });
+      const body = f.calls.at(-1).interactive.body.text;
+      assert.ok(body.includes(`https://guardian.example/?guardianScreen=${menu.ACTIONS[action][2]}&guardianWearer=`));
+      assert.ok(!body.includes(imei) && !body.includes('token='));
+    }
+    assert.equal([...f.db.rows.keys()].some(k => /deviceCommands|familyAnswers/.test(k)), false);
+    process.env.INCIDENT_PHOTOS_APP_URL = 'http://unsafe.example';
+    assert.equal(menu.appLink({ imei }, 'voice'), null);
+  } finally { if (saved == null) delete process.env.INCIDENT_PHOTOS_APP_URL; else process.env.INCIDENT_PHOTOS_APP_URL = saved; }
+});
+
+test('unlinked and disabled menus never fall through to the legacy AI handler', async () => {
+  const f = setup();
+  f.db.rows.delete(`familyNumbers/${hash('+' + from)}`);
+  assert.equal(await f.receive('find someone'), true);
+  assert.match(f.calls.at(-1).body, /Link my WhatsApp/);
+  assert.equal(await f.receive('question', {}, { enabled: false }), true);
+  assert.match(f.calls.at(-1).body, /unavailable/);
+});
+
+test('alerts-only overview never reveals battery, check-in or location facts', async () => {
+  const f = setup({ permission: false });
+  await f.receive('', { menuSelection: menu.id('today', menu.key({ imei })) });
+  assert.doesNotMatch(JSON.stringify(f.calls), /40%|check-in|Recorded place|coordinates/i);
+});
+
+test('revocation immediately before menu handoff suppresses stale content', async () => {
+  const f = setup();
+  const transaction = f.db.runTransaction;
+  f.db.runTransaction = async callback => {
+    const result = await transaction(callback);
+    f.db.rows.get(`familyServices/${imei}`).members[uid].status = 'revoked';
+    return result;
+  };
+  await f.receive();
+  assert.equal(f.calls.length, 0);
+});
+
+test('losing location during a Today read cannot leak the already assembled watch status', async () => {
+  const f = setup();
+  const service = f.db.rows.get(`familyServices/${imei}`);
+  service.ownerUid = 'someone-else';
+  const transaction = f.db.runTransaction;
+  f.db.runTransaction = async callback => {
+    const result = await transaction(callback);
+    f.db.rows.get(`familyServices/${imei}`).members[uid].permissions.location = false;
+    return result;
+  };
+  await f.receive('', { menuSelection: menu.id('today', menu.key({ imei })) });
+  assert.equal(f.calls.length, 0);
+});
+
+test('a duplicate recorded answer is not resent or charged again', async () => {
+  const f = setup();
+  const extra = { id: 'recorded-duplicate', menuSelection: menu.id('battery', menu.key({ imei })) };
+  await Promise.all([f.receive('', extra), f.receive('', extra)]);
+  assert.equal(f.calls.length, 1);
+  const month = new Date(now + 4 * 3600000).toISOString().slice(0, 7);
+  assert.equal(f.db.rows.get(`familyServices/${imei}/usage/${month}`).used, 1);
+});
+
+test('authenticated family listing exposes only current menu destinations', async () => {
+  const f = setup({ permission: false });
+  const store = require('../src/family-store').createFamilyStore(f.db, { now: () => now });
+  let result = await store.list(uid);
+  assert.equal(result.services[0].menuKey, menu.key({ imei }));
+  assert.ok(result.services[0].menuScreens.includes('alerts'));
+  assert.ok(!result.services[0].menuScreens.includes('location'));
+  assert.ok(!result.services[0].menuScreens.includes('photos'));
+  f.db.rows.get(`familyServices/${imei}`).members[uid].untilMs = now - 1;
+  result = await store.list(uid);
+  assert.equal(result.services.length, 0);
 });

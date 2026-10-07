@@ -205,7 +205,7 @@ class _WellnessHistoryState extends State<WellnessHistory> {
           OutlinedButton.icon(
             onPressed: widget.onAsk,
             icon: const Icon(Icons.chat_bubble_outline),
-            label: const Text('Ask on WhatsApp'),
+            label: const Text('Open WhatsApp menu'),
           ),
         ],
       ],

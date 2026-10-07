@@ -14,13 +14,11 @@ class IntelligenceView extends StatefulWidget {
     this.incidentId,
     this.client,
     this.onEvidence,
-    this.showComposer = false,
   });
   final String imei, wearerName;
   final String? incidentId;
   final IntelligenceClient? client;
   final void Function(IntelligenceFact)? onEvidence;
-  final bool showComposer;
   @override
   State<IntelligenceView> createState() => _IntelligenceViewState();
 }
@@ -28,12 +26,11 @@ class IntelligenceView extends StatefulWidget {
 class _IntelligenceViewState extends State<IntelligenceView>
     with WidgetsBindingObserver {
   late IntelligenceClient _client;
-  final _question = TextEditingController();
   StreamSubscription<void>? _access;
   Timer? _expiry;
   ModalRoute<dynamic>? _route;
   IntelligenceAnswer? _answer;
-  String? _error, _asked;
+  String? _error;
   bool _loading = false, _foreground = true;
   int _generation = 0;
   @override
@@ -70,10 +67,8 @@ class _IntelligenceViewState extends State<IntelligenceView>
     if (!mounted) return;
     _generation++;
     _expiry?.cancel();
-    _question.clear();
     setState(() {
       _answer = null;
-      _asked = null;
       _error = null;
       _loading = false;
     });
@@ -86,7 +81,7 @@ class _IntelligenceViewState extends State<IntelligenceView>
     _clear();
   }
 
-  Future<void> _load({String? question}) async {
+  Future<void> _load() async {
     if (!_foreground || _loading || _route?.isCurrent == false) return;
     final generation = ++_generation;
     _expiry?.cancel();
@@ -94,12 +89,12 @@ class _IntelligenceViewState extends State<IntelligenceView>
       _loading = true;
       _error = null;
       _answer = null;
-      _asked = question;
     });
     try {
-      final result = await (question == null
-          ? _client.load(widget.imei, incidentId: widget.incidentId)
-          : _client.ask(widget.imei, question, incidentId: widget.incidentId));
+      final result = await _client.load(
+        widget.imei,
+        incidentId: widget.incidentId,
+      );
       if (!mounted || !_foreground || generation != _generation) return;
       if (result.expired) throw const IntelligenceException('evidence_expired');
       setState(() => _answer = result);
@@ -107,9 +102,8 @@ class _IntelligenceViewState extends State<IntelligenceView>
         if (!mounted || generation != _generation) return;
         setState(() {
           _answer = null;
-          _asked = null;
         });
-        // Never replay a paid question. Refresh the recorded overview only.
+        // Expired evidence is replaced with a fresh recorded overview.
         unawaited(_load());
       });
     } catch (error) {
@@ -126,45 +120,11 @@ class _IntelligenceViewState extends State<IntelligenceView>
     }
   }
 
-  void _ask(String value) {
-    final question = value.trim();
-    if (question.isEmpty || question.length > 500) return;
-    _question.clear();
-    unawaited(_load(question: question));
-  }
-
-  void _openQuestions() {
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute<void>(
-            builder: (_) => Scaffold(
-              appBar: AppBar(title: const Text('Ask Guardian')),
-              body: SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: IntelligenceView(
-                    imei: widget.imei,
-                    wearerName: widget.wearerName,
-                    incidentId: widget.incidentId,
-                    onEvidence: widget.onEvidence,
-                    showComposer: true,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        )
-        .then((_) {
-          if (mounted) _clear();
-        });
-  }
-
   @override
   void dispose() {
     _generation++;
     _expiry?.cancel();
     unawaited(_access?.cancel());
-    _question.dispose();
     if (widget.client == null) _client.close();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -188,9 +148,7 @@ class _IntelligenceViewState extends State<IntelligenceView>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.showComposer
-                          ? widget.wearerName
-                          : widget.incidentId == null
+                      widget.incidentId == null
                           ? 'Today with Guardian'
                           : 'Incident brief',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -223,14 +181,6 @@ class _IntelligenceViewState extends State<IntelligenceView>
             ),
           if (_error != null)
             Text(_error!, style: TextStyle(color: colors.textSecondary)),
-          if (_asked != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Text(
-                _asked!,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
           if (answer != null) ...[
             if (answer.message != null)
               Padding(
@@ -290,53 +240,6 @@ class _IntelligenceViewState extends State<IntelligenceView>
             Text(
               'Updated ${TimeOfDay.fromDateTime(answer.asOf.toUtc().add(const Duration(hours: 4))).format(context)} · Mauritius time',
               style: TextStyle(color: colors.textSecondary, fontSize: 12),
-            ),
-          ],
-          const SizedBox(height: 16),
-          if (!widget.showComposer)
-            OutlinedButton.icon(
-              onPressed: _loading ? null : _openQuestions,
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('Ask Guardian'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            )
-          else ...[
-            if (answer != null)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: answer.suggestions
-                    .map(
-                      (q) => ActionChip(
-                        label: Text(q),
-                        onPressed: _loading ? null : () => _ask(q),
-                      ),
-                    )
-                    .toList(),
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _question,
-              enabled: !_loading,
-              maxLength: 500,
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              onSubmitted: _ask,
-              decoration: const InputDecoration(
-                labelText: 'Ask about recorded information',
-                hintText: 'What needs my attention?',
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: _loading ? null : () => _ask(_question.text),
-              icon: const Icon(Icons.send_outlined),
-              label: const Text('Ask Guardian'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
             ),
           ],
         ],

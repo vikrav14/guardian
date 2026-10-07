@@ -1,6 +1,17 @@
 # Guardian Intelligence acceptance — PR #140
 
-## Current result, 7 October 2026
+## Current menu-only revision
+
+The operator removed Ask Guardian. The public Ask/dev-chat routes are retired,
+the app has no composer, and WhatsApp typed text opens a nine-category menu.
+Menu/recorded reads use zero model calls. The prior paid results below remain
+historical; they are not evidence that a chatbot is available or that the new
+menu has passed real-phone acceptance. Current software checks: 1,840 gateway and 834 full Flutter tests passed,
+clean Flutter analysis and an enabled release Web app compile. Final focused
+read-only/link checks passed. Browser review verified the menu categories,
+alerts/photos submenu and typed text returning to the menu. The synthetic menu preview sends nothing to a watch or WhatsApp.
+
+## Historical question-selector result, 7 October 2026
 
 PR #140 remains draft. The AI foundation is not deployed or enabled. Main,
 including merged PR #153, is integrated into the branch. The live watch gateway,
@@ -52,7 +63,7 @@ questions also use the existing observations without an unnecessary model call.
 
 Paid runs also exposed JSON formatting failures: code fences, appended prose and
 an inconsistent false answer carrying an evidence ID. A narrow single-fence
-parser alone was insufficient. Ask now passes a static JSON schema through the
+parser alone was insufficient. The internal selector passes a static JSON schema through the
 Anthropic adapter using [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
 The same schema reaches token preflight so its overhead is included. No private
 facts/IDs are placed in the schema. The server still checks length, stop reason,
@@ -83,7 +94,7 @@ and results. It never reads production Firestore or starts gateway workers.
 Unknown/failed provider calls stop the run; they are not automatically retried.
 Application reservations do not guarantee a provider invoice ceiling.
 
-## App review without more AI spend
+## Historical app replay without more AI spend
 
 ```powershell
 # From apps/mobile:
@@ -95,8 +106,7 @@ node scripts/serve-intelligence-review.js C:\temporary\guardian-ai-live-new\repo
 
 Open `http://127.0.0.1:9084`. Choose a scenario and compare its expected outcome
 with the real app answer panel. Check larger text and the source-record links.
-Refresh and Ask replay the selected result; arbitrary new questions explain
-that this is a replay. It cannot contact a model or watch. The server binds only
+Refresh replays the selected result. The Ask composer has been removed. It cannot contact a model or watch. The server binds only
 to loopback and has no gateway/database import or write endpoint. Stop its Node
 process when review is complete; do not expose this developer preview publicly.
 
@@ -106,37 +116,25 @@ rendered replay, not Firebase authentication, live permissions or phone lifecycl
 
 ## Remaining controlled pilot gates
 
-1. **Deployment preflight:** verify the selected model, backend-only AI rules,
-   TTL and shared ledger credentials. Record a budget baseline. The common
-   provider budget boundary affects existing photo and WhatsApp callers even
-   with the new screen flag off; include them in rollout and rollback planning.
-2. **One managed wearer on the phone:** enable the matching app/server feature
-   only for the planned pilot environment. Open/refresh Today and an existing
-   incident; verify recorded timestamps and zero model generations. Ask a fixed
-   small list of new questions, repeat them and compare ledger/provider usage.
-   Existing records are sufficient; no test alarm or new photo is needed.
-3. **Second, restricted family account:** verify permitted answers, location/
-   photo denial, membership revocation, service expiry and no disclosure after
-   an old answer/card is reopened. Do this in an isolated family test service,
-   preserving the active family's permissions and contacts.
-4. **Real phone lifecycle:** background/foreground, switch wearer, lose network,
-   wait for answer expiry and change evidence during a request. Check that stale
-   answers clear and failed POSTs are not automatically retried. Automated tests
-   already cover these contracts; physical acceptance remains open.
-5. **Failure and cost gates:** isolated tests must preserve the recorded overview
-   when budget/provider/database is unavailable, share the wearer allowance
-   across family members, reserve incident capacity and account for ambiguous
-   attempts. Do not alter production budgets just to exhaust them. Qualify
-   existing photo/WhatsApp metering separately before a full gateway rollout.
+1. Verify backend-only budget rules/TTL, ledger credentials and existing photo /
+   context metering before activating the common provider boundary.
+2. Use a managed test family to check all permitted WhatsApp categories, Back,
+   Switch wearer, arbitrary typed text returning the menu, and old v1 cards.
+3. Open app links signed in and signed out; verify exact wearer selection, revoked
+   and expired membership, permission removal, backgrounding and no alternate
+   wearer fallback. Preserve the live family's contacts and settings.
+4. Confirm Today and incident refreshes use zero generations; Ask and dev/chat
+   return 410 and unlinked WhatsApp text cannot reach the legacy assistant.
+5. Confirm existing photo access/consent/expiry and explicit action requirements
+   remain in force. No new photo, alarm, call, recording or paid question is needed
+   just to validate the menu.
 
-Do not merge based only on the 21-case result. Record pass/fail and operator
-feedback from the controlled phone/family pilot. Routine learning, journey /
-wellness history and voice transcription are future work, not acceptance items
-for already-implemented features. Gemini remains unqualified live.
+Do not merge solely on historical 21-case model results. Current menu and app
+access acceptance are separate. Routine learning and historical wellness/journey
+inference remain future work; Gemini remains unqualified live.
 
-## Software checks
+## Previous software baseline
 
-After integrating main: **1,832 gateway tests, 831 Flutter tests and 115 Firestore
-emulator tests passed**. Flutter analysis and the separate review Web release
-build passed. Earlier enabled app builds used a placeholder gateway URL; none
-were installed or published as part of this qualification.
+Before the menu-only change, 1,832 gateway, 831 Flutter and 115 Firestore emulator
+tests passed; Flutter analysis and the separate review Web release build passed.
+Earlier enabled app builds used a placeholder gateway URL and were not installed.

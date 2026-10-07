@@ -8,6 +8,8 @@ import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
 import '../widgets/layout/guardian_app_header.dart';
 import 'account_page.dart';
+import 'whatsapp_menu_page.dart';
+import '../navigation/whatsapp_menu_target.dart';
 import 'family_page.dart';
 import 'alerts_page.dart';
 import 'map_dashboard_page.dart';
@@ -18,9 +20,15 @@ import '../services/voice_notification.dart';
 import '../services/voice_messages_service.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.initialIndex = 0, this.initialIncidentId});
+  const HomeShell({
+    super.key,
+    this.initialIndex = 0,
+    this.initialIncidentId,
+    this.initialMenuTarget,
+  });
   final int initialIndex;
   final String? initialIncidentId;
+  final WhatsAppMenuTarget? initialMenuTarget;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -57,6 +65,17 @@ class _HomeShellState extends State<HomeShell> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final menuTarget = widget.initialMenuTarget;
+      if (menuTarget != null) {
+        unawaited(
+          _navigatorKey.currentState!.push(
+            MaterialPageRoute<void>(
+              builder: (_) => WhatsAppMenuPage(target: menuTarget),
+            ),
+          ),
+        );
+        return;
+      }
       final incidentId = widget.initialIncidentId;
       if (incidentId != null) {
         unawaited(

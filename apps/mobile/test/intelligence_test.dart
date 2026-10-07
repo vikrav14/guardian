@@ -30,7 +30,7 @@ IntelligenceAnswer answer({
 
 class Client implements IntelligenceClient {
   final changes = StreamController<void>.broadcast();
-  int reads = 0, questions = 0;
+  int reads = 0;
   Completer<IntelligenceAnswer>? pending;
   Object? failure;
   IntelligenceAnswer value = answer();
@@ -44,21 +44,6 @@ class Client implements IntelligenceClient {
   }
 
   @override
-  Future<IntelligenceAnswer> ask(
-    String imei,
-    String question, {
-    String? incidentId,
-  }) async {
-    questions++;
-    if (failure != null) throw failure!;
-    return pending?.future ??
-        answer(
-          mode: 'ai_selected',
-          text: 'Fall alert recorded at 13:56; still open.',
-        );
-  }
-
-  @override
   void close() {
     changes.close();
   }
@@ -67,7 +52,6 @@ class Client implements IntelligenceClient {
 Widget view(
   Client client, {
   String imei = 'watch-one',
-  bool composer = false,
   double scale = 1,
   Key? previewKey,
 }) => MaterialApp(
@@ -86,7 +70,6 @@ Widget view(
               imei: imei,
               wearerName: 'Your loved one',
               client: client,
-              showComposer: composer,
               onEvidence: (_) {},
             ),
           ),
@@ -152,44 +135,37 @@ void main() {
       }
     }
   });
-  test(
-    'service uses authenticated GET for overview and POST only for an explicit question',
-    () async {
-      final requests = <http.Request>[];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final service = IntelligenceService(
-        gatewayUrl: 'https://guardian.example',
-        token: () async => 'test-token',
-        client: MockClient((request) async {
-          requests.add(request);
-          return http.Response(
-            jsonEncode({
-              'asOf': now,
-              'validUntil': now + 60000,
-              'mode': 'recorded',
-              'facts': [],
-              'gaps': [],
-              'suggestions': [],
-            }),
-            200,
-          );
-        }),
-      );
-      await service.load('watch-one', incidentId: 'event-one');
-      await service.ask('watch-one', 'What happened?', incidentId: 'event-one');
-      expect(requests.map((r) => r.method), ['GET', 'POST']);
-      expect(requests.first.url.queryParameters['incidentId'], 'event-one');
-      expect(requests.last.headers['Authorization'], 'Bearer test-token');
-      expect(jsonDecode(requests.last.body), {
-        'question': 'What happened?',
-        'incidentId': 'event-one',
-      });
-      service.close();
-    },
-  );
+  test('service exposes authenticated recorded reads only', () async {
+    final requests = <http.Request>[];
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final service = IntelligenceService(
+      gatewayUrl: 'https://guardian.example',
+      token: () async => 'test-token',
+      client: MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode({
+            'asOf': now,
+            'validUntil': now + 60000,
+            'mode': 'recorded',
+            'facts': [],
+            'gaps': [],
+            'suggestions': [],
+          }),
+          200,
+        );
+      }),
+    );
+    await service.load('watch-one', incidentId: 'event-one');
+    expect(requests.map((r) => r.method), ['GET']);
+    expect(requests.first.url.queryParameters['incidentId'], 'event-one');
+    expect(requests.last.headers['Authorization'], 'Bearer test-token');
+    expect(requests.last.body, isEmpty);
+    service.close();
+  });
 
   test(
-    'service rejects untrusted transport and never retries an ambiguous POST',
+    'service rejects untrusted transport and never retries an interrupted read',
     () async {
       int calls = 0;
       for (final url in [
@@ -206,7 +182,7 @@ void main() {
           }),
         );
         await expectLater(
-          service.ask('watch', 'Question'),
+          service.load('watch'),
           throwsA(isA<IntelligenceException>()),
         );
         service.close();
@@ -221,7 +197,7 @@ void main() {
         }),
       );
       await expectLater(
-        service.ask('watch', 'Question'),
+        service.load('watch'),
         throwsA(isA<http.ClientException>()),
       );
       expect(calls, 1);
@@ -241,7 +217,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Today with Guardian'), findsOneWidget);
       expect(find.text('From recorded information'), findsOneWidget);
-      expect(client.questions, 0);
+      expect(find.text('Ask Guardian'), findsNothing);
       final preview = Platform.environment['INTELLIGENCE_PREVIEW'];
       if (preview != null) {
         final boundary =
@@ -257,7 +233,7 @@ void main() {
         );
         image.dispose();
       }
-      await tester.pumpWidget(view(client, composer: true, scale: 1.8));
+      await tester.pumpWidget(view(client, scale: 1.8));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -265,30 +241,20 @@ void main() {
     },
   );
 
-  testWidgets(
-    'explicit question uses one call; refresh and expiry never replay it',
-    (tester) async {
-      final client = Client();
-      await tester.pumpWidget(view(client, composer: true));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextField),
-        'What needs my attention?',
-      );
-      await tester.ensureVisible(find.byType(FilledButton));
-      await tester.tap(find.byType(FilledButton));
-      await tester.pumpAndSettle();
-      expect(client.questions, 1);
-      expect(find.text('AI-assisted answer from your records'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 61));
-      await tester.pumpAndSettle();
-      expect(client.questions, 1);
-      expect(client.reads, 2);
-      expect(find.text('From recorded information'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-      client.close();
-    },
-  );
+  testWidgets('overview has no composer and refresh only rereads records', (
+    tester,
+  ) async {
+    final client = Client();
+    await tester.pumpWidget(view(client));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Ask Guardian'), findsNothing);
+    await tester.tap(find.byTooltip('Refresh recorded overview'));
+    await tester.pumpAndSettle();
+    expect(client.reads, 2);
+    await tester.pumpWidget(const SizedBox());
+    client.close();
+  });
 
   testWidgets('revoked access discards old answer and in-flight results', (
     tester,

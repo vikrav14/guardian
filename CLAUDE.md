@@ -16,7 +16,8 @@ the family service.
   (`src/protocol/gt06.js`), writes to Firestore, evaluates geofences
   (`src/geofence.js`), sends push/SMS/WhatsApp notifications (`src/push.js`,
   `src/notify.js`), sends SMS commands back to the pendant (`src/commands.js`),
-  and runs a Claude-powered WhatsApp assistant (`src/assistant/`).
+  and serves deterministic WhatsApp menus (`src/family-whatsapp.js`). Legacy
+  assistant modules remain diagnostic/compatibility code without a public chat route.
 - `firestore/` — `SCHEMA.md` (source of truth for the data model) and
   `rules.example` (the real security rules — deploy via `firebase.json`).
 - `docs/reference/` — raw vendor PDFs gathered during evaluation. Older-model

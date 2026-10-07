@@ -1,37 +1,57 @@
 # Guardian Intelligence service
 
-## Scope and status
+## Current scope - PR #140
 
-PR #140 implements the first release documented in [the product contract](../ai/GUARDIAN_AI.md). New app surfaces and HTTP routes are opt-in. The common provider budget boundary applies to all provider callers in this revision, including existing photo AI and WhatsApp. Do not deploy this revision assuming only the new screen flag changes behaviour.
+The app provides read-only Today and incident briefs. **Ask Guardian is removed.**
+WhatsApp uses deterministic menus only. Ordinary typed text reopens the menu;
+there is no fallback to the old tool/LLM assistant, including for unlinked numbers
+or when family sharing is disabled. Initial SOS/fall alerts and explicit responder
+acknowledgements retain their existing paths.
 
-The bounded synthetic live-model qualification passed on 7 October 2026. Physical-phone acceptance with managed family accounts and production activation remain pending. Watch alarms, new photographs and audio were not needed. See [acceptance cases, measured costs and the remaining gates](../ai/GUARDIAN_AI_ACCEPTANCE.md).
+This revision is prepared in PR #140, not deployed. The earlier three-option menu
+was applied locally on 7 October; that does not mean this expanded menu is live.
+The common provider budget boundary still affects existing photo/background AI
+when this gateway revision is deployed, even with the new overview flag off.
 
 ## WhatsApp navigation
 
-Linked Family/Care numbers can send `hi`, `hello`, `help`, `menu` or `options`
-to receive a native **Choose an option** list. Current managed-circle answer
-paths support **Last known location** and **Watch battery**. **Open Guardian**
-returns the configured app link for other shared features. Multiple wearers get
-a paginated picker; row IDs do not contain raw watch IDs.
+The main menu has nine categories, filtered by current per-wearer permissions:
 
-Opening/reopening a menu does not invoke AI or consume the answer allowance.
-Selecting location/battery retains the existing allowance and permission checks.
-Old cards are not authority: revoked/expired membership is checked on every tap.
-Menus require a current inbound service window and a durable claim before
-provider handoff. Ambiguous sends are retained and never retried automatically.
-API acceptance is not proof of WhatsApp delivery or display.
+| Category | Options |
+| --- | --- |
+| Today's overview | Recorded overview; local updates and weather in the app |
+| Location & journeys | Last recorded location, Home evidence; journey history |
+| Alerts & photos | Recent alerts; incidents/responses; eligible photos and AI details |
+| Watch status | Last check-in, timestamped battery; watch settings |
+| Medicine reminders | Standard and recorded-voice schedules in the app |
+| Wellness | Readings/history, routine and movement reminders in the app |
+| Call & voice messages | Explicit app calling; private voice conversation |
+| Home & safe zones | Home evidence; saved places and enrolled Home Wi-Fi |
+| Family & settings | Sharing/WhatsApp, account/preferences, help |
 
-This requires **Family → WhatsApp → Link my WhatsApp**. Receiving existing
-emergency alerts does not establish interactive chat identity. Navigation does
-not enroll numbers or change alert recipients, and is independent of the
-Guardian Intelligence rollout flag.
+Multiple wearers get a paginated picker and Switch wearer. Every submenu has Back
+to main menu. Existing v1 row IDs still resolve through current authorisation.
+Titles are never interpreted as commands. Typed text is not parsed as a question;
+the existing exact LINK and incident ACK protocols are the two explicit exceptions.
 
-On 7 October, only the four deterministic menu/transport files were applied to
-the existing local gateway after a verified idle check. Gateway health, both
-listeners, unchanged environment/ngrok and preservation of other local changes
-were verified. The larger AI foundation remains unactivated. Live menu display
-is pending the operator linking their WhatsApp number and sending `menu`.
-The combined gateway suite passed 1,793 tests, including nine menu regressions.
+Navigation and app links use no model or answer allowance. Recorded reads retain
+the shared monthly WhatsApp answer allowance; this is separate from AI spend.
+All menus/replies require a recent inbound service window. Durable claims precede
+handoff, and uncertain sends are not repeated. API acceptance is not delivery.
+
+Each tap rechecks channel identity, membership, subscription and permissions.
+The complete permission scope is checked again before sending an assembled
+answer. Alerts-only access cannot expose battery, check-in or location facts.
+Links contain an opaque wearer key and a fixed screen, never an IMEI, phone number
+or authentication token. The authenticated app resolves that key against current
+`GET /app/family` menuScreens and exact membership; it never substitutes another
+wearer. Backgrounding, revocation and expiry discard the destination stack.
+App links open existing features; they never initiate a call, capture, recording
+or setting write. Photo consent, expiry and one-hour request rules still apply.
+
+Interactive identity requires **Family > WhatsApp > Link my WhatsApp**. Emergency
+alert recipients are not automatically enrolled as menu users. No templates,
+contacts, watch settings or notification routing are changed by menu navigation.
 
 ## Configuration
 
@@ -53,15 +73,26 @@ Budget reservations are durable Firestore transactions. The service bucket key i
 
 ## API and evidence
 
-- `GET /app/intelligence?imei=...` — recorded overview, no model.
-- `GET /app/intelligence?imei=...&incidentId=...` — recorded incident brief, no model.
-- `POST /app/intelligence/ask?imei=...` with `{ "question": "...", "incidentId": null }` — direct fact lookup or one constrained evidence-selection generation.
+- `GET /app/intelligence?imei=...`: recorded overview, no model.
+- `GET /app/intelligence?imei=...&incidentId=...`: recorded incident brief, no model.
+- `/app/intelligence/ask` and `/dev/chat`: **410 Gone**, including old clients.
+- The Meta inbound handler always uses the deterministic family/menu handler.
 
-Firebase ID tokens are verified with revocation checks. Only backend-managed Family/Care service access is eligible. Location/alert/photo permissions independently control evidence. The handler rejects caller-supplied owners/plans and limits requests to 20/minute per identity per process; the durable provider ledger supplies cross-process spending limits. Body and question lengths are bounded.
+Firebase tokens are verified with revocation checks. Only backend-managed current
+Family/Care grants are eligible. The read endpoint rejects extra query fields,
+including question, owner and plan, and has no provider dependency. Reads are
+limited to 20/minute per identity per process. Responses are no-store/private;
+evidence expires within 60 seconds or earlier when media expires. The Flutter
+client exposes GET only, with no question composer, suggestion chips or POST API.
 
-Responses are `no-store, private`. Answers expire within 60 seconds (earlier when media expires), clear on background/access/wearer changes, and are reauthorised after generation. The cache stores only evidence IDs. Permission, owner, plan, evidence, question, model configuration, prompt version and day are part of cache identity. Deletion and fresh evidence invalidate old selections. A changed answer is withheld without an automatic new model call.
+Location and watch status require location permission; alert and photo evidence
+have separate permissions. Existing consent-aware photo observations stay labelled
+unverified and are reused without another model call. No routine, wellness,
+journey or medication-adherence inference is introduced by this menu change.
 
-The model sees only the supplied evidence packet. It cannot access tools, fetch additional history, issue watch commands, create alerts, schedule medication or send messages. Simple English fact questions bypass it; complex/comparative questions use selection, which may explicitly report insufficient information. The first release is not a general-history chatbot.
+The old constrained question selector and synthetic qualification remain internal
+regression/diagnostic code. No public app or WhatsApp path invokes them. Historical
+paid qualification is retained as evidence, not as current menu acceptance.
 
 ## Operations
 
@@ -71,27 +102,27 @@ The synthetic photo contract checker now needs Firestore budget access as well a
 
 Deploy the backend-only rules before enabling the feature. Configure Firestore TTL on `expiresAt` for `aiSelections` (1 day), `aiBudgetDays` (35 days), and `aiAttempts` (95 days). TTL is delayed cleanup, not authorisation. Monthly buckets are retained for operations; they contain hashed scope, counters and pricing metadata, not user text or media. No new composite index is required by these queries. Existing alerts indexes are reused.
 
-Rollout order: complete the isolated qualification and app replay review; verify rules/TTL and ledger credentials; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; compare the bounded pilot's budget report with provider usage. Keep the new experience off until these gates pass. The synthetic qualification does not restart or configure live processes.
+Rollout order: complete the isolated qualification and menu preview and read-only app review; verify rules/TTL and ledger credentials; deploy gateway idle using the established procedure; build app with matching flag; verify one managed wearer and restricted family member; compare the bounded pilot's budget report with provider usage. Keep the new experience off until these gates pass. The synthetic qualification does not restart or configure live processes.
 
 Rollback: disable the UI/API flag to restore the previous app surfaces and rules presentation; no watch settings change. That flag does **not** remove the shared cost boundary. If reverting the gateway revision, retain the ledger/rules rather than deleting billing evidence. Initial alerts and calling remain independent of AI.
 
-## Validation
+## Validation and preview
 
-- Gateway unit/regression suite plus new price, reservation, monthly allowance, duplicate/restart, ambiguous completion, both photo stages, Gemini thought-signature/usage, permission, media-deletion and HTTP tests.
-- Real Firestore emulator transactions for competing budget reservations; client read/list/write/delete denial for all four AI collections.
-- Flutter authenticated GET/POST, no automatic POST retry, narrow/large-text layout, expiry, revoked access, changing wearer and backgrounding tests; full app analysis/test suite and release Web compile.
-- The separate local review entry point replays saved synthetic provider results through the real answer widget, without Firebase startup, credentials or model calls. Native phone and real-family acceptance remain separate steps.
+Run `npm test` from gateway and `flutter analyze` / `flutter test` from apps/mobile.
+Regression coverage includes old/forged cards, duplicate delivery, permission loss
+during a read, multi-wearer pagination, channel identity, retired Ask routes, app
+link parsing/resolution and read-only app lifecycle. Menu links still need a
+controlled signed-in phone/WhatsApp pilot before deployment.
 
-See the PR for the executed test counts and any build limitations. Do not interpret unit tests as a successful live provider response, a reliable prediction or a completed emergency.
+To build a synthetic preview using the real menu builders (no live records,
+transport, provider or watch):
 
-Executed locally after integrating main including PR #153 on 7 October 2026:
-1,832 gateway tests; 831 full Flutter tests; 115 Firestore emulator tests; clean
-Flutter analysis; separate review Web release build. Earlier enabled Web release
-and Android debug builds used a placeholder gateway URL and were not installed
-or published. Final Haiku qualification: 21/21 fixed synthetic scenarios, 13
-generations, zero additional generations on repeats, Rs0.4702 at configured rates.
-All four paid evaluation runs total Rs1.6466. Earlier unavailable answers were
-incorrectly scored as negative-case passes; the acceptance record preserves the
-corrected results and the structured-output fix. These small text cases do not
-measure photo processing, WhatsApp tool loops or production workload economics.
-Managed-family pilot acceptance remains open.
+```powershell
+node gateway/scripts/build-whatsapp-menu-review.js apps/mobile/build/intelligence-review/menu.html
+```
+
+The existing loopback review server can serve this as `/menu.html`. The prior
+synthetic question replay is historical and no longer contains a composer.
+See [the acceptance record](../ai/GUARDIAN_AI_ACCEPTANCE.md) for executed checks,
+historical spend and remaining release gates. No live message or watch test is
+required for software validation.

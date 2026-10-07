@@ -60,12 +60,12 @@ extension GuardianFeaturePresentation on GuardianFeature {
     GuardianFeature.sosWhatsappAlerts => 'SOS WhatsApp alerts',
     GuardianFeature.guardianAi => 'Guardian AI',
     GuardianFeature.whatsappQuestionsAnswers =>
-      'WhatsApp questions and answers',
+      'WhatsApp menu and recorded updates',
     GuardianFeature.whatsappSafetyAlerts => 'WhatsApp safety alerts',
     GuardianFeature.proactiveSmartNotifications =>
       'Proactive smart notifications',
     GuardianFeature.voiceAssistant => 'Voice assistant',
-    GuardianFeature.whatsappWatchCommands => 'WhatsApp watch commands',
+    GuardianFeature.whatsappWatchCommands => 'Watch controls in the app',
     GuardianFeature.activitySteps => 'Steps and daily activity',
     GuardianFeature.wellnessReadings => 'Watch wellness readings',
     GuardianFeature.medicationReminders => 'Medication reminders',

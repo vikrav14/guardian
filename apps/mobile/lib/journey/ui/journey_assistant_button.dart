@@ -4,7 +4,7 @@ import '../../widgets/brand/dodo_ai_icon.dart';
 import '../journey_replay_controller.dart';
 import 'journey_screen_theme.dart';
 
-/// Small circular "Ask Guardian" button — opens AI narration sheet on tap.
+/// Small circular "Journey summary" button — opens AI narration sheet on tap.
 class JourneyAssistantButton extends StatelessWidget {
   const JourneyAssistantButton({super.key, required this.replay});
 
@@ -74,7 +74,7 @@ class JourneyAssistantButton extends StatelessWidget {
             children: [
               const GuardianAiIcon(size: 24),
               Text(
-                'Ask',
+                'Summary',
                 style: JourneyScreenTheme.textStyle(
                   fontSize: 8,
                   fontWeight: FontWeight.w700,
@@ -129,7 +129,7 @@ class _AssistantSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Ask Guardian',
+                        'Journey summary',
                         style: JourneyScreenTheme.textStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,

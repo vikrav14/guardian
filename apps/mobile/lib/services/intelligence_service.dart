@@ -15,7 +15,7 @@ class IntelligenceException implements Exception {
     'access_not_shared' || 'access_changed' || 'active_service_required' =>
       'This overview is not available with your current access.',
     'sign_in_required' => 'Please sign in again to view this overview.',
-    'please_wait' => 'Please wait a moment before asking again.',
+    'please_wait' => 'Please wait a moment before refreshing again.',
     _ =>
       'The overview is unavailable. Your watch details and alerts are still in their usual places.',
   };
@@ -92,11 +92,6 @@ class IntelligenceAnswer {
 abstract class IntelligenceClient {
   Stream<void> accessChanges(String imei);
   Future<IntelligenceAnswer> load(String imei, {String? incidentId});
-  Future<IntelligenceAnswer> ask(
-    String imei,
-    String question, {
-    String? incidentId,
-  });
   void close();
 }
 
@@ -138,11 +133,7 @@ class IntelligenceService implements IntelligenceClient {
     return controller.stream;
   }
 
-  Future<IntelligenceAnswer> _request(
-    String imei, {
-    String? question,
-    String? incidentId,
-  }) async {
+  Future<IntelligenceAnswer> _request(String imei, {String? incidentId}) async {
     final base = Uri.tryParse(gatewayUrl);
     final local =
         base?.scheme == 'http' &&
@@ -159,29 +150,17 @@ class IntelligenceService implements IntelligenceClient {
     final token = await _token();
     if (token == null) throw const IntelligenceException('sign_in_required');
     final uri = base.replace(
-      path: '/app/intelligence${question == null ? '' : '/ask'}',
-      queryParameters: {
-        'imei': imei,
-        if (question == null && incidentId != null) 'incidentId': incidentId,
-      },
+      path: '/app/intelligence',
+      queryParameters: {'imei': imei, 'incidentId': ?incidentId},
     );
     final headers = {
       'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true',
     };
-    final response =
-        await (question == null
-                ? _client.get(uri, headers: headers)
-                : _client.post(
-                    uri,
-                    headers: headers,
-                    body: jsonEncode({
-                      'question': question,
-                      'incidentId': incidentId,
-                    }),
-                  ))
-            .timeout(const Duration(seconds: 50));
+    final response = await _client
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 20));
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode != 200) {
       throw IntelligenceException(data['error'] as String? ?? 'unavailable');
@@ -192,12 +171,6 @@ class IntelligenceService implements IntelligenceClient {
   @override
   Future<IntelligenceAnswer> load(String imei, {String? incidentId}) =>
       _request(imei, incidentId: incidentId);
-  @override
-  Future<IntelligenceAnswer> ask(
-    String imei,
-    String question, {
-    String? incidentId,
-  }) => _request(imei, question: question, incidentId: incidentId);
   @override
   void close() => _client.close();
 }
