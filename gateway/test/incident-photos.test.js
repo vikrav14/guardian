@@ -528,7 +528,7 @@ test('photo follow-up waits for the original alert and accepts its delivered web
 });
 
 test('live orientation selection persists with the summary and original, and rechecks access between provider calls', async () => {
-  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  const { createOrientedPhotoAnalyzer } = require('./helpers/photo-provider');
   for (const change of ['none', 'consent', 'deleted', 'expiry', 'incident_expiry', 'owner', 'subscription']) {
     let s; let calls = 0; let id;
     const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'test-model', fetchImpl: async () => {
@@ -566,7 +566,7 @@ test('live orientation selection persists with the summary and original, and rec
 });
 
 test('orientation disagreement keeps the description and provenance in the gallery under normal privacy controls', async () => {
-  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  const { createOrientedPhotoAnalyzer } = require('./helpers/photo-provider');
   let calls = 0;
   const analyze = createOrientedPhotoAnalyzer({ apiKey: 'test-only', model: 'configured-model', fetchImpl: async () => ({
     ok: true, json: async () => ({ stop_reason: 'end_turn', model: 'provider-model', content: [{ type: 'text',

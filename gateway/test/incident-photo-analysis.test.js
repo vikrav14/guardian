@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPhotoAnalyzer, validateAnalysis, analysisFailure, PROMPT_VERSION } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, validateAnalysis, analysisFailure, PROMPT_VERSION } = require('./helpers/photo-provider');
 const { templateDefinitions, buildFollowupPlan } = require('../src/incident-photo-templates');
 const image = require('./fixtures/photo-synthetic');
 const valid = { status: 'ready', visibleDetails: ['A chair is visible.'], uncertainDetails: [], limitations: ['Blur limits detail.'] };

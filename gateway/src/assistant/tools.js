@@ -1031,11 +1031,11 @@ const TOOL_DEFINITIONS = [
   {
     name: 'send_device_command',
     description:
-      'Send a command to a watch: ring (sound/vibrate alert), locate (GPS ping), or listen (voice monitor). Supported: ring, locate, vibrate, alarm, listen, monitor.',
+      'Request a supported watch action: ring or locate. Existing policy and confirmation rules apply. Voice monitoring is unavailable.',
     input_schema: {
       type: 'object',
       properties: {
-        command_type: { type: 'string', description: 'Command type: ring, locate, vibrate, alarm, listen, or monitor' },
+        command_type: { type: 'string', enum: ['ring', 'locate'], description: 'Supported watch action' },
         device_name: { type: 'string' },
         imei: { type: 'string' },
       },

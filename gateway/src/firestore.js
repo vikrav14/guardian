@@ -519,6 +519,7 @@ function startPendingCommandWatcher() {
 
 function intelligenceConfig() {
   return {
+    recordedOnly: process.env.GUARDIAN_INTELLIGENCE_ENABLED === 'true',
     offlineMinutes: config.intelligenceOfflineMinutes,
     offlineAlertCooldownMinutes: config.intelligenceOfflineAlertCooldownMinutes,
   };
@@ -564,7 +565,7 @@ async function refreshDeviceIntelligence(imei, deviceOverride = null) {
     device = { ...device, homeWifiPresence };
   }
 
-  const geofences = db ? await loadActiveGeofences(db, canonicalImei) : [];
+  const geofences = db && !cfg.recordedOnly ? await loadActiveGeofences(db, canonicalImei) : [];
   const insights = evaluateDeviceIntelligence({
     imei: canonicalImei,
     device,

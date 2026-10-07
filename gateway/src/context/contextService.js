@@ -27,7 +27,7 @@ class ContextService {
       this.config.contextWeatherCacheMinutes || 60
     );
     this.evaluator = dependencies.evaluator || new ContextEvaluator();
-    this.ai = dependencies.ai || new ContextAI(llmProvider, this.config);
+    this.ai = dependencies.ai || new ContextAI(llmProvider, this.config, { db: dependencies.db });
     this.capAlertProvider = dependencies.capAlertProvider || null;
     this.observeLog = [];
   }

@@ -12,7 +12,8 @@ const {
   resolveCallerContext,
   restrictedCallerReply,
 } = require('./assistant/tools');
-const { answerWithAssistant } = require('./assistant/claude');
+const { runAiScope } = require('./intelligence-core/runtime');
+const { authorizeIntelligence, scopeForAccess } = require('./intelligence-core/access');
 const { normalizeE164 } = require('./notify');
 const { sendMetaText } = require('./whatsapp-meta');
 const {
@@ -599,11 +600,8 @@ async function handleChat({ from, text }) {
     const lastToolResults = new Map();
 
     if (!llmProvider) {
-      // Fallback: use existing Claude integration
-      const result = await answerWithAssistant(db, ctx, effectiveText);
-      reply = result.reply;
-      providerUsage = result.usage;
-      toolsUsed = result.toolsUsed || [];
+      // No legacy unmetered provider fallback.
+      reply = 'Guardian AI is unavailable right now. Recorded information remains available in the app.';
     } else {
       // Phase 1 & 2: Use new provider abstraction with intent-specific prompts
       const systemPrompt = contextPacket.systemPrompt; // Already computed by buildContextPacket
@@ -620,67 +618,71 @@ async function handleChat({ from, text }) {
         let roundCount = 0;
         const maxRounds = 3;
 
-        while (roundCount < maxRounds && !finalReply) {
-          roundCount += 1;
+        const aiAccess = await authorizeIntelligence(db, ctx.uid, wearerResolution.wearer?.imei);
+        await runAiScope(scopeForAccess(db, aiAccess, requestId, 'assistant'), async () => {
+          while (roundCount < maxRounds && !finalReply) {
+            roundCount += 1;
 
-          const llmStartTime = Date.now();
-          lastProviderResult = await llmProvider.complete({
-            systemPrompt,
-            messages: currentMessages,
-            tools: filteredTools,
-            metadata: { requestId, userId: ctx.uid, locale: 'en' },
-          });
-          const llmDurationMs = Date.now() - llmStartTime;
+            const llmStartTime = Date.now();
+            lastProviderResult = await llmProvider.complete({
+              systemPrompt,
+              messages: currentMessages,
+              tools: filteredTools,
+              metadata: { requestId, userId: ctx.uid, locale: 'en' },
+            });
+            const llmDurationMs = Date.now() - llmStartTime;
 
-          providerUsage = lastProviderResult.usage;
+            providerUsage = { input_tokens: (providerUsage?.input_tokens || 0) + (lastProviderResult.usage?.input_tokens || 0),
+              output_tokens: (providerUsage?.output_tokens || 0) + (lastProviderResult.usage?.output_tokens || 0) };
 
-          // Track LLM call success
-          metrics.trackLLMCall(true, llmDurationMs, intent.type);
+            // Track LLM call success
+            metrics.trackLLMCall(true, llmDurationMs, intent.type);
 
-          // Handle tool use first (if stopReason is tool_use, prioritize that over text)
-          const toolUses = (lastProviderResult.content || []).filter((b) => b.type === 'tool_use');
+            // Handle tool use first (if stopReason is tool_use, prioritize that over text)
+            const toolUses = (lastProviderResult.content || []).filter((b) => b.type === 'tool_use');
 
-          if (toolUses.length > 0) {
-            // Claude wants to use tools — execute them and continue loop
-            // Don't return text yet, even if present
-          } else {
-            // No tools called — check for text response
-            const textBlocks = (lastProviderResult.content || []).filter((b) => b.type === 'text');
-            if (textBlocks.length > 0) {
-              finalReply = textBlocks.map((b) => b.text || b.content).join('\n');
-              break;
+            if (toolUses.length > 0) {
+              // Claude wants to use tools — execute them and continue loop
+              // Don't return text yet, even if present
             } else {
-              // No text and no tools = error
-              break;
+              // No tools called — check for text response
+              const textBlocks = (lastProviderResult.content || []).filter((b) => b.type === 'text');
+              if (textBlocks.length > 0) {
+                finalReply = textBlocks.map((b) => b.text || b.content).join('\n');
+                break;
+              } else {
+                // No text and no tools = error
+                break;
+              }
             }
+
+            // Execute tools
+            const toolResults = [];
+            for (const toolUse of toolUses) {
+              toolsUsed.push(toolUse.name);
+              try {
+                const result = await runTool(db, ctx, toolUse.name, toolUse.input || {});
+                lastToolResults.set(toolUse.name, result);
+                toolResults.push({
+                  type: 'tool_result',
+                  tool_use_id: toolUse.id,
+                  content: JSON.stringify(result),
+                });
+              } catch (err) {
+                toolResults.push({
+                  type: 'tool_result',
+                  tool_use_id: toolUse.id,
+                  content: JSON.stringify({ error: err.message }),
+                });
+              }
+            }
+
+            // Add assistant response + tool results to message history for next round
+            currentMessages.push({ role: 'assistant', content: lastProviderResult.content });
+            currentMessages.push({ role: 'user', content: toolResults });
           }
 
-          // Execute tools
-          const toolResults = [];
-          for (const toolUse of toolUses) {
-            toolsUsed.push(toolUse.name);
-            try {
-              const result = await runTool(db, ctx, toolUse.name, toolUse.input || {});
-              lastToolResults.set(toolUse.name, result);
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolUse.id,
-                content: JSON.stringify(result),
-              });
-            } catch (err) {
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolUse.id,
-                content: JSON.stringify({ error: err.message }),
-              });
-            }
-          }
-
-          // Add assistant response + tool results to message history for next round
-          currentMessages.push({ role: 'assistant', content: lastProviderResult.content });
-          currentMessages.push({ role: 'user', content: toolResults });
-        }
-
+        });
         reply = finalReply;
 
         if (lastProviderResult) {
@@ -1062,6 +1064,7 @@ function startHttpServer() {
   const handleMedication = createMedicationHandler({ getDb });
   const handleVoice = createVoiceHandler({ getDb });
   const handleFamily = require('./family-http').createFamilyHandler({ getDb });
+  const handleIntelligence = require('./intelligence-core/http').createIntelligenceHandler({ getDb, getProvider: () => llmProvider });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1085,6 +1088,7 @@ function startHttpServer() {
       if (await handleMedication(req, res, url)) return;
       if (await handleVoice(req, res, url)) return;
       if (await handleFamily(req, res, url)) return;
+      if (await handleIntelligence(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {

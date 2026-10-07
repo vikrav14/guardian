@@ -5,7 +5,7 @@ const { spawnSync } = require('node:child_process');
 const { checkPhotoAi } = require('../scripts/check-incident-photo-ai');
 const { DESCRIPTION_SCHEMA } = require('../src/incident-photo-analysis');
 const { ORIENTATION_SCHEMA } = require('../src/incident-photo-orientation');
-const config = { apiKey: 'test-key-never-print', model: 'claude-test-model' };
+const config = { messageClient: require('./helpers/photo-provider').messageClient, apiKey: 'test-key-never-print', model: 'claude-test-model' };
 const success = body => new Response(JSON.stringify({ model: config.model, stop_reason: 'end_turn',
   content: [{ type: 'text', text: body.messages[0].content[0].text }] }), { status: 200 });
 

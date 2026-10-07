@@ -22,6 +22,7 @@ class AlertsPage extends StatefulWidget {
     this.onCallWatch,
     this.openLocation,
     this.clock,
+    this.initialAlertId,
   });
 
   final Stream<List<GuardianAlert>>? alertsStream;
@@ -31,6 +32,7 @@ class AlertsPage extends StatefulWidget {
   final Future<void> Function(Device)? onCallWatch;
   final Future<bool> Function(Uri)? openLocation;
   final DateTime Function()? clock;
+  final String? initialAlertId;
 
   @override
   State<AlertsPage> createState() => _AlertsPageState();
@@ -72,6 +74,8 @@ class _AlertsPageState extends State<AlertsPage> {
   @override
   void initState() {
     super.initState();
+    _selectedId = widget.initialAlertId;
+    _mobileDetail = widget.initialAlertId != null;
     _connect();
   }
 

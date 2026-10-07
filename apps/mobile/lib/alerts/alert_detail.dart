@@ -9,6 +9,8 @@ import 'alert_presentation.dart';
 import 'alert_response_panel.dart';
 import '../screens/incident_photo_page.dart';
 import '../services/safety_snapshot_service.dart';
+import '../services/intelligence_service.dart';
+import '../widgets/intelligence_view.dart';
 
 class AlertDetail extends StatelessWidget {
   const AlertDetail({
@@ -133,6 +135,31 @@ class AlertDetail extends StatelessWidget {
               imei: alert.imei,
               alertId: alert.id,
               resolved: alert.resolved,
+            ),
+          ],
+          if (guardianIntelligenceEnabled &&
+              device?.sharedSubscription != null &&
+              (sos || alert.type.toLowerCase() == 'fall')) ...[
+            const SizedBox(height: 20),
+            IntelligenceView(
+              key: ValueKey('incident-brief-${alert.id}'),
+              imei: alert.imei,
+              wearerName: device?.displayName ?? 'Your loved one',
+              incidentId: alert.id,
+              onEvidence: (fact) {
+                if (fact.screen == 'photos') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => IncidentPhotoPage(
+                        incidentId: alert.id,
+                        wearerName: device?.displayName,
+                        onCall: canCall ? onCall : null,
+                        onLocation: onLocation,
+                      ),
+                    ),
+                  );
+                }
+              },
             ),
           ],
           const SizedBox(height: 20),

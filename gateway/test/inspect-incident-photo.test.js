@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, receive, imei } = require('./helpers/photo-harness');
 const { createIncidentPhotos } = require('../src/incident-photos');
-const { createPhotoAnalyzer, PhotoAnalysisError, PROMPT_VERSION } = require('../src/incident-photo-analysis');
+const { createPhotoAnalyzer, PhotoAnalysisError, PROMPT_VERSION } = require('./helpers/photo-provider');
 const { CONSENT_VERSION } = require('../src/incident-photo-policy');
 const { inspectIncidentPhoto, probeOriginal, parseInspectionArgs } = require('../scripts/inspect-incident-photo');
 const original = require('./fixtures/photo-synthetic');
@@ -281,7 +281,7 @@ test(`another provider rejection during ${reason} recovery leaves the saved fail
 }
 
 test('saved invalid-JSON analysis can recover through both structured vision calls', async () => {
-  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  const { createOrientedPhotoAnalyzer } = require('./helpers/photo-provider');
   const s = await recoverablePhoto('analysis_invalid_json');
   const before = structuredClone(s.auth(s.photoId));
   let calls = 0;
@@ -326,7 +326,7 @@ test('recovery refuses other analyses before AI and leaves the old failure intac
 });
 
 test('orientation probe preserves disagreement evidence without changing stored analysis or taking a photo', async () => {
-  const { createOrientedPhotoAnalyzer } = require('../src/incident-photo-orientation');
+  const { createOrientedPhotoAnalyzer } = require('./helpers/photo-provider');
   for (const revoked of [false, true]) {
     const s = await savedPhoto();
     const before = structuredClone(s.auth(s.photoId));

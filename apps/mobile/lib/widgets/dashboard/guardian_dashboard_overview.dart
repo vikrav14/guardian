@@ -10,6 +10,10 @@ import 'guardian_overview_header.dart';
 import 'incident_photo_action.dart';
 import 'voice_message_action.dart';
 import '../../services/voice_messages_service.dart';
+import '../../services/intelligence_service.dart';
+import '../intelligence_view.dart';
+import '../../screens/alerts_page.dart';
+import '../../screens/incident_photo_page.dart';
 
 /// Presentation only. Watch actions, entitlements and map evidence are supplied
 /// by the page, so changes here do not change location or safety policy.
@@ -197,7 +201,9 @@ class GuardianDashboardOverview extends StatelessWidget {
                     const SizedBox(height: 20),
                     wellness!,
                   ],
-                  if (aiEnabled && wellness == null) ...[
+                  if (aiEnabled &&
+                      wellness == null &&
+                      !guardianIntelligenceEnabled) ...[
                     const SizedBox(height: 20),
                     _InsightPanel(message: insight),
                   ],
@@ -234,7 +240,43 @@ class GuardianDashboardOverview extends StatelessWidget {
             SizedBox(height: compact ? 12 : 20),
             section,
           ],
-          if (careEnabled) ...[
+          if (aiEnabled &&
+              guardianIntelligenceEnabled &&
+              selected.sharedSubscription != null) ...[
+            const SizedBox(height: 20),
+            IntelligenceView(
+              key: ValueKey('intelligence-${selected.imei}'),
+              imei: selected.imei,
+              wearerName: selected.displayName,
+              onEvidence: (fact) {
+                if (fact.screen == 'location') {
+                  onLocationDetails?.call();
+                  return;
+                }
+                if (fact.screen == 'watch') {
+                  onWatchStatus?.call();
+                  return;
+                }
+                if (fact.screen == 'photos' && fact.targetId != null) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => IncidentPhotoPage(
+                        incidentId: fact.targetId!,
+                        wearerName: selected.displayName,
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AlertsPage(initialAlertId: fact.targetId),
+                  ),
+                );
+              },
+            ),
+          ],
+          if (careEnabled && !guardianIntelligenceEnabled) ...[
             const SizedBox(height: 20),
             _DashboardSurface(
               child: Column(

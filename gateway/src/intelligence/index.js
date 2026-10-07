@@ -394,6 +394,8 @@ function evaluateDeviceIntelligence(input) {
   if (!device) return [];
 
   const config = { ...DEFAULT_CONFIG, ...userConfig };
+  // Retire old predictions for the new experience; keep offline alerts independent.
+  if (config.recordedOnly) return [ruleOffline(device, config, now)].filter(Boolean);
   if (imei) recordBatterySample(imei, device, now);
   const homePriority = readHomeWifiPriority(device, { now }) !== null;
 
