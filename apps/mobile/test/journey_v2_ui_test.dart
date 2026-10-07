@@ -49,114 +49,122 @@ void main() {
     );
   }
 
-  testWidgets('desktop layout separates day summary and selected trip', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(1400, 1050));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets(
+    'map-first layout keeps details collapsed and releases map when expanded',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 1050));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final journeys = [
-      record(id: 'trip-1', hour: 8, km: 2.1, pointCount: 3),
-      record(id: 'trip-2', hour: 10, km: 8.3, pointCount: 3),
-      record(id: 'trip-3', hour: 12, km: 21.9, pointCount: 3),
-    ];
-    final selected = journeyV2SelectRecord(journeys);
+      final journeys = [
+        record(id: 'trip-1', hour: 8, km: 2.1, pointCount: 3),
+        record(id: 'trip-2', hour: 10, km: 8.3, pointCount: 3),
+        record(id: 'trip-3', hour: 12, km: 21.9, pointCount: 3),
+      ];
+      final selected = journeyV2SelectRecord(journeys);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: JourneyV2Dashboard(
-            deviceName: 'Jesh',
-            day: DateTime(2026, 8, 10),
-            journeys: journeys,
-            selected: selected,
-            onSelectJourney: (_) {},
-            onBack: () {},
-            onChooseDay: () {},
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyV2Dashboard(
+              deviceName: 'Jesh',
+              day: DateTime(2026, 8, 10),
+              journeys: journeys,
+              selected: selected,
+              onSelectJourney: (_) {},
+              onBack: () {},
+              onChooseDay: () {},
+            ),
           ),
         ),
-      ),
-    );
-    await pumpJourneyUi(tester);
+      );
+      await pumpJourneyUi(tester);
 
-    expect(find.textContaining('Jesh'), findsWidgets);
-    expect(find.text("TODAY'S JOURNEY OVERVIEW"), findsOneWidget);
-    expect(find.text('TRIPS'), findsOneWidget);
-    expect(find.byKey(const ValueKey('journey-map-trip-3')), findsOneWidget);
-    expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
-    expect(find.text('SELECTED TRIP'), findsOneWidget);
-    expect(find.text('GUARDIAN READ'), findsNWidgets(2));
-    expect(find.text('JOURNEY STORY'), findsOneWidget);
-    expect(find.textContaining('Recorded movement'), findsOneWidget);
-    expect(find.text('Location points'), findsOneWidget);
-    expect(find.text('GPS location points'), findsOneWidget);
-    expect(find.textContaining('route points'), findsNothing);
-    expect(find.byKey(const ValueKey('journey-expand-map')), findsOneWidget);
+      expect(find.textContaining('Jesh'), findsWidgets);
+      expect(find.text('Journeys'), findsOneWidget);
+      expect(find.text('Day overview'), findsOneWidget);
+      expect(find.byKey(const ValueKey('journey-map-trip-3')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('journey-replay-toggle')),
+        findsOneWidget,
+      );
+      expect(find.text('Journey timeline'), findsOneWidget);
+      expect(find.text('Recording details'), findsOneWidget);
+      expect(find.text('GPS location points'), findsNothing);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('journey-map-trip-3'))).dy,
+        lessThan(tester.getTopLeft(find.text('Recorded distance')).dy),
+      );
+      expect(find.textContaining('route points'), findsNothing);
+      expect(find.byKey(const ValueKey('journey-expand-map')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
-    await pumpJourneyUi(tester);
+      await tester.tap(find.byKey(const ValueKey('journey-expand-map')));
+      await pumpJourneyUi(tester);
 
-    expect(
-      find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('journey-close-fullscreen-map')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('journey-replay-toggle')), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('journey-map-type-toggle')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('journey-fit-complete-route')),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Journey history'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('journey-toggle-source-evidence')),
-      findsNothing,
-    );
-    await tester.tap(find.byKey(const ValueKey('journey-open-details')));
-    await pumpJourneyUi(tester);
-    expect(
-      find.byKey(const ValueKey('journey-toggle-source-evidence')),
-      findsOneWidget,
-    );
-    expect(find.text('Show 3 GPS points'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('journey-replay-location-card')),
-      findsOneWidget,
-    );
+      expect(
+        find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('journey-close-fullscreen-map')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('journey-replay-toggle')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('journey-map-type-toggle')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('journey-fit-complete-route')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Journey history'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('journey-toggle-source-evidence')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('journey-open-details')));
+      await pumpJourneyUi(tester);
+      expect(
+        find.byKey(const ValueKey('journey-toggle-source-evidence')),
+        findsOneWidget,
+      );
+      expect(find.text('Show 3 GPS points'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('journey-replay-location-card')),
+        findsOneWidget,
+      );
 
-    await tester.tap(
-      find.byKey(const ValueKey('journey-toggle-source-evidence')),
-    );
-    await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('journey-toggle-source-evidence')),
+      );
+      await tester.pump();
 
-    expect(find.text('Hide 3 GPS points'), findsOneWidget);
-    final fullScreenMap = tester.widget<JourneyV2StaticMap>(
-      find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
-    );
-    expect(fullScreenMap.showSourceEvidence, isTrue);
-    expect(
-      find.byType(JourneyV2StaticMap, skipOffstage: false),
-      findsOneWidget,
-      reason: 'The preview must release its native map while expanded.',
-    );
-    await tester.tap(find.byKey(const ValueKey('journey-close-details')));
-    await pumpJourneyUi(tester);
-    await tester.tap(
-      find.byKey(const ValueKey('journey-close-fullscreen-map')),
-    );
-    await pumpJourneyUi(tester);
-    expect(find.byKey(const ValueKey('journey-map-trip-3')), findsOneWidget);
-    expect(
-      find.byType(JourneyV2StaticMap, skipOffstage: false),
-      findsOneWidget,
-    );
-  });
+      expect(find.text('Hide 3 GPS points'), findsOneWidget);
+      final fullScreenMap = tester.widget<JourneyV2StaticMap>(
+        find.byKey(const ValueKey('journey-fullscreen-map-trip-3')),
+      );
+      expect(fullScreenMap.showSourceEvidence, isTrue);
+      expect(
+        find.byType(JourneyV2StaticMap, skipOffstage: false),
+        findsOneWidget,
+        reason: 'The preview must release its native map while expanded.',
+      );
+      await tester.tap(find.byKey(const ValueKey('journey-close-details')));
+      await pumpJourneyUi(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('journey-close-fullscreen-map')),
+      );
+      await pumpJourneyUi(tester);
+      expect(find.byKey(const ValueKey('journey-map-trip-3')), findsOneWidget);
+      expect(
+        find.byType(JourneyV2StaticMap, skipOffstage: false),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('trip row remains selectable', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1050));
@@ -227,7 +235,7 @@ void main() {
     );
     await pumpJourneyUi(tester);
 
-    expect(find.text('No confirmed journey recorded.'), findsOneWidget);
+    expect(find.text('No confirmed journey'), findsOneWidget);
     expect(find.byKey(const ValueKey('journey-map-wifi-ghost')), findsNothing);
     expect(find.textContaining('2.1 km'), findsNothing);
   });
@@ -365,6 +373,10 @@ void main() {
       find.textContaining('Tracking stopped at 12:16 and resumed at 12:43'),
       findsWidgets,
     );
+    await tester.tap(
+      find.byKey(const ValueKey('journey-recording-details-confirmed-gap')),
+    );
+    await pumpJourneyUi(tester);
     expect(
       find.textContaining('Distance excludes the unobserved interval.'),
       findsOneWidget,
@@ -469,7 +481,10 @@ void main() {
     );
     await pumpJourneyUi(tester);
 
-    expect(find.text('Journey route'), findsOneWidget);
+    expect(
+      find.text('Some sections are estimated between recorded locations.'),
+      findsOneWidget,
+    );
     expect(find.text('GPS'), findsNothing);
     expect(find.text('Google'), findsNothing);
     expect(find.textContaining('Near Super U Grand Baie'), findsOneWidget);

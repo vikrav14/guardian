@@ -65,111 +65,210 @@ class JourneyV2Dashboard extends StatelessWidget {
       unconfirmedCount: journeys.length - meaningful.length,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 980;
-
-        if (!desktop) {
-          return CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 180),
-                sliver: SliverList.list(
-                  children: [
-                    _JourneyTopBar(
-                      deviceName: deviceName,
-                      avatarUrl: avatarUrl,
-                      day: day,
-                      tripCount: meaningful.length,
-                      totalKm: totals.distanceKm,
-                      totalDuration: totals.duration,
-                      onBack: onBack,
-                      onChooseDay: onChooseDay,
-                    ),
-                    const SizedBox(height: 14),
-                    _DayOverviewCard(totals: totals),
-                    const SizedBox(height: 14),
-                    _DayGuardianRead(deviceName: deviceName, totals: totals),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: (meaningful.length * 58.0 + 72.0).clamp(
-                        180.0,
-                        560.0,
-                      ),
-                      child: _TripList(
-                        journeys: meaningful,
-                        selectedId: authoritativeSelected?.id,
-                        onSelectJourney: onSelectJourney,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 760,
-                      child: _SelectedTripPanel(
-                        selected: authoritativeSelected,
-                        route: selectedRoute,
-                        deviceName: deviceName,
-                        deviceImei: deviceImei,
-                        avatarUrl: avatarUrl,
-                        originGeofence: originGeofence,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              _JourneyTopBar(
-                deviceName: deviceName,
-                avatarUrl: avatarUrl,
-                day: day,
-                tripCount: meaningful.length,
-                totalKm: totals.distanceKm,
-                totalDuration: totals.duration,
-                onBack: onBack,
-                onChooseDay: onChooseDay,
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 760,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 10,
-                      child: _LeftDayColumn(
-                        deviceName: deviceName,
-                        totals: totals,
-                        journeys: meaningful,
-                        selectedId: authoritativeSelected?.id,
-                        onSelectJourney: onSelectJourney,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      flex: 13,
-                      child: _SelectedTripPanel(
-                        selected: authoritativeSelected,
-                        route: selectedRoute,
-                        deviceName: deviceName,
-                        deviceImei: deviceImei,
-                        avatarUrl: avatarUrl,
-                        originGeofence: originGeofence,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return SingleChildScrollView(
+      key: const ValueKey('journey-scroll'),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 96),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _JourneyTopBar(
+            deviceName: deviceName,
+            day: day,
+            onBack: onBack,
+            onChooseDay: onChooseDay,
           ),
-        );
-      },
+          const SizedBox(height: 24),
+          if (meaningful.isNotEmpty) ...[
+            if (meaningful.length > 1)
+              _JourneyPicker(
+                journeys: meaningful,
+                selectedId: authoritativeSelected?.id,
+                onSelectJourney: onSelectJourney,
+              ),
+            if (meaningful.length > 1) const SizedBox(height: 20),
+            _SelectedTripPanel(
+              selected: authoritativeSelected,
+              route: selectedRoute,
+              deviceName: deviceName,
+              deviceImei: deviceImei,
+              avatarUrl: avatarUrl,
+              originGeofence: originGeofence,
+            ),
+            const SizedBox(height: 20),
+            GuardianSurface(
+              padding: EdgeInsets.zero,
+              child: ExpansionTile(
+                key: const ValueKey('journey-day-overview'),
+                title: const Text('Day overview'),
+                children: [
+                  _DayOverviewCard(totals: totals),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Text(_dayGuardianReadText(deviceName, totals)),
+                  ),
+                ],
+              ),
+            ),
+          ] else
+            GuardianSurface(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.route_outlined,
+                    size: 36,
+                    color: context.guardianColors.textSecondary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No confirmed journey',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _dayGuardianReadText(deviceName, totals),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JourneyPicker extends StatelessWidget {
+  const _JourneyPicker({
+    required this.journeys,
+    required this.selectedId,
+    required this.onSelectJourney,
+  });
+
+  final List<JourneyRecord> journeys;
+  final String? selectedId;
+  final ValueChanged<JourneyRecord> onSelectJourney;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final useCards =
+                journeys.length <= 3 &&
+                constraints.maxWidth >=
+                    journeys.length * 136 + (journeys.length - 1) * 8 &&
+                MediaQuery.textScalerOf(context).scale(14) <= 20;
+            if (useCards) {
+              return Row(
+                children: [
+                  for (var index = 0; index < journeys.length; index++) ...[
+                    if (index > 0) const SizedBox(width: 8),
+                    Expanded(
+                      child: Semantics(
+                        selected: journeys[index].id == selectedId,
+                        button: true,
+                        child: Material(
+                          color: journeys[index].id == selectedId
+                              ? scheme.primary
+                              : colors.surface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: journeys[index].id == selectedId
+                                  ? scheme.primary
+                                  : colors.border,
+                            ),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            key: ValueKey('journey-trip-${journeys[index].id}'),
+                            onTap: () => onSelectJourney(journeys[index]),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 14,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _tripTitle(journeys[index]),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: journeys[index].id == selectedId
+                                          ? scheme.onPrimary
+                                          : colors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${DateFormat.Hm().format(journeys[index].confirmedDepartureAt)} – '
+                                    '${DateFormat.Hm().format(journeys[index].confirmedReturnAt)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: journeys[index].id == selectedId
+                                          ? scheme.onPrimary
+                                          : colors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            }
+            return DropdownButtonFormField<String>(
+              key: ValueKey('journey-picker-$selectedId'),
+              initialValue: selectedId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Choose a journey',
+                filled: true,
+                fillColor: colors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              items: [
+                for (var index = 0; index < journeys.length; index++)
+                  DropdownMenuItem(
+                    value: journeys[index].id,
+                    child: Text(
+                      '${index + 1} of ${journeys.length} · '
+                      '${DateFormat.Hm().format(journeys[index].confirmedDepartureAt)} – '
+                      '${DateFormat.Hm().format(journeys[index].confirmedReturnAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (id) {
+                if (id != null) {
+                  onSelectJourney(
+                    journeys.firstWhere((journey) => journey.id == id),
+                  );
+                }
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -177,21 +276,13 @@ class JourneyV2Dashboard extends StatelessWidget {
 class _JourneyTopBar extends StatelessWidget {
   const _JourneyTopBar({
     required this.deviceName,
-    this.avatarUrl,
     required this.day,
-    required this.tripCount,
-    required this.totalKm,
-    required this.totalDuration,
     required this.onBack,
     required this.onChooseDay,
   });
 
   final String deviceName;
-  final String? avatarUrl;
   final DateTime day;
-  final int tripCount;
-  final double totalKm;
-  final Duration totalDuration;
   final VoidCallback onBack;
   final VoidCallback onChooseDay;
 
@@ -202,149 +293,45 @@ class _JourneyTopBar extends StatelessWidget {
     final isToday =
         day.year == now.year && day.month == now.month && day.day == now.day;
 
-    final dayButton = OutlinedButton.icon(
-      onPressed: onChooseDay,
-      icon: const Icon(Icons.calendar_month_rounded, size: 18),
-      label: Text(isToday ? 'Today' : DateFormat('EEE, d MMM').format(day)),
-    );
-    final heading = Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          tooltip: 'Back',
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        const SizedBox(width: 12),
-        _JourneyAvatar(deviceName: deviceName, avatarUrl: avatarUrl),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$deviceName · Journey',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                '$tripCount trips | ${totalKm.toStringAsFixed(1)} km | ${_compactDuration(totalDuration)}',
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-    return GuardianSurface(
-      padding: const EdgeInsets.all(18),
-      radius: 24,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth < 600 ||
-              MediaQuery.textScalerOf(context).scale(14) > 21) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [heading, const SizedBox(height: 12), dayButton],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: heading),
-              const SizedBox(width: 16),
-              dayButton,
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _JourneyAvatar extends StatelessWidget {
-  const _JourneyAvatar({required this.deviceName, this.avatarUrl});
-
-  final String deviceName;
-  final String? avatarUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final url = avatarUrl?.trim();
-    final hasAvatar = url != null && url.isNotEmpty;
-    final trimmedName = deviceName.trim();
-    final initial = trimmedName.isEmpty ? '?' : trimmedName[0].toUpperCase();
-
-    return Container(
-      width: 46,
-      height: 46,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: GuardianColors.safe.withValues(alpha: 0.10),
-        border: Border.all(color: GuardianColors.safe.withValues(alpha: 0.18)),
-      ),
-      child: hasAvatar
-          ? Image.network(
-              url,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Center(
-                child: Text(
-                  initial,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Back',
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Journeys',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.7,
+                    ),
                   ),
-                ),
-              ),
-            )
-          : Center(
-              child: Text(
-                initial,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$deviceName · ${isToday ? 'Today' : DateFormat('EEE, d MMM').format(day)}',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
+                ],
               ),
             ),
-    );
-  }
-}
-
-class _LeftDayColumn extends StatelessWidget {
-  const _LeftDayColumn({
-    required this.deviceName,
-    required this.totals,
-    required this.journeys,
-    required this.selectedId,
-    required this.onSelectJourney,
-  });
-
-  final String deviceName;
-  final _DayTotals totals;
-  final List<JourneyRecord> journeys;
-  final String? selectedId;
-  final ValueChanged<JourneyRecord> onSelectJourney;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _DayOverviewCard(totals: totals),
-        const SizedBox(height: 12),
-        _DayGuardianRead(deviceName: deviceName, totals: totals),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _TripList(
-            journeys: journeys,
-            selectedId: selectedId,
-            onSelectJourney: onSelectJourney,
-          ),
+            IconButton.filledTonal(
+              key: const ValueKey('journey-choose-day'),
+              tooltip: 'Choose day',
+              onPressed: onChooseDay,
+              icon: const Icon(Icons.calendar_month_rounded, size: 22),
+            ),
+          ],
         ),
       ],
     );
@@ -353,543 +340,30 @@ class _LeftDayColumn extends StatelessWidget {
 
 class _DayOverviewCard extends StatelessWidget {
   const _DayOverviewCard({required this.totals});
-
   final _DayTotals totals;
 
   @override
-  Widget build(BuildContext context) {
-    return GuardianSurface(
-      padding: const EdgeInsets.all(18),
-      radius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-            icon: Icons.bar_chart_rounded,
-            title: "TODAY'S JOURNEY OVERVIEW",
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _OverviewMetric(
-                  value: '${totals.distanceKm.toStringAsFixed(1)} km',
-                  label: 'Recorded distance',
-                ),
-              ),
-              Expanded(
-                child: _OverviewMetric(
-                  value: _compactDuration(totals.duration),
-                  label: totals.allConfirmedReturns
-                      ? 'Total time away'
-                      : 'Recorded time',
-                ),
-              ),
-              Expanded(
-                child: _OverviewMetric(
-                  value: '${totals.pointCount}',
-                  label: 'Location points',
-                ),
-              ),
-              Expanded(
-                child: _OverviewMetric(
-                  value: '${totals.tripCount}',
-                  label: 'Trips',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _DayRouteStrip(
-            startAt: totals.startAt,
-            endAt: totals.endAt,
-            confirmedReturn: totals.allConfirmedReturns,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.icon, required this.title});
-
-  final IconData icon;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Row(
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(20),
+    child: Wrap(
+      spacing: 28,
+      runSpacing: 20,
       children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: GuardianColors.safe.withValues(alpha: 0.11),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 17, color: GuardianColors.safe),
+        _TripFact(value: '${totals.tripCount}', label: 'Trips'),
+        _TripFact(
+          value: '${totals.distanceKm.toStringAsFixed(1)} km',
+          label: 'Recorded distance',
         ),
-        const SizedBox(width: 9),
-        Text(
-          title,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-          ),
+        _TripFact(
+          value: _compactDuration(totals.duration),
+          label: totals.allConfirmedReturns
+              ? 'Total time away'
+              : 'Recorded time',
         ),
+        _TripFact(value: '${totals.pointCount}', label: 'Location points'),
       ],
-    );
-  }
-}
-
-class _OverviewMetric extends StatelessWidget {
-  const _OverviewMetric({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Column(
-      children: [
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: colors.textMuted,
-            fontSize: 8,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DayRouteStrip extends StatelessWidget {
-  const _DayRouteStrip({
-    required this.startAt,
-    required this.endAt,
-    required this.confirmedReturn,
-  });
-
-  final DateTime? startAt;
-  final DateTime? endAt;
-  final bool confirmedReturn;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _TimelineEndpoint(
-          letter: 'A',
-          label: startAt == null ? '--:--' : DateFormat.Hm().format(startAt!),
-          caption: confirmedReturn ? 'Left' : 'First recorded',
-          color: GuardianColors.safe,
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                height: 3,
-                decoration: BoxDecoration(
-                  color: GuardianColors.safe,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  for (var i = 0; i < 7; i++)
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: GuardianColors.safe,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 9),
-        _TimelineEndpoint(
-          letter: 'B',
-          label: endAt == null ? '--:--' : DateFormat.Hm().format(endAt!),
-          caption: confirmedReturn ? 'Returned' : 'Last recorded',
-          color: confirmedReturn
-              ? GuardianColors.safe
-              : const Color(0xFFE84C4C),
-        ),
-      ],
-    );
-  }
-}
-
-class _TimelineEndpoint extends StatelessWidget {
-  const _TimelineEndpoint({
-    required this.letter,
-    required this.label,
-    required this.caption,
-    required this.color,
-  });
-
-  final String letter;
-  final String label;
-  final String caption;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Column(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Text(
-            letter,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(caption, style: TextStyle(color: colors.textMuted, fontSize: 8)),
-      ],
-    );
-  }
-}
-
-class _DayGuardianRead extends StatelessWidget {
-  const _DayGuardianRead({required this.deviceName, required this.totals});
-
-  final String deviceName;
-  final _DayTotals totals;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: GuardianColors.forest,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: GuardianColors.safe.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: GuardianColors.safe,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'GUARDIAN READ',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _dayGuardianReadText(deviceName, totals),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.78),
-                    fontSize: 9,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Icon(
-            totals.tripCount > 0
-                ? Icons.route_rounded
-                : Icons.info_outline_rounded,
-            color: GuardianColors.safe,
-            size: 20,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TripList extends StatelessWidget {
-  const _TripList({
-    required this.journeys,
-    required this.selectedId,
-    required this.onSelectJourney,
-  });
-
-  final List<JourneyRecord> journeys;
-  final String? selectedId;
-  final ValueChanged<JourneyRecord> onSelectJourney;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-
-    return GuardianSurface(
-      padding: const EdgeInsets.all(16),
-      radius: 24,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TRIPS',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${journeys.length} recorded',
-                      style: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                'Sort by time',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: journeys.isEmpty
-                ? Center(
-                    child: Text(
-                      'No confirmed journey recorded.',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: journeys.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 7),
-                    itemBuilder: (context, index) {
-                      final journey = journeys[index];
-                      return _TripRow(
-                        key: ValueKey('journey-trip-${journey.id}'),
-                        index: index,
-                        journey: journey,
-                        selected: journey.id == selectedId,
-                        onTap: () => onSelectJourney(journey),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TripRow extends StatelessWidget {
-  const _TripRow({
-    super.key,
-    required this.index,
-    required this.journey,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final int index;
-  final JourneyRecord journey;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    final duration = _durationOf(journey);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? GuardianColors.safe.withValues(alpha: 0.10)
-                : colors.canvas,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? GuardianColors.safe.withValues(alpha: 0.48)
-                  : colors.border.withValues(alpha: 0.58),
-              width: selected ? 1.4 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? GuardianColors.safe : colors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: selected ? GuardianColors.safe : colors.border,
-                  ),
-                ),
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: selected ? Colors.white : colors.textSecondary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: _tripIconColor(index).withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _tripIcon(index),
-                  size: 15,
-                  color: _tripIconColor(index),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 4,
-                child: Text(
-                  '${DateFormat.Hm().format(journey.confirmedDepartureAt)} - '
-                  '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  '${journeyV2RecordedDistanceKm(journey).toStringAsFixed(1)} km',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  _compactDuration(duration),
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  '${journey.pointCount} points',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.chevron_right_rounded,
-                size: 17,
-                color: selected ? GuardianColors.safe : colors.textMuted,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
 
 class _SelectedTripPanel extends StatefulWidget {
@@ -917,6 +391,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
   JourneyV2ReplayController? _replay;
   bool _mapExpanded = false;
   bool _replayNeedsRefresh = false;
+  final _mapKey = GlobalKey();
 
   @override
   void initState() {
@@ -997,6 +472,7 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
 
     if (journey == null || selectedRoute == null || replay == null) {
       return Container(
+        padding: const EdgeInsets.all(24),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: colors.surface,
@@ -1012,314 +488,415 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
 
     return ListenableBuilder(
       listenable: replay,
-      builder: (context, _) {
-        return GuardianSurface(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
-                child: Column(
-                  children: [
-                    Row(
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 900;
+          final map = GuardianSurface(
+            key: _mapKey,
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: wide ? 440 : 330,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Stack(
                       children: [
-                        Text(
-                          'SELECTED TRIP',
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
+                        Positioned.fill(
+                          child: _mapExpanded
+                              ? ColoredBox(color: colors.canvas)
+                              : JourneyV2StaticMap(
+                                  key: ValueKey('journey-map-${journey.id}'),
+                                  route: selectedRoute,
+                                  deviceName: widget.deviceName,
+                                  deviceImei: widget.deviceImei,
+                                  avatarUrl: widget.avatarUrl,
+                                  originGeofence: widget.originGeofence,
+                                  currentIndex: replay.currentIndex,
+                                  showReplayPosition: true,
+                                  mapPadding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    68,
+                                    24,
+                                    32,
+                                  ),
+                                  onPointSelected: replay.seekIndex,
+                                ),
+                        ),
+                        Positioned(
+                          left: 12,
+                          right: 72,
+                          top: 12,
+                          child: const Align(
+                            alignment: Alignment.topLeft,
+                            child: _MiniBadge(label: 'Journey history'),
                           ),
                         ),
-                        const Spacer(),
-                        Text(
-                          '${DateFormat.Hm().format(journey.confirmedDepartureAt)} - '
-                          '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
+                        Positioned(
+                          right: 12,
+                          top: 12,
+                          child: _MapExpandButton(
+                            onTap: () => unawaited(
+                              _openMap(journey, selectedRoute, replay),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    _SelectedTripAB(journey: journey),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: colors.canvas,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: colors.border.withValues(alpha: 0.55),
-                    ),
                   ),
-                  child: Stack(
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Positioned.fill(
-                        // Release the preview's native map while expanded.
-                        child: _mapExpanded
-                            ? ColoredBox(color: colors.canvas)
-                            : JourneyV2StaticMap(
-                                key: ValueKey('journey-map-${journey.id}'),
-                                route: selectedRoute,
-                                deviceName: widget.deviceName,
-                                deviceImei: widget.deviceImei,
-                                avatarUrl: widget.avatarUrl,
-                                originGeofence: widget.originGeofence,
-                                currentIndex: replay.currentIndex,
-                                showReplayPosition: true,
-                                mapPadding: const EdgeInsets.only(
-                                  top: 80,
-                                  bottom: 16,
-                                  left: 16,
-                                  right: 16,
-                                ),
-                                onPointSelected: replay.seekIndex,
-                              ),
-                      ),
-                      Positioned(
-                        left: 16,
-                        top: 16,
-                        child: _MiniBadge(
-                          label:
-                              'History · ${DateFormat('d MMM').format(journey.startAt)}',
+                      Text(
+                        _tripTitle(journey),
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                      Positioned(
-                        left: 16,
-                        top: 52,
-                        child: _MapSourcePills(
-                          hasGoogle:
-                              selectedRoute.presentation?.hasGoogleSegments ==
-                              true,
+                      const SizedBox(height: 6),
+                      Text(
+                        '${DateFormat.Hm().format(journey.confirmedDepartureAt)} – '
+                        '${DateFormat.Hm().format(journey.confirmedReturnAt)}',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 14,
                         ),
                       ),
-                      Positioned(
-                        right: 16,
-                        top: 16,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _MapExpandButton(
-                              onTap: () => unawaited(
-                                _openMap(journey, selectedRoute, replay),
-                              ),
+                      const SizedBox(height: 18),
+                      Wrap(
+                        spacing: 28,
+                        runSpacing: 12,
+                        children: [
+                          _TripFact(
+                            value:
+                                '${journeyV2RecordedDistanceKm(journey).toStringAsFixed(1)} km',
+                            label: 'Recorded distance',
+                          ),
+                          _TripFact(
+                            value: _compactDuration(_durationOf(journey)),
+                            label: journey.hasConfirmedReturn
+                                ? 'Time away'
+                                : 'Recorded time',
+                          ),
+                          if (_hasStructuredJourney(journey))
+                            _TripFact(
+                              value: '${journey.stops.length}',
+                              label: 'Stops',
                             ),
-                            if (journey.hasInterruptedCoverage) ...[
-                              const SizedBox(height: 8),
-                              _MiniBadge(
-                                label:
-                                    'Tracking gap · ${_compactDuration(journey.routeCoverage.largestGap)}',
-                              ),
-                            ],
-                          ],
-                        ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (journey.hasInterruptedCoverage) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                  child: _RouteCoverageNotice(journey: journey),
+                  padding: const EdgeInsets.all(12),
+                  child: _ReplayShell(journey: journey, replay: replay),
                 ),
-              ],
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: _JourneyStoryCard(
-                  journey: journey,
-                  presentation: selectedRoute.presentation,
-                ),
-              ),
-              _SelectedMetricsRow(journey: journey, route: selectedRoute),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: _SelectedTripGuardianRead(
-                  journey: journey,
-                  route: selectedRoute,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: _ReplayShell(journey: journey, replay: replay),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SelectedTripAB extends StatelessWidget {
-  const _SelectedTripAB({required this.journey});
-
-  final JourneyRecord journey;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-
-    final summary = Text(
-      '${journeyV2RecordedDistanceKm(journey).toStringAsFixed(1)} km  |  '
-      '${_compactDuration(_durationOf(journey))}  |  '
-      '${_locationUpdateText(journey, journey.pointCount)}',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: TextStyle(
-        color: colors.textPrimary,
-        fontSize: 10,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  _CompactEndpoint(
-                    letter: 'A',
-                    time: DateFormat.Hm().format(journey.confirmedDepartureAt),
-                    caption: _departureCaption(journey),
-                    color: GuardianColors.safe,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                  child: _ReplayLocationCard(
+                    journey: journey,
+                    route: selectedRoute,
+                    replay: replay,
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Container(
-                        height: 2,
-                        decoration: BoxDecoration(
-                          color: GuardianColors.safe,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
+                ),
+                if (selectedRoute.presentation?.segments.any(
+                      (segment) =>
+                          segment.source == 'google' ||
+                          segment.source == 'gps_bridge',
+                    ) ==
+                    true)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                    child: Text(
+                      'Some sections are estimated between recorded locations.',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
                       ),
                     ),
                   ),
-                  _CompactEndpoint(
-                    letter: 'B',
-                    time: DateFormat.Hm().format(journey.confirmedReturnAt),
-                    caption: _arrivalCaption(journey),
-                    color: GuardianColors.safe,
-                  ),
-                ],
+              ],
+            ),
+          );
+          final story = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (journey.hasInterruptedCoverage) ...[
+                _RouteCoverageNotice(journey: journey),
+                const SizedBox(height: 16),
+              ],
+              _JourneyTimeline(
+                journey: journey,
+                presentation: selectedRoute.presentation,
+                onSeek: (at) {
+                  var nearestIndex = 0;
+                  var nearestDelta = double.infinity;
+                  for (var index = 0; index < replay.points.length; index++) {
+                    final recordedAt = replay.points[index].recordedAt;
+                    if (recordedAt == null) continue;
+                    final delta = recordedAt
+                        .difference(at)
+                        .inMilliseconds
+                        .abs();
+                    if (delta < nearestDelta) {
+                      nearestDelta = delta.toDouble();
+                      nearestIndex = index;
+                    }
+                  }
+                  replay.pause();
+                  replay.seekIndex(nearestIndex);
+                  final mapContext = _mapKey.currentContext;
+                  if (mapContext != null) {
+                    unawaited(
+                      Scrollable.ensureVisible(
+                        mapContext,
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 250),
+                        alignment: 0.05,
+                      ),
+                    );
+                  }
+                },
               ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+              const SizedBox(height: 16),
+              GuardianSurface(
+                padding: EdgeInsets.zero,
+                child: ExpansionTile(
+                  key: ValueKey('journey-recording-details-${journey.id}'),
+                  title: const Text('Recording details'),
+                  children: [
+                    _SelectedMetricsRow(journey: journey, route: selectedRoute),
+                    Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Text(
+                        _selectedTripGuardianReadText(journey, selectedRoute),
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  color: GuardianColors.safe.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: summary,
               ),
             ],
           );
-        }
-
-        return Row(
-          children: [
-            _CompactEndpoint(
-              letter: 'A',
-              time: DateFormat.Hm().format(journey.confirmedDepartureAt),
-              caption: _departureCaption(journey),
-              color: GuardianColors.safe,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                children: [
-                  Container(
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: GuardianColors.safe,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  summary,
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-            _CompactEndpoint(
-              letter: 'B',
-              time: DateFormat.Hm().format(journey.confirmedReturnAt),
-              caption: _arrivalCaption(journey),
-              color: GuardianColors.safe,
-            ),
-          ],
-        );
-      },
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 7, child: map),
+                const SizedBox(width: 20),
+                Expanded(flex: 4, child: story),
+              ],
+            );
+          }
+          return Column(children: [map, const SizedBox(height: 20), story]);
+        },
+      ),
     );
   }
 }
 
-class _CompactEndpoint extends StatelessWidget {
-  const _CompactEndpoint({
-    required this.letter,
-    required this.time,
-    required this.caption,
-    required this.color,
+class _TripFact extends StatelessWidget {
+  const _TripFact({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: TextStyle(
+          color: context.guardianColors.textPrimary,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 3),
+      Text(
+        label,
+        style: TextStyle(
+          color: context.guardianColors.textSecondary,
+          fontSize: 12,
+        ),
+      ),
+    ],
+  );
+}
+
+class _JourneyTimeline extends StatelessWidget {
+  const _JourneyTimeline({
+    required this.journey,
+    required this.presentation,
+    required this.onSeek,
   });
 
-  final String letter;
-  final String time;
-  final String caption;
-  final Color color;
+  final JourneyRecord journey;
+  final JourneyRoutePresentation? presentation;
+  final ValueChanged<DateTime> onSeek;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Text(
-            letter,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
+    final events =
+        <({DateTime at, String title, String detail, IconData icon, int? point})>[
+          (
+            at: journey.confirmedDepartureAt,
+            title: _departureCaption(journey),
+            detail: journey.routeStartAnchored
+                ? 'Departure confirmed'
+                : 'Start of available history',
+            icon: Icons.trip_origin_rounded,
+            point: 0,
+          ),
+          if (_hasStructuredJourney(journey))
+            for (final stop in journey.stops)
+              (
+                at: stop.startAt,
+                title: _stopPlaceLabel(stop, presentation),
+                detail: 'Stopped for ${_compactDuration(stop.duration)}',
+                icon: Icons.pause_circle_outline_rounded,
+                point: stop.pointStartIndex,
+              ),
+          for (final gap in journey.routeGaps)
+            (
+              at: journey.startAt.add(Duration(milliseconds: gap.fromOffsetMs)),
+              title: 'Tracking gap',
+              detail:
+                  '${_compactDuration(gap.duration)} without a recorded location · '
+                  'resumed ${DateFormat.Hm().format(journey.startAt.add(Duration(milliseconds: gap.toOffsetMs)))}',
+              icon: Icons.portable_wifi_off_rounded,
+              point: null,
+            ),
+          (
+            at: journey.confirmedReturnAt,
+            title: _arrivalCaption(journey),
+            detail: journey.hasConfirmedReturn
+                ? 'Return confirmed'
+                : 'Return home not confirmed',
+            icon: journey.hasConfirmedReturn
+                ? Icons.home_outlined
+                : Icons.location_on_outlined,
+            point: journey.pointCount - 1,
+          ),
+        ]..sort((a, b) => a.at.compareTo(b.at));
+
+    return GuardianSurface(
+      key: const ValueKey('journey-timeline'),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Journey timeline',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              time,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-              ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap a location to view it on the map.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 12,
+              height: 1.5,
             ),
+          ),
+          const SizedBox(height: 20),
+          for (var index = 0; index < events.length; index++)
+            Builder(
+              builder: (context) {
+                final event = events[index];
+                final gap = event.point == null;
+                final accent = gap ? const Color(0xFFB77919) : colors.accent;
+                return InkWell(
+                  key: ValueKey('journey-event-${journey.id}-$index'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: gap ? null : () => onSeek(event.at),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(9),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(event.icon, size: 20, color: accent),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                DateFormat.Hm().format(event.at),
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                event.title,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                event.detail,
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                              if (index < events.length - 1)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: Divider(
+                                    height: 1,
+                                    color: colors.border,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          if (presentation?.stopPlaces.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
             Text(
-              caption,
-              style: TextStyle(color: colors.textMuted, fontSize: 8),
+              'Nearby places · Google Maps',
+              style: TextStyle(color: colors.textSecondary, fontSize: 11),
             ),
           ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1334,15 +911,15 @@ class _MiniBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
+        color: context.guardianColors.surface.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: GuardianColors.forest,
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
+        style: TextStyle(
+          color: context.guardianColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1351,45 +928,26 @@ class _MiniBadge extends StatelessWidget {
 
 class _MapExpandButton extends StatelessWidget {
   const _MapExpandButton({required this.onTap});
-
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.96),
-      borderRadius: BorderRadius.circular(11),
-      elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.10),
-      child: InkWell(
-        key: const ValueKey('journey-expand-map'),
-        borderRadius: BorderRadius.circular(11),
-        onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.open_in_full_rounded,
-                size: 15,
-                color: GuardianColors.forest,
-              ),
-              SizedBox(width: 6),
-              Text(
-                'Expand map',
-                style: TextStyle(
-                  color: GuardianColors.forest,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
+  Widget build(BuildContext context) => Material(
+    color: context.guardianColors.surface.withValues(alpha: 0.96),
+    borderRadius: BorderRadius.circular(14),
+    elevation: 2,
+    shadowColor: Colors.black.withValues(alpha: 0.10),
+    child: IconButton(
+      key: const ValueKey('journey-expand-map'),
+      tooltip: 'Expand map',
+      onPressed: onTap,
+      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      icon: Icon(
+        Icons.open_in_full_rounded,
+        size: 20,
+        color: context.guardianColors.textPrimary,
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _JourneyFullScreenMap extends StatefulWidget {
@@ -1560,7 +1118,7 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Material(
-                        color: Colors.white.withValues(alpha: 0.96),
+                        color: colors.surface.withValues(alpha: 0.96),
                         shape: const CircleBorder(),
                         elevation: 2,
                         child: IconButton(
@@ -1568,7 +1126,7 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                           tooltip: 'Close full-screen map',
                           onPressed: () => Navigator.of(context).pop(),
                           icon: const Icon(Icons.close_rounded),
-                          color: GuardianColors.forest,
+                          color: colors.textPrimary,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -1579,7 +1137,7 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                             vertical: 11,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.96),
+                            color: colors.surface.withValues(alpha: 0.96),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
@@ -1593,10 +1151,10 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                             '${DateFormat('d MMMM yyyy').format(journey.startAt)}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: GuardianColors.forest,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -1625,7 +1183,9 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                           ),
                           const SizedBox(height: 8),
                           _ReplayShell(journey: journey, replay: replay),
-                          Row(
+                          Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            spacing: 8,
                             children: [
                               TextButton.icon(
                                 key: const ValueKey(
@@ -1640,7 +1200,6 @@ class _JourneyFullScreenMapState extends State<_JourneyFullScreenMap> {
                                 ),
                                 label: const Text('Fit route'),
                               ),
-                              const Spacer(),
                               TextButton.icon(
                                 key: const ValueKey('journey-open-details'),
                                 onPressed: _showDetails,
@@ -1677,15 +1236,15 @@ class _MapSourcePills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
       children: [
         if (!showSources)
           const _MapSourcePill(color: Color(0xFF4F5CCB), label: 'Journey route')
         else
           const _MapSourcePill(color: Color(0xFF2563EB), label: 'GPS'),
         if (showSources && hasGoogle) ...[
-          const SizedBox(width: 6),
           const _MapSourcePill(color: Color(0xFF7C3AED), label: 'Google'),
         ],
       ],
@@ -1733,12 +1292,14 @@ class _JourneyMapActionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 15, color: foreground),
               const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1781,12 +1342,14 @@ class _MapSourcePill extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: GuardianColors.forest,
-              fontSize: 8,
-              fontWeight: FontWeight.w900,
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: GuardianColors.forest,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1899,15 +1462,19 @@ class _RouteCoverageNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF5E8),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF3F3321)
+            : const Color(0xFFFFF5E8),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFF1B35D)),
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.signal_wifi_connected_no_internet_4_rounded,
-            color: Color(0xFFB66A00),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFFF1B35D)
+                : const Color(0xFFB66A00),
             size: 18,
           ),
           const SizedBox(width: 9),
@@ -1916,86 +1483,10 @@ class _RouteCoverageNotice extends StatelessWidget {
               _routeGapText(journey),
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 9,
+                fontSize: 12,
                 height: 1.35,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w500,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _JourneyStoryCard extends StatelessWidget {
-  const _JourneyStoryCard({required this.journey, required this.presentation});
-
-  final JourneyRecord journey;
-  final JourneyRoutePresentation? presentation;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: GuardianColors.safe.withValues(alpha: 0.055),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: GuardianColors.safe.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: GuardianColors.safe.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Icon(
-              Icons.auto_stories_rounded,
-              size: 16,
-              color: GuardianColors.safe,
-            ),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'JOURNEY STORY',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _journeyStoryText(journey, presentation: presentation),
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 9,
-                    height: 1.35,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (presentation?.stopPlaces.isNotEmpty == true) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    'Nearby places · Google Maps',
-                    style: TextStyle(
-                      color: colors.textSecondary.withValues(alpha: 0.82),
-                      fontSize: 7.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
             ),
           ),
         ],
@@ -2006,150 +1497,34 @@ class _JourneyStoryCard extends StatelessWidget {
 
 class _SelectedMetricsRow extends StatelessWidget {
   const _SelectedMetricsRow({required this.journey, required this.route});
-
   final JourneyRecord journey;
   final JourneyV2Route route;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.canvas,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _SelectedMetric(
-              icon: Icons.straighten_rounded,
-              value:
-                  '${journeyV2RecordedDistanceKm(journey).toStringAsFixed(1)} km',
-              label: 'Recorded distance',
-            ),
-          ),
-          Expanded(
-            child: _SelectedMetric(
-              icon: Icons.schedule_rounded,
-              value: _compactDuration(_durationOf(journey)),
-              label: journey.hasConfirmedReturn ? 'Time away' : 'Recorded time',
-            ),
-          ),
-          Expanded(
-            child: _SelectedMetric(
-              icon: Icons.route_rounded,
-              value: '${route.decodedPointCount}',
-              label: _allLocationUpdatesAreGps(journey)
-                  ? 'GPS location points'
-                  : 'Location points',
-            ),
-          ),
-          Expanded(
-            child: _SelectedMetric(
-              icon: Icons.pause_circle_outline_rounded,
-              value: _structuredStopMetric(journey),
-              label: 'Stops',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SelectedMetric extends StatelessWidget {
-  const _SelectedMetric({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Column(
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+    child: Wrap(
+      spacing: 28,
+      runSpacing: 20,
       children: [
-        Icon(icon, size: 17, color: GuardianColors.safe),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-          ),
+        _TripFact(
+          value: route.decodedPointCount.toString(),
+          label: _allLocationUpdatesAreGps(journey)
+              ? 'GPS location points'
+              : 'Location points',
         ),
-        Text(label, style: TextStyle(color: colors.textMuted, fontSize: 8)),
+        if (_hasStructuredJourney(journey))
+          _TripFact(
+            value: _structuredStopMetric(journey),
+            label: 'Stops · total duration',
+          ),
       ],
-    );
-  }
-}
-
-class _SelectedTripGuardianRead extends StatelessWidget {
-  const _SelectedTripGuardianRead({required this.journey, required this.route});
-
-  final JourneyRecord journey;
-  final JourneyV2Route route;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.guardianColors;
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: GuardianColors.safe.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: GuardianColors.safe.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.psychology_alt_rounded,
-            color: GuardianColors.safe,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'GUARDIAN READ',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _selectedTripGuardianReadText(journey, route),
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 9,
-                    height: 1.45,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  );
 }
 
 class _ReplayShell extends StatelessWidget {
   const _ReplayShell({required this.journey, required this.replay});
-
   final JourneyRecord journey;
   final JourneyV2ReplayController replay;
 
@@ -2159,108 +1534,95 @@ class _ReplayShell extends StatelessWidget {
     final currentTime = replay.currentIndex == 0 && journey.routeStartAnchored
         ? journey.confirmedDepartureAt
         : (replay.currentTime ?? journey.confirmedDepartureAt);
-
-    return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: colors.canvas,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.border.withValues(alpha: 0.58)),
+    final play = IconButton.filled(
+      key: const ValueKey('journey-replay-toggle'),
+      tooltip: replay.isPlaying ? 'Pause replay' : 'Play replay',
+      onPressed: replay.canReplay ? replay.toggle : null,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            key: const ValueKey('journey-replay-toggle'),
-            tooltip: replay.isPlaying ? 'Pause replay' : 'Play replay',
-            onPressed: replay.canReplay ? replay.toggle : null,
-            style: IconButton.styleFrom(
-              fixedSize: const Size(48, 48),
-              backgroundColor: replay.isPlaying
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.10),
-              foregroundColor: replay.isPlaying
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.primary,
-              side: BorderSide(color: Theme.of(context).colorScheme.primary),
-            ),
-            icon: Icon(
-              replay.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 42,
-            child: Text(
-              DateFormat.Hm().format(currentTime),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 3,
-                activeTrackColor: Theme.of(context).colorScheme.primary,
-                inactiveTrackColor: colors.border,
-                thumbColor: Theme.of(context).colorScheme.primary,
-                overlayColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.10),
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
-              ),
-              child: Slider(
-                key: const ValueKey('journey-replay-slider'),
-                value: replay.progress,
-                onChanged: replay.canReplay ? replay.seekProgress : null,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 42,
-            child: Text(
-              DateFormat.Hm().format(journey.confirmedReturnAt),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          InkWell(
-            key: const ValueKey('journey-replay-speed'),
-            borderRadius: BorderRadius.circular(10),
-            onTap: replay.canReplay ? replay.cycleSpeed : null,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(10),
-              ),
+      icon: Icon(
+        replay.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+      ),
+    );
+    final speed = TextButton(
+      key: const ValueKey('journey-replay-speed'),
+      onPressed: replay.canReplay ? replay.cycleSpeed : null,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      child: Text(
+        replay.speedLabel,
+        semanticsLabel: 'Replay speed ${replay.speedLabel}',
+      ),
+    );
+    final progress = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
               child: Text(
-                replay.speedLabel,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                ),
+                DateFormat.Hm().format(currentTime),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ),
+            Flexible(
+              child: Text(
+                DateFormat.Hm().format(journey.confirmedReturnAt),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
           ),
-        ],
+          child: Slider(
+            key: const ValueKey('journey-replay-slider'),
+            value: replay.progress,
+            semanticFormatterCallback: (_) =>
+                DateFormat.Hm().format(currentTime),
+            onChanged: replay.canReplay ? replay.seekProgress : null,
+          ),
+        ),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceMuted,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 330 &&
+              MediaQuery.textScalerOf(context).scale(12) > 18) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [play, const Spacer(), speed]),
+                const SizedBox(height: 8),
+                progress,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              play,
+              const SizedBox(width: 12),
+              Expanded(child: progress),
+              const SizedBox(width: 4),
+              speed,
+            ],
+          );
+        },
       ),
     );
   }
@@ -2272,8 +1634,6 @@ class _DayTotals {
     required this.duration,
     required this.pointCount,
     required this.tripCount,
-    required this.startAt,
-    required this.endAt,
     required this.allConfirmedReturns,
     required this.gapCount,
     required this.largestGap,
@@ -2284,8 +1644,6 @@ class _DayTotals {
   final Duration duration;
   final int pointCount;
   final int tripCount;
-  final DateTime? startAt;
-  final DateTime? endAt;
   final bool allConfirmedReturns;
   final int gapCount;
   final Duration largestGap;
@@ -2302,17 +1660,11 @@ class _DayTotals {
         pointCount: 0,
         tripCount: 0,
         unconfirmedCount: unconfirmedCount,
-        startAt: null,
-        endAt: null,
         allConfirmedReturns: false,
         gapCount: 0,
         largestGap: Duration.zero,
       );
     }
-
-    final sorted = [
-      ...journeys,
-    ]..sort((a, b) => a.confirmedDepartureAt.compareTo(b.confirmedDepartureAt));
 
     return _DayTotals(
       distanceKm: journeys.fold<double>(
@@ -2329,8 +1681,6 @@ class _DayTotals {
       ),
       tripCount: journeys.length,
       unconfirmedCount: unconfirmedCount,
-      startAt: sorted.first.confirmedDepartureAt,
-      endAt: sorted.last.confirmedReturnAt,
       allConfirmedReturns: journeys.every(
         (journey) => journey.hasConfirmedReturn,
       ),
@@ -2346,6 +1696,14 @@ class _DayTotals {
       ),
     );
   }
+}
+
+String _tripTitle(JourneyRecord journey) {
+  final hour = journey.confirmedDepartureAt.hour;
+  if (hour < 5 || hour >= 21) return 'Night outing';
+  if (hour < 12) return 'Morning outing';
+  if (hour < 17) return 'Afternoon outing';
+  return 'Evening outing';
 }
 
 Duration _durationOf(JourneyRecord journey) {
@@ -2374,6 +1732,16 @@ String _departureCaption(JourneyRecord journey) {
 String _arrivalCaption(JourneyRecord journey) {
   if (!journey.hasConfirmedReturn) return 'Last recorded';
   return 'Returned ${journey.originGeofenceName!.trim()}';
+}
+
+String _stopPlaceLabel(
+  JourneyStop stop,
+  JourneyRoutePresentation? presentation,
+) {
+  final nearby = presentation?.placeForStop(stop)?.label.trim();
+  if (nearby != null && nearby.isNotEmpty) return nearby;
+  final name = stop.placeName?.trim();
+  return name == null || name.isEmpty ? 'Recorded stop' : name;
 }
 
 String _pointPlaceLabel(
@@ -2439,64 +1807,6 @@ String _routeGapText(JourneyRecord journey) {
   return 'Tracking stopped at ${DateFormat.Hm().format(stoppedAt)} and resumed '
       'at ${DateFormat.Hm().format(resumedAt)} '
       '(${_compactDuration(gap.duration)} gap).';
-}
-
-String _journeyStoryText(
-  JourneyRecord journey, {
-  JourneyRoutePresentation? presentation,
-}) {
-  final originName = journey.originGeofenceName?.trim();
-  final origin = originName == null || originName.isEmpty
-      ? 'Safe zone'
-      : originName;
-  final parts = <String>[
-    originName == null || originName.isEmpty
-        ? 'First recorded ${DateFormat.Hm().format(journey.confirmedDepartureAt)}'
-        : '$origin ${DateFormat.Hm().format(journey.confirmedDepartureAt)} departure',
-  ];
-
-  final orderedStops = [if (_hasStructuredJourney(journey)) ...journey.stops]
-    ..sort((a, b) => a.startAt.compareTo(b.startAt));
-  if (orderedStops.isEmpty) {
-    parts.add(
-      'Recorded movement · ${journeyV2RecordedDistanceKm(journey).toStringAsFixed(1)} km',
-    );
-  } else {
-    for (final stop in orderedStops.take(2)) {
-      final place =
-          presentation?.placeForStop(stop)?.label.trim() ??
-          stop.placeName?.trim();
-      final label = place == null || place.isEmpty ? 'Recorded stop' : place;
-      parts.add(
-        '$label · ${DateFormat.Hm().format(stop.startAt)}'
-        '${stop.duration > Duration.zero ? ' · ${_compactDuration(stop.duration)}' : ''}',
-      );
-    }
-    if (orderedStops.length > 2) {
-      parts.add('${orderedStops.length - 2} more recorded stops');
-    }
-  }
-
-  final gap = _largestRouteGap(journey);
-  if (gap != null) {
-    final stoppedAt = journey.startAt.add(
-      Duration(milliseconds: gap.fromOffsetMs),
-    );
-    final resumedAt = journey.startAt.add(
-      Duration(milliseconds: gap.toOffsetMs),
-    );
-    parts.add(
-      'Tracking unavailable ${DateFormat.Hm().format(stoppedAt)}–'
-      '${DateFormat.Hm().format(resumedAt)}',
-    );
-  }
-
-  parts.add(
-    journey.hasConfirmedReturn
-        ? '$origin ${DateFormat.Hm().format(journey.confirmedReturnAt)} return confirmed'
-        : 'Last location ${DateFormat.Hm().format(journey.confirmedReturnAt)}',
-  );
-  return parts.join('  →  ');
 }
 
 String _dayGuardianReadText(String deviceName, _DayTotals totals) {
@@ -2587,32 +1897,4 @@ String _locationUpdateText(JourneyRecord journey, int count) {
   return _allLocationUpdatesAreGps(journey)
       ? '$count GPS location points'
       : '$count location points';
-}
-
-IconData _tripIcon(int index) {
-  const icons = [
-    Icons.home_rounded,
-    Icons.shopping_bag_rounded,
-    Icons.local_hospital_rounded,
-    Icons.apartment_rounded,
-    Icons.park_rounded,
-    Icons.restaurant_rounded,
-    Icons.directions_car_rounded,
-    Icons.flag_rounded,
-  ];
-  return icons[index % icons.length];
-}
-
-Color _tripIconColor(int index) {
-  const colors = [
-    Color(0xFF2CAF7B),
-    Color(0xFFB05BE6),
-    Color(0xFFF26767),
-    Color(0xFF4385E7),
-    Color(0xFF2CAF7B),
-    Color(0xFFF3A23A),
-    Color(0xFF4385E7),
-    Color(0xFF2CAF7B),
-  ];
-  return colors[index % colors.length];
 }

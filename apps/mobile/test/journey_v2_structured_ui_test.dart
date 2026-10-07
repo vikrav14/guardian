@@ -65,12 +65,36 @@ void main() {
       routeStartAnchored: true,
       pointEvidence: const [
         JourneyPointEvidence(offsetMs: 0, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 5 * 60 * 1000, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 10 * 60 * 1000, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 15 * 60 * 1000, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 20 * 60 * 1000, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 25 * 60 * 1000, source: 'gps', gpsValid: true),
-        JourneyPointEvidence(offsetMs: 30 * 60 * 1000, source: 'gps', gpsValid: true),
+        JourneyPointEvidence(
+          offsetMs: 5 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 10 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 15 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 20 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 25 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
+        JourneyPointEvidence(
+          offsetMs: 30 * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+        ),
       ],
     );
 
@@ -93,6 +117,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
+    expect(find.text('Stopped for 8m'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('journey-recording-details-structured-trip')),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('1 \u00B7 8m'), findsOneWidget);
     expect(find.text('Stops'), findsOneWidget);
     expect(
