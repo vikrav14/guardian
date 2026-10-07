@@ -30,7 +30,10 @@ The main menu has nine categories, filtered by current per-wearer permissions:
 | Family & settings | Sharing/WhatsApp, account/preferences, help |
 
 Multiple wearers get a paginated picker and Switch wearer. Every submenu has Back
-to main menu. Existing v1 row IDs still resolve through current authorisation.
+to main menu. Result replies show a visible **Main menu** reply button; one tap
+returns to the same wearer without opening a More options list. Multiple wearers
+also get a visible **Switch wearer** button. Both button and list IDs resolve
+through current authorisation, including existing v1 cards.
 Titles are never interpreted as commands. Typed text is not parsed as a question;
 the existing exact LINK and incident ACK protocols are the two explicit exceptions.
 

@@ -8,7 +8,42 @@ const {
   buildMetaTemplatePayload,
   buildGuardianSafetyTemplateComponents,
   sendMetaPayload,
+  buildMetaButtonsPayload,
+  buildMetaMenuPayload,
+  sendMetaMenu,
 } = require('../src/whatsapp-meta');
+
+test('reply button validation rejects invalid payloads before sending', () => {
+  const button = { id: 'menu-id', title: 'Main menu' };
+  for (const buttons of [[], [button, button], Array.from({ length: 4 }, (_, i) => ({ id: String(i), title: String(i) })),
+    [null], [{ id: 'x'.repeat(257), title: 'Main menu' }], [{ id: 'x', title: 'x'.repeat(21) }],
+    [{ id: ' ', title: 'Main menu' }], [button, { id: 'other', title: 'Main menu' }]]) {
+    assert.throws(() => buildMetaButtonsPayload('23050000000', { body: 'Hello', buttons }), /Invalid WhatsApp/);
+  }
+  assert.throws(() => buildMetaButtonsPayload('23050000000', { body: 'x'.repeat(1025), buttons: [button] }), /Invalid WhatsApp/);
+  assert.throws(() => buildMetaMenuPayload('23050000000', { body: 'Hello', rows: [button], buttons: [button] }), /mixed/);
+});
+
+test('menu sender uses native reply buttons and keeps category menus as native lists', async () => {
+  const previousToken = config.metaWhatsAppAccessToken, previousPhone = config.metaWhatsAppPhoneNumberId;
+  config.metaWhatsAppAccessToken = 'synthetic-token'; config.metaWhatsAppPhoneNumberId = 'synthetic-phone';
+  const captured = [];
+  const options = { fetchImpl: async (_, request) => {
+    captured.push(JSON.parse(request.body));
+    return { ok: true, status: 200, json: async () => ({ messages: [{ id: 'synthetic-id' }] }) };
+  } };
+  try {
+    const button = { id: 'guardian_menu:v2:page:0', title: 'Switch wearer' };
+    const result = await sendMetaMenu('23050000000', { body: 'Recorded result', buttons: [button] }, options);
+    await sendMetaMenu('23050000000', { body: 'Choose a wearer', rows: [button] }, options);
+    assert.equal(result.accepted, true);
+    assert.equal(captured[0].type, 'interactive');
+    assert.equal(captured[0].interactive.type, 'button');
+    assert.deepEqual(captured[0].interactive.action, { buttons: [{ type: 'reply', reply: button }] });
+    assert.equal(captured[0].text, undefined);
+    assert.equal(captured[1].interactive.type, 'list');
+  } finally { config.metaWhatsAppAccessToken = previousToken; config.metaWhatsAppPhoneNumberId = previousPhone; }
+});
 
 test('normalizeMetaRecipient removes WhatsApp prefix, plus and punctuation', () => {
   assert.equal(normalizeMetaRecipient('whatsapp:+230 5859-0100'), '23058590100');

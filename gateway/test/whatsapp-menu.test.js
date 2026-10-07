@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { database, imei } = require('./helpers/command-database');
 const { hash } = require('../src/family-store');
 const { handleFamilyWhatsApp } = require('../src/family-whatsapp');
-const { buildMetaListPayload } = require('../src/whatsapp-meta');
+const { buildMetaListPayload, buildMetaMenuPayload } = require('../src/whatsapp-meta');
 const { extractMetaInboundMessages } = require('../src/meta-webhook');
 const menu = require('../src/whatsapp-menu');
 const now = Date.now(), from = '23050000000', uid = 'owner';
@@ -23,10 +23,56 @@ function setup({ many = 1, permission = true } = {}) {
   const receive = (text = 'menu', extra = {}, deps = {}) => handleFamilyWhatsApp({ db, now,
     message: { id: 'in-' + (++serial), from, timestamp: String(Math.floor(now / 1000)), text, ...extra },
     send: async (_, body) => { calls.push({ body }); return { ok: true }; },
-    sendMenu: async (_, body) => { const payload = buildMetaListPayload(from, body); calls.push(payload); return { ok: true, messageId: 'accepted-' + serial }; }, ...deps });
+    sendMenu: async (_, body) => { const payload = buildMetaMenuPayload(from, body); calls.push(payload); return { ok: true, messageId: 'accepted-' + serial }; }, ...deps });
   return { db, calls, receive, ids };
 }
 const rows = payload => payload.interactive.action.sections.flatMap(s => s.rows);
+
+function tappedButton(reply, id = 'button-in') {
+  return extractMetaInboundMessages({ object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'messages', value: {
+    messages: [{ id, from, timestamp: String(Math.floor(now / 1000)), type: 'interactive',
+      interactive: { type: 'button_reply', button_reply: { id: reply.id, title: 'Untrusted display title' } } }],
+  } }] }] })[0];
+}
+
+test('recorded answers and app links expose Main menu directly without a More options list', async () => {
+  const f = setup();
+  for (const action of ['battery', 'journey']) {
+    await f.receive('', { menuSelection: menu.id(action, menu.key({ imei })) });
+    const result = f.calls.at(-1).interactive;
+    assert.equal(result.type, 'button');
+    assert.deepEqual(result.action.buttons.map(button => button.reply.title), ['Main menu']);
+    assert.equal(result.action.sections, undefined);
+    const [button] = result.action.buttons;
+    await f.receive('', tappedButton(button.reply, 'back-' + action));
+    assert.equal(f.calls.at(-1).interactive.type, 'list');
+    assert.match(f.calls.at(-1).interactive.body.text, /Guardian menu for Wearer 0/);
+    assert.deepEqual(rows(f.calls.at(-1)).map(row => row.title), Object.values(menu.GROUPS).map(group => group[0]));
+  }
+  const month = new Date(now + 4 * 3600000).toISOString().slice(0, 7);
+  assert.equal(f.db.rows.get(`familyServices/${imei}/usage/${month}`).used, 1);
+});
+
+test('direct reply buttons retain the selected wearer and offer a separate wearer picker', async () => {
+  const f = setup({ many: 2 });
+  await f.receive('', { menuSelection: menu.id('journey', menu.key({ imei: f.ids[1] })) });
+  const buttons = f.calls.at(-1).interactive.action.buttons;
+  assert.deepEqual(buttons.map(button => button.reply.title), ['Main menu', 'Switch wearer']);
+  await f.receive('', tappedButton(buttons[0].reply));
+  assert.match(f.calls.at(-1).interactive.body.text, /Guardian menu for Wearer 1/);
+  await f.receive('', tappedButton(buttons[1].reply, 'switch-in'));
+  assert.deepEqual(rows(f.calls.at(-1)).map(row => row.title), ['Wearer 0', 'Wearer 1']);
+  assert.equal([...f.db.rows.keys()].some(key => key.includes('/usage/')), false);
+});
+
+test('an old Main menu button cannot restore revoked wearer access', async () => {
+  const f = setup({ many: 2 });
+  await f.receive('', { menuSelection: menu.id('journey', menu.key({ imei })) });
+  const button = f.calls.at(-1).interactive.action.buttons[0];
+  f.db.rows.get(`familyServices/${imei}`).members[uid].status = 'revoked';
+  await f.receive('', tappedButton(button.reply));
+  assert.match(f.calls.at(-1).body, /no longer available/);
+});
 
 test('greetings restore the interactive list repeatedly without consuming answers or using AI', async () => {
   const f = setup();

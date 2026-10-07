@@ -25,7 +25,7 @@ async function linkNumber(db, text, from, now) {
   return true; // Confirmation is shown in the authenticated app, without a paid outbound message.
 }
 
-async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./whatsapp-meta').sendMetaList,
+async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./whatsapp-meta').sendMetaMenu,
   now = Date.now(), enabled = true }) {
   // This handler owns every inbound text. Unknown callers never fall through to AI.
   if (!db || !menu.recentInbound(message, now)) return true;

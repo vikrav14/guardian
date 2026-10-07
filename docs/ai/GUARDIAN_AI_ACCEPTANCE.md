@@ -6,10 +6,12 @@ The operator removed Ask Guardian. The public Ask/dev-chat routes are retired,
 the app has no composer, and WhatsApp typed text opens a nine-category menu.
 Menu/recorded reads use zero model calls. The prior paid results below remain
 historical; they are not evidence that a chatbot is available or that the new
-menu has passed real-phone acceptance. Current software checks: 1,840 gateway and 834 full Flutter tests passed,
+menu has passed real-phone acceptance. Current software checks: 1,845 gateway and 834 full Flutter tests passed,
 clean Flutter analysis and an enabled release Web app compile. Final focused
 read-only/link checks passed. Browser review verified the menu categories,
-alerts/photos submenu and typed text returning to the menu. The synthetic menu preview sends nothing to a watch or WhatsApp.
+alerts/photos submenu, typed text returning to the menu, and a Journey result
+with a visible Main menu button returning in one tap. Transport/webhook tests
+cover reply-button payloads, the selected wearer, Switch wearer and revocation. The synthetic menu preview sends nothing to a watch or WhatsApp.
 
 ## Historical question-selector result, 7 October 2026
 

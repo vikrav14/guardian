@@ -91,7 +91,10 @@ function subMenu(service, uid, action, now, multiple = false) {
   return { body: `${group[0]} for ${name(service)}. Only features shared with you appear.`, button: 'Choose an option', rows: [...rows, ...backRows(service, multiple)] };
 }
 function resultMenu(service, body, multiple = false) {
-  return { body, button: 'More options', rows: backRows(service, multiple) };
+  return { body, buttons: [
+    { id: id('wearer', key(service)), title: 'Main menu' },
+    ...(multiple ? [{ id: id('page', 0), title: 'Switch wearer' }] : []),
+  ] };
 }
 function appLink(service, action) {
   try {

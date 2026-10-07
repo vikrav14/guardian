@@ -197,6 +197,33 @@ async function sendMetaList(to, menu, options = {}) {
   return sendMetaPayload(buildMetaListPayload(to, menu), options);
 }
 
+function buildMetaButtonsPayload(to, { body, buttons } = {}) {
+  const payload = buildMetaTextPayload(to, body);
+  if (payload.text.body.length > 1024 || !Array.isArray(buttons) || buttons.length < 1 || buttons.length > 3 ||
+      buttons.some(button => typeof button?.id !== 'string' || !button.id.trim() || button.id.length > 256 ||
+        typeof button.title !== 'string' || !button.title.trim() || button.title.length > 20) ||
+      new Set(buttons.map(button => button.id)).size !== buttons.length ||
+      new Set(buttons.map(button => button.title)).size !== buttons.length) {
+    throw new Error('Invalid WhatsApp reply buttons');
+  }
+  const text = payload.text.body;
+  delete payload.text;
+  return { ...payload, type: 'interactive', interactive: { type: 'button', body: { text },
+    action: { buttons: buttons.map(({ id, title }) => ({ type: 'reply', reply: { id, title } })) } } };
+}
+
+function buildMetaMenuPayload(to, menu = {}) {
+  if ('buttons' in menu) {
+    if ('rows' in menu || 'button' in menu) throw new Error('Invalid mixed WhatsApp menu');
+    return buildMetaButtonsPayload(to, menu);
+  }
+  return buildMetaListPayload(to, menu);
+}
+
+async function sendMetaMenu(to, menu, options = {}) {
+  return sendMetaPayload(buildMetaMenuPayload(to, menu), options);
+}
+
 async function sendMetaTemplate(to, templateName, options = {}) {
   const payload = buildMetaTemplatePayload(to, templateName, options);
   return sendMetaPayload(payload, options);
@@ -212,5 +239,8 @@ module.exports = {
   sendMetaText,
   buildMetaListPayload,
   sendMetaList,
+  buildMetaButtonsPayload,
+  buildMetaMenuPayload,
+  sendMetaMenu,
   sendMetaTemplate,
 };
