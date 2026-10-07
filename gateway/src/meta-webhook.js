@@ -114,6 +114,9 @@ function extractMetaInboundMessages(payload, expectedPhoneNumberId = '') {
           timestamp: message.timestamp || null,
           type: message.type || null,
           text: extractMessageText(message),
+          ...(message.interactive?.type === 'list_reply' &&
+            String(message.interactive.list_reply?.id || '').startsWith('guardian_menu:')
+            ? { menuSelection: String(message.interactive.list_reply.id).slice(0, 200) } : {}),
           phoneNumberId,
         });
       }

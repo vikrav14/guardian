@@ -6,6 +6,33 @@ PR #140 implements the first release documented in [the product contract](../ai/
 
 No live model evaluation, physical-phone acceptance or production activation has been performed for this release. Watch alarms, photographs and audio are not needed for the automated tests.
 
+## WhatsApp navigation
+
+Linked Family/Care numbers can send `hi`, `hello`, `help`, `menu` or `options`
+to receive a native **Choose an option** list. Current managed-circle answer
+paths support **Last known location** and **Watch battery**. **Open Guardian**
+returns the configured app link for other shared features. Multiple wearers get
+a paginated picker; row IDs do not contain raw watch IDs.
+
+Opening/reopening a menu does not invoke AI or consume the answer allowance.
+Selecting location/battery retains the existing allowance and permission checks.
+Old cards are not authority: revoked/expired membership is checked on every tap.
+Menus require a current inbound service window and a durable claim before
+provider handoff. Ambiguous sends are retained and never retried automatically.
+API acceptance is not proof of WhatsApp delivery or display.
+
+This requires **Family → WhatsApp → Link my WhatsApp**. Receiving existing
+emergency alerts does not establish interactive chat identity. Navigation does
+not enroll numbers or change alert recipients, and is independent of the
+Guardian Intelligence rollout flag.
+
+On 7 October, only the four deterministic menu/transport files were applied to
+the existing local gateway after a verified idle check. Gateway health, both
+listeners, unchanged environment/ngrok and preservation of other local changes
+were verified. The larger AI foundation remains unactivated. Live menu display
+is pending the operator linking their WhatsApp number and sending `menu`.
+The combined gateway suite passed 1,793 tests, including nine menu regressions.
+
 ## Configuration
 
 | Setting | Default / meaning |
