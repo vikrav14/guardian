@@ -143,7 +143,7 @@ const MAURITIUS_WIDE_PATTERNS = Object.freeze([
 const MAURITIUS_PLACE_ALIASES = Object.freeze([
   ['Port Louis', ['port louis']],
   ['Grand Baie', ['grand baie', 'grand bay']],
-  ['Lower Vale', ['lower vale']],
+  ['Lower Vale', ['lower vale', 'the vale']],
   ['Pereybere', ['pereybere']],
   ['Goodlands', ['goodlands']],
   ['Petit Raffray', ['petit raffray']],
@@ -378,6 +378,7 @@ class DefiMediaRssProvider {
     this.maxAgeHours = Math.max(1, Number(config.contextDefiMediaMaxAgeHours || 24));
     this.fetchText = dependencies.fetchText || fetchText;
     this.records = new Map();
+    this.currentFeedIds = new Set();
     this.etag = null;
     this.lastModified = null;
     this.lastPollAt = null;
@@ -406,10 +407,9 @@ class DefiMediaRssProvider {
         return this._result([], true, null, now);
       }
 
-      this.etag = response.headers?.etag || this.etag;
-      this.lastModified = response.headers?.['last-modified'] || this.lastModified;
       const feed = parseDefiMediaFeed(response.body);
       const changedItems = [];
+      const currentFeedIds = new Set();
       for (const item of feed.items.slice(0, this.maxItems)) {
         const normalized = normalizeFeedItem(item, {
           source: this.source,
@@ -423,6 +423,15 @@ class DefiMediaRssProvider {
           continue;
         }
         const previous = this.records.get(normalized.id);
+        // Re-dating the same article (or re-publishing the same headline under
+        // a new GUID) must not refresh its dashboard exposure window.
+        const duplicate = previous || [...this.records.values()].find(record =>
+          normalizeForMatch(record.title) === normalizeForMatch(normalized.title));
+        const firstPublication = duplicate?.priorityPublishedAt || duplicate?.publishedAt;
+        normalized.priorityPublishedAt = firstPublication && normalized.publishedAt
+          ? new Date(Math.min(+new Date(firstPublication), +new Date(normalized.publishedAt))).toISOString()
+          : normalized.publishedAt;
+        currentFeedIds.add(normalized.id);
         this.records.set(normalized.id, normalized);
         if (!previous || previous.contentHash !== normalized.contentHash) {
           changedItems.push(normalized);
@@ -435,10 +444,16 @@ class DefiMediaRssProvider {
         .sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')))
         .slice(0, this.maxItems * 2);
       this.records = new Map(newest.map((item) => [item.id, item]));
+      this.currentFeedIds = currentFeedIds;
+      this.etag = response.headers?.etag || null;
+      this.lastModified = response.headers?.['last-modified'] || null;
       this.lastSuccessAt = now.toISOString();
       this.lastError = null;
       return this._result(changedItems, false, feed, now);
     } catch (error) {
+      // Retry a full snapshot. A 304 cannot certify a feed we failed to parse.
+      this.etag = null;
+      this.lastModified = null;
       this.lastError = error.message;
       logger.error('Defi Media RSS poll failed', { error: error.message });
       return { ...this._result([], false, null, now), ok: false, error: error.message };
@@ -464,6 +479,11 @@ class DefiMediaRssProvider {
       observeOnly: true,
       automaticDelivery: false,
     };
+  }
+
+  getPrioritySnapshot() {
+    return { ...this.getSnapshot(), items: [...this.records.values()]
+      .filter(item => this.currentFeedIds.has(item.id)) };
   }
 
   getSnapshot() {
