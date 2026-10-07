@@ -12,11 +12,11 @@ function getIncidentPhotos() { return live; }
 function getIncidentPhotoRuntimeStatus() {
   return live?.getStatus() || { version: 1, workerStarted: false };
 }
-function configuredPhotoAnalyzer({ env, config, fetchImpl }) {
+function configuredPhotoAnalyzer({ env, config, fetchImpl, messageClient }) {
   if (!asBool(env.INCIDENT_PHOTO_AI_ENABLED)) return null;
   const factory = asBool(env.INCIDENT_PHOTO_AI_ORIENTATION_ENABLED) ? createOrientedPhotoAnalyzer : createPhotoAnalyzer;
   return factory({ apiKey: config.anthropicApiKey,
-    model: env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel, fetchImpl });
+    model: env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel, fetchImpl, messageClient });
 }
 function startIncidentPhotos({ db, snapshots, env = process.env }) {
   if (!db || !snapshots) return null;

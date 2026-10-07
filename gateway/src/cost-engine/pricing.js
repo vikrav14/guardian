@@ -7,7 +7,8 @@
  */
 module.exports = {
   currency: 'MUR',
-  murPerUsd: 45,
+  murPerUsd: 50,
+  aiBasis: 'Haiku 4.5 planning estimate; use aiAttempts and aiBudgetMonths for metered mixed-model usage',
 
   firestore: {
     /** MUR per 100,000 document reads */
@@ -31,10 +32,10 @@ module.exports = {
   },
 
   claude: {
-    /** Claude Sonnet 5: USD 2 / MTok input, converted at murPerUsd. */
-    inputPer1kTokensMur: 0.09,
-    /** Claude Sonnet 5: USD 10 / MTok output, converted at murPerUsd. */
-    outputPer1kTokensMur: 0.45,
+    /** Haiku 4.5: USD 1 / MTok input, converted at murPerUsd. */
+    inputPer1kTokensMur: 0.05,
+    /** Haiku 4.5: USD 5 / MTok output, converted at murPerUsd. */
+    outputPer1kTokensMur: 0.25,
   },
 
   hosting: {
@@ -84,7 +85,7 @@ module.exports = {
     claudeTokensPerWhatsAppMessage: 2800,
     mapLoadsPerUserDay: 3,
     avgDevicesPerUser: 1.2,
-    gpsPacketsPerDeviceDay: 1440,
+    gpsPacketsPerDeviceDay: 144,
     writeGatePersistRatio: 0.08,
   },
 };

@@ -11,12 +11,10 @@ const ALLOWED_SURFACES = new Set(['suppress', 'app', 'whatsapp_template']);
 const ALLOWED_ACTIONS = new Set([
   'none',
   'check_in',
-  'enable_voice_monitor',
   'monitor_battery',
 ]);
 const ACTION_PHRASES = {
   check_in: 'check in',
-  enable_voice_monitor: 'enable voice monitor',
   monitor_battery: 'monitor battery',
 };
 
@@ -24,7 +22,7 @@ const GUARDIAN_SYSTEM_PROMPT = `You are Guardian's context relevance judge.
 You receive only structured facts that have already passed deterministic safety rules.
 
 Return exactly one JSON object with these keys:
-{"relevant":boolean,"confidence":number,"recommendedSurface":"suppress|app|whatsapp_template","recommendedAction":"none|check_in|enable_voice_monitor|monitor_battery","reason":string,"explanation":string|null}
+{"relevant":boolean,"confidence":number,"recommendedSurface":"suppress|app|whatsapp_template","recommendedAction":"none|check_in|monitor_battery","reason":string,"explanation":string|null}
 
 Rules:
 1. Decide whether this context is useful to this guardian now.
@@ -33,14 +31,15 @@ Rules:
 4. Prefer suppress for stale, uncertain, generic, or non-actionable context.
 5. Prefer app for useful but non-urgent context. Recommend whatsapp_template only for a timely check-in candidate.
 6. If relevant, choose exactly one non-none recommendedAction. If irrelevant, use recommendedAction "none".
-7. If relevant, explanation must be calm, 20-150 characters, at most two sentences, and contain the exact literal phrase for the chosen action: "check in", "enable voice monitor", or "monitor battery".
+7. If relevant, explanation must be calm, 20-150 characters, at most two sentences, and contain the exact literal phrase for the chosen action: "check in", or "monitor battery".
 8. Never mention AI, algorithms, raw coordinates, emergency dispatch, or 911.
 9. This is observe-only. A recommendation does not send anything.`;
 
 class ContextAI {
-  constructor(llmProvider, config = {}) {
+  constructor(llmProvider, config = {}, dependencies = {}) {
     this.llmProvider = llmProvider;
     this.enabled = config.contextLlmJudgmentEnabled !== false;
+    this.db = dependencies.db;
   }
 
   /** Make one structured relevance decision and explanation in a single call. */
@@ -57,7 +56,7 @@ class ContextAI {
 
     const startedAt = Date.now();
     try {
-      const result = await this.llmProvider.complete({
+      const input = {
         systemPrompt: GUARDIAN_SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -72,7 +71,15 @@ class ContextAI {
         }],
         tools: [],
         metadata: { feature: 'context-relevance' },
-      });
+      };
+      const { hash } = require('../intelligence-core/policy');
+      const { runAiScope } = require('../intelligence-core/runtime');
+      // A fixed shared background budget is separate from per-wearer budgets.
+      // Repeated identical candidates on a day cannot be billed again.
+      const result = await runAiScope({ db: this.db, serviceKey: 'context-background', plan: 'background',
+        feature: 'context', jobId: hash(JSON.stringify([input, new Date().toISOString().slice(0, 10)])),
+        authorize: async () => { if (!this.enabled) throw Error('context_disabled'); } },
+      () => this.llmProvider.complete(input));
 
       const usage = result?.usage || null;
       const provider = result?.provider || 'unknown';
@@ -313,7 +320,7 @@ class ContextAI {
     const requiredPhrase = ACTION_PHRASES[recommendedAction];
     if (requiredPhrase && !lower.includes(requiredPhrase)) {
       issues.push(`Explanation does not contain action phrase: ${requiredPhrase}`);
-    } else if (!requiredPhrase && !/(check in|enable voice monitor|monitor battery)/i.test(text)) {
+    } else if (!requiredPhrase && !/(check in|monitor battery)/i.test(text)) {
       issues.push('Explanation does not contain an allowed action phrase');
     }
     if (/https?:\/\/|[-+]?\d{1,3}\.\d{3,}/.test(text)) {

@@ -2,6 +2,7 @@
 const { hash } = require('./family-store');
 const { createAllowanceStore } = require('./family-allowance');
 const { activeMember, can, serviceEntitlements } = require('./family-policy');
+const menu = require('./whatsapp-menu');
 const digits = value => String(value || '').replace(/\D/g, '');
 
 async function linkNumber(db, text, from, now) {
@@ -33,7 +34,7 @@ function locationAnswer(service, device) {
     `https://www.google.com/maps?q=${location.lat},${location.lng}\nThis is a recorded position, not a confirmation of their current presence.`;
 }
 
-async function handleFamilyWhatsApp({ db, message, send, now = Date.now() }) {
+async function handleFamilyWhatsApp({ db, message, send, sendMenu = require('./whatsapp-meta').sendMetaList, now = Date.now() }) {
   if (!db) return false;
   if (await linkNumber(db, message.text || '', message.from, now)) return true;
   const phone = `+${digits(message.from)}`;
@@ -60,9 +61,33 @@ async function handleFamilyWhatsApp({ db, message, send, now = Date.now() }) {
     return true; // No allowance use and no automatic resolution, even on provider retries.
   }
   let text = message.text.trim().toLowerCase(), service;
+  const chosen = menu.selection(message.menuSelection);
+  const navigation = menu.isMenuRequest(text) || !!message.menuSelection;
+  if (navigation && !menu.recentInbound(message, now)) return true;
+  if (chosen && chosen.action !== 'page') service = services.find(s => menu.key(s) === chosen.target);
+  if (navigation) {
+    // IDs identify a choice, never grant access. Rebuild from current membership
+    // on every tap; do not route a stale row to a different remaining wearer.
+    if (chosen && chosen.action !== 'page' && !service) {
+      await notice('menu_access', 'This wearer is no longer available here. Send menu to see your current shared access.');
+      return true;
+    }
+    if (!services.length) { await notice('menu_access', 'No active wearer is shared with this number. Open Guardian to check your access.'); return true; }
+    if (!chosen || chosen.action === 'wearer' || chosen.action === 'page') {
+      const selected = service || (services.length === 1 ? services[0] : null);
+      await menu.sendNavigation({ db, uid, message, now, send, sendMenu,
+        menu: selected && chosen?.action !== 'page' ? menu.optionsMenu(selected, uid, now, services.length > 1)
+          : menu.wearerMenu(services, chosen?.action === 'page' ? Number(chosen.target) : 0) });
+      return true;
+    }
+    if (chosen.action === 'app') {
+      await menu.sendNavigation({ db, uid, message, now, send, sendMenu }); return true;
+    }
+    text = chosen.action; // Canonical read-only intent; ignore the client-supplied title.
+  }
   const matched = services.filter(s => text.startsWith(`${s.imei.slice(-6)} `));
-  if (matched.length === 1) { service = matched[0]; text = text.slice(7); }
-  else if (services.length === 1) service = services[0];
+  if (!service && matched.length === 1) { service = matched[0]; text = text.slice(7); }
+  else if (!service && services.length === 1) service = services[0];
   if (!service) {
     await notice('choose_wearer', 'Open Guardian to choose a wearer. For a shared watch, prefix your WhatsApp question with the last six digits of its watch ID.');
     return true;

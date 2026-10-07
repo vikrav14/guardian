@@ -27,8 +27,8 @@ const ORIENTATION_SCHEMA = {
   },
 };
 
-function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
-  const describe = createPhotoAnalyzer({ apiKey, model, fetchImpl });
+function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch, messageClient } = {}) {
+  const describe = createPhotoAnalyzer({ apiKey, model, fetchImpl, messageClient });
   if (!describe) return null;
   return async (bytes, { reauthorize } = {}) => {
     if (typeof reauthorize !== 'function') throw new PhotoAnalysisError('analysis_authorization_required');
@@ -45,7 +45,7 @@ function createOrientedPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) 
     }
     imageContent.push({ type: 'text', text: 'Which view is upright? Return the JSON selection only.' });
     await reauthorize();
-    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: ORIENTATION_PROMPT,
+    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, messageClient, system: ORIENTATION_PROMPT,
       schema: ORIENTATION_SCHEMA, imageContent, maxTokens: 160, maxChars: 1000 });
     if (!parsed || Array.isArray(parsed) || Object.keys(parsed).sort().join(',') !== 'confidence,view' ||
         !['high', 'low'].includes(parsed.confidence) || !(parsed.view === null || VIEWS.includes(parsed.view))) {

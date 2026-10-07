@@ -19,6 +19,14 @@ test.afterEach(() => {
   resetIntelligenceStateForTests();
 });
 
+test('new recorded overview retires old predictions while preserving the offline rule', () => {
+  const now = new Date('2026-10-07T10:00:00Z');
+  const device = { imei: '999999999999999', online: true, batteryPercent: 3, speedKmh: 20,
+    lastHeartbeatAt: new Date(now.getTime() - 20 * 60000), location: { lat: -20.3, lng: 57.6, recordedAt: new Date(0) } };
+  const result = evaluateDeviceIntelligence({ device, geofences: [homeGeofence], config: { recordedOnly: true }, now });
+  assert.deepEqual(result.map(row => row.id), ['offline']);
+});
+
 test('resolveHomeGeofence prefers name containing home', () => {
   const zones = [
     { name: 'School', active: true },

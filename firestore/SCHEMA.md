@@ -1032,3 +1032,28 @@ Authenticated HTTP gallery/image/request routes recheck membership, plan and con
   clients store it explicitly; missing fields fall back to the legacy interval.
   `adaptiveReporting` remains backend-only and represents policy/handoff, not
   measured packet cadence. Deploy the updated rules before the updated client.
+
+## Guardian Intelligence operating records (PR #140)
+
+All four collections below are backend-only: app clients cannot read, enumerate,
+create, edit or delete them. Only the authenticated gateway exposes current,
+permission-filtered answers. None stores question text, private prose or media.
+
+- `aiBudgetMonths/{hash(scope:month)}`: conservative `charged` and `routine`
+  micro-USD, attempts, new-question jobs, Mauritius month, pricing version and
+  fixed planning MUR/USD conversion. A wearer/service-owner scope shares the
+  allowance across members; a fleet bucket enforces the overall ceiling.
+- `aiBudgetDays/{hash(scope:day)}`: durable attempt counter, `expiresAt` after
+  35 days. Attempt limits do not refund ambiguous requests.
+- `aiAttempts/{hash(scope:job:attempt)}`: model, feature, hashed service scope,
+  month/day, reserved/charged micro-USD, reported usage, terminal/unconfirmed
+  state and over-reservation flag; `expiresAt` after 95 days. No raw provider
+  response or request is retained here.
+- `aiSelections/{cacheHash}`: pending/complete/unavailable state, selected
+  evidence IDs and answerable boolean, creation time and one-day `expiresAt`.
+  Access and underlying evidence are rebuilt before these IDs can be used.
+
+Configure TTL on the three `expiresAt` fields; delayed deletion does not grant
+access or extend evidence validity. Keep monthly aggregates for cost review.
+The new endpoints require authoritative `familyServices` grants and never trust
+client-editable linked devices or plan assertions as a substitute.

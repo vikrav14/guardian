@@ -20,7 +20,7 @@ function murClaudeTokens({ inputTokens = 0, outputTokens = 0 }) {
  */
 function estimateMonthlyCost({
   users,
-  gpsIntervalSec = 60,
+  gpsIntervalSec = 600,
   historyOn = false,
   journeyCompression = true,
   whatsappPct = 15,

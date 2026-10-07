@@ -21,6 +21,7 @@ function initializeContextRuntime({ config, llmProvider, db }) {
   const defiMediaRssProvider = new DefiMediaRssProvider(config);
   const service = new ContextService(config.openWeatherMapKey, llmProvider, config, {
     capAlertProvider,
+    db,
   });
   const scheduler = startContextScheduler({ db, contextService: service, config });
   const sourceScheduler = startContextSourceScheduler({

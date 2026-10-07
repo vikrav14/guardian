@@ -174,7 +174,13 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
       const image = await snapshots.image(claim.serviceOwnerUid, id);
       stage = 'provider';
       await reauthorize();
-      const result = await analyze(image, { reauthorize });
+      const { runAiScope } = require('./intelligence-core/runtime');
+      const { loadEntitlementsForUser } = require('./entitlements');
+      const user = (await db.collection('users').doc(claim.serviceOwnerUid).get()).data() || {};
+      const entitlements = await loadEntitlementsForUser(db, { ...user, uid: claim.serviceOwnerUid }, { imei: claim.imei });
+      const result = await runAiScope({ db, serviceKey: `watch:${claim.serviceOwnerUid}:${claim.imei}`,
+        plan: entitlements.plan, jobId: `photo:${id}`, feature: 'photo_description', authorize: reauthorize },
+      () => analyze(image, { reauthorize }));
       await reauthorize();
       analysis = { ...analysisRecord(result), generatedAt: now() };
     } catch (error) {

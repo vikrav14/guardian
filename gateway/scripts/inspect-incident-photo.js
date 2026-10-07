@@ -78,7 +78,15 @@ async function probeOriginal({ db, snapshots, photoId, analyze, showAnalysis = f
     await reauthorize();
   } catch { return { outcome: 'probe_blocked', reason: 'original_or_consent_unavailable' }; }
   let result;
-  try { result = analysisRecord(await analyze(bytes, { probeRotationClockwiseDegrees: rotateClockwise, reauthorize })); }
+  try {
+    const user = (await db.collection('users').doc(photo.serviceOwnerUid).get()).data() || {};
+    const entitlements = await require('../src/entitlements').loadEntitlementsForUser(db,
+      { ...user, uid: photo.serviceOwnerUid }, { imei: photo.imei });
+    result = analysisRecord(await require('../src/intelligence-core/runtime').runAiScope({ db,
+      serviceKey: 'watch:' + photo.serviceOwnerUid + ':' + photo.imei, plan: entitlements.plan,
+      jobId: 'photo-probe:' + require('node:crypto').randomUUID(), feature: 'diagnostic', authorize: reauthorize },
+    () => analyze(bytes, { probeRotationClockwiseDegrees: rotateClockwise, reauthorize })));
+  }
   catch (error) { return { outcome: 'probe_failed', ...analysisFailure(error) }; }
   try { await reauthorize(); }
   catch { return { outcome: 'probe_blocked', reason: 'access_changed_during_probe' }; }

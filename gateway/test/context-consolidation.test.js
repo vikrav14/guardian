@@ -99,7 +99,7 @@ test('ContextAI accepts a guarded structured relevance decision', async () => {
       }],
     }),
   };
-  const ai = new ContextAI(provider, { contextLlmJudgmentEnabled: true });
+  const ai = new ContextAI(provider, { contextLlmJudgmentEnabled: true }, { db: require('./helpers/command-database').database() });
   const input = adaptedInputs();
   const result = await ai.assessContext(
     severeWeather(),
@@ -123,7 +123,7 @@ test('ContextAI rejects invalid output instead of passing it through', async () 
       content: [{ type: 'text', text: 'Send this now!!!' }],
     }),
   };
-  const ai = new ContextAI(provider, { contextLlmJudgmentEnabled: true });
+  const ai = new ContextAI(provider, { contextLlmJudgmentEnabled: true }, { db: require('./helpers/command-database').database() });
   const input = adaptedInputs();
   const result = await ai.assessContext(
     severeWeather(),

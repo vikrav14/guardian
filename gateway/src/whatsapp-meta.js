@@ -182,6 +182,21 @@ async function sendMetaText(to, body, options = {}) {
   return sendMetaPayload(payload, options);
 }
 
+function buildMetaListPayload(to, { body, button = 'Choose an option', rows } = {}) {
+  const payload = buildMetaTextPayload(to, body);
+  if (body.length > 1024 || !button || button.length > 20 || !Array.isArray(rows) || rows.length < 1 || rows.length > 10 ||
+      new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row =>
+        !row.id || row.id.length > 200 || !row.title || row.title.length > 24 || (row.description || '').length > 72)) {
+    throw new Error('Invalid WhatsApp list menu');
+  }
+  delete payload.text;
+  return { ...payload, type: 'interactive', interactive: { type: 'list', body: { text: body },
+    action: { button, sections: [{ title: 'Guardian', rows }] } } };
+}
+async function sendMetaList(to, menu, options = {}) {
+  return sendMetaPayload(buildMetaListPayload(to, menu), options);
+}
+
 async function sendMetaTemplate(to, templateName, options = {}) {
   const payload = buildMetaTemplatePayload(to, templateName, options);
   return sendMetaPayload(payload, options);
@@ -195,5 +210,7 @@ module.exports = {
   metaMessagesUrl,
   sendMetaPayload,
   sendMetaText,
+  buildMetaListPayload,
+  sendMetaList,
   sendMetaTemplate,
 };

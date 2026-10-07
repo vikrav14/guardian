@@ -749,6 +749,13 @@ service cloud.firestore {
     match /voiceMessagePrivate/{id} { allow read, write: if false; }
     match /voiceMessageDevices/{id} { allow read, write: if false; }
 
+    // AI reservations and evidence selections are backend-only. They contain
+    // no raw prompt/media, and can never be edited to reset a spending ceiling.
+    match /aiBudgetMonths/{id} { allow read, write: if false; }
+    match /aiBudgetDays/{id} { allow read, write: if false; }
+    match /aiAttempts/{id} { allow read, write: if false; }
+    match /aiSelections/{id} { allow read, write: if false; }
+
     match /watchCallPolicies/{imei} {
       allow read, write: if false;
     }

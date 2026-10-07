@@ -1,6 +1,6 @@
 'use strict';
 
-// Synthetic text only: never load Firestore, Storage, a photo or the gateway.
+// Synthetic text only: budget ledger access, but no Storage, photo or gateway workers.
 // Production photo errors continue to omit provider bodies. This separate probe
 // can expose a bounded error explanation because its prompt contains no user data.
 const { isDeepStrictEqual } = require('node:util');
@@ -40,7 +40,7 @@ async function providerError(response, apiKey) {
   finally { reader.releaseLock(); }
 }
 
-async function checkPhotoAi({ apiKey, model, fetchImpl = fetch }) {
+async function checkPhotoAi({ apiKey, model, fetchImpl = fetch, messageClient }) {
   const report = { outcome: 'photo_ai_contract_check', configurationSource: 'this_shell_not_running_gateway',
     model: analysisProvenance({ model }).model || null, input: 'synthetic_text_only', ok: false, checks: [] };
   if (!apiKey || !report.model) return { ...report, reason: 'api_key_or_model_missing_or_invalid' };
@@ -55,7 +55,7 @@ async function checkPhotoAi({ apiKey, model, fetchImpl = fetch }) {
     let detail = {};
     let httpStatus = null;
     try {
-      const { parsed, responseModel } = await requestPhotoJson({ apiKey, model,
+      const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, messageClient,
         schema: stage.schema, maxTokens: stage.maxTokens, maxChars: stage.maxChars,
         system: 'This is a synthetic API configuration test, not an image analysis. Return the supplied JSON exactly.',
         imageContent: [{ type: 'text', text: JSON.stringify(stage.expected) }],
@@ -82,13 +82,22 @@ async function checkPhotoAi({ apiKey, model, fetchImpl = fetch }) {
 async function main() {
   if (process.argv.slice(2).join(' ') !== '--run') {
     console.log(JSON.stringify({ outcome: 'not_run', usage: 'node scripts/check-incident-photo-ai.js --run',
-      note: 'Makes at most two synthetic text API calls using the configured photo model. No photos or database access.' }, null, 2));
+      note: 'Makes at most two synthetic text API calls using the configured photo model. No photos. Uses Firestore for the shared AI budget ledger.' }, null, 2));
     process.exitCode = 1;
     return;
   }
   const config = require('../src/config');
-  const result = await checkPhotoAi({ apiKey: config.anthropicApiKey,
-    model: process.env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel });
+  const { initFirestore } = require('../src/firestore');
+  const { runAiScope } = require('../src/intelligence-core/runtime');
+  const db = initFirestore({ startWatchers: false });
+  if (!db) throw Error('ai_budget_unavailable');
+  let result;
+  try {
+    result = await runAiScope({ db, serviceKey: 'diagnostics', plan: 'background',
+      jobId: require('node:crypto').randomUUID(), feature: 'diagnostic', authorize: async () => {} },
+    () => checkPhotoAi({ apiKey: config.anthropicApiKey,
+      model: process.env.INCIDENT_PHOTO_AI_MODEL || config.anthropicModel }));
+  } finally { await db.terminate(); }
   console.log(JSON.stringify(result, null, 2));
   if (!result.ok) process.exitCode = 1;
 }

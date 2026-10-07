@@ -1,5 +1,6 @@
 'use strict';
 
+const { anthropicMessage } = require('./intelligence-core/provider');
 const PROMPT_VERSION = 4;
 const PROMPT = `You describe visible surroundings in a watch-camera photo for a Guardian SOS/fall incident.
 Analyse ONLY the single image supplied in this request. It may be sideways or upside down. Never invent missing detail.
@@ -146,29 +147,22 @@ function analysisRecord(value) {
     version: description.summary ? 3 : description.orientation ? 2 : 1 };
 }
 
-async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, system, schema, imageContent, maxTokens = 900, maxChars = 5000 }) {
-  let response;
+async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, messageClient = anthropicMessage, system, schema, imageContent, maxTokens = 900, maxChars = 5000 }) {
+  let payload, usage;
   try {
-    response = await fetchImpl('https://api.anthropic.com/v1/messages', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20_000),
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system,
+    ({ payload, usage } = await messageClient({ apiKey, fetchImpl,
+      feature: maxTokens === 160 ? 'photo_orientation' : 'photo_description',
+      body: { model, max_tokens: maxTokens, system,
         output_config: { format: { type: 'json_schema', schema } },
-        messages: [{ role: 'user', content: imageContent }] }),
-    });
+        messages: [{ role: 'user', content: imageContent }] } }));
   } catch (error) {
-    throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
-      ? 'analysis_timeout' : 'analysis_network_failed');
-  }
-  if (!response.ok) throw new PhotoAnalysisError('analysis_http_error', {
-    httpStatus: Number.isInteger(response.status) && response.status >= 100 && response.status <= 599
-      ? response.status : null,
-  });
-  let payload;
-  try { payload = await response.json(); }
-  catch (error) {
-    throw new PhotoAnalysisError(['TimeoutError', 'AbortError'].includes(error?.name)
-      ? 'analysis_timeout' : 'analysis_invalid_response');
+    if (error instanceof PhotoAnalysisError) throw error;
+    const transport = { ai_network_failed: 'analysis_network_failed', ai_timeout: 'analysis_timeout',
+      ai_http_error: 'analysis_http_error', ai_invalid_response: 'analysis_invalid_response' }[error?.code];
+    if (transport) throw new PhotoAnalysisError(transport,
+      error.httpStatus ? { httpStatus: error.httpStatus } : {});
+    throw new PhotoAnalysisError(['ai_budget_reached', 'ai_daily_limit'].includes(error?.code)
+      ? 'analysis_budget_unavailable' : 'analysis_provider_unavailable');
   }
   if (!payload || !Array.isArray(payload.content)) throw new PhotoAnalysisError('analysis_invalid_response');
   if (payload.stop_reason !== 'end_turn') throw new PhotoAnalysisError('analysis_incomplete', {
@@ -190,10 +184,10 @@ async function requestPhotoJson({ apiKey, model, fetchImpl = fetch, system, sche
       contentFormat: /^\s*```(?:json)?\s*[\r\n]/i.test(content) ? 'fenced_json' : 'other',
     });
   }
-  return { parsed, responseModel: payload.model };
+  return { parsed, responseModel: payload.model, usage };
 }
 
-function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
+function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch, messageClient = anthropicMessage } = {}) {
   if (!apiKey || !model) return null;
   return async (bytes, { probeRotationClockwiseDegrees = null } = {}) => {
     if (!Buffer.isBuffer(bytes) || bytes.length > 65536) throw new PhotoAnalysisError('analysis_invalid_image');
@@ -204,7 +198,7 @@ function createPhotoAnalyzer({ apiKey, model, fetchImpl = fetch } = {}) {
       catch { throw new PhotoAnalysisError('analysis_rotation_failed'); }
       if (input.length > 4_000_000) throw new PhotoAnalysisError('analysis_invalid_image');
     }
-    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, system: PROMPT, schema: DESCRIPTION_SCHEMA,
+    const { parsed, responseModel } = await requestPhotoJson({ apiKey, model, fetchImpl, messageClient, system: PROMPT, schema: DESCRIPTION_SCHEMA,
       imageContent: [
         { type: 'image', source: { type: 'base64', media_type: probeRotationClockwiseDegrees === null ? 'image/jpeg' : 'image/png', data: input.toString('base64') } },
         { type: 'text', text: 'Describe only what is visible in the supplied image. Any orientation turn is relative to this supplied image.' },

@@ -122,9 +122,9 @@ const config = {
   // LLM Providers (primary: Gemini, fallback: Anthropic, offline: Template)
   llmProvider: process.env.LLM_PROVIDER || 'gemini', // 'gemini' | 'anthropic' | 'template'
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+  anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
 
   // Layer 1 intelligence (rule-based device insights)
   intelligenceOfflineMinutes: Number(process.env.INTELLIGENCE_OFFLINE_MINUTES || 10),

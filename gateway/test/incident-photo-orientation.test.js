@@ -1,9 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createOrientedPhotoAnalyzer, ORIENTATION_PROMPT } = require('../src/incident-photo-orientation');
-const { configuredPhotoAnalyzer } = require('../src/incident-photos-live');
-const { PROMPT, analysisFailure, analysisRecord, validateAnalysis } = require('../src/incident-photo-analysis');
+const { createOrientedPhotoAnalyzer, ORIENTATION_PROMPT } = require('./helpers/photo-provider');
+const { configuredPhotoAnalyzer } = require('./helpers/photo-provider');
+const { PROMPT, analysisFailure, analysisRecord, validateAnalysis } = require('./helpers/photo-provider');
 const { rotatedPhotoPng } = require('../src/incident-photo-rotation');
 const original = require('./fixtures/photo-synthetic');
 const description = { status: 'ready', summary: 'A chair is visible.', visibleDetails: [],
