@@ -14,6 +14,11 @@ class ProfileWeather {
     this.observedAt,
     this.fetchedAt,
     this.expiresAt,
+    this.locationBasis,
+    this.locationSource,
+    this.locationLat,
+    this.locationLng,
+    this.homePresenceExpiresAt,
   });
 
   final bool available;
@@ -27,6 +32,11 @@ class ProfileWeather {
   final DateTime? observedAt;
   final DateTime? fetchedAt;
   final DateTime? expiresAt;
+  final String? locationBasis;
+  final String? locationSource;
+  final double? locationLat;
+  final double? locationLng;
+  final DateTime? homePresenceExpiresAt;
 
   static const maxAge = Duration(minutes: 60);
   static const maxLocationAge = Duration(hours: 24);
@@ -44,6 +54,7 @@ class ProfileWeather {
   factory ProfileWeather.fromMap(Map<String, dynamic> map) {
     final condition = map['condition'];
     final place = map['placeName'];
+    final location = map['location'] is Map ? map['location'] as Map : const {};
     return ProfileWeather(
       available: map['schemaVersion'] == 1 && map['state'] == 'available',
       condition: condition is String && conditions.contains(condition)
@@ -60,6 +71,15 @@ class ProfileWeather {
       observedAt: _time(map['observedAt']),
       fetchedAt: _time(map['fetchedAt']),
       expiresAt: _time(map['expiresAt']),
+      locationBasis: map['locationBasis'] is String
+          ? map['locationBasis'] as String
+          : null,
+      locationSource: location['source'] is String
+          ? location['source'] as String
+          : null,
+      locationLat: _number(location['lat'], -90, 90),
+      locationLng: _number(location['lng'], -180, 180),
+      homePresenceExpiresAt: _time(map['homePresenceExpiresAt']),
     );
   }
 
@@ -89,12 +109,17 @@ class ProfileWeather {
   }
 
   bool locationIsLastKnownAt(DateTime now) =>
+      locationIsRetainedAreaAt(now) ||
       locationObservedAt != null &&
-      now.difference(locationObservedAt!) > const Duration(minutes: 8);
+          now.difference(locationObservedAt!) > const Duration(minutes: 8);
 
   bool locationIsRetainedAreaAt(DateTime now) =>
+      locationBasis == 'last_known_home' ||
+      (locationBasis == 'home_wifi' &&
+          (homePresenceExpiresAt == null ||
+              !now.isBefore(homePresenceExpiresAt!))) ||
       locationObservedAt != null &&
-      now.difference(locationObservedAt!) >= const Duration(hours: 1);
+          now.difference(locationObservedAt!) >= const Duration(hours: 1);
 
   String get conditionLabel => switch (condition) {
     'clear' => isDay == false ? 'Clear night' : 'Clear skies',

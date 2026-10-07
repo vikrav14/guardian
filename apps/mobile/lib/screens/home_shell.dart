@@ -3,31 +3,31 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../navigation/home_shell_scope.dart';
+import '../navigation/guardian_navigation_shell.dart';
 import '../services/guardian_entitlements_scope.dart';
 import '../services/guardian_services.dart';
-import '../theme/app_theme.dart';
 import '../widgets/layout/guardian_app_header.dart';
-import '../widgets/navigation/guardian_navigation.dart';
 import 'account_page.dart';
 import 'family_page.dart';
 import 'alerts_page.dart';
 import 'map_dashboard_page.dart';
 import 'safe_zones_page.dart';
 import 'voice_messages_page.dart';
+import 'incident_photo_page.dart';
 import '../services/voice_notification.dart';
 import '../services/voice_messages_service.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.initialIndex = 0});
+  const HomeShell({super.key, this.initialIndex = 0, this.initialIncidentId});
   final int initialIndex;
+  final String? initialIncidentId;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  final _navigatorKey = GlobalKey<NavigatorState>();
   final _dashboardKey = GlobalKey<MapDashboardPageState>();
   late final Stream<GuardianSubscription> _subscriptions;
   StreamSubscription<VoiceNotificationTarget>? _voiceReceived;
@@ -36,7 +36,6 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex;
     _subscriptions = UserProfileService().watchSubscription();
     VoiceNotifications.opened.addListener(_openVoice);
     _voiceReceived = VoiceNotifications.received.stream.listen((target) {
@@ -58,6 +57,16 @@ class _HomeShellState extends State<HomeShell> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final incidentId = widget.initialIncidentId;
+      if (incidentId != null) {
+        unawaited(
+          _navigatorKey.currentState!.push(
+            MaterialPageRoute<void>(
+              builder: (_) => IncidentPhotoPage(incidentId: incidentId),
+            ),
+          ),
+        );
+      }
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null && VoiceNotifications.opened.value == null) {
         VoiceNotifications.opened.value = VoiceNotificationTarget.fromUri(
@@ -97,7 +106,7 @@ class _HomeShellState extends State<HomeShell> {
         throw const VoiceMessageException('device_not_linked');
       }
       unawaited(
-        Navigator.of(context).push(
+        _navigatorKey.currentState!.push(
           MaterialPageRoute<void>(
             builder: (_) => VoiceMessagesPage(
               imei: target.imei,
@@ -131,8 +140,6 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
-  void _goToTab(int index) => setState(() => _index = index);
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -152,28 +159,14 @@ class _HomeShellState extends State<HomeShell> {
               snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData,
           error: snapshot.error,
-          child: HomeShellScope(
-            currentIndex: _index,
-            goToTab: _goToTab,
-            sidebarCollapsed: true,
-            child: Scaffold(
-              backgroundColor: context.guardianColors.canvas,
-              bottomNavigationBar: MobileBottomBar(
-                currentIndex: _index,
-                onTap: _goToTab,
-              ),
-              body: Column(
-                children: [
-                  GuardianAppHeader(
-                    onHome: () => _goToTab(0),
-                    onAlerts: () => _goToTab(4),
-                    onAccount: () => _goToTab(5),
-                  ),
-                  Expanded(
-                    child: IndexedStack(index: _index, children: pages),
-                  ),
-                ],
-              ),
+          child: GuardianNavigationShell(
+            navigatorKey: _navigatorKey,
+            initialIndex: widget.initialIndex,
+            pages: pages,
+            headerBuilder: (goToTab) => GuardianAppHeader(
+              onHome: () => goToTab(0),
+              onAlerts: () => goToTab(4),
+              onAccount: () => goToTab(5),
             ),
           ),
         );

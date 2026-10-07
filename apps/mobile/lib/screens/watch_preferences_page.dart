@@ -499,12 +499,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
             child: FilledButton(
               onPressed: _savingFall ? null : _saveFallDetection,
               child: _savingFall
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : const Text('Save'),
@@ -652,12 +652,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
               child: FilledButton(
                 onPressed: _savingInterval ? null : _saveUploadInterval,
                 child: _savingInterval
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       )
                     : const Text('Save manual interval'),
@@ -886,12 +886,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   ? null
                   : () => _saveWatchAlertProfile(subscription),
               child: _savingWatchAlertProfile
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : const Text('Save call alert style'),
@@ -917,71 +917,40 @@ class _WatchAlertProfileOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final foreground = selected ? Colors.white : colors.textPrimary;
-    final secondary = selected
-        ? Colors.white.withValues(alpha: .78)
-        : colors.textMuted;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selected ? const Color(0xFF28785E) : const Color(0xFF86BDA2),
-          width: selected ? 1.5 : 1,
-        ),
-        gradient: selected
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF145F4C), Color(0xFF1B7E62)],
-              )
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFE8F6EC), Color(0xFFBAE5CE)],
-              ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: Row(
-              children: [
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: foreground,
-                  size: 21,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        profile.label,
-                        style: TextStyle(
-                          color: foreground,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        profile.description,
-                        style: TextStyle(color: secondary, fontSize: 11.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Semantics(
+      selected: selected,
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: onTap,
+          style: GuardianControlStyles.secondary(context).copyWith(
+            backgroundColor: WidgetStatePropertyAll(
+              selected ? colors.accentMuted : colors.surface,
             ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 21,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(profile.label),
+                    const SizedBox(height: 4),
+                    Text(
+                      profile.description,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1301,12 +1270,12 @@ class _AddReminderDialogState extends State<_AddReminderDialog> {
         FilledButton(
           onPressed: _saving ? null : _save,
           child: _saving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 )
               : const Text('Save'),

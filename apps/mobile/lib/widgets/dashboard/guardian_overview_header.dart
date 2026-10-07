@@ -373,12 +373,7 @@ class _OverviewActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-    );
-    final textStyle = dashboardActionTextStyle(context);
     final secondaryStyle = dashboardSecondaryActionStyle(context);
     final journey = OutlinedButton(
       onPressed: onJourney,
@@ -390,16 +385,10 @@ class _OverviewActions extends StatelessWidget {
     );
     final call = FilledButton(
       onPressed: onCall,
-      style: FilledButton.styleFrom(
-        backgroundColor: GuardianColors.forest,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: colors.surfaceMuted,
-        disabledForegroundColor: colors.textSecondary,
-        minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        shape: shape,
-        textStyle: textStyle,
-        tapTargetSize: MaterialTapTargetSize.padded,
+      style: GuardianControlStyles.primary(context).copyWith(
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        ),
       ),
       child: const _ActionLabel(icon: Icons.call_rounded, label: 'Call watch'),
     );

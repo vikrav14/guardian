@@ -348,8 +348,12 @@ class VoiceConversationView extends StatelessWidget {
                                                 ? null
                                                 : () => play(message),
                                             style: IconButton.styleFrom(
-                                              backgroundColor: c.accent,
-                                              foregroundColor: Colors.white,
+                                              backgroundColor: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                              foregroundColor: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
                                             ),
                                             icon: Icon(
                                               active

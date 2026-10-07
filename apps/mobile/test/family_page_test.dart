@@ -129,6 +129,52 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 void main() {
+  testWidgets('cancelling a focused invitation field closes without errors', (
+    tester,
+  ) async {
+    final client = _Client();
+    await _pump(tester, client);
+    await tester.ensureVisible(find.text('I have an invitation code'));
+    await tester.tap(find.text('I have an invitation code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'unfinished-code');
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Accept a personal invitation'), findsNothing);
+    expect(client.changes, isEmpty);
+
+    // Opening it again must start with a fresh draft and an intact navigator.
+    await tester.tap(find.text('I have an invitation code'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    await tester.enterText(find.byType(TextField), 'another unfinished code');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(client.changes, isEmpty);
+  });
+
+  testWidgets('accepting a focused invitation preserves the submitted code', (
+    tester,
+  ) async {
+    final client = _Client();
+    await _pump(tester, client);
+    await tester.ensureVisible(find.text('I have an invitation code'));
+    await tester.tap(find.text('I have an invitation code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '  synthetic-code  ');
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(client.changes.single['action'], 'accept');
+    expect(client.changes.single['body'], {'code': 'synthetic-code'});
+    expect(find.text('Invitation accepted'), findsOneWidget);
+  });
+
   testWidgets(
     'preserved alert routing is explicit and cannot be silently replaced',
     (tester) async {

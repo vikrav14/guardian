@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/alert.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
-import '../safe_zones/safe_zone_logic.dart';
 import '../services/guardian_services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/safe_zones/safe_zone_map.dart';
 import '../widgets/safe_zones/safe_zones_overview.dart';
 import '../navigation/home_shell_scope.dart';
 import '../widgets/layout/guardian_page_frame.dart';
-import 'location_picker_page.dart';
+import 'safe_zone_editor_page.dart';
 import 'home_wifi_setup_page.dart';
 
 class SafeZonesPage extends StatelessWidget {
@@ -25,166 +23,24 @@ class SafeZonesPage extends StatelessWidget {
       return;
     }
 
-    final nameCtrl = TextEditingController(text: 'Home');
-    final radiusCtrl = TextEditingController(text: '150');
-    var imei = devices.first.imei;
-    LatLng? pickedLocation;
-
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return AlertDialog(
-              title: const Text('Add safe zone'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      // ignore: deprecated_member_use
-                      value: imei,
-                      items: [
-                        for (final d in devices)
-                          DropdownMenuItem(
-                            value: d.imei,
-                            child: Text(d.displayName),
-                          ),
-                      ],
-                      onChanged: (v) => setLocal(() => imei = v ?? imei),
-                      decoration: const InputDecoration(labelText: 'Device'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(labelText: 'Zone name'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: radiusCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Radius (meters)',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            pickedLocation != null
-                                ? 'Center: pinned at ${pickedLocation!.latitude.toStringAsFixed(4)}, '
-                                      '${pickedLocation!.longitude.toStringAsFixed(4)}'
-                                : "Center: pendant's current location",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.guardianColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            final device = devices.firstWhere(
-                              (d) => d.imei == imei,
-                            );
-                            final loc = device.location;
-                            final initial = loc?.isValid == true
-                                ? LatLng(loc!.lat, loc.lng)
-                                : const LatLng(-20.2642, 57.4791);
-                            final radius =
-                                double.tryParse(radiusCtrl.text.trim()) ?? 150;
-                            final zoneStyle = styleForCategory(
-                              categoryFromZoneName(nameCtrl.text),
-                            );
-                            final picked = await Navigator.of(ctx).push<LatLng>(
-                              MaterialPageRoute(
-                                builder: (_) => LocationPickerPage(
-                                  initialCenter: initial,
-                                  radiusMeters: radius.clamp(50, 5000),
-                                  zoneColor: zoneStyle.color,
-                                ),
-                              ),
-                            );
-                            if (picked != null) {
-                              setLocal(() => pickedLocation = picked);
-                            }
-                          },
-                          child: const Text('Choose on map'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (created != true || !context.mounted) {
-      nameCtrl.dispose();
-      radiusCtrl.dispose();
-      return;
-    }
-
-    double lat;
-    double lng;
-    if (pickedLocation != null) {
-      lat = pickedLocation!.latitude;
-      lng = pickedLocation!.longitude;
-    } else {
-      final device = devices.firstWhere((d) => d.imei == imei);
-      final loc = device.location;
-      if (loc == null || !loc.isValid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Device has no location yet — wait for a GPS update, or use 'Choose on map'.",
-            ),
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => SafeZoneEditorPage(
+          devices: devices,
+          onCreate: (zone) => GeofenceService().create(
+            imei: zone.imei,
+            name: zone.name,
+            lat: zone.lat,
+            lng: zone.lng,
+            radiusMeters: zone.radiusMeters,
           ),
-        );
-        nameCtrl.dispose();
-        radiusCtrl.dispose();
-        return;
-      }
-      lat = loc.lat;
-      lng = loc.lng;
-    }
-
-    final radius = double.tryParse(radiusCtrl.text.trim()) ?? 150;
-    try {
-      await GeofenceService().create(
-        imei: imei,
-        name: nameCtrl.text,
-        lat: lat,
-        lng: lng,
-        radiusMeters: radius.clamp(50, 5000),
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Safe zone created')));
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
-      }
-    } finally {
-      nameCtrl.dispose();
-      radiusCtrl.dispose();
+        ),
+      ),
+    );
+    if (created == true && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Safe zone created')));
     }
   }
 

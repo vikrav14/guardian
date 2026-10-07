@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -369,7 +370,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       );
       return;
     }
-    final place = location?.placeLabel?.trim();
+    final place = location?.displayPlaceLabel;
     final label = place == null || place.isEmpty
         ? 'the position shown on the map'
         : place;
@@ -601,6 +602,13 @@ class MapDashboardPageState extends State<MapDashboardPage> {
             mapType: _mapType,
             circles: _circles(),
             zoomControlsEnabled: false,
+            // The Home page scroll view otherwise wins the gesture arena
+            // before the native map can receive the two-finger pinch.
+            gestureRecognizers: {
+              Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+            },
+            zoomGesturesEnabled: true,
+            scrollGesturesEnabled: true,
             myLocationButtonEnabled: false,
             myLocationEnabled: false,
             mapToolbarEnabled: false,
@@ -685,6 +693,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
           : LinkedProfileWeather(
               key: ValueKey('profile-weather-${selected.imei}'),
               imei: selected.imei,
+              device: selected,
             ),
       watchCheckStatus:
           selected != null &&

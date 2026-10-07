@@ -9,6 +9,28 @@ function component(longName, ...types) {
   return { long_name: longName, types };
 }
 
+test('incomplete geocoder details never appear as near B or near C', () => {
+  for (const detail of ['B', 'C', 'B.', '123', '', '—']) {
+    assert.equal(selectReverseGeocodePlaceName([{
+      types: ['route'], address_components: [
+        component(detail, 'route'), component('Grand Baie', 'locality'),
+      ],
+    }]), 'Grand Baie');
+  }
+});
+
+test('skip invalid first components and still find complete road codes', () => {
+  for (const route of ['B13', 'A4', 'M2']) {
+    assert.equal(selectReverseGeocodePlaceName([
+      { types: ['premise'], address_components: [component('C', 'premise')] },
+      { types: ['route'], address_components: [component('B', 'route')] },
+      { types: ['route'], address_components: [
+        component(route, 'route'), component('Grand Baie', 'locality'),
+      ] },
+    ]), `Grand Baie · near ${route}`);
+  }
+});
+
 test('place label combines locality with a nearby road', () => {
   const label = selectReverseGeocodePlaceName([
     {

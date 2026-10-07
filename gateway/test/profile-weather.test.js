@@ -15,6 +15,68 @@ const weather = {
 };
 const project = (d = device, w = weather, time = now) => buildWeatherProjection({ device: d, weather: w, now: time });
 
+function homeEvidence(at = now - 30_000) {
+  return { version: 4, policy: 'enrolled_home_radio_v4', pilot: true,
+    state: 'matched', source: 'home_wifi', observedAt: new Date(at).toISOString(),
+    expiresAt: new Date(at + 120_000).toISOString(),
+    anchor: { geofenceId: 'home', label: 'Home', lat: -20.05, lng: 57.59, radiusMeters: 100 } };
+}
+function rememberedHome(at = now - 90 * 60_000) {
+  const home = homeEvidence(at);
+  return { ...home, version: 1, policy: 'last_detected_home_v1',
+    qualifiedUntil: home.expiresAt, bindingHash: 'a'.repeat(64) };
+}
+
+test('returning Home uses qualified saved-pin coordinates instead of the earlier trip', () => {
+  const home = homeEvidence();
+  const value = project({ ...device, homeWifiPresence: home });
+  assert.equal(value.placeName, 'Home');
+  assert.equal(value.locationBasis, 'home_wifi');
+  assert.equal(value.location.lat, home.anchor.lat);
+  assert.equal(value.location.lng, home.anchor.lng);
+  assert.equal(value.location.source, 'home_wifi');
+  assert.equal(value.locationObservedAt, home.observedAt);
+  assert.equal(value.homePresenceExpiresAt, home.expiresAt);
+  assert.equal(value.observedAt, weather.observedAt);
+});
+
+test('remembered Home is historical weather context and never renewed by a heartbeat', () => {
+  const home = rememberedHome();
+  const oldGps = { ...location, recordedAt: new Date(now - 3 * 3_600_000) };
+  const d = { lastHomeWifiDetection: home, lastSatelliteLocation: oldGps, lastHeartbeatAt: new Date(now) };
+  const value = project(d);
+  assert.equal(value.placeName, 'Home');
+  assert.equal(value.locationBasis, 'last_known_home');
+  assert.equal(value.location.source, 'home_wifi_last_detected');
+  assert.equal(value.locationObservedAt, home.observedAt);
+  assert.equal(value.homePresenceExpiresAt, null);
+  // A later accepted GPS departure wins over the remembered Home observation.
+  assert.equal(project({ ...d, lastSatelliteLocation: location }).placeName, 'Lower Vale');
+  assert.equal(project({ lastHomeWifiDetection: rememberedHome(now - MAX_LOCATION_AGE_MS) }).state, 'unavailable');
+});
+
+test('expired, future, conflicting and invalid Home evidence never anchors weather', () => {
+  for (const home of [homeEvidence(now - 120_000), homeEvidence(now + 1),
+    { ...homeEvidence(), conflictReason: 'gps_outside_home' },
+    { ...homeEvidence(), anchor: { lat: 0, lng: 0 } }]) {
+    const value = project({ ...device, homeWifiPresence: home });
+    assert.equal(value.placeName, 'Lower Vale');
+    assert.equal(value.location.source, 'gps');
+  }
+});
+
+test('weather labels use the observed area without nearby road or premise fragments', () => {
+  for (const label of ['Grand Baie · near B', 'Grand Baie · near C', 'Grand Baie · near B13']) {
+    const fix = { ...location, placeLabel: label };
+    const value = project({ lastLocationObservation: fix, lastSatelliteLocation: fix });
+    assert.equal(value.placeName, 'Grand Baie');
+    assert.equal(value.locationObservedAt, location.recordedAt.toISOString());
+    assert.equal(value.observedAt, weather.observedAt);
+  }
+  const fix = { ...location, placeLabel: 'B' };
+  assert.equal(project({ lastLocationObservation: fix }).placeName, weather.location);
+});
+
 test('weather uses source observation age, day/night, exact wind conversion and location expiry', () => {
   const value = project();
   assert.equal(value.state, 'available');
@@ -184,6 +246,22 @@ function runtime(db, getWeather, overrides = {}) {
   return startProfileWeather({ db, provider: { getWeather }, now: () => now,
     onError() {}, setIntervalFn: () => ({ unref() {} }), clearIntervalFn() {}, ...overrides });
 }
+
+test('Home weather fetch uses the saved pin and does not relabel a request after evidence expires', async () => {
+  const home = homeEvidence();
+  const db = fakeDb([['home-device', { ...device, homeWifiPresence: home }]]);
+  let clock = now;
+  const requested = [];
+  const service = runtime(db, async (lat, lng) => {
+    requested.push([lat, lng]);
+    clock = now + 120_000;
+    return weather;
+  }, { now: () => clock });
+  await service.refresh();
+  assert.deepEqual(requested, [[home.anchor.lat, home.anchor.lng]]);
+  assert.equal(db.writes.length, 0, 'conditions fetched for Home must not be assigned to the fallback GPS fix');
+  service.stop();
+});
 
 test('scheduler skips invalid locations, deduplicates successful cached writes and replaces failures', async () => {
   const db = fakeDb([['a', device], ['b', { lastHeartbeatAt: new Date(now) }]]);

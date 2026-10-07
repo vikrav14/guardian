@@ -309,19 +309,24 @@ class _AvatarMarker extends StatelessWidget {
     return Positioned(
       left: position.dx - markerSize / 2,
       top: position.dy - markerHeight,
-      child: PointerInterceptor(
-        child: GestureDetector(
-          onTap: onTap,
-          behavior: HitTestBehavior.opaque,
-          child: _TrackedPersonPin(
-            label: device.displayName,
-            initials: initialsFor(device.displayName),
-            color: color,
-            selected: selected,
-            imageUrl: device.avatarUrl,
-            // Watch is off/out of coverage: this is a last-known position,
-            // not a live one -- fade it so that reads clearly on the map.
-            faded: device.isTrulyOffline,
+      child: IgnorePointer(
+        // The selected person needs no selection tap. Let both fingers reach
+        // the native map even when a pinch starts over their photo.
+        ignoring: selected && !kIsWeb,
+        child: PointerInterceptor(
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: _TrackedPersonPin(
+              label: device.displayName,
+              initials: initialsFor(device.displayName),
+              color: color,
+              selected: selected,
+              imageUrl: device.avatarUrl,
+              // Watch is off/out of coverage: this is a last-known position,
+              // not a live one -- fade it so that reads clearly on the map.
+              faded: device.isTrulyOffline,
+            ),
           ),
         ),
       ),
