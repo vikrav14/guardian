@@ -26,6 +26,31 @@ The app shows a login/register screen. New accounts get a `users/{uid}` profile 
 
 Also enable **Firestore** rules that allow reads while testing (or keep temporary test mode). For production, deploy [`firestore/rules.example`](../firestore/rules.example) after Auth is wired.
 
+## Register/configure the native Android app
+
+The previous Android options incorrectly copied the Firebase Web app ID. Native
+builds now require the Android client configuration and show an unconfigured
+build screen if it is missing. Web configuration remains unchanged.
+
+1. In the existing `guardian-fbadd` Firebase project, select the Android app with
+   package **mu.guardian.guardian**, or register it if none exists. Download its
+   `google-services.json` client configuration (not a service-account JSON).
+2. In `apps/mobile`, copy `android-config.example.json` to `android-config.json`
+   (gitignored). Set `FIREBASE_ANDROID_APP_ID` from the matching client's
+   `client_info.mobilesdk_app_id`, and `FIREBASE_ANDROID_API_KEY` from its
+   `api_key[].current_key`. The app ID must start `1:813482800288:android:`.
+3. Set `GUARDIAN_GATEWAY_URL` to your HTTPS gateway, or use the supplied localhost
+   value with USB port forwarding from the Home Wi-Fi runbook.
+4. Keep the Android Maps key in `android/local.properties` as described below.
+   Its Android restriction must match this package and the test signing key.
+5. Launch with `flutter run -d ANDROID_DEVICE_ID --dart-define-from-file=android-config.json`.
+   Keep other normal app variables. Build with the same file for an APK.
+
+The app explicitly initializes Firebase with Dart options; downloading the
+client JSON alone does not replace these options. No service-account or gateway
+admin credential belongs in the app. Reference: [Firebase Flutter setup](https://firebase.google.com/docs/flutter/setup).
+The compile-only CI APK has no account configuration and is not a customer build.
+
 ## Google Maps
 
 1. In [Google Cloud Console](https://console.cloud.google.com/) enable **Maps JavaScript API** (for Chrome/web) and **Maps SDK for Android** if you build the Android app.

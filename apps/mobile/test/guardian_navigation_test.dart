@@ -7,7 +7,6 @@ import 'package:guardian/widgets/navigation/guardian_navigation_icon.dart';
 
 Future<void> _pumpBar(
   WidgetTester tester, {
-  VoidCallback? onSos,
   ValueChanged<int>? onTap,
   double width = 390,
   double textScale = 1,
@@ -48,7 +47,6 @@ Future<void> _pumpBar(
         bottomNavigationBar: MobileBottomBar(
           currentIndex: currentIndex,
           onTap: onTap ?? (_) {},
-          onSos: onSos ?? () {},
         ),
       ),
     ),
@@ -67,9 +65,9 @@ void main() {
       locale: const Locale('fr'),
     );
     final icons = find.byType(GuardianNavigationIcon);
-    expect(icons, findsNWidgets(5));
+    expect(icons, findsNWidgets(4));
     final top = tester.getTopLeft(icons.first).dy;
-    for (var i = 1; i < 5; i++) {
+    for (var i = 1; i < 4; i++) {
       expect(tester.getTopLeft(icons.at(i)).dy, closeTo(top, .5));
     }
     expect(tester.takeException(), isNull);
@@ -87,9 +85,9 @@ void main() {
         reducedMotion: true,
       );
       expect(
-        tester.getSemantics(find.bySemanticsLabel('Account')),
+        tester.getSemantics(find.bySemanticsLabel('Watch')),
         matchesSemantics(
-          label: 'Account',
+          label: 'Watch',
           isButton: true,
           hasSelectedState: true,
           isSelected: true,
@@ -115,96 +113,26 @@ void main() {
     }
   });
 
-  testWidgets('each destination keeps its existing shell index', (
+  testWidgets('each primary destination selects its shell index', (
     tester,
   ) async {
     final destinations = <int>[];
-    var sosCount = 0;
-    await _pumpBar(tester, onTap: destinations.add, onSos: () => sosCount++);
+    await _pumpBar(tester, onTap: destinations.add);
 
-    for (final label in ['Home', 'Safe zones', 'Alerts', 'Account']) {
+    for (final label in ['Home', 'Safe zones', 'Family', 'Watch']) {
       await tester.tap(find.text(label));
     }
     expect(destinations, [0, 1, 2, 3]);
-    expect(sosCount, 0);
   });
 
-  testWidgets('a tap cannot send SOS', (tester) async {
-    var sent = 0;
-    await _pumpBar(tester, onSos: () => sent++);
-
-    await tester.tap(find.text('SOS'));
-    await tester.pump(const Duration(seconds: 4));
-
-    expect(sent, 0);
-    expect(find.text('Hold 3 sec'), findsOneWidget);
-  });
-
-  testWidgets('early release cancels SOS and the next hold starts over', (
+  testWidgets('bottom bar has main destinations and no alarm or photo action', (
     tester,
   ) async {
-    var sent = 0;
-    await _pumpBar(tester, onSos: () => sent++);
-    var gesture = await tester.startGesture(tester.getCenter(find.text('SOS')));
-    await tester.pump(const Duration(milliseconds: 2900));
-    await gesture.up();
-    await tester.pump(const Duration(seconds: 1));
-    expect(sent, 0);
-
-    gesture = await tester.startGesture(tester.getCenter(find.text('SOS')));
-    await tester.pump(const Duration(milliseconds: 2900));
-    expect(sent, 0);
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(sent, 1);
-    await gesture.up();
-  });
-
-  testWidgets('a completed hold sends SOS once until the pointer is released', (
-    tester,
-  ) async {
-    var sent = 0;
-    await _pumpBar(tester, onSos: () => sent++);
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('SOS')),
-    );
-    await tester.pump(const Duration(milliseconds: 2900));
-    expect(sent, 0);
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(sent, 1);
-    await tester.pump(const Duration(seconds: 3));
-    expect(sent, 1);
-    await gesture.up();
-  });
-
-  testWidgets('a cancelled gesture cannot send SOS later', (tester) async {
-    var sent = 0;
-    await _pumpBar(tester, onSos: () => sent++);
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('SOS')),
-    );
-    await tester.pump(const Duration(seconds: 2));
-    await gesture.cancel();
-    await tester.pump(const Duration(seconds: 3));
-
-    expect(sent, 0);
-    expect(find.text('Hold 3 sec'), findsOneWidget);
-  });
-
-  testWidgets('disposing navigation cancels an unfinished SOS hold', (
-    tester,
-  ) async {
-    var sent = 0;
-    await _pumpBar(tester, onSos: () => sent++);
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('SOS')),
-    );
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 3));
-    await gesture.up();
-
-    expect(sent, 0);
-    expect(tester.takeException(), isNull);
+    await _pumpBar(tester);
+    expect(find.text('SOS'), findsNothing);
+    expect(find.text('Photos'), findsNothing);
+    expect(find.text('Hold 3 sec'), findsNothing);
+    expect(find.byType(GuardianNavigationIcon), findsNWidgets(4));
   });
 
   for (final dark in [false, true]) {

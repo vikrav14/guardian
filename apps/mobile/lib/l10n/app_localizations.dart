@@ -118,6 +118,18 @@ abstract class AppLocalizations {
   /// **'Safe zones'**
   String get navSafeZones;
 
+  /// No description provided for @navFamily.
+  ///
+  /// In en, this message translates to:
+  /// **'Family'**
+  String get navFamily;
+
+  /// No description provided for @navWatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch'**
+  String get navWatch;
+
   /// No description provided for @navAlerts.
   ///
   /// In en, this message translates to:

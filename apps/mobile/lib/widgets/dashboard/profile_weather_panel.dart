@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../location/place_label.dart';
 
 import '../../theme/app_theme.dart';
 import '../../weather/profile_weather.dart';
@@ -49,7 +50,7 @@ class ProfileWeatherPanel extends StatelessWidget {
         ? const Color(0xFFFFF0CC)
         : const Color(0xFFDBF0F7);
     final artwork = current.artworkIndex;
-    final place = current.placeName;
+    final place = weatherAreaLabel(current.placeName);
     final retainedArea = current.locationIsRetainedAreaAt(clock);
     final locationLabel = place == null
         ? 'Weather at last known area'

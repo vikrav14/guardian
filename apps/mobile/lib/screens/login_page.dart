@@ -259,7 +259,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: TextButton(
                           onPressed: _busy ? null : _resetPassword,
                           style: TextButton.styleFrom(
-                            foregroundColor: linkColor,
+                            foregroundColor: theme.colorScheme.primary,
                             minimumSize: const Size(48, 48),
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             textStyle: textStyle.copyWith(
@@ -289,30 +289,13 @@ class _LoginPageState extends State<LoginPage> {
                       child: FilledButton(
                         key: const ValueKey('login-submit'),
                         onPressed: _busy ? null : _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF193F33),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: const Color(0xFF446A5C),
-                          disabledForegroundColor: Colors.white,
-                          minimumSize: const Size(48, 52),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          textStyle: theme.textTheme.labelLarge!.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        style: GuardianControlStyles.primary(context),
                         child: _busy
                             ? SizedBox.square(
                                 dimension: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: colors.textSecondary,
                                   semanticsLabel: _resetting
                                       ? 'Sending reset email'
                                       : _registerMode
@@ -343,7 +326,7 @@ class _LoginPageState extends State<LoginPage> {
                         key: const ValueKey('login-mode-toggle'),
                         onPressed: _busy ? null : _changeMode,
                         style: TextButton.styleFrom(
-                          foregroundColor: linkColor,
+                          foregroundColor: theme.colorScheme.primary,
                           minimumSize: const Size(48, 48),
                           textStyle: textStyle.copyWith(
                             fontWeight: FontWeight.w600,

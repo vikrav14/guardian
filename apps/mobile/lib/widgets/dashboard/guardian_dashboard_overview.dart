@@ -7,6 +7,9 @@ import '../../models/geofence.dart';
 import '../../theme/app_theme.dart';
 import 'dashboard_section_icon.dart';
 import 'guardian_overview_header.dart';
+import 'incident_photo_action.dart';
+import 'voice_message_action.dart';
+import '../../services/voice_messages_service.dart';
 
 /// Presentation only. Watch actions, entitlements and map evidence are supplied
 /// by the page, so changes here do not change location or safety policy.
@@ -132,10 +135,47 @@ class GuardianDashboardOverview extends StatelessWidget {
             onWatchStatus: onWatchStatus,
             watchCheckStatus: watchCheckStatus,
             weather: weather,
+            voiceAction:
+                voiceMessagesPilotImei.isNotEmpty &&
+                    selected.imei == voiceMessagesPilotImei &&
+                    selected.allowsShared('voice')
+                ? VoiceMessageAction(
+                    key: ValueKey('voice-action-${selected.imei}'),
+                    imei: selected.imei,
+                    wearerName: selected.displayName,
+                    wearerAvatarUrl: selected.avatarUrl,
+                  )
+                : null,
+            photoAction: !selected.allowsShared('photos')
+                ? null
+                : IncidentPhotoAction(
+                    key: ValueKey('photo-action-${selected.imei}'),
+                    imei: selected.imei,
+                    wearerName: selected.displayName,
+                    onCall: onCall,
+                    onLocation: onLocationDetails,
+                  ),
           ),
           SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
             builder: (context, constraints) {
+              if (!selected.allowsShared('location')) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _DashboardNotice(
+                      icon: Icons.lock_outline_rounded,
+                      title: 'Location is not shared',
+                      message:
+                          'You can still use the features shared with you. The owner can change your access in Family.',
+                    ),
+                    if (wellness != null) ...[
+                      const SizedBox(height: 20),
+                      wellness!,
+                    ],
+                  ],
+                );
+              }
               final location = _LocationPanel(
                 device: selected,
                 map: map,
@@ -145,11 +185,12 @@ class GuardianDashboardOverview extends StatelessWidget {
               final details = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SafeZonesPanel(
-                    device: selected,
-                    geofences: geofences,
-                    onManage: onSafeZones,
-                  ),
+                  if (selected.allowsShared('zones'))
+                    _SafeZonesPanel(
+                      device: selected,
+                      geofences: geofences,
+                      onManage: onSafeZones,
+                    ),
                   if (wellness != null &&
                       constraints.maxWidth >= 960 &&
                       MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
@@ -237,7 +278,7 @@ class _LocationPanel extends StatelessWidget {
     final inset = compact ? 12.0 : 24.0;
     final location = device.mapDisplayLocation;
     final hasLocation = location?.isValid == true;
-    final place = location?.placeLabel?.trim();
+    final place = location?.displayPlaceLabel;
     final fixLabel = deviceMapLocationFixLabel(device);
     final recorded = location?.recordedAt;
     final age = recorded == null ? null : DateTime.now().difference(recorded);
@@ -780,11 +821,5 @@ TextStyle _bodyStyle(BuildContext context, {bool strong = false}) => TextStyle(
   height: 1.5,
 );
 
-ButtonStyle _textButtonStyle(BuildContext context) => TextButton.styleFrom(
-  foregroundColor: context.guardianColors.textPrimary,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-  textStyle: Theme.of(
-    context,
-  ).textTheme.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
-);
+ButtonStyle _textButtonStyle(BuildContext context) =>
+    GuardianControlStyles.link(context);

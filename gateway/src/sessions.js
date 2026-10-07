@@ -125,11 +125,13 @@ function handleIdleTimeout(socket) {
   return { action: 'destroy' };
 }
 
-function scheduleLocationFreshnessProbe(socket, delayMs = outingLocationStaleMs()) {
+function scheduleLocationFreshnessProbe(socket, delayMs) {
   const session = sessions.get(socket);
   if (!session) return;
   clearLocationTimer(session);
   if (!session.outingActive) return;
+  delayMs ??= Math.max(outingLocationStaleMs(),
+    (session.expectedReportingIntervalSeconds || 60) * 1000 + 60_000);
   session.locationTimer = setTimeout(() => {
     handleLocationStale(socket);
   }, delayMs);
@@ -144,6 +146,13 @@ function handleLocationStale(socket) {
   const session = sessions.get(socket);
   if (!session || !session.outingActive) return { action: 'inactive' };
   clearLocationTimer(session);
+  if (session.outingActiveUntilMs != null && Date.now() >= session.outingActiveUntilMs) {
+    session.outingActive = false;
+    return { action: 'outing_expired' };
+  }
+  // One location recovery burst per fresh fix. Continued heartbeats alone
+  // cannot turn this into an indefinite three-minute CR loop.
+  if (session.lastLocationProbeAt) return { action: 'probe_already_sent' };
 
   const probed = invokeRecoveryProbe(session, 'location_stale');
   if (probed) {
@@ -171,7 +180,10 @@ function touchSessionActivity(socket) {
   const idleMs = idleTimeoutMsForInterval(
     session.expectedReportingIntervalSeconds
   );
-  scheduleIdleTimer(socket, idleMs);
+  const deadline = session.packetRecoveryProbeAt
+    ? session.packetRecoveryProbeAt + recoveryGraceMs()
+    : session.lastPacketAt + idleMs;
+  scheduleIdleTimer(socket, Math.max(1, deadline - Date.now()));
 }
 
 function registerSession(socket, initial = {}) {
@@ -212,7 +224,7 @@ function noteSessionPacket(socket) {
 
 function setDeviceReportingContext(
   imeiOrProtocolId,
-  { expectedReportingIntervalSeconds, outingActive } = {}
+  { expectedReportingIntervalSeconds, outingActive, outingActiveUntilMs, reportingCommandHandedOff } = {}
 ) {
   const matches = findSocketsForDevice(imeiOrProtocolId);
   const interval = positiveNumber(expectedReportingIntervalSeconds);
@@ -220,8 +232,10 @@ function setDeviceReportingContext(
     if (interval != null) {
       session.expectedReportingIntervalSeconds = interval;
     }
+    if (reportingCommandHandedOff) session.reportingCommandHandedOff = true;
     const wasOuting = session.outingActive === true;
     session.outingActive = outingActive === true;
+    if (outingActiveUntilMs != null) session.outingActiveUntilMs = outingActiveUntilMs;
     touchSessionActivity(socket);
 
     if (!session.outingActive) {
@@ -244,6 +258,7 @@ function noteDeviceLocation(imeiOrProtocolId, nowMs = Date.now()) {
 }
 
 function unregisterSession(socket) {
+  require('./command-coordinator').commandCoordinator.disconnect(socket);
   const session = sessions.get(socket);
   if (session) {
     clearIdleTimer(session);

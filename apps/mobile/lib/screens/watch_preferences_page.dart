@@ -6,6 +6,8 @@ import '../models/device.dart';
 import '../models/medication_reminder.dart';
 import '../models/watch_alert_profile.dart';
 import '../services/guardian_services.dart';
+import '../services/voice_medication_service.dart';
+import '../widgets/care/voice_medication_card.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/guardian_card.dart';
 import '../widgets/care/care_profile_card.dart';
@@ -36,7 +38,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
   late Set<String> _adaptivePriorities;
 
   late bool _fallEnabled;
-  late bool _dialMonitor;
   late double _sensitivity;
   bool _savingFall = false;
 
@@ -59,16 +60,16 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
         ? {...GuardianCarePriority.defaultsFor(_adaptiveProfile)}
         : {...widget.device.carePriorities};
     _fallEnabled = widget.device.fallDetectionEnabled ?? false;
-    _dialMonitor = widget.device.fallDetectionDialMonitor ?? false;
     _sensitivity = (widget.device.fallDetectionSensitivity ?? 3).toDouble();
     _locationReportingMode = widget.device.locationReportingMode;
-    final savedInterval = widget.device.locationReportingIntervalSeconds;
+    final savedInterval =
+        widget.device.manualReportingIntervalSeconds ??
+        widget.device.locationReportingIntervalSeconds;
     _uploadIntervalSeconds = _uploadIntervalPresets.contains(savedInterval)
         ? savedInterval!
-        : 60;
+        : 600;
     _watchAlertProfile =
-        widget.device.watchAlertProfile ??
-        WatchAlertProfile.soundAndVibration;
+        widget.device.watchAlertProfile ?? WatchAlertProfile.soundAndVibration;
   }
 
   Future<void> _saveFallDetection() async {
@@ -77,7 +78,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       await DeviceService().updateFallDetectionPrefs(
         widget.device.imei,
         enabled: _fallEnabled,
-        dialMonitorOnFall: _dialMonitor,
+        dialMonitorOnFall: false,
         sensitivityLevel: _sensitivity.round(),
       );
       if (!mounted) return;
@@ -127,7 +128,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Automatic location reporting enabled. Guardian will adapt to battery and safety events.',
+            'Automatic reporting enabled: normally every 10 minutes, with temporary faster updates for safety events and active journeys.',
           ),
         ),
       );
@@ -146,10 +147,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Use Silent mode?'),
+          title: const Text('Silence incoming calls?'),
           content: const Text(
-            'Silent mode removes sound and vibration from this watch. '
-            'That includes medication reminders and other watch alerts.',
+            'Request no ringing or vibration for incoming calls. '
+            'Medication reminders may still play a tone or recorded voice.',
           ),
           actions: [
             TextButton(
@@ -168,9 +169,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     setState(() => _watchAlertProfile = profile);
   }
 
-  Future<void> _saveWatchAlertProfile(
-    GuardianSubscription subscription,
-  ) async {
+  Future<void> _saveWatchAlertProfile(GuardianSubscription subscription) async {
     setState(() => _savingWatchAlertProfile = true);
     try {
       await DeviceService().updateWatchAlertProfile(
@@ -182,15 +181,15 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_watchAlertProfile.label} request sent to the watch',
+            'Call alert style: ${_watchAlertProfile.label}. Request queued for the watch.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not reach watch: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not queue call alert style: $e')),
+      );
     } finally {
       if (mounted) setState(() => _savingWatchAlertProfile = false);
     }
@@ -277,17 +276,18 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   ),
                 ),
                 const SizedBox(height: GuardianSpacing.lg),
-                WellnessSettingsCard(
-                  subscription: subscription,
-                  onOpen: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => WellnessRoutinePage(
-                        imei: widget.device.imei,
-                        subscription: subscription,
+                if (widget.device.allowsShared('wellbeing'))
+                  WellnessSettingsCard(
+                    subscription: subscription,
+                    onOpen: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => WellnessRoutinePage(
+                          imei: widget.device.imei,
+                          subscription: subscription,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(height: GuardianSpacing.lg),
                 _buildLocationUpdatesCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
@@ -297,7 +297,8 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                 ],
                 _buildFallDetectionCard(colors),
                 const SizedBox(height: GuardianSpacing.lg),
-                if (medicationDecision.allowed) ...[
+                if (medicationDecision.allowed &&
+                    widget.device.allowsShared('reminders')) ...[
                   _buildMedicationCard(colors, subscription),
                   if (careDecision.allowed)
                     const SizedBox(height: GuardianSpacing.lg),
@@ -309,9 +310,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     onChanged: _onCareDraftChanged,
                   ),
                   const SizedBox(height: GuardianSpacing.lg),
-                  _buildAdaptiveCareSections(
-                    colors,
-                  ),
+                  _buildAdaptiveCareSections(colors),
                 ] else
                   _PlanNotice(decision: careDecision),
               ],
@@ -464,16 +463,6 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           if (_fallEnabled) ...[
             const Divider(height: GuardianSpacing.xl),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                'Auto-dial monitor number on fall',
-                style: TextStyle(fontSize: 13.5),
-              ),
-              value: _dialMonitor,
-              onChanged: (v) => setState(() => _dialMonitor = v),
-            ),
-            const SizedBox(height: GuardianSpacing.sm),
             Row(
               children: [
                 Text(
@@ -510,12 +499,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
             child: FilledButton(
               onPressed: _savingFall ? null : _saveFallDetection,
               child: _savingFall
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
                   : const Text('Save'),
@@ -573,7 +562,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                     ),
                     Text(
                       automatic
-                          ? 'Automatic is on. Guardian adapts reporting to battery and safety events.'
+                          ? 'Automatic is on. Normal updates every 10 minutes.'
                           : 'Manual override is on.',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
@@ -623,11 +612,13 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   const SizedBox(width: GuardianSpacing.sm),
                   Expanded(
                     child: Text(
-                      'Currently ${labelFor(_uploadIntervalSeconds)}. '
-                      'Battery policy: 60%+ = 1 min, 30-59% = 5 min, '
-                      '15-29% = 10 min, below 15% = 15 min. '
-                      'During SOS, Guardian temporarily increases reporting '
-                      'to 1 min, or 5 min if the battery is critically low.',
+                      'Normal location updates are requested every 10 minutes '
+                      'at every battery level. SOS, fall alerts and active '
+                      'journeys temporarily use 1-minute updates, or 5 minutes '
+                      'below 15% battery. After temporary activity ends, '
+                      'reporting returns to 10 minutes. Locate now can briefly '
+                      'request faster updates. Signal and GPS availability '
+                      'can delay a fresh location.',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 11.5,
@@ -661,12 +652,12 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
               child: FilledButton(
                 onPressed: _savingInterval ? null : _saveUploadInterval,
                 child: _savingInterval
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       )
                     : const Text('Save manual interval'),
@@ -692,6 +683,10 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
     GuardianThemeColors colors,
     GuardianSubscription subscription,
   ) {
+    if (voiceMedicationPilotImei.isNotEmpty &&
+        widget.device.imei == voiceMedicationPilotImei) {
+      return VoiceMedicationCard(imei: widget.device.imei);
+    }
     return GuardianCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -836,7 +831,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Watch alert style',
+                      'Call alert style',
                       style: TextStyle(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -844,7 +839,7 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                       ),
                     ),
                     Text(
-                      'Choose how the watch alerts the wearer',
+                      'Choose an alert style for incoming calls',
                       style: TextStyle(color: colors.textMuted, fontSize: 11.5),
                     ),
                   ],
@@ -854,13 +849,18 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
           ),
           const SizedBox(height: GuardianSpacing.sm),
           Text(
-            'This applies to medication reminders and other watch alerts. '
-            'Changes need a current watch connection.',
+            'Medication reminders are separate and may still play a tone or '
+            'recorded voice. Changes need a current watch connection.',
             style: TextStyle(
               color: colors.textMuted,
               fontSize: 11.5,
               height: 1.35,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'The selected preference is not confirmed by the watch.',
+            style: TextStyle(color: colors.textMuted, fontSize: 11.5),
           ),
           const SizedBox(height: GuardianSpacing.md),
           Column(
@@ -886,15 +886,15 @@ class _WatchPreferencesPageState extends State<WatchPreferencesPage> {
                   ? null
                   : () => _saveWatchAlertProfile(subscription),
               child: _savingWatchAlertProfile
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     )
-                  : const Text('Save alert style'),
+                  : const Text('Save call alert style'),
             ),
           ),
         ],
@@ -917,71 +917,40 @@ class _WatchAlertProfileOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final foreground = selected ? Colors.white : colors.textPrimary;
-    final secondary = selected
-        ? Colors.white.withValues(alpha: .78)
-        : colors.textMuted;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selected ? const Color(0xFF28785E) : const Color(0xFF86BDA2),
-          width: selected ? 1.5 : 1,
-        ),
-        gradient: selected
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF145F4C), Color(0xFF1B7E62)],
-              )
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFE8F6EC), Color(0xFFBAE5CE)],
-              ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: Row(
-              children: [
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: foreground,
-                  size: 21,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        profile.label,
-                        style: TextStyle(
-                          color: foreground,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        profile.description,
-                        style: TextStyle(color: secondary, fontSize: 11.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Semantics(
+      selected: selected,
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: onTap,
+          style: GuardianControlStyles.secondary(context).copyWith(
+            backgroundColor: WidgetStatePropertyAll(
+              selected ? colors.accentMuted : colors.surface,
             ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 21,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(profile.label),
+                    const SizedBox(height: 4),
+                    Text(
+                      profile.description,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1301,12 +1270,12 @@ class _AddReminderDialogState extends State<_AddReminderDialog> {
         FilledButton(
           onPressed: _saving ? null : _save,
           child: _saving
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 )
               : const Text('Save'),

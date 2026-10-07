@@ -345,8 +345,7 @@ class PhotoManagementControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = context.guardianColors.accent;
-    final actionStyle = TextButton.styleFrom(foregroundColor: accent);
+    final actionStyle = GuardianControlStyles.link(context);
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: GuardianSpacing.xxs,
@@ -354,6 +353,8 @@ class PhotoManagementControls extends StatelessWidget {
         Semantics(
           button: true,
           label: '${hasPhoto ? 'Change' : 'Add'} photo for $subjectName',
+          enabled: !busy,
+          onTap: busy ? null : onChange,
           excludeSemantics: true,
           child: TextButton.icon(
             onPressed: busy ? null : onChange,
@@ -366,10 +367,12 @@ class PhotoManagementControls extends StatelessWidget {
           Semantics(
             button: true,
             label: 'Remove photo for $subjectName',
+            enabled: !busy,
+            onTap: busy ? null : onRemove,
             excludeSemantics: true,
             child: TextButton(
               onPressed: busy ? null : onRemove,
-              style: actionStyle,
+              style: GuardianControlStyles.destructiveLink(context),
               child: const Text('Remove photo'),
             ),
           ),
@@ -432,7 +435,9 @@ class GuardianSettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final iconColor = danger ? GuardianColors.danger : colors.textSecondary;
+    final iconColor = danger
+        ? GuardianControlStyles.dangerColor(context)
+        : Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -451,7 +456,11 @@ class GuardianSettingsRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: danger ? GuardianColors.dangerBg : colors.accentMuted,
+                color: danger
+                    ? GuardianControlStyles.dangerColor(
+                        context,
+                      ).withValues(alpha: .10)
+                    : colors.accentMuted,
                 borderRadius: BorderRadius.circular(13),
               ),
               child: Icon(icon, size: 19, color: iconColor),
@@ -463,20 +472,29 @@ class GuardianSettingsRow extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.normal,
-                  color: danger ? GuardianColors.danger : colors.textPrimary,
+                  color: danger
+                      ? GuardianControlStyles.dangerColor(context)
+                      : colors.textPrimary,
                 ),
               ),
             ),
-            if (trailing != null)
-              Text(
-                trailing!,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.accent,
-                  fontWeight: FontWeight.w600,
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  trailing!,
+                  textAlign: TextAlign.end,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              )
-            else if (!danger)
-              Icon(Icons.chevron_right, size: 16, color: colors.textMuted),
+              ),
+            ],
+            if (!danger) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, size: 20, color: colors.textSecondary),
+            ],
           ],
         ),
       ),
@@ -570,10 +588,6 @@ class GuardianBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MobileBottomBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-      onSos: () => onTap(0),
-    );
+    return MobileBottomBar(currentIndex: currentIndex, onTap: onTap);
   }
 }

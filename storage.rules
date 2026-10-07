@@ -7,9 +7,15 @@ service firebase.storage {
 
     function linkedTo(imei) {
       return signedIn()
-        && imei in firestore.get(
+        && (firestore.exists(/databases/(default)/documents/familyServices/$(imei))
+          ? firestore.get(/databases/(default)/documents/familyServices/$(imei)).data.ownerUid == request.auth.uid
+          : imei in firestore.get(
           /databases/(default)/documents/users/$(request.auth.uid)
-        ).data.linkedImeis;
+        ).data.linkedImeis);
+    }
+
+    match /privateSafetySnapshots/{allPaths=**} {
+      allow read, write: if false;
     }
 
     match /deviceAvatars/{imei}/avatar {

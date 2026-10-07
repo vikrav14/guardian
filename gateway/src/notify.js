@@ -10,6 +10,8 @@ const {
   sendPreparedFallWhatsApp,
 } = require('./fall-whatsapp');
 const { deviceAtFall } = require('./fall-location-snapshot');
+const { prepareRecipientCallLink, redactCallLinkResult } = require('./watch-call-links');
+const { withIncidentPhotoTemplate } = require('./incident-photo-templates');
 const { summarizeMetaDelivery } = require('./meta-delivery');
 const {
   FEATURE, hasEntitlement, loadEntitlementsForUser,
@@ -23,6 +25,10 @@ const {
  * Find guardian users who linked this IMEI and collect emergency contacts.
  */
 async function findContactsForImei(db, imei) {
+  if (db) {
+    const managed = await require('./family-notifications').managedContacts(db, imei);
+    if (managed !== null) return managed;
+  }
   const snap = await db.collection('users').where('linkedImeis', 'array-contains', imei).get();
   const contacts = [];
   for (const doc of snap.docs) {
@@ -142,14 +148,14 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   const sosPreparationPromise =
     isSos && config.notifyWhatsApp &&
       whatsappContacts.length > 0
-      ? prepareSosWhatsApp({ device: device || {}, alert }).catch((err) => ({
+      ? prepareSosWhatsApp({ device: device || {}, alert, alertId }).catch((err) => ({
           error: err.message,
         }))
       : null;
   const fallPreparationPromise =
     isFall && config.notifyWhatsApp &&
       whatsappContacts.length > 0
-      ? prepareFallWhatsApp({ device: device || {}, alert }).catch((err) => ({
+      ? prepareFallWhatsApp({ device: device || {}, alert, alertId }).catch((err) => ({
           error: err.message,
         }))
       : null;
@@ -159,9 +165,11 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
   }
 
   for (const c of contacts) {
+    if (c.managedFamily && (!(isSos || isFall) || !config.notifyWhatsApp ||
+        !await require('./family-notifications').claimSafetyDelivery(db, imei, alertId, c.guardianUid, c.whatsapp))) continue;
     const entry = { name: c.name, phone: c.phone, channels: {} };
 
-    if (config.notifySms) {
+    if (config.notifySms && !c.managedFamily) {
       entry.channels.sms = await sendSms(c.phone, text);
     } else {
       entry.channels.sms = { ok: false, skipped: true, reason: 'NOTIFY_SMS=false' };
@@ -184,10 +192,13 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
             fallbackUsed: false,
           };
         } else {
-          entry.channels.whatsapp = await sendPreparedSosWhatsApp(
+          const recipientPrepared = c.managedFamily ? prepared : withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
+            db, imei, alertId, alert, device, contact: c,
+          }), { type: 'sos', device, alert });
+          entry.channels.whatsapp = redactCallLinkResult(await sendPreparedSosWhatsApp(
             waTarget,
-            prepared
-          );
+            recipientPrepared
+          ), recipientPrepared);
         }
       } else if (isFall && fallPreparationPromise) {
         const prepared = await fallPreparationPromise;
@@ -201,10 +212,13 @@ async function notifyEmergencyContacts(db, imei, alert, { alertId = null } = {})
               fallbackUsed: false,
           };
         } else {
-          entry.channels.whatsapp = await sendPreparedFallWhatsApp(
+          const recipientPrepared = c.managedFamily ? prepared : withIncidentPhotoTemplate(await prepareRecipientCallLink(prepared, {
+            db, imei, alertId, alert, device, contact: c,
+          }), { type: 'fall', device, alert });
+          entry.channels.whatsapp = redactCallLinkResult(await sendPreparedFallWhatsApp(
             waTarget,
-            prepared
-          );
+            recipientPrepared
+          ), recipientPrepared);
         }
       } else {
         entry.channels.whatsapp = {

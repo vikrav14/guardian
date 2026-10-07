@@ -29,6 +29,8 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
   const stepReports = [];
   let boundaryEvaluations = 0, dwellPoints = 0;
   const modules = {
+    './watch-sms-policy': require('../src/watch-sms-policy'),
+    './voice-message-runtime': { createVoiceReceiver: () => ({ observe: () => false, startCleanup: () => null }) },
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
@@ -52,6 +54,7 @@ for (const durable of [false, true]) test(`real dispatcher respects Home priorit
     './location-provenance': require('../src/location-provenance'),
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
+    './safety-snapshot-live': { startSnapshotController: () => null, isPhotoFrame: () => false },
     './reminder-scheduler': { startReminderScheduler: noop },
     './profile-weather': { startProfileWeather: noop },
     './ops-metrics': { incrementEvent: noop, startMetricsFlusher: noop },

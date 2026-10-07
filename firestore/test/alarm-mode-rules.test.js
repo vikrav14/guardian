@@ -4,9 +4,10 @@ const { after, before, test } = require('node:test');
 
 const {
   assertFails,
+  assertSucceeds,
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
-const { doc, serverTimestamp, setDoc } = require('firebase/firestore');
+const { doc, serverTimestamp, setDoc, getDoc, deleteDoc } = require('firebase/firestore');
 
 const projectId = 'guardian-alarm-mode-rules-test';
 const imei = '999999999999999';
@@ -24,6 +25,7 @@ before(async () => {
   });
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'devices', imei), { online: true });
     await setDoc(doc(context.firestore(), 'users', 'linked-user'), {
       serviceOwnerUid: 'linked-user',
       linkedImeis: [imei],
@@ -47,4 +49,27 @@ test('linked clients cannot change the physical V52 SOS alarm mode', async () =>
       createdAt: serverTimestamp(),
     }),
   );
+});
+
+test('clients cannot impersonate the operator or read/reset newest-command watermarks', async () => {
+  for (const uid of ['linked-user', 'operator:queue-v52-alarm-mode']) {
+    const db = testEnv.authenticatedContext(uid).firestore();
+    await assertFails(setDoc(doc(db, 'deviceCommands', 'spoof-operator'), {
+      imei, type: 'set_alarm_mode', params: { mode: 0 }, status: 'pending',
+      createdBy: 'operator:queue-v52-alarm-mode', createdAt: serverTimestamp(),
+    }));
+    const ref = doc(db, 'deviceCommandIntents', 'test-key');
+    await assertFails(getDoc(ref));
+    await assertFails(setDoc(ref, { commandId: 'old', createdAtMs: 0 }));
+    await assertFails(deleteDoc(ref));
+  }
+});
+
+ test('linked guardians may save manual reporting intent but cannot forge emergency policy', async () => {
+  const device = uid => doc(testEnv.authenticatedContext(uid).firestore(), 'devices', imei);
+  await assertSucceeds(setDoc(device('linked-user'), {
+    locationReportingMode: 'manual', manualReportingIntervalSeconds: 1200,
+  }, { merge: true }));
+  await assertFails(setDoc(device('unlinked'), { manualReportingIntervalSeconds: 60 }, { merge: true }));
+  await assertFails(setDoc(device('linked-user'), { adaptiveReporting: { sosActiveUntil: serverTimestamp() } }, { merge: true }));
 });

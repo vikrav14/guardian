@@ -19,6 +19,8 @@ import '../journey/journey_models.dart';
 import '../journey/journey_utils.dart';
 import 'guardian_entitlements.dart';
 import 'imei_utils.dart';
+import 'shared_device_stream.dart';
+import 'family_sharing_service.dart';
 
 export 'guardian_entitlements.dart';
 
@@ -27,8 +29,9 @@ export 'guardian_entitlements.dart';
 /// to filter by that set rather than reading the collection unscoped.
 Stream<List<String>> _watchLinkedImeis(
   FirebaseFirestore db,
-  FirebaseAuth auth,
-) {
+  FirebaseAuth auth, {
+  String permission = 'location',
+}) {
   final uid = auth.currentUser?.uid;
   if (uid == null) return Stream.value(const []);
   return db
@@ -39,7 +42,20 @@ Stream<List<String>> _watchLinkedImeis(
         final raw =
             (snap.data()?['linkedImeis'] as List?)?.whereType<String>() ??
             const <String>[];
-        return normalizeLinkedImeis(raw);
+        final grants = snap.data()?['familyAccess'] as Map? ?? const {};
+        return normalizeLinkedImeis(
+          raw.where((imei) {
+            final grant = grants[imei] as Map?;
+            if (grant == null) return true;
+            final until = grant['untilMs'] as int?;
+            if (until != null &&
+                until <= DateTime.now().millisecondsSinceEpoch) {
+              return false;
+            }
+            return grant['owner'] == true ||
+                (grant['permissions'] as Map?)?[permission] == true;
+          }),
+        );
       })
       .distinct(linkedImeisEqual);
 }
@@ -107,8 +123,28 @@ class DeviceService {
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
 
+  Future<bool> _saveSharedProfile(
+    String imei,
+    Map<String, dynamic> patch,
+  ) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+    final user = (await _db.collection('users').doc(uid).get()).data();
+    if (!(user?['familyServiceImeis'] as List? ?? const []).contains(imei)) {
+      return false;
+    }
+    final client = FamilySharingService(auth: _auth);
+    try {
+      await client.change('profile', patch, imei: imei);
+    } finally {
+      client.close();
+    }
+    return true;
+  }
+
   Future<void> renameDevice(String imei, String name) async {
     final trimmed = name.trim();
+    if (await _saveSharedProfile(imei, {'name': trimmed})) return;
     await _db.collection('devices').doc(imei).update({
       'name': trimmed.isEmpty ? FieldValue.delete() : trimmed,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -122,6 +158,12 @@ class DeviceService {
   }) async {
     final trimmedNickname = nickname.trim();
     final trimmedRelationship = relationship.trim();
+    if (await _saveSharedProfile(imei, {
+      'nickname': trimmedNickname,
+      'relationship': trimmedRelationship,
+    })) {
+      return;
+    }
     await _db.collection('devices').doc(imei).update({
       'nickname': trimmedNickname.isEmpty
           ? FieldValue.delete()
@@ -151,6 +193,7 @@ class DeviceService {
 
   Future<void> updateAvatarUrl(String imei, String? avatarUrl) async {
     final trimmed = avatarUrl?.trim();
+    if (await _saveSharedProfile(imei, {'avatarUrl': trimmed})) return;
     await _db.collection('devices').doc(imei).update({
       'avatarUrl': trimmed == null || trimmed.isEmpty
           ? FieldValue.delete()
@@ -220,6 +263,7 @@ class DeviceService {
   }) async {
     await _db.collection('devices').doc(imei).update({
       'locationReportingIntervalSeconds': seconds,
+      'manualReportingIntervalSeconds': seconds,
       'locationReportingMode': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -246,10 +290,10 @@ class DeviceService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await DeviceCommandService(db: _db, auth: _auth).setWatchAlertProfile(
-      imei,
-      profile,
-    );
+    await DeviceCommandService(
+      db: _db,
+      auth: _auth,
+    ).setWatchAlertProfile(imei, profile);
   }
 
   /// Links a watch IMEI to the signed-in guardian's account.
@@ -520,33 +564,11 @@ class DeviceService {
   /// Streams one linked device so settings pages always use the latest
   /// Firestore care profile instead of a stale Device object passed by
   /// the previous screen.
-  Stream<Device?> watchDevice(String imei) {
-    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
-      if (!linked.contains(imei)) {
-        return Stream.value(null);
-      }
+  Stream<Device?> watchDevice(String imei) => watchLinkedDevices().map(
+    (devices) => devices.where((device) => device.imei == imei).firstOrNull,
+  );
 
-      return _db.collection('devices').doc(imei).snapshots().map((snap) {
-        if (!snap.exists) return null;
-        return Device.fromDoc(snap);
-      });
-    });
-  }
-
-  /// Streams only the devices this signed-in guardian is linked to.
-  Stream<List<Device>> watchLinkedDevices() {
-    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
-      if (linked.isEmpty) return Stream.value(const <Device>[]);
-      return _db
-          .collection('devices')
-          .where(
-            FieldPath.documentId,
-            whereIn: linked.take(_maxWhereIn).toList(),
-          )
-          .snapshots()
-          .map((snap) => snap.docs.map(Device.fromDoc).toList());
-    });
-  }
+  Stream<List<Device>> watchLinkedDevices() => sharedDeviceStream(_db, _auth);
 }
 
 class ActivityService {
@@ -625,7 +647,9 @@ class GeofenceService {
   final FirebaseAuth _auth;
 
   Stream<List<Geofence>> watchAll() {
-    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+    return _watchLinkedImeis(_db, _auth, permission: 'zones').asyncExpand((
+      linked,
+    ) {
       if (linked.isEmpty) return Stream.value(const <Geofence>[]);
       return _db
           .collection('geofences')
@@ -733,17 +757,15 @@ class MedicationReminderService {
     });
 
     try {
-      final commandId = await DeviceCommandService(
-        db: _db,
-        auth: _auth,
-      ).setMedicationReminder(
-        imei,
-        time: time,
-        frequency: frequency,
-        week: week,
-        text: text,
-        reminderId: reminderRef.id,
-      );
+      final commandId = await DeviceCommandService(db: _db, auth: _auth)
+          .setMedicationReminder(
+            imei,
+            time: time,
+            frequency: frequency,
+            week: week,
+            text: text,
+            reminderId: reminderRef.id,
+          );
       await reminderRef.update({'deviceCommandId': commandId});
     } catch (error) {
       await reminderRef.update({
@@ -769,18 +791,16 @@ class MedicationReminderService {
     });
 
     try {
-      final commandId = await DeviceCommandService(
-        db: _db,
-        auth: _auth,
-      ).setMedicationReminder(
-        reminder.imei,
-        time: reminder.time,
-        frequency: reminder.frequency,
-        week: reminder.week,
-        text: reminder.text,
-        enabled: enabled,
-        reminderId: reminder.id,
-      );
+      final commandId = await DeviceCommandService(db: _db, auth: _auth)
+          .setMedicationReminder(
+            reminder.imei,
+            time: reminder.time,
+            frequency: reminder.frequency,
+            week: reminder.week,
+            text: reminder.text,
+            enabled: enabled,
+            reminderId: reminder.id,
+          );
       await _db.collection('medicationReminders').doc(reminder.id).update({
         'deviceCommandId': commandId,
       });
@@ -817,18 +837,16 @@ class MedicationReminderService {
     });
 
     try {
-      final commandId = await DeviceCommandService(
-        db: _db,
-        auth: _auth,
-      ).setMedicationReminder(
-        reminder.imei.isNotEmpty ? reminder.imei : (imei ?? ''),
-        time: reminder.time,
-        frequency: reminder.frequency,
-        week: reminder.week,
-        text: reminder.text,
-        enabled: false,
-        reminderId: reminder.id,
-      );
+      final commandId = await DeviceCommandService(db: _db, auth: _auth)
+          .setMedicationReminder(
+            reminder.imei.isNotEmpty ? reminder.imei : (imei ?? ''),
+            time: reminder.time,
+            frequency: reminder.frequency,
+            week: reminder.week,
+            text: reminder.text,
+            enabled: false,
+            reminderId: reminder.id,
+          );
       await reminderRef.update({'deviceCommandId': commandId});
     } catch (error) {
       await reminderRef.update({
@@ -905,9 +923,7 @@ class WellbeingService {
             final readings = <WellbeingReading>[];
             for (final doc in snapshot.docs) {
               try {
-                final reading = WellbeingReading.fromDoc(
-                  doc,
-                );
+                final reading = WellbeingReading.fromDoc(doc);
                 if (range.contains(
                   reading.observedAt,
                   now: now ?? DateTime.now(),
@@ -928,11 +944,7 @@ class WellbeingService {
     required GuardianSubscription subscription,
     required WellnessWindow window,
   }) =>
-      watchRecentReadings(
-        imei,
-        subscription: subscription,
-        window: window,
-      ).map(
+      watchRecentReadings(imei, subscription: subscription, window: window).map(
         (readings) => [
           for (final r in readings) ...[
             if (r.heartRateBpm != null)
@@ -1064,6 +1076,38 @@ class UserProfileService {
           snap,
         ) async {
           await planSub?.cancel();
+          final grants = snap.data()?['familyAccess'] as Map? ?? const {};
+          final familyImeis =
+              (snap.data()?['familyServiceImeis'] as List?)
+                  ?.whereType<String>()
+                  .where((imei) {
+                    final grant = grants[imei] as Map?;
+                    final until = grant?['untilMs'] as int?;
+                    return grant != null &&
+                        (until == null ||
+                            until > DateTime.now().millisecondsSinceEpoch) &&
+                        (grant['owner'] == true ||
+                            (grant['permissions'] as Map? ?? {}).values
+                                .contains(true));
+                  })
+                  .toList() ??
+              <String>[];
+          if (familyImeis.isNotEmpty) {
+            planSub = _db
+                .collection('familyServices')
+                .doc(familyImeis.first)
+                .snapshots()
+                .listen((service) {
+                  final value = service.data();
+                  controller.add(
+                    GuardianSubscription.fromMap(
+                      value?['subscription'] as Map<String, dynamic>?,
+                      ownerUid: value?['ownerUid'] as String?,
+                    ),
+                  );
+                }, onError: controller.addError);
+            return;
+          }
           final rawOwner = (snap.data()?['serviceOwnerUid'] as String?)?.trim();
           final ownerUid = rawOwner == null || rawOwner.isEmpty
               ? uid
@@ -1213,7 +1257,9 @@ class AlertService {
 
   /// Streams recent alerts for devices this signed-in guardian is linked to.
   Stream<List<GuardianAlert>> watchLinkedAlerts({int limit = 100}) {
-    return _watchLinkedImeis(_db, _auth).asyncExpand((linked) {
+    return _watchLinkedImeis(_db, _auth, permission: 'alerts').asyncExpand((
+      linked,
+    ) {
       if (linked.isEmpty) return Stream.value(const <GuardianAlert>[]);
       return _db
           .collection('alerts')
@@ -1482,9 +1528,9 @@ class DeviceCommandService {
   Future<String> _enqueue(
     String imei,
     String type,
-    Map<String, dynamic> params,
-    {String? reminderId}
-  ) async {
+    Map<String, dynamic> params, {
+    String? reminderId,
+  }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw StateError('Not signed in');
     final ref = await _db.collection('deviceCommands').add({
@@ -1596,14 +1642,9 @@ class DeviceCommandService {
     return _enqueue(imei, 'set_upload_interval', {'seconds': seconds});
   }
 
-  /// V52 only. Changes the global watch scene used by medication reminders
-  /// and other watch alerts. The device must have a live TCP connection.
-  Future<void> setWatchAlertProfile(
-    String imei,
-    WatchAlertProfile profile,
-  ) {
-    return _enqueue(imei, 'set_watch_alert_profile', {
-      'mode': profile.mode,
-    });
+  /// V52 only. Requests the global ring/vibration scene. Interaction with
+  /// recorded medication voice is unverified. A live TCP connection is needed.
+  Future<void> setWatchAlertProfile(String imei, WatchAlertProfile profile) {
+    return _enqueue(imei, 'set_watch_alert_profile', {'mode': profile.mode});
   }
 }

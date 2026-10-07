@@ -57,7 +57,7 @@ const SERVER_ONLY_COMMANDS = new Set([
   'SPOF', 'LZ', 'RESET', 'POWEROFF', 'VERNO', 'PEDO', 'WALKTIME',
   'TAKEPILLS', 'WIFIFENCE', 'rcapture',
   // Additional commands documented for the V52 data protocol/captures.
-  'hrtstart', 'SEDENTARY', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
+  'hrtstart', 'SEDENTARY', 'SEDENTARYWORKTIME', 'REMOVE', 'REMOVESMS', 'APPLOCK', 'DEVREFUSEPHONESWITCH',
   'SLAVE', 'PW', 'ANY', 'APN', 'IP', 'MOD', 'FACTORY', 'FON', 'gprsgps',
   'UPGRADE', 'BTTIMESET', 'bodytemp', 'bodytemp2', 'FTPIP', 'FTPPWD', 'PIC',
   // ReachFar V48 integration evidence uses this spelling. Recognize its reply
@@ -242,6 +242,25 @@ function extractFrames(buffer) {
 
     // Find closing bracket
     const end = buffer.indexOf(0x5d, start); // 0x5d = ']'
+
+    // TK is private binary media. Validate its envelope by wire length before
+    // text decoding; escaped reserved bytes never delimit an audio payload.
+    const header = /^\[[A-Za-z0-9]{2}\*\d{10}\*([a-fA-F0-9]{4})\*TK(?:,|\])/.exec(buffer.subarray(start, start + 24).toString('latin1'));
+    if (header) {
+      const total = 21 + parseInt(header[1], 16);
+      if (end !== -1 && end < start + total - 1) {
+        // A malformed short frame is still handed to the private classifier.
+        frames.push(buffer.subarray(start, end + 1)); offset = end + 1; continue;
+      }
+      if (buffer.length - start < total) { offset = start; break; }
+      if (buffer[start + total - 1] === 0x5d) {
+        frames.push(buffer.subarray(start, start + total)); offset = start + total; continue;
+      }
+      // Consume the malformed frame without leaking a partial binary payload
+      // into decodeFrame or swallowing the next complete protocol message.
+      if (end !== -1) { frames.push(buffer.subarray(start, end + 1)); offset = end + 1; continue; }
+      offset = buffer.length; break;
+    }
     if (end === -1) break;
 
     // Extract frame including brackets
@@ -250,7 +269,8 @@ function extractFrames(buffer) {
     offset = end + 1;
   }
 
-  return { frames, rest: buffer.subarray(offset) };
+  // The largest documented frame is a 16-bit payload plus its 21-byte envelope.
+  return { frames, rest: buffer.subarray(Math.max(offset, buffer.length - 65556)) };
 }
 
 function decodeFrame(frame) {

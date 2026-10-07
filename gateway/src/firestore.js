@@ -4,7 +4,7 @@ const config = require('./config');
 const { buildJourneyDocumentId } = require('./journey-id');
 const { notifyEmergencyContacts } = require('./notify');
 const { notifyGuardianDevices } = require('./push');
-const { sendDeviceCommand } = require('./commands');
+const { createDeviceCommandDispatcher } = require('./device-command-dispatcher');
 const { isFullImei, isProtocolId, normalizeImei } = require('./imei');
 const {
   evaluateDeviceIntelligence,
@@ -210,6 +210,12 @@ async function upsertDevice(imei, patch = {}) {
     Object.assign(data, seeded);
   }
   await ref.set(data, { merge: true });
+  if (process.env.FAMILY_SHARING_ENABLED === 'true') {
+    await db.collection('familyDeviceViews').doc(canonicalImei).set(
+      require('./family-device-view').deviceView(data), { merge: true });
+    await db.collection('familyDeviceProfiles').doc(canonicalImei).set(
+      require('./family-device-view').deviceProfile(data), { merge: true });
+  }
   if (data.location) locationProvenanceSeeded.add(canonicalImei);
   incrementMetric('firestoreWrites');
 }
@@ -479,81 +485,36 @@ async function updateMedicationReminderSync(reminderId, patch) {
   }
 }
 
-async function deliverDeviceCommand(imei, type, params, commandId, reminderId = null) {
-  const ref = db.collection('deviceCommands').doc(commandId);
-  try {
-    const claimed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists) return false;
-      if (snap.data().status !== 'pending') return false;
-      tx.update(ref, { status: 'sending' });
-      return true;
-    });
-    if (!claimed) return;
-  } catch (err) {
-    console.error('[commands] claim failed', err.message);
-    return;
-  }
-
-  try {
-    const outcome = await sendDeviceCommand(db, imei, type, params);
-    await ref.set(
-      { status: 'sent', result: outcome, completedAt: nowTs() },
-      { merge: true }
-    );
-    if (type === 'set_medication_reminder' && reminderId) {
-      await updateMedicationReminderSync(reminderId, {
-        deviceSyncStatus: 'sent',
-        deviceSyncError: null,
-        deviceSyncedAt: nowTs(),
-        updatedAt: nowTs(),
-      });
-    }
-  } catch (err) {
-    console.error('[commands] failed', err.message);
-    await ref.set(
-      { status: 'failed', error: err.message, completedAt: nowTs() },
-      { merge: true }
-    );
-    if (type === 'set_medication_reminder' && reminderId) {
-      await updateMedicationReminderSync(reminderId, {
-        deviceSyncStatus: 'failed',
-        deviceSyncError: err.message,
-        updatedAt: nowTs(),
-      });
-    }
-  }
-}
-
 function startPendingCommandWatcher() {
   if (!enabled || commandWatchUnsub) return;
-
-  commandWatchUnsub = db
-    .collection('deviceCommands')
-    .where('status', '==', 'pending')
-    .onSnapshot(
-      (snap) => {
-        snap.docChanges().forEach((change) => {
-          if (change.type !== 'added' && change.type !== 'modified') return;
-          const data = change.doc.data() || {};
-          if (data.status !== 'pending') return;
-          deliverDeviceCommand(
-            data.imei,
-            data.type,
-            data.params,
-            change.doc.id,
-            data.reminderId || null,
-          ).catch((err) => {
-            console.error('[commands] watcher error', err.message);
-          });
-        });
-      },
-      (err) => {
-        console.error('[commands] watcher failed', err.message);
-      }
-    );
-
-  console.log('[commands] watching deviceCommands with status=pending');
+  const dispatcher = createDeviceCommandDispatcher({ db,
+    reporting: async (row, { beforeSend }) => {
+      // Recompute the current policy; the queue must never replace the
+      // guardian's newer preference with a value retained during a camera wait.
+      return require('./adaptive-reporting').applyAdaptiveReporting(db, row.imei,
+        { trigger: 'explicit_setting', force: true, beforeSend });
+    },
+    onResult: async (row, status, reason) => {
+      if (row.type !== 'set_medication_reminder' || !row.reminderId) return;
+      await updateMedicationReminderSync(row.reminderId, {
+        deviceSyncStatus: status, deviceSyncError: reason || null,
+        ...(status === 'sent' ? { deviceSyncedAt: nowTs() } : {}), updatedAt: nowTs(),
+      });
+    },
+  });
+  const failed = err => console.error('[commands] reconciliation failed', err.code || 'command_dispatch_failed');
+  const tick = () => dispatcher.tick().catch(failed);
+  const unsubscribe = db.collection('deviceCommands').where('status', '==', 'pending').onSnapshot(snap => {
+    for (const change of snap.docChanges()) {
+      if (['added', 'modified'].includes(change.type)) dispatcher.prompt(change.doc).catch(failed);
+    }
+    tick();
+  }, failed);
+  const timer = setInterval(() => { if (dispatcher.hasWork()) tick(); }, 2000);
+  timer.unref?.();
+  commandWatchUnsub = () => { clearInterval(timer); unsubscribe(); };
+  tick();
+  console.log('[commands] watching pending commands with bounded coordination');
 }
 
 function intelligenceConfig() {

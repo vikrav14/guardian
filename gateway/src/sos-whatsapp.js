@@ -48,6 +48,7 @@ async function prepareSosWhatsApp({
   device = {},
   alert = {},
   now = new Date(),
+  alertId = null,
   provider = undefined,
   callbackTemplatesEnabled = undefined,
 } = {}) {

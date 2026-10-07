@@ -250,17 +250,18 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
   } };
 }
 
-function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation, resetObservation }) {
+function startHomeWifiPublisher({ db, imei, readObservation, readGpsObservation, resetObservation,
+  readBinding, persist }) {
   if (!db || !/^\d{15}$/.test(imei || '')) return null;
   const publisher = createHomeWifiPublisher({
-    readBinding: (nowMs, { signal, restorePresence }) => loadHomeWifiBinding(db, imei, nowMs,
-      { restorePresence, read: reference => readFirstSnapshot(reference, signal) }),
+    readBinding: readBinding || ((nowMs, { signal, restorePresence }) => loadHomeWifiBinding(db, imei, nowMs,
+      { restorePresence, read: reference => readFirstSnapshot(reference, signal) })),
     readObservation, readGpsObservation, resetObservation,
     // A separate backend-owned field: no updatedAt, location, history, presence
     // heartbeat, geofence, intelligence or notification writes are triggered.
-    persist: (value, lastDetection) => db.collection('devices').doc(imei).update({
+    persist: persist || ((value, lastDetection) => db.collection('devices').doc(imei).update({
       homeWifiPresence: value, lastHomeWifiDetection: lastDetection,
-    }),
+    })),
     report: data => console.log(`[wifi-home-display] ${JSON.stringify(data)}`),
   });
   void publisher.tick();

@@ -54,8 +54,8 @@ module.exports = {
     essentialMonthlyMur: 199,
     /** Compatibility alias for older dashboard code. */
     basicMonthlyMur: 199,
-    familyMonthlyMur: 399,
-    careMonthlyMur: 699,
+    familyMonthlyMur: 1000,
+    careMonthlyMur: 1300,
   },
 
   device: {

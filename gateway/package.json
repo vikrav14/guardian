@@ -2,13 +2,14 @@
   "name": "guardian-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "Guardian GT06 TCP gateway — GPS pendant packets to Firestore",
+  "description": "Guardian GT06 TCP gateway \u2014 GPS pendant packets to Firestore",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "simulate": "node scripts/simulate-device.js",
     "chat": "node scripts/chat.js",
+    "care:trial": "node scripts/trial-care-reminders.js",
     "acceptance:v52": "node scripts/inspect-device-acceptance.js",
     "activity:provision": "node scripts/provision-activity-steps.js",
     "wear:check": "node scripts/inspect-wear-evidence.js",
@@ -37,7 +38,13 @@
     "wifi-home:fence": "node scripts/inspect-wifi-fence.js",
     "wifi-home:fence-trial": "node scripts/trial-wifi-fence-single-router.js",
     "test": "node --test",
-    "wellness:routine": "node scripts/inspect-wellness-routine.js"
+    "wellness:routine": "node scripts/inspect-wellness-routine.js",
+    "incident:setup": "node scripts/incident-photo-setup.js",
+    "incident:trial": "node scripts/incident-photo-trial.js",
+    "incident:templates": "node scripts/incident-photo-templates.js",
+    "incident:inspect": "node scripts/inspect-incident-photo.js",
+    "incident:check": "node scripts/inspect-incident-worker.js",
+    "call:templates": "node scripts/check-watch-call-templates.js"
   },
   "engines": {
     "node": ">=18"
@@ -47,6 +54,7 @@
     "dotenv": "^16.4.7",
     "fast-xml-parser": "^5.10.1",
     "firebase-admin": "^13.0.2",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.3",
+    "jpeg-js": "0.4.4"
   }
 }

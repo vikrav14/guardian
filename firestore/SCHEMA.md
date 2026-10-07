@@ -1,5 +1,31 @@
 # Guardian Firestore Schema
 
+## Ordinary voice-message pilot (PR #145)
+
+All three collections deny direct client reads and writes, including linked
+guardians. The gateway uses Firebase bearer authentication, current membership,
+trusted active Family/Care entitlement and exact account/device pilot gates.
+
+- `voiceMessages/{id}`: `uid`, `ownerUid`, `imei`, incoming/outgoing direction,
+  SHA-256 idempotency fingerprint, server receipt `createdAtMs`, `expiresAtMs`,
+  `dispatchUntilMs`, duration, status, sanitized reason, `playedBy`, deletion
+  tombstone. Incoming `notification` stores one push-attempt status and time,
+  plus provider accepted/failed counts when available; this is not a delivery
+  receipt. No registration tokens or audio are copied to this field. Outgoing
+  IDs are UUIDv4; incoming IDs hash device/day/audio bytes.
+- `voiceMessagePrivate/{id}`: same ownership scope, `expiresAtMs`, original AMR
+  and playback PCM as base64. The 30-second bound keeps the combined asset below
+  Firestore's document limit. Never client-readable, logged or exposed as URLs.
+- `voiceMessageDevices/{imei}`: UTC-day count (120 new clips across both
+  directions), next permitted send time, and durable `pendingId`. Ambiguous
+  writes keep `pendingId`; restarting or deleting audio does not clear it.
+
+Metadata + audio + delivery claim commit in a transaction. The IMEI/createdAtMs
+descending index supports authorized history. Audio access ends at 24 hours;
+gateway cleanup removes expired assets every minute in batches. Minimal metadata
+is deleted after seven days. Gateway downtime delays physical cleanup but does
+not extend access. See [voice-message policy](../docs/services/voice-chat-app.md).
+
 ## Wellness edition access — 14 September 2026
 
 `activityDays.lastObservedAt` and `wellbeingReadings.observedAt` queries must be
@@ -131,7 +157,7 @@ Live device state. Document ID = device IMEI (digits only).
 | intelligence | map \| null | Gateway-owned rule-based insights — `{ updatedAt, insights[], topInsight }`. Each insight: `{ id, facts[], inference, confidence (0–100), level ('info'\|'warning'\|'urgent'), suppressBelow }`. |
 | firmware | string \| null | |
 | fallDetection | map \| null | App-cached V52 request, not confirmed device state (no read-back command exists): `{ enabled, dialMonitorOnFall, sensitivityLevel }`. |
-| watchAlertProfile | string \| null | App-cached V52 request, not confirmed device state: `sound` \| `sound_and_vibration` \| `vibration` \| `silent`. The global scene affects medication reminders and other watch alerts. |
+| watchAlertProfile | string \| null | App-cached V52 request, not confirmed device state: `sound` \| `sound_and_vibration` \| `vibration` \| `silent`. Global ring/vibration scene request; interaction with recorded medication voice is unverified. |
 | locationReportingIntervalSeconds | number \| null | App-cached V52 request, not confirmed device state (no read-back command exists). Standing GPS-fix upload interval last sent to the pendant via `UPLOAD,<seconds>`. |
 | createdAt | timestamp | |
 | updatedAt | timestamp | |
@@ -620,19 +646,35 @@ configuration path or the live TCP session; see `gateway/src/commands.js`.
 | imei | string | Target device |
 | type | string | Client-eligible types: `set_center_number` \| `set_sos_number` \| `check_status` \| `voice_monitor` \| `ring_to_find` \| `set_fall_alarm` \| `set_fall_detection` \| `set_fall_sensitivity` \| `set_medication_reminder` \| `set_watch_alert_profile` \| `set_upload_interval`. Administrator-only `set_alarm_mode` is queued by guarded operator tooling. `set_phonebook_contact` is rejected by Firestore rules and the generic gateway dispatcher; PHBX uses the strict administrator provisioning endpoint. |
 | params | map | Command-specific, e.g. `{ phone }`, `{ slot, phone }`, administrator-only `{ mode }`, `{ enabled }` for the separate V52 fall-alert switch, `{ enabled, dialMonitorOnFall }`, `{ level }`, `{ time, frequency, week, text }`, `{ mode: 1..4 }` for the V52 alert scene, `{ seconds }`. Alert modes: `1` sound + vibration, `2` sound, `3` vibration, `4` silent. |
-| status | string | `pending` \| `sending` \| `sent` \| `failed` |
+| status | string | `pending` \| `deferred` \| `sending` \| `sent` \| `failed` |
 | result | map \| null | `{ text, channel, simNumber?, result }` once sent |
 | error | string \| null | |
 | createdBy | string | uid |
 | createdAt | timestamp | |
 | completedAt | timestamp \| null | |
 
+Commands expire 120 seconds after `createdAt`. Deferred commands record
+`coordinationProcess` (gateway process UUID) and `expiresAt` (original deadline);
+their authorization and session are checked again before handoff. A restart
+fails earlier deferred/sending work rather than replaying an ambiguous action.
+`sent` means transport handoff, not a watch reply or physical effect.
+
+## `deviceCommandIntents/{intentId}`
+
+Backend-only newest-setting watermarks. The ID is the SHA-256 of the device,
+setting type and physical slot key (the legacy medication builder uses frequency
+as slot). Fields: `commandId` (string),
+`createdAtMs` (number). No command payload or credentials are stored. Completed
+or expired newer intent still prevents an older deferred setting from running.
+Client reads/writes/deletes are denied. Existing watermarks must survive restart.
+
 ## `medicationReminders/{reminderId}`
 
 App-side record of what's been scheduled, since the V52 has no "list my
 reminders" query command. This is what the app displays/edits; saving or
-deleting also enqueues a matching `deviceCommands` entry
-(`set_medication_reminder`) so the watch stays in sync.
+deleting uses the legacy `deviceCommands` path, except the restricted managed
+voice pilot described below. Neither path proves playback. There is no watch
+readback of the complete reminder schedule.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -655,6 +697,50 @@ deleting also enqueues a matching `deviceCommands` entry
 | lastDelivery | map \| null | Meta provider outcome, `wamid`, status timestamps and bounded errors without message contents. |
 | lastDeliveryError | string \| null | Bounded operational error. |
 | acknowledgementStatus | string | Currently `not_supported`; must not be presented as acknowledged. |
+
+### Managed voice pilot (`managed: "voice-v1"`)
+
+The authorized gateway writes these fields; clients may only read the public
+reminder for a linked Family/Care device. Once `medicationVoiceDevices/{imei}`
+exists, client legacy medication writes and medication `deviceCommands` creation
+are rejected, as is legacy gateway dispatch for that device. Other device command
+types are unaffected. Existing records are not rewritten automatically.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| managed | string | `voice-v1`; cannot be set by clients. |
+| ownerUid | string | Server-resolved service owner. `createdBy` remains recording owner. |
+| mode | string | `alert` or `voice`. |
+| slot | number | Transactionally reserved physical slot 1–3; independent of frequency. |
+| version | integer | Monotonic revision; expected revision required for writes. |
+| requestId | UUID | Idempotent save identity, never reused with different intent. |
+| durationMs | number | Encoded recording duration; zero for Standard alert. |
+| leaseUntilMs | epoch ms | Bounded 45-second operation. No replay when it expires. |
+| deleteRequested | boolean | Off requested before deletion; not proof the watch is off. |
+| deviceSyncStatus | string | `waiting`, `sending`, `reply_observed`, `rejected`, `not_sent`, `unconfirmed`. |
+| evidence | map | Sent/reply times, observed reply code, byte count, bounded reason and `playbackVerified: false`; no audio/text. |
+
+`frequency` accepts Once (1) / Daily (2) here; `week` is null. Expired waiting or
+sending states are projected as unconfirmed by the API. A status-1 reply allows
+requested deletion to set `deletedAt`, remove the private clip and release the
+managed slot. Ambiguous Off retains all three. Existing legacy tombstones remain
+reserved because transport handoff does not prove their slot was cleared.
+
+### Server-private medication collections
+
+All client reads/writes are denied, including linked users. Admin SDK access is
+through the restricted medication API; no public download URLs are created.
+
+| Collection | Stored fields | Retention / use |
+| --- | --- | --- |
+| `medicationVoicePrivate/{reminderId}` | `version`, Base64 `pcm` (8 kHz mono PCM16) and `amr` (AMR-NB) | Active desired clip; replaced atomically with revision; removed on switch to Standard alert or confirmed removal. Authenticated preview checks device, creator, mode and matching version. |
+| `medicationVoiceDevices/{imei}` | `slots` map of physical slot to reminder ID, `requestId`, `leaseUntilMs` | Per-device allocation and single operation lease. Registry persists to prevent the old writer from re-entering. |
+| `medicationVoiceRequests/{requestId}` | SHA-256 `fingerprint`, reminder `id`, `imei`, epoch-ms `at`, `status`, optional `reason` | Durable idempotency audit; no text/audio. Retained without automatic TTL so old request IDs cannot silently resend. |
+
+An enabled setting with an ambiguous result cannot be silently retried. A new
+explicit Off and safe session are required. No command/audio job is replayed on
+gateway restart. App list state describes saved intent and observed response,
+not a watch readback or medication adherence.
 
 ## `notificationLogs/{logId}`
 
@@ -732,6 +818,41 @@ idempotent per device/source/hour.
 
 ## Gateway write map
 
+### Diagnostic-only `photoTrialImports/{importId}`
+
+Created only by the explicit `gateway/scripts/photo-trial-firebase.js` pilot;
+never by gateway startup. Client reads/writes are denied by existing unmatched
+path rules. This is separate from production `safetySnapshotRequests` and
+does not create a customer-visible photo or satisfy its authorization policy.
+The JPEG is a private Storage object, not a Firestore field. No public URL or
+download token is recorded. `importId` hashes IMEI, linked requester UID and
+image SHA-256 to prevent repeat uploads of the same trial image.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| version | number | `1` |
+| imei / protocolId | string | Exact trial device identities |
+| requestedBy | string | Verified linked Firebase user UID |
+| source | string | `ftp_trial_operator_import` |
+| sha256 / bytes / width / height | string / number | Validated JPEG properties |
+| validation | string | `pillow_full_decode`; full decode repeated before import |
+| receivedAt / importedAt / updatedAt | timestamp | Transfer receipt and processing times; not proven camera capture time |
+| consentConfirmed | boolean | Operator confirmed this test-photo import |
+| state | string | `uploading`, `stored`, `failed_cleaned`, `cleanup_required`, `deleted` |
+| bucket / objectPath | string / nullable string | Private bucket and `privatePhotoTrials/{imei}/{importId}.jpg`; path cleared on deletion |
+| generation | string or null | Storage generation for conditional deletion, when known |
+| remoteCaptureVerified / requestCorrelationVerified / customerVisible | boolean | Always `false` in this pilot |
+| automaticExpiry | boolean | `false`; no TTL or deletion scheduler is installed |
+| cleanupRequiredAfterTrial | boolean | Explicit cleanup required; cleared by successful deletion |
+| deletedAt | timestamp | Live-object deletion completed or object was already absent |
+
+Deletion keeps the audit record. Storage provider soft-delete/versioning may
+retain copies under bucket policy. A failed import records cleanup uncertainty;
+it must not be reported as a successful rollback. See
+[the trial runbook](../docs/testing/photo-ftp-trial.md).
+
+### Runtime writes
+
 The gateway keeps a full in-memory GPS stream and writes to Firestore only on meaningful events (Phase 0.5 write gate):
 
 | Trigger | Firestore action |
@@ -799,3 +920,115 @@ not a client-accessible Firestore collection.
   `timeBasis: gateway_receipt_not_measurement_time`. `displayable` additionally
   requires eligible wearing proof. Missing evidence stays private. Historical
   diagnostic records are not retroactively made qualified.
+
+### homeWifiEnrollments/{imei}
+
+Gateway-only Home Wi-Fi configuration. All direct client reads/writes are denied;
+use the owner-authenticated `/app/home-wifi` endpoint. Fields: `version` (monotonic
+integer), `enabled`, `ownerUid`, `updatedAt` (ISO UTC). Enabled records also hold
+`geofenceId`, `homeKey` (digest of verified Home binding), selected display `name` (from the watch or an authenticated Android scan
+matched to the exact fresh watch radio), `routerHash` (watch-scoped HMAC-SHA256), and a random private `hashKey`. No raw MAC,
+password or network scan history is persisted. Disabled tombstones omit those
+fields and prevent legacy pilot enrollment from returning. Updates clear
+`devices/{imei}.homeWifiPresence` and `lastHomeWifiDetection` in the same transaction.
+See `docs/services/home-wifi-setup.md` for authorization, expiry and acceptance.
+
+### Reporting and command coordination (2 October 2026)
+
+- `devices/{imei}.adaptiveReporting`: desired and handed-off intervals remain
+  distinct. `outingActiveUntil` is a bounded movement-evidence lease;
+  `sosActiveUntil`/`sosCooldownUntil` and `fallActiveUntil`/`fallCooldownUntil`
+  persist separate emergency deadlines. Only alarm transactions extend them;
+  reporting evaluations never write back a stale copy of those deadlines.
+  `commandStatus`, `deferredReason`, and `deferredUntil` describe a camera
+  deferral without claiming a write. `manualReportingIntervalSeconds` retains
+  current explicit manual intent separately from a temporary emergency interval.
+- `deviceCommands/{id}` can be `deferred` within 120 seconds of `createdAt`.
+  `expiresAt`, `error: camera_busy`, and backend-only `coordinationProcess`
+  describe why it has not been sent. A superseded/expired/revoked request is
+  terminal `failed` with a specific reason. `sending` after a gateway restart
+  is ambiguous and never automatically resent.
+- `deviceCommandIntents/{sha256(settingKey)}` is backend-only (no client rule
+  grants access). It retains `commandId` and `createdAtMs` for the newest
+  authorized setting, including after a prompt stop has completed. It stores
+  no raw command, credential, phone number or camera action. Older deferred
+  settings cannot overwrite it. No new composite index is required.
+- Reporting interval fields are socket-handoff intent, not hardware readback.
+  See `docs/services/reporting-command-policy.md`.
+
+### Live Safety snapshot path (25 September 2026)
+
+The app now uses authenticated `/api/safety-snapshots` gateway routes. It does
+not enqueue the historical backend-only `safetySnapshotRequests` workflow.
+That watcher is no longer started by the reminder scheduler.
+
+- `safetySnapshotAuthorizations/{UUID}`: server-owned request, requester,
+  service owner, IMEI, explicit consent/purpose, `state` (`dispatching`,
+  `waiting_for_image`, `receiving`, `available`, `failed`, `deleted`, `expired`),
+  two-minute authorization deadline and 24-hour media access deadline.
+- `safetySnapshotDeviceLocks/{imei}`: server-only last request time and request
+  ID. A Firestore transaction serializes all guardians/gateway workers and
+  enforces a durable per-watch 15-minute cooldown.
+- `safetySnapshotAudit/{UUID}` is immutable creation evidence. Its backend-only
+  `events` subcollection records command handoff, receipt, view and deletion.
+- `mediaPath` is a deterministic private Storage key:
+  `privateSafetySnapshots/{serviceOwnerUid}/{imei}/{UUID}.jpg`. No Firebase
+  download token or public URL is created. Direct client Storage access is
+  denied; the gateway verifies current membership/plan for each image request.
+- Receipt metadata includes byte size, dimensions, SHA-256, raw device timestamp,
+  `validation: full_pixel_decode`, `correlation: same_session_request_window`
+  and `requestCorrelationVerified: false`. `receivedAt` is gateway time, not a
+  verified capture timestamp. There is no verified on-wire request identifier.
+- Optional `receiveDiagnostics` (version 1) accompanies terminal receive states:
+  fixed-size traffic/frame/rejection counters, relative arrival times, buffered
+  byte counts, image-header flags and a fixed failure-stage label. It contains
+  no raw frames, image data or credentials, and is not exposed in the app HTTP
+  list. Packet observation is in memory only; no per-packet Firestore writes.
+  Missing diagnostics (older requests or a restarted gateway) mean unavailable
+  evidence, not zero traffic. See `docs/testing/photo-app-trial.md` for fields.
+  Optional `commandTimeline` (version 1) records outgoing write attempts around
+  capture: up to 16 prior writes on the capture socket within two minutes, and
+  48 writes during the two-minute image wait across that watch's sessions.
+  Events retain an allowlisted command/source, relative time, byte count and
+  same-session flag; only `UPLOAD` may include a bounded numeric reporting
+  interval. Truncation counts are explicit. No arguments, raw frames, phone
+  numbers, radio IDs or scene details are retained. This metadata is written
+  with existing terminal diagnostics, without per-command Firestore writes.
+  It proves attempts, not execution, interference or absence of firmware work.
+  See `docs/services/incident-photo-command-coordination.md` for scope and plan.
+  Decoder failures additionally carry a fixed `decodeError`, numeric/boolean
+  `decodeDetails`, and a `rejectedFrameCapture` outcome. The optional rejected
+  frame is an operator-selected local diagnostic file, never a Firestore field
+  or public Storage object, and is not managed by app media-expiry cleanup.
+- `cleanupPending` and `uploadLeaseUntil` retain interrupted/deferred deletion
+  work. The gateway denies expired/deleted access immediately, then deletes
+  objects while running and after restart. It never resends capture commands.
+- Composite indexes cover the owner/device gallery and bounded timeout/expiry
+  sweeps. Images and raw protocol frames are never Firestore document fields.
+
+
+### Incident photo access window (PR #113 integration)
+
+All of these records remain gateway-owned; direct client reads/writes are denied.
+Authenticated HTTP gallery/image/request routes recheck membership, plan and consent.
+
+- `incidentPhotos/{alertId}`: owner/device/type/event timestamp, `capturePolicy`
+  (`one-auto-guardian-hour-v1` when approved), fixed `requestWindowEndsAt` (event +
+  one hour), automatic-attempt `deadlineAt`, `expiresAt`, `requestIds`, `target: 1`,
+  `state`, `reason`, `nextAt`, `followupState` and `analysisPending`. The original
+  follow-up is independent of subsequent guardian photo analysis. Legacy incidents
+  without this policy keep their bounded five-photo contract.
+- `safetySnapshotAuthorizations`: incident requests add `incidentId`, `sequence`,
+  `captureSource` (`automatic` or `guardian`) and `analysis`. Each incident grant
+  is at most 240 seconds, capped by its applicable incident deadline. Ordinary
+  manual grants remain 120 seconds. Request keys produce deterministic private
+  IDs scoped to guardian and incident; replay never creates another capture.
+- `safetySnapshotDeviceLocks`: `incidentId`/`incidentUntil` preserve the existing
+  12-minute grouping; `requestId`/`activeUntil` serialize current captures. Neither
+  grouping nor delayed message delivery renews the original one-hour access.
+- `devices/{imei}.manualReportingIntervalSeconds` is the linked guardian's
+  current manual preference, separately writable alongside mode/interval. The
+  backend cannot replace that preference with a queued older setting. Current
+  clients store it explicitly; missing fields fall back to the legacy interval.
+  `adaptiveReporting` remains backend-only and represents policy/handoff, not
+  measured packet cadence. Deploy the updated rules before the updated client.

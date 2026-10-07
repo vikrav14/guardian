@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../location/place_label.dart' as place_labels;
 import 'home_wifi_presence.dart';
 import 'watch_alert_profile.dart';
+import '../services/guardian_entitlements.dart';
 
 class DeviceLocation {
   const DeviceLocation({
@@ -21,6 +23,7 @@ class DeviceLocation {
   final DateTime? recordedAt;
   final int? satellites;
   final String? placeLabel;
+  String? get displayPlaceLabel => place_labels.displayPlaceLabel(placeLabel);
   final String? source;
   final bool? gpsValid;
   final double? accuracyMeters;
@@ -136,6 +139,8 @@ class Device {
   const Device({
     required this.imei,
     required this.online,
+    this.sharedPermissions,
+    this.sharedSubscription,
     this.name,
     this.nickname,
     this.relationship,
@@ -168,6 +173,7 @@ class Device {
     this.fallDetectionDialMonitor,
     this.fallDetectionSensitivity,
     this.locationReportingIntervalSeconds,
+    this.manualReportingIntervalSeconds,
     this.locationReportingMode = 'automatic',
     this.watchAlertProfile,
     this.careProfile,
@@ -176,6 +182,10 @@ class Device {
   });
 
   final String imei;
+  final Map<String, bool>? sharedPermissions;
+  final GuardianSubscription? sharedSubscription;
+  bool allowsShared(String permission) =>
+      sharedPermissions == null || sharedPermissions?[permission] == true;
 
   /// Legacy friendly label retained for existing device documents.
   final String? name;
@@ -344,6 +354,7 @@ class Device {
   /// V52 only. Same "request cache, not confirmed state" caveat as
   /// the fall detection fields above; there's no read-back command.
   final int? locationReportingIntervalSeconds;
+  final int? manualReportingIntervalSeconds;
   final String locationReportingMode;
 
   /// Last alert profile requested by a guardian. The V52 has no supported
@@ -521,10 +532,27 @@ class Device {
     return intelligence.insights.any(isActive);
   }
 
-  factory Device.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? <String, dynamic>{};
+  factory Device.fromDoc(
+    DocumentSnapshot<Map<String, dynamic>> doc, {
+    Map<String, bool>? sharedPermissions,
+    GuardianSubscription? sharedSubscription,
+  }) => Device.fromData(
+    doc.id,
+    doc.data() ?? <String, dynamic>{},
+    sharedPermissions: sharedPermissions,
+    sharedSubscription: sharedSubscription,
+  );
+
+  factory Device.fromData(
+    String imei,
+    Map<String, dynamic> data, {
+    Map<String, bool>? sharedPermissions,
+    GuardianSubscription? sharedSubscription,
+  }) {
     return Device(
-      imei: doc.id,
+      imei: imei,
+      sharedPermissions: sharedPermissions,
+      sharedSubscription: sharedSubscription,
       name: data['name'] as String?,
       nickname: data['nickname'] as String?,
       relationship: data['relationship'] as String?,
@@ -589,6 +617,11 @@ class Device {
       fallDetectionSensitivity:
           ((data['fallDetection'] as Map?)?['sensitivityLevel'] as num?)
               ?.toInt(),
+      locationReportingMode: data['locationReportingMode'] == 'manual'
+          ? 'manual'
+          : 'automatic',
+      manualReportingIntervalSeconds:
+          (data['manualReportingIntervalSeconds'] as num?)?.toInt(),
       locationReportingIntervalSeconds:
           (data['locationReportingIntervalSeconds'] as num?)?.toInt(),
       watchAlertProfile: data['watchAlertProfile'] is String

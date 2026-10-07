@@ -1,4 +1,162 @@
+## Wider incident-photo spacing — 2 October 2026
+
+Two operator-triggered SOS checks on the combined gateway produced zero and
+one actual stored image respectively. The second SOS yielded ready AI and an
+authorized gallery entry for its image; the next capture acknowledged without an image and
+timed out. Initial alerts and separate follow-ups have provider delivery
+receipts for one recipient; another initial-alert recipient was rejected with
+Meta 131030. No independent fall trial was performed. Root cause is unresolved.
+
+The operator approved 60-second gaps after saved images, keeping the first
+capture prompt and the five-photo maximum, original deadlines and stop on
+failure. All 1,601 gateway tests pass. This pacing policy still needs a new
+physical SOS/fall acceptance run; no reliability improvement is yet claimed.
+See [spacing regression and hardware evidence](testing/incident-photo-spacing-2026-10-02.md).
+
+## Combined reporting, Home and incident runtime — 2 October 2026
+
+The combined Wi-Fi/photo checkout now runs a 600-second normal reporting policy,
+bounded emergency/outing overrides and shared camera/routine command admission.
+All 1,598 gateway tests and 730 Flutter tests pass; the combined Android build
+was installed on the existing Samsung without replacing its configuration.
+
+Hardware acceptance remains partial: one CR at 03:35:35 MUT produced ten
+location receipts over roughly three minutes, then Home evidence expired at
+122 seconds. No further CR was sent. No normal location-upload packets arrived
+before the CR or during the post-burst observation ending 03:51:37; heartbeats
+continued. Ten-minute upload cadence is **not accepted**. Independent physical
+fall/SOS captures, new AI/gallery results and WhatsApp delivery remain pending.
+Coordination is not a demonstrated fix for the earlier missing fall photos.
+See [the complete acceptance record](testing/reporting-coordination-2026-10-02.md)
+and [policy](services/reporting-command-policy.md). Earlier checkpoints below
+describe their historical runtime, not the current combined launch.
+
+## Home Wi-Fi app enrollment — 1 October 2026
+
+Implemented in a separate branch based on main: watch-reported network selection, owner authorization, saved Home pin confirmation, protected fingerprint enrollment and removal. Initial Android discovery, watch matching and save were physically observed on 1 October; remaining acceptance is pending. No new watch commands, reporting interval or departure claims. Existing Home qualification/expiry remains unchanged and requires closely spaced evidence. See [implementation and test runbook](services/home-wifi-setup.md).
+
+Field follow-up at 11:27–11:34 UTC: connected watch sent heartbeats only until one
+operator CR, then two fresh named-layout UD_LTE scans of the existing private
+Home router (-54/-39 dBm), followed by a zero-radio report. This exposed premature
+removal of fresh setup choices; regression fix retains them to their original
+120-second expiry without changing Home presence. A later screenshot shows an
+Unnamed network. At 11:49:38 and 11:49:46 UTC, version-2 diagnostics confirmed
+two radios per fresh report with empty names (available 0, empty 2, all rejection
+counts 0). The Home router was present at -39/-38 dBm. No normal ten-minute reporting
+baseline, native fence, save/reopen or Home-presence acceptance is established.
+
+Android follow-up: `wifi_scan` 0.5.0 supplies nearby 2.4 GHz names through an
+explicit foreground scan. An owner-scoped endpoint matches exact identifiers to
+fresh watch candidates; phone-only networks cannot be saved. No new watch
+commands or Home evidence. Automated matching/security and native-channel
+regressions are added. At 19:53 UTC / 23:53 MUT, the operator's Samsung SM-S918B
+(Android 16 / API 36) screenshot and report confirm initial phone name discovery,
+one matching watch candidate (name from phone, -46 dBm, displayed observation
+23:51 MUT), selection and save. The match appeared without running the proposed
+additional manual CR step. The saved screen still waits for fresh watch reports;
+this is enrollment evidence, not accepted current Home presence. No new packet
+capture or complete command history was supplied. Android/Web reopen, gateway
+restart, replacement/removal, adverse permission/scan cases and Home detection
+remain pending. Private radio/name/pin details are omitted. See the runbook's
+physical Android result and remaining checklist.
+
 # Guardian V52 real-device acceptance
+
+## AnyTracking Wi-Fi comparison preparation — 1 October 2026
+
+The operator supplied the AnyTracking Geofence > WiFi Fence > Add screen, with
+an apparently empty list and Name/Wi-Fi/OK controls. This does not establish the
+watch's applied configuration. A standalone redacted comparison recorder now
+captures configuration shape, same-run router aliases, UPLOAD requests, scans
+and generic fence bits. It forwards unchanged bytes and generates no commands.
+The first session is setup/removal only; departure/return and 10-minute normal
+reporting are later acceptance steps. Guardian's existing reporting/Home policies
+are unchanged. See the [comparison runbook](testing/anytracking-wifi-comparison.md).
+No live native-fence success, photo fix or battery improvement is claimed.
+All 40 focused relay/radio tests pass. The Windows launcher has been reviewed,
+but not executed in this Linux workspace; its Windows preflight remains pending.
+
+
+## Photo command coordination — 1 October 2026
+
+Partial acceptance: live AI schema checks passed, saved-photo recovery/rotation
+worked, and the 00:33 MUT SOS produced five AI-ready photos. Separate falls at
+00:55 and 01:20 produced one and zero photos, respectively, with capture replies
+but no next image before timeout. The operator confirms that fall does not call.
+No competing logged downlink was demonstrated inside those failed waits.
+
+The current addition records a redacted, bounded outgoing-write timeline with
+each photo's existing terminal diagnostics. It does not change scheduling or
+prove an interference fix. Missing/truncated evidence must remain explicit.
+See [the timing audit and coordination plan](services/incident-photo-command-coordination.md)
+for test scope, future priority/defer/expiry rules and hardware acceptance.
+PR #113 stays draft; no new live watch command was sent by this implementation.
+The repository runbook is updated; the GitHub connector cannot access the Wiki
+endpoint in this environment, so Wiki synchronization remains outstanding.
+
+## Photo AI schema rejection identified — 1 October 2026, 00:12 MUT
+
+The synthetic API diagnostic used `claude-sonnet-4-6` and failed at
+`orientation_schema` with HTTP 400 / `invalid_request_error`: enum `A` did not
+match declared `['string', 'null']`. This is a concrete request-schema failure,
+not evidence of unreadable image content. Both selection and description now
+express their nullable enums as separate `anyOf` branches. The view letters,
+quarter-turn values, null abstention, local validation and budgets are preserved.
+Three regression checks fail on the old format; all 56 focused tests pass after
+the fix. Live verification must still pass both synthetic schema checks, saved
+photo recovery and actual gallery viewing before claiming usable AI/rotation.
+The independent second-photo timeout remains unresolved; PR #113 stays draft.
+
+## Real SOS photo follow-up — 30 September 2026, 23:58 MUT
+
+Acceptance remains blocked. Logs explain the ten-minute first-request delay:
+the old connection stopped sending at the 22:49:23 SOS, closed at 22:51:57, and
+reconnected at 22:59:37.657. Guardian requested Photo 1 1.245 seconds later and
+saved it at 22:59:47.885. Calling is a hypothesis for the interruption, not proven.
+Photo 2 received a bare capture reply but no image within its receive window,
+which extended past the incident sequence deadline. No image ACK, capture retry
+or camera-readiness command has been established by this evidence.
+
+Explicit recovery of the saved invalid-JSON analysis using `0cf9f4a` returned
+HTTP 400; the stored failure and missing orientation are unchanged. The provider
+reason is not yet known. A new `check-incident-photo-ai.js --run` diagnostic checks
+the production JSON schemas with synthetic text and reports a bounded provider
+error. Its tests do not prove live provider access, image understanding or rotation.
+Keep PR #113 draft; do not repeat SOS to diagnose this API rejection.
+
+## Real SOS photo acceptance — 30 September 2026, 23:16 MUT
+
+Partial. The operator received the follow-up WhatsApp, then reported one photo,
+no AI analysis and no automatic viewing rotation. The supplied gallery screenshot
+shows one sideways original received at 22:59:47 and an unavailable Photo 2.
+An earlier read-only inspection reported Photo 1 `analysis_invalid_json`, Photo 2
+`waiting_for_image`, and the incident `collecting`; final capture-stop evidence
+is still required. Previous HTTP 400/credit failures do not explain this new
+JSON failure. One earlier real SOS saved five originals, so these separate runs
+must not be combined into a claim of reliable five-photo completion.
+
+The software change requests structured JSON for orientation and description and
+allows an explicit, authorized recovery of the saved invalid-JSON analysis.
+Tests use synthetic images and mocked provider responses; a real saved-photo
+recovery, useful description, correct viewing orientation, app-alert navigation,
+fall flow and recipient delivery still need acceptance. PR #113 stays draft.
+
+
+## Guardian app integration — 25 September 2026 MUT
+
+The branch now includes the authorized `rcapture` sender, private TCP image
+receiver with full JPEG decoding, Firebase storage, authenticated viewing and
+deletion, retention cleanup, and a Family/Care app screen. It has been brought
+forward onto main `4386b0d` while preserving the historical photo evidence below.
+
+Local validation: **1344 gateway tests passed**, including a real local TCP
+photo exchange, concurrent request serialization, private access, timeouts,
+revocation and upload/deletion races. Both real remote samples also pass the
+new live JPEG decoder. Flutter and Firestore emulator CI are the next checks.
+No live Guardian photo or Firebase write is claimed from these software tests.
+The operator's next action is the direct app capture/delete trial in
+[the Windows app runbook](testing/photo-app-trial.md).
+
 
 **Status:** Release gate
 **Device under test:** One production-equivalent V52 watch and SIM
@@ -877,6 +1035,73 @@ Medication reminders are available on Guardian Family and Guardian Care.
 
 Pass for the current product: canonical record, TCP dispatch, watch presentation and guardian delivery. Wearer acknowledgement is **not implemented/proven** by the current V52 protocol, so marketing must not promise it until a separate end-to-end mechanism exists.
 
+### Recorded voice reference result — 5 October 2026
+
+One operator-controlled AnyTracking test on the pilot V52 established audible
+playback of a recorded medication reminder. A transparent recorder captured an
+enabled Once setting for 17:16 MUT in slot 1, with escaped binary AMR-NB audio
+(174 complete 12.2-kbit/s frames, 3.48 seconds). The command was sent at
+17:13:37.978 and received a `TAKEPILLS,1` reply at 17:13:38.410. The operator
+separately confirmed hearing the voice; exact playback seconds were not measured.
+An earlier 17:06 Daily setting was disabled and produced no reported sound.
+
+The same-slot off-setting and reply were captured at 17:19:09.674 and
+17:19:11.514. Cleanup has command/reply evidence, without independent on-watch
+readback or future-suppression verification. Guardian routing restoration was
+verified from a fresh watch packet after the reference session ended. Recorder
+and sleep helper exited, with existing Guardian/ngrok endpoints preserved.
+Private recordings, text and raw frames
+are not committed. See [the detailed evidence](services/voice-medication-reminders.md#enabled-once-playback-5-october-2026).
+
+**Scope:** This is reference-app/watch acceptance for one recorded Once reminder,
+not a pass for Guardian's app, recording UI, storage, permissions or dispatch.
+The binary codec privately matches the captured frames. PR #144 now implements
+recording/preview, private storage, explicit slots and the coordinated sender.
+They are enabled only for the operator-authorized pilot; no Guardian playback
+pass is claimed yet.
+Daily/weekly execution, independent
+slots, audio limits, offline execution and reboot persistence remain open.
+
+### Guardian implementation checkpoint — 5 October 2026
+
+Android APK installed on the connected Samsung; release Web build and Firestore
+rules deployed. The combined gateway retains Wi-Fi, incident-photo, reporting,
+Firebase/Maps and tunnel configuration. Voice pilot activation adds only the
+matching authorized account/device flags. Fresh watch telemetry was verified
+after its guarded idle restart; no reminder or recording was sent by this rollout.
+
+Software checks: 1,351 gateway tests on the PR branch, 1,667 on combined code;
+75 / 91 Firestore emulator tests respectively; 55 focused Flutter tests. Record
+permission/background transitions, bounds, responsive UI, private access,
+transactional slots, retries/idempotency, expiry, reconnect, restart ambiguity
+and capture coordination are covered. Runtime sender depends on the combined
+shared command coordinator and fails closed without it.
+
+Next exact-watch gate: record a short neutral message through Guardian, preview
+it, save Once a few minutes ahead in an unused slot, and record API outcome,
+TAKEPILLS reply and operator-heard playback separately. Do not overwrite the
+three legacy Daily records sharing slot 2; they remain preserved. Also verify
+independent slot edits, standard alert, Daily execution, removal/off suppression,
+alert-profile interaction and offline/reboot behavior before broader release.
+Weekly voice remains withheld pending weekday-order evidence. The unchanged
+guardian WhatsApp reminder contract is a separate delivery check.
+
+### Guardian audible Once result — 5 October, 18:46 schedule
+
+The operator reported that the new medication reminder spoke the recorded voice
+but did not vibrate. The canonical managed voice reminder is Once, slot1, 9.92s,
+saved at 18:42:02.058 MUT for 18:46. Write evidence is 18:42:02.842, with a
+status-1 reply at 18:42:03.475. This establishes one audible Guardian voice
+reminder based on the operator's observation; exact playback time is unmeasured.
+
+The selected Vibration option was a cached mode3 request from 22 September,
+marked sent at 23:19:32.461 MUT. There was no new profile command today. Neither
+the selection nor old handoff proves the current firmware scene. The voice code
+does not modify profile or request vibration. Voice/vibration/muting interaction
+remains unresolved; no automatic override or new test command was sent. See the
+service document's alert-style checkpoint. Guardian Once playback is now partial
+acceptance; other modes/slots, off suppression, Daily and persistence remain open.
+
 ## Test 8 — steps and daily activity
 
 This is passive telemetry testing. Do not send `PEDO` or `WALKTIME` during an
@@ -931,8 +1156,391 @@ Pilot evidence, 23 August 2026: one exact V52 acknowledged `hrtstart,1` but did 
 
 Temperature remains blocked until the exact V52 upload shape is captured. Passing this test permits an engineering evidence update; it does not turn on customer flags or establish medical accuracy.
 
-## Final collection
+## Photo follow-up — 25 September 2026 MUT (24 September UTC)
+
+New operator evidence: `Pasted text(6).txt` logs two reference-service
+`rcapture` requests followed by matching-length TCP `img` frames:
+20:26:47.718 -> 20:26:55.373 UTC (7.655 s, 6930 payload bytes) and
+20:30:08.554 -> 20:30:14.275 UTC (5.721 s, 6590 payload bytes).
+The recorder saved both uploads (six private records, two image frames,
+13,678 total raw frame bytes after the second). The operator reports both
+photos appeared promptly in AnyTracking, with deletion of the first there
+before the second. This is new positive upload/gallery evidence; the measured
+delays are to recorder receipt, not measured gallery-display latency.
+
+Immediate operator follow-up: the watch was “absolutely not touched.”
+Combined with both request/upload sequences and reported app pictures, this
+confirms two hands-off remote photos through AnyTracking on this pilot V52.
+The no-watch-camera-interaction check is resolved. Actual screen state and
+wearer indication remain unreported; awake clock-face instructions alone are
+not evidence of the state. A prior watch restart and network/recorder recovery
+mean no awake-state or restart root cause is established. Preserve the earlier
+manual-sample classification. This positive pilot result does not establish
+general reliability or direct Guardian execution.
+
+The subsequently attached private capture
+`guardian-photo-private-20260925-002537-151.jsonl` contains both complete images.
+They decode to distinct 240x240 RGB JPEGs of **6797 and 6450 bytes**; Pillow
+verification, full pixel loading with truncated-image loading disabled, and
+visual inspection all passed. Their post-EOI trailers contain six and one NUL
+bytes, respectively. The offline decoder previously required the two NULs in
+the manual sample; it now accepts only the observed all-zero lengths one, two
+and six while retaining raw trailer metadata. Meaning of the trailer and
+header fields remains unproven. Real images/captures are not committed.
+
+The operator reports restoring the watch IP to Guardian; fresh Guardian
+telemetry has not been independently verified here. Private Guardian
+ingestion/deletion, direct Guardian execution and customer readiness remain
+unverified. Reference-app deletion does not prove server hard deletion or
+deletion of the local capture. The public FTP probe remains historical and is
+not a prerequisite for pursuing the observed TCP path. No new watch FTP
+provisioning is needed for that path.
+
+The recorder's earlier expiry (20:14:36.083 UTC) and missing 9002 listener
+explained the later offline routing problem until the recorder restarted.
+This does not explain the earlier connected-but-no-image trials. Current
+reported forwards after ngrok recovery were Guardian 10595 -> 9000, recorder
+17200 -> 9002 and the existing WhatsApp HTTPS -> 9001; reread current endpoints
+for later sessions.
+
+See [the latest photo evidence and next steps](testing/photo-reference-capture.md).
+PR #113 remains draft. The offline decoder fix passes **35 focused
+relay/private-recorder/decoder tests**, including synthetic trailer rejection
+and two-image extraction coverage. No production feature was activated.
+
+## Photo checkpoint — 24 September 2026
+
+Software follow-up: PR #113 now has a standalone bounded FTP receiver
+with real control/data proxy tests and a separate Firebase private import/delete
+pilot. The combined focused suite passes 56 tests. The operator passed all nine
+local FTP checks on Windows/Python 3.13.15 and the Firebase read-only check for
+`guardian-fbadd.firebasestorage.app`, with zero writes and upload permissions
+still unverified. A separate public-probe CLI now includes tested endpoint
+restoration. The first public attempt returned `ngrok_http_405` with no FTP
+probe result, then verified the original endpoint configuration. The revised
+probe removes its dependency on endpoint PUT, preserves both TCP endpoint
+configurations through a temporary local bridge on unused port 9002, and reports
+exact failure stages. Local integration passed against an agent that rejects
+PUT. The operator's public retry at `5a4f37f` passed: `public_ftp_probe_passed`,
+`bytesVerified=1024`, no failure, and `endpointConfigurationRestored=true` with
+no restoration problems. This proves the laptop's transfer through both public
+FTP connections. `publicReachabilityVerified=false` concerns the restored
+endpoints; a fresh WhatsApp webhook was not established. The probe ended its
+temporary receiver arrangement and sent no watch command or Firebase write.
+Saved watch FTP settings/readback/reset remain unknown; the supplied sections
+37–39 provide setters only. Confirm the firmware's FTP/PIC support and a
+restoration procedure before a live watch trial. Firebase write/delete and
+watch `PIC,1` acceptance remain pending. No FTP settings were changed and no customer photo
+capability is enabled. See
+[the readiness check](testing/photo-ftp-trial.md); Firebase stores a received
+photo but cannot establish that a remote camera request executed.
+
+Jesh / protocol ID `9705254749`: the operator reports photos visible in
+AnyTracking. The recorded reference session contains lowercase `rcapture`
+requests/replies followed by two `img` uploads, 5.064 and 6.057 seconds after
+their requests. TCP payload lengths are 3066 and 5987 bytes, not measured
+JPEG sizes. The operator reports sending the Guardian return SMS to port
+10595; fresh Guardian telemetry after restoration was not supplied in this
+checkpoint. Tunnel ports are temporary and must be read afresh for the next run.
+
+This establishes reference-service capture/upload behavior on one watch.
+Follow-up private file: one 5067-byte `img` payload at 17:39:27.835Z was decoded
+offline by reversing 77 documented escape pairs. The extracted JPEG is 4969
+bytes and 240x240 pixels; it loaded fully with Pillow and was visually inspected.
+No personal image bytes were committed. The operator still reported an empty
+AnyTracking gallery for this attempt. Three requests were present in the file;
+the upload is 205.457 seconds after the preceding request. The operator has now
+confirmed accidentally pressing the camera button on the watch. Classify this
+sample as a locally triggered upload, not remote-request success or measured
+remote latency. The decoded format remains valid evidence; a controlled
+AnyTracking-only request with untouched watch controls is the next test. This
+correction does not establish the trigger of the earlier 17:00/17:01 uploads.
+
+App-only follow-up at 22:23 MUT: `rcapture` sent at 18:23:22.676Z and bare reply
+at 18:23:23.352Z (676 ms). Heartbeat exchange continued through 18:25:15.560Z,
+but no `img` or recorder observation error appears in the supplied excerpt.
+The operator reports two minutes of waiting and an empty AnyTracking gallery.
+Remote-photo execution remains unverified. Next compare a request with the
+watch awake at the ordinary clock screen, camera/gallery closed; this checks
+a device-state hypothesis without changing command syntax.
+
+Live Guardian reception/private storage, fresh-image/request correlation, indication,
+retention/deletion, reconnect/failure handling and a second watch remain
+unverified. No customer flag or device-dispatch acceptance is changed.
+See [the exact timeline and next private capture](testing/photo-reference-capture.md).
+
+## Final collection (release)
 
 Rerun the collector with the recorded UTC start time. The evidence pack includes collector JSON, factual UI screenshots, redacted gateway excerpts, the manual call table, carrier/SIM and firmware versions, failures, retries and exact timestamps.
 
 `releaseReady` remains false in the collector by design. Release also requires PR checks, Meta acceptance, Android smoke testing, billing lifecycle, privacy/retention review and resolution or rewording of every Partial/Not implemented promise in the service matrix.
+
+## Native clock, sedentary and talking-clock reminders (PR #118)
+
+### Latest sedentary comparison — 29-30 September 2026
+
+**Current status, 30 September at 17:35:58 MUT:** after the requested refresh,
+Guardian Off Save and physical-menu check without local Save, the operator
+reports **Close / 20 then Close / 0**. The worn run's physical Off cleanup is
+operator-confirmed; pending-cleanup statements in earlier checkpoints below
+are historical. Save became usable following a newly observed connection
+(one established TCP socket created at 17:34:00 MUT). The precise earlier
+connection-block cause remains unresolved; no readiness guard was changed.
+Keep Off for now. This confirms menu cleanup, not sustained Off suppression,
+exact reminder cadence, movement reset, quiet hours or reboot persistence.
+
+At 15:08:07 MUT on 30 September the operator cannot save Off. The app screenshot
+shows Selected: Off but Last request: Requested On, disabled Saves, and Watch
+connection unavailable / no change queued. This does not establish completed
+Off cleanup. Source inspection confirms Save depends on a usable connection
+snapshot, not whether active hours have ended. Refresh status, reselect Off
+after the last requested selection reloads, and save once if connection is
+available; otherwise inspect the running gateway read-only. The exact session
+failure and current physical state are not established by the screenshot.
+At 15:09:25 the operator reports the same result after Refresh status. Read-only
+gateway session/listener/tunnel diagnostics are the next step; no Off is confirmed.
+
+At 01:01:16 MUT on 30 September the operator asks to continue tomorrow.
+Pause new tests and timed waits. Guardian Off Save is requested only if not
+already done; this worn run's cleanup remains unconfirmed. Establish current
+state on resumption before enabling another trial. PR remains draft.
+
+At **00:59:54 MUT on 30 September**, the operator reports the worn watch rang
+and displayed a message at **00:57**, following the Guardian On/menu check.
+They walked 12 steps, say the count remained 12 at the reminder, and report
+counting 26 minutes. Record one positive operator-observed worn sound/display
+result after remote configuration. Exact message wording is not newly supplied.
+The event is later than the planned 00:31 observation checkpoint, so exact
+20-minute timing and the original bounded 25-minute trial are not passed.
+Last movement time, settled start and the 26-minute baseline are not recorded.
+Movement resetting the timer is a plausible hypothesis, not verified behavior;
+unchanged steps do not rule out other motion. The event falls within requested
+00:00-01:00 hours but does not establish quiet-hours enforcement. Request one
+Guardian Off Save and physical menu inspection; this run's cleanup is pending.
+Core worn sound/display has positive evidence; full acceptance remains open.
+
+At **00:05:52 MUT on 30 September**, the operator reports **Open / 20** after
+the requested Guardian On/menu check. This run's physical enable is observed.
+Proceed with the separate worn/seated observation for 25 minutes from the
+actual settled start, which the operator is asked to note, within planned
+00:00-01:00 hours. Exact new hours/On wire evidence is not supplied. The later
+worn result is above; exact start and new Off cleanup remain outstanding.
+
+At 23:55:49 MUT the operator requested the separate worn test now, superseding
+the earlier stop-for-tonight instruction. Start from confirmed Close / 0. Plan
+00:00-01:00 hours for 30 September, saved separately while Off, then Guardian On
+around 00:05 and a physical Open / 20 check without local Save. Only after that
+check, observe worn/seated for 25 minutes from the recorded actual start (target
+00:05-00:30). Record prompt/no-prompt and finish with Guardian Off plus a separate
+physical menu check. Physical enable and worn sound/display are subsequently
+reported above; cleanup remains pending. See the movement runbook for exact steps.
+
+At 23:48:26 MUT the operator confirmed the watch remained untouched on the sofa
+for both rings and displayed **"Sedentary reminder: do some exercise"**. First
+sound was reported around **21:34**, second **maybe 20-30 minutes later**.
+Record this run's off-wrist audible/display result after Guardian configuration
+as operator-observed pass. It demonstrates that sedentary output can occur
+while unworn in this scenario; it does not prove wearer inactivity. Exact
+placement time, first-trigger delay, repeat cadence and worn behavior remain
+unverified. The second estimate straddles requested 22:00 end (roughly
+21:54-22:04); do not claim either quiet-hours success or failure.
+
+The operator reports selecting Off and saving in Guardian at this 23:48 report.
+At **23:52:33 MUT**, they confirm **Close / 0** after the instruction to reopen
+the physical menu without local Save. This run's physical Off cleanup is
+operator-confirmed. Exact Off wire time and long-term suppression remain
+unverified. The initial instruction was to leave Off; the later worn request above needs
+a new active window. PR remains a supervised draft and full acceptance is open.
+
+At 20:32:12 MUT the operator changed the proposed test: preparing dinner,
+they plan to leave the watch on the sofa sensor-up, then test while worn after
+dinner. Actual placement time remains unknown; the later sound report is above.
+This was a
+separate stationary off-wrist observation, bounded to about 25 minutes from
+placement; it supersedes the worn 20:50 cutoff below. Keep settings and routing
+unchanged, record any prompt, then perform explicit Guardian Off cleanup.
+The later confirmation above establishes off-wrist sound/display for this run.
+Worn remote acceptance remains pending; the physical Off check is confirmed above.
+
+At 20:24:43 MUT the operator reported a Guardian On Save around 20:22-20:23
+and physical **Open / 20**, following the separate hours request below and the
+instruction to inspect without the watch's Save. This is an operator-observed
+On/menu result; the Save time is approximate and no new exact wire audit was
+supplied. A bounded remote-only worn reminder observation was requested through
+20:50 MUT, keeping On / 20 and 20:00-22:00 unchanged with no further Saves or
+route changes, before the later scenario change above. The subsequent two-ring
+report does not complete worn acceptance; subsequent Off menu cleanup is above.
+
+The 20:14:11 MUT screenshot shows Selected: Off and Last request: Watch replied,
+Requested hours: 20:00-22:00. The accompanying gateway excerpt contains a bare
+SEDENTARYWORKTIME echo near 20:14 and fresh telemetry after the reported return
+to Guardian. This is hours-request/reply evidence, not applied schedule readback.
+The exact hours wire body/time has not been supplied. The later physical
+Open / 20 result does not independently verify the firmware-applied schedule.
+
+At 17:48:15 MUT the operator reported Open / 20 during the requested
+Guardian-through-recorder check, then Guardian Off Save produced Close / 20
+followed by Close / 0. They reported returning the route to port 14062. Record
+this run's remote On/Off menu check as operator-observed pass and cleanup as
+closed. The subsequently supplied capture records On at 17:46:29.090 with a
+578 ms reply, then Off at 17:47:16.090 with a 1,042 ms reply (all MUT). It reports
+20 frames and complete observation through the 17:48:07.488 connection close.
+No SEDENTARYWORKTIME appears in that recorded connection. At 17:59:02 the
+operator clarified that they pressed only Save On/Off and assumed the hours
+were included because both buttons displayed loading. This explains the absent
+hours request in this run. The shared loading feedback is corrected to identify
+only the active action, without changing wire commands or combining Saves.
+Fresh traffic after restoration was later supplied in the 20:10-20:14 excerpt.
+Existing
+SG startup ACKs were present during this successful menu check. This does not
+establish remote timed output or reliable repeated application, and no cause
+for the changed result is established.
+
+The Guardian remote trial received exact SEDENTARY/SEDENTARYWORKTIME replies
+but the operator reported no reminder by 15:56 MUT. Guardian Off cleanup was
+reported at 16:01 (Close / 20 then Close / 0). Next, a physical-watch Open / 20
+Save was confirmed at 16:04:56; with Guardian left at its last requested Off,
+the operator reported sound and "Sedentary reminder: do some exercise" on screen
+at 16:24:51. The latter is a report time, not an independently measured firing
+time. **Local-enable audible/display control passed; remote execution remains
+not accepted.** At 16:26:41 the operator confirmed saving Close / 0 locally and
+seeing it persist after leaving and reopening the menu. Local cleanup passed
+by operator observation; long-term suppression and reboot remain untested.
+
+See the [detailed comparison](testing/sedentary-source-audit-2026-09-29.md#local-enable-control-audibledisplay-reminder-reported-at-162451-mut)
+and [current movement runbook](testing/movement-reminder-app-trial.md). One local
+prompt does not prove remote setting application, quiet hours, motion reset,
+repeat cadence, vibration, persistence or reliable Off suppression. Preserve
+the earlier local speech observations and remote trials below as historical.
+
+Follow the [Windows trial](testing/care-reminder-command-acceptance.md) and
+[supplier reply](testing/care-reminder-supplier-reply-2026-09-22.md).
+Customer controls/automatic dispatch stay disabled. Existing wellness routines
+and Family/Care TAKEPILLS medication reminders are separate.
+
+### Existing pilot evidence — 21 September 2026
+
+- REMIND,02:05-1-1,00:00-0-1,00:00-0-1 was handed off; the once-only entry
+  appeared and the operator confirmed sound, correcting the no-sound report.
+  Vibration and exact firing time were not captured.
+- After REMIND,00:00-0-1,00:00-0-1,00:00-0-1, the operator confirmed the entry
+  disappeared. It had already rung; future cancellation remains untested.
+- The local Sedentary UI offered Open/Close and steps 10–200. Initial silent
+  on-wrist windows were followed by three spoken "Sedentary reminder: do some
+  exercise!" prompts. Times/gaps, detected movement, final state and cleanup
+  remain unknown. Gateway timestamps cannot supply the announcement times.
+- Both VERNO labels are in the linked supplier source record. No HSW physical
+  execution result has been provided.
+
+### Supplier reply received 22 September 2026
+
+Jett defines the sedentary trigger as no detected movement over the set period;
+1 on / 0 off and 26 minutes in SEDENTARY,1,26, with sound when triggered.
+HSW,0 disables and HSW,1 enables talking time.
+
+The helper now supports explicit HSW on/off and SEDENTARY on/off at fixed 26.
+The complete sedentary off body retains 26 and changes the defined flag; Jett
+did not separately paste that complete frame. Range, motion/reset/repeat rules,
+active hours, vibration, HSW speech trigger and reboot persistence remain open.
+
+All trials preview by default and require --send for one authenticated local
+handoff. No watch command was sent during implementation. PR #118 stays draft;
+PR #115 remains paused.
+
+- [x] Record REMIND once-only sound and visible clearing.
+- [x] Record local SEDENTARY speech and supplier inactivity/minutes/flag definitions.
+- [x] Record supplier HSW off/on polarity.
+- [ ] Observe remote SEDENTARY saved setting, timed output and effective off.
+- [x] Operator confirms HSW speech during the enabled wake-screen test and silence after running off; transport limits recorded below.
+- [ ] Verify REMIND future cancellation, daily/weekly/day mapping, slots and reboot.
+- [ ] Verify ranges, reset/repeat, quiet hours and persistence where applicable.
+- [ ] Keep physical results separate from socket handoff and acknowledgement.
+
+### HSW physical wake-screen result — 22 September 2026
+
+**Passed for the observed on/off wake-screen behavior on the pilot.**
+
+The operator ran hsw-on through the prepared CLI. Its request time was
+2026-09-22T09:07:29.440Z (13:07:29.440 Mauritius); it reported HSW,1,
+socket_handoff, commandSent:true and one live session. The supplied gateway
+excerpt confirms the five-byte HSW,1 frame and an HSW command-echo reply.
+The reply line has no standalone timestamp and retains no parameters; do not
+infer an exact response time, a bare response or an applied-state readback.
+
+In response to the instructed physical test, the operator reported that the
+watch says the time aloud. They then explicitly reported running the feature-off
+command and waking the watch, after which it did not say the time aloud.
+
+| Stage | Evidence | Result |
+| --- | --- | --- |
+| Enable | HSW,1 request/downlink and an HSW reply; operator's enabled wake-test observation | Spoken time confirmed by operator |
+| Disable | Operator reports running the instructed hsw-off command, then waking the watch | No spoken time on that wake, confirmed by operator |
+
+The hsw-off CLI result/downlink and exact speech/off times were not supplied.
+The physical result is accepted as an operator observation; do not fabricate
+an independently captured HSW,0 frame, reply or off timestamp. Last reported
+action is off, with silence verified on the subsequent wake. It is not proof of
+restoration to an unknown setting from before the trial.
+
+Do not infer immediate-on-enable speech, every wake/other trigger, hourly speech,
+spoken-time accuracy, reboot/reconnect persistence, durable readback, vibration
+or second-watch acceptance from this one comparison. The helper's
+hardwareAccepted:false and appliedStateVerified:false remain correct automated
+evidence fields; the manual physical result is recorded here separately.
+
+The supplier's off/on interpretation now has a successful pilot physical result.
+No runtime or flag change accompanies this evidence update. PR #118 remains
+draft; PR #115 remains paused. Next run the separate fixed-26-minute SEDENTARY
+enable/observe/off procedure; no additional HSW test is required now.
+
+## Incident photo sequence comparison — 2 October 2026
+
+Under the minimum 60-second save-to-follow-up policy, the 14:05 MUT SOS produced
+five stored photos, five ready AI analyses and a delivered/read Photos & AI
+follow-up. The separate 14:29 MUT fall produced two stored photos with ready
+analyses. Its third capture received only a 29-byte command reply and no image
+in-window despite 113.461 seconds since the preceding save and no competing
+outgoing command during its wait. Initial and follow-up WhatsApp delivery were
+verified separately; another initial recipient had Meta rejection 131030.
+Screen state was not observed. Camera reliability/root cause remains open.
+
+Bounded metadata-only ingress diagnostics have been added for the next trial,
+including post-timeout and replacement/unidentified-connection observations.
+They do not change photo authorization, commands, spacing or media acceptance.
+See [the detailed evidence and diagnostic limits](testing/incident-photo-spacing-2026-10-02.md).
+
+### Diagnostic fall and reporting correction — 2 October 2026
+
+The independent fall received at 15:24:20 MUT delivered its initial WhatsApp
+alert. One capture at 15:25:55 received a bare reply but produced no image. The
+metadata observer retained the full 120-second authorization and a further
+120 seconds of observation: 63 total incoming bytes on the selected connection,
+two complete frames, zero photo headers, zero incomplete buffers, zero
+untracked bytes and no replacement/unidentified connection traffic. No image
+rejection was recorded. This locates the observed failure before photo parsing,
+Storage and AI; it does not distinguish watch generation from transport loss.
+The separate follow-up was delivered/read at 15:28:15. No retry was sent.
+
+The operator reports that the screen stayed dark after a brief initial display,
+and that a previous five-photo SOS succeeded with the same screen behavior.
+Screen darkness alone is therefore not an established explanation. The earlier
+AnyTracking-only attempt at 22:23 MUT on 24 September also had a reply and
+continuing heartbeat, but no image in its supplied 112.884-second excerpt.
+That finite reference excerpt cannot exclude later or other-transport arrivals.
+
+Code inspection found a separate gap: fall did not activate the bounded
+emergency reporting override. It now uses the same 30-minute active / 15-minute
+cooldown policy and critical-battery safeguard as SOS. Alarm receipt timestamps
+are retained for both types; reporting starts independently of geolocation and
+alert/photo completion. A regression also prevents an older reporting write
+from shortening a newer emergency deadline. All 1,616 gateway tests pass.
+These are software fixes; fall reporting cadence and camera reliability still
+require hardware evidence. No new physical alarm or capture is claimed here.
+
+## Hardware result — 2 October 2026, 17:25 MUT fall
+
+The 6bd04fb gateway granted the second request its complete 240-second window (17:28:37.262 to 17:32:37.262). It received one capture reply and no photo header, image frame or partial image buffer. The additional 120-second metadata observation also received no photo header: final 97 bytes, three frames on the same connection, no closure/replacement, zero untracked bytes, suppressed events or log failures. The capture-period outgoing trace contained RCAPTURE and one required LK reply, with no competing routine setting or CR.
+
+One photo was stored and fully decoded; its AI analysis and authorized gallery were ready. The initial WhatsApp reached one recipient, and the separate Photos & AI follow-up was delivered at 17:33:19 and read at 17:33:26. The other initial recipient retained Meta error 131030; no allowlist/contact changes were made. The recorder and sleep helper exited after all metadata observations ended; gateway/ngrok remain running.
+
+**Outcome: the four-minute candidate did not resolve this failure.** The earlier delayed frame remains evidence for that earlier request, not an explanation of this run. The upstream delay/failure cause remains unknown. No new hardware reliability claim is supported.

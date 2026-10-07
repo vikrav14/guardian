@@ -5,6 +5,10 @@
  * medicationReminders/{reminderId}; Flutter, WhatsApp and this worker all use
  * that same schema. Delivery is recorded separately from acknowledgement,
  * which the current V52 protocol does not prove.
+ *
+ * The newer Care routines/accessibility request path is deliberately separate:
+ * it only processes backend-owned careReminderRequests when its explicit
+ * default-off gate is enabled. It does not send a V52 command or notification.
  */
 
 const config = require('./config');
@@ -12,6 +16,11 @@ const { normalizeE164 } = require('./notify');
 const { sendMetaTemplate } = require('./whatsapp-meta');
 const { FEATURE, hasEntitlement, loadEntitlementsForUser } = require('./entitlements');
 const { reminderDue } = require('./medication-reminders');
+const {
+  startPendingCareReminderRequestWatcher,
+  stopPendingCareReminderRequestWatcher,
+} = require('./care-reminder-requests');
+const { careReminderRuntime } = require('./care-reminder-runtime');
 
 async function runReminderCheck(db, options = {}) {
   const now = options.now || new Date();
@@ -26,6 +35,8 @@ async function runReminderCheck(db, options = {}) {
   for (const reminderDoc of remindersSnap.docs) {
     const reminder = reminderDoc.data() || {};
     if (!reminderDue(reminder, now)) continue;
+    // Managed circles keep routine reminders in the app; never fan out paid routine WhatsApp messages.
+    if ((await db.collection('familyServices').doc(reminder.imei).get()).exists) continue;
     const uid = String(reminder.createdBy || '');
     if (!uid) continue;
 
@@ -93,12 +104,25 @@ async function runReminderCheck(db, options = {}) {
   }
 }
 
-function startReminderScheduler(db, config = {}) {
+function startReminderScheduler(db, options = {}) {
   if (!db) {
     console.warn('[reminder-scheduler] Firestore unavailable, skipping scheduler');
     return { stop: () => {} };
   }
-  const interval = config.checkIntervalMs || 60000;
+
+  const runtime = options.careReminderRuntime || careReminderRuntime;
+  const startCareRequests =
+    options.startCareReminderRequestWatcher || startPendingCareReminderRequestWatcher;
+  const stopCareRequests =
+    options.stopCareReminderRequestWatcher || stopPendingCareReminderRequestWatcher;
+
+  if (runtime.requestsEnabled === true) {
+    startCareRequests(db);
+  } else {
+    console.log('[care-reminders] request watcher disabled (CARE_REMINDERS_REQUESTS_ENABLED=false)');
+  }
+
+  const interval = options.checkIntervalMs || 60000;
   let active = true;
   async function check() {
     if (!active) return;
@@ -115,6 +139,7 @@ function startReminderScheduler(db, config = {}) {
     stop: () => {
       active = false;
       clearInterval(timerId);
+      if (runtime.requestsEnabled === true) stopCareRequests();
       console.log('[reminder-scheduler] Stopped');
     },
   };

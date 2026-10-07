@@ -11,6 +11,12 @@ const {
   MetaMessageDeduper,
 } = require('../src/meta-webhook');
 
+test('family acknowledgement uses validated button payloads instead of translated display text', () => {
+  assert.equal(extractMessageText({ type: 'button', button: { text: 'Je réponds', payload: 'ACK sos_123' } }), 'ACK sos_123');
+  assert.equal(extractMessageText({ type: 'interactive', interactive: { type: 'button_reply', button_reply: { title: 'I am responding', id: 'ACK fall-1' } } }), 'ACK fall-1');
+  assert.equal(extractMessageText({ type: 'button', button: { text: 'Continue', payload: 'ACK ../private' } }), 'Continue');
+});
+
 test('GET verification returns challenge only for matching verify token', () => {
   const ok = verifyMetaWebhookChallenge({
     mode: 'subscribe',

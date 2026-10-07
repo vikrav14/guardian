@@ -8,6 +8,7 @@ import '../../models/device.dart';
 import '../../theme/app_theme.dart';
 import '../guardian_widgets.dart';
 import 'profile_weather_panel.dart';
+import 'dashboard_action_style.dart';
 
 /// A person-first overview. Connection status describes the watch connection;
 /// location provenance and freshness belong to the separate location card.
@@ -22,6 +23,8 @@ class GuardianOverviewHeader extends StatelessWidget {
     this.onWatchStatus,
     this.watchCheckStatus,
     this.weather,
+    this.photoAction,
+    this.voiceAction,
   });
 
   final Device device;
@@ -32,6 +35,8 @@ class GuardianOverviewHeader extends StatelessWidget {
   final VoidCallback? onWatchStatus;
   final Widget? watchCheckStatus;
   final Widget? weather;
+  final Widget? photoAction;
+  final Widget? voiceAction;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +53,17 @@ class GuardianOverviewHeader extends StatelessWidget {
           watchCheckStatus: watchCheckStatus,
           weather: weather,
         );
-        final actions = _OverviewActions(onCall: onCall, onJourney: onJourney);
+        final actions = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _OverviewActions(onCall: onCall, onJourney: onJourney),
+            ?voiceAction,
+            if (photoAction != null) ...[
+              const SizedBox(height: 12),
+              photoAction!,
+            ],
+          ],
+        );
 
         return GuardianSurface(
           radius: 16,
@@ -146,6 +161,7 @@ class _OverviewIdentity extends StatelessWidget {
               ],
             );
             final conditions = weather ?? const ProfileWeatherPanel();
+            if (!device.allowsShared('location')) return profile;
             final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
             if (constraints.maxWidth >= 620 && textScale <= 1.3) {
               return Row(
@@ -357,29 +373,8 @@ class _OverviewActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.guardianColors;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-    );
-    final textStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
-      fontSize: 14,
-      fontWeight: FontWeight.w700,
-    );
-    final secondaryStyle = OutlinedButton.styleFrom(
-      foregroundColor: colors.textPrimary,
-      disabledForegroundColor: colors.textSecondary,
-      minimumSize: const Size(48, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      side: BorderSide(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? colors.accent
-            : GuardianColors.forest,
-      ),
-      shape: shape,
-      textStyle: textStyle,
-      tapTargetSize: MaterialTapTargetSize.padded,
-    );
+    final secondaryStyle = dashboardSecondaryActionStyle(context);
     final journey = OutlinedButton(
       onPressed: onJourney,
       style: secondaryStyle,
@@ -390,16 +385,10 @@ class _OverviewActions extends StatelessWidget {
     );
     final call = FilledButton(
       onPressed: onCall,
-      style: FilledButton.styleFrom(
-        backgroundColor: GuardianColors.forest,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: colors.surfaceMuted,
-        disabledForegroundColor: colors.textSecondary,
-        minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        shape: shape,
-        textStyle: textStyle,
-        tapTargetSize: MaterialTapTargetSize.padded,
+      style: GuardianControlStyles.primary(context).copyWith(
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        ),
       ),
       child: const _ActionLabel(icon: Icons.call_rounded, label: 'Call watch'),
     );

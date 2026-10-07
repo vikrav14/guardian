@@ -17,12 +17,13 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
   const wifiObservations = [];
   const warnings = [];
+  const reporting = [];
   const failIf = stage => {
     if (failAt === stage) throw new Error(`fixture ${stage} unavailable`);
   };
@@ -32,6 +33,8 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     static now() { return clock; }
   }
   const modules = {
+    './watch-sms-policy': require('../src/watch-sms-policy'),
+    './voice-message-runtime': { createVoiceReceiver: () => ({ observe: () => false, startCleanup: () => null }) },
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
@@ -53,7 +56,10 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './connection-handshake': { maybeAnnounceConnecting: async () => {
       failIf('connection'); return false;
     } },
-    './adaptive-reporting': { activateSosOverride: async () => { failIf('reporting'); } },
+    './adaptive-reporting': { activateEmergencyOverride: async (_db, _imei, options) => {
+      reporting.push({ ...options, calledAt: clock }); failIf('reporting');
+      if (reportingStalls) return new Promise(() => {});
+    } },
     './connection-live': { buildSessionPersistPatch: (_s, patch) => patch },
     './location-provenance': provenance,
     './fall-location-snapshot': require('../src/fall-location-snapshot'),
@@ -61,6 +67,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './fleet-hemisphere': { correctFleetHemisphere: event => event },
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
+    './safety-snapshot-live': { startSnapshotController: () => null, isPhotoFrame: () => false },
     './ops-metrics': { incrementEvent: noop },
     './live-cache': {
       getLiveDeviceState: () => ({}), updateLiveState: noop,
@@ -83,7 +90,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
   };
   vm.runInNewContext(`${source}\nmodule.exports = { applyEvents, wearEvidence, setReliability: value => journeyReliability = value };`, sandbox);
   sandbox.module.exports.setReliability(reliability);
-  return { apply: sandbox.module.exports.applyEvents, wear: sandbox.module.exports.wearEvidence, alerts, writes, errors, wifiObservations, warnings };
+  return { apply: sandbox.module.exports.applyEvents, wear: sandbox.module.exports.wearEvidence, alerts, writes, errors, wifiObservations, warnings, reporting };
 }
 
 test('SOS dispatcher does not depend on GPS journal availability or the location queue', async () => {
@@ -97,7 +104,7 @@ test('SOS dispatcher does not depend on GPS journal availability or the location
 });
 
 test('fall dispatcher still creates the alert when tracking side effects fail', async () => {
-  for (const failAt of ['persistence', 'history', 'intelligence']) {
+  for (const failAt of ['reporting', 'persistence', 'history', 'intelligence']) {
     const run = dispatcher(fixtures[0].device, { failAt });
     const event = alarm({
       alarmType: 'fall',
@@ -116,6 +123,20 @@ test('fall dispatcher still creates the alert when tracking side effects fail', 
       0,
       failAt
     );
+  }
+});
+
+test('SOS and fall start emergency reporting at receipt without delaying the independent alert', { timeout: 1000 }, async () => {
+  for (const alarmType of ['sos', 'fall']) {
+    const run = dispatcher({}, { reportingStalls: true,
+      geoResult: { lat: -20.5, lng: 57.5, accuracyMeters: 700 } });
+    await run.apply([alarm({ alarmType, location: undefined, needsGeolocation: true })], {});
+    assert.equal(run.reporting.length, 1, alarmType);
+    assert.equal(run.reporting[0].alarmType, alarmType);
+    assert.equal(run.reporting[0].eventAtMs, receipt.getTime());
+    assert.equal(run.reporting[0].calledAt, receipt.getTime(), 'start before geolocation yields');
+    assert.equal(run.alerts.length, 1, 'reporting must not gate the alert');
+    assert.equal(run.alerts[0].eventAt.getTime(), receipt.getTime(), 'resolver completion is not alarm receipt');
   }
 });
 

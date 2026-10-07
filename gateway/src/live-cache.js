@@ -322,6 +322,13 @@ function isJourneyActive(imei) {
   return hasActiveJourney(getState(imei));
 }
 
+function journeyReportingUntil(imei) {
+  const state = getState(imei);
+  if (!hasActiveJourney(state)) return 0;
+  const at = +new Date(state.currentJourney?.lastMovementAt);
+  return Number.isFinite(at) ? at + 15 * 60_000 : 0;
+}
+
 function noteObservationForJourney(imei, outcome) {
   return noteJourneyObservation(getState(imei), outcome);
 }
@@ -346,6 +353,7 @@ function resetCacheForTests() {
 }
 
 module.exports = {
+  journeyReportingUntil,
   configureJourneyPersistence,
   onDeviceConnect,
   onDeviceDisconnect,

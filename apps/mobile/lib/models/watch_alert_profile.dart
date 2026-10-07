@@ -1,32 +1,32 @@
-/// The V52 watch's global alert scene.
+/// The V52 global ring/vibration scene, offered as a call alert preference.
 ///
-/// This changes how the watch presents medication reminders and other watch
-/// alerts. It does not select a reminder tone or prove that the watch applied
-/// the setting; the device has no supported profile read-back command.
+/// Medication reminder behavior must not be inferred from this scene.
+/// The cached choice is not confirmed watch state; there is no supported
+/// profile read-back command. The UI scope does not change the wire command.
 enum WatchAlertProfile {
   sound(
     mode: 2,
     wireValue: 'sound',
     label: 'Sound',
-    description: 'A tone from the watch speaker',
+    description: 'Ring for incoming calls',
   ),
   soundAndVibration(
     mode: 1,
     wireValue: 'sound_and_vibration',
     label: 'Sound + vibration',
-    description: 'A tone and vibration together',
+    description: 'Ring and vibrate for incoming calls',
   ),
   vibration(
     mode: 3,
     wireValue: 'vibration',
     label: 'Vibration',
-    description: 'Vibration without a tone',
+    description: 'Vibrate for incoming calls',
   ),
   silent(
     mode: 4,
     wireValue: 'silent',
     label: 'Silent',
-    description: 'No watch sound or vibration',
+    description: 'No ringing or vibration for incoming calls',
   );
 
   const WatchAlertProfile({

@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "voiceMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "imei", "order": "ASCENDING" },
+        { "fieldPath": "createdAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "alerts",
       "queryScope": "COLLECTION",
       "fields": [
@@ -83,9 +91,57 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "safetySnapshotAuthorizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "imei",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "serviceOwnerUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "safetySnapshotAuthorizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "authorizationExpiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "safetySnapshotAuthorizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "mediaExpiresAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
+    { "collectionGroup": "voiceMessagePrivate", "fieldPath": "amr", "indexes": [] },
+    { "collectionGroup": "voiceMessagePrivate", "fieldPath": "pcm", "indexes": [] },
     {
       "collectionGroup": "activityDays",
       "fieldPath": "expiresAt",

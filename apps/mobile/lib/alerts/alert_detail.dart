@@ -6,6 +6,9 @@ import '../models/alert.dart';
 import '../models/device.dart';
 import '../theme/app_theme.dart';
 import 'alert_presentation.dart';
+import 'alert_response_panel.dart';
+import '../screens/incident_photo_page.dart';
+import '../services/safety_snapshot_service.dart';
 
 class AlertDetail extends StatelessWidget {
   const AlertDetail({
@@ -92,14 +95,45 @@ class AlertDetail extends StatelessWidget {
               Text(
                 device == null
                     ? 'Watch details are unavailable. Calling cannot be opened here yet.'
+                    : device!.sharedPermissions != null
+                    ? 'Calling is not available with your shared watch details.'
                     : 'No SIM number is saved for this watch. Check its settings.',
                 style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ],
           ],
+          if ((sos || alert.type.toLowerCase() == 'fall') &&
+              (device?.allowsShared('photos') ?? false) &&
+              guardianSnapshotGatewayUrl.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => IncidentPhotoPage(
+                    incidentId: alert.id,
+                    wearerName: device?.displayName,
+                    onCall: canCall ? onCall : null,
+                    onLocation: onLocation,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.photo_library_outlined),
+              label: const Text('Photos & AI details'),
+            ),
+          ],
           if (sos) ...[
             const SizedBox(height: 20),
             _SosLocation(alert: alert, onLocation: onLocation),
+          ],
+          if (device?.sharedSubscription != null &&
+              (sos || alert.type.toLowerCase() == 'fall')) ...[
+            const SizedBox(height: 20),
+            AlertResponsePanel(
+              key: ValueKey('response-${alert.id}'),
+              imei: alert.imei,
+              alertId: alert.id,
+              resolved: alert.resolved,
+            ),
           ],
           const SizedBox(height: 20),
           Divider(color: colors.border),
@@ -257,7 +291,7 @@ class _SosLocation extends StatelessWidget {
                   : 'Incident map unavailable',
             ),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(46),
+              minimumSize: const Size.fromHeight(48),
             ),
           ),
           if (network != null) ...[

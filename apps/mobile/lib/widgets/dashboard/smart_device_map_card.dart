@@ -321,27 +321,14 @@ class _ExpandedDeviceCard extends StatelessWidget {
             const SizedBox(height: 9),
             SizedBox(
               width: double.infinity,
-              height: 34,
-              child: FilledButton(
+
+              child: OutlinedButton(
                 onPressed: onOpen,
-                style: FilledButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: colors.accentMuted,
-                  foregroundColor: colors.textPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+                style: GuardianControlStyles.secondary(context),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'View details',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    const Text('View details'),
                     const SizedBox(width: 8),
                     Icon(
                       Icons.chevron_right_rounded,

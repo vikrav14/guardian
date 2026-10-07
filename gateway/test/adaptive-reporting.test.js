@@ -4,20 +4,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  policyForBattery,
   effectivePolicy,
   appliedIntervalSeconds,
   shouldSend,
 } = require('../src/adaptive-reporting');
 
-test('battery policy uses 1m/5m/10m/15m bands', () => {
-  assert.equal(policyForBattery(100).seconds, 60);
-  assert.equal(policyForBattery(60).seconds, 60);
-  assert.equal(policyForBattery(59).seconds, 300);
-  assert.equal(policyForBattery(30).seconds, 300);
-  assert.equal(policyForBattery(29).seconds, 600);
-  assert.equal(policyForBattery(15).seconds, 600);
-  assert.equal(policyForBattery(14).seconds, 900);
+test('normal reporting stays ten minutes across battery thresholds and missing telemetry', () => {
+  for (const batteryPercent of [100, 60, 59, 30, 29, 15, 14, 8, 0, -1, null, undefined, '', 'unknown']) {
+    assert.deepEqual(effectivePolicy({ batteryPercent }), { seconds: 600, reason: 'normal_baseline' });
+  }
 });
 
 test('SOS overrides battery policy', () => {
@@ -54,6 +49,23 @@ test('SOS cooldown uses 5 minute reporting', () => {
     }),
     { seconds: 300, reason: 'sos_cooldown' },
   );
+});
+
+test('fall emergency outranks SOS cooldown, and SOS remains prompt during a fall', () => {
+  const now = 1_000_000;
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    sosCooldownUntilMs: now + 5000, fallActiveUntilMs: now + 1000,
+    fallCooldownUntilMs: now + 2000 }), { seconds: 60, reason: 'fall_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 8,
+    fallActiveUntilMs: now + 1000 }), { seconds: 300, reason: 'fall_critical_battery' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    sosActiveUntilMs: now + 1000, fallActiveUntilMs: now + 2000 }),
+  { seconds: 60, reason: 'sos_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now + 1000, batteryPercent: 80,
+    sosActiveUntilMs: now + 1000, fallActiveUntilMs: now + 2000 }),
+  { seconds: 60, reason: 'fall_emergency_override' });
+  assert.deepEqual(effectivePolicy({ nowMs: now, batteryPercent: 80,
+    fallCooldownUntilMs: now + 1000, outingActive: true }), { seconds: 60, reason: 'outing_active' });
 });
 
 test('active outing holds one-minute reporting across normal battery bands', () => {

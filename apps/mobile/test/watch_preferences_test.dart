@@ -16,6 +16,37 @@ GuardianSubscription subscriptionFor(String plan, {String status = 'active'}) =>
     });
 
 void main() {
+  testWidgets(
+    'unknown reporting interval defaults to ten minutes for a manual choice',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WatchPreferencesPage(
+            device: const Device(imei: 'synthetic', online: false),
+            subscription: subscriptionFor('family'),
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Manual'));
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Manual'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '10 min'))
+            .selected,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '1 min'))
+            .selected,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   const descriptions = {
     'essential':
         'Today’s activity is available on your dashboard. Watch readings require Guardian Care.',
@@ -126,34 +157,35 @@ void main() {
     );
   }
 
-  testWidgets('Family sees medication reminders without Care profile controls', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: WatchPreferencesPage(
-          device: const Device(
-            imei: 'synthetic',
-            nickname: 'Sample wearer',
-            online: false,
+  testWidgets(
+    'Family sees medication reminders without Care profile controls',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WatchPreferencesPage(
+            device: const Device(
+              imei: 'synthetic',
+              nickname: 'Sample wearer',
+              online: false,
+            ),
+            subscription: subscriptionFor('family'),
           ),
-          subscription: subscriptionFor('family'),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Medication reminders'), findsOneWidget);
-    expect(find.text('Watch alert style'), findsOneWidget);
-    expect(find.text('Sound'), findsOneWidget);
-    expect(find.text('Sound + vibration'), findsOneWidget);
-    expect(find.text('Vibration'), findsOneWidget);
-    expect(find.text('Silent'), findsOneWidget);
-    expect(find.text('Guardian Care features'), findsOneWidget);
-    expect(find.byType(CareProfileCard), findsNothing);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
+      expect(find.text('Medication reminders'), findsOneWidget);
+      expect(find.text('Call alert style'), findsOneWidget);
+      expect(find.text('Sound'), findsOneWidget);
+      expect(find.text('Sound + vibration'), findsOneWidget);
+      expect(find.text('Vibration'), findsOneWidget);
+      expect(find.text('Silent'), findsOneWidget);
+      expect(find.text('Guardian Care features'), findsOneWidget);
+      expect(find.byType(CareProfileCard), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('Essential shows routine choices but cannot apply them', (
     tester,
@@ -167,7 +199,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Automatic readings require Guardian Family or Guardian Care.'), findsOneWidget);
+    expect(
+      find.text('Automatic readings require Guardian Family or Guardian Care.'),
+      findsOneWidget,
+    );
     expect(find.text('Balanced rhythm'), findsOneWidget);
     expect(find.text('Apply routine'), findsNothing);
     expect(tester.takeException(), isNull);

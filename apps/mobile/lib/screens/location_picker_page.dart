@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../theme/colors.dart';
+import '../theme/app_theme.dart';
 
 /// Full-screen map picker: pan the map so the fixed center pin sits over the
 /// desired spot (e.g. home), then confirm. Returns the picked [LatLng], or
@@ -47,7 +47,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
     final radiusLabel = '${widget.radiusMeters.round()} m radius';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Choose safe zone center')),
+      appBar: AppBar(title: const Text('Choose safe zone centre')),
       body: Stack(
         alignment: Alignment.center,
         children: [
@@ -65,14 +65,10 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
             zoomControlsEnabled: true,
             mapToolbarEnabled: false,
           ),
-          const IgnorePointer(
+          IgnorePointer(
             child: Padding(
-              padding: EdgeInsets.only(bottom: 36),
-              child: Icon(
-                Icons.location_pin,
-                size: 44,
-                color: Colors.redAccent,
-              ),
+              padding: const EdgeInsets.only(bottom: 36),
+              child: Icon(Icons.location_pin, size: 44, color: _accent),
             ),
           ),
           Positioned(
@@ -83,18 +79,19 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               child: Material(
                 elevation: 2,
                 borderRadius: BorderRadius.circular(20),
-                color: Colors.white,
+                color: context.guardianColors.surface,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
                   ),
                   child: Text(
-                    radiusLabel,
+                    'Move the map to place the pin · $radiusLabel',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _accent,
+                      color: context.guardianColors.textPrimary,
                     ),
                   ),
                 ),

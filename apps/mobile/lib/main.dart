@@ -77,7 +77,10 @@ Future<void> _initializeOptionalPush() async {
 }
 
 class GuardianApp extends StatefulWidget {
-  const GuardianApp({super.key});
+  const GuardianApp({super.key, this.home});
+
+  /// Alternate entry point for the isolated emulator review app.
+  final Widget? home;
 
   /// Lets any screen change the app's language, e.g. from account_page.dart.
   static void setLocale(BuildContext context, Locale locale) {
@@ -122,8 +125,8 @@ class _GuardianAppState extends State<GuardianApp> {
       locale: _locale,
       supportedLocales: LocaleService.supportedLocales,
       localizationsDelegates: guardianLocalizationsDelegates,
-      home: DefaultFirebaseOptions.isConfigured
-          ? const _ThemedAppRoot()
+      home: widget.home != null || DefaultFirebaseOptions.isConfigured
+          ? _ThemedAppRoot(child: widget.home ?? const AuthGate())
           : const _FirebaseSetupPage(),
     );
   }
@@ -159,7 +162,8 @@ class GuardianThemeScope extends InheritedWidget {
 }
 
 class _ThemedAppRoot extends StatefulWidget {
-  const _ThemedAppRoot();
+  const _ThemedAppRoot({required this.child});
+  final Widget child;
 
   @override
   State<_ThemedAppRoot> createState() => _ThemedAppRootState();
@@ -188,7 +192,7 @@ class _ThemedAppRootState extends State<_ThemedAppRoot> {
       onThemeChanged: _setTheme,
       child: Theme(
         data: buildGuardianTheme(themeId: _themeId),
-        child: const AuthGate(),
+        child: widget.child,
       ),
     );
   }
@@ -212,7 +216,7 @@ class _FirebaseSetupPage extends StatelessWidget {
                 Text('Guardian', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 12),
                 const Text(
-                  'Firebase Web app config is still missing. See docs/FLUTTER_SETUP.md.',
+                  'This Guardian build has not been configured yet. Please install a configured build.',
                   style: TextStyle(color: GuardianColors.textSecondary),
                 ),
               ],

@@ -24,6 +24,7 @@ class SafeZonesOverview extends StatefulWidget {
     required this.onDelete,
     required this.onExpand,
     this.onAlerts,
+    this.onHomeWifi,
     this.busyZoneIds = const {},
     this.alertsLoading = false,
     this.alertsUnavailable = false,
@@ -38,6 +39,7 @@ class SafeZonesOverview extends StatefulWidget {
   final ValueChanged<Geofence> onDelete;
   final ValueChanged<Geofence> onExpand;
   final VoidCallback? onAlerts;
+  final ValueChanged<Geofence>? onHomeWifi;
   final Set<String> busyZoneIds;
   final bool alertsLoading;
   final bool alertsUnavailable;
@@ -242,6 +244,11 @@ class _SafeZonesOverviewState extends State<SafeZonesOverview> {
                 onToggle: () => widget.onToggle(zone),
                 onDelete: () => widget.onDelete(zone),
                 onAlerts: widget.onAlerts,
+                onHomeWifi:
+                    zone.name.trim().toLowerCase() == 'home' &&
+                        widget.onHomeWifi != null
+                    ? () => widget.onHomeWifi!(zone)
+                    : null,
               );
               if (!wide) {
                 return Column(
@@ -276,6 +283,7 @@ class _ZoneDetails extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     this.onAlerts,
+    this.onHomeWifi,
   });
 
   final Geofence zone;
@@ -287,6 +295,7 @@ class _ZoneDetails extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback? onAlerts;
+  final VoidCallback? onHomeWifi;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +363,14 @@ class _ZoneDetails extends StatelessWidget {
                 : 'Arrival and departure alerts are paused for this zone.',
             style: _body(context),
           ),
+          if (onHomeWifi != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onHomeWifi,
+              icon: const Icon(Icons.wifi),
+              label: const Text('Set up Home Wi-Fi'),
+            ),
+          ],
           Divider(height: 32, color: colors.border),
           if (alertsUnavailable)
             Text(
@@ -425,19 +442,14 @@ class _ZoneDetails extends StatelessWidget {
                   ? 'Pause zone'
                   : 'Activate zone',
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.textPrimary,
-              minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              side: BorderSide(color: colors.border),
-            ),
+            style: GuardianControlStyles.secondary(context),
           ),
           const SizedBox(height: 8),
           TextButton.icon(
             onPressed: busy ? null : onDelete,
             icon: const Icon(Icons.delete_outline_rounded, size: 20),
             label: const Text('Delete zone'),
-            style: _textButton(context),
+            style: GuardianControlStyles.destructiveLink(context),
           ),
         ],
       ),
@@ -515,17 +527,10 @@ TextStyle _title(BuildContext context) => TextStyle(
   fontWeight: FontWeight.w700,
   height: 1.25,
 );
-ButtonStyle _primary(BuildContext context) => FilledButton.styleFrom(
-  backgroundColor: GuardianColors.forest,
-  foregroundColor: Colors.white,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-);
-ButtonStyle _textButton(BuildContext context) => TextButton.styleFrom(
-  foregroundColor: context.guardianColors.textPrimary,
-  minimumSize: const Size(48, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-);
+ButtonStyle _primary(BuildContext context) =>
+    GuardianControlStyles.primary(context);
+ButtonStyle _textButton(BuildContext context) =>
+    GuardianControlStyles.link(context);
 
 Future<bool> confirmSafeZoneDeletion(
   BuildContext context,
@@ -546,6 +551,7 @@ Future<bool> confirmSafeZoneDeletion(
               child: const Text('Keep zone'),
             ),
             FilledButton(
+              style: GuardianControlStyles.destructive(context),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Delete zone'),
             ),

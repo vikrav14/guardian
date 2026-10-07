@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'colors.dart';
+import 'controls.dart';
 import 'guardian_themes.dart';
 import 'radius.dart';
 import 'typography.dart';
 
 export 'colors.dart';
+export 'controls.dart';
 export 'guardian_themes.dart';
 export 'radius.dart';
 export 'spacing.dart';
@@ -45,6 +47,27 @@ ThemeData buildGuardianTheme({
   final highContrast = themeId.isHighContrast;
   final borderWidth = highContrast ? 2.0 : 1.0;
   final focusedBorderWidth = highContrast ? 2.5 : 1.5;
+  final action = guardianActionColor(semantic, brightness);
+  final onAction = brightness == Brightness.dark
+      ? semantic.canvas
+      : Colors.white;
+  final shape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(GuardianRadius.medium),
+  );
+  final label = GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600);
+  final primaryStyle = FilledButton.styleFrom(
+    backgroundColor: action,
+    foregroundColor: onAction,
+    disabledBackgroundColor: semantic.surfaceMuted,
+    disabledForegroundColor: semantic.textSecondary,
+    minimumSize: const Size(48, 48),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    shape: shape,
+    textStyle: label,
+    elevation: 0,
+    visualDensity: VisualDensity.standard,
+    tapTargetSize: MaterialTapTargetSize.padded,
+  );
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -52,7 +75,10 @@ ThemeData buildGuardianTheme({
     colorScheme: ColorScheme.fromSeed(
       seedColor: semantic.accent,
       brightness: brightness,
-      primary: semantic.accent,
+      primary: action,
+      onPrimary: onAction,
+      primaryContainer: semantic.accentMuted,
+      onPrimaryContainer: action,
       surface: semantic.surface,
     ),
   );
@@ -73,25 +99,85 @@ ThemeData buildGuardianTheme({
         side: BorderSide(color: semantic.border, width: borderWidth),
       ),
     ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: semantic.accent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+    filledButtonTheme: FilledButtonThemeData(style: primaryStyle),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: primaryStyle),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style:
+          OutlinedButton.styleFrom(
+            foregroundColor: action,
+            disabledForegroundColor: semantic.textSecondary,
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: shape,
+            textStyle: label,
+            visualDensity: VisualDensity.standard,
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ).copyWith(
+            side: WidgetStateProperty.resolveWith(
+              (states) => BorderSide(
+                color: states.contains(WidgetState.disabled)
+                    ? semantic.border
+                    : action,
+                width: highContrast || states.contains(WidgetState.focused)
+                    ? 2
+                    : 1,
+              ),
+            ),
+          ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: action,
+        disabledForegroundColor: semantic.textSecondary,
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        shape: shape,
+        textStyle: label,
+        visualDensity: VisualDensity.standard,
+        tapTargetSize: MaterialTapTargetSize.padded,
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         foregroundColor: semantic.textPrimary,
+        disabledForegroundColor: semantic.textSecondary,
+        minimumSize: const Size(48, 48),
+        visualDensity: VisualDensity.standard,
+        tapTargetSize: MaterialTapTargetSize.padded,
         backgroundColor: semantic.surface.withValues(alpha: 0.82),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(GuardianRadius.medium),
           side: BorderSide(color: semantic.border),
         ),
       ),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+        textStyle: WidgetStatePropertyAll(label),
+        shape: WidgetStatePropertyAll(shape),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? semantic.textSecondary
+              : action,
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? semantic.accentMuted
+              : semantic.surface,
+        ),
+        side: WidgetStatePropertyAll(
+          BorderSide(color: action, width: borderWidth),
+        ),
+        visualDensity: VisualDensity.standard,
+        tapTargetSize: MaterialTapTargetSize.padded,
+      ),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: semantic.canvas,
+      foregroundColor: semantic.textPrimary,
+      elevation: 0,
+      scrolledUnderElevation: 0,
     ),
     navigationBarTheme: NavigationBarThemeData(
       elevation: 0,
@@ -116,10 +202,7 @@ ThemeData buildGuardianTheme({
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(GuardianRadius.small),
-        borderSide: BorderSide(
-          color: semantic.accent,
-          width: focusedBorderWidth,
-        ),
+        borderSide: BorderSide(color: action, width: focusedBorderWidth),
       ),
     ),
   );

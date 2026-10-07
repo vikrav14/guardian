@@ -31,6 +31,29 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets(
+    'restricted location keeps identity and allowed wellbeing without rendering a map',
+    (tester) async {
+      const device = Device(
+        imei: 'shared',
+        nickname: 'Shared wearer',
+        online: false,
+        sharedPermissions: {'wellbeing': true},
+      );
+      await _pump(
+        tester,
+        dashboardFixtureOverview(
+          device: device,
+          wellness: const Text('Permitted wellbeing readings'),
+        ),
+      );
+      expect(find.text('Shared wearer'), findsOneWidget);
+      expect(find.text('Location is not shared'), findsOneWidget);
+      expect(find.text('Permitted wellbeing readings'), findsOneWidget);
+      expect(find.byKey(const ValueKey('dashboard-fixture-map')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final width in [320.0, 1280.0]) {
     for (final dark in [false, true]) {
       testWidgets(

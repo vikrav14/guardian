@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../wellness/linked_wellness_stream.dart';
 import '../widgets/dashboard/profile_weather_panel.dart';
 import 'profile_weather.dart';
+import '../models/device.dart';
 
 typedef ProfileWeatherSource =
     Stream<Map<String, dynamic>> Function(String imei);
@@ -23,6 +24,7 @@ Stream<Map<String, dynamic>> watchProfileWeather(String imei) =>
           .doc('current')
           .snapshots()
           .map((doc) => [doc.data() ?? <String, dynamic>{}]),
+      permission: 'location',
     ).map((rows) => rows.firstOrNull ?? <String, dynamic>{});
 
 /// Owns the selected-profile subscription. Switching profile, unlinking,
@@ -33,11 +35,13 @@ class LinkedProfileWeather extends StatefulWidget {
     required this.imei,
     this.source = watchProfileWeather,
     this.clock = DateTime.now,
+    this.device,
   });
 
   final String imei;
   final ProfileWeatherSource source;
   final DateTime Function() clock;
+  final Device? device;
 
   @override
   State<LinkedProfileWeather> createState() => _LinkedProfileWeatherState();
@@ -123,9 +127,37 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
   }
 
   @override
-  Widget build(BuildContext context) => ProfileWeatherPanel(
-    weather: _weather,
-    loading: _loading,
-    now: widget.clock(),
-  );
+  Widget build(BuildContext context) {
+    final now = widget.clock();
+    final device = widget.device;
+    final weather = _weather;
+    final detectedHome =
+        device?.homeWifiLocationAt(now) ??
+        device?.rememberedHomeWifiLocationAt(now);
+    final home =
+        detectedHome?.recordedAt != null &&
+            now.difference(detectedHome!.recordedAt!) <
+                ProfileWeather.maxLocationAge
+        ? detectedHome
+        : null;
+    final homeWeather =
+        weather?.locationSource == 'home_wifi' ||
+        weather?.locationSource == 'home_wifi_last_detected';
+    // Do not relabel Grand Baie conditions as Home while a refresh is pending.
+    // Equally, discard cached Home weather after an accepted departure fix.
+    final changedArea =
+        device != null &&
+        weather != null &&
+        weather.isAvailableAt(now) &&
+        (home == null
+            ? homeWeather
+            : !homeWeather ||
+                  weather.locationLat != home.lat ||
+                  weather.locationLng != home.lng);
+    return ProfileWeatherPanel(
+      weather: changedArea ? null : weather,
+      loading: _loading || changedArea,
+      now: now,
+    );
+  }
 }

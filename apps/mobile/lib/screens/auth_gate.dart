@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import 'home_shell.dart';
+import '../models/incident_photos.dart';
 import 'login_page.dart';
 
 class AuthGate extends StatefulWidget {
@@ -19,6 +20,7 @@ class _AuthGateState extends State<AuthGate> {
   final _auth = AuthService();
   Future<void>? _profileFuture;
   String? _profileUid;
+  final String? _incidentId = incidentFromUri(Uri.base);
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +77,7 @@ class _AuthGateState extends State<AuthGate> {
                 ),
               );
             }
-            return const HomeShell();
+            return HomeShell(initialIncidentId: _incidentId);
           },
         );
       },

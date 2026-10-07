@@ -10,7 +10,11 @@ import '../widgets/layout/guardian_page_frame.dart';
 import 'watch_preferences_page.dart';
 import '../wellness/wellness_routine.dart';
 import '../wellness/wellness_settings_card.dart';
+import '../wellness/movement_reminder_preview.dart';
+import '../wellness/movement_reminders_page.dart';
+import '../services/movement_reminders_service.dart';
 import 'emergency_contacts_page.dart';
+import 'family_page.dart';
 
 class WatchSettingsPage extends StatefulWidget {
   const WatchSettingsPage({
@@ -33,7 +37,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
 
   bool _savingPerson = false;
   bool _savingSim = false;
-  bool _sendingSos = false;
   bool _advancedOpen = false;
 
   @override
@@ -79,22 +82,6 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
       _show('Could not save SIM number: $error');
     } finally {
       if (mounted) setState(() => _savingSim = false);
-    }
-  }
-
-  Future<void> _configurePrimarySos(EmergencyContact contact) async {
-    setState(() => _sendingSos = true);
-    try {
-      await DeviceCommandService().setSosNumber(
-        widget.device.imei,
-        1,
-        contact.phone,
-      );
-      _show('Primary SOS contact sent to the watch');
-    } catch (error) {
-      _show('$error');
-    } finally {
-      if (mounted) setState(() => _sendingSos = false);
     }
   }
 
@@ -144,26 +131,51 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SectionHeading(
-                  eyebrow: 'PERSON',
-                  title: 'Who wears this watch?',
-                  subtitle:
-                      'Name, relationship and photo for your family dashboard.',
-                ),
-                const SizedBox(height: 14),
-                _personCard(colors),
-                const SizedBox(height: 24),
-                WellnessSettingsCard(
-                  subscription: widget.subscription,
-                  onOpen: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => WellnessRoutinePage(
-                        imei: widget.device.imei,
-                        subscription: widget.subscription,
+                if (widget.device.sharedPermissions == null) ...[
+                  _SectionHeading(
+                    eyebrow: 'PERSON',
+                    title: 'Who wears this watch?',
+                    subtitle:
+                        'Name, relationship and photo for your family dashboard.',
+                  ),
+                  const SizedBox(height: 14),
+                  _personCard(colors),
+                  const SizedBox(height: 24),
+                ],
+                if (widget.device.allowsShared('wellbeing'))
+                  WellnessSettingsCard(
+                    imei: widget.device.imei,
+                    subscription: widget.subscription,
+                    onMovementReminders:
+                        !widget.device.allowsShared('reminders')
+                        ? null
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  canUseMovementPilot(
+                                    widget.subscription,
+                                    widget.device.imei,
+                                  )
+                                  ? MovementRemindersPage(
+                                      imei: widget.device.imei,
+                                      name: widget.device.displayName,
+                                      subscription: widget.subscription,
+                                    )
+                                  : MovementReminderPreviewPage(
+                                      name: widget.device.displayName,
+                                      subscription: widget.subscription,
+                                    ),
+                            ),
+                          ),
+                    onOpen: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => WellnessRoutinePage(
+                          imei: widget.device.imei,
+                          subscription: widget.subscription,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 24),
                 _SectionHeading(
                   eyebrow: 'SAFETY & CARE',
@@ -174,15 +186,17 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
                 const SizedBox(height: 14),
                 _safetyCard(colors),
                 const SizedBox(height: 24),
-                _SectionHeading(
-                  eyebrow: 'WATCH',
-                  title: 'Device essentials',
-                  subtitle:
-                      'Only settings a family should normally need to touch.',
-                ),
-                const SizedBox(height: 14),
-                _watchCard(colors),
-                const SizedBox(height: 24),
+                if (widget.device.sharedPermissions == null) ...[
+                  _SectionHeading(
+                    eyebrow: 'WATCH',
+                    title: 'Device essentials',
+                    subtitle:
+                        'Only settings a family should normally need to touch.',
+                  ),
+                  const SizedBox(height: 14),
+                  _watchCard(colors),
+                  const SizedBox(height: 24),
+                ],
                 _advancedCard(colors),
               ],
             ),
@@ -272,76 +286,26 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
           const Divider(height: 1),
           _SettingsTile(
             icon: Icons.contact_phone_rounded,
-            title: 'Emergency contacts',
+            title: widget.device.sharedSubscription != null
+                ? 'Family safety recipients'
+                : 'Emergency contacts',
             subtitle: 'People Guardian can contact when something matters',
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const EmergencyContactsPage(),
+                  builder: (_) => widget.device.sharedSubscription != null
+                      ? const FamilyPage()
+                      : const EmergencyContactsPage(),
                 ),
               );
             },
           ),
           const Divider(height: 1),
-          StreamBuilder<List<EmergencyContact>>(
-            stream: UserProfileService().watchContacts(),
-            builder: (context, snapshot) {
-              final contacts = snapshot.data ?? const <EmergencyContact>[];
-              if (contacts.isEmpty) {
-                return _SettingsTile(
-                  icon: Icons.sos_rounded,
-                  title: 'Primary SOS contact',
-                  subtitle: 'Add an emergency contact first',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const EmergencyContactsPage(),
-                      ),
-                    );
-                  },
-                );
-              }
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    _RoundIcon(
-                      icon: Icons.sos_rounded,
-                      color: GuardianColors.danger,
-                      background: GuardianColors.dangerBg,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: 0,
-                        decoration: const InputDecoration(
-                          labelText: 'Primary SOS contact',
-                          helperText:
-                              'Holding SOS on the watch calls this person.',
-                        ),
-                        items: [
-                          for (var i = 0; i < contacts.length; i++)
-                            DropdownMenuItem(
-                              value: i,
-                              child: Text(
-                                '${contacts[i].name} · ${contacts[i].phone}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: _sendingSos
-                            ? null
-                            : (index) {
-                                if (index == null) return;
-                                _configurePrimarySos(contacts[index]);
-                              },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'Holding SOS sends a Guardian alert. This watch does not make outgoing calls.',
+            ),
           ),
         ],
       ),

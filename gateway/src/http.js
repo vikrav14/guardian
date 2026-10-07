@@ -1,8 +1,13 @@
 const http = require('http');
+const handleSnapshotHttp = require('./safety-snapshot-http').createSnapshotHttpHandler();
 const { URL } = require('url');
 const crypto = require('crypto');
 const config = require('./config');
 const { getDb } = require('./firestore');
+const { handleWatchCallLink } = require('./watch-call-link-http');
+const { createMovementHandler } = require('./movement-reminder-http');
+const { createMedicationHandler } = require('./medication-settings-http');
+const { createVoiceHandler } = require('./voice-message-http');
 const {
   resolveCallerContext,
   restrictedCallerReply,
@@ -103,7 +108,7 @@ function sendJson(res, status, obj) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization, ngrok-skip-browser-warning',
     'Content-Length': Buffer.byteLength(body),
   });
   res.end(body);
@@ -113,7 +118,7 @@ function sendOptions(res) {
   res.writeHead(204, {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Key, Authorization, ngrok-skip-browser-warning',
   });
   res.end();
 }
@@ -911,6 +916,33 @@ async function handleOpsHttpRequest(req, res, url) {
     return true;
   }
 
+  if (url.pathname === '/ops/incident-photos') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    sendJson(res, 200, require('./incident-photos-live').getIncidentPhotoRuntimeStatus());
+    return true;
+  }
+
+  if (url.pathname === '/ops/command-coordination') {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!(await requireStrictAdmin(req, res))) return true;
+    const coordinator = require('./command-coordinator').commandCoordinator;
+    sendJson(res, 200, { version: 1, normalReportingSeconds: 600, criticalReportingSeconds: 900,
+      cameraWaitLimitSeconds: require('./photo-capture-window').MAX_CAPTURE_WINDOW_MS / 1000,
+      manualCameraWaitLimitSeconds: require('./photo-capture-window').MANUAL_CAPTURE_WINDOW_MS / 1000,
+      incidentCameraWaitLimitSeconds: require('./photo-capture-window').INCIDENT_CAPTURE_WINDOW_MS / 1000,
+      deferredCommandLimitSeconds: 120, replayAmbiguousActions: false,
+      sessions: [...require('./sessions').getActiveSessions().values()].map(session => ({
+        imei: session.imei, lastPacketAt: session.lastPacketAt, lastLocationAt: session.lastLocationAt,
+        expectedReportingIntervalSeconds: session.expectedReportingIntervalSeconds,
+        outingActive: session.outingActive, outingActiveUntilMs: session.outingActiveUntilMs || null,
+        cameraBusyUntil: coordinator.busyUntil(session.imei),
+        watchSmsPolicy: session.watchSmsPolicy || { desired: 'off', status: 'awaiting_telemetry', suppressionVerified: false },
+      })), photo: require('./incident-photos-live').getIncidentPhotoRuntimeStatus(),
+      photoIngress: require('./safety-snapshot-live').getSnapshotController()?.ingressDiagnosticsStatus() || null });
+    return true;
+  }
+
   if (url.pathname === '/ops/context-sources') {
     if (!(await requireStrictAdmin(req, res))) return true;
     const runtime = getContextRuntime();
@@ -1024,10 +1056,20 @@ async function handleOpsHttpRequest(req, res, url) {
 function startHttpServer() {
   // Phase 1: Initialize LLM provider, audit, and idempotency on startup
   initializeLlmStack();
+  const handleMovement = createMovementHandler({ getDb });
+  const handleHomeWifi = require('./home-wifi-http').createHomeWifiHandler({ getDb,
+    getRuntime: require('./wifi-home-runtime').getHomeWifiSetupRuntime });
+  const handleMedication = createMedicationHandler({ getDb });
+  const handleVoice = createVoiceHandler({ getDb });
+  const handleFamily = require('./family-http').createFamilyHandler({ getDb });
 
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+      if (await handleHomeWifi(req, res, url)) return;
+      if (await handleSnapshotHttp(req, res, url)) return;
+      if (await handleWatchCallLink(req, res, { db: getDb(), pathname: url.pathname })) return;
 
       if (req.method === 'OPTIONS') {
         sendOptions(res);
@@ -1038,6 +1080,11 @@ function startHttpServer() {
         sendJson(res, 200, { ok: true, service: 'guardian-gateway-http' });
         return;
       }
+
+      if (await handleMovement(req, res, url)) return;
+      if (await handleMedication(req, res, url)) return;
+      if (await handleVoice(req, res, url)) return;
+      if (await handleFamily(req, res, url)) return;
 
       // Dashboard
       if (req.method === 'GET' && url.pathname === '/dashboard') {
@@ -1562,6 +1609,11 @@ function startHttpServer() {
           incrementMetric('whatsappInbound');
 
           try {
+            if (process.env.FAMILY_SHARING_ENABLED === 'true' &&
+                await require('./family-whatsapp').handleFamilyWhatsApp({ db: getDb(), message, send: sendMetaText })) {
+              metaInboundDeduper.markDone(message.id);
+              continue;
+            }
             const { reply } = await handleChat({
               from: normalizeE164(message.from),
               text: message.text,
@@ -1618,6 +1670,7 @@ function startHttpServer() {
     console.log('[guardian-http] GET  /ops/cost-estimate?users=500&sensitivity=true');
     console.log('[guardian-http] GET  /ops/context-sources  (strict admin auth)');
     console.log('[guardian-http] GET  /ops/wifi-home  (strict admin auth)');
+    console.log('[guardian-http] GET  /ops/incident-photos  (strict admin; read only)');
     console.log('[guardian-http] GET/POST /ops/wifi-fence-validation  (strict admin; observation only)');
   });
 

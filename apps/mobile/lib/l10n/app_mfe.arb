@@ -3,6 +3,8 @@
   "appTitle": "Guardian",
   "navMap": "Kart",
   "navSafeZones": "Zonn sekirite",
+  "navFamily": "Lafami",
+  "navWatch": "Mont",
   "navAlerts": "Alert",
   "navAccount": "Kont",
   "callButton": "Apel",

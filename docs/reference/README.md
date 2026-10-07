@@ -22,6 +22,11 @@ confirmation. Their originals remain outside this repository; inspected pages,
 file hashes, differences and Wi-Fi fence interpretation are recorded in
 [the supplier validation note](../services/wifi-home-supplier-validation.md).
 
+All five originals were supplied again and reviewed on 29 September 2026.
+The [sedentary source audit](../testing/sedentary-source-audit-2026-09-29.md)
+records their hashes, exact pages, command/capture comparison and unresolved
+worktime/readback questions. It does not republish the vendor attachments.
+
 **Current release evidence:** [../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md](../GUARDIAN_V52_REAL_DEVICE_ACCEPTANCE.md)
 
 Preserve raw vendor files, but record interpretation separately. For V52,
