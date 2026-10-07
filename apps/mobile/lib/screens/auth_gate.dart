@@ -5,12 +5,16 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
+import '../widgets/brand/guardian_loading_screen.dart';
+import '../widgets/brand/guardian_startup_gate.dart';
 import 'home_shell.dart';
 import '../models/incident_photos.dart';
 import 'login_page.dart';
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  const AuthGate({super.key, this.onReady});
+
+  final VoidCallback? onReady;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -18,25 +22,39 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   final _auth = AuthService();
+  late final _authChanges = _auth.authStateChanges();
   Future<void>? _profileFuture;
   String? _profileUid;
   final String? _incidentId = incidentFromUri(Uri.base);
+  bool _reportedReady = false;
+
+  void _reportReady() {
+    if (_reportedReady) return;
+    _reportedReady = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.onReady != null) {
+        widget.onReady!();
+      } else {
+        GuardianStartupGate.reportReady(context);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: _auth.authStateChanges(),
+      stream: _authChanges,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const GuardianLoadingScreen();
         }
 
         final user = snapshot.data;
         if (user == null) {
           _profileFuture = null;
           _profileUid = null;
+          _reportReady();
           return const LoginPage();
         }
 
@@ -44,16 +62,21 @@ class _AuthGateState extends State<AuthGate> {
           _profileUid = user.uid;
           _profileFuture = _auth.ensureUserProfile(user);
           unawaited(
-            _profileFuture!.then((_) async {
-              try {
-                await PushService().registerForUser(user.uid);
-              } catch (error) {
-                // Push is optional. A browser that blocks notifications or
-                // service workers must not prevent the safety dashboard from
-                // opening.
-                debugPrint('Push registration unavailable: $error');
-              }
-            }),
+            _profileFuture!.then<void>(
+              (_) async {
+                try {
+                  await PushService().registerForUser(user.uid);
+                } catch (error) {
+                  // Push is optional. A browser that blocks notifications or
+                  // service workers must not prevent the safety dashboard from
+                  // opening.
+                  debugPrint('Push registration unavailable: $error');
+                }
+              },
+              onError: (Object error, StackTrace stack) {
+                // The FutureBuilder below owns the profile error UI.
+              },
+            ),
           );
         }
 
@@ -61,10 +84,9 @@ class _AuthGateState extends State<AuthGate> {
           future: _profileFuture,
           builder: (context, profileSnap) {
             if (profileSnap.connectionState != ConnectionState.done) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
+              return const GuardianLoadingScreen();
             }
+            _reportReady();
             if (profileSnap.hasError) {
               return Scaffold(
                 body: Center(
