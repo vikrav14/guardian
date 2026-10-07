@@ -233,6 +233,10 @@ const config = {
   contextPersistObservations:
     String(process.env.CONTEXT_PERSIST_OBSERVATIONS || 'false').toLowerCase() === 'true',
 
+  priorityUpdatesEnabled: process.env.PRIORITY_UPDATES_ENABLED === 'true',
+  priorityUpdateImeis: String(process.env.PRIORITY_UPDATES_IMEIS || '')
+    .split(',').map(value => value.trim()).filter(Boolean),
+
   // Official Mauritius Meteorological Services CAP feed. This source remains
   // observe-only: polling and evaluation never imply notification delivery.
   contextCapEnabled:

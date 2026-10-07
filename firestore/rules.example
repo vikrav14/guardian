@@ -277,6 +277,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Wearer-specific reports reveal location; alerts-only grants cannot read.
+      match /localUpdates/{updateId} {
+        allow read: if updateId == 'current' && sharedWith(imei, 'location')
+          && watchPlanAtLeast(imei, 'family');
+        allow write: if false;
+      }
+
       match /locations/{locationId} {
         allow read: if sharedWith(imei, 'history')
           && historyAllowed(imei, resource.data.recordedAt);

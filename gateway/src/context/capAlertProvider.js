@@ -207,6 +207,10 @@ function parseCapAlert(xml, { rssItem = {}, source = MMS_CAP_SOURCE, now = new D
 }
 
 function refreshTemporalState(alert, now = new Date(), { resetMissingPolls = true } = {}) {
+  // A 304 must not resurrect a warning retired by an update/cancellation.
+  if (['cancelled_by_reference', 'superseded_by_update', 'removed_from_authoritative_feed'].includes(alert.inactiveReason)) {
+    return { ...alert, active: false };
+  }
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
   const effectiveMs = alert.effectiveAt ? new Date(alert.effectiveAt).getTime() : Number.NaN;
   const expiresMs = alert.expiresAt ? new Date(alert.expiresAt).getTime() : Number.NaN;
@@ -422,8 +426,6 @@ class CapAlertProvider {
         this.lastError = null;
         return this._result(changed, true);
       }
-      this.etag = response.headers?.etag || this.etag;
-      this.lastModified = response.headers?.['last-modified'] || this.lastModified;
       const feed = parseRssFeed(response.body);
       const items = feed.items.slice(0, this.maxItems);
       const changed = [];
@@ -457,6 +459,10 @@ class CapAlertProvider {
           this.itemCache.set(itemKey, normalized);
         }
         const previous = this.records.get(normalized.id);
+        if (['cancelled_by_reference', 'superseded_by_update'].includes(previous?.inactiveReason)) {
+          normalized = { ...normalized, active: false, inactiveReason: previous.inactiveReason };
+          normalized.contentHash = contentHashFor(normalized);
+        }
         normalized.missingPolls = 0;
         this.records.set(normalized.id, normalized);
         if (!previous || previous.contentHash !== normalized.contentHash) changed.push(normalized);
@@ -511,10 +517,14 @@ class CapAlertProvider {
         changed.push(withdrawn);
       }
 
+      this.etag = response.headers?.etag || null;
+      this.lastModified = response.headers?.['last-modified'] || null;
       this.lastSuccessAt = now.toISOString();
       this.lastError = null;
       return this._result(changed, false, feed);
     } catch (error) {
+      this.etag = null;
+      this.lastModified = null;
       this.lastError = error.message;
       logger.error('Official CAP poll failed', { source: this.source.id, error: error.message });
       return { ...this._result([], false), ok: false, error: error.message };
