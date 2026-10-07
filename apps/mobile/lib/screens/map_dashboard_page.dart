@@ -13,6 +13,7 @@ import '../dashboard/dashboard_ai_interpretation.dart';
 import '../dashboard/device_connectivity.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/device_formatters.dart';
+import '../local_updates/linked_priority_updates.dart';
 import '../models/device.dart';
 import '../models/geofence.dart';
 import '../navigation/home_shell_scope.dart';
@@ -694,6 +695,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
               key: ValueKey('profile-weather-${selected.imei}'),
               imei: selected.imei,
               device: selected,
+              builder: (context, panel, weather) => LinkedPriorityUpdates(
+                device: selected,
+                weather: panel,
+                temperatureC: weather?.temperatureC,
+              ),
             ),
       watchCheckStatus:
           selected != null &&

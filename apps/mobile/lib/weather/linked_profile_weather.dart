@@ -36,12 +36,14 @@ class LinkedProfileWeather extends StatefulWidget {
     this.source = watchProfileWeather,
     this.clock = DateTime.now,
     this.device,
+    this.builder,
   });
 
   final String imei;
   final ProfileWeatherSource source;
   final DateTime Function() clock;
   final Device? device;
+  final Widget Function(BuildContext, Widget, ProfileWeather?)? builder;
 
   @override
   State<LinkedProfileWeather> createState() => _LinkedProfileWeatherState();
@@ -154,10 +156,14 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
             : !homeWeather ||
                   weather.locationLat != home.lat ||
                   weather.locationLng != home.lng);
-    return ProfileWeatherPanel(
+    final panel = ProfileWeatherPanel(
       weather: changedArea ? null : weather,
       loading: _loading || changedArea,
       now: now,
     );
+    final usable = !changedArea && weather?.isAvailableAt(now) == true
+        ? weather
+        : null;
+    return widget.builder?.call(context, panel, usable) ?? panel;
   }
 }

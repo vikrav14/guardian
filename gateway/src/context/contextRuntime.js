@@ -1,6 +1,7 @@
 const ContextService = require('./contextService');
 const { CapAlertProvider } = require('./capAlertProvider');
 const { DefiMediaRssProvider } = require('./defiMediaRssProvider');
+const { startPriorityUpdateScheduler } = require('./priorityUpdateScheduler');
 const { startContextScheduler } = require('./contextScheduler');
 const {
   startContextSourceScheduler,
@@ -33,6 +34,8 @@ function initializeContextRuntime({ config, llmProvider, db }) {
     provider: defiMediaRssProvider,
     config,
   });
+  const priorityUpdateScheduler = startPriorityUpdateScheduler({ db, config,
+    mediaProvider: defiMediaRssProvider, capProvider: capAlertProvider });
   runtime = {
     service,
     scheduler,
@@ -40,6 +43,7 @@ function initializeContextRuntime({ config, llmProvider, db }) {
     capAlertProvider,
     defiMediaRssProvider,
     defiMediaRssScheduler,
+    priorityUpdateScheduler,
   };
   return runtime;
 }
@@ -52,6 +56,7 @@ function stopContextRuntimeForTests() {
   runtime?.scheduler?.stop?.();
   runtime?.sourceScheduler?.stop?.();
   runtime?.defiMediaRssScheduler?.stop?.();
+  runtime?.priorityUpdateScheduler?.stop?.();
   stopContextSourceSchedulerForTests();
   stopDefiMediaRssSchedulerForTests();
   runtime = null;

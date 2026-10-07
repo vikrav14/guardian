@@ -13,6 +13,37 @@ const feedUrl = 'https://cap-sources.s3.amazonaws.com/mu-mms-en/rss.xml';
 const alertUrl = 'https://cap-sources.s3.amazonaws.com/mu-mms-en/alert-123.xml';
 const updateUrl = 'https://cap-sources.s3.amazonaws.com/mu-mms-en/alert-456.xml';
 
+test('retired CAP identifiers stay retired through 304 and later full feeds', async () => {
+  let phase = 0;
+  const provider = new CapAlertProvider({}, { fetchText: async url => {
+    if (url === feedUrl) return phase === 2 ? { statusCode: 304 } : {
+      statusCode: 200, headers: { etag: `phase-${phase}` },
+      body: rss(phase === 1 ? [{ link: alertUrl }, { link: updateUrl }] : [{ link: alertUrl }]),
+    };
+    return { statusCode: 200, body: url === updateUrl
+      ? cap({ identifier: 'alert-456', msgType: 'Cancel', references: 'mms@govmu.org,alert-123,2026-08-19T10:00:00+04:00' })
+      : cap() };
+  } });
+  const now = new Date('2026-08-19T08:00:00Z');
+  await provider.poll({ now });
+  assert.equal(provider.getSnapshot().activeAlerts.length, 1);
+  for (phase = 1; phase <= 3; phase++) {
+    await provider.poll({ now });
+    assert.equal(provider.getSnapshot().activeAlerts.length, 0, `phase ${phase}`);
+  }
+});
+
+test('failed CAP document fetch cannot cache the new feed validator', async () => {
+  const provider = new CapAlertProvider({}, { fetchText: async url => {
+    if (url === feedUrl) return { statusCode: 200, headers: { etag: 'new-etag' }, body: rss() };
+    throw new Error('CAP document offline');
+  } });
+  const result = await provider.poll({ now: new Date('2026-08-19T08:00:00Z') });
+  assert.equal(result.ok, false);
+  assert.equal(provider.etag, null);
+  assert.equal(provider.lastSuccessAt, null);
+});
+
 function rss(items = [{ link: alertUrl }]) {
   return `<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0"><channel>
