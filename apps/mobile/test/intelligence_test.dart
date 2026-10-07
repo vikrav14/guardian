@@ -126,8 +126,9 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMessageHandler('flutter/assets', (message) async {
             final name = utf8.decode(message!.buffer.asUint8List());
-            if (name == 'AssetManifest.bin')
+            if (name == 'AssetManifest.bin') {
               return const StandardMessageCodec().encodeMessage(assets);
+            }
             if (name.startsWith('preview/')) return bytes;
             return null;
           });
