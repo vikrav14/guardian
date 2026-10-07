@@ -26,6 +26,9 @@ jobs:
       - name: Verify deployment failures stop before publication
         shell: powershell
         run: ./scripts/test-deploy-guardian-web.ps1
+      - name: Verify stale Android builds cannot be installed
+        shell: powershell
+        run: ./scripts/test-install-guardian-android.ps1
       - name: Exercise isolated Firebase CLI on Windows without publishing
         shell: powershell
         run: ./scripts/test-guardian-hosting-tools.ps1

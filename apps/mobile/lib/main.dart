@@ -13,6 +13,7 @@ import 'services/locale_service.dart';
 import 'services/push_service.dart';
 import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/brand/guardian_startup_gate.dart';
 
 /// Flutter's built-in Material/Cupertino/Widgets localizations don't ship a
 /// Kreol Morisien ('mfe') translation. Without a fallback, any widget that
@@ -53,18 +54,21 @@ final List<LocalizationsDelegate<dynamic>> guardianLocalizationsDelegates = [
   ),
 ];
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const GuardianApp());
+}
 
+Future<void> _initializeFirebase() async {
   if (DefaultFirebaseOptions.isConfigured) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     unawaited(_initializeOptionalPush());
   }
-
-  runApp(const GuardianApp());
 }
 
 Future<void> _initializeOptionalPush() async {
@@ -125,6 +129,12 @@ class _GuardianAppState extends State<GuardianApp> {
       locale: _locale,
       supportedLocales: LocaleService.supportedLocales,
       localizationsDelegates: guardianLocalizationsDelegates,
+      builder: widget.home == null && DefaultFirebaseOptions.isConfigured
+          ? (context, navigator) => GuardianStartupGate(
+              initialize: _initializeFirebase,
+              builder: (context, onReady) => navigator!,
+            )
+          : null,
       home: widget.home != null || DefaultFirebaseOptions.isConfigured
           ? _ThemedAppRoot(child: widget.home ?? const AuthGate())
           : const _FirebaseSetupPage(),

@@ -1,102 +1,168 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../theme/colors.dart';
 
-/// The Guardian pin mark: a location pin inside a ring carrying Mauritius'
-/// red, blue, yellow and green bands. Pairs with [GuardianWordmark] -- see
-/// [GuardianPinLogo] and [GuardianHeaderBrandMark] for the combined lockups
-/// that drive both marks' dots from one shared [_BlinkCycle].
 const _ink = Color(0xFF14171A);
 const _gold = Color(0xFFF3A712);
 
+/// Guardian's family mark: two adults and a child with a heart, beneath a
+/// location pin and inside the open Mauritius-colour ring.
+/// Shared by the launcher, startup screen and all in-app brand lockups.
 class GuardianPinMark extends StatelessWidget {
-  const GuardianPinMark({super.key, this.size = 44, this.pulse});
+  const GuardianPinMark({
+    super.key,
+    this.size = 44,
+    this.pulse,
+    this.fillProgress = 1,
+  }) : assert(fillProgress >= 0 && fillProgress <= 1);
 
   final double size;
 
-  /// Drives the centre dot's blink. Pass the same [Animation] used by a
-  /// nearby [GuardianWordmark] so both dots blink in lockstep. When omitted
-  /// the dot is drawn solid (no animation).
+  /// Reveals all coloured details continuously from top to bottom.
+  /// The normal in-app mark stays fully coloured by default.
+  final double fillProgress;
+
+  /// Shares the location dot's blink with the nearby [GuardianWordmark].
   final Animation<double>? pulse;
 
   @override
-  Widget build(BuildContext context) {
-    final dot = Container(
-      width: size * 0.16,
-      height: size * 0.16,
-      decoration: const BoxDecoration(
-        color: GuardianColors.safe,
-        shape: BoxShape.circle,
-      ),
-    );
-
-    return Semantics(
-      label: 'Guardian',
-      image: true,
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(size: Size(size, size), painter: const _RingPainter()),
-            Icon(Icons.location_on, size: size * 0.62, color: _ink),
-            Align(
-              alignment: const Alignment(0, -0.42),
-              child: Container(
-                width: size * 0.22,
-                height: size * 0.22,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: pulse == null
-                    ? dot
-                    : FadeTransition(opacity: pulse!, child: dot),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Semantics(
+    label: 'Guardian',
+    image: true,
+    child: SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: _GuardianFamilyPainter(fillProgress, pulse)),
+    ),
+  );
 }
 
-class _RingPainter extends CustomPainter {
-  const _RingPainter();
+/// Normalized vector artwork keeps the supplied family design crisp at both
+/// header and launcher sizes. One downward clip reveals every coloured part.
+class _GuardianFamilyPainter extends CustomPainter {
+  _GuardianFamilyPainter(this.fillProgress, this.pulse) : super(repaint: pulse);
 
-  static const _strokeFactor = 0.1;
-  static const _flagBands = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFFEA2839),
-      Color(0xFFEA2839),
-      Color(0xFF1A206D),
-      Color(0xFF1A206D),
-      Color(0xFFFFD500),
-      Color(0xFFFFD500),
-      Color(0xFF00A551),
-      Color(0xFF00A551),
-    ],
-    stops: [0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1],
-  );
+  final double fillProgress;
+  final Animation<double>? pulse;
+
+  static const _familyInk = Color(0xFF14262D);
+  static const _grey = Color(0xFFE5E9E7);
+  static const _mint = Color(0xFF8DD5B5);
+  static const _heartGreen = Color(0xFF007946);
+  static const _flagColours = [
+    Color(0xFFF51320),
+    Color(0xFF003080),
+    Color(0xFFFFE000),
+    Color(0xFF009F4D),
+  ];
+  // Sloping colour joins and the open, rounded bottom follow the reference.
+  static const _bandEdges = [
+    [0.0, 0.0],
+    [0.208, 0.124],
+    [0.467, 0.253],
+    [0.813, 0.637],
+    [1.0, 1.0],
+  ];
+  static const _ringBounds = Rect.fromLTWH(0.033, 0.033, 0.934, 0.934);
+  static const _dotCenter = Offset(0.5, 0.257);
+
+  static final _pin = Path()
+    ..moveTo(0.5, 0.555)
+    ..cubicTo(0.470, 0.536, 0.340, 0.367, 0.340, 0.286)
+    ..cubicTo(0.340, 0.190, 0.400, 0.123, 0.500, 0.123)
+    ..cubicTo(0.600, 0.123, 0.660, 0.190, 0.660, 0.286)
+    ..cubicTo(0.660, 0.367, 0.530, 0.536, 0.500, 0.555)
+    ..close();
+
+  static final _adult = Path()
+    ..moveTo(0.137, 0.695)
+    ..cubicTo(0.155, 0.629, 0.203, 0.592, 0.273, 0.592)
+    ..cubicTo(0.338, 0.592, 0.393, 0.637, 0.418, 0.695)
+    ..cubicTo(0.354, 0.708, 0.321, 0.748, 0.321, 0.804)
+    ..cubicTo(0.321, 0.835, 0.330, 0.863, 0.350, 0.890)
+    ..cubicTo(0.250, 0.854, 0.173, 0.784, 0.137, 0.695)
+    ..close();
+
+  static final _heart = Path()
+    ..moveTo(0.500, 0.780)
+    ..cubicTo(0.461, 0.721, 0.374, 0.722, 0.374, 0.810)
+    ..cubicTo(0.374, 0.861, 0.460, 0.941, 0.500, 0.972)
+    ..cubicTo(0.540, 0.941, 0.626, 0.861, 0.626, 0.810)
+    ..cubicTo(0.626, 0.722, 0.539, 0.721, 0.500, 0.780)
+    ..close();
+
+  void _drawRing(Canvas canvas, Color colour) {
+    canvas.drawArc(
+      _ringBounds,
+      106 * math.pi / 180,
+      328 * math.pi / 180,
+      false,
+      Paint()
+        ..color = colour
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.066
+        ..strokeCap = StrokeCap.round,
+    );
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokeWidth = size.width * _strokeFactor;
-    final radius = size.width / 2 - strokeWidth / 2;
-    final ring = Paint()
-      // Hard stops keep the four horizontal flag bands distinct.
-      ..shader = _flagBands.createShader(Offset.zero & size)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, ring);
+    canvas.save();
+    canvas.scale(size.width, size.height);
+    final ink = Paint()..color = _familyInk;
+    _drawRing(canvas, _grey);
+    canvas.drawPath(_pin, ink);
+    canvas.drawCircle(_dotCenter, 0.088, Paint()..color = Colors.white);
+    canvas.drawCircle(const Offset(0.274, 0.498), 0.071, ink);
+    canvas.drawCircle(const Offset(0.726, 0.498), 0.071, ink);
+    canvas.drawPath(_adult, ink);
+    canvas.save();
+    canvas.translate(1, 0);
+    canvas.scale(-1, 1);
+    canvas.drawPath(_adult, ink);
+    canvas.restore();
+    canvas.drawCircle(const Offset(0.5, 0.661), 0.056, ink);
+    canvas.drawPath(_heart, Paint()..color = _grey);
+
+    final dotOpacity = pulse?.value ?? 1;
+    canvas.drawCircle(
+      _dotCenter,
+      0.058,
+      Paint()..color = Color.lerp(Colors.white, _grey, dotOpacity)!,
+    );
+
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, 1, fillProgress));
+    for (var band = 0; band < _flagColours.length; band++) {
+      final top = _bandEdges[band];
+      final bottom = _bandEdges[band + 1];
+      canvas.save();
+      canvas.clipPath(
+        Path()
+          ..moveTo(0, top[0])
+          ..lineTo(1, top[1])
+          ..lineTo(1, bottom[1])
+          ..lineTo(0, bottom[0])
+          ..close(),
+        doAntiAlias: false,
+      );
+      _drawRing(canvas, _flagColours[band]);
+      canvas.restore();
+    }
+    canvas.drawPath(_heart, Paint()..color = _heartGreen);
+    canvas.drawCircle(
+      _dotCenter,
+      0.058,
+      Paint()..color = Color.lerp(Colors.white, _mint, dotOpacity)!,
+    );
+    canvas.restore();
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _RingPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GuardianFamilyPainter oldDelegate) =>
+      fillProgress != oldDelegate.fillProgress || pulse != oldDelegate.pulse;
 }
 
 /// "Guardian" wordmark with a blinking dot on the "i", matching
