@@ -143,3 +143,44 @@ the unique-session measurement guard delayed vitals until about SOS+2m35s.
 The separate contact's existing provider 131030 rejection remains; this is an
 owner-delivery pass, not an all-recipient pass. Gateway and ngrok remained running
 throughout. No new code or settings were changed during the retest.
+
+## Separate fall follow-up — 9 October 2026
+
+A physical fall arrived at **00:15:08.950 MUT**, about eleven minutes after a
+previous SOS. The first owner WhatsApp was sent at 00:15:21 and read at 00:15:23.
+The photo worker linked the fall to that SOS's already-completed photo incident
+under the old 12-minute grouping rule. The fall's separate readings job finished
+at 00:16:20.860, but no fall photo job or follow-up delivery record was created.
+The worker therefore never sent those readings. This was a skipped follow-up,
+not a delayed watch measurement or an active camera wait.
+
+Each accepted alert ID now owns its own gallery, readings reference and follow-up.
+Camera reservations only control capture. An occupied camera, recent saved image
+or failed-upload quiet period creates an explicit stopped/no-photo result for a
+new alert, without taking over the existing lock. Once the previous capture is
+terminal and its spacing/quiet period has passed, a separate new alarm may request
+its own single automatic image. Retrying the same alert ID remains idempotent.
+
+The existing fall was repaired using the explicit administrator helper
+`scripts/restore-grouped-incident-followup.js`: dry run first, then one atomic
+creation of a stopped, empty fall-photo record and relinking of that alert.
+No camera authorization, hardware command, new measurement, old-photo copy or
+deadline extension occurred. The normal worker rechecked recipients/consent and
+froze the fall's own completed readings. Its approved follow-up was delivered to
+the owner at **00:30:59 MUT**, explicitly stating that no automatic incident photo
+was received. The old SOS record and delivery were preserved. The separate
+contact's existing rejection remains; this is an owner-delivery result.
+
+Tests cover a completed SOS followed by a fall inside twelve minutes, competing
+workers/restarts, overlapping capture, successful/failed capture spacing, separate
+gallery identity, and a guarded idempotent repair with no photo dispatch. The
+main-based branch passes **1,825 gateway tests**. The integrated release passes
+**1,906 tests**, retaining the previously reproduced unrelated journey-origin
+failure. The shared dispatch lock also enforces the quiet period across incident
+IDs, including guardian requests after the old grouping lock expires. Hardware
+acceptance of a new fall's complete automatic photo/readings flow remains pending.
+
+This fall also predates the separate place-name correction deployed at
+**00:16:59 MUT** in PR #160. Its original message correctly remains an immutable
+record of what was sent at 00:15; recovering its follow-up does not retroactively
+replace the initial alert's missing label.

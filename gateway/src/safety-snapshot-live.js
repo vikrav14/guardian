@@ -153,6 +153,12 @@ function createSnapshotController({ db, bucket, findSessions, runtime, now = () 
       if (!selected) fail(incidentId ? 'incident_waiting_for_connection' : 'watch_offline_or_reconnecting');
       if (asDate(lock.data()?.activeUntil) > at ||
           (asDate(lock.data()?.incidentUntil) > at && lock.data()?.incidentId !== incidentId)) fail('camera_busy');
+      if (incidentId && lock.data()?.requestId) {
+        const previous = (await tx.get(ref(lock.data().requestId))).data();
+        if (require('./incident-photo-policy').photoQuietUntil(previous, lock.data().activeUntil) > at) {
+          fail('incident_photo_settling');
+        }
+      }
       if (!incidentId && last && at.getTime() < last.getTime() + COOLDOWN_MS) {
         const error = Object.assign(new Error('cooldown_active'), { code: 'cooldown_active', status: 429, retryAt: new Date(last.getTime() + COOLDOWN_MS) });
         throw error;
