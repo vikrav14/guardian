@@ -563,7 +563,10 @@ unaltered GPS evidence.
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
 
-### Physical SOS `sosLocationSnapshot`
+### Physical SOS `sosLocationSnapshot` (legacy version 1)
+
+This section describes stored v1 alerts. New physical SOS and fall alerts use
+the version 2 contract below; neither reader rewrites existing incidents.
 
 The gateway captures this top-level field at physical SOS receipt, before
 notification work. It is **not** stored in the client-writable `payload` map.

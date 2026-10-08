@@ -50,3 +50,24 @@ acceptance after rollout. Online status alone cannot establish Home. Sparse or
 absent watch radio reports must produce uncertainty rather than extend Home
 presence indefinitely. Do not generate a synthetic live alarm to simulate that
 acceptance or rewrite an old alert using later evidence.
+
+## Pilot rollout — 8 October 2026
+
+Code commit `24e9890` is deployed to the local pilot gateway for both alarm types
+and to `guardian-fbadd.web.app`. Android build **29858149** was installed on the
+existing Samsung with replacement-install semantics; application UID, original
+install time and app-data directory identities were verified unchanged.
+
+The release preserves the deployed journey place-name screen, incident readings,
+photo features and intelligence client. Gateway configuration and both ngrok
+addresses were verified unchanged; the watch reconnected after the restart.
+
+All 1,793 main-based gateway tests passed. The deployed app integration passed
+858 tests; final reader/dispatch tests and integrated static analysis passed.
+The integrated gateway passed 1,890 tests with one unrelated journey-origin
+assertion failure, reproduced on the unchanged live baseline. That failure is
+not recorded as fixed by this location change.
+
+Offline replay of the reported incident selected the newer cellular estimate
+with a 502 m radius and retained its 1.404-second clock-lead audit evidence.
+No replay notification was sent. Live Home/fall acceptance remains pending.
