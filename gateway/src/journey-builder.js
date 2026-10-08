@@ -122,6 +122,7 @@ function normalizePoint(point) {
     accuracySource: point.accuracySource ?? null,
     source: point.source ?? point.accuracySource ?? null,
     gpsValid: point.gpsValid === true,
+    ...(typeof point.placeName === 'string' && point.placeName.trim() ? { placeName: point.placeName.trim() } : {}),
     accuracyMeters:
       Number.isFinite(Number(point.accuracyMeters)) &&
       Number(point.accuracyMeters) > 0
@@ -169,6 +170,7 @@ function buildRouteEvidence(points, journeyStartAt) {
       accuracyMeters: point.accuracyMeters ?? null,
       satellites: point.satellites ?? null,
       speedKmh: point.speedKmh ?? null,
+      ...(typeof point.placeName === 'string' && point.placeName.trim() ? { placeName: point.placeName.trim() } : {}),
     });
 
     if (index === 0) continue;

@@ -629,10 +629,6 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
           final story = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (journey.hasInterruptedCoverage) ...[
-                _RouteCoverageNotice(journey: journey),
-                const SizedBox(height: 16),
-              ],
               _JourneyTimeline(
                 journey: journey,
                 presentation: selectedRoute.presentation,
@@ -674,6 +670,22 @@ class _SelectedTripPanelState extends State<_SelectedTripPanel> {
                   key: ValueKey('journey-recording-details-${journey.id}'),
                   title: const Text('Recording details'),
                   children: [
+                    if (journey.hasInterruptedCoverage)
+                      Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: _RouteCoverageNotice(journey: journey),
+                      ),
+                    for (final gap in journey.routeGaps)
+                      ListTile(
+                        leading: const Icon(Icons.portable_wifi_off_rounded),
+                        title: Text(
+                          '${DateFormat.Hm().format(journey.startAt.add(Duration(milliseconds: gap.fromOffsetMs)))} – '
+                          '${DateFormat.Hm().format(journey.startAt.add(Duration(milliseconds: gap.toOffsetMs)))}',
+                        ),
+                        subtitle: Text(
+                          '${_compactDuration(gap.duration)} without a recorded location',
+                        ),
+                      ),
                     _SelectedMetricsRow(journey: journey, route: selectedRoute),
                     Padding(
                       padding: const EdgeInsets.all(18),
@@ -752,47 +764,51 @@ class _JourneyTimeline extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final events =
-        <({DateTime at, String title, String detail, IconData icon, int? point})>[
-          (
-            at: journey.confirmedDepartureAt,
-            title: _departureCaption(journey),
-            detail: journey.routeStartAnchored
-                ? 'Departure confirmed'
-                : 'Start of available history',
-            icon: Icons.trip_origin_rounded,
-            point: 0,
-          ),
-          if (_hasStructuredJourney(journey))
-            for (final stop in journey.stops)
-              (
-                at: stop.startAt,
-                title: _stopPlaceLabel(stop, presentation),
-                detail: 'Stopped for ${_compactDuration(stop.duration)}',
-                icon: Icons.pause_circle_outline_rounded,
-                point: stop.pointStartIndex,
-              ),
-          for (final gap in journey.routeGaps)
+        <
+            ({
+              DateTime at,
+              String title,
+              String detail,
+              IconData icon,
+              int? point,
+            })
+          >[
             (
-              at: journey.startAt.add(Duration(milliseconds: gap.fromOffsetMs)),
-              title: 'Tracking gap',
-              detail:
-                  '${_compactDuration(gap.duration)} without a recorded location · '
-                  'resumed ${DateFormat.Hm().format(journey.startAt.add(Duration(milliseconds: gap.toOffsetMs)))}',
-              icon: Icons.portable_wifi_off_rounded,
-              point: null,
+              at: journey.confirmedDepartureAt,
+              title: _timelineEndpointLabel(journey, 0, presentation),
+              detail: journey.routeStartAnchored
+                  ? _departureCaption(journey)
+                  : 'First recorded location',
+              icon: Icons.trip_origin_rounded,
+              point: 0,
             ),
-          (
-            at: journey.confirmedReturnAt,
-            title: _arrivalCaption(journey),
-            detail: journey.hasConfirmedReturn
-                ? 'Return confirmed'
-                : 'Return home not confirmed',
-            icon: journey.hasConfirmedReturn
-                ? Icons.home_outlined
-                : Icons.location_on_outlined,
-            point: journey.pointCount - 1,
-          ),
-        ]..sort((a, b) => a.at.compareTo(b.at));
+            if (_hasStructuredJourney(journey))
+              for (final stop in journey.stops)
+                (
+                  at: stop.startAt,
+                  title: _stopPlaceLabel(stop, presentation),
+                  detail: 'Stopped for ${_compactDuration(stop.duration)}',
+                  icon: Icons.pause_circle_outline_rounded,
+                  point: stop.pointStartIndex,
+                ),
+            ..._namedJourneyTimelinePoints(journey, presentation),
+            (
+              at: journey.confirmedReturnAt,
+              title: _timelineEndpointLabel(
+                journey,
+                journey.pointCount - 1,
+                presentation,
+              ),
+              detail: journey.hasConfirmedReturn
+                  ? _arrivalCaption(journey)
+                  : 'Last recorded location',
+              icon: journey.hasConfirmedReturn
+                  ? Icons.home_outlined
+                  : Icons.location_on_outlined,
+              point: journey.pointCount - 1,
+            ),
+          ]
+          ..sort((a, b) => a.at.compareTo(b.at));
 
     return GuardianSurface(
       key: const ValueKey('journey-timeline'),
@@ -1734,6 +1750,68 @@ String _arrivalCaption(JourneyRecord journey) {
   return 'Returned ${journey.originGeofenceName!.trim()}';
 }
 
+String _timelineEndpointLabel(
+  JourneyRecord journey,
+  int index,
+  JourneyRoutePresentation? presentation,
+) {
+  final name = _pointPlaceLabel(journey, index, presentation: presentation);
+  return name == 'Recorded location' || name == 'Recorded stop'
+      ? (index == 0 ? 'First recorded' : 'Last recorded')
+      : _timelinePlaceName(name);
+}
+
+String _timelinePlaceName(String label) => label.split(' · near ').first.trim();
+
+String _timelinePlaceKey(String label) => _timelinePlaceName(
+  label,
+).toLowerCase().replaceFirst(RegExp(r'^st[.\s]+'), 'saint ');
+
+List<({DateTime at, String title, String detail, IconData icon, int? point})>
+_namedJourneyTimelinePoints(
+  JourneyRecord journey,
+  JourneyRoutePresentation? presentation,
+) {
+  final rows =
+      <
+        ({DateTime at, String title, String detail, IconData icon, int? point})
+      >[];
+  var previous = _timelinePlaceKey(
+    _pointPlaceLabel(journey, 0, presentation: presentation),
+  );
+  for (var index = 1; index < journey.pointEvidence.length - 1; index++) {
+    if (_hasStructuredJourney(journey) &&
+        journey.stops.any(
+          (stop) =>
+              index >= stop.pointStartIndex && index <= stop.pointEndIndex,
+        )) {
+      previous = _timelinePlaceKey(
+        _pointPlaceLabel(journey, index, presentation: presentation),
+      );
+      continue;
+    }
+    final evidence = journey.pointEvidence[index];
+    final name = evidence.placeName?.trim();
+    if (name == null || name.isEmpty) continue;
+    final key = _timelinePlaceKey(name);
+    if (key == previous) continue;
+    previous = key;
+    final nearby = name.split(' · near ');
+    rows.add((
+      at: journey.startAt.add(Duration(milliseconds: evidence.offsetMs)),
+      title: _timelinePlaceName(name),
+      detail: nearby.length > 1
+          ? 'Near ${nearby.skip(1).join(' · near ')}'
+          : evidence.isSatelliteObservation
+          ? 'Recorded location'
+          : 'Approximate location',
+      icon: Icons.location_on_outlined,
+      point: index,
+    ));
+  }
+  return rows;
+}
+
 String _stopPlaceLabel(
   JourneyStop stop,
   JourneyRoutePresentation? presentation,
@@ -1772,7 +1850,6 @@ String _pointPlaceLabel(
     }
     final place = stop.placeName?.trim();
     if (place != null && place.isNotEmpty) return place;
-    return 'Recorded stop';
   }
 
   if (pointIndex >= 0 && pointIndex < journey.pointEvidence.length) {

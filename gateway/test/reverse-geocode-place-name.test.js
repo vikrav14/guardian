@@ -9,6 +9,13 @@ function component(longName, ...types) {
   return { long_name: longName, types };
 }
 
+test('country-level fallback does not obscure a more useful named place', () => {
+  assert.equal(selectReverseGeocodePlaceName([{ types: ['route'], address_components: [
+    component('Mauritius', 'administrative_area_level_1', 'country'),
+    component('St Pierre', 'route'),
+  ] }]), 'St Pierre');
+});
+
 test('incomplete geocoder details never appear as near B or near C', () => {
   for (const detail of ['B', 'C', 'B.', '123', '', '—']) {
     assert.equal(selectReverseGeocodePlaceName([{
