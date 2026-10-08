@@ -184,3 +184,9 @@ This fall also predates the separate place-name correction deployed at
 **00:16:59 MUT** in PR #160. Its original message correctly remains an immutable
 record of what was sent at 00:15; recovering its follow-up does not retroactively
 replace the initial alert's missing label.
+
+Implementation `c8ca7d3` was overlaid onto the pilot at **00:35 MUT** after fresh
+idle checks. The existing AI integration and PR #160 place-name correction were
+preserved; source hashes, private configuration and both ngrok addresses were
+verified. At 00:36 the watch was connected, capture/follow-up workers were idle
+and no measurement sequence was active. The predictive observer remained running.
