@@ -89,3 +89,18 @@ repeatedly extending the window. This investigation triggered no new live SOS.
 - The isolated candidate includes the current release's other integrations;
   deploying the timing fix must preserve them rather than replace the whole
   local release with the main-based branch.
+
+## Pilot deployment
+
+At 23:00 Mauritius time, the four tested timing files from implementation commit
+`099ad49` were overlaid onto the existing local release after fresh, empty camera,
+voice, incident and measurement queue checks. Only the verified gateway process
+was restarted. The private configuration hash and ngrok addresses were preserved;
+both gateway listeners, HTTP health and journey writer lock passed verification.
+The separate predictive observer remained running.
+
+At 23:01, one reconnected watch session and a fresh heartbeat were observed;
+photo and readings gates, current consent and authorized owner delivery remained
+enabled. No pending measurement job or active sequence existed. This verifies
+deployment and reconnect, not successful capture or sensor readings. PR #159
+remains a draft and has not been merged into main.
