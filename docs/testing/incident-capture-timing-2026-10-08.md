@@ -104,3 +104,42 @@ photo and readings gates, current consent and authorized owner delivery remained
 enabled. No pending measurement job or active sequence existed. This verifies
 deployment and reconnect, not successful capture or sensor readings. PR #159
 remains a draft and has not been merged into main.
+
+## Operator-triggered retest — 23:05–23:09 MUT
+
+The operator triggered one new watch SOS after idle/connection checks. A separate
+read-only observer excluded the earlier alarm and stopped after verified owner
+delivery. No observer command, alarm replay or historical reading was sent.
+
+| Time | Retest result |
+| --- | --- |
+| 23:05:40.596 | Physical SOS received. |
+| 23:05:55 | Initial owner WhatsApp delivered, about 14 seconds after receipt. |
+| 23:06:45 | One camera command handed off, about 65 seconds after SOS. |
+| 23:06:54.049 | Complete matching image frame arrived, about 8.5 seconds after capture began. |
+| 23:06:57.331 | Decoded image stored successfully; AI analysis subsequently reached ready. |
+| 23:07:42 | Photo complete; readings queued with `watch_offline`. Runtime showed two connections for the watch and refused ambiguous measurement dispatch. |
+| 23:08:16.079 | Fresh optical sequence started after connection ambiguity cleared. |
+| 23:08:57.916–58.070 | Usable heart/BP and oxygen uploads received, about 42 seconds after request. |
+| 23:08:58.515 | One uppercase temperature command handed off. |
+| 23:09:20.554 | Usable temperature upload received, about 22 seconds after request. |
+| 23:09:21.967 | Incident readings completed with all three metric groups (four displayed metrics). |
+| 23:09:29.080 | Incident snapshot frozen for the follow-up. |
+| 23:09:38 | Approved vitals template delivered to owner; read at 23:09:42. |
+
+The full follow-up took approximately 3 minutes 57 seconds from SOS. Each saved
+reading's request/receipt timestamp belongs after this new SOS. Values remain
+unverified watch estimates with receipt-time/session correlation, not measured
+clinical accuracy or confirmed wearing.
+
+The capture command timeline contains one write during the approximately
+8.5-second wait: RCAPTURE itself. No competing interval-setting write or camera
+retry occurred. This is one successful live photo/measurement/delivery run; it
+does not prove the removed reporting interference caused the earlier delay, nor
+does it exercise the new minute-six timeout admission path (covered in software
+regressions). The major residual delay was overlapping old/new TCP connections:
+the unique-session measurement guard delayed vitals until about SOS+2m35s.
+
+The separate contact's existing provider 131030 rejection remains; this is an
+owner-delivery pass, not an all-recipient pass. Gateway and ngrok remained running
+throughout. No new code or settings were changed during the retest.
