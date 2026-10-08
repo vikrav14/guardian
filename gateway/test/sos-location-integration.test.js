@@ -17,9 +17,10 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false } = {}) {
+function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false, reverseGeocode = async () => null } = {}) {
   const alerts = [];
   const writes = [];
+  const writeOptions = [];
   const errors = [];
   const wifiObservations = [];
   const warnings = [];
@@ -46,8 +47,8 @@ function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFai
         if (lookupFails) throw new Error('fixture lookup unavailable');
         return structuredClone(evidence);
       },
-      upsertDevice: async (_imei, patch) => {
-        failIf('persistence'); writes.push(patch); clock = after.getTime();
+      upsertDevice: async (_imei, patch, options) => {
+        failIf('persistence'); writes.push(patch); writeOptions.push(options); clock = after.getTime();
       },
       appendLocation: async () => { failIf('history'); },
       refreshDeviceIntelligence: async () => { failIf('intelligence'); },
@@ -65,6 +66,7 @@ function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFai
     './fall-location-snapshot': require('../src/fall-location-snapshot'),
     './sos-location-snapshot': snapshotApi,
     './incident-location-evidence': require('../src/incident-location-evidence'),
+    './incident-place-label': require('../src/incident-place-label'),
     './fleet-hemisphere': { correctFleetHemisphere: event => event },
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
@@ -75,7 +77,7 @@ function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFai
       recordPersist: noop, noteObservationForJourney: noop, noteDiagnosticEventForJourney: noop,
       isJourneyActive: () => false,
     },
-    './geolocate/google': { geolocateFromV: async () => {
+    './geolocate/google': { reverseGeocodeToPlaceName: reverseGeocode, geolocateFromV: async () => {
       failIf('geolocation'); clock = after.getTime(); return geoResult;
     } },
     './sos-incident-window': { claimSosIncident: () => ({ accepted: true }) },
@@ -91,8 +93,42 @@ function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFai
   };
   vm.runInNewContext(`${source}\nmodule.exports = { applyEvents, wearEvidence, setReliability: value => journeyReliability = value };`, sandbox);
   sandbox.module.exports.setReliability(reliability);
-  return { apply: sandbox.module.exports.applyEvents, wear: sandbox.module.exports.wearEvidence, alerts, writes, errors, wifiObservations, warnings, reporting };
+  return { apply: sandbox.module.exports.applyEvents, wear: sandbox.module.exports.wearEvidence, alerts, writes, writeOptions, errors, wifiObservations, warnings, reporting };
 }
+
+test('SOS and fall name the selected incoming point before freezing notification and map', async () => {
+  for (const alarmType of ['sos', 'fall']) {
+    const lookedUp = [];
+    const run = dispatcher({ location: { lat: -20.1, lng: 57.1, source: 'gps',
+      recordedAt: new Date(+receipt - 9 * 3600000), placeLabel: 'Old town' } }, { reverseGeocode: async (lat, lng) => {
+      lookedUp.push([lat, lng]); return 'Current town · near Fixture Road';
+    } });
+    await run.apply([alarm({ alarmType })], {});
+    assert.deepEqual(run.errors, []);
+    assert.deepEqual(lookedUp, [[-20.2, 57.2]]);
+    const result = alarmType === 'sos' ? snapshotApi.readSosLocationSnapshot(run.alerts[0])
+      : require('../src/fall-location-snapshot').readFallLocationSnapshot(run.alerts[0]);
+    assert.equal(result.location.placeLabel, 'Current town · near Fixture Road');
+    assert.equal(result.location.recordedAt.getTime(), receipt.getTime());
+    assert.equal(result.location.accuracyMeters, 600);
+    assert.equal(result.location.source, 'wifi');
+    assert.match(require('../src/incident-message-copy').compactLocation(result), /Approximate location: Current town/);
+    assert.equal(run.writes[0].location.placeLabel, result.location.placeLabel);
+    assert.equal(run.writeOptions[0].skipPlaceLookup, true);
+  }
+});
+
+test('provider failure still dispatches SOS and fall without a second persistence lookup', async () => {
+  for (const alarmType of ['sos', 'fall']) {
+    const run = dispatcher({}, { reverseGeocode: async () => { throw Error('provider offline'); } });
+    await run.apply([alarm({ alarmType })], {});
+    assert.equal(run.alerts.length, 1);
+    assert.equal(run.writeOptions[0].skipPlaceLookup, true);
+    const point = (run.alerts[0].sosLocationSnapshot || run.alerts[0].payload.locationSnapshot).location;
+    assert.equal(point.lat, -20.2);
+    assert.equal(point.placeLabel, null);
+  }
+});
 
 test('SOS dispatcher does not depend on GPS journal availability or the location queue', async () => {
   const run = dispatcher(fixtures[0].device, { reliability: {

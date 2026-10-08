@@ -361,7 +361,9 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
       `https://maps.googleapis.com/maps/api/geocode/json?` +
       `latlng=${lat},${lng}&key=${encodeURIComponent(apiKey)}`;
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(url, { signal: options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(8000)])
+      : AbortSignal.timeout(8000) });
     if (!res.ok) {
       console.warn(`[reverse-geocode] API error ${res.status}`);
       return null;

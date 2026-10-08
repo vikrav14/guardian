@@ -71,3 +71,38 @@ not recorded as fixed by this location change.
 Offline replay of the reported incident selected the newer cellular estimate
 with a 502 m radius and retained its 1.404-second clock-lead audit evidence.
 No replay notification was sent. Live Home/fall acceptance remains pending.
+
+## Place-name correction — 9 October 2026
+
+The 00:04 MUT physical SOS correctly selected its fresh cellular estimate, but
+its WhatsApp message said "place name unavailable". The point was frozen before
+ordinary device persistence added the successful reverse-geocoding result.
+The previous offline replay reused an already labelled stored point and did not
+exercise this incoming-packet ordering defect.
+
+Both SOS and fall now resolve the selected point's name before saving the alert.
+An existing name can be reused only at identical coordinates. Otherwise a lookup
+has a 1.5-second limit with cancellation; a failure preserves the evidence and
+skips the ordinary persistence retry for that point. A late result cannot change
+the snapshot, and labels never renew timestamps or change source/uncertainty.
+No new observation or previous town is substituted while waiting.
+
+Main-based gateway validation: **1,802 passed**. Integrated live-release candidate:
+**1,900 passed**, with the same unrelated journey-origin failure documented above.
+Coverage includes both real dispatchers receiving an unlabelled incoming point,
+failure and stalled lookup, cancellation reaching the provider, immutable late
+responses, and persistence avoiding a second lookup. Offline replay of the
+physical test now includes its place name while retaining coordinates, original
+time evidence and the 267 m radius. No replay notification or alert edit occurred.
+
+The physical test's owner alert arrived 14 seconds after gateway receipt. The
+photo arrived 76 seconds after receipt (11 seconds after the camera command).
+All four reading types were received after this SOS's requests; the approved
+combined follow-up was delivered at 00:08:14 MUT, 3m54s after receipt. These are
+watch estimates and receipt-time correlation, not clinical validation.
+
+The incident packet contained no Wi-Fi scan. Subsequent reports saw the enrolled
+router, mostly below the existing signal threshold; a qualifying repeated Home
+match was not established. A nearby cellular estimate cannot prove presence in
+the house. Home qualification was not weakened. Physical Home and fall acceptance
+remain pending.

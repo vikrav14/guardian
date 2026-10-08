@@ -39,10 +39,10 @@ const {
 
 const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence');
 
-const { geolocateFromV } = require('./geolocate/google');
+const { geolocateFromV, reverseGeocodeToPlaceName } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
-const { withFallLocationSnapshot } = require('./fall-location-snapshot');
 const { buildIncidentLocationSnapshot } = require('./incident-location-evidence');
+const { enrichIncidentPlaceLabel, sameCoordinates } = require('./incident-place-label');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
@@ -274,11 +274,11 @@ setInterval(() => {
 
 
 
-async function persistDeviceState(imei, patch, gateReason, session) {
+async function persistDeviceState(imei, patch, gateReason, session, options) {
 
   const sessionPatch = buildSessionPersistPatch(session, patch);
 
-  await upsertDevice(imei, sessionPatch);
+  await upsertDevice(imei, sessionPatch, options);
 
   if (session) session.lastPresenceAt = Date.now();
 
@@ -1030,7 +1030,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           alarmEvent = correctFleetHemisphere(alarmEvent);
         }
 
-        const alarmProvenance = alarmEvent.location
+        let alarmProvenance = alarmEvent.location
           ? buildLocationProvenancePatch(
               alarmEvent.location,
               alarmEvent.accuracySource,
@@ -1047,8 +1047,8 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
         const alarmType = alarmEvent.alarmType || 'other';
         const alarmAt = ['sos', 'fall'].includes(alarmType) ? eventReceivedAt : new Date();
-        const sosLocationSnapshot = alarmType === 'sos'
-          ? buildIncidentLocationSnapshot(sosDeviceAtReceipt, {
+        const incidentLocationSnapshot = ['sos', 'fall'].includes(alarmType)
+          ? await enrichIncidentPlaceLabel(buildIncidentLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
               homeEvidence: incidentHomeEvidence,
               observation: alarmProvenance.location ? {
@@ -1056,8 +1056,15 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
                 // A resolver completion time is not a device observation time.
                 recordedAt: event.location?.recordedAt || null,
               } : null,
-            })
+            }), { device: sosDeviceAtReceipt || {}, reverseGeocode: reverseGeocodeToPlaceName })
           : null;
+        const incidentPointMatchesAlarm = sameCoordinates(incidentLocationSnapshot?.location, alarmProvenance.location);
+        if (incidentPointMatchesAlarm && incidentLocationSnapshot.location.placeLabel) {
+          alarmProvenance = buildLocationProvenancePatch(
+            { ...alarmProvenance.location, placeLabel: incidentLocationSnapshot.location.placeLabel },
+            alarmProvenance.accuracySource, alarmEvent.gpsValid);
+          alarmEvent = { ...alarmEvent, location: alarmProvenance.location };
+        }
         const alarmRaw =
 
           alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};
@@ -1119,17 +1126,13 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
 
         await runTrackingSideEffect(event, 'persistence', () =>
-          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session));
+          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session,
+            // The selected point already used its bounded lookup. Do not
+            // retry through ordinary persistence after a provider timeout.
+            { skipPlaceLookup: incidentPointMatchesAlarm }));
 
         if (alarmType === 'fall') {
-          alarmPayload = withFallLocationSnapshot(
-            alarmType,
-            alarmPayload,
-            sosDeviceAtReceipt,
-            { now: alarmAt, currentEvidence: true, homeEvidence: incidentHomeEvidence,
-              observation: alarmProvenance.location ? { ...alarmProvenance.location,
-                recordedAt: event.location?.recordedAt || null } : null }
-          );
+          alarmPayload = { ...alarmPayload, locationSnapshot: incidentLocationSnapshot };
         }
 
         if (alarmEvent.location) {
@@ -1202,7 +1205,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
             payload: alarmPayload,
 
-            ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
+            ...(alarmType === 'sos' ? { sosLocationSnapshot: incidentLocationSnapshot } : {}),
 
           });
         } else {

@@ -9,6 +9,26 @@ function component(longName, ...types) {
   return { long_name: longName, types };
 }
 
+test('incident cancellation reaches the reverse-geocoding request', async t => {
+  const config = require('../src/config');
+  const previousKey = config.googleGeolocationApiKey, previousDisabled = config.firestoreDisabled;
+  const previousFetch = global.fetch;
+  config.googleGeolocationApiKey = 'fixture-key'; config.firestoreDisabled = false;
+  t.after(() => { config.googleGeolocationApiKey = previousKey; config.firestoreDisabled = previousDisabled; global.fetch = previousFetch; });
+  const api = require('../src/geolocate/google');
+  api.clearGeolocationCache();
+  let receivedSignal;
+  global.fetch = async (_url, { signal }) => {
+    receivedSignal = signal;
+    return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(Error('fixture cancellation')), { once: true }));
+  };
+  const controller = new AbortController();
+  const pending = api.reverseGeocodeToPlaceName(-20.2, 57.2, { signal: controller.signal });
+  controller.abort();
+  assert.equal(await pending, null);
+  assert.equal(receivedSignal.aborted, true);
+});
+
 test('country-level fallback does not obscure a more useful named place', () => {
   assert.equal(selectReverseGeocodePlaceName([{ types: ['route'], address_components: [
     component('Mauritius', 'administrative_area_level_1', 'country'),
