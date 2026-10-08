@@ -106,3 +106,10 @@ router, mostly below the existing signal threshold; a qualifying repeated Home
 match was not established. A nearby cellular estimate cannot prove presence in
 the house. Home qualification was not weakened. Physical Home and fall acceptance
 remain pending.
+
+The place-name correction (`d2bf851`) was deployed to the pilot gateway at
+00:17 MUT on 9 October, after fresh idle checks for photo and readings work.
+Runtime configuration, ngrok endpoints and the existing release features were
+preserved. This is a gateway-only correction; the web and Android release above
+already render the snapshot's place name. The already-delivered alert remains
+unchanged; a new physical alert with this correction still needs acceptance.
