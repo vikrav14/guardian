@@ -3,12 +3,12 @@ const { haversineMeters } = require('./geofence');
 const config = require('./config');
 const { deriveJourneyStructure } = require('./journey-structure');
 const { isJourneyGps } = require('./journey-source-evidence');
+const { isPlausibleJourneyHop, JOURNEY_CONTEXT_MAX_AGE_MS } = require('./journey-hop');
 
 const STATIONARY_SPEED_KMH = 1;
-const MAX_JOURNEY_SEGMENT_METRES = 5000;
 const RETURN_CONFIRM_MS = 2 * 60 * 1000;
 const ROUTE_GAP_THRESHOLD_MS = 5 * 60 * 1000;
-const DEPARTURE_ANCHOR_MAX_AGE_MS = ROUTE_GAP_THRESHOLD_MS;
+const DEPARTURE_ANCHOR_MAX_AGE_MS = JOURNEY_CONTEXT_MAX_AGE_MS;
 const MAX_DIAGNOSTIC_EVENTS = 512;
 
 function emptyObservationAudit() {
@@ -240,8 +240,7 @@ function shouldAcceptJourneyPoint(point, reference) {
     typeof reference.lat === 'number' &&
     typeof reference.lng === 'number'
   ) {
-    const hop = haversineMeters(reference.lat, reference.lng, point.lat, point.lng);
-    if (hop > MAX_JOURNEY_SEGMENT_METRES) return false;
+    if (!isPlausibleJourneyHop(reference, point)) return false;
   }
   return true;
 }

@@ -1,7 +1,7 @@
 'use strict';
 
 const { JourneyJournal, restoreDates } = require('./journey-journal');
-const { normalizeGps, recoverGpsHistory, saveRecoveredJourney, millis } = require('./journey-history-recovery');
+const { normalizeGps, recoverGpsHistory, saveRecoveredJourney, millis, dayStart } = require('./journey-history-recovery');
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
 
 function createJourneyReliability({ directory, journal = new JourneyJournal(directory),
@@ -82,8 +82,12 @@ function createJourneyReliability({ directory, journal = new JourneyJournal(dire
           // transaction deduplicates existing routes; Home-held GPS stays out.
           const firstPendingAt = Math.min(...pending.map(([,p]) => millis(p.point.recordedAt)));
           const lastPendingAt = Math.max(...pending.map(([,p]) => millis(p.point.recordedAt)));
+          // A five-minute window excludes earlier ten-minute reports, including
+          // the Home departure. Reconcile complete affected local days; the
+          // reconstruction still separates outings and honors Home intervals.
           const context = Object.values(data.points).filter(p => p.status !== 'home' &&
-            millis(p.point.recordedAt) >= firstPendingAt - 300000 && millis(p.point.recordedAt) <= lastPendingAt + 300000);
+            millis(p.point.recordedAt) >= dayStart(firstPendingAt) &&
+            millis(p.point.recordedAt) < dayStart(lastPendingAt) + 86400000);
           const result = recoverGpsHistory(context.map(p => p.point), {
             now: now(), zones: zones.docs.map(d => ({ id: d.id, ...d.data() })), homeIntervals: data.homeIntervals,
           });

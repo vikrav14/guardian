@@ -236,7 +236,7 @@ test('stale inside GPS point cannot masquerade as the departure route start', ()
     }
   );
 
-  const exitAt = new Date('2026-08-17T10:06:00Z');
+  const exitAt = new Date('2026-08-17T11:06:00Z');
   trackJourneyPoint(
     state,
     {
