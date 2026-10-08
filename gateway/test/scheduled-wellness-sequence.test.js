@@ -70,6 +70,101 @@ test('trusted daily sequence uses both stages while retaining unknown scheduled 
   assert.equal(evidence.measurementConfirmed, false);
 });
 
+test('incident sequence works in Manual or scheduled mode and freezes first optical readings', async () => {
+  for (const routine of ['manual', 'gentle', 'balanced']) {
+    const f = fixture(); f.context.request.routine = routine;
+    await f.sequence.requestIncident({ isCurrent: f.isCurrent, startDeadlineAt: AT + 300_000, deadlineAt: AT + 540_000 });
+    f.advance(41_000);
+    f.observe('bphrt', ['101', '61', '71']);
+    f.observe('bphrt', ['130', '85', '88']);
+    f.observe('oxygen', ['1', '98']); await flush();
+    assert.deepEqual(f.sent, ['hrtstart,1', 'BODYTEMP2']);
+    const result = (await f.sequence.status({ includeValues: true })).sequence;
+    assert.equal(result.positionBasis, 'incident');
+    assert.equal(result.operatorPosition, 'unknown');
+    assert.equal(result.optical.heartBloodPressure.values.heartRateBpm, 71);
+    assert.equal(result.temperature.trial.positionBasis, 'incident');
+    assert.equal(f.resumeCalls, 0);
+  }
+});
+
+test('incident authorization is rechecked at both stages and public payloads cannot spoof it', async () => {
+  const f = fixture();
+  await assert.rejects(f.sequence.request({ action: 'single', operatorPosition: 'unknown', positionBasis: 'incident' }));
+  await assert.rejects(f.sequence.requestIncident({ startDeadlineAt: AT + 300_000, deadlineAt: AT + 540_000 }));
+  await f.sequence.requestIncident({ isCurrent: f.isCurrent, startDeadlineAt: AT + 300_000, deadlineAt: AT + 540_000 });
+  f.current = false; f.advance(41_000); await f.pair();
+  assert.deepEqual(f.sent, ['hrtstart,1']);
+  assert.equal((await f.sequence.status()).sequence.reason, 'temperature_preflight_failed');
+});
+
+test('incident mode cannot bypass native routines, revoked consent or quarantine', async () => {
+  for (const change of [
+    f => { f.context.state.mayBeRunning = true; },
+    f => { f.context.state.temperatureMayBeRunning = true; },
+    f => { f.context.consent.status = 'revoked'; },
+    f => { f.suppressed = true; },
+  ]) {
+    const f = fixture(); change(f);
+    await assert.rejects(f.sequence.requestIncident({ isCurrent: f.isCurrent, startDeadlineAt: AT + 300_000, deadlineAt: AT + 540_000 }));
+    assert.deepEqual(f.sent, []);
+  }
+});
+
+test('a minute-six incident starts both stages if their full windows fit before minute nine', async () => {
+  const f = fixture(); f.advance(360_000);
+  await f.sequence.requestIncident({ isCurrent: f.isCurrent,
+    startDeadlineAt: AT + 420_000, deadlineAt: AT + 540_000 });
+  f.advance(41_000); await f.pair();
+  const result = (await f.sequence.status()).sequence;
+  assert.deepEqual(f.sent, ['hrtstart,1', 'BODYTEMP2']);
+  assert.equal(Date.parse(result.temperature.trial.captureExpiresAt), AT + 521_000);
+});
+
+test('late optical success preserves readings but skips temperature when its full window cannot fit', async () => {
+  const f = fixture(); f.advance(360_000);
+  await f.sequence.requestIncident({ isCurrent: f.isCurrent,
+    startDeadlineAt: AT + 420_000, deadlineAt: AT + 540_000 });
+  f.advance(61_000); await f.pair();
+  const result = (await f.sequence.status({ includeValues: true })).sequence;
+  assert.deepEqual(f.sent, ['hrtstart,1']);
+  assert.equal(result.terminal, true);
+  assert.equal(result.reason, 'temperature_budget_exhausted');
+  assert.equal(result.optical.heartBloodPressure.values.heartRateBpm, 71);
+  assert.equal(result.optical.oxygen.values.spo2Percent, 98);
+});
+
+test('temperature preparation crossing its incident budget cannot hand off a command', async () => {
+  const f = fixture(); f.advance(360_000);
+  await f.sequence.requestIncident({ isCurrent: f.isCurrent,
+    startDeadlineAt: AT + 420_000, deadlineAt: AT + 540_000 });
+  const gate = deferred(); f.beforeGuard = () => gate.promise;
+  f.advance(41_000); await f.pair();
+  assert.equal(f.guardCalls, 2);
+  f.advance(20_000); gate.resolve(); await flush();
+  assert.deepEqual(f.sent, ['hrtstart,1']);
+  assert.equal((await f.sequence.status()).sequence.reason, 'temperature_budget_exhausted');
+});
+
+test('incident optical admission rechecks the persisted start deadline after slow authorization', async () => {
+  const f = fixture(); f.advance(419_000);
+  const gate = deferred(); f.beforeGuard = () => gate.promise;
+  const pending = f.sequence.requestIncident({ isCurrent: f.isCurrent,
+    startDeadlineAt: AT + 420_000, deadlineAt: AT + 540_000 });
+  await flush(); f.advance(1000); gate.resolve();
+  await assert.rejects(pending, /start window has ended/);
+  assert.deepEqual(f.sent, []);
+});
+
+test('incident requests cannot omit or overrun the immutable overall deadline', async () => {
+  for (const deadlineAt of [undefined, NaN, AT + 119_999]) {
+    const f = fixture();
+    await assert.rejects(f.sequence.requestIncident({ isCurrent: f.isCurrent,
+      startDeadlineAt: AT + 60_000, deadlineAt }), /bounded start\/result deadlines/);
+    assert.deepEqual(f.sent, []);
+  }
+});
+
 test('scheduled zero response skips temperature without asserting removed or worn', async () => {
   const f = fixture(); await f.start(); f.advance(41_000);
   f.observe('bphrt', ['0', '0', '0', '', '', '', '']);

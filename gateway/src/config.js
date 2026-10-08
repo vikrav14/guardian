@@ -182,6 +182,8 @@ const config = {
   wearCaptureEnabled: process.env.GUARDIAN_WEAR_CAPTURE === '1',
   wearSensorCaptureEnabled: process.env.GUARDIAN_WEAR_SENSOR_CAPTURE === '1',
   wearWireCaptureEnabled: process.env.GUARDIAN_WEAR_WIRE_CAPTURE === '1',
+  incidentWellbeingEnabled:
+    String(process.env.INCIDENT_WELLBEING_ENABLED || 'false').toLowerCase() === 'true',
   wellnessRoutineEnabled:
     String(process.env.WELLNESS_ROUTINE_ENABLED || 'false').toLowerCase() === 'true',
   careWellbeingIngestEnabled:

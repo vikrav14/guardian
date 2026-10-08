@@ -173,6 +173,12 @@ const wellnessRoutine = config.careWellbeingRequestEnabled || config.wellnessRou
     db: getDb(), config, wearEvidence, temperatureTrialQuarantine,
   }) : null;
 
+if (config.incidentWellbeingEnabled) {
+  require('./incident-wellbeing-live').startIncidentWellbeing({
+    db: getDb(), config, wellness: wellnessRoutine,
+  });
+}
+
 const activityStepsStore = config.activityStepsIngestEnabled === true ? new ActivityStepsStore(getDb(), {
   enabled: config.activityStepsIngestEnabled,
   customerEnabled: config.activityStepsCustomerEnabled,
@@ -1203,6 +1209,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
             ...(['sos', 'fall'].includes(alarmType)
               ? { incidentPhotoEligible: true, incidentPhotoPending: true } : {}),
+
+            ...(config.incidentWellbeingEnabled && ['sos', 'fall'].includes(alarmType)
+              ? { incidentWellbeingEligible: true, incidentWellbeingPending: true } : {}),
 
             payload: alarmPayload,
 

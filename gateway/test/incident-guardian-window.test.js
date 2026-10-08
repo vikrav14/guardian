@@ -44,6 +44,19 @@ test('one automatic photo, then only explicit guardian requests, with AI after t
  const gallery=await s.incidents.gallery('member','alarm');
  assert.equal(gallery.photos.length,7);assert.equal(gallery.photoAccess.canRequest,true);
 });
+
+test('incident reading wait delays only the optional follow-up and still sends it once',async()=>{
+ const s=await ready();let readingsReady=false;
+ const incidents=createIncidentPhotos({...s.options,followupReady:async()=>readingsReady});
+ await incidents.tick('alarm');const first=s.incident().requestIds[0];await receive(s,first);
+ await incidents.sweep();await incidents.drain();
+ assert.equal(s.db.rows.get('alerts/alarm').notifyStatus,'accepted');
+ assert.equal(s.followups(),0);assert.equal(s.incident().followupState,'pending');
+ readingsReady=true;
+ await incidents.sweep();await incidents.drain();
+ await incidents.sweep();await incidents.drain();
+ assert.equal(s.followups(),1);
+});
 test('two guardians and duplicate HTTP intent cannot overlap or replay a capture',async()=>{
  const s=await ready();await s.incidents.tick('alarm');await receive(s,s.incident().requestIds[0]);
  await s.incidents.tick('alarm');s.packet(60000);

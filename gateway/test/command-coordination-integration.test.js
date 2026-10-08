@@ -66,7 +66,7 @@ test('camera timeout releases admission without scheduling a capture or replayin
   assert.equal(w.frames.length, 1);
 });
 
-test('routine reporting is recomputed after camera deferral; active SOS reporting stays prompt', async t => {
+test('routine reporting defers during an SOS camera wait; a fresh alarm still stays prompt', async t => {
   const w = watch(t, '861000000000002'); w.capture();
   let data = { locationReportingMode: 'automatic', locationReportingIntervalSeconds: 900,
     adaptiveReporting: { appliedIntervalSeconds: 900 } };
@@ -80,7 +80,9 @@ test('routine reporting is recomputed after camera deferral; active SOS reportin
   assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 45 })).seconds, 600);
   assert(w.frames[0].includes('UPLOAD,600'));
   w.capture(); data.adaptiveReporting.sosActiveUntil = new Date(Date.now() + 60000);
-  assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80 })).changed, true);
+  assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80 })).status, 'deferred');
+  assert.equal(w.frames.length, 1, 'an existing SOS lease cannot bypass the camera gate');
+  assert.equal((await applyAdaptiveReporting(db, w.imei, { batteryPercent: 80, trigger: 'sos' })).changed, true);
   assert(w.frames[1].includes('UPLOAD,60'));
 });
 

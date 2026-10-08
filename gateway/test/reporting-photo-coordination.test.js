@@ -376,6 +376,48 @@ test('a reporting write already in flight cannot overwrite a newer emergency dea
   }
 });
 
+test('reconnecting during an SOS camera wait defers interval reassertion, then hands it off once', async () => {
+  const h = reportingHarness(), base = Date.now();
+  const c = createCommandCoordinator({ now: () => base });
+  c.beginCapture({ imei, id: 'capture', socket: { writable: true }, expiresAt: base + 240000 });
+  h.row.adaptiveReporting.sosActiveUntil = new Date(base + 1800000);
+  const send = async (db, id, type, params, options) => {
+    const gate = c.decide(id, `UPLOAD,${params.seconds}`, options.coordination);
+    if (!gate.ok) throw Object.assign(new Error(gate.error), { code: gate.error, expiresAt: gate.expiresAt });
+    return h.options.send(db, id, type, params, options);
+  };
+  const session = {};
+  const worker = startReportingReconciler({ db: h.db, connected: () => [imei],
+    sessionFor: () => [session], context: () => ({ ...h.options, send, nowMs: base }), intervalMs: 600000 });
+  try {
+    await worker.tick(); await worker.tick();
+    assert.equal(h.writes.length, 0);
+    assert.equal(h.row.adaptiveReporting.commandStatus, 'deferred');
+    assert.equal(h.row.adaptiveReporting.reason, 'sos_emergency_override');
+    c.finishCapture(imei, 'capture'); await worker.tick(); await worker.tick();
+    assert.deepEqual(h.writes.map(row => row.seconds), [60]);
+    assert.equal(h.writes[0].coordination.emergency, false);
+  } finally { worker.stop(); }
+});
+
+test('outing changes and emergency cooldown are routine settings during a photo wait', async () => {
+  for (const policy of ['outing', 'cooldown']) {
+    const h = reportingHarness(), base = Date.now();
+    h.row.adaptiveReporting.appliedIntervalSeconds = 600;
+    if (policy === 'cooldown') h.row.adaptiveReporting.sosCooldownUntil = new Date(base + 60000);
+    const c = createCommandCoordinator({ now: () => base });
+    c.beginCapture({ imei, id: 'capture', socket: { writable: true }, expiresAt: base + 240000 });
+    const result = await applyAdaptiveReporting(h.db, imei, { ...h.options, nowMs: base,
+      ...(policy === 'outing' ? { outingActiveUntilMs: base + 60000 } : {}),
+      send: async (_db, id, _type, params, options) => {
+        const gate = c.decide(id, `UPLOAD,${params.seconds}`, options.coordination);
+        assert.equal(gate.error, 'camera_busy');
+        throw Object.assign(new Error(gate.error), { code: gate.error });
+      } });
+    assert.equal(result.status, 'deferred');
+  }
+});
+
 test('processing an old event does not renew its expired emergency window', async () => {
   const { activateEmergencyOverride, SOS_ACTIVE_MS, SOS_COOLDOWN_MS } = require('../src/adaptive-reporting');
   const h = reportingHarness(), nowMs = Date.now();

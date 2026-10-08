@@ -17,7 +17,7 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false } = {}) {
+function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false, incidentReadings = false } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
@@ -38,7 +38,8 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './temperature-trial-quarantine': require('../src/temperature-trial-quarantine'),
     './wear-evidence': require('../src/wear-evidence'),
     net: { createServer: () => ({ on: noop, listen: noop }) },
-    './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null, removalAlertsIngestEnabled: wearDb !== null },
+    './config': { firestoreDisabled: true, activityStepsIngestEnabled: activity !== null, removalAlertsIngestEnabled: wearDb !== null, incidentWellbeingEnabled: incidentReadings },
+    './incident-wellbeing-live': { startIncidentWellbeing: () => new Promise(() => {}) },
     './activity-steps': { ActivityStepsStore: function () { return activity; } },
     './firestore': {
       initFirestore: noop, startIntelligenceMonitor: noop, getDb: () => wearDb || ({}),
@@ -101,6 +102,19 @@ test('SOS dispatcher does not depend on GPS journal availability or the location
   await run.apply([alarm()], {});
   assert.equal(run.alerts.length, 1);
   assert.deepEqual(run.errors, []);
+});
+
+test('enabled incident collection marks SOS and fall without waiting for readings before the alert', { timeout: 1000 }, async () => {
+  for (const alarmType of ['sos', 'fall']) {
+    const run = dispatcher(fixtures[0].device, { incidentReadings: true });
+    await run.apply([alarm({ alarmType })], {});
+    assert.equal(run.alerts.length, 1);
+    assert.equal(run.alerts[0].incidentWellbeingEligible, true);
+    assert.equal(run.alerts[0].incidentWellbeingPending, true);
+  }
+  const disabled = dispatcher(fixtures[0].device);
+  await disabled.apply([alarm()], {});
+  assert.equal(disabled.alerts[0].incidentWellbeingEligible, undefined);
 });
 
 test('fall dispatcher still creates the alert when tracking side effects fail', async () => {

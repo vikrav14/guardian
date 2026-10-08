@@ -106,6 +106,29 @@ function fixture(t) {
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+test('incident runtime uses the shared measurement lock and confirmed sequence for its configured watch', async t => {
+  const env = fixture(t);
+  await env.runtime.tick();
+  assert.equal(env.runtime.incidentAvailability(OTHER), 'unsupported_device');
+  env.socket.destroyed = true;
+  assert.equal(env.runtime.incidentAvailability(PILOT), 'watch_offline');
+  env.socket.destroyed = false;
+  assert.equal(env.runtime.incidentAvailability(PILOT), null);
+  const result = await env.runtime.requestIncidentWellness({ imei: PILOT,
+    isCurrent: async () => true, startDeadlineAt: Date.now() + 300_000,
+    deadlineAt: Date.now() + 540_000 });
+  assert.equal(result.outcome, 'optical_request_handed_off');
+  assert.equal(env.runtime.incidentAvailability(PILOT), 'measurement_busy');
+  await assert.rejects(env.runtime.requestWellnessSequence(single), /sequence|active/i);
+  env.advance(41_000); env.opticalPair(); await settle();
+  assert.deepEqual(env.commands(), ['hrtstart,1', 'BODYTEMP2']);
+  env.advance(1000); env.observe('btemp2', ['1', '35.11']);
+  const status = await env.runtime.wellnessSequenceStatus({ includeValues: true });
+  assert.equal(status.sequence.positionBasis, 'incident');
+  assert.equal(status.sequence.operatorPosition, 'unknown');
+  assert.equal(status.sequence.optical.heartBloodPressure.values.heartRateBpm, 71);
+});
+
 function selectDaily(env, times = ['08:00', '20:00']) {
   env.documents.set(`wellnessRoutineRequests/${PILOT}`, {
     version: 2, routine: 'gentle', times, timeZone: 'Indian/Mauritius',

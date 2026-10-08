@@ -1032,3 +1032,22 @@ Authenticated HTTP gallery/image/request routes recheck membership, plan and con
   clients store it explicitly; missing fields fall back to the legacy interval.
   `adaptiveReporting` remains backend-only and represents policy/handoff, not
   measured packet cadence. Deploy the updated rules before the updated client.
+
+### Incident wellbeing snapshots
+
+- Gateway-originated SOS/fall `alerts` may carry `incidentWellbeingEligible`,
+  `incidentWellbeingPending` and `wellbeingIncidentId`. Client create/update
+  allowlists exclude these fields.
+- `incidentWellbeing/{alertId}` is private to the gateway: owner/device/event,
+  state/reason, immutable `startDeadlineAt` and `deadlineAt`, dispatch/worker
+  lease, request/receipt times, first accepted per-metric `readings`, `frozenAt`
+  and 24-hour `expiresAt`. Version 2 admits optics before event+7 minutes;
+  results still end at event+9 minutes. Version-1 deadlines remain fixed.
+  Readings record receipt-time/session correlation and unconfirmed wearing;
+  they are never populated from latest routine history. Collection and disclosure
+  recheck service ownership, wellbeing access and wearer consent.
+- `incidentWellbeingLocks/{imei}` stores `incidentId` and `until` to serialize
+  hardware requests across incidents/restarts. Both collections use the existing
+  default-deny client rules; no new client access is granted.
+- The running gateway deletes expired snapshots; consent revocation deletes
+  retained readings. Neither cleanup recalls delivered WhatsApp messages.

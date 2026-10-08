@@ -11,7 +11,7 @@ const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
 
 function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true, guardianWindowEnabled = true, analyze = null, now = () => new Date(),
-  onComplete = async () => {}, log = () => {}, initialSosSettleEnabled = false }) {
+  onComplete = async () => {}, followupReady = async () => true, log = () => {}, initialSosSettleEnabled = false }) {
   const incidentRef = id => db.collection('incidentPhotos').doc(id);
   const photoRef = id => db.collection('safetySnapshotAuthorizations').doc(id);
   const settingsRef = imei => db.collection('incidentPhotoSettings').doc(imei);
@@ -278,6 +278,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
               db.collection('alerts').doc(fresh.id).get())).data();
             // An optional photo update must not overtake the initial alert.
             if (!fresh.trial && ['pending', 'sending'].includes(alert?.notifyStatus)) continue;
+            if (!await followupProgress.step('followup_readings_ready', () => followupReady(fresh))) continue;
             const claimed = await followupProgress.step('followup_claim', () => db.runTransaction(async tx => {
               const row = await tx.get(doc.ref);
               if (row.data()?.followupState !== 'pending') return false;

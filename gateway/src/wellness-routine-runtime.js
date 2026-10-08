@@ -295,6 +295,21 @@ function startWellnessRoutineRuntime({ db, config, wearEvidence, temperatureTria
       }
       return conditionalTrial.request(payload);
     },
+    incidentAvailability(target) {
+      if (target !== imei) return 'unsupported_device';
+      if (!live().connected) return 'watch_offline';
+      const gate = require('./command-coordinator').commandCoordinator.decide(imei, 'hrtstart,1');
+      if (!gate.ok) return gate.error;
+      if (externalBusy() || conditionalTrial.isBusy()) return 'measurement_busy';
+      return null;
+    },
+    requestIncidentWellness({ imei: target, isCurrent, startDeadlineAt, deadlineAt }) {
+      if (target !== imei || externalBusy()) throw new Error('Incident measurement unavailable.');
+      assertMeasurementAvailable(imei, 'hrtstart,1');
+      return conditionalTrial.requestIncident({ startDeadlineAt, deadlineAt, isCurrent: async () =>
+        await isCurrent() === true &&
+        require('./command-coordinator').commandCoordinator.decide(imei, 'hrtstart,1').ok });
+    },
     wellnessSequenceStatus: conditionalTrial.status,
     requestTemperature: () => externalMeasurement(requestTemperature),
     requestTemperatureTrial: payload => externalMeasurement(() => temperatureTrial.request(payload)),
