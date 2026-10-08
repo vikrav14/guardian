@@ -101,11 +101,9 @@ class MapDashboardPageState extends State<MapDashboardPage> {
 
   Set<Circle> _circles() {
     final selected = _selected;
-    final approximate = selected?.latestLocationObservation;
+    final approximate = selected?.mapDisplayLocation;
     final uncertaintyRadius =
-        selected?.hasHomeWifiDisplay != true &&
-            selected?.hasRememberedHomeWifiDisplay != true &&
-            selected?.hasApproximateLocation == true
+        (approximate?.source == 'wifi' || approximate?.source == 'lbs')
         ? approximate?.accuracyMeters
         : null;
     return {
@@ -209,9 +207,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   }
 
   String _mapStatus(Device device) {
+    if (device.mapDisplayLocation == null) {
+      return 'Current location unavailable';
+    }
     if (device.hasHomeWifiConflict) return 'Location uncertain';
     if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
-    if (device.hasRememberedHomeWifiDisplay) return 'Last detected at Home';
     if (device.isReconnecting) return 'Reconnecting';
     if (device.isTrulyOffline) return 'Last known';
     if (device.isMapDisplayingLastSatelliteLocation) {
@@ -383,11 +383,11 @@ class MapDashboardPageState extends State<MapDashboardPage> {
       );
       return;
     }
-    if (device.hasRememberedHomeWifiDisplay) {
+    if (device.hasRememberedHomeWifiDisplay && location == null) {
       _showQuickFact(
         '${device.displayName}\'s location',
         '${deviceLastHomeWifiFixLabel(device)}. Current presence at Home is unconfirmed. '
-            'The map shows the saved Home pin. ${deviceRetainedGpsLabel(device)}.',
+            'A past Home detection does not confirm the current location.',
       );
       return;
     }

@@ -42,7 +42,7 @@ const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence
 const { geolocateFromV } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
 const { withFallLocationSnapshot } = require('./fall-location-snapshot');
-const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
+const { buildIncidentLocationSnapshot } = require('./incident-location-evidence');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
@@ -1004,7 +1004,11 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         // Capture pre-alarm evidence before geolocation/reporting/persistence
         // can yield to a later watch observation. Never read it at send time.
         let sosDeviceAtReceipt = null;
-        if (event.alarmType === 'sos') {
+        let incidentHomeEvidence = null;
+        if (['sos', 'fall'].includes(event.alarmType)) {
+          // Freeze validated radio evidence before any asynchronous lookup.
+          try { incidentHomeEvidence = getHomeWifiPriority(event.imei, eventReceivedAt.getTime()); }
+          catch (err) { console.warn('[incident] Home evidence unavailable:', err.message); }
           sosDeviceAtReceipt = { ...getLiveDeviceState(event.imei) };
           try {
             sosDeviceAtReceipt = await getDeviceDocument(event.imei)
@@ -1044,8 +1048,9 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         const alarmType = alarmEvent.alarmType || 'other';
         const alarmAt = ['sos', 'fall'].includes(alarmType) ? eventReceivedAt : new Date();
         const sosLocationSnapshot = alarmType === 'sos'
-          ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
+          ? buildIncidentLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
+              homeEvidence: incidentHomeEvidence,
               observation: alarmProvenance.location ? {
                 ...alarmProvenance.location,
                 // A resolver completion time is not a device observation time.
@@ -1117,22 +1122,13 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session));
 
         if (alarmType === 'fall') {
-          let deviceAtFall = null;
-          try {
-            deviceAtFall = await getDeviceDocument(alarmEvent.imei);
-          } catch (err) {
-            console.error(
-              `[fall] device snapshot lookup failed for ${alarmEvent.imei}: ${err.message}`
-            );
-          }
           alarmPayload = withFallLocationSnapshot(
             alarmType,
             alarmPayload,
-            deviceAtFall || {
-              ...getLiveDeviceState(alarmEvent.imei),
-              ...alarmPatch,
-            },
-            { now: alarmAt }
+            sosDeviceAtReceipt,
+            { now: alarmAt, currentEvidence: true, homeEvidence: incidentHomeEvidence,
+              observation: alarmProvenance.location ? { ...alarmProvenance.location,
+                recordedAt: event.location?.recordedAt || null } : null }
           );
         }
 

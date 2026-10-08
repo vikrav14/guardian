@@ -24,11 +24,13 @@ String buildGuardianAiInterpretation(Device? device) {
 
   if (device.hasRememberedHomeWifiDisplay) {
     return '${deviceLastHomeWifiFixLabel(device)}. Current presence at Home is unconfirmed. '
-        'The map keeps the saved Home pin as the last detected place.';
+        'A past Home detection does not confirm the current location.';
   }
 
   if (!isLive && !isReconnecting && device.displayLocation?.isValid == true) {
-    return 'Watch offline. Guardian is keeping the last known location visible.';
+    return device.mapDisplayLocation == null
+        ? 'Watch offline. Current location unavailable.'
+        : 'Watch offline. The map shows the most recent recorded location.';
   }
 
   if (isReconnecting) {

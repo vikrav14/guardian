@@ -44,7 +44,7 @@ void main() {
         auth: auth,
       ).watchLinkedDevices().first).single;
       expect(device.nickname, 'Shared identity');
-      expect(device.mapDisplayLocation?.isValid, false);
+      expect(device.mapDisplayLocation, isNull);
       expect(device.allowsShared('wellbeing'), true);
       expect(device.allowsShared('location'), false);
     },

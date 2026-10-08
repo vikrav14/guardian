@@ -17,7 +17,7 @@ const noop = () => {};
 
 // Execute the real event dispatcher with boundary dependencies replaced. No
 // sockets, Firebase project, geolocation API or hardware commands are started.
-function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false } = {}) {
+function dispatcher(evidence, { homeEvidence = null, geoResult = null, lookupFails = false, failAt = null, reliability = null, activity = null, wearDb = null, reportingStalls = false } = {}) {
   const alerts = [];
   const writes = [];
   const errors = [];
@@ -64,6 +64,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
     './location-provenance': provenance,
     './fall-location-snapshot': require('../src/fall-location-snapshot'),
     './sos-location-snapshot': snapshotApi,
+    './incident-location-evidence': require('../src/incident-location-evidence'),
     './fleet-hemisphere': { correctFleetHemisphere: event => event },
     './v52-telemetry': { extractV52TelemetryValues: () => ({}), buildV52TelemetryPatch: () => ({}) },
     './http': { startHttpServer: noop },
@@ -78,7 +79,7 @@ function dispatcher(evidence, { geoResult = null, lookupFails = false, failAt = 
       failIf('geolocation'); clock = after.getTime(); return geoResult;
     } },
     './sos-incident-window': { claimSosIncident: () => ({ accepted: true }) },
-    './wifi-home-runtime': { observeWifiHomeEvent: (event, at, packetArgs) => {
+    './wifi-home-runtime': { getHomeWifiPriority: () => homeEvidence, observeWifiHomeEvent: (event, at, packetArgs) => {
       failIf('wifi-observer');
       wifiObservations.push({ event: structuredClone(event), at, packetArgs });
     } },
@@ -150,6 +151,28 @@ function alarm(overrides = {}) {
   };
 }
 
+test('real SOS and fall dispatcher freeze Home and bounded packet clock evidence at receipt', async () => {
+  for (const type of ['sos', 'fall']) {
+    for (const useHome of [false, true]) {
+      const homeEvidence = useHome ? { version: 4, policy: 'enrolled_home_radio_v4', pilot: true,
+        source: 'home_wifi', state: 'matched', observedAt: receipt,
+        expiresAt: new Date(+receipt + 60000),
+        anchor: { geofenceId: 'fixture-home', lat: -20.4, lng: 57.4, radiusMeters: 100 } } : null;
+      const run = dispatcher(fixtures[0].device, { homeEvidence });
+      await run.apply([alarm({ alarmType: type, location: { ...alarm().location,
+        recordedAt: new Date(+receipt + 1404) } })], {});
+      const alert = run.alerts[0];
+      const snapshot = type === 'sos' ? snapshotApi.readSosLocationSnapshot(alert)
+        : require('../src/fall-location-snapshot').readFallLocationSnapshot(alert);
+      assert.equal(snapshot.state, 'fresh');
+      assert.equal(snapshot.location.source, useHome ? 'home_wifi' : 'wifi');
+      assert.equal(snapshot.capturedAt.getTime(), +receipt);
+      assert.equal(snapshot.location.lat, useHome ? -20.4 : -20.2);
+      assert.deepEqual(run.errors, []);
+    }
+  }
+});
+
 test('a stalled step write cannot delay SOS or change its frozen location', { timeout: 1000 }, async () => {
   const observed = [];
   const run = dispatcher(fixtures[0].device, { activity: {
@@ -162,7 +185,7 @@ test('a stalled step write cannot delay SOS or change its frozen location', { ti
   assert.equal(observed.length, 1);
   assert.equal(observed[0].at.getTime(), receipt.getTime());
   assert.equal(run.alerts.length, 1);
-  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
   assert.deepEqual(run.errors, []);
 });
 
@@ -190,25 +213,25 @@ test('router observer sees original SOS evidence even when geolocation fails', a
   assert.ok(!JSON.stringify(run.alerts).includes('private packet fields'));
   assert.ok(!JSON.stringify(run.writes).includes('private packet fields'));
   assert.equal(run.alerts.length, 1);
-  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
 });
 
 test('router observer failure cannot prevent SOS or replace its frozen evidence', async () => {
   const run = dispatcher(fixtures[0].device, { failAt: 'wifi-observer' });
   await run.apply([alarm()], {});
   assert.equal(run.alerts.length, 1);
-  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
   assert.equal(run.errors.length, 0);
   assert.match(run.warnings.flat().join(' '), /observer unavailable; tracking continues/);
 });
 
-test('actual alarm dispatcher freezes selected GPS before telemetry persistence and sends it later', async () => {
+test('actual alarm dispatcher freezes current network evidence before persistence and sends it later', async () => {
   const run = dispatcher(fixtures[0].device);
   await run.apply([alarm()], {});
   assert.equal(run.errors.length, 0);
   assert.equal(run.alerts.length, 1);
   const alert = run.alerts[0];
-  assert.equal(alert.sosLocationSnapshot.location.lat, -20.1);
+  assert.equal(alert.sosLocationSnapshot.location.lat, -20.2);
   assert.equal(alert.sosLocationSnapshot.latestObservation.lat, -20.2);
   assert.equal(alert.sosLocationSnapshot.capturedAt.getTime(), receipt.getTime());
   assert.equal(alert.eventAt.getTime(), receipt.getTime());
@@ -216,8 +239,8 @@ test('actual alarm dispatcher freezes selected GPS before telemetry persistence 
   assert.equal(run.writes[0].accuracySource, 'wifi');
   const prepared = await prepareSosWhatsApp({ alert, now: after,
     device: { location: { lat: -21, lng: 58, source: 'gps', recordedAt: after } } });
-  assert.equal(prepared.plan.buttonUrlParameter, '-20.1,57.1');
-  assert.match(prepared.plan.bodyParameters[2], /13 mins before SOS receipt/);
+  assert.equal(prepared.plan.buttonUrlParameter, '-20.2,57.2');
+  assert.match(prepared.plan.bodyParameters[2], /less than 1 minute before SOS receipt/);
 });
 
 test('geolocation without a device time does not invent a fresh SOS observation timestamp', async () => {
@@ -226,17 +249,17 @@ test('geolocation without a device time does not invent a fresh SOS observation 
   assert.equal(run.errors.length, 0);
   assert.equal(run.alerts.length, 1);
   const snapshot = run.alerts[0].sosLocationSnapshot;
-  assert.equal(snapshot.location.lat, -20.5);
-  assert.equal(snapshot.location.recordedAt, null);
-  assert.equal(snapshot.state, 'last_known');
+  assert.equal(snapshot.location, null);
+  assert.equal(snapshot.latestObservation.recordedAt, null);
+  assert.equal(snapshot.state, 'unavailable');
 });
 
-test('failed approximate resolution still allows SOS with retained GPS evidence', async () => {
+test('failed resolution still allows SOS with recent pre-incident network evidence', async () => {
   const run = dispatcher(fixtures[0].device);
   await run.apply([alarm({ needsGeolocation: true })], {});
   assert.equal(run.errors.length, 0);
   assert.equal(run.alerts.length, 1);
-  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+  assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
 });
 
 test('unavailable prior evidence does not drop the physical alarm or invent a GPS fix', async () => {
@@ -250,16 +273,16 @@ test('unavailable prior evidence does not drop the physical alarm or invent a GP
 });
 
 for (const failAt of ['connection', 'geolocation', 'reporting', 'persistence', 'history', 'intelligence']) {
-  test(`SOS survives ${failAt} failure with the same frozen primary GPS`, async () => {
+  test(`SOS survives ${failAt} failure with the same frozen current evidence`, async () => {
     const run = dispatcher(fixtures[0].device, { failAt });
     await run.apply([alarm({ needsGeolocation: failAt === 'geolocation' })], {});
     assert.equal(run.alerts.length, 1, 'ancillary failures must not suppress SOS');
-    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
     assert.equal(run.alerts[0].sosLocationSnapshot.capturedAt.getTime(), receipt.getTime());
     assert.equal(run.errors.length, 1, 'failed work remains observable');
     assert.match(run.errors[0].join(' '), new RegExp(failAt));
     const prepared = await prepareSosWhatsApp({ alert: run.alerts[0], now: after });
-    assert.equal(prepared.plan.buttonUrlParameter, '-20.1,57.1');
+    assert.equal(prepared.plan.buttonUrlParameter, '-20.2,57.2');
   });
 }
 
@@ -292,7 +315,7 @@ test('stalled or failed passive wear persistence cannot delay the real SOS dispa
     assert.equal(events[0].wearEvidence.eligible, false);
     await run.apply(events, {});
     assert.equal(run.alerts.length, 1);
-    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.1);
+    assert.equal(run.alerts[0].sosLocationSnapshot.location.lat, -20.2);
     assert.deepEqual(run.errors, []);
     if (fail) assert.match(run.warnings.flat().join(' '), /wear write unavailable/);
   }

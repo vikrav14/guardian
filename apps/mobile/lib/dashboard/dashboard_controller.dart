@@ -27,6 +27,7 @@ class DashboardController extends ChangeNotifier {
         (device) =>
             '${device.imei}:${device.homeWifiLocationAt(_now()) != null}:'
             '${device.homeWifiConflictAt(_now())}:'
+            '${device.mapDisplayLocationAt(_now())?.recordedAt}:'
             '${device.rememberedHomeWifiLocationAt(_now())?.recordedAt == null ? -1 : _now().difference(device.lastHomeWifiDetection!.observedAt).inMinutes}',
       )
       .join('|');
@@ -60,7 +61,7 @@ class DashboardController extends ChangeNotifier {
 
   void start() {
     // Expire the presentation even if the gateway stops and Firestore is quiet.
-    // Only a Home validity change notifies the map; no per-second camera moves.
+    // Location expiry also removes a stale current pin; no per-second camera moves.
     _homeExpiryTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
       final state = _homeFingerprint();
       if (state == _homeState) return;

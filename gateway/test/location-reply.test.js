@@ -22,38 +22,37 @@ for (const fixture of fixtures) {
   test(`WhatsApp/app/SOS map contract: ${fixture.name}`, () => {
     const result = buildLocationReplyData(fixture.device, { now: new Date(fixture.now) });
     assert.deepEqual(result.mapsUrl ? { lat: result.lat, lng: result.lng } : null,
-      fixture.expected.location);
-    assert.equal(result.locationState, fixture.expected.state);
+      fixture.expectedCurrent.location);
+    assert.equal(result.locationState, fixture.expectedCurrent.state);
     const reply = formatLocationReply({ name: 'Test wearer', ...result });
-    if (fixture.expected.state === 'last_known') assert.match(reply, /Current position unconfirmed/);
-    if (!fixture.expected.location) assert.doesNotMatch(reply, /maps\.google/);
+    if (!fixture.expectedCurrent.location) assert.doesNotMatch(reply, /maps\.google/);
   });
 }
 
-test('old GPS survives the old 30-minute cutoff without borrowing network facts or heartbeat age', async () => {
+test('fresh network replaces old GPS without borrowing GPS precision or heartbeat age', async () => {
   for (const gpsAge of [29, 30, 31, 120, 2880]) {
     const result = await location({
       lastSatelliteLocation: { ...gps, recordedAt: ago(gpsAge) },
       location: network, lastLocationObservation: network,
       lastHeartbeatAt: { toDate: () => ago(0) }, updatedAt: ago(0), batteryPercent: 80,
     });
-    assert.equal(result.lat, gps.lat);
-    assert.equal(result.lng, gps.lng);
-    assert.equal(result.ageSeconds, gpsAge * 60);
-    assert.equal(result.recordedAt, ago(gpsAge).toISOString());
-    assert.equal(result.placeLabel, gps.placeLabel);
-    assert.equal(result.accuracyMeters, null);
+    assert.equal(result.lat, network.lat);
+    assert.equal(result.lng, network.lng);
+    assert.equal(result.ageSeconds, 60);
+    assert.equal(result.recordedAt, network.recordedAt.toISOString());
+    assert.equal(result.placeLabel, network.placeLabel);
+    assert.equal(result.accuracyMeters, 600);
     assert.equal(result.latestObservationAgeSeconds, 60);
     assert.equal(result.latestObservationAccuracyMeters, 600);
     const reply = formatLocationReply(result);
-    assert.match(reply, /Last known GPS location for Test wearer/);
+    assert.match(reply, /Approximate Wi-Fi location for Test wearer/);
     assert.match(reply, /Current position unconfirmed/);
-    assert.match(reply, /Newer approximate Wi-Fi reading: 1 minute ago\. Estimated radius 600 m/);
+    assert.match(reply, /Estimated radius 600 m/);
     assert.match(reply, /Watch online · last check-in less than a minute ago/);
     assert.match(reply, /Battery last reported 80% less than a minute ago/);
-    assert.match(reply, /View last known GPS location:\nhttps:\/\/maps.google.com\/\?q=-20.25,57.5/);
+    assert.match(reply, /View approximate location:\nhttps:\/\/maps.google.com\/\?q=-20.26,57.51/);
     assert.equal((reply.match(/https:/g) || []).length, 1);
-    assert.doesNotMatch(reply, /Network test area|Test wearer is at|Last updated/);
+    assert.doesNotMatch(reply, /GPS test area|Test wearer is at|Last updated/);
   }
 });
 
@@ -86,19 +85,18 @@ test('unknown source and recording time never become GPS or a current location',
   const result = await location({ location: { ...gps, source: 'unknown', recordedAt: null },
     lastHeartbeatAt: ago(0), updatedAt: ago(0) });
   const reply = formatLocationReply(result);
-  assert.match(reply, /source unconfirmed/);
-  assert.match(reply, /Recording time unavailable/);
+  assert.equal(result.mapsUrl, null);
   assert.match(reply, /Current position unconfirmed/);
   assert.equal(result.ageSeconds, null);
   assert.doesNotMatch(reply.split('\n').filter(line => !line.includes('test area')).join('\n'), /GPS|Recorded less than/);
 });
 
-test('GPS without a time remains last-known and a secondary observation is not called newer', async () => {
+test('GPS without a time cannot displace recent network evidence', async () => {
   const result = await location({ lastSatelliteLocation: { ...gps, recordedAt: null }, location: network });
   const reply = formatLocationReply(result);
-  assert.match(reply, /Last known GPS/);
-  assert.match(reply, /Recording time unavailable/);
-  assert.match(reply, /Approximate Wi-Fi reading: 1 minute ago/);
+  assert.match(reply, /Approximate Wi-Fi location/);
+  assert.match(reply, /Recorded 1 minute ago/);
+  assert.doesNotMatch(reply, /Last known GPS/);
   assert.doesNotMatch(reply, /Newer approximate/);
 });
 
@@ -117,7 +115,7 @@ test('battery and heartbeat ages remain independent of the selected location', a
   const result = await location({ location: network, lastSatelliteLocation: gps,
     lastHeartbeatAt: ago(1).toISOString(), batteryUpdatedAt: ago(180), batteryPercent: 80 });
   const reply = formatLocationReply(result);
-  assert.match(reply, /Recorded 2 hours ago/);
+  assert.match(reply, /Recorded 1 minute ago/);
   assert.match(reply, /Watch online · last check-in 1 minute ago/);
   assert.match(reply, /Battery last reported 80% 3 hours ago\. This reading may be stale/);
 });
@@ -140,7 +138,7 @@ test('a missing linked watch returns an error and cannot expose another watch', 
 
 test('display labels cannot insert another map or disclose a hardware identifier', async () => {
   const result = await location({ nickname: 'Test 123456789012345',
-    location: { ...gps, placeLabel: 'Test area\nhttps://maps.google.com/?q=1,2' } });
+    location: { ...gps, recordedAt: ago(1), placeLabel: 'Test area\nhttps://maps.google.com/?q=1,2' } });
   const reply = formatLocationReply(result);
   assert.equal((reply.match(/https:/g) || []).length, 1);
   assert.doesNotMatch(reply, /123456789012345|\?q=1,2/);

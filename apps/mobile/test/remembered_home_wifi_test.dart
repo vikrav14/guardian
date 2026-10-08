@@ -31,18 +31,7 @@ void main() {
       final remembered = device.rememberedHomeWifiLocationAt(now);
       expect(remembered != null, fixture['expectedRemembered']);
       final pin = device.mapDisplayLocationAt(now);
-      if (fixture['expectedRemembered'] == true) {
-        final record = data['lastHomeWifiDetection'] as Map;
-        expect(pin!.lat, (record['anchor'] as Map)['lat']);
-        expect(pin.source, 'home_wifi_last_detected');
-        expect(pin.recordedAt, DateTime.parse(record['observedAt'] as String));
-        expect(pin.gpsValid, false);
-        expect(device.homeWifiLocationAt(now), isNull);
-        expect(
-          deviceMapLocationFixLabel(device, now: now),
-          contains('Last detected at Home'),
-        );
-      } else {
+      {
         await db.collection('devices').doc('fallback').set({
           ...data,
           'lastHomeWifiDetection': null,
@@ -119,7 +108,7 @@ void main() {
         );
         expect(
           deviceMapLocationFixLabel(controller.selected!, now: now),
-          'Last detected at Home 3m ago',
+          'Waiting for a fresh location report',
         );
         final aged = changes;
         now = start.add(const Duration(minutes: 4));
@@ -127,7 +116,7 @@ void main() {
         expect(changes, greaterThan(aged));
         expect(
           deviceMapLocationFixLabel(controller.selected!, now: now),
-          'Last detected at Home 4m ago',
+          'Waiting for a fresh location report',
         );
       } finally {
         controller.dispose();

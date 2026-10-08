@@ -243,10 +243,12 @@ class GuardianNowHero extends StatelessWidget {
   }
 
   static String _locationLabel(Device device) {
-    if (device.hasHomeWifiDisplay || device.hasRememberedHomeWifiDisplay) {
+    final location = device.mapDisplayLocation;
+    if (location == null) return 'Current location unavailable';
+    if (device.hasHomeWifiDisplay) {
       return 'Home';
     }
-    final place = device.displayLocation?.displayPlaceLabel;
+    final place = location.displayPlaceLabel;
     if (place != null && place.isNotEmpty) return place;
     if (device.isDisplayingRetainedSatelliteLocation) {
       return 'Last satellite location';

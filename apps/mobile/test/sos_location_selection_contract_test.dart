@@ -8,9 +8,13 @@ import 'package:guardian/models/device.dart';
 // These exact fixtures are also run by gateway/test/sos-location-snapshot.test.js.
 // They keep SOS primary-pin selection aligned with the actual map model.
 void main() {
-  final fixtures = jsonDecode(
-    File('../../docs/testing/sos-location-selection.json').readAsStringSync(),
-  ) as List<dynamic>;
+  final fixtures =
+      jsonDecode(
+            File(
+              '../../docs/testing/sos-location-selection.json',
+            ).readAsStringSync(),
+          )
+          as List<dynamic>;
 
   DeviceLocation? location(dynamic raw) => raw is Map
       ? DeviceLocation.fromMap(Map<String, dynamic>.from(raw))
@@ -28,8 +32,10 @@ void main() {
         lastLocationObservation: location(evidence['lastLocationObservation']),
         lastSatelliteLocation: location(evidence['lastSatelliteLocation']),
       );
-      final expected = (fixture['expected'] as Map)['location'];
-      final selected = device.mapDisplayLocation;
+      final expected = (fixture['expectedCurrent'] as Map)['location'];
+      final selected = device.mapDisplayLocationAt(
+        DateTime.parse(fixture['now'] as String),
+      );
       if (expected == null) {
         expect(selected, isNull);
       } else {
