@@ -7,6 +7,7 @@ const { forceCloseJourney } = require('./journey-builder');
 const { decodePolyline } = require('./polyline');
 const { buildJourneyDocumentId } = require('./journey-id');
 const { readHomeWifiPriority } = require('./wifi-home-display-policy');
+const { isPlausibleJourneyHop, JOURNEY_CONTEXT_MAX_AGE_MS } = require('./journey-hop');
 
 const DAY_MS = 86400000;
 function millis(value) {
@@ -70,7 +71,9 @@ function recoverGpsHistory(rawPoints, { now = Date.now(), zones = [], homeInterv
     if (candidate.length >= 2 && (!validZones.length || outsideCount >= 2)) {
       const displacement = Math.max(...candidate.map(p => haversineMeters(candidate[0].lat, candidate[0].lng, p.lat, p.lng)));
       const doc = documentForPoints(candidate, { recoveredAt: new Date(now) });
-      if (displacement >= 50 && doc?.distanceKm >= 0.02) journeys.push(doc);
+      // A sparse route can have no connected distance at all. Keep its actual
+      // observations and explicit gaps instead of throwing the whole trip away.
+      if (displacement >= 50 && doc) journeys.push(doc);
     }
     candidate = []; outsideCount = 0; candidateOrigin = null;
   }
@@ -83,20 +86,18 @@ function recoverGpsHistory(rawPoints, { now = Date.now(), zones = [], homeInterv
     const outsideAll = !classes.length || classes.every(c => c.state === 'outside');
     if (candidate.length) {
       const last = candidate.at(-1), gap = at - +last.recordedAt;
-      const metres = haversineMeters(last.lat, last.lng, point.lat, point.lng);
       if (dayStart(at) !== dayStart(+last.recordedAt) || gap > 3600000) { finish(); anchor = null; }
       // Never join through an implausible hop, even if the packet says gps=A.
-      else if (metres > 5000 || (gap > 0 && metres / gap * 3600 > 250)) {
+      else if (!isPlausibleJourneyHop(last, point)) {
         finish(); anchor = null; rejected++; continue;
       }
     }
     if (!candidate.length) {
       if (insideZone) { anchor = { point, zone: insideZone }; continue; }
       if (!outsideAll) continue;
-      if (anchor && at - +anchor.point.recordedAt <= 300000) {
+      if (anchor && at - +anchor.point.recordedAt <= JOURNEY_CONTEXT_MAX_AGE_MS) {
         const gap = at - +anchor.point.recordedAt;
-        const metres = haversineMeters(anchor.point.lat, anchor.point.lng, point.lat, point.lng);
-        if (dayStart(at) === dayStart(+anchor.point.recordedAt) && gap > 0 && metres <= 5000 && metres / gap * 3600 <= 250) {
+        if (dayStart(at) === dayStart(+anchor.point.recordedAt) && gap > 0 && isPlausibleJourneyHop(anchor.point, point)) {
           candidate.push(anchor.point); candidateOrigin = anchor.zone.id;
         }
       }
@@ -153,11 +154,9 @@ async function saveRecoveredJourney(db, imei, candidate, { apply = false } = {})
       const merged = [...new Map([...oldPoints, ...candidatePoints].map(p => [pointIdentity(p),p])).values()]
         .sort((a,b) => millis(a.recordedAt) - millis(b.recordedAt));
       if (new Set(merged.map(p => millis(p.recordedAt))).size !== merged.length) return { outcome: 'conflicting_timestamp_requires_review' };
-      if (merged.some((point, i) => i > 0 && (
-        haversineMeters(merged[i - 1].lat, merged[i - 1].lng, point.lat, point.lng) > 5000 ||
-        haversineMeters(merged[i - 1].lat, merged[i - 1].lng, point.lat, point.lng) /
-          (millis(point.recordedAt) - millis(merged[i - 1].recordedAt)) * 3600 > 250
-      ))) return { outcome: 'implausible_merge_requires_review' };
+      if (merged.some((point, i) => i > 0 && !isPlausibleJourneyHop(merged[i - 1], point))) {
+        return { outcome: 'implausible_merge_requires_review' };
+      }
       const rebuilt = documentForPoints(merged);
       journey = { ...previous, ...rebuilt, events: previous.events || [],
         closeReason: previous.closeReason || rebuilt.closeReason };

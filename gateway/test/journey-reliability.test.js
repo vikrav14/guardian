@@ -253,3 +253,37 @@ test('a previously recorded baseline before a long idle does not inflate an outi
   assert.equal(+result.journeys[0].startAt, base + 15 * 60000);
   assert.equal(result.journeys[0].routeGaps[0].durationSeconds, 24 * 60);
 });
+
+test('recovery restores a missing sparse outbound leg into the existing journey idempotently', async () => {
+  const { db, records } = database();
+  const points = [gps(0), gps(10, -20.19), gps(20, -20.12), gps(30, -20.06), gps(31, -20.059)];
+  const partial = recoverGpsHistory(points.slice(3), { zones }).journeys[0];
+  const first = await saveRecoveredJourney(db, imei, partial, { apply: true });
+  const full = recoverGpsHistory(points, { zones }).journeys[0];
+  const restored = await saveRecoveredJourney(db, imei, full, { apply: true });
+  assert.equal(restored.outcome, 'recovered');
+  assert.equal(restored.id, first.id);
+  assert.equal(restored.points, 5);
+  assert.equal(restored.startAt, new Date(base).toISOString());
+  assert.equal((await saveRecoveredJourney(db, imei, full, { apply: true })).outcome, 'already_recorded');
+  assert.equal([...records.keys()].filter(p => p.includes('/journeys/')).length, 1);
+});
+
+test('a delayed return reconciles earlier processed ten-minute reports from the same day', async t => {
+  const { db, records } = database(), directory = temporary(t), clock = base + 2 * 3600000;
+  const points = [gps(0), gps(10, -20.19), gps(20, -20.12), gps(30, -20.06)];
+  const j = new JourneyJournal(directory, { now: () => clock + 61000 });
+  for (const p of points.slice(0, 3)) {
+    const id = j.record(imei, p, p.recordedAt); j.mark(imei, [id], 'live');
+  }
+  const runtime = createJourneyReliability({ journal: j, getDb: () => db, now: () => clock + 61000,
+    appendJourney: async () => {}, report: () => {}, onError: error => { throw new Error(error); } });
+  runtime.route({ imei, type: 'location', gpsValid: true, location: points[3] }, new Date(clock));
+  await runtime.flush();
+  const trips = [...records.entries()].filter(([p]) => p.includes('/journeys/'));
+  assert.equal(trips.length, 1);
+  assert.equal(trips[0][1].pointCount, 4);
+  assert.equal(+trips[0][1].startAt, base);
+  await runtime.flush();
+  assert.equal([...records.keys()].filter(p => p.includes('/journeys/')).length, 1);
+});
