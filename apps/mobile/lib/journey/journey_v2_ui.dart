@@ -786,7 +786,7 @@ class _JourneyTimeline extends StatelessWidget {
               for (final stop in journey.stops)
                 (
                   at: stop.startAt,
-                  title: _stopPlaceLabel(stop, presentation),
+                  title: _stopPlaceLabel(journey, stop, presentation),
                   detail: 'Stopped for ${_compactDuration(stop.duration)}',
                   icon: Icons.pause_circle_outline_rounded,
                   point: stop.pointStartIndex,
@@ -1813,13 +1813,20 @@ _namedJourneyTimelinePoints(
 }
 
 String _stopPlaceLabel(
+  JourneyRecord journey,
   JourneyStop stop,
   JourneyRoutePresentation? presentation,
 ) {
   final nearby = presentation?.placeForStop(stop)?.label.trim();
   if (nearby != null && nearby.isNotEmpty) return nearby;
   final name = stop.placeName?.trim();
-  return name == null || name.isEmpty ? 'Recorded stop' : name;
+  if (name != null && name.isNotEmpty) return name;
+  final pointName = _pointPlaceLabel(
+    journey,
+    stop.pointStartIndex,
+    presentation: presentation,
+  );
+  return pointName == 'Recorded location' ? 'Recorded stop' : pointName;
 }
 
 String _pointPlaceLabel(
