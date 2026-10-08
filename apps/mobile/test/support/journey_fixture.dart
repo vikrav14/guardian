@@ -89,6 +89,62 @@ String _encode(List<(double, double)> coords) {
   return result.toString();
 }
 
+JourneyRecord namedPlacesFixture() {
+  final start = DateTime(2026, 10, 7, 9, 10);
+  const names = [
+    'Home',
+    'Sample town · near Market Street',
+    'Sample town · near Garden Lane',
+    null,
+    'Harbour Road',
+    'Home',
+  ];
+  const minutes = [0, 3, 4, 14, 17, 20];
+  return JourneyRecord(
+    id: 'named-places',
+    startAt: start,
+    endAt: start.add(const Duration(minutes: 20)),
+    polyline: _encode(const [
+      (-20.020, 57.580),
+      (-20.018, 57.582),
+      (-20.018, 57.582),
+      (-20.016, 57.584),
+      (-20.020, 57.584),
+      (-20.020, 57.580),
+    ]),
+    distanceKm: 2.1,
+    pointCount: names.length,
+    closeReason: 'idle',
+    evidenceVersion: 3,
+    pointEvidence: [
+      for (var i = 0; i < names.length; i++)
+        JourneyPointEvidence(
+          offsetMs: minutes[i] * 60 * 1000,
+          source: 'gps',
+          gpsValid: true,
+          placeName: names[i],
+        ),
+    ],
+    routeGaps: const [
+      JourneyRouteGap(
+        fromPointIndex: 2,
+        toPointIndex: 3,
+        fromOffsetMs: 4 * 60 * 1000,
+        toOffsetMs: 14 * 60 * 1000,
+        durationSeconds: 10 * 60,
+      ),
+    ],
+    routeCoverage: const JourneyRouteCoverage(
+      pointCount: 6,
+      gpsPointCount: 6,
+      gapCount: 1,
+      largestGapSeconds: 10 * 60,
+      interrupted: true,
+      structureReliable: false,
+    ),
+  );
+}
+
 Widget journeyFixtureHost({
   List<JourneyRecord>? journeys,
   GuardianThemeId themeId = GuardianThemeId.islandGlass,

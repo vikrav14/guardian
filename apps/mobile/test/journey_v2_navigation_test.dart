@@ -141,9 +141,48 @@ void main() {
     );
     await pumpJourney(tester);
     expect(find.text('Last recorded'), findsOneWidget);
-    expect(find.text('Return home not confirmed'), findsOneWidget);
+    expect(find.text('Last recorded location'), findsOneWidget);
     expect(find.text('Returned Home'), findsNothing);
     expect(find.text('Time away'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'sparse journeys show deduplicated places with working map links',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        journeyFixtureHost(journeys: [namedPlacesFixture()]),
+      );
+      await pumpJourney(tester);
+      expect(find.text('Sample town'), findsOneWidget);
+      expect(find.text('Harbour Road'), findsOneWidget);
+      expect(find.text('Tracking gap'), findsNothing);
+      expect(find.textContaining('Tracking stopped'), findsNothing);
+      expect(find.text('Returned Home'), findsNothing);
+      expect(find.text('Last recorded location'), findsOneWidget);
+      final place = find.byKey(const ValueKey('journey-event-named-places-2'));
+      await tester.ensureVisible(place);
+      await tester.tap(place);
+      await pumpJourney(tester);
+      final map = tester.widget<JourneyV2StaticMap>(
+        find.byKey(const ValueKey('journey-map-named-places')),
+      );
+      expect(
+        map.currentIndex,
+        4,
+        reason: 'The deduplicated row keeps its original GPS index.',
+      );
+      expect(find.text('At 09:27 · Harbour Road'), findsOneWidget);
+      final details = find.byKey(
+        const ValueKey('journey-recording-details-named-places'),
+      );
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await pumpJourney(tester);
+      expect(find.textContaining('Tracking stopped'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

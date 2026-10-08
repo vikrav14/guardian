@@ -34,7 +34,8 @@ function database() {
     collection: name => collection(`${p}/${name}`) }; }
   const db = { collection, runTransaction: async fn => {
     const pending = [];
-    const result = await fn({ get: ref => ref.get(), set: (ref, value) => pending.push([ref.path, value]),
+    const result = await fn({ get: ref => ref.get(), set: (ref, value, options) => pending.push([ref.path,
+      options?.merge ? { ...records.get(ref.path), ...value } : value]),
       delete: ref => pending.push([ref.path, null]) });
     for (const [p,v] of pending) { writes.push(p); if (v) records.set(p,v); else records.delete(p); }
     return result;
@@ -286,4 +287,25 @@ test('a delayed return reconciles earlier processed ten-minute reports from the 
   assert.equal(+trips[0][1].startAt, base);
   await runtime.flush();
   assert.equal([...records.keys()].filter(p => p.includes('/journeys/')).length, 1);
+});
+
+test('recovered journeys get names after saving and retain them when late GPS extends the route', async () => {
+  const { db, records } = database();
+  const points = route();
+  points[0].placeName = 'Home';
+  const partial = recoverGpsHistory(points.slice(0, 3), { zones }).journeys[0];
+  assert.equal(partial.pointEvidence[0].placeName, 'Home');
+  const first = await saveRecoveredJourney(db, imei, partial, { apply: true, reverseGeocode: async () => {
+    assert.ok([...records.keys()].some(p => p.includes('/journeys/')), 'GPS must already be durable');
+    return 'Sample town';
+  } });
+  const key = `devices/${imei}/journeys/${first.id}`;
+  assert.equal(records.get(key).pointEvidence[1].placeName, 'Sample town');
+  const full = recoverGpsHistory(route(), { zones }).journeys[0];
+  await saveRecoveredJourney(db, imei, full, { apply: true, reverseGeocode: async () => { throw new Error('offline'); } });
+  const saved = records.get(key);
+  assert.equal(saved.pointCount, 6);
+  assert.equal(saved.pointEvidence[0].placeName, 'Home');
+  assert.equal(saved.pointEvidence[1].placeName, 'Sample town');
+  assert.equal(saved.pointEvidence[3].placeName, undefined);
 });

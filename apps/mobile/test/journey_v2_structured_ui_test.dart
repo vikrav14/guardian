@@ -74,6 +74,7 @@ void main() {
           offsetMs: 10 * 60 * 1000,
           source: 'gps',
           gpsValid: true,
+          placeName: 'Sample town',
         ),
         JourneyPointEvidence(
           offsetMs: 15 * 60 * 1000,
@@ -118,6 +119,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Stopped for 8m'), findsOneWidget);
+    expect(find.text('Sample town'), findsOneWidget);
+    expect(find.text('Recorded stop'), findsNothing);
     await tester.tap(
       find.byKey(const ValueKey('journey-recording-details-structured-trip')),
     );

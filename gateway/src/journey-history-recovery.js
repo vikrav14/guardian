@@ -8,6 +8,8 @@ const { decodePolyline } = require('./polyline');
 const { buildJourneyDocumentId } = require('./journey-id');
 const { readHomeWifiPriority } = require('./wifi-home-display-policy');
 const { isPlausibleJourneyHop, JOURNEY_CONTEXT_MAX_AGE_MS } = require('./journey-hop');
+const { enrichStoredJourneyPlaceNames } = require('./journey-place-labels');
+const { reverseGeocodeToPlaceName } = require('./geolocate/google');
 
 const DAY_MS = 86400000;
 function millis(value) {
@@ -27,7 +29,8 @@ function normalizeGps(point, now = Date.now()) {
   return { lat: point.lat, lng: point.lng, source: 'gps', accuracySource: 'gps', gpsValid: true,
     recordedAt: new Date(at), speedKmh: Number.isFinite(point.speedKmh) ? point.speedKmh : null,
     satellites: Number.isFinite(point.satellites) ? point.satellites : null,
-    accuracyMeters: Number.isFinite(point.accuracyMeters) && point.accuracyMeters > 0 ? point.accuracyMeters : null };
+    accuracyMeters: Number.isFinite(point.accuracyMeters) && point.accuracyMeters > 0 ? point.accuracyMeters : null,
+    ...(typeof point.placeName === 'string' && point.placeName.trim() ? { placeName: point.placeName.trim() } : {}) };
 }
 
 function inside(point, zone) {
@@ -126,7 +129,7 @@ function pointsFromJourney(journey) {
 
 // Serialize recovery for a device/day using a backend-only transaction lock.
 // Existing confirmed outings are retained; contained samples may fill their gaps.
-async function saveRecoveredJourney(db, imei, candidate, { apply = false } = {}) {
+async function saveRecoveredJourney(db, imei, candidate, { apply = false, reverseGeocode = reverseGeocodeToPlaceName } = {}) {
   const start = millis(candidate.startAt), end = millis(candidate.endAt);
   const collection = db.collection('devices').doc(imei).collection('journeys');
   const query = collection.where('startAt', '>=', new Date(dayStart(start)))
@@ -151,7 +154,9 @@ async function saveRecoveredJourney(db, imei, candidate, { apply = false } = {})
           (start < millis(previous.startAt) || end > millis(previous.endAt))) {
         return { outcome: 'confirmed_boundary_requires_review', id: overlap[0].id };
       }
-      const merged = [...new Map([...oldPoints, ...candidatePoints].map(p => [pointIdentity(p),p])).values()]
+      const knownNames = new Map(oldPoints.filter(p => p.placeName).map(p => [pointIdentity(p), p.placeName]));
+      const merged = [...new Map([...oldPoints, ...candidatePoints].map(p => [pointIdentity(p),
+        { ...p, ...(knownNames.has(pointIdentity(p)) ? { placeName: knownNames.get(pointIdentity(p)) } : {}) }])).values()]
         .sort((a,b) => millis(a.recordedAt) - millis(b.recordedAt));
       if (new Set(merged.map(p => millis(p.recordedAt))).size !== merged.length) return { outcome: 'conflicting_timestamp_requires_review' };
       if (merged.some((point, i) => i > 0 && !isPlausibleJourneyHop(merged[i - 1], point))) {
@@ -173,7 +178,14 @@ async function saveRecoveredJourney(db, imei, candidate, { apply = false } = {})
       distanceKm: journey.distanceKm, gapCount: journey.routeGaps?.length || 0 };
   }
   if (!apply) return decide(ref => ref.get(), null);
-  return db.runTransaction(tx => decide(ref => tx.get(ref), tx));
+  const result = await db.runTransaction(tx => decide(ref => tx.get(ref), tx));
+  if (result.outcome === 'recovered') {
+    // The route is already durable. Place names are optional and cannot make a
+    // successful recovery fail or trigger a replay of watch/alert commands.
+    try { await enrichStoredJourneyPlaceNames(db, collection.doc(result.id), reverseGeocode); }
+    catch (error) { console.warn(`[journey-places] enrichment deferred: ${error.code || error.name}`); }
+  }
+  return result;
 }
 
 module.exports = { normalizeGps, recoverGpsHistory, saveRecoveredJourney, pointsFromJourney, millis, dayStart };

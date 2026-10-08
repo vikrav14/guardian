@@ -371,12 +371,16 @@ void main() {
     expect(find.text('Returned Home'), findsWidgets);
     expect(
       find.textContaining('Tracking stopped at 12:16 and resumed at 12:43'),
-      findsWidgets,
+      findsNothing,
     );
     await tester.tap(
       find.byKey(const ValueKey('journey-recording-details-confirmed-gap')),
     );
     await pumpJourneyUi(tester);
+    expect(
+      find.textContaining('Tracking stopped at 12:16 and resumed at 12:43'),
+      findsWidgets,
+    );
     expect(
       find.textContaining('Distance excludes the unobserved interval.'),
       findsOneWidget,

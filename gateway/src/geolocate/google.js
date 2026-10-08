@@ -304,7 +304,9 @@ function selectReverseGeocodePlaceName(results) {
     'administrative_area_level_2',
     'administrative_area_level_1',
   ]);
-  const area = locality || sublocality || neighborhood || administrativeArea;
+  const country = firstAddressComponent(results, ['country']);
+  const areaCandidate = locality || sublocality || neighborhood || administrativeArea;
+  const area = country && samePlacePart(areaCandidate, country) ? null : areaCandidate;
 
   const landmarkResults = results.filter((result) =>
     (result?.types || []).some((type) =>
@@ -359,7 +361,7 @@ async function reverseGeocodeToPlaceName(lat, lng, options = {}) {
       `https://maps.googleapis.com/maps/api/geocode/json?` +
       `latlng=${lat},${lng}&key=${encodeURIComponent(apiKey)}`;
 
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
       console.warn(`[reverse-geocode] API error ${res.status}`);
       return null;
