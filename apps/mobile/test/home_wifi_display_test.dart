@@ -161,7 +161,8 @@ void main() {
     expect(changes, 2);
     expect(controller.selected!.homeWifiConflictAt(now), false);
     expect(controller.selected!.homeWifiLocationAt(now), isNull);
-    expect(controller.selected!.mapDisplayLocationAt(now), isNull);
+    expect(controller.selected!.mapDisplayLocationAt(now), same(gps),
+      reason: 'Expiring Home evidence must retain a still-fresh GPS fix');
     controller.dispose(); await tester.pump();
   });
 
@@ -215,7 +216,10 @@ void main() {
     now = now.add(const Duration(seconds: 30));
     await tester.pump(const Duration(seconds: 1));
     expect(changes, 2);
-    expect(controller.selected!.mapDisplayLocationAt(now), same(gps));
+    expect(controller.selected!.mapDisplayLocationAt(now), isNull,
+      reason: 'Expiring Home evidence must not restore an hour-old GPS fix');
+    expect(controller.selected!.lastSatelliteLocation, same(gps),
+      reason: 'The old GPS fix remains available as historical evidence');
     controller.dispose();
     await tester.pump(const Duration(seconds: 1));
   });

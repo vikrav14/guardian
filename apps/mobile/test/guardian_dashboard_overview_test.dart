@@ -474,30 +474,29 @@ void main() {
     expect(find.text('Battery unavailable'), findsOneWidget);
   });
 
-  testWidgets(
-    'connected watch shows fresh network place, age and uncertainty',
-    (tester) async {
-      final device = dashboardFixtureDevice(now: DateTime.now());
-      await _pump(tester, dashboardFixtureOverview(device: device));
-      expect(find.text('Watch connected'), findsOneWidget);
-      expect(find.text('Checked in 1m ago'), findsOneWidget);
-      expect(find.text('Just now'), findsOneWidget);
-      expect(
-        find.byTooltip('Approximate location recorded just now'),
-        findsOneWidget,
-      );
-      expect(find.text('Sample network estimate'), findsWidgets);
-      // The saved geofence may still name Sample garden; the current map must use the network point.
-      expect(device.mapDisplayLocation, same(device.location));
-      expect(
-        find.textContaining(
-          'This network estimate may cover a wider area.',
-          findRichText: true,
-        ),
-        findsOneWidget,
-      );
-    },
-  );
+  testWidgets('connected watch shows fresh network place, age and uncertainty', (
+    tester,
+  ) async {
+    final device = dashboardFixtureDevice(now: DateTime.now());
+    await _pump(tester, dashboardFixtureOverview(device: device));
+    expect(find.text('Watch connected'), findsOneWidget);
+    expect(find.text('Checked in 1m ago'), findsOneWidget);
+    expect(find.text('Just now'), findsOneWidget);
+    expect(
+      find.byTooltip('Approximate location recorded just now'),
+      findsOneWidget,
+    );
+    expect(find.text('Sample network estimate'), findsWidgets);
+    // The saved geofence may still name Sample garden; the current map must use the network point.
+    expect(device.mapDisplayLocation, same(device.location));
+    expect(
+      find.textContaining(
+        'This network estimate may cover a wider area.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets(
     'location evidence uses the map timestamp independently of a connected watch',
