@@ -145,7 +145,7 @@ void main() {
       );
       await _settleArtwork(tester);
       expect(tester.takeException(), isNull);
-      expect(find.text('Watch connected'), findsOneWidget);
+      expect(find.text('Connected'), findsOneWidget);
       expect(find.byTooltip('Open Guardian help'), findsNothing);
       if (preview.ageMinutes > 24 * 60) {
         expect(find.text('Weather unavailable'), findsOneWidget);
