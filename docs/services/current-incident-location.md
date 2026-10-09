@@ -142,3 +142,14 @@ replay. The composite runtime passes 15 focused location/incident/dispatch tests
 The composite app passes 860 tests and clean analysis. The dashboard update is
 published on guardian-fbadd.web.app; Android 29859007 is installed on the Samsung
 with application UID, first-install time and data-directory inodes preserved.
+
+The clock correction was deployed at 14:15 MUT with runtime configuration and
+tunnels unchanged. At 14:17 MUT, the real watch qualified Home after three fresh
+router reports; the publisher confirmed fresh Home and the Samsung map showed
+`Home Wi-Fi detected just now` and `At or near saved Home`. At 14:18 MUT, a bounded
+one-device refresh through the production weather service selected fresh Home;
+the Samsung weather card visibly showed `Near Home`. A real stored location also
+retained its original 14:15:39 device time beside its 14:15:36.108 receipt time.
+This verifies actual Home recovery and the two dashboard displays. Weak-only
+radio acceptance is regression-tested; the final observed router signal was
+-68 dBm. A walk-away/router-loss test and new SOS/fall tests remain pending.
