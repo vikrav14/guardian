@@ -34,7 +34,8 @@ function matchesHomeBinding(value, binding, now) {
 }
 
 // Historical presentation only. Never pass this record to presence, journey,
-// geofence, intelligence suppression, "is at Home?", or SOS selection.
+// geofence, intelligence suppression or "is at Home?". Incidents have a separate
+// bounded historical reader; this dashboard fallback is never current evidence.
 function readLastHomeWifiDetection(device, { now = new Date() } = {}) {
   const value = device?.lastHomeWifiDetection;
   if (!validLastHomeWifiDetection(value, now) ||

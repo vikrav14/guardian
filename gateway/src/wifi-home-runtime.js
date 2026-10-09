@@ -91,7 +91,8 @@ function startWifiHomeDisplayPilot(db, { recoverWalk } = {}) {
     if (timer) clearInterval(timer);
     buffer?.stop(); publisher();
     if (walkBuffer === buffer) walkBuffer = null;
-  }, { getStatus: publisher.getStatus, getEvidence: publisher.getEvidence });
+  }, { getStatus: publisher.getStatus, getEvidence: publisher.getEvidence,
+    getLastDetection: publisher.getLastDetection });
   return displayPublisher;
 }
 
@@ -132,5 +133,12 @@ function getHomeWifiPriority(imei, nowMs = Date.now()) {
   return displayPublisher?.getEvidence?.(nowMs) || null;
 }
 
+function getLastHomeWifiDetection(imei, nowMs = Date.now()) {
+  if (enrollmentRuntime) return enrollmentRuntime.lastDetection(imei, nowMs);
+  if (config.wifiHomeObserveEnabled !== true || config.wifiHomeDisplayPilotEnabled !== true ||
+      imei !== config.wifiHomePilotImei) return null;
+  return displayPublisher?.getLastDetection?.(nowMs) || null;
+}
+
 module.exports = { observeWifiHomeEvent, startWifiHomeDisplayPilot, getWifiHomeRuntimeStatus, getHomeWifiSetupRuntime,
-  getHomeWifiPriority, observeHomeWifiWalk };
+  getHomeWifiPriority, getLastHomeWifiDetection, observeHomeWifiWalk };

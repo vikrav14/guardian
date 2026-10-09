@@ -62,6 +62,9 @@ function locationPlace(ctx) {
 }
 
 function buildFallLocationValue(ctx, locationDecision) {
+  if (locationDecision.source === 'home_wifi_last_detected') {
+    return `Last detected at Home · recorded ${eventRelativeAge(locationDecision.ageSeconds)} · current position unconfirmed · map shows the saved Home pin, not live GPS`;
+  }
   if (locationDecision.source === 'home_wifi') {
     return `Home Wi-Fi detected · near the saved Home pin (not GPS) · recorded ${eventRelativeAge(locationDecision.ageSeconds)}`;
   }

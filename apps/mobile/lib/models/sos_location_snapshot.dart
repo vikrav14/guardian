@@ -24,6 +24,10 @@ class SosLocationSnapshot {
 
   static SosLocationSnapshot? tryParse(Object? value) {
     if (value is! Map) return null;
+    if (value['version'] == 3 &&
+        value['policy'] == 'recent_home_incident_evidence_v3') {
+      return _tryRecentHome(value);
+    }
     final current =
         value['version'] == 2 &&
         value['policy'] == 'fresh_incident_evidence_v2';
@@ -57,8 +61,10 @@ class SosLocationSnapshot {
         return null;
       }
       if (location != null &&
-          (location.source == null || age == null ||
-              capturedAt.difference(location.recordedAt!) > const Duration(minutes: 10))) {
+          (location.source == null ||
+              age == null ||
+              capturedAt.difference(location.recordedAt!) >
+                  const Duration(minutes: 10))) {
         return null;
       }
       if (location?.source == 'home_wifi') {
@@ -105,9 +111,61 @@ class SosLocationSnapshot {
     });
   }
 
+  static SosLocationSnapshot? _tryRecentHome(Map value) {
+    final capturedAt = _date(value['capturedAt']);
+    final evidence = value['lastHomeWifiEvidence'];
+    if (capturedAt == null ||
+        evidence is! Map ||
+        value['state'] != 'last_known' ||
+        value['retainedSatellite'] != false) {
+      return null;
+    }
+    final home = LastHomeWifiDetection.fromMap(
+      Map<String, dynamic>.from(evidence),
+    );
+    final location = SosLocationPoint._parse(
+      value['location'],
+      capturedAt,
+      allowHistoricalHome: true,
+    );
+    if (home == null ||
+        !home.isValidAt(capturedAt) ||
+        capturedAt.difference(home.observedAt) > const Duration(minutes: 10) ||
+        location?.source != 'home_wifi_last_detected' ||
+        location!.lat != home.lat ||
+        location.lng != home.lng ||
+        location.recordedAt != home.observedAt) {
+      return null;
+    }
+    final latest = SosLocationPoint._parse(
+      value['latestObservation'],
+      capturedAt,
+    );
+    if (latest?.recordedAt != null &&
+        latest!.recordedAt!.isAfter(home.observedAt) &&
+        (latest.source == 'gps' ||
+            (latest.accuracyMeters != null && latest.accuracyMeters! <= 100))) {
+      return null;
+    }
+    return SosLocationSnapshot._(
+      capturedAt: capturedAt,
+      state: 'last_known',
+      retainedSatellite: false,
+      location: location,
+      latestObservation:
+          latest?.recordedAt != null &&
+              capturedAt.difference(latest!.recordedAt!) <=
+                  const Duration(minutes: 10)
+          ? latest
+          : null,
+      ageSeconds: location.ageAt(capturedAt),
+    );
+  }
+
   SosLocationPoint? get secondaryNetworkObservation {
     final point = latestObservation;
-    return retainedSatellite &&
+    return (retainedSatellite ||
+                location?.source == 'home_wifi_last_detected') &&
             point != null &&
             const {'wifi', 'lbs'}.contains(point.source)
         ? point
@@ -142,6 +200,7 @@ class SosLocationPoint {
     Object? value,
     DateTime capturedAt, {
     bool allowHome = false,
+    bool allowHistoricalHome = false,
   }) {
     if (value is! Map) return null;
     final lat = _finite(value['lat']);
@@ -158,7 +217,8 @@ class SosLocationPoint {
     final rawSource = value['source']?.toString().trim().toLowerCase();
     final source =
         (const {'gps', 'wifi', 'lbs'}.contains(rawSource) ||
-            (allowHome && rawSource == 'home_wifi'))
+            (allowHome && rawSource == 'home_wifi') ||
+            (allowHistoricalHome && rawSource == 'home_wifi_last_detected'))
         ? rawSource
         : null;
     if (source == 'gps' && value['gpsValid'] == false) return null;
@@ -180,7 +240,7 @@ class SosLocationPoint {
       lng: lng,
       source: source,
       recordedAt: recordedAt,
-      placeLabel: source == 'home_wifi'
+      placeLabel: source == 'home_wifi' || source == 'home_wifi_last_detected'
           ? 'Home'
           : place == null || place.isEmpty
           ? null
@@ -188,6 +248,7 @@ class SosLocationPoint {
       accuracyMeters:
           source == 'gps' ||
               source == 'home_wifi' ||
+              source == 'home_wifi_last_detected' ||
               accuracy == null ||
               accuracy < 0
           ? null

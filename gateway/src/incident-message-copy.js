@@ -21,6 +21,13 @@ function incidentDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
 function compactLocation(snapshot) {
   if (!snapshot?.location || snapshot.state === 'unavailable') return 'Location unavailable at the alert.';
   const loc = snapshot.location;
+  if (loc.source === 'home_wifi_last_detected') {
+    const age = formatLocationAge(snapshot.ageSeconds).replace(/ ago$/, '');
+    const network = snapshot.latestObservation;
+    const estimate = ['wifi', 'lbs'].includes(network?.source)
+      ? ` A separate ${network.source === 'wifi' ? 'Wi-Fi' : 'cell-network'} estimate${Number.isFinite(network.accuracyMeters) ? ` (radius ${Math.round(network.accuracyMeters)} m)` : ''} is unconfirmed.` : '';
+    return `Last detected at Home · ${age === 'just now' ? 'less than 1 min' : age} before alert receipt. Current position unconfirmed. Map shows the saved Home pin, not live GPS.${estimate}`;
+  }
   if (loc.source === 'home_wifi') {
     const age = formatLocationAge(snapshot.ageSeconds);
     return `Home Wi-Fi detected · near the saved Home pin (not GPS) · ${age === 'just now' ? 'less than 1 min' : age.replace(/ ago$/, '')} before alert receipt.`;

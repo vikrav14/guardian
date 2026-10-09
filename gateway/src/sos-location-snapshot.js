@@ -104,7 +104,7 @@ function buildSosLocationSnapshot(
 /** Top-level field is backend-only under the existing alerts create allowlist. */
 function readSosLocationSnapshot(alert = {}) {
   const raw = alert?.sosLocationSnapshot;
-  if (raw?.version === 2) return require('./incident-location-evidence').readIncidentLocationSnapshot(raw);
+  if ([2, 3].includes(raw?.version)) return require('./incident-location-evidence').readIncidentLocationSnapshot(raw);
   if (!raw || raw.version !== SOS_LOCATION_SNAPSHOT_VERSION ||
       raw.policy !== SOS_LOCATION_SELECTION_POLICY ||
       !['fresh', 'last_known', 'unavailable'].includes(raw.state)) return null;
@@ -151,6 +151,9 @@ function formatSosLocationValue(snapshot) {
     return 'Current location unavailable';
   }
   const loc = snapshot.location;
+  if (loc.source === 'home_wifi_last_detected') {
+    return `Last detected at Home · ${formatLocationAge(snapshot.ageSeconds).replace(/ ago$/, '')} before alert receipt · current position unconfirmed · map shows the saved Home pin, not live GPS`;
+  }
   if (loc.source === 'home_wifi') {
     return `Home Wi-Fi detected · at or near the saved Home pin (not GPS) · detected ${formatLocationAge(snapshot.ageSeconds).replace(/ ago$/, '')} before alert receipt`;
   }

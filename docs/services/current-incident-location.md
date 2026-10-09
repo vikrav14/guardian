@@ -1,6 +1,7 @@
 # Current location evidence for SOS and fall
 
-New physical SOS and fall alerts use `fresh_incident_evidence_v2`. This replaces
+Physical SOS and fall alerts use `fresh_incident_evidence_v2`, with the bounded
+historical Home exception `recent_home_incident_evidence_v3` below. This replaces
 the retained-GPS policy that could send an hours-old satellite position despite
 a recent indoor network observation. Existing v1 alert snapshots remain immutable
 and readable; this change does not edit or resend previous messages.
@@ -12,11 +13,19 @@ Selection at gateway receipt:
    pin, explicitly **not GPS**. An absent/revoked runtime binding cannot fall back
    to a cached database Home record. The existing two-minute radio expiry and
    repeated-match qualification remain unchanged.
-2. Otherwise choose the newest valid GPS/Wi-Fi/cellular observation no more than
+2. If fresh Home has expired, retain a qualified Home detection from the previous
+   ten minutes only when the runtime still validates its enrollment and saved-pin
+   binding. A newer accepted GPS fix, or a newer network fix with an estimated
+   radius of 100 metres or less, supersedes it. Show **Last detected at Home**,
+   its original age and **Current position unconfirmed**. The map is explicitly
+   the saved Home pin, not live GPS. This uses the existing last-known template
+   variant. A coarser network estimate is retained separately with its own time
+   and radius; it cannot relabel or retimestamp the Home observation.
+3. Otherwise choose the newest valid GPS/Wi-Fi/cellular observation no more than
    ten minutes old. Keep its own place name, timestamp, source and estimated
    radius. A newer network estimate can replace older GPS; approximate does not
    mean an exact address or confirmed presence inside a house.
-3. Without recent usable evidence, use the unavailable template with **no map
+4. Without recent usable evidence, use the unavailable template with **no map
    link**. A heartbeat, battery report, remembered Home sighting or unknown source
    does not renew location evidence. Older coordinates remain in history.
 
@@ -30,6 +39,26 @@ Both alarm types freeze evidence before persistence. Notification retries and
 later watch movement cannot replace the incident point. Body text, template
 variant, map button and alert detail read the same snapshot. New v2 readers reject
 stale primaries, altered Home anchors, bad timing and unsupported sources.
+
+The v3 exception stores `lastHomeWifiEvidence` separately from current
+`homeWifiEvidence`, uses source `home_wifi_last_detected`, and can only have
+state `last_known`. Backend and app reject altered coordinates, future/over-age
+history, an invalid binding fingerprint, or a forged current-state label. The
+runtime reader fails closed on revocation, binding expiry or unavailability.
+It does not change Home-radio thresholds, dashboard selection, journey closure,
+normal reporting cadence, or the meaning of fresh Home. Existing alerts are
+not rewritten or resent.
+
+## 9 October 17:06 fall correction (PR #159)
+
+The actual fall arrived at 17:06:44 MUT. Home was last detected at 17:04:07;
+its fresh lease expired at 17:06:07, 37 seconds before the alarm. The new alarm's
+Wi-Fi estimate was 743 metres from the saved Home pin, with a 555-metre estimated
+radius and a provider label of Grand Baie. It was not the previous day's GPS.
+The dashboard retained historical Home, while the incident selected the new
+network estimate. The correction preserves the 158-second-old Home detection
+as explicit historical context, not a new presence claim. The coarse estimate
+remains auditable and separate. Both SOS and fall use the same frozen evidence.
 
 Ordinary WhatsApp location replies prefer recent evidence. The dashboard retains
 its previous historical-pin presentation, including labelled remembered Home,

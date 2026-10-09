@@ -121,7 +121,7 @@ class AlertDetail extends StatelessWidget {
               label: const Text('Photos & AI details'),
             ),
           ],
-          if (sos) ...[
+          if (sos || alert.type.toLowerCase() == 'fall') ...[
             const SizedBox(height: 20),
             _SosLocation(alert: alert, onLocation: onLocation),
           ],
@@ -208,6 +208,8 @@ class _SosLocation extends StatelessWidget {
     final locationAvailable = snapshot?.mapsUri != null && onLocation != null;
     final label = snapshot?.retainedSatellite == true
         ? 'Last reliable GPS'
+        : point?.source == 'home_wifi_last_detected'
+        ? 'Last detected at Home'
         : point?.source == 'home_wifi'
         ? 'Home Wi-Fi detected'
         : point?.source == 'gps'
@@ -236,7 +238,9 @@ class _SosLocation extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Location at SOS receipt',
+                  alert.type.toLowerCase() == 'fall'
+                      ? 'Location at fall alert receipt'
+                      : 'Location at SOS receipt',
                   style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ),
@@ -283,6 +287,10 @@ class _SosLocation extends StatelessWidget {
               const Text(
                 'Near the enrolled Home router. The map shows your saved Home pin, not a GPS fix.',
               ),
+            if (point.source == 'home_wifi_last_detected')
+              const Text(
+                'The map shows the saved Home pin from the earlier router detection, not live GPS.',
+              ),
             if (snapshot.state == 'last_known') ...[
               const SizedBox(height: 8),
               const Text('Current position unconfirmed.'),
@@ -295,7 +303,9 @@ class _SosLocation extends StatelessWidget {
             icon: const Icon(Icons.map_outlined, size: 19),
             label: Text(
               locationAvailable
-                  ? 'View incident location'
+                  ? snapshot?.state == 'last_known'
+                        ? 'View last detected location'
+                        : 'View incident location'
                   : 'Incident map unavailable',
             ),
             style: OutlinedButton.styleFrom(
@@ -322,7 +332,9 @@ class _SosLocation extends StatelessWidget {
                         sosReceiptAge(network.ageAt(snapshot!.capturedAt)),
                         if (network.accuracyMeters != null)
                           'Estimated radius: ${network.accuracyMeters!.round()} m.',
-                        'Kept separately from the GPS location above.',
+                        point?.source == 'home_wifi_last_detected'
+                            ? 'This estimate does not confirm the current position or a departure from Home.'
+                            : 'Kept separately from the GPS location above.',
                       ].join(' '),
                       style: TextStyle(
                         color: colors.textSecondary,

@@ -116,6 +116,9 @@ function createHomeWifiEnrollmentRuntime({ db, legacy = null, now = Date.now,
       if (entry.publisher) entry.observer.observe(event, receivedAt.getTime(), inspectV52WifiScan(args));
     },
     evidence(imei, at = now()) { return ready ? entries.get(imei)?.publisher?.getEvidence(at) || null : null; },
+    lastDetection(imei, at = now()) {
+      return ready && !stopped ? entries.get(imei)?.publisher?.getLastDetection?.(at) || null : null;
+    },
     status(imei, at = now()) {
       const entry = entries.get(imei);
       return { ready: ready && !stopped, enrolled: validEnrollment(entry?.record),

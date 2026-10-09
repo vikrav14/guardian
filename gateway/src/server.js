@@ -61,7 +61,7 @@ const { applyAdaptiveReporting, activateEmergencyOverride, startReportingReconci
 const { sendContinuousReporting } = require('./downlink');
 const { createWellbeingStore } = require('./care-wellbeing');
 const { claimSosIncident } = require('./sos-incident-window');
-const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, observeHomeWifiWalk } = require('./wifi-home-runtime');
+const { observeWifiHomeEvent, startWifiHomeDisplayPilot, getHomeWifiPriority, getLastHomeWifiDetection, observeHomeWifiWalk } = require('./wifi-home-runtime');
 const { recoverHomeWifiWalk } = require('./home-wifi-walk-recovery');
 const { selectHomeWifiTracking } = require('./wifi-home-tracking');
 const { observeWifiFencePacket } = require('./wifi-fence-runtime');
@@ -1012,10 +1012,13 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         // can yield to a later watch observation. Never read it at send time.
         let sosDeviceAtReceipt = null;
         let incidentHomeEvidence = null;
+        let incidentLastHomeEvidence = null;
         if (['sos', 'fall'].includes(event.alarmType)) {
           // Freeze validated radio evidence before any asynchronous lookup.
           try { incidentHomeEvidence = getHomeWifiPriority(event.imei, eventReceivedAt.getTime()); }
           catch (err) { console.warn('[incident] Home evidence unavailable:', err.message); }
+          try { incidentLastHomeEvidence = getLastHomeWifiDetection(event.imei, eventReceivedAt.getTime()); }
+          catch (err) { console.warn('[incident] Historical Home evidence unavailable:', err.message); }
           sosDeviceAtReceipt = { ...getLiveDeviceState(event.imei) };
           try {
             sosDeviceAtReceipt = await getDeviceDocument(event.imei)
@@ -1058,6 +1061,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           ? await enrichIncidentPlaceLabel(buildIncidentLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
               homeEvidence: incidentHomeEvidence,
+              lastHomeEvidence: incidentLastHomeEvidence,
               observation: alarmProvenance.location ? {
                 ...alarmProvenance.location,
                 // A resolver completion time is not a device observation time.

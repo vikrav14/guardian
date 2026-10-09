@@ -609,7 +609,16 @@ See `docs/services/sos-location.md` for the physical QA checklist and limits.
 ### Current incident snapshots (version 2)
 
 New physical SOS `sosLocationSnapshot` and fall `payload.locationSnapshot` use
-`version: 2`, `policy: fresh_incident_evidence_v2`. The tables above and below
+`version: 2`, `policy: fresh_incident_evidence_v2`. A bounded historical Home
+exception uses `version: 3`, `policy: recent_home_incident_evidence_v3`:
+`state: last_known`, `retainedSatellite: false`, source
+`home_wifi_last_detected`, and a frozen `lastHomeWifiEvidence` record with its
+original observedAt, qualifiedUntil, bindingHash and anchor. Only a still-valid
+runtime binding and a detection within ten minutes qualify. Newer GPS or a
+newer network fix with radius <=100 m supersedes it. `latestObservation` keeps
+any eligible coarse estimate separately; it cannot renew historical Home.
+V3 is never fresh Home presence and never changes the device's Home lease.
+All old snapshots remain immutable. The tables above and below
 describe immutable legacy v1 records, not new primary-pin selection.
 
 V2 has `capturedAt`, `state` (`fresh` or `unavailable`), `reason`, recomputed
