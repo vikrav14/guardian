@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../brand/guardian_pin_logo.dart';
 import '../guardian_widgets.dart';
+import '../theme/theme_picker.dart';
 
 class GuardianAppHeader extends StatelessWidget {
   const GuardianAppHeader({
@@ -67,6 +68,12 @@ class GuardianAppHeader extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _HeaderButton(
+                tooltip: 'Change theme',
+                icon: Icons.palette_outlined,
+                onTap: () => showThemePickerDialog(context),
+              ),
+              const SizedBox(width: 4),
+              _HeaderButton(
                 tooltip: 'Notifications',
                 icon: Icons.notifications_none_rounded,
                 onTap: onAlerts,
@@ -87,7 +94,7 @@ class GuardianAppHeader extends StatelessWidget {
                         child: Center(
                           child: GuardianHeaderAvatar(
                             initials: initialsFor(name),
-                            color: GuardianColors.safe,
+                            color: colors.accent,
                             size: compact ? 34 : 38,
                           ),
                         ),
@@ -121,11 +128,14 @@ class _HeaderButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: colors.surfaceMuted,
-        shape: const CircleBorder(),
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(13),
+          side: BorderSide(color: colors.border),
+        ),
         child: InkWell(
           onTap: onTap,
-          customBorder: const CircleBorder(),
+          borderRadius: BorderRadius.circular(13),
           child: SizedBox.square(
             dimension: 48,
             child: Icon(icon, size: 24, color: colors.textPrimary),

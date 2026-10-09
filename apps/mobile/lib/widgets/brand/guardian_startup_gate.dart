@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/colors.dart';
 
 import 'guardian_loading_screen.dart';
 import 'guardian_pin_logo.dart';
@@ -98,7 +99,7 @@ class _GuardianStartupGateState extends State<GuardianStartupGate>
         if (!showContent)
           if (_failed)
             Scaffold(
-              backgroundColor: Colors.white,
+              backgroundColor: context.guardianColors.canvas,
               body: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),

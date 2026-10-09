@@ -24,14 +24,73 @@ class MobileBottomBar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.vertical = false,
   });
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final items = guardianDestinations(context);
+    if (vertical) {
+      final destinations = [
+        ...items,
+        (icon: GuardianNavigationSymbol.alerts, label: 'Alerts'),
+        (icon: GuardianNavigationSymbol.account, label: 'Account'),
+      ];
+      return SizedBox(
+        width: 204,
+        child: Material(
+          color: colors.surface,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: colors.border)),
+            ),
+            child: SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 24,
+                ),
+                children: [
+                  for (var index = 0; index < destinations.length; index++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        selected: currentIndex == index,
+                        selectedTileColor: colors.accentMuted,
+                        selectedColor: colors.accent,
+                        textColor: colors.textSecondary,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        leading: GuardianNavigationIcon(
+                          symbol: destinations[index].icon,
+                          color: currentIndex == index
+                              ? colors.accent
+                              : colors.textSecondary,
+                          highContrast: colors.highContrast,
+                        ),
+                        title: Text(
+                          destinations[index].label,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        onTap: () => onTap(index),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Material(
       color: colors.surface,
       child: DecoratedBox(
@@ -114,11 +173,8 @@ class _DestinationButton extends StatelessWidget {
                         fontSize: 11.5,
                         height: 1.2,
                         color: tone,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                       ),
-                    ),
-                    SizedBox(
-                      height: MediaQuery.textScalerOf(context).scale(11) * 1.2,
                     ),
                   ],
                 ),
@@ -156,6 +212,7 @@ class _NavigationMark extends StatelessWidget {
     final colors = context.guardianColors;
     final highContrast =
         MediaQuery.highContrastOf(context) ||
+        colors.highContrast ||
         colors.border == GuardianThemeColors.elderCare.border;
     final highlighted = selected;
     final tint = colors.accent;

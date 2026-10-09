@@ -87,6 +87,8 @@ flutter:
     - assets/images/guardian_family_welcome.webp
     - assets/images/guardian_family_welcome_dual_watch.webp
     - assets/weather/weather_atlas.webp
+    - assets/themes/
+    - assets/fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

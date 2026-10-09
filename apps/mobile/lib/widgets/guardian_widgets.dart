@@ -65,6 +65,7 @@ class AvatarBubble extends StatelessWidget {
     this.size = 32,
     this.ringWidth = 2.5,
     this.imageUrl,
+    this.filled = false,
   });
 
   final String initials;
@@ -72,18 +73,19 @@ class AvatarBubble extends StatelessWidget {
   final double size;
   final double ringWidth;
   final String? imageUrl;
+  final bool filled;
 
   Widget _fallback(BuildContext context) {
     final surface = context.guardianColors.surface;
     return ColoredBox(
-      color: surface,
+      color: filled ? color : surface,
       child: Center(
         child: Text(
           initials,
           style: TextStyle(
             fontSize: size * 0.34,
             fontWeight: FontWeight.w600,
-            color: color,
+            color: filled ? context.guardianColors.onAccent : color,
           ),
         ),
       ),
@@ -100,7 +102,10 @@ class AvatarBubble extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: colors.surface,
-        border: Border.all(color: color, width: ringWidth),
+        border: Border.all(
+          color: filled ? colors.accentMuted : color,
+          width: ringWidth,
+        ),
       ),
       padding: EdgeInsets.all(ringWidth),
       child: ClipOval(

@@ -86,21 +86,21 @@ class GuardianDashboardOverview extends StatelessWidget {
             'Family overview',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: compact ? 24 : 28,
+              fontSize: compact ? 26 : 28,
               height: 1.2,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               letterSpacing: -0.7,
             ),
           ),
         ),
-        if (!compact) ...[
+        ...[
           const SizedBox(height: 6),
           Text(
-            'The people who matter, in one place.',
+            'Your people, close at heart.',
             style: TextStyle(color: colors.textSecondary, fontSize: 15),
           ),
         ],
-        SizedBox(height: compact ? 12 : 24),
+        const SizedBox(height: 76),
         if (hasError) ...[
           _DashboardNotice(
             icon: Icons.cloud_off_outlined,
@@ -126,43 +126,44 @@ class GuardianDashboardOverview extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
-          GuardianOverviewHeader(
-            device: selected,
-            helpEnabled: helpEnabled,
-            onCall: onCall,
-            onJourney: onJourney,
-            onHelp: onHelp,
-            onWatchStatus: onWatchStatus,
-            watchCheckStatus: watchCheckStatus,
-            weather: weather,
-            voiceAction:
-                voiceMessagesPilotImei.isNotEmpty &&
-                    selected.imei == voiceMessagesPilotImei &&
-                    selected.allowsShared('voice')
-                ? VoiceMessageAction(
-                    key: ValueKey('voice-action-${selected.imei}'),
-                    imei: selected.imei,
-                    wearerName: selected.displayName,
-                    wearerAvatarUrl: selected.avatarUrl,
-                  )
-                : null,
-            photoAction: !selected.allowsShared('photos')
-                ? null
-                : IncidentPhotoAction(
-                    key: ValueKey('photo-action-${selected.imei}'),
-                    imei: selected.imei,
-                    wearerName: selected.displayName,
-                    onCall: onCall,
-                    onLocation: onLocationDetails,
-                  ),
-          ),
-          SizedBox(height: compact ? 12 : 20),
           LayoutBuilder(
             builder: (context, constraints) {
+              final header = GuardianOverviewHeader(
+                device: selected,
+                helpEnabled: helpEnabled,
+                onCall: onCall,
+                onJourney: onJourney,
+                onHelp: onHelp,
+                onWatchStatus: onWatchStatus,
+                watchCheckStatus: watchCheckStatus,
+                weather: weather,
+                voiceAction:
+                    voiceMessagesPilotImei.isNotEmpty &&
+                        selected.imei == voiceMessagesPilotImei &&
+                        selected.allowsShared('voice')
+                    ? VoiceMessageAction(
+                        key: ValueKey('voice-action-${selected.imei}'),
+                        imei: selected.imei,
+                        wearerName: selected.displayName,
+                        wearerAvatarUrl: selected.avatarUrl,
+                      )
+                    : null,
+                photoAction: !selected.allowsShared('photos')
+                    ? null
+                    : IncidentPhotoAction(
+                        key: ValueKey('photo-action-${selected.imei}'),
+                        imei: selected.imei,
+                        wearerName: selected.displayName,
+                        onCall: onCall,
+                        onLocation: onLocationDetails,
+                      ),
+              );
               if (!selected.allowsShared('location')) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    header,
+                    const SizedBox(height: 18),
                     const _DashboardNotice(
                       icon: Icons.lock_outline_rounded,
                       title: 'Location is not shared',
@@ -182,50 +183,56 @@ class GuardianDashboardOverview extends StatelessWidget {
                 status: mapStatus,
                 onDetails: onLocationDetails,
               );
-              final details = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (selected.allowsShared('zones'))
-                    _SafeZonesPanel(
+              final details = selected.allowsShared('zones')
+                  ? _SafeZonesPanel(
                       device: selected,
                       geofences: geofences,
                       onManage: onSafeZones,
-                    ),
-                  if (wellness != null &&
-                      constraints.maxWidth >= 960 &&
-                      MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
-                    const SizedBox(height: 20),
-                    wellness!,
-                  ],
-                  if (aiEnabled && wellness == null) ...[
-                    const SizedBox(height: 20),
-                    _InsightPanel(message: insight),
-                  ],
-                ],
-              );
+                    )
+                  : null;
+              final insightPanel = aiEnabled && wellness == null
+                  ? _InsightPanel(message: insight)
+                  : null;
+              const gap = SizedBox(height: 18);
               final wide =
-                  constraints.maxWidth >= 960 &&
+                  constraints.maxWidth >= 1000 &&
                   MediaQuery.textScalerOf(context).scale(14) <= 20;
               if (!wide) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    header,
+                    gap,
                     location,
-                    SizedBox(height: compact ? 12 : 20),
-                    if (wellness != null) ...[
-                      wellness!,
-                      SizedBox(height: compact ? 12 : 20),
-                    ],
-                    details,
+                    if (wellness != null) ...[gap, wellness!],
+                    if (details != null) ...[gap, details],
+                    if (insightPanel != null) ...[gap, insightPanel],
                   ],
                 );
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 19, child: location),
-                  const SizedBox(width: 20),
-                  Expanded(flex: 10, child: details),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        if (wellness != null) ...[gap, wellness!],
+                        if (insightPanel != null) ...[gap, insightPanel],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 22),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        location,
+                        if (details != null) ...[gap, details],
+                      ],
+                    ),
+                  ),
                 ],
               );
             },
@@ -275,7 +282,7 @@ class _LocationPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final inset = compact ? 12.0 : 24.0;
+    final inset = compact ? 20.0 : 24.0;
     final location = device.mapDisplayLocation;
     final hasLocation = location?.isValid == true;
     final place = location?.displayPlaceLabel;
@@ -410,7 +417,7 @@ class _LocationPanel extends StatelessWidget {
             style: TextStyle(
               color: colors.textPrimary,
               fontSize: compact ? 20 : 24,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               height: 1.25,
               letterSpacing: -0.4,
             ),
@@ -530,7 +537,7 @@ class _LocationEvidenceNote extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: '$title\n',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   TextSpan(text: message),
                 ],
@@ -778,7 +785,7 @@ class _DashboardSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GuardianSurface(
-      radius: 16,
+      radius: 24,
       padding:
           padding ??
           EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 24),

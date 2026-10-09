@@ -22,7 +22,6 @@ class ProfileWeatherPanel extends StatelessWidget {
     final clock = now ?? DateTime.now();
     final data = weather;
     final colors = context.guardianColors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final available = data?.isAvailableAt(clock) == true;
     if (!available) {
       return Padding(
@@ -36,19 +35,8 @@ class ProfileWeatherPanel extends StatelessWidget {
     final current = data!;
     final highContrast =
         MediaQuery.highContrastOf(context) ||
+        colors.highContrast ||
         colors.border == GuardianThemeColors.elderCare.border;
-    final night = current.isDay == false;
-    final storm = current.condition == 'thunderstorm';
-    final sunny =
-        current.isDay == true &&
-        (current.condition == 'clear' || current.condition == 'partly_cloudy');
-    final tint = dark
-        ? const Color(0xFF20394B)
-        : night || storm
-        ? const Color(0xFFE0E6F5)
-        : sunny
-        ? const Color(0xFFFFF0CC)
-        : const Color(0xFFDBF0F7);
     final artwork = current.artworkIndex;
     final place = weatherAreaLabel(current.placeName);
     final retainedArea = current.locationIsRetainedAreaAt(clock);
@@ -69,23 +57,13 @@ class ProfileWeatherPanel extends StatelessWidget {
     return Tooltip(
       message: details,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: highContrast ? colors.surface : null,
+          borderRadius: BorderRadius.circular(15),
+          color: colors.surfaceMuted,
           border: highContrast
-              ? Border.all(color: colors.border, width: 2)
+              ? Border.all(color: colors.textPrimary, width: 2)
               : null,
-          gradient: highContrast
-              ? null
-              : LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    tint.withValues(alpha: dark ? 0.95 : 0.9),
-                    colors.surface.withValues(alpha: 0.02),
-                  ],
-                ),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -94,31 +72,36 @@ class ProfileWeatherPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '${current.temperatureC!.round()}°C',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -1,
-                    color: colors.textPrimary,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  current.conditionLabel,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 3,
+                  children: [
+                    Text(
+                      '${current.temperatureC!.round()}°C',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -.7,
+                        color: colors.textPrimary,
+                        height: 1.2,
+                      ),
+                    ),
+                    Text(
+                      current.conditionLabel,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 3),
                 Text(
                   locationLabel,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                     color: colors.textPrimary,
                   ),
                 ),
@@ -146,17 +129,17 @@ class ProfileWeatherPanel extends StatelessWidget {
             );
             if (artwork == null) return information;
             final illustration = SizedBox(
-              width: 88,
-              height: 88,
+              width: 42,
+              height: 42,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  WeatherArtwork(index: artwork, size: 88),
+                  WeatherArtwork(index: artwork, size: 42),
                   if (current.windy)
                     const Positioned(
                       right: -4,
                       bottom: -1,
-                      child: WeatherArtwork(index: 5, size: 34),
+                      child: WeatherArtwork(index: 5, size: 20),
                     ),
                 ],
               ),

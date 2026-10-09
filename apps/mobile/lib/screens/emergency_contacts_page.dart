@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/layout/guardian_scenic_background.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
@@ -143,85 +144,87 @@ class EmergencyContactsPage extends StatelessWidget {
         foregroundColor: colors.textPrimary,
         elevation: 0,
       ),
-      body: StreamBuilder<List<EmergencyContact>>(
-        stream: service.watchContacts(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return Center(
-              child: CircularProgressIndicator(color: colors.accent),
-            );
-          }
-          final contacts = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              GuardianSpacing.md,
-              GuardianSpacing.lg,
-              GuardianSpacing.md,
-              GuardianSpacing.md,
-            ),
-            children: [
-              GuardianSectionTitle(t.emergencyNumbersHeading),
-              const SizedBox(height: GuardianSpacing.sm),
-              Row(
-                children: [
-                  for (final e in emergencyNumbers) ...[
-                    Expanded(
-                      child: _EmergencyNumberChip(
-                        icon: e.icon,
-                        label: e.label,
-                        number: e.number,
-                        onTap: () => _call(context, e.number),
-                      ),
-                    ),
-                    if (e != emergencyNumbers.last)
-                      const SizedBox(width: GuardianSpacing.xs),
-                  ],
-                ],
+      body: GuardianScenicBackground(
+        child: StreamBuilder<List<EmergencyContact>>(
+          stream: service.watchContacts(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Center(
+                child: CircularProgressIndicator(color: colors.accent),
+              );
+            }
+            final contacts = snapshot.data!;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                GuardianSpacing.md,
+                GuardianSpacing.lg,
+                GuardianSpacing.md,
+                GuardianSpacing.md,
               ),
-              const SizedBox(height: GuardianSpacing.lg),
-              const GuardianSectionTitle('Your contacts'),
-              const SizedBox(height: GuardianSpacing.sm),
-              if (contacts.isEmpty)
-                GuardianCard(
-                  child: Text(
-                    'No contacts yet. These people can receive SOS and alert notifications later.',
-                    style: textTheme.bodyMedium,
-                  ),
-                )
-              else
-                GuardianListGroup(
+              children: [
+                GuardianSectionTitle(t.emergencyNumbersHeading),
+                const SizedBox(height: GuardianSpacing.sm),
+                Row(
                   children: [
-                    for (var i = 0; i < contacts.length; i++)
-                      _ContactRow(
-                        contact: contacts[i],
-                        showDivider: i < contacts.length - 1,
-                        onMakePrimary: () async {
-                          await service.saveContacts([
-                            for (var j = 0; j < contacts.length; j++)
-                              contacts[j].copyWith(isPrimary: i == j),
-                          ]);
-                        },
-                        onRemove: () async {
-                          final next = [...contacts]..removeAt(i);
-                          await service.saveContacts(next);
-                        },
+                    for (final e in emergencyNumbers) ...[
+                      Expanded(
+                        child: _EmergencyNumberChip(
+                          icon: e.icon,
+                          label: e.label,
+                          number: e.number,
+                          onTap: () => _call(context, e.number),
+                        ),
                       ),
+                      if (e != emergencyNumbers.last)
+                        const SizedBox(width: GuardianSpacing.xs),
+                    ],
                   ],
                 ),
-              const SizedBox(height: GuardianSpacing.sm),
-              GuardianListGroup(
-                children: [
-                  GuardianSettingsRow(
-                    icon: Icons.person_add_rounded,
-                    label: t.addContact,
-                    showDivider: false,
-                    onTap: () => _addContact(context, service, contacts),
+                const SizedBox(height: GuardianSpacing.lg),
+                const GuardianSectionTitle('Your contacts'),
+                const SizedBox(height: GuardianSpacing.sm),
+                if (contacts.isEmpty)
+                  GuardianCard(
+                    child: Text(
+                      'No contacts yet. These people can receive SOS and alert notifications later.',
+                      style: textTheme.bodyMedium,
+                    ),
+                  )
+                else
+                  GuardianListGroup(
+                    children: [
+                      for (var i = 0; i < contacts.length; i++)
+                        _ContactRow(
+                          contact: contacts[i],
+                          showDivider: i < contacts.length - 1,
+                          onMakePrimary: () async {
+                            await service.saveContacts([
+                              for (var j = 0; j < contacts.length; j++)
+                                contacts[j].copyWith(isPrimary: i == j),
+                            ]);
+                          },
+                          onRemove: () async {
+                            final next = [...contacts]..removeAt(i);
+                            await service.saveContacts(next);
+                          },
+                        ),
+                    ],
                   ),
-                ],
-              ),
-            ],
-          );
-        },
+                const SizedBox(height: GuardianSpacing.sm),
+                GuardianListGroup(
+                  children: [
+                    GuardianSettingsRow(
+                      icon: Icons.person_add_rounded,
+                      label: t.addContact,
+                      showDivider: false,
+                      onTap: () => _addContact(context, service, contacts),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

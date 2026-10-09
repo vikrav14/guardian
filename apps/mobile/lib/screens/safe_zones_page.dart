@@ -179,6 +179,7 @@ class _SafeZonesBodyState extends State<_SafeZonesBody> {
                     onExpand: _expandMap,
                     onHomeWifi: (zone) => Navigator.of(context).push<void>(
                       MaterialPageRoute(
+                        settings: const RouteSettings(name: '/wifi'),
                         builder: (_) => HomeWifiSetupPage(zone: zone),
                       ),
                     ),

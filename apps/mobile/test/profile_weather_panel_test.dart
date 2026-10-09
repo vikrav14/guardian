@@ -224,11 +224,7 @@ void main() {
             findsOneWidget,
           );
           expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsNothing);
-          for (final label in [
-            'Watch connected',
-            'Call watch',
-            'View journey',
-          ]) {
+          for (final label in ['Connected', 'Call watch', 'View journey']) {
             await tester.ensureVisible(find.text(label));
             await tester.tap(find.text(label));
             await tester.pump();

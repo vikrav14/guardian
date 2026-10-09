@@ -285,7 +285,7 @@ void main() {
 
       await _tap(tester, find.text('Call watch'));
       await _tap(tester, find.text('View journey'));
-      await _tap(tester, find.text('Watch connected'));
+      await _tap(tester, find.text('Connected'));
       await _tap(tester, find.text('Location details'));
       await _tap(tester, find.text('Manage safe zones'));
 
@@ -411,7 +411,7 @@ void main() {
       dashboardFixtureOverview(empty: true, onLinkWatch: () => linked++),
     );
     expect(find.text('Bring your family into view'), findsOneWidget);
-    expect(find.text('Watch connected'), findsNothing);
+    expect(find.text('Connected'), findsNothing);
     expect(find.byType(DashboardFixtureMap), findsNothing);
     await _tap(tester, find.text('Link a watch'));
     expect(linked, 1);
@@ -420,7 +420,7 @@ void main() {
     expect(find.text('Loading your watches'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Link a watch'), findsNothing);
-    expect(find.text('Watch connected'), findsNothing);
+    expect(find.text('Connected'), findsNothing);
   });
 
   testWidgets('read failure is visible with and without cached watch data', (
@@ -460,7 +460,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Watch connected'), findsOneWidget);
+    expect(find.text('Connected'), findsOneWidget);
     expect(find.text('Waiting for a location'), findsOneWidget);
     expect(find.byType(DashboardFixtureMap), findsOneWidget);
     final mapSemantics = tester.widget<ExcludeSemantics>(
@@ -480,7 +480,7 @@ void main() {
     final device = dashboardFixtureDevice(now: DateTime.now());
     await _pump(tester, dashboardFixtureOverview(device: device));
 
-    expect(find.text('Watch connected'), findsOneWidget);
+    expect(find.text('Connected'), findsOneWidget);
     expect(find.text('Checked in 1m ago'), findsOneWidget);
     expect(find.text('Last reliable fix'), findsNothing);
     expect(find.text('13m ago'), findsOneWidget);
@@ -551,7 +551,7 @@ void main() {
           tester,
           dashboardFixtureOverview(device: device, mapStatus: sample.status),
         );
-        expect(find.text('Watch connected'), findsOneWidget);
+        expect(find.text('Connected'), findsOneWidget);
         expect(
           find.text(sample.age.inHours >= 2 ? '2h ago' : 'Just now'),
           findsOneWidget,

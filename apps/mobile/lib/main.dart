@@ -11,7 +11,8 @@ import 'l10n/app_localizations.dart';
 import 'screens/auth_gate.dart';
 import 'services/locale_service.dart';
 import 'services/push_service.dart';
-import 'services/theme_service.dart';
+import 'theme/guardian_theme_scope.dart';
+export 'theme/guardian_theme_scope.dart';
 import 'theme/app_theme.dart';
 import 'widgets/brand/guardian_startup_gate.dart';
 
@@ -122,87 +123,28 @@ class _GuardianAppState extends State<GuardianApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Guardian',
-      debugShowCheckedModeBanner: false,
-      theme: buildGuardianTheme(),
-      locale: _locale,
-      supportedLocales: LocaleService.supportedLocales,
-      localizationsDelegates: guardianLocalizationsDelegates,
-      builder: widget.home == null && DefaultFirebaseOptions.isConfigured
-          ? (context, navigator) => GuardianStartupGate(
-              initialize: _initializeFirebase,
-              builder: (context, onReady) => navigator!,
-            )
-          : null,
-      home: widget.home != null || DefaultFirebaseOptions.isConfigured
-          ? _ThemedAppRoot(child: widget.home ?? const AuthGate())
-          : const _FirebaseSetupPage(),
-    );
-  }
-}
-
-/// Holds theme state inside [MaterialApp] so switching themes updates colors
-/// without recreating the navigator or tearing down platform views like
-/// Google Maps on web.
-class GuardianThemeScope extends InheritedWidget {
-  const GuardianThemeScope({
-    super.key,
-    required this.themeId,
-    required this.onThemeChanged,
-    required super.child,
-  });
-
-  final GuardianThemeId themeId;
-  final ValueChanged<GuardianThemeId> onThemeChanged;
-
-  static GuardianThemeScope? maybeOf(BuildContext context) {
-    return context.getInheritedWidgetOfExactType<GuardianThemeScope>();
-  }
-
-  void setTheme(GuardianThemeId theme) {
-    if (themeId == theme) return;
-    onThemeChanged(theme);
-  }
-
-  @override
-  bool updateShouldNotify(GuardianThemeScope oldWidget) {
-    return themeId != oldWidget.themeId;
-  }
-}
-
-class _ThemedAppRoot extends StatefulWidget {
-  const _ThemedAppRoot({required this.child});
-  final Widget child;
-
-  @override
-  State<_ThemedAppRoot> createState() => _ThemedAppRootState();
-}
-
-class _ThemedAppRootState extends State<_ThemedAppRoot> {
-  GuardianThemeId _themeId = GuardianThemeId.defaultTheme;
-
-  @override
-  void initState() {
-    super.initState();
-    ThemeService.loadSavedTheme().then((saved) {
-      if (mounted) setState(() => _themeId = saved);
-    });
-  }
-
-  void _setTheme(GuardianThemeId theme) {
-    setState(() => _themeId = theme);
-    ThemeService.saveTheme(theme);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GuardianThemeScope(
-      themeId: _themeId,
-      onThemeChanged: _setTheme,
-      child: Theme(
-        data: buildGuardianTheme(themeId: _themeId),
-        child: widget.child,
+    return GuardianAppearanceHost(
+      builder: (context, theme) => MaterialApp(
+        title: 'Guardian',
+        debugShowCheckedModeBanner: false,
+        theme: buildGuardianTheme(
+          themeId: theme.themeId,
+          highContrast: theme.highContrast,
+          scenery: theme.scenery,
+          sceneryStrength: theme.strength,
+        ),
+        locale: _locale,
+        supportedLocales: LocaleService.supportedLocales,
+        localizationsDelegates: guardianLocalizationsDelegates,
+        builder: widget.home == null && DefaultFirebaseOptions.isConfigured
+            ? (context, navigator) => GuardianStartupGate(
+                initialize: _initializeFirebase,
+                builder: (context, onReady) => navigator!,
+              )
+            : null,
+        home: widget.home != null || DefaultFirebaseOptions.isConfigured
+            ? widget.home ?? const AuthGate()
+            : const _FirebaseSetupPage(),
       ),
     );
   }

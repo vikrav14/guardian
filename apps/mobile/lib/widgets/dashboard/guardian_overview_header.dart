@@ -41,148 +41,169 @@ class GuardianOverviewHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    return GuardianSurface(
+      radius: 24,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _OverviewIdentity(device: device, onWatchStatus: onWatchStatus),
+          if (device.allowsShared('location')) ...[
+            const SizedBox(height: 18),
+            weather ?? const ProfileWeatherPanel(),
+          ],
+          const SizedBox(height: 12),
+          _OverviewWatchState(device: device, onWatchStatus: onWatchStatus),
+          ?watchCheckStatus,
+          Divider(height: 24, color: colors.border),
+          _OverviewActions(onCall: onCall, onJourney: onJourney),
+          ?voiceAction,
+          if (photoAction != null) ...[
+            const SizedBox(height: 10),
+            photoAction!,
+          ],
+        ],
+      ),
+    );
+  }
+}
 
+class _OverviewIdentity extends StatelessWidget {
+  const _OverviewIdentity({required this.device, this.onWatchStatus});
+  final Device device;
+  final VoidCallback? onWatchStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.guardianColors;
+    final careProfile = device.careProfile?.trim();
+    final profileLabel = careProfile == null || careProfile.isEmpty
+        ? 'Family member'
+        : GuardianCareProfileX.fromValue(careProfile).label;
+    final profile = Row(
+      children: [
+        ExcludeSemantics(
+          child: AvatarBubble(
+            initials: initialsFor(device.displayName).characters.first,
+            color: colors.accent,
+            size: 50,
+            ringWidth: 4,
+            filled: true,
+            imageUrl: device.avatarUrl,
+          ),
+        ),
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                device.displayName,
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                  letterSpacing: -.4,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                profileLabel,
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktop = constraints.maxWidth >= 760 && textScale <= 1.3;
-        final identity = _OverviewIdentity(
-          device: device,
-          desktop: desktop,
-          onWatchStatus: onWatchStatus,
-          watchCheckStatus: watchCheckStatus,
-          weather: weather,
+        final badge = InkWell(
+          onTap: onWatchStatus,
+          borderRadius: BorderRadius.circular(9),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Align(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: _ConnectionBadge(device: device),
+            ),
+          ),
         );
-        final actions = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        if (constraints.maxWidth < 290 ||
+            MediaQuery.textScalerOf(context).scale(14) > 18) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [profile, const SizedBox(height: 12), badge],
+          );
+        }
+        return Row(
           children: [
-            _OverviewActions(onCall: onCall, onJourney: onJourney),
-            ?voiceAction,
-            if (photoAction != null) ...[
-              const SizedBox(height: 12),
-              photoAction!,
-            ],
+            Expanded(child: profile),
+            const SizedBox(width: 8),
+            badge,
           ],
-        );
-
-        return GuardianSurface(
-          radius: 16,
-          padding: EdgeInsets.all(desktop ? 20 : 14),
-          child: desktop
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(child: identity),
-                    const SizedBox(width: 28),
-                    SizedBox(width: 340, child: actions),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    identity,
-                    Divider(height: 24, color: colors.border),
-                    actions,
-                  ],
-                ),
         );
       },
     );
   }
 }
 
-class _OverviewIdentity extends StatelessWidget {
-  const _OverviewIdentity({
-    required this.device,
-    required this.desktop,
-    this.weather,
-    this.onWatchStatus,
-    this.watchCheckStatus,
-  });
-
+class _ConnectionBadge extends StatelessWidget {
+  const _ConnectionBadge({required this.device});
   final Device device;
-  final bool desktop;
-  final Widget? weather;
-  final VoidCallback? onWatchStatus;
-  final Widget? watchCheckStatus;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final textTheme = Theme.of(context).textTheme;
-    final careProfile = device.careProfile?.trim();
-    final profileLabel = careProfile == null || careProfile.isEmpty
-        ? 'Family member'
-        : GuardianCareProfileX.fromValue(careProfile).label;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final profile = Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ExcludeSemantics(
-                  child: AvatarBubble(
-                    initials: initialsFor(device.displayName),
-                    color: colors.accent,
-                    size: desktop ? 52 : 48,
-                    ringWidth: 1,
-                    imageUrl: device.avatarUrl,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        device.displayName,
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontSize: desktop ? 22 : 18,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                          letterSpacing: -0.3,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        profileLabel,
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontSize: 14,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-            final conditions = weather ?? const ProfileWeatherPanel();
-            if (!device.allowsShared('location')) return profile;
-            final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-            if (constraints.maxWidth >= 620 && textScale <= 1.3) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(child: profile),
-                  const SizedBox(width: 16),
-                  SizedBox(width: 296, child: conditions),
-                ],
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [profile, const SizedBox(height: 12), conditions],
-            );
-          },
+    final phase = device.connectivityPhase();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final (label, icon, tone) = switch (phase) {
+      DeviceConnectivityPhase.live => (
+        'Connected',
+        Icons.check_rounded,
+        colors.safe,
+      ),
+      DeviceConnectivityPhase.reconnecting => (
+        'Reconnecting',
+        Icons.sync_rounded,
+        dark ? GuardianColors.warning : GuardianColors.warningText,
+      ),
+      DeviceConnectivityPhase.offline => (
+        'Offline',
+        Icons.sensors_off_outlined,
+        colors.textSecondary,
+      ),
+    };
+    return Semantics(
+      label: 'Watch ${label.toLowerCase()}',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(tone.withValues(alpha: .10), colors.surface),
+          borderRadius: BorderRadius.circular(9),
+          border: colors.highContrast ? Border.all(color: tone) : null,
         ),
-        Divider(height: 24, color: colors.border),
-        _OverviewWatchState(device: device, onWatchStatus: onWatchStatus),
-        ?watchCheckStatus,
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: tone),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: tone,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -200,60 +221,33 @@ class _OverviewWatchState extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final phase = device.connectivityPhase();
-    final connectionLabel = switch (phase) {
-      DeviceConnectivityPhase.live => 'Watch connected',
-      DeviceConnectivityPhase.reconnecting => 'Watch reconnecting',
-      DeviceConnectivityPhase.offline => 'Watch offline',
-    };
     final connectionIcon = switch (phase) {
       DeviceConnectivityPhase.live => Icons.circle,
       DeviceConnectivityPhase.reconnecting => Icons.sync_rounded,
       DeviceConnectivityPhase.offline => Icons.sensors_off_rounded,
     };
     final connectionColor = switch (phase) {
-      DeviceConnectivityPhase.live =>
-        dark ? colors.accent : GuardianColors.safeText,
+      DeviceConnectivityPhase.live => colors.safe,
       DeviceConnectivityPhase.reconnecting =>
         dark ? GuardianColors.warning : GuardianColors.warningText,
       DeviceConnectivityPhase.offline => colors.textSecondary,
     };
-    final statusContent = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final statusContent = Row(
       children: [
-        Row(
-          children: [
-            SizedBox(
-              width: 18,
-              child: Icon(
-                connectionIcon,
-                size: phase == DeviceConnectivityPhase.live ? 12 : 18,
-                color: connectionColor,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                connectionLabel,
-                style: textTheme.bodyMedium?.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ),
-          ],
+        Icon(
+          connectionIcon,
+          size: phase == DeviceConnectivityPhase.live ? 8 : 16,
+          color: connectionColor,
         ),
-        const SizedBox(height: 3),
-        Padding(
-          padding: const EdgeInsets.only(left: 26),
+        const SizedBox(width: 9),
+        Expanded(
           child: Text(
             deviceWatchCheckInLabel(
               device,
             ).replaceFirst('Watch checked in', 'Checked in'),
             style: textTheme.bodyMedium?.copyWith(
-              fontSize: 14,
-              color: colors.textSecondary,
+              fontSize: 13,
+              color: colors.textPrimary,
             ),
           ),
         ),
@@ -293,7 +287,7 @@ class _OverviewWatchState extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 310 || textScale > 1.25) {
+        if (constraints.maxWidth < 260 || textScale > 1.25) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [status, const SizedBox(height: 10), battery],
@@ -355,7 +349,7 @@ class _OverviewBattery extends StatelessWidget {
             semanticsLabel: label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: color,
             ),
           ),
@@ -390,7 +384,7 @@ class _OverviewActions extends StatelessWidget {
           EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         ),
       ),
-      child: const _ActionLabel(icon: Icons.call_rounded, label: 'Call watch'),
+      child: const _ActionLabel(icon: Icons.call_outlined, label: 'Call watch'),
     );
 
     return LayoutBuilder(
@@ -406,7 +400,7 @@ class _OverviewActions extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: call),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(child: journey),
             ],
           ),

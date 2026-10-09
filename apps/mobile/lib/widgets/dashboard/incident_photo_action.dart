@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import '../../models/incident_photos.dart';
 import '../../screens/incident_photo_page.dart';
@@ -112,6 +113,7 @@ class _IncidentPhotoActionState extends State<IncidentPhotoAction>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OutlinedButton.icon(
+          style: GuardianControlStyles.tonal(context),
           key: ValueKey('incident-photos-${widget.imei}'),
           onPressed: open
               ? () async {

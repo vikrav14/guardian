@@ -308,7 +308,7 @@ void main() {
           ),
         );
         expect(find.text('Removal reported'), findsOneWidget);
-        expect(find.text('Watch connected'), findsOneWidget);
+        expect(find.text('Connected'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

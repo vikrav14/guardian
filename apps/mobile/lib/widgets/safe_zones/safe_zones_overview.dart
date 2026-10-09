@@ -97,7 +97,7 @@ class _SafeZonesOverviewState extends State<SafeZonesOverview> {
             style: TextStyle(
               color: colors.textPrimary,
               fontSize: compact ? 26 : 30,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               letterSpacing: -0.7,
             ),
           ),
@@ -394,7 +394,7 @@ class _ZoneDetails extends StatelessWidget {
                       'Unresolved emergency alert',
                       style: _body(context).copyWith(
                         color: colors.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -416,7 +416,7 @@ class _ZoneDetails extends StatelessWidget {
             Text(
               'Latest recorded event',
               style: _body(context).copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
             ),
@@ -512,7 +512,7 @@ class _ZoneSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GuardianSurface(padding: padding, radius: 16, child: child);
+    return GuardianSurface(padding: padding, radius: 24, child: child);
   }
 }
 
@@ -524,7 +524,7 @@ TextStyle _body(BuildContext context) => TextStyle(
 TextStyle _title(BuildContext context) => TextStyle(
   color: context.guardianColors.textPrimary,
   fontSize: 21,
-  fontWeight: FontWeight.w700,
+  fontWeight: FontWeight.w600,
   height: 1.25,
 );
 ButtonStyle _primary(BuildContext context) =>

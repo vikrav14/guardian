@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/layout/guardian_scenic_background.dart';
 
 import '../journey/journey_models.dart';
 import '../journey/journey_v2_data.dart';
@@ -70,12 +71,14 @@ class _JourneyPageState extends State<JourneyPage> {
     if (!decision.allowed) {
       return Scaffold(
         backgroundColor: colors.canvas,
-        body: _JourneyStateMessage(
-          icon: Icons.lock_outline_rounded,
-          title: decision.title,
-          message: decision.message,
-          actionLabel: 'Go back',
-          onAction: () => Navigator.maybePop(context),
+        body: GuardianScenicBackground(
+          child: _JourneyStateMessage(
+            icon: Icons.lock_outline_rounded,
+            title: decision.title,
+            message: decision.message,
+            actionLabel: 'Go back',
+            onAction: () => Navigator.maybePop(context),
+          ),
         ),
       );
     }
@@ -87,107 +90,105 @@ class _JourneyPageState extends State<JourneyPage> {
 
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1180),
-            child: StreamBuilder<List<JourneyRecord>>(
-              key: ValueKey(effectiveDay),
-              stream: DeviceService().watchDayJourneys(
-                widget.imei,
-                effectiveDay,
-                subscription: subscription,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  final errorSignature = '${snapshot.error}';
-                  if (_lastReportedJourneyError != errorSignature) {
-                    _lastReportedJourneyError = errorSignature;
-                    debugPrint(
-                      '[journey] Failed to load ${widget.imei} for '
-                      '${effectiveDay.toIso8601String()}: ${snapshot.error}',
-                    );
-                    if (snapshot.stackTrace != null) {
-                      debugPrintStack(
-                        label: '[journey] Journey stream stack trace',
-                        stackTrace: snapshot.stackTrace,
+      body: GuardianScenicBackground(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: StreamBuilder<List<JourneyRecord>>(
+                key: ValueKey(effectiveDay),
+                stream: DeviceService().watchDayJourneys(
+                  widget.imei,
+                  effectiveDay,
+                  subscription: subscription,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    final errorSignature = '${snapshot.error}';
+                    if (_lastReportedJourneyError != errorSignature) {
+                      _lastReportedJourneyError = errorSignature;
+                      debugPrint(
+                        '[journey] Failed to load ${widget.imei} for '
+                        '${effectiveDay.toIso8601String()}: ${snapshot.error}',
                       );
-                    }
-                  }
-                  return _JourneyStateMessage(
-                    icon: Icons.cloud_off_rounded,
-                    title: 'Journey unavailable',
-                    message:
-                        'Guardian could not load recorded journeys for this day.',
-                    actionLabel: 'Choose another day',
-                    onAction: _chooseDay,
-                  );
-                }
-
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: GuardianColors.safe,
-                    ),
-                  );
-                }
-
-                _lastReportedJourneyError = null;
-
-                final journeys = snapshot.data!;
-                if (journeys.isEmpty) {
-                  return _JourneyStateMessage(
-                    icon: Icons.route_outlined,
-                    title: 'No journey recorded',
-                    message:
-                        'There is no recorded journey for the selected day.',
-                    actionLabel: 'Choose another day',
-                    onAction: _chooseDay,
-                  );
-                }
-
-                final selected = journeyV2SelectRecord(
-                  journeys,
-                  selectedId: _selectedId,
-                );
-                return StreamBuilder<JourneyRoutePresentation?>(
-                  key: ValueKey('journey-presentation-${selected?.id}'),
-                  initialData: null,
-                  stream: selected == null
-                      ? null
-                      : DeviceService().watchJourneyPresentation(
-                          widget.imei,
-                          selected.id,
-                        ),
-                  builder: (context, presentationSnapshot) {
-                    return StreamBuilder<List<Geofence>>(
-                      initialData: const <Geofence>[],
-                      stream: geofenceStream,
-                      builder: (context, geofenceSnapshot) {
-                        return JourneyV2Dashboard(
-                          deviceName: widget.deviceName,
-                          deviceImei: widget.imei,
-                          avatarUrl: widget.avatarUrl,
-                          day: effectiveDay,
-                          journeys: journeys,
-                          selected: selected,
-                          presentation: presentationSnapshot.data,
-                          originGeofence: journeyOriginGeofence(
-                            selected,
-                            geofenceSnapshot.data ?? const <Geofence>[],
-                            imei: widget.imei,
-                          ),
-                          onSelectJourney: (journey) {
-                            setState(() => _selectedId = journey.id);
-                          },
-                          onBack: () => Navigator.maybePop(context),
-                          onChooseDay: _chooseDay,
+                      if (snapshot.stackTrace != null) {
+                        debugPrintStack(
+                          label: '[journey] Journey stream stack trace',
+                          stackTrace: snapshot.stackTrace,
                         );
-                      },
+                      }
+                    }
+                    return _JourneyStateMessage(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'Journey unavailable',
+                      message:
+                          'Guardian could not load recorded journeys for this day.',
+                      actionLabel: 'Choose another day',
+                      onAction: _chooseDay,
                     );
-                  },
-                );
-              },
+                  }
+
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  _lastReportedJourneyError = null;
+
+                  final journeys = snapshot.data!;
+                  if (journeys.isEmpty) {
+                    return _JourneyStateMessage(
+                      icon: Icons.route_outlined,
+                      title: 'No journey recorded',
+                      message:
+                          'There is no recorded journey for the selected day.',
+                      actionLabel: 'Choose another day',
+                      onAction: _chooseDay,
+                    );
+                  }
+
+                  final selected = journeyV2SelectRecord(
+                    journeys,
+                    selectedId: _selectedId,
+                  );
+                  return StreamBuilder<JourneyRoutePresentation?>(
+                    key: ValueKey('journey-presentation-${selected?.id}'),
+                    initialData: null,
+                    stream: selected == null
+                        ? null
+                        : DeviceService().watchJourneyPresentation(
+                            widget.imei,
+                            selected.id,
+                          ),
+                    builder: (context, presentationSnapshot) {
+                      return StreamBuilder<List<Geofence>>(
+                        initialData: const <Geofence>[],
+                        stream: geofenceStream,
+                        builder: (context, geofenceSnapshot) {
+                          return JourneyV2Dashboard(
+                            deviceName: widget.deviceName,
+                            deviceImei: widget.imei,
+                            avatarUrl: widget.avatarUrl,
+                            day: effectiveDay,
+                            journeys: journeys,
+                            selected: selected,
+                            presentation: presentationSnapshot.data,
+                            originGeofence: journeyOriginGeofence(
+                              selected,
+                              geofenceSnapshot.data ?? const <Geofence>[],
+                              imei: widget.imei,
+                            ),
+                            onSelectJourney: (journey) {
+                              setState(() => _selectedId = journey.id);
+                            },
+                            onBack: () => Navigator.maybePop(context),
+                            onChooseDay: _chooseDay,
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ),

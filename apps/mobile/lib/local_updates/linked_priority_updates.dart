@@ -215,14 +215,22 @@ class _LinkedPriorityUpdatesState extends State<LinkedPriorityUpdates> {
     final item = items.isEmpty
         ? null
         : items[_index.clamp(0, items.length - 1)];
-    final key = item == null ? null : '${item.id}:${item.revision}';
-    final showWeather = item == null || _weatherFor == key;
+    // The everyday overview uses the compact weather panel from the island
+    // design. Reserve report space only when there is a relevant local update.
+    // Applicability, expiry and permission checks remain above this UI choice.
+    if (item == null) {
+      return KeyedSubtree(
+        key: const ValueKey('priority-slot'),
+        child: widget.weather,
+      );
+    }
+    final key = '${item.id}:${item.revision}';
+    final showWeather = _weatherFor == key;
     final scale = (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(
       1.0,
       4.0,
     );
-    // Reserve the same responsive slot in every state. Reports never push the
-    // watch status/actions down when they arrive, expire or are dismissed.
+    // Keep a stable slot while switching between a relevant report and weather.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -238,25 +246,24 @@ class _LinkedPriorityUpdatesState extends State<LinkedPriorityUpdates> {
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
-              if (item != null)
-                TextButton.icon(
-                  onPressed: () =>
-                      setState(() => _weatherFor = showWeather ? null : key),
-                  icon: Icon(
-                    showWeather ? Icons.article_outlined : Icons.cloud_outlined,
-                    size: 18,
-                  ),
-                  label: Text(
-                    showWeather
-                        ? 'Update'
-                        : widget.temperatureC == null
-                        ? 'Weather'
-                        : '${widget.temperatureC!.round()}°C',
-                    semanticsLabel: showWeather
-                        ? 'Show local update'
-                        : 'Show weather',
-                  ),
+              TextButton.icon(
+                onPressed: () =>
+                    setState(() => _weatherFor = showWeather ? null : key),
+                icon: Icon(
+                  showWeather ? Icons.article_outlined : Icons.cloud_outlined,
+                  size: 18,
                 ),
+                label: Text(
+                  showWeather
+                      ? 'Update'
+                      : widget.temperatureC == null
+                      ? 'Weather'
+                      : '${widget.temperatureC!.round()}°C',
+                  semanticsLabel: showWeather
+                      ? 'Show local update'
+                      : 'Show weather',
+                ),
+              ),
             ],
           ),
         ),

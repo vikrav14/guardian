@@ -8,7 +8,7 @@ class GuardianSurface extends StatelessWidget {
   const GuardianSurface({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(20),
     this.radius = 24,
     this.color,
     this.tint,
@@ -29,15 +29,23 @@ class GuardianSurface extends StatelessWidget {
     final colors = context.guardianColors;
     final highContrast =
         MediaQuery.maybeOf(context)?.highContrast == true ||
+        colors.highContrast ||
         colors.border == GuardianThemeColors.elderCare.border;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final base = highContrast ? colors.surface : color ?? colors.surface;
+    final base = highContrast
+        ? colors.surface
+        : color ?? (tonal ? colors.surfaceMuted : colors.surface);
     final tone = tint ?? colors.accent;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius),
       side: BorderSide(
         color:
-            borderColor ?? (highContrast ? colors.textPrimary : colors.border),
+            borderColor ??
+            (highContrast
+                ? colors.textPrimary
+                : tonal
+                ? Color.lerp(colors.border, tone, .12)!
+                : colors.border),
         width: highContrast && borderWidth < 2 ? 2 : borderWidth,
       ),
     );
@@ -61,20 +69,7 @@ class GuardianSurface extends StatelessWidget {
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: Ink(
-          decoration: BoxDecoration(
-            gradient: highContrast
-                ? null
-                : LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    stops: const [0, .48, 1],
-                    colors: [
-                      Color.lerp(base, tone, tonal ? .035 : .015)!,
-                      Color.lerp(base, tone, tonal ? .012 : .003)!,
-                      Color.lerp(base, tone, tonal ? .075 : .045)!,
-                    ],
-                  ),
-          ),
+          decoration: BoxDecoration(color: base),
           child: Padding(padding: padding, child: child),
         ),
       ),
