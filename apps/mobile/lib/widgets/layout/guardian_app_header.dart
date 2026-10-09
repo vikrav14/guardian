@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../brand/guardian_pin_logo.dart';
 import '../guardian_widgets.dart';
-import '../theme/theme_picker.dart';
 
 class GuardianAppHeader extends StatelessWidget {
   const GuardianAppHeader({
@@ -67,12 +66,6 @@ class GuardianAppHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _HeaderButton(
-                tooltip: 'Change theme',
-                icon: Icons.palette_outlined,
-                onTap: () => showThemePickerDialog(context),
-              ),
-              const SizedBox(width: 4),
               _HeaderButton(
                 tooltip: 'Notifications',
                 icon: Icons.notifications_none_rounded,
