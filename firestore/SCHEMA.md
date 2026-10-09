@@ -563,7 +563,10 @@ unaltered GPS evidence.
 | notifiedAt | timestamp \| null | |
 | createdAt | timestamp | |
 
-### Physical SOS `sosLocationSnapshot`
+### Physical SOS `sosLocationSnapshot` (legacy version 1)
+
+This section describes stored v1 alerts. New physical SOS and fall alerts use
+the version 2 contract below; neither reader rewrites existing incidents.
 
 The gateway captures this top-level field at physical SOS receipt, before
 notification work. It is **not** stored in the client-writable `payload` map.
@@ -603,7 +606,27 @@ or resent. Fall snapshot semantics and raw tracking data are unchanged.
 
 See `docs/services/sos-location.md` for the physical QA checklist and limits.
 
-### Fall `payload.locationSnapshot`
+### Current incident snapshots (version 2)
+
+New physical SOS `sosLocationSnapshot` and fall `payload.locationSnapshot` use
+`version: 2`, `policy: fresh_incident_evidence_v2`. The tables above and below
+describe immutable legacy v1 records, not new primary-pin selection.
+
+V2 has `capturedAt`, `state` (`fresh` or `unavailable`), `reason`, recomputed
+`ageSeconds`, `retainedSatellite: false`, `location`, `latestObservation`, and
+`homeWifiEvidence`. Location is either a recent GPS/network point or a validated
+Home saved-pin observation; otherwise it is null and there is no emergency map.
+Network points keep their own radius. Home points use `source: home_wifi`,
+`gpsValid: false`, `accuracyMeters: null`, and `placeLabel: Home`; their copied v4
+Home evidence and anchor must validate at receipt. No router hash is copied.
+
+Bounded clock normalization is allowed only for the received alarm packet,
+retaining `deviceRecordedAt` and `timeBasis: gateway_receipt_clock_skew` alongside
+the gateway-receipt `recordedAt`. Future database observations are rejected.
+See [current incident location](../docs/services/current-incident-location.md)
+for selection, expiry, immutable snapshots and hardware acceptance limits.
+
+### Fall `payload.locationSnapshot` (legacy version 1)
 
 The gateway freezes this map when it persists a V52 `fall` alert. Notification
 retries and later device movement must read this snapshot, never the mutable

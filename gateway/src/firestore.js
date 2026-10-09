@@ -126,7 +126,7 @@ async function migrateLegacyDeviceDoc(canonicalImei, protocolId) {
   console.log(`[firestore] migrated devices/${protocolId} → devices/${canonicalImei}`);
 }
 
-async function upsertDevice(imei, patch = {}) {
+async function upsertDevice(imei, patch = {}, { skipPlaceLookup = false } = {}) {
   const canonicalImei = normalizeImei(imei);
   const { protocolId, ...rest } = patch;
   const data = {
@@ -162,7 +162,7 @@ async function upsertDevice(imei, patch = {}) {
 
   // Phase 1: Reverse geocoding — populate placeLabel from lat/lng if not already set
   if (data.location && typeof data.location.lat === 'number' && typeof data.location.lng === 'number') {
-    if (!data.location.placeLabel) {
+    if (!data.location.placeLabel && !skipPlaceLookup) {
       const placeLabel = await reverseGeocodeToPlaceName(data.location.lat, data.location.lng);
       if (placeLabel) {
         data.location = { ...data.location, placeLabel };

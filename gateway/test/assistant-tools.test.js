@@ -77,7 +77,7 @@ test('getDeviceIntelligence returns topInsight facts only', async () => {
   assert.equal(result.insightCount, 1);
 });
 
-test('getLastLocation discloses a retained satellite fix and newer indoor observation', async () => {
+test('getLastLocation chooses recent indoor evidence over retained satellite history', async () => {
   const satelliteAt = new Date('2026-08-14T19:42:33.000Z');
   const approximateAt = new Date('2026-08-14T19:47:33.000Z');
   const result = await getLastLocation(
@@ -104,14 +104,14 @@ test('getLastLocation discloses a retained satellite fix and newer indoor observ
         },
       }],
     },
-    { imei: 'A' }
+    { imei: 'A' }, { now: approximateAt }
   );
 
-  assert.equal(result.accuracySource, 'gps');
-  assert.equal(result.accuracyMeters, null);
-  assert.equal(result.retainedSatellite, true);
+  assert.equal(result.accuracySource, 'wifi');
+  assert.equal(result.accuracyMeters, 308.701);
+  assert.equal(result.retainedSatellite, false);
   assert.equal(result.latestObservationSource, 'wifi');
-  assert.match(result.locationDisclosure, /last satellite fix/);
+  assert.match(result.locationDisclosure, /approximate network location/);
 });
 
 test('getRecentJourneys omits legacy drift and the reported network trip, then backfills GPS', async () => {

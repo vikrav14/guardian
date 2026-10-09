@@ -21,6 +21,10 @@ function incidentDateTime(value, timeZone = DEFAULT_TIME_ZONE) {
 function compactLocation(snapshot) {
   if (!snapshot?.location || snapshot.state === 'unavailable') return 'Location unavailable at the alert.';
   const loc = snapshot.location;
+  if (loc.source === 'home_wifi') {
+    const age = formatLocationAge(snapshot.ageSeconds);
+    return `Home Wi-Fi detected · near the saved Home pin (not GPS) · ${age === 'just now' ? 'less than 1 min' : age.replace(/ ago$/, '')} before alert receipt.`;
+  }
   const gps = loc.source === 'gps';
   const network = ['wifi', 'lbs'].includes(loc.source);
   // A retained pin is historical even if its timestamp is recent.

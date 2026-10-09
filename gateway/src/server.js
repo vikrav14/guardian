@@ -10,6 +10,7 @@ const { maybeAnnounceConnecting } = require('./connection-handshake');
 const { buildSessionPersistPatch, shouldForceSessionPersist, buildPresenceTouchPatch, SESSION_LIVE_PACKETS } = require('./connection-live');
 const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offline');
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
+const { normalizeReceivedLocationEvent } = require('./location-receipt-time');
 
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
 
@@ -39,10 +40,10 @@ const {
 
 const { evaluateGeofenceTransitions, getGeofencePresence } = require('./geofence');
 
-const { geolocateFromV } = require('./geolocate/google');
+const { geolocateFromV, reverseGeocodeToPlaceName } = require('./geolocate/google');
 const { buildLocationProvenancePatch } = require('./location-provenance');
-const { withFallLocationSnapshot } = require('./fall-location-snapshot');
-const { buildSosLocationSnapshot } = require('./sos-location-snapshot');
+const { buildIncidentLocationSnapshot } = require('./incident-location-evidence');
+const { enrichIncidentPlaceLabel, sameCoordinates } = require('./incident-place-label');
 const {
   extractV52TelemetryValues,
   buildV52TelemetryPatch,
@@ -274,11 +275,11 @@ setInterval(() => {
 
 
 
-async function persistDeviceState(imei, patch, gateReason, session) {
+async function persistDeviceState(imei, patch, gateReason, session, options) {
 
   const sessionPatch = buildSessionPersistPatch(session, patch);
 
-  await upsertDevice(imei, sessionPatch);
+  await upsertDevice(imei, sessionPatch, options);
 
   if (session) session.lastPresenceAt = Date.now();
 
@@ -1004,7 +1005,11 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
         // Capture pre-alarm evidence before geolocation/reporting/persistence
         // can yield to a later watch observation. Never read it at send time.
         let sosDeviceAtReceipt = null;
-        if (event.alarmType === 'sos') {
+        let incidentHomeEvidence = null;
+        if (['sos', 'fall'].includes(event.alarmType)) {
+          // Freeze validated radio evidence before any asynchronous lookup.
+          try { incidentHomeEvidence = getHomeWifiPriority(event.imei, eventReceivedAt.getTime()); }
+          catch (err) { console.warn('[incident] Home evidence unavailable:', err.message); }
           sosDeviceAtReceipt = { ...getLiveDeviceState(event.imei) };
           try {
             sosDeviceAtReceipt = await getDeviceDocument(event.imei)
@@ -1026,7 +1031,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
           alarmEvent = correctFleetHemisphere(alarmEvent);
         }
 
-        const alarmProvenance = alarmEvent.location
+        let alarmProvenance = alarmEvent.location
           ? buildLocationProvenancePatch(
               alarmEvent.location,
               alarmEvent.accuracySource,
@@ -1043,16 +1048,24 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
         const alarmType = alarmEvent.alarmType || 'other';
         const alarmAt = ['sos', 'fall'].includes(alarmType) ? eventReceivedAt : new Date();
-        const sosLocationSnapshot = alarmType === 'sos'
-          ? buildSosLocationSnapshot(sosDeviceAtReceipt, {
+        const incidentLocationSnapshot = ['sos', 'fall'].includes(alarmType)
+          ? await enrichIncidentPlaceLabel(buildIncidentLocationSnapshot(sosDeviceAtReceipt, {
               now: alarmAt,
+              homeEvidence: incidentHomeEvidence,
               observation: alarmProvenance.location ? {
                 ...alarmProvenance.location,
                 // A resolver completion time is not a device observation time.
                 recordedAt: event.location?.recordedAt || null,
               } : null,
-            })
+            }), { device: sosDeviceAtReceipt || {}, reverseGeocode: reverseGeocodeToPlaceName })
           : null;
+        const incidentPointMatchesAlarm = sameCoordinates(incidentLocationSnapshot?.location, alarmProvenance.location);
+        if (incidentPointMatchesAlarm && incidentLocationSnapshot.location.placeLabel) {
+          alarmProvenance = buildLocationProvenancePatch(
+            { ...alarmProvenance.location, placeLabel: incidentLocationSnapshot.location.placeLabel },
+            alarmProvenance.accuracySource, alarmEvent.gpsValid);
+          alarmEvent = { ...alarmEvent, location: alarmProvenance.location };
+        }
         const alarmRaw =
 
           alarmEvent.alarmCode != null ? { raw: { alarmCode: alarmEvent.alarmCode } } : {};
@@ -1114,26 +1127,13 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
 
         await runTrackingSideEffect(event, 'persistence', () =>
-          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session));
+          persistDeviceState(alarmEvent.imei, alarmPatch, 'alarm', session,
+            // The selected point already used its bounded lookup. Do not
+            // retry through ordinary persistence after a provider timeout.
+            { skipPlaceLookup: incidentPointMatchesAlarm }));
 
         if (alarmType === 'fall') {
-          let deviceAtFall = null;
-          try {
-            deviceAtFall = await getDeviceDocument(alarmEvent.imei);
-          } catch (err) {
-            console.error(
-              `[fall] device snapshot lookup failed for ${alarmEvent.imei}: ${err.message}`
-            );
-          }
-          alarmPayload = withFallLocationSnapshot(
-            alarmType,
-            alarmPayload,
-            deviceAtFall || {
-              ...getLiveDeviceState(alarmEvent.imei),
-              ...alarmPatch,
-            },
-            { now: alarmAt }
-          );
+          alarmPayload = { ...alarmPayload, locationSnapshot: incidentLocationSnapshot };
         }
 
         if (alarmEvent.location) {
@@ -1206,7 +1206,7 @@ async function applyEvents(events, session, packetArgs, receivedAt) {
 
             payload: alarmPayload,
 
-            ...(sosLocationSnapshot ? { sosLocationSnapshot } : {}),
+            ...(alarmType === 'sos' ? { sosLocationSnapshot: incidentLocationSnapshot } : {}),
 
           });
         } else {
@@ -1404,6 +1404,7 @@ const server = net.createServer((socket) => {
       wearWireCapture?.observeIdentity(socket, session);
 
       const receivedAt = new Date();
+      const liveEvents = events.map(event => normalizeReceivedLocationEvent(event, receivedAt));
       const capturedAlarm = wearCapture?.observePacket({
         socket, session, frame, decoded, receivedAt,
       });
@@ -1411,7 +1412,7 @@ const server = net.createServer((socket) => {
       catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
         try {
-          for (const event of events) if (event.type === 'location') {
+          for (const event of liveEvents) if (event.type === 'location') {
             journeyReliability.capture(event, receivedAt, getHomeWifiPriority(event.imei));
           }
         } catch (error) {
@@ -1445,7 +1446,7 @@ const server = net.createServer((socket) => {
       // Independent of capture success and request flags; preserve exclusion
       // on the receipt event even if it is applied after the trial resumes.
       temperatureTrialQuarantine.markEvents(events);
-      const apply = () => applyEvents(events, session, decoded.args, receivedAt);
+      const apply = () => applyEvents(liveEvents, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&
           !events.some(e => e.type === 'alarm')
         ? journeyReliability.enqueue(events.find(e => e.imei)?.imei, apply) : apply();

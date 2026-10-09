@@ -92,7 +92,7 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
       lastHeartbeatAt: new Date(now) }, { now: new Date(now) });
     if (second < 232 || second === 394) {
       assert.equal(data.homeWifiDetected, false, `Home unavailable at ${second}s`);
-      assert.equal(data.lat, gps.lat);
+      assert.equal(data.lat, null, 'ordinary location replies still reject old GPS as current');
     } else {
       assert.equal(data.homeWifiDetected, true, `Home must stay usable at ${second}s`);
       assert.equal(data.lat, -20.15);
