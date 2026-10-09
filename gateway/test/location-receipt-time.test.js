@@ -72,7 +72,7 @@ test('old, undated and larger future reports cannot borrow current receipt fresh
   }
 });
 
-test('replayed future-radio reports cannot become a sustained twenty-second match', () => {
+test('replayed clock-corrected radio reports cannot renew the first Home sighting', () => {
   const observer = createWifiHomeObserver({ enabled: true, imei, hashKey,
     routerHash: fingerprintRouter({ imei, routerId, hashKey }) });
   const raw = { ...packet(now + 15000), gpsValid: false, accuracySource: 'wifi',
@@ -80,6 +80,11 @@ test('replayed future-radio reports cannot become a sustained twenty-second matc
     wifiAccessPoints: [{ macAddress: routerId, signalStrength: -95 }] };
   for (const delay of [0, 5000, 10000, 15000, 20000, 30000]) {
     observer.observe(normalize(raw, new Date(now + delay)), now + delay);
-    assert.notEqual(observer.snapshot(now + delay).matchState, 'matched');
+    const status = observer.snapshot(now + delay);
+    assert.equal(status.matchState, 'matched');
+    assert.equal(status.observedAt, new Date(now).toISOString());
+    assert.equal(status.expiresAt, new Date(now + 120_000).toISOString());
+    assert.equal(status.counts.qualified, 1);
   }
+  assert.equal(observer.snapshot(now + 120_000).matchState, 'expired');
 });

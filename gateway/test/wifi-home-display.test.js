@@ -207,7 +207,8 @@ test('display publication rejects candidates and never extends beyond the source
   const run = publisherHarness(); run.state.match();
   const binding = { ready: true, anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15, radiusMeters: 150 },
     validUntilMs: clock + 300_000 };
-  assert.equal(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 2 }, binding, clock), null);
+  assert.equal(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 0 }, binding, clock), null);
+  assert.ok(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 1 }, binding, clock));
   const value = buildHomeWifiDisplay(run.state.observation, binding, clock);
   assert.equal(value.expiresAt, run.state.observation.expiresAt);
   assert.deepEqual(Object.keys(value.anchor).sort(), ['geofenceId', 'label', 'lat', 'lng', 'radiusMeters']);

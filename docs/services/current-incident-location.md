@@ -153,3 +153,25 @@ retained its original 14:15:39 device time beside its 14:15:36.108 receipt time.
 This verifies actual Home recovery and the two dashboard displays. Weak-only
 radio acceptance is regression-tested; the final observed router signal was
 -68 dBm. A walk-away/router-loss test and new SOS/fall tests remain pending.
+
+## Home recovery with ten-minute reporting — 9 October afternoon
+
+The owner reported that Home kept reverting to an approximate location while
+stationary at home. Live diagnostics showed ten-minute reporting but a
+qualification rule requiring three router sightings no more than one minute
+apart. An isolated fresh report therefore never restored Home. A brief
+one-minute diagnostic also exposed normal delivery jitter (61.935 seconds)
+resetting that sequence. At the owner's direction, normal automatic ten-minute
+reporting was restored at 14:48 MUT; faster reporting is not the solution.
+
+A fresh exact sighting of the enrolled router now establishes Home proximity
+on its own. The saved Home binding, valid numeric signal, source/receipt age,
+two-minute expiry and rejection of unknown routers remain enforced. Between
+reports, Home can expire and a recent network estimate can be shown. The next
+fresh matching radio report restores Home; time alone never does. Duplicate
+clock-corrected reports are deduplicated using their preserved device timestamp,
+so replay cannot renew Home. This does not change the normal reporting interval
+or imply that Home remains current throughout a ten-minute reporting gap.
+
+Regression tests cover ten-minute expiry/recovery cycles, cellular-only gaps,
+restart, clock-corrected replay and the existing invalid-router/time cases.

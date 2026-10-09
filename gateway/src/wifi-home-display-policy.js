@@ -26,7 +26,7 @@ function evaluateHomeWifiDisplay(observation, binding, nowMs) {
   }
   if (observation?.enabled !== true || observation?.configured !== true ||
       observation.matchState !== 'matched' || !Number.isInteger(observation.consecutiveMatches) ||
-      observation.consecutiveMatches < 3) return unavailable(observation?.reason || 'awaiting_router_evidence');
+      observation.consecutiveMatches < 1) return unavailable(observation?.reason || 'awaiting_router_evidence');
   const observedAt = millis(observation.observedAt);
   const expiresAt = Math.min(millis(observation.expiresAt), binding.validUntilMs);
   if (!Number.isFinite(nowMs) || !Number.isFinite(observedAt) || !Number.isFinite(expiresAt) ||

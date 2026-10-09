@@ -61,7 +61,7 @@ test('cellular-only reports cannot create, refresh or indefinitely retain Home e
   }
   assert.equal(observer.observe(report(170, false), start + 170_000).matchState, 'expired');
   const resumed = observer.observe(report(175, true), start + 175_000);
-  assert.equal(resumed.matchState, 'candidate');
+  assert.equal(resumed.matchState, 'matched');
   assert.equal(resumed.consecutiveMatches, 1, 'cellular packets cannot bridge a long router gap');
 });
 
@@ -77,7 +77,7 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
       anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15, radiusMeters: 150 } }),
     readObservation: at => observer.snapshot(at),
     resetObservation: () => { observer = createWifiHomeObserver(options); },
-    persist: async value => { homeWifiPresence = value; writes.push(value); },
+    persist: async value => { homeWifiPresence = value; writes.push({ at: now, value }); },
   });
   await publisher.tick();
   const sequence = new Map([[0, true], [184, true], [194, true], [208, false],
@@ -90,7 +90,7 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
     await publisher.tick();
     const data = buildLocationReplyData({ homeWifiPresence, lastSatelliteLocation: gps,
       lastHeartbeatAt: new Date(now) }, { now: new Date(now) });
-    if (second < 232 || second === 394) {
+    if ((second >= 120 && second < 184) || second === 394) {
       assert.equal(data.homeWifiDetected, false, `Home unavailable at ${second}s`);
       assert.equal(data.lat, null, 'old GPS is not a current fallback');
     } else {
@@ -98,7 +98,7 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
       assert.equal(data.lat, -20.15);
       assert.match(formatLocationReply({ name: 'Test wearer', ...data }), /Home Wi-Fi detected/);
       const observedAt = Date.parse(homeWifiPresence.observedAt);
-      assert.ok([232, 274].includes((observedAt - start) / 1000));
+      assert.ok([0, 184, 194, 232, 274].includes((observedAt - start) / 1000));
       assert.equal(data.recordedAt, homeWifiPresence.observedAt);
       // Renewals may wait for the 20-second write bound. They must keep the
       // actual prior source age until the next radio observation is published.
@@ -107,6 +107,36 @@ test('reported long pause then mixed scans reaches the Home publisher and expire
     }
   }
   assert.equal(homeWifiPresence, null);
-  assert.ok(writes.length < 15, 'cellular/heartbeat traffic must not cause a write per packet');
+  for (let index = 1; index < writes.length; index++) {
+    const previous = writes[index - 1], current = writes[index];
+    if (previous.value && current.value && current.value.expiresAt >= previous.value.expiresAt) {
+      assert.ok(current.at - previous.at >= 20_000, 'valid Home renewals remain rate-limited');
+    }
+  }
+  publisher.stop();
+});
+
+test('normal ten-minute router reports republish Home after expiry without faster reporting', async () => {
+  let now = start;
+  const observer = createWifiHomeObserver(options);
+  let homeWifiPresence = null;
+  const publisher = createHomeWifiPublisher({ now: () => now,
+    readBinding: async at => ({ ready: true, key: 'synthetic-home-owner', validUntilMs: at + 60_000,
+      anchor: { geofenceId: 'synthetic-home', lat: -20.15, lng: 57.15, radiusMeters: 150 } }),
+    readObservation: at => observer.snapshot(at), resetObservation: () => {},
+    persist: async value => { homeWifiPresence = value; },
+  });
+  await publisher.tick();
+  for (const second of [0, 600, 1200]) {
+    now = start + second * 1000;
+    observer.observe(report(second, true), now);
+    await publisher.tick();
+    assert.equal(buildLocationReplyData({ homeWifiPresence }, { now: new Date(now) }).homeWifiDetected, true);
+    assert.equal(homeWifiPresence.observedAt, new Date(now).toISOString());
+    now += 120_000;
+    observer.observe(report(second + 120, false), now);
+    await publisher.tick();
+    assert.equal(homeWifiPresence, null, 'time and cellular-only reports cannot restore Home');
+  }
   publisher.stop();
 });
