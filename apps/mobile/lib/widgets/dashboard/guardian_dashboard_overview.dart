@@ -100,7 +100,7 @@ class GuardianDashboardOverview extends StatelessWidget {
             style: TextStyle(color: colors.textSecondary, fontSize: 15),
           ),
         ],
-        const SizedBox(height: 76),
+        SizedBox(height: compact ? 20 : 76),
         if (hasError) ...[
           _DashboardNotice(
             icon: Icons.cloud_off_outlined,
