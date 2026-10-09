@@ -108,7 +108,9 @@ class GuardianSideMenu extends StatelessWidget {
                       const SizedBox(height: 8),
                     ],
                     for (final destination
-                        in GuardianMenuDestination.values) ...[
+                        in GuardianMenuDestination.values.where(
+                          (item) => item != GuardianMenuDestination.alerts,
+                        )) ...[
                       if (destination == GuardianMenuDestination.journey)
                         collapsed
                             ? Padding(

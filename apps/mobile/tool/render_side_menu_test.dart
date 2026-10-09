@@ -106,11 +106,6 @@ void main() {
                               ),
                             ),
                             IconButton(
-                              tooltip: 'Change theme',
-                              onPressed: () {},
-                              icon: const Icon(Icons.palette_outlined),
-                            ),
-                            IconButton(
                               tooltip: 'Notifications',
                               onPressed: () => go(4),
                               icon: const Icon(
