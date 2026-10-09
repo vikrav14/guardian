@@ -10,6 +10,7 @@ const { maybeAnnounceConnecting } = require('./connection-handshake');
 const { buildSessionPersistPatch, shouldForceSessionPersist, buildPresenceTouchPatch, SESSION_LIVE_PACKETS } = require('./connection-live');
 const { scheduleDeviceOffline, cancelPendingOffline } = require('./device-offline');
 const { correctFleetHemisphere } = require('./fleet-hemisphere');
+const { normalizeReceivedLocationEvent } = require('./location-receipt-time');
 
 const { extractFrames, decodeFrame, handlePacket } = require('./protocol/gt06');
 
@@ -1403,6 +1404,7 @@ const server = net.createServer((socket) => {
       wearWireCapture?.observeIdentity(socket, session);
 
       const receivedAt = new Date();
+      const liveEvents = events.map(event => normalizeReceivedLocationEvent(event, receivedAt));
       const capturedAlarm = wearCapture?.observePacket({
         socket, session, frame, decoded, receivedAt,
       });
@@ -1410,7 +1412,7 @@ const server = net.createServer((socket) => {
       catch { console.warn('[wear-evidence] unavailable; wearing remains unconfirmed'); }
       if (journeyReliability) {
         try {
-          for (const event of events) if (event.type === 'location') {
+          for (const event of liveEvents) if (event.type === 'location') {
             journeyReliability.capture(event, receivedAt, getHomeWifiPriority(event.imei));
           }
         } catch (error) {
@@ -1444,7 +1446,7 @@ const server = net.createServer((socket) => {
       // Independent of capture success and request flags; preserve exclusion
       // on the receipt event even if it is applied after the trial resumes.
       temperatureTrialQuarantine.markEvents(events);
-      const apply = () => applyEvents(events, session, decoded.args, receivedAt);
+      const apply = () => applyEvents(liveEvents, session, decoded.args, receivedAt);
       const pending = journeyReliability && events.some(e => e.type === 'location') &&
           !events.some(e => e.type === 'alarm')
         ? journeyReliability.enqueue(events.find(e => e.imei)?.imei, apply) : apply();

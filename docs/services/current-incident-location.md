@@ -113,3 +113,32 @@ Runtime configuration, ngrok endpoints and the existing release features were
 preserved. This is a gateway-only correction; the web and Android release above
 already render the snapshot's place name. The already-delivered alert remains
 unchanged; a new physical alert with this correction still needs acceptance.
+
+## Dashboard and Home follow-up — 9 October afternoon
+
+The weather panel incorrectly preferred a historical Home sighting over a newer
+Wi-Fi/cell observation. Gateway and client now select fresh qualified Home first,
+then the newest valid location evidence. Historical Home remains history and
+cannot override a newer network estimate. Weather can still describe a labelled
+last-known area for up to 24 hours; the map keeps its ten-minute limit.
+
+At the pilot owner's request, repeated sightings of the saved router now count
+even with weak valid signal (-120 to 0 dBm). Router identity, three reports over
+20 seconds, maximum one-minute gaps and two-minute expiry remain required. This
+is evidence of proximity to the saved router, not proof of being inside a house.
+
+Live diagnostics at 14:08–14:09 MUT also showed genuine watch reports arriving
+2.7–2.8 seconds before their device timestamp. Journey ingress rejected them
+before Home observation. Newly received location packets with a clock lead of
+at most 15 seconds now use that packet's receipt time for live processing and
+durable capture, retaining `deviceRecordedAt` and
+`timeBasis: gateway_receipt_location_clock_skew`. Original decoded evidence and
+alarm handling remain unchanged. Old, missing and larger future timestamps do
+not gain receipt freshness; stored database records never pass this correction.
+
+Validation: 1,810 gateway tests pass, including weak-router clock-lead replay,
+GPS durability with both timestamps, stale/future rejection and duplicate-radio
+replay. The composite runtime passes 15 focused location/incident/dispatch tests.
+The composite app passes 860 tests and clean analysis. The dashboard update is
+published on guardian-fbadd.web.app; Android 29859007 is installed on the Samsung
+with application UID, first-install time and data-directory inodes preserved.
