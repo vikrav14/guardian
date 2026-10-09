@@ -147,9 +147,24 @@ function publisherHarness() {
   return { state, ...publisher };
 }
 
+test('first radio sighting survives initial binding, while a changed binding requires new evidence', async () => {
+  const run = publisherHarness();
+  run.state.match();
+  run.state.observation.consecutiveMatches = 1;
+  await run.tick();
+  assert.equal(run.state.resets, 0);
+  assert.equal(run.state.writes.at(-1).state, 'matched');
+  assert.equal(run.state.writes.at(-1).observedAt, new Date(clock).toISOString());
+  run.state.now += 30_000;
+  run.state.key = 'different-home-binding';
+  await run.tick();
+  assert.equal(run.state.resets, 1);
+  assert.equal(run.state.writes.at(-1), null);
+});
+
 test('publisher bounds verified binding renewals by the original radio time and expiry', async () => {
   const run = publisherHarness();
-  await run.tick(); // Initial binding must require new radio observations.
+  await run.tick(); // The initial binding has no radio evidence yet.
   run.state.match();
   await run.tick();
   const saved = run.state.writes.at(-1);
