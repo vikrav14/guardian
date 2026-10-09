@@ -447,6 +447,29 @@ class Device {
   DeviceLocation? mapDisplayLocationAt(DateTime now) {
     final home = homeWifiLocationAt(now);
     if (home != null) return home;
+    return _newestRecordedLocationAt(now, const Duration(minutes: 10));
+  }
+
+  /// Weather may use a labelled historical area, but a remembered Home must
+  /// never displace newer GPS or network evidence shown by the map.
+  DeviceLocation? weatherDisplayLocationAt(DateTime now) {
+    final home = homeWifiLocationAt(now);
+    if (home != null) return home;
+    final latest = _newestRecordedLocationAt(now, const Duration(hours: 24));
+    final remembered = rememberedHomeWifiLocationAt(now);
+    if (remembered?.recordedAt != null &&
+        now.difference(remembered!.recordedAt!) < const Duration(hours: 24) &&
+        (latest == null ||
+            remembered.recordedAt!.isAfter(latest.recordedAt!))) {
+      return remembered;
+    }
+    return latest != null &&
+            now.difference(latest.recordedAt!) < const Duration(hours: 24)
+        ? latest
+        : null;
+  }
+
+  DeviceLocation? _newestRecordedLocationAt(DateTime now, Duration maxAge) {
     final candidates =
         [
             latestLocationObservation,
@@ -469,7 +492,7 @@ class Device {
                 !(source == 'gps' && point.gpsValid == false) &&
                 at != null &&
                 !at.isAfter(now) &&
-                now.difference(at) <= const Duration(minutes: 10);
+                now.difference(at) <= maxAge;
           }).toList()
           ..sort((a, b) => b.recordedAt!.compareTo(a.recordedAt!));
     return candidates.isEmpty ? null : candidates.first;

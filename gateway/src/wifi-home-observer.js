@@ -4,7 +4,6 @@ const crypto = require('node:crypto');
 
 // Pilot observation thresholds, not an assertion that the wearer is indoors.
 const POLICY = Object.freeze({
-  minSignalDbm: -75,
   minReports: 3,
   minSpanMs: 20_000,
   maxGapMs: 60_000,
@@ -169,8 +168,10 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
       }
     }
     if (seen) counts.routerSeen += 1;
-    if (!seen || strongest == null || strongest < POLICY.minSignalDbm) {
-      clear(!seen ? 'router_not_seen' : strongest == null ? 'signal_unknown' : 'signal_weak');
+    // Router identity establishes the enrolled place. Weak but valid signal
+    // still counts; it is not a reliable measure of being inside the house.
+    if (!seen || strongest == null) {
+      clear(!seen ? 'router_not_seen' : 'signal_unknown');
       return snapshot(nowMs);
     }
 

@@ -32,7 +32,10 @@ function createJourneyReliability({ directory, journal = new JourneyJournal(dire
     if (prior && ['live', 'home', 'recovered'].includes(prior.status)) return { live: false, reason: 'duplicate_record', id };
     const previous = latestLive.get(event.imei) ?? -Infinity;
     const age = now() - at;
-    if (!Number.isFinite(at) || at > now()) return { live: false, reason: 'invalid_source_time', id };
+    if (!Number.isFinite(at) || at > now()) return { live: false, reason: 'invalid_source_time', id,
+      observedAt: Number.isFinite(at) ? new Date(at).toISOString() : null,
+      receivedAt: new Date(receivedAt).toISOString(),
+      sourceAheadSeconds: Number.isFinite(at) ? Math.ceil((at - +receivedAt) / 1000) : null };
     if (age >= 120000 || at < previous) {
       if (id) journal.mark(event.imei, [id], 'historical');
       return { live: false, reason: id ? 'queued_original_time_history' : 'stale_approximate_observation', id,

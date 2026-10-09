@@ -180,7 +180,11 @@ test('late GPS is durable before processing; current map routing and alarms rema
   runtime.processed(imei, selected.id);
   assert.equal(runtime.route(fresh, new Date(current)).reason, 'duplicate_record');
   assert.equal(runtime.route(event({ ...gps(3), recordedAt: new Date(current - 2000) }), new Date(current)).live, false);
-  assert.equal(runtime.route(event({ ...gps(4), recordedAt: new Date(current + 1000) }), new Date(current)).live, false);
+  const future = runtime.route(event({ ...gps(4), recordedAt: new Date(current + 1000) }), new Date(current));
+  assert.equal(future.live, false);
+  assert.equal(future.sourceAheadSeconds, 1);
+  assert.equal(future.observedAt, new Date(current + 1000).toISOString());
+  assert.equal(future.receivedAt, new Date(current).toISOString());
 });
 
 test('read-only preview and transactional retries never create duplicate journeys or late alerts', async () => {

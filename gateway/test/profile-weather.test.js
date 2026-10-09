@@ -118,16 +118,40 @@ test('cached weather without source time or with stale/future time fails closed'
   assert.equal(project(device, { ...weather, source: 'not_requested' }).state, 'unavailable');
 });
 
-test('recent satellite is retained, then fresh approximate area is used when it is too old', () => {
+test('newer network evidence wins over an older GPS fix for dashboard weather', () => {
   const wifi = { ...location, source: 'wifi', placeLabel: 'Approximate area', lat: -20.04 };
   const retained = project({ ...device, lastLocationObservation: wifi });
-  assert.equal(retained.location.retainedSatellite, true);
-  assert.equal(retained.location.lat, location.lat);
+  assert.equal(retained.location.retainedSatellite, false);
+  assert.equal(retained.location.lat, wifi.lat);
   const approximate = project({ lastLocationObservation: wifi,
     lastSatelliteLocation: { ...location, recordedAt: new Date(now - MAX_AGE_MS - 1) } });
   assert.equal(approximate.location.source, 'wifi');
   assert.equal(approximate.location.approximate, true);
   assert.equal(approximate.placeName, 'Approximate area');
+});
+
+test('newer Wi-Fi and cell estimates displace remembered Home, including last-known areas', () => {
+  for (const source of ['wifi', 'lbs']) {
+    for (const minutes of [1, 70]) {
+      const fix = { ...location, source, gpsValid: false, placeLabel: 'The Vale · near Sottise Road',
+        recordedAt: new Date(now - minutes * 60_000) };
+      const d = { lastHomeWifiDetection: rememberedHome(), lastApproximateLocation: fix };
+      const value = project(d);
+      assert.equal(value.placeName, 'The Vale');
+      assert.equal(value.location.source, source);
+      assert.equal(value.locationObservedAt, fix.recordedAt.toISOString());
+      assert.equal(project({ ...d, homeWifiPresence: homeEvidence() }).placeName, 'Home');
+    }
+  }
+});
+
+test('invalid GPS and future network reports do not displace historical Home', () => {
+  const home = rememberedHome();
+  for (const fix of [{ ...location, gpsValid: false },
+    { ...location, source: 'wifi', recordedAt: new Date(now + 1) }]) {
+    assert.equal(project({ lastHomeWifiDetection: home, lastLocationObservation: fix }).locationBasis,
+      'last_known_home');
+  }
 });
 
 test('weather condition codes cover rain, thunder, snow, mist and cloudy skies without guessing', () => {

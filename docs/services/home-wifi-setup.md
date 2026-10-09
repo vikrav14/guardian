@@ -94,9 +94,10 @@ SOS/fall timing, raw coordinates or alert thresholds are changed. Native Wi-Fi
 fence behavior remains unverified. A missing router, expired report or router
 outage never independently becomes a departure alert.
 
-The existing observer requires three strong reports spanning at least 20 seconds,
+The observer requires three reports of the enrolled router spanning at least 20 seconds,
 no more than 60 seconds apart, and expires evidence after 120 seconds. These
 rules do not support continuous Home detection from a ten-minute-only stream.
+Weak but valid signal readings count; a strong-signal threshold is no longer required.
 Do not lengthen freshness merely to keep Home green. A separate reporting-policy
 change needs measured arrival/departure and router-loss tests.
 

@@ -53,7 +53,7 @@ test('disabled, malformed and unscoped observations fail closed', () => {
   assert.equal(observer.snapshot(start).counts.reports, 0);
 });
 
-test('three fresh strong reports over twenty seconds match without claiming Home', () => {
+test('three fresh reports over twenty seconds match without claiming Home', () => {
   const observer = createWifiHomeObserver(options);
   assert.equal(observer.observe(packet(), start).matchState, 'candidate');
   assert.equal(observer.observe(packet(10_000), start + 10_000).matchState, 'candidate');
@@ -83,7 +83,7 @@ test('canonical V52 passive packets feed the observer before provider geolocatio
 for (const [name, overrides, reason] of [
   ['unknown router', { wifiAccessPoints: [{ macAddress: otherRouter, signalStrength: -40 }] }, 'router_not_seen'],
   ['SSID alone', { wifiAccessPoints: [{ ssid: 'Home', signalStrength: -40 }] }, 'router_not_seen'],
-  ['weak signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: -95 }] }, 'signal_weak'],
+  ['out-of-range signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: -121 }] }, 'signal_unknown'],
   ['missing signal', { wifiAccessPoints: [{ macAddress: routerId }] }, 'signal_unknown'],
   ['string signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: '-40' }] }, 'signal_unknown'],
   ['impossible signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: 20 }] }, 'signal_unknown'],
@@ -100,6 +100,20 @@ for (const [name, overrides, reason] of [
     assert.equal(status.consecutiveMatches, 0);
   });
 }
+
+test('weak enrolled-router reports establish and renew Home with the same freshness limits', () => {
+  const observer = createWifiHomeObserver(options);
+  for (const [at, signalStrength] of [[0, -95], [10_000, -110], [20_000, -120]]) {
+    observer.observe(packet(at, { wifiAccessPoints: [{ macAddress: routerId, signalStrength }] }), start + at);
+  }
+  assert.equal(observer.snapshot(start + 20_000).matchState, 'matched');
+  const renewed = observer.observe(packet(30_000, {
+    wifiAccessPoints: [{ macAddress: routerId, signalStrength: -96 }],
+  }), start + 30_000);
+  assert.equal(renewed.matchState, 'matched');
+  assert.equal(renewed.signalDbm, -96);
+  assert.equal(observer.snapshot(start + 150_000).matchState, 'expired');
+});
 
 test('contradictory source fields cannot establish a Wi-Fi match', () => {
   const observer = matched();

@@ -16,6 +16,77 @@ Future<void> _flushWeather(WidgetTester tester) async {
 }
 
 void main() {
+  for (final sourceName in ['wifi', 'lbs']) {
+    testWidgets('new $sourceName evidence replaces remembered Home weather', (
+      tester,
+    ) async {
+      final events = StreamController<Map<String, dynamic>>();
+      final now = weatherTestNow;
+      final homeAt = now.subtract(const Duration(minutes: 30));
+      final fixAt = now.subtract(const Duration(minutes: 1));
+      final device = Device(
+        imei: 'sample',
+        online: true,
+        lastHomeWifiDetection: LastHomeWifiDetection(
+          lat: -20.05,
+          lng: 57.59,
+          observedAt: homeAt,
+          qualifiedUntil: homeAt.add(const Duration(minutes: 2)),
+        ),
+        lastApproximateLocation: DeviceLocation(
+          lat: -20.04,
+          lng: 57.60,
+          source: sourceName,
+          gpsValid: false,
+          recordedAt: fixAt,
+          placeLabel: 'The Vale',
+        ),
+      );
+      expect(device.mapDisplayLocationAt(now)?.recordedAt, fixAt);
+      expect(device.weatherDisplayLocationAt(now)?.recordedAt, fixAt);
+      // Historical Home is retained as history, not selected as the current area.
+      expect(device.rememberedHomeWifiLocationAt(now), isNotNull);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LinkedProfileWeather(
+              imei: 'sample',
+              device: device,
+              source: (_) => events.stream,
+              clock: () => now,
+            ),
+          ),
+        ),
+      );
+      events.add(
+        weatherTestData()
+          ..['placeName'] = 'Home'
+          ..['location'] = {
+            'lat': -20.05,
+            'lng': 57.59,
+            'source': 'home_wifi_last_detected',
+          }
+          ..['locationBasis'] = 'last_known_home'
+          ..['locationObservedAt'] = homeAt.toIso8601String(),
+      );
+      await _flushWeather(tester);
+      expect(find.text('Last known area · Home'), findsNothing);
+      expect(find.text('Updating weather…'), findsOneWidget);
+      events.add(
+        weatherTestData()
+          ..['placeName'] = 'The Vale'
+          ..['location'] = {'lat': -20.04, 'lng': 57.60, 'source': sourceName}
+          ..['locationBasis'] = 'recent'
+          ..['locationObservedAt'] = fixAt.toIso8601String(),
+      );
+      await _flushWeather(tester);
+      expect(find.text('Near The Vale'), findsOneWidget);
+      expect(find.text('25°C'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      unawaited(events.close());
+    });
+  }
+
   testWidgets(
     'returning Home hides trip weather until conditions for the saved pin arrive',
     (tester) async {
