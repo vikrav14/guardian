@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/layout/guardian_scenic_background.dart';
 import '../models/activity_day.dart';
 import '../models/wear_status.dart';
 import '../services/wear_status_service.dart';
@@ -45,7 +46,8 @@ class WellnessPanel extends StatelessWidget {
           ? null
           : () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => _WellnessRoute(
+                settings: const RouteSettings(name: '/wellness'),
+                builder: (_) => WellnessHistoryPage(
                   imei: imei,
                   name: name,
                   activityEnabled: activityEnabled,
@@ -59,8 +61,9 @@ class WellnessPanel extends StatelessWidget {
   }
 }
 
-class _WellnessRoute extends StatefulWidget {
-  const _WellnessRoute({
+class WellnessHistoryPage extends StatefulWidget {
+  const WellnessHistoryPage({
+    super.key,
     required this.imei,
     required this.name,
     required this.activityEnabled,
@@ -72,52 +75,54 @@ class _WellnessRoute extends StatefulWidget {
   final WellnessReadingsSource? readingsSource;
   final VoidCallback? onAsk;
   @override
-  State<_WellnessRoute> createState() => _WellnessRouteState();
+  State<WellnessHistoryPage> createState() => _WellnessRouteState();
 }
 
-class _WellnessRouteState extends State<_WellnessRoute> {
+class _WellnessRouteState extends State<WellnessHistoryPage> {
   late final Stream<GuardianSubscription> _plans = UserProfileService()
       .watchSubscription();
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: context.guardianColors.canvas,
     appBar: AppBar(title: Text('${widget.name} · Wellness')),
-    body: StreamBuilder<GuardianSubscription>(
-      stream: _plans,
-      builder: (context, snapshot) {
-        final sub = snapshot.data;
-        if (snapshot.hasError ||
-            sub == null ||
-            !sub.serviceActive ||
-            sub.plan == GuardianPlan.essential) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'Wellness history requires an active Family or Care plan. Today’s readings are on Home.',
+    body: GuardianScenicBackground(
+      child: StreamBuilder<GuardianSubscription>(
+        stream: _plans,
+        builder: (context, snapshot) {
+          final sub = snapshot.data;
+          if (snapshot.hasError ||
+              sub == null ||
+              !sub.serviceActive ||
+              sub.plan == GuardianPlan.essential) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Wellness history requires an active Family or Care plan. Today’s readings are on Home.',
+                ),
+              ),
+            );
+          }
+          final content = SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _WellnessData(
+                  key: ValueKey('${sub.plan}:${sub.accessUntil}'),
+                  imei: widget.imei,
+                  subscription: sub,
+                  activityEnabled: widget.activityEnabled,
+                  readingsSource: widget.readingsSource,
+                  detail: true,
+                  onAsk: widget.onAsk,
+                ),
               ),
             ),
           );
-        }
-        final content = SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
-              child: _WellnessData(
-                key: ValueKey('${sub.plan}:${sub.accessUntil}'),
-                imei: widget.imei,
-                subscription: sub,
-                activityEnabled: widget.activityEnabled,
-                readingsSource: widget.readingsSource,
-                detail: true,
-                onAsk: widget.onAsk,
-              ),
-            ),
-          ),
-        );
-        return content;
-      },
+          return content;
+        },
+      ),
     ),
   );
 }

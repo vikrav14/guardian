@@ -32,6 +32,7 @@ class _HomeShellState extends State<HomeShell> {
   late final Stream<GuardianSubscription> _subscriptions;
   StreamSubscription<VoiceNotificationTarget>? _voiceReceived;
   bool _openingVoice = false;
+  String? _selectedWatchName;
 
   @override
   void initState() {
@@ -143,7 +144,14 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      MapDashboardPage(key: _dashboardKey),
+      MapDashboardPage(
+        key: _dashboardKey,
+        onSelectedWatchChanged: (name) {
+          if (mounted && name != _selectedWatchName) {
+            setState(() => _selectedWatchName = name);
+          }
+        },
+      ),
       SafeZonesPage(),
       const FamilyPage(),
       const AccountPage(watchOnly: true),
@@ -163,6 +171,9 @@ class _HomeShellState extends State<HomeShell> {
             navigatorKey: _navigatorKey,
             initialIndex: widget.initialIndex,
             pages: pages,
+            watchName: _selectedWatchName,
+            watchPageBuilder: (destination) async =>
+                _dashboardKey.currentState?.menuPage(destination),
             headerBuilder: (goToTab) => GuardianAppHeader(
               onHome: () => goToTab(0),
               onAlerts: () => goToTab(4),

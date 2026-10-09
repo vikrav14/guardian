@@ -42,7 +42,7 @@ class AlertRow extends StatelessWidget {
     };
     return GuardianSurface(
       padding: EdgeInsets.zero,
-      radius: 16,
+      radius: 22,
       tint: tone,
       color: selected ? colors.accentMuted : null,
       borderColor: selected ? colors.accent : null,
@@ -52,7 +52,7 @@ class AlertRow extends StatelessWidget {
           key: ValueKey('alert-row-${alert.id}'),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(18),
             child: Row(
               children: [
                 Container(
@@ -74,7 +74,7 @@ class AlertRow extends StatelessWidget {
                         style: TextStyle(
                           color: colors.textPrimary,
                           fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),

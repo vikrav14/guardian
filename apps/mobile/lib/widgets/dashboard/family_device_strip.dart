@@ -112,13 +112,13 @@ class _FamilyDeviceChip extends StatelessWidget {
             color: colors.surface.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? GuardianColors.forest : colors.border,
+              color: selected ? colors.accent : colors.border,
               width: selected ? 1.8 : 1,
             ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: GuardianColors.forest.withValues(alpha: 0.12),
+                      color: colors.accent.withValues(alpha: 0.12),
                       blurRadius: 14,
                       offset: const Offset(0, 6),
                     ),

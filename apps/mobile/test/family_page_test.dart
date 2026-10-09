@@ -134,7 +134,12 @@ void main() {
   ) async {
     final client = _Client();
     await _pump(tester, client);
-    await tester.ensureVisible(find.text('I have an invitation code'));
+    await tester.scrollUntilVisible(
+      find.text('I have an invitation code'),
+      250,
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('I have an invitation code'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'unfinished-code');
@@ -145,6 +150,8 @@ void main() {
     expect(client.changes, isEmpty);
 
     // Opening it again must start with a fresh draft and an intact navigator.
+    await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('I have an invitation code'));
     await tester.pumpAndSettle();
     expect(
@@ -163,7 +170,12 @@ void main() {
   ) async {
     final client = _Client();
     await _pump(tester, client);
-    await tester.ensureVisible(find.text('I have an invitation code'));
+    await tester.scrollUntilVisible(
+      find.text('I have an invitation code'),
+      250,
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('I have an invitation code'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '  synthetic-code  ');
@@ -263,6 +275,8 @@ void main() {
         'action': 'consent',
         'enabled': true,
       });
+      await tester.drag(find.byType(ListView).first, const Offset(0, -350));
+      await tester.pumpAndSettle();
       final recipients = tester
           .widgetList<SwitchListTile>(find.byType(SwitchListTile))
           .where((tile) => tile.onChanged == null);

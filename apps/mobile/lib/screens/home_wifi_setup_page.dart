@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../widgets/layout/guardian_scenic_background.dart';
 
 import '../models/geofence.dart';
 import '../services/home_wifi_service.dart';
@@ -335,221 +336,226 @@ class _HomeWifiSetupPageState extends State<HomeWifiSetupPage>
     return Scaffold(
       appBar: AppBar(title: const Text('Home Wi-Fi')),
       backgroundColor: colors.canvas,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: SingleChildScrollView(
-            controller: _scroll,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Recognise your familiar place',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Choose a network seen by the watch while it is at home. No Wi-Fi password is needed.',
-                ),
-                const SizedBox(height: 20),
-                if (state?.enabled == true)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            state!.name ?? 'Saved network',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _needsRefresh
-                                ? 'Detection status unavailable.'
-                                : state.detectedNow
-                                ? 'Home Wi-Fi detected at ${_time(state.observedAt)}'
-                                : state.observedAt != null
-                                ? 'Last detected at ${_time(state.observedAt)}. Current presence is unconfirmed.'
-                                : 'Saved. Waiting for fresh watch reports.',
-                          ),
-                          TextButton.icon(
-                            onPressed:
-                                _saving ||
-                                    _loading ||
-                                    _scanning ||
-                                    _needsRefresh
-                                ? null
-                                : () => _save(remove: true),
-                            icon: const Icon(Icons.link_off),
-                            label: const Text('Remove saved network'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (_notice != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(_notice!),
-                  ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(_error!),
-                  ),
-                if (state?.homeProblem != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(homeWifiMessage(state!.homeProblem!)),
-                  ),
-                if (_scanner.supported) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Find Wi-Fi names with your phone. Android needs location permission and Location switched on. Nearby names and identifiers are shared with Guardian to match the watch reports.',
+      body: GuardianScenicBackground(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: SingleChildScrollView(
+              controller: _scroll,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Recognise your familiar place',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed:
-                        _scanning ||
-                            _loading ||
-                            _saving ||
-                            _needsRefresh ||
-                            state?.homeKey == null
-                        ? null
-                        : _scanPhone,
-                    icon: const Icon(Icons.wifi_find),
-                    label: Text(
-                      _scanning ? 'Scanning nearby Wi-Fi…' : 'Find Wi-Fi names',
-                    ),
+                  const Text(
+                    'Choose a network seen by the watch while it is at home. No Wi-Fi password is needed.',
                   ),
-                  if (_scanning) const LinearProgressIndicator(),
-                  if (_phoneNotice != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(_phoneNotice!),
+                  const SizedBox(height: 20),
+                  if (state?.enabled == true)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              state!.name ?? 'Saved network',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _needsRefresh
+                                  ? 'Detection status unavailable.'
+                                  : state.detectedNow
+                                  ? 'Home Wi-Fi detected at ${_time(state.observedAt)}'
+                                  : state.observedAt != null
+                                  ? 'Last detected at ${_time(state.observedAt)}. Current presence is unconfirmed.'
+                                  : 'Saved. Waiting for fresh watch reports.',
+                            ),
+                            TextButton.icon(
+                              onPressed:
+                                  _saving ||
+                                      _loading ||
+                                      _scanning ||
+                                      _needsRefresh
+                                  ? null
+                                  : () => _save(remove: true),
+                              icon: const Icon(Icons.link_off),
+                              label: const Text('Remove saved network'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                ],
-                Row(
-                  children: [
-                    Expanded(
+                  if (_notice != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(_notice!),
+                    ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(_error!),
+                    ),
+                  if (state?.homeProblem != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(homeWifiMessage(state!.homeProblem!)),
+                    ),
+                  if (_scanner.supported) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Find Wi-Fi names with your phone. Android needs location permission and Location switched on. Nearby names and identifiers are shared with Guardian to match the watch reports.',
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed:
+                          _scanning ||
+                              _loading ||
+                              _saving ||
+                              _needsRefresh ||
+                              state?.homeKey == null
+                          ? null
+                          : _scanPhone,
+                      icon: const Icon(Icons.wifi_find),
+                      label: Text(
+                        _scanning
+                            ? 'Scanning nearby Wi-Fi…'
+                            : 'Find Wi-Fi names',
+                      ),
+                    ),
+                    if (_scanning) const LinearProgressIndicator(),
+                    if (_phoneNotice != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(_phoneNotice!),
+                      ),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Networks reported by the watch',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _loading || _saving || _scanning
+                            ? null
+                            : () => _load(manual: true),
+                        tooltip: 'Refresh list',
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
+                  ),
+                  if (_loading) const LinearProgressIndicator(),
+                  if (state != null && !state.connected)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
                       child: Text(
-                        'Networks reported by the watch',
+                        'The watch is offline. Reconnect it to Guardian to receive new network reports.',
+                      ),
+                    ),
+                  if (networks.isEmpty && !_loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'No recent networks yet. Keep the watch near your home router and wait for its next report. Refresh checks received reports.',
+                      ),
+                    ),
+                  for (final network in networks)
+                    Card(
+                      child: ListTile(
+                        key: ValueKey(network.id),
+                        leading: const Icon(Icons.wifi),
+                        title: Text(network.name),
+                        subtitle: Text(
+                          'Radio …${network.radioHint} · ${network.signalDbm} dBm\n'
+                          '${network.nameSource == 'phone' ? 'Name from phone · ' : ''}Seen ${_time(network.observedAt)}',
+                        ),
+                        isThreeLine: true,
+                        trailing: Icon(
+                          _selected == network.id
+                              ? Icons.check_circle
+                              : Icons.circle_outlined,
+                        ),
+                        selected: _selected == network.id,
+                        onTap: _saving || _scanning || _needsRefresh
+                            ? null
+                            : () => setState(() {
+                                _selected = network.id;
+                                _confirmed = false;
+                              }),
+                      ),
+                    ),
+                  if (_phoneFresh &&
+                      !_needsRefresh &&
+                      _phoneNetworks.asMap().keys.any(
+                        (index) =>
+                            !(state?.phoneMatches.contains(index) ?? false),
+                      ))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 8),
+                      child: Text(
+                        'Seen only by your phone',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    IconButton(
-                      onPressed: _loading || _saving || _scanning
-                          ? null
-                          : () => _load(manual: true),
-                      tooltip: 'Refresh list',
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-                if (_loading) const LinearProgressIndicator(),
-                if (state != null && !state.connected)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'The watch is offline. Reconnect it to Guardian to receive new network reports.',
-                    ),
-                  ),
-                if (networks.isEmpty && !_loading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      'No recent networks yet. Keep the watch near your home router and wait for its next report. Refresh checks received reports.',
-                    ),
-                  ),
-                for (final network in networks)
-                  Card(
-                    child: ListTile(
-                      key: ValueKey(network.id),
-                      leading: const Icon(Icons.wifi),
-                      title: Text(network.name),
-                      subtitle: Text(
-                        'Radio …${network.radioHint} · ${network.signalDbm} dBm\n'
-                        '${network.nameSource == 'phone' ? 'Name from phone · ' : ''}Seen ${_time(network.observedAt)}',
-                      ),
-                      isThreeLine: true,
-                      trailing: Icon(
-                        _selected == network.id
-                            ? Icons.check_circle
-                            : Icons.circle_outlined,
-                      ),
-                      selected: _selected == network.id,
-                      onTap: _saving || _scanning || _needsRefresh
-                          ? null
-                          : () => setState(() {
-                              _selected = network.id;
-                              _confirmed = false;
-                            }),
-                    ),
-                  ),
-                if (_phoneFresh &&
-                    !_needsRefresh &&
-                    _phoneNetworks.asMap().keys.any(
-                      (index) =>
-                          !(state?.phoneMatches.contains(index) ?? false),
-                    ))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 8),
-                    child: Text(
-                      'Seen only by your phone',
+                  if (_phoneFresh && !_needsRefresh)
+                    for (var index = 0; index < _phoneNetworks.length; index++)
+                      if (!(state?.phoneMatches.contains(index) ?? false))
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.wifi),
+                            title: Text(_phoneNetworks[index].ssid),
+                            subtitle: Text(
+                              'Radio …${_phoneNetworks[index].radioHint} · 2.4 GHz\nWaiting for the watch to report this network.',
+                            ),
+                            isThreeLine: true,
+                            enabled: false,
+                          ),
+                        ),
+                  if (home != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Your saved Home pin',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  ),
-                if (_phoneFresh && !_needsRefresh)
-                  for (var index = 0; index < _phoneNetworks.length; index++)
-                    if (!(state?.phoneMatches.contains(index) ?? false))
-                      Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.wifi),
-                          title: Text(_phoneNetworks[index].ssid),
-                          subtitle: Text(
-                            'Radio …${_phoneNetworks[index].radioHint} · 2.4 GHz\nWaiting for the watch to report this network.',
-                          ),
-                          isThreeLine: true,
-                          enabled: false,
-                        ),
-                      ),
-                if (home != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Your saved Home pin',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 180,
-                    child:
-                        widget.mapBuilder?.call(home) ??
-                        SafeZoneMap(zone: home),
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _confirmed,
-                    onChanged: _saving || _scanning || _selected == null
-                        ? null
-                        : (value) => setState(() => _confirmed = value == true),
-                    title: const Text(
-                      'I recognise this network and confirm this Home pin.',
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 180,
+                      child:
+                          widget.mapBuilder?.call(home) ??
+                          SafeZoneMap(zone: home),
                     ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _confirmed,
+                      onChanged: _saving || _scanning || _selected == null
+                          ? null
+                          : (value) =>
+                                setState(() => _confirmed = value == true),
+                      title: const Text(
+                        'I recognise this network and confirm this Home pin.',
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: canSave ? () => _save() : null,
+                    icon: const Icon(Icons.wifi),
+                    label: Text(_saving ? 'Saving…' : 'Save Home Wi-Fi'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Detection depends on fresh watch reports. A missing network report does not mean the wearer has left home.',
                   ),
                 ],
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: canSave ? () => _save() : null,
-                  icon: const Icon(Icons.wifi),
-                  label: Text(_saving ? 'Saving…' : 'Save Home Wi-Fi'),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Detection depends on fresh watch reports. A missing network report does not mean the wearer has left home.',
-                ),
-              ],
+              ),
             ),
           ),
         ),

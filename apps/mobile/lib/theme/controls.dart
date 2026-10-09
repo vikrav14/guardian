@@ -35,6 +35,22 @@ abstract final class GuardianControlStyles {
   static ButtonStyle link(BuildContext context) =>
       Theme.of(context).textButtonTheme.style ?? const ButtonStyle();
 
+  static ButtonStyle tonal(BuildContext context) => secondary(context).copyWith(
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.disabled)
+          ? context.guardianColors.surfaceMuted
+          : context.guardianColors.accentMuted,
+    ),
+    side: WidgetStateProperty.resolveWith(
+      (states) => BorderSide(
+        color: context.guardianColors.highContrast
+            ? context.guardianColors.accent
+            : Colors.transparent,
+        width: context.guardianColors.highContrast ? 2 : 1,
+      ),
+    ),
+  );
+
   static Color dangerColor(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
       ? const Color(0xFFFFB4AB)

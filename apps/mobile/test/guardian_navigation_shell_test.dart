@@ -72,6 +72,29 @@ void main() {
     expect(find.byType(MobileBottomBar), findsOneWidget);
   });
 
+  testWidgets('resizing between sidebar and phone keeps the open route', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1360, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final navigator = await pumpShell(tester);
+    final state = navigator.currentState;
+    await tester.tap(find.text('Open Home page'));
+    await tester.pumpAndSettle();
+    expect(find.text('Detail'), findsOneWidget);
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(navigator.currentState, same(state));
+    expect(find.text('Detail'), findsOneWidget);
+    expect(find.byType(MobileBottomBar), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Open Home page'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('tab change respects a settings page that blocks leaving', (
     tester,
   ) async {

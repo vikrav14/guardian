@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import 'guardian_scenic_background.dart';
 
 /// Shared responsive frame for every primary Guardian destination.
 ///
@@ -18,28 +19,13 @@ class GuardianPageFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned(
-          top: -120,
-          right: -90,
-          child: _Glow(
-            size: 300,
-            color: context.guardianColors.accent.withValues(alpha: 0.09),
-          ),
+    return GuardianScenicBackground(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: child,
         ),
-        const Positioned(
-          top: 360,
-          left: -120,
-          child: _Glow(size: 260, color: Color(0x16E8B765)),
-        ),
-        Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: child,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -61,47 +47,67 @@ class GuardianPageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (eyebrow != null) ...[
-                Text(
-                  eyebrow!.toUpperCase(),
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 5),
-              ],
-              Text(
-                title,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ],
+        if (eyebrow != null) ...[
+          Text(
+            eyebrow!.toUpperCase(),
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.25,
+            ),
+          ),
+          const SizedBox(height: 5),
+        ],
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontSize: 26,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -.7,
           ),
         ),
-        if (action != null) ...[const SizedBox(width: 10), action!],
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colors.textSecondary,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < 440 ||
+            MediaQuery.textScalerOf(context).scale(14) > 20;
+        return Padding(
+          padding: const EdgeInsets.only(top: 16, bottom: 28),
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    heading,
+                    if (action != null) ...[
+                      const SizedBox(height: 12),
+                      action!,
+                    ],
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: heading),
+                    if (action != null) ...[const SizedBox(width: 16), action!],
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -127,9 +133,9 @@ class GuardianEmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 28, 22, 24),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.92),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.82)),
+        border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
             color: colors.textPrimary.withValues(alpha: 0.07),
@@ -168,27 +174,6 @@ class GuardianEmptyState extends StatelessWidget {
           ),
           if (action != null) ...[const SizedBox(height: 18), action!],
         ],
-      ),
-    );
-  }
-}
-
-class _Glow extends StatelessWidget {
-  const _Glow({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
-        ),
       ),
     );
   }

@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../main.dart';
 import '../../theme/app_theme.dart';
-
-/// Sidebar scenic overlay — unselected labels on the theme flyout.
-const _darkSurfaceLabel = Color(0xB3FFFFFF);
-const _darkSurfaceLabelHover = Colors.white;
+import '../../theme/guardian_appearance.dart';
+import '../../theme/guardian_theme_scope.dart';
 
 class ThemePickerList extends StatelessWidget {
   const ThemePickerList({
@@ -18,28 +15,28 @@ class ThemePickerList extends StatelessWidget {
 
   final GuardianThemeId selected;
   final ValueChanged<GuardianThemeId> onSelected;
-  final bool dense;
-  final bool onDarkSurface;
+  final bool dense, onDarkSurface;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final theme in GuardianThemeId.allThemes)
-          ThemePickerTile(
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final theme in GuardianThemeId.allThemes)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ThemePickerTile(
             theme: theme,
             selected: theme == selected,
             dense: dense,
             onDarkSurface: onDarkSurface,
             onTap: () => onSelected(theme),
           ),
-      ],
-    );
-  }
+        ),
+    ],
+  );
 }
 
-class ThemePickerTile extends StatefulWidget {
+class ThemePickerTile extends StatelessWidget {
   const ThemePickerTile({
     super.key,
     required this.theme,
@@ -50,66 +47,80 @@ class ThemePickerTile extends StatefulWidget {
   });
 
   final GuardianThemeId theme;
-  final bool selected;
+  final bool selected, dense, onDarkSurface;
   final VoidCallback onTap;
-  final bool dense;
-  final bool onDarkSurface;
-
-  @override
-  State<ThemePickerTile> createState() => _ThemePickerTileState();
-}
-
-class _ThemePickerTileState extends State<ThemePickerTile> {
-  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.guardianColors;
-    final accent = widget.selected ? colors.accent : colors.textSecondary;
-    final labelColor = widget.selected
-        ? GuardianColors.safeText
-        : widget.onDarkSurface
-        ? (_hovered ? _darkSurfaceLabelHover : _darkSurfaceLabel)
-        : colors.textPrimary;
-    return MouseRegion(
-      onEnter: widget.onDarkSurface && !widget.selected
-          ? (_) => setState(() => _hovered = true)
-          : null,
-      onExit: widget.onDarkSurface && !widget.selected
-          ? (_) => setState(() => _hovered = false)
-          : null,
+    return Semantics(
+      selected: selected,
+      button: true,
       child: Material(
-        color: widget.selected ? colors.accentMuted : Colors.transparent,
-        borderRadius: BorderRadius.circular(widget.dense ? 10 : 12),
+        color: selected ? colors.accentMuted : colors.surfaceMuted,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: selected ? colors.accent : colors.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: widget.onTap,
-          hoverColor: widget.onDarkSurface && !widget.selected
-              ? Colors.white.withValues(alpha: 0.08)
-              : null,
-          borderRadius: BorderRadius.circular(widget.dense ? 10 : 12),
+          onTap: onTap,
           child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.dense ? 10 : 14,
-              vertical: widget.dense ? 8 : 12,
-            ),
+            padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                if (widget.selected)
-                  Icon(Icons.check, size: widget.dense ? 16 : 18, color: accent)
-                else
-                  SizedBox(width: widget.dense ? 16 : 18),
-                SizedBox(width: widget.dense ? 6 : 8),
-                Expanded(
-                  child: Text(
-                    widget.theme.displayName,
-                    style: TextStyle(
-                      fontSize: widget.dense ? 11 : 13,
-                      fontWeight: widget.selected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: labelColor,
+                ExcludeSemantics(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      theme.sceneAsset,
+                      cacheWidth: 156,
+                      width: dense ? 38 : 52,
+                      height: dense ? 42 : 60,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => SizedBox(
+                        width: 52,
+                        height: 60,
+                        child: ColoredBox(
+                          color: theme.semanticColors.accentMuted,
+                        ),
+                      ),
                     ),
                   ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        theme.displayName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      if (!dense) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          theme.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  color: selected ? colors.accent : colors.border,
+                  size: 22,
                 ),
               ],
             ),
@@ -120,20 +131,97 @@ class _ThemePickerTileState extends State<ThemePickerTile> {
   }
 }
 
-Future<void> showThemePickerDialog(BuildContext context) async {
-  final themeScope = GuardianThemeScope.maybeOf(context);
-  final current = themeScope?.themeId ?? GuardianThemeId.defaultTheme;
-  await showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Theme'),
-      content: ThemePickerList(
-        selected: current,
-        onSelected: (theme) {
-          themeScope?.setTheme(theme);
-          Navigator.pop(ctx);
-        },
+Future<void> showThemePickerDialog(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (_) => const _AppearanceDialog(),
+);
+
+class _AppearanceDialog extends StatelessWidget {
+  const _AppearanceDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = GuardianThemeScope.maybeOf(context);
+    final appearance = (scope?.appearance ?? const GuardianAppearance())
+        .copyWith(themeId: scope?.themeId);
+    final contrast =
+        appearance.highContrast || MediaQuery.highContrastOf(context);
+    return Theme(
+      // showDialog captures inherited themes; rebuild its theme explicitly so
+      // the chooser itself updates while it remains open.
+      data: buildGuardianTheme(
+        themeId: appearance.themeId,
+        highContrast: contrast,
       ),
-    ),
-  );
+      child: AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        scrollable: true,
+        title: const Text('A little Mauritius'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Choose the place that feels like you.'),
+              const SizedBox(height: 16),
+              ThemePickerList(
+                selected: appearance.themeId,
+                onSelected: (theme) => scope?.setTheme(theme),
+              ),
+              const Divider(height: 24),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Scenic background'),
+                subtitle: Text(
+                  contrast
+                      ? 'Hidden while high contrast is on'
+                      : 'A quiet glimpse of your chosen place',
+                ),
+                value: appearance.scenery,
+                onChanged: (value) => scope?.onAppearanceChanged?.call(
+                  appearance.copyWith(scenery: value),
+                ),
+              ),
+              if (appearance.scenery && !contrast) ...[
+                Text(
+                  'Background visibility · ${(appearance.strength * 100).round()}%',
+                ),
+                Slider(
+                  value: appearance.strength,
+                  min: .10,
+                  max: .65,
+                  divisions: 11,
+                  label: '${(appearance.strength * 100).round()}%',
+                  semanticFormatterCallback: (value) =>
+                      '${(value * 100).round()} percent background visibility',
+                  onChanged: (value) => scope?.onAppearanceChanged?.call(
+                    appearance.copyWith(strength: value),
+                  ),
+                ),
+              ],
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Higher contrast'),
+                subtitle: const Text(
+                  'Stronger text and borders in every theme',
+                ),
+                value: appearance.highContrast,
+                onChanged: (value) => scope?.onAppearanceChanged?.call(
+                  appearance.copyWith(highContrast: value),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
 }

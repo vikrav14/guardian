@@ -265,12 +265,12 @@ class _CareProfileEditorState extends State<_CareProfileEditor> {
             child: FilledButton.icon(
               onPressed: _saving ? null : _save,
               icon: _saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 15,
                       height: 15,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: context.guardianColors.onAccent,
                       ),
                     )
                   : const Icon(Icons.check_rounded, size: 17),

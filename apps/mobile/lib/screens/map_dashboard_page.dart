@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../widgets/layout/guardian_scenic_background.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,10 +31,21 @@ import '../widgets/dashboard/guardian_dashboard_overview.dart';
 import '../widgets/dashboard/dashboard_reading_status.dart';
 import '../widgets/map/guardian_map_presentation.dart';
 import '../widgets/map/map_avatar_overlay.dart';
+import '../widgets/navigation/guardian_side_menu.dart';
+import '../services/family_sharing_service.dart';
+import 'account_page.dart';
+import 'emergency_contacts_page.dart';
+import 'family_page.dart';
+import 'home_wifi_setup_page.dart';
+import 'safe_zones_page.dart';
+import 'watch_preferences_page.dart';
+import 'watch_settings_page.dart';
 import 'journey_page.dart';
 
 class MapDashboardPage extends StatefulWidget {
-  const MapDashboardPage({super.key});
+  const MapDashboardPage({super.key, this.onSelectedWatchChanged});
+
+  final ValueChanged<String?>? onSelectedWatchChanged;
 
   @override
   State<MapDashboardPage> createState() => MapDashboardPageState();
@@ -72,6 +84,120 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     if (!mounted) return;
     setState(() {});
     _followSelected();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onSelectedWatchChanged?.call(_selected?.displayName);
+    });
+  }
+
+  /// Menu shortcuts reuse the selected watch, permission checks and existing
+  /// destination pages. They never issue watch commands or change selection.
+  Future<Widget?> menuPage(GuardianMenuDestination destination) async {
+    final device = _selected;
+    if (device == null) return const AccountPage(watchOnly: true);
+    final inherited = GuardianEntitlementsScope.of(context);
+    final scope = device.sharedSubscription == null
+        ? inherited
+        : GuardianEntitlementsScope(
+            subscription: device.sharedSubscription,
+            checking: false,
+            child: const SizedBox.shrink(),
+          );
+    final subscription = scope.subscription;
+    bool canUse(String permission) {
+      if (device.allowsShared(permission)) return true;
+      _showUnavailable('This watch’s owner has not shared this feature.');
+      return false;
+    }
+
+    if (destination == GuardianMenuDestination.journey) {
+      if (!canUse('history')) return null;
+      final decision = scope.decision(GuardianFeature.locationHistory);
+      if (!decision.allowed || subscription == null) {
+        _showEntitlementDecision(decision);
+        return null;
+      }
+      return JourneyPage(
+        imei: device.imei,
+        deviceName: device.displayName,
+        subscription: subscription,
+        avatarUrl: device.avatarUrl,
+      );
+    }
+    if (destination == GuardianMenuDestination.wellness) {
+      if (!canUse('wellbeing')) return null;
+      final decision = scope.decision(GuardianFeature.activitySteps);
+      if (!decision.allowed || subscription == null) {
+        _showEntitlementDecision(decision);
+        return null;
+      }
+      return WellnessHistoryPage(
+        imei: device.imei,
+        name: device.displayName,
+        activityEnabled: true,
+        readingsSource: scope.decision(GuardianFeature.wellnessReadings).allowed
+            ? (window, subscription) => _wellbeingService.watchWellnessSamples(
+                device.imei,
+                subscription: subscription,
+                window: window,
+              )
+            : null,
+        onAsk: () => unawaited(_continueOnWhatsApp(device)),
+      );
+    }
+    if (destination == GuardianMenuDestination.contacts) {
+      return device.sharedSubscription != null
+          ? const FamilyPage()
+          : const EmergencyContactsPage();
+    }
+    if (destination == GuardianMenuDestination.wifi) {
+      if (device.sharedPermissions != null) {
+        _showUnavailable('Only the service owner can manage Home Wi-Fi.');
+        return null;
+      }
+      final homes = _selectedGeofences
+          .where((zone) => zone.name.trim().toLowerCase() == 'home')
+          .toList();
+      if (homes.length != 1) {
+        _showUnavailable(
+          'Choose one active safe zone named Home for this watch.',
+        );
+        return SafeZonesPage();
+      }
+      return HomeWifiSetupPage(zone: homes.single);
+    }
+    if (destination == GuardianMenuDestination.watch ||
+        destination == GuardianMenuDestination.preferences) {
+      if (!canUse('settings')) return null;
+      if (subscription == null) {
+        _showUnavailable('Guardian is still verifying this family account.');
+        return null;
+      }
+      var settingsDevice = device;
+      if (device.sharedPermissions != null) {
+        final sharing = FamilySharingService();
+        try {
+          settingsDevice = await sharing.loadWatchSettings(device);
+        } catch (error) {
+          if (mounted) {
+            _showUnavailable('Could not load watch settings: $error');
+          }
+          return null;
+        } finally {
+          sharing.close();
+        }
+      }
+      if (!mounted || _selected?.imei != device.imei) return null;
+      return destination == GuardianMenuDestination.preferences
+          ? WatchPreferencesPage(
+              device: settingsDevice,
+              subscription: subscription,
+            )
+          : WatchSettingsPage(
+              device: settingsDevice,
+              subscription: subscription,
+            );
+    }
+    return null;
   }
 
   @override
@@ -557,6 +683,7 @@ class MapDashboardPageState extends State<MapDashboardPage> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/journey'),
         builder: (_) => JourneyPage(
           imei: device.imei,
           deviceName: device.displayName,
@@ -801,28 +928,30 @@ class MapDashboardPageState extends State<MapDashboardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.guardianColors.canvas,
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1240),
-            child: LayoutBuilder(
-              builder: (context, constraints) => CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      constraints.maxWidth < 600 ? 16 : 32,
-                      constraints.maxWidth < 600 ? 12 : 28,
-                      constraints.maxWidth < 600 ? 16 : 32,
-                      // HomeShell reserves space for navigation and safe area.
-                      24,
+      body: GuardianScenicBackground(
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1240),
+              child: LayoutBuilder(
+                builder: (context, constraints) => CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        constraints.maxWidth < 600 ? 16 : 32,
+                        constraints.maxWidth < 600 ? 24 : 28,
+                        constraints.maxWidth < 600 ? 16 : 32,
+                        // HomeShell reserves space for navigation and safe area.
+                        24,
+                      ),
+                      sliver: SliverList.list(
+                        children: [_buildDashboardContent(_selected)],
+                      ),
                     ),
-                    sliver: SliverList.list(
-                      children: [_buildDashboardContent(_selected)],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

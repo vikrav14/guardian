@@ -275,6 +275,7 @@ class _WatchSettingsPageState extends State<WatchSettingsPage> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
+                  settings: const RouteSettings(name: '/preferences'),
                   builder: (_) => WatchPreferencesPage(
                     device: widget.device,
                     subscription: widget.subscription,

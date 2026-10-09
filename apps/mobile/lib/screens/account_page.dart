@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../navigation/home_shell_scope.dart';
 import '../main.dart';
 import '../models/device.dart';
 import '../services/auth_service.dart';
@@ -18,6 +19,7 @@ import '../widgets/layout/guardian_page_frame.dart';
 import '../widgets/theme/theme_picker.dart';
 import 'watch_settings_page.dart';
 import 'emergency_contacts_page.dart';
+import 'family_page.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key, this.watchOnly = false});
@@ -139,12 +141,38 @@ class AccountPage extends StatelessWidget {
           children: [
             GuardianPageHeader(
               eyebrow: watchOnly ? 'YOUR WATCH' : 'YOUR ACCOUNT',
-              title: watchOnly ? 'Watch' : 'Account',
+              title: watchOnly ? 'Watch' : 'Account & family',
               subtitle: watchOnly
                   ? 'Settings and care routines for each wearer.'
                   : 'Your profile, plan and personal preferences.',
             ),
             const SizedBox(height: GuardianSpacing.lg),
+            if (!watchOnly) ...[
+              GuardianCard(
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.people_outline),
+                  title: const Text('Family & access'),
+                  subtitle: const Text(
+                    'Your family, shared watches and invitations.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    final shell = HomeShellScope.maybeOf(context);
+                    if (shell != null) {
+                      shell.goToTab(2);
+                    } else {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const FamilyPage(),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: GuardianSpacing.md),
+            ],
             if (!watchOnly)
               GuardianCard(
                 child: Column(
@@ -234,6 +262,7 @@ class AccountPage extends StatelessWidget {
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
+                          settings: const RouteSettings(name: '/contacts'),
                           builder: (_) => const EmergencyContactsPage(),
                         ),
                       );
@@ -541,6 +570,7 @@ class _DeviceRow extends StatelessWidget {
                     if (!context.mounted) return;
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
+                        settings: const RouteSettings(name: '/watch'),
                         builder: (_) => WatchSettingsPage(
                           device: settingsDevice,
                           subscription: verifiedSubscription,
@@ -788,6 +818,7 @@ Future<void> _showDeviceSettingsDialog(
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
+                          settings: const RouteSettings(name: '/watch'),
                           builder: (_) => WatchSettingsPage(
                             device: device,
                             subscription: subscription,

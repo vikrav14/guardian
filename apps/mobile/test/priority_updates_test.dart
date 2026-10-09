@@ -152,7 +152,7 @@ void main() {
   });
 
   testWidgets(
-    'weather artwork, stable slot, manual shortcut, source details and automatic expiry',
+    'compact weather, stable report switcher, source details and automatic expiry',
     (tester) async {
       final events = StreamController<Map<String, dynamic>>();
       var clock = now;
@@ -179,17 +179,25 @@ void main() {
       final before = tester.getSize(
         find.byKey(const ValueKey('priority-slot')),
       );
+      expect(before.height, lessThan(200));
       events.add(projection());
       await flush(tester);
       expect(find.text('LOCAL REPORT'), findsOneWidget);
       expect(find.byType(WeatherArtwork), findsNothing);
       expect(
         tester.getSize(find.byKey(const ValueKey('priority-slot'))),
-        before,
+        isNot(before),
+      );
+      final reportSize = tester.getSize(
+        find.byKey(const ValueKey('priority-slot')),
       );
       await tester.tap(find.text('25°C'));
       await tester.pump();
       expect(find.byType(WeatherArtwork), findsWidgets);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('priority-slot'))),
+        reportSize,
+      );
       await tester.tap(find.text('Update'));
       await tester.pump();
       await tester.tap(find.text('View update'));

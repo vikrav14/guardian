@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../theme/colors.dart';
 
-const _ink = Color(0xFF14171A);
 const _gold = Color(0xFFF3A712);
 
 /// Guardian's family mark: two adults and a child with a heart, beneath a
@@ -181,7 +180,7 @@ class GuardianWordmark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = color ?? _ink;
+    final ink = color ?? context.guardianColors.textPrimary;
     final style = TextStyle(
       fontSize: fontSize,
       fontWeight: FontWeight.w800,

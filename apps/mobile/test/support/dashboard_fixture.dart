@@ -99,6 +99,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
   List<Widget> serviceSections = const [],
   Widget? wellness,
   Widget? watchCheckStatus,
+  Widget? weather,
   String? mapStatus,
 }) {
   final selected = empty ? null : device ?? dashboardFixtureDevice();
@@ -131,6 +132,7 @@ GuardianDashboardOverview dashboardFixtureOverview({
     serviceSections: serviceSections,
     wellness: wellness,
     watchCheckStatus: watchCheckStatus,
+    weather: weather,
   );
 }
 

@@ -64,7 +64,28 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
     required this.border,
     required this.accent,
     required this.accentMuted,
+    this.highContrast = false,
   });
+
+  final bool highContrast;
+
+  /// A light accent in Le Morne needs dark text on filled controls.
+  Color get onAccent =>
+      accent.computeLuminance() > .45 ? const Color(0xFF112E32) : Colors.white;
+  Color get disabled => Color.lerp(surfaceMuted, border, .35)!;
+  Color get disabledInk => textSecondary;
+  Color get safe => canvas.computeLuminance() < .1
+      ? const Color(0xFF96D5B1)
+      : const Color(0xFF176443);
+  Color get safeBackground => canvas.computeLuminance() < .1
+      ? const Color(0xFF203D32)
+      : const Color(0xFFE4F4EB);
+  Color get warning => canvas.computeLuminance() < .1
+      ? const Color(0xFFF2D08B)
+      : const Color(0xFF80590D);
+  Color get danger => canvas.computeLuminance() < .1
+      ? const Color(0xFFFFA4B0)
+      : const Color(0xFFAC3041);
 
   final Color canvas;
   final Color surface;
@@ -99,17 +120,17 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
 
   /// Dark theme — Le Morne basalt at dusk.
   static const leMorne = GuardianThemeColors(
-    canvas: Color(0xFF0A100E),
-    surface: Color(0xFF121C18),
-    surfaceMuted: Color(0xFF172420),
-    sidebar: Color(0xFF0E1613),
-    glass: Color(0xD914201C),
-    textPrimary: Color(0xFFF2F7F4),
-    textSecondary: Color(0xFFB8C6C0),
-    textMuted: Color(0xFF8A9892),
-    border: Color(0xFF2E4038),
-    accent: Color(0xFF3DD68C),
-    accentMuted: Color(0xFF1A2E24),
+    canvas: Color(0xFF111C24),
+    surface: Color(0xFF1C2A33),
+    surfaceMuted: Color(0xFF23353F),
+    sidebar: Color(0xFF1C2A33),
+    glass: Color(0xFF1C2A33),
+    textPrimary: Color(0xFFEDF3F4),
+    textSecondary: Color(0xFFAFBFC4),
+    textMuted: Color(0xFFAFBFC4),
+    border: Color(0xFF405560),
+    accent: Color(0xFF90CCD0),
+    accentMuted: Color(0xFF293F49),
   );
 
   /// High-contrast light theme for elder-care readability.
@@ -129,32 +150,32 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
 
   /// Chamarel — volcanic earth and rainforest greens.
   static const chamarel = GuardianThemeColors(
-    canvas: Color(0xFFF4F6F0),
-    surface: Color(0xFFFDFCF8),
-    surfaceMuted: Color(0xFFE8EDE4),
-    sidebar: Color(0xFFEDF0EA),
-    glass: Color(0xE6F8FAF4),
-    textPrimary: Color(0xFF1E2A22),
-    textSecondary: Color(0xFF5A6B5E),
-    textMuted: Color(0xFF8A958C),
-    border: Color(0xFFD4DFD6),
-    accent: Color(0xFF2D8B5F),
-    accentMuted: Color(0xFFD8EBE0),
+    canvas: Color(0xFFFAF3EE),
+    surface: Color(0xFFFFFCF8),
+    surfaceMuted: Color(0xFFF5E9E0),
+    sidebar: Color(0xFFFFFCF8),
+    glass: Color(0xFFFFFCF8),
+    textPrimary: Color(0xFF3F2C28),
+    textSecondary: Color(0xFF765D53),
+    textMuted: Color(0xFF765D53),
+    border: Color(0xFFDDC9BE),
+    accent: Color(0xFF914836),
+    accentMuted: Color(0xFFF0DFD5),
   );
 
   /// Blue Bay — shallow lagoon turquoise and sky.
   static const blueBay = GuardianThemeColors(
-    canvas: Color(0xFFE8F4F8),
-    surface: Color(0xFFFFFFFF),
-    surfaceMuted: Color(0xFFD6EEF5),
-    sidebar: Color(0xFFE8F0F4),
-    glass: Color(0xD9F0FAFD),
-    textPrimary: Color(0xFF0A2A3A),
-    textSecondary: Color(0xFF4A7080),
-    textMuted: Color(0xFF7A9AAA),
-    border: Color(0xFFB8D8E8),
-    accent: Color(0xFF009688),
-    accentMuted: Color(0xFFD0F0EC),
+    canvas: Color(0xFFF0F7F7),
+    surface: Color(0xFFFCFFFF),
+    surfaceMuted: Color(0xFFEAF4F4),
+    sidebar: Color(0xFFFCFFFF),
+    glass: Color(0xFFFCFFFF),
+    textPrimary: Color(0xFF17363C),
+    textSecondary: Color(0xFF506A70),
+    textMuted: Color(0xFF506A70),
+    border: Color(0xFFC6D9DB),
+    accent: Color(0xFF006C75),
+    accentMuted: Color(0xFFDCEFF0),
   );
 
   /// Indian Ocean Night — deep navy under a starlit horizon.
@@ -187,7 +208,35 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
     accentMuted: Color(0xFFE8F0E4),
   );
 
-  static const light = islandGlass;
+  static const pamplemousses = GuardianThemeColors(
+    canvas: Color(0xFFF1F5ED),
+    surface: Color(0xFFFCFDF8),
+    surfaceMuted: Color(0xFFEAF0E2),
+    sidebar: Color(0xFFFCFDF8),
+    glass: Color(0xFFFCFDF8),
+    textPrimary: Color(0xFF26372A),
+    textSecondary: Color(0xFF566952),
+    textMuted: Color(0xFF566952),
+    border: Color(0xFFCDD9C6),
+    accent: Color(0xFF3D6544),
+    accentMuted: Color(0xFFE1ECD9),
+  );
+
+  static const flicEnFlac = GuardianThemeColors(
+    canvas: Color(0xFFFBF6EE),
+    surface: Color(0xFFFFFDF8),
+    surfaceMuted: Color(0xFFF7EDDE),
+    sidebar: Color(0xFFFFFDF8),
+    glass: Color(0xFFFFFDF8),
+    textPrimary: Color(0xFF46341F),
+    textSecondary: Color(0xFF77634C),
+    textMuted: Color(0xFF77634C),
+    border: Color(0xFFE0D1BB),
+    accent: Color(0xFF895925),
+    accentMuted: Color(0xFFF2E4CD),
+  );
+
+  static const light = blueBay;
   static const dark = leMorne;
 
   @override
@@ -203,8 +252,10 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
     Color? border,
     Color? accent,
     Color? accentMuted,
+    bool? highContrast,
   }) {
     return GuardianThemeColors(
+      highContrast: highContrast ?? this.highContrast,
       canvas: canvas ?? this.canvas,
       surface: surface ?? this.surface,
       surfaceMuted: surfaceMuted ?? this.surfaceMuted,
@@ -226,6 +277,7 @@ class GuardianThemeColors extends ThemeExtension<GuardianThemeColors> {
   ) {
     if (other is! GuardianThemeColors) return this;
     return GuardianThemeColors(
+      highContrast: t < .5 ? highContrast : other.highContrast,
       canvas: Color.lerp(canvas, other.canvas, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       surfaceMuted: Color.lerp(surfaceMuted, other.surfaceMuted, t)!,

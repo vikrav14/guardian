@@ -247,7 +247,7 @@ class ReadingStatusTile extends StatelessWidget {
     final colors = context.guardianColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final color = switch (presentation.tone) {
-      ReadingTone.received => dark ? colors.accent : GuardianColors.safeText,
+      ReadingTone.received => colors.safe,
       ReadingTone.attention =>
         dark ? GuardianColors.warning : GuardianColors.warningText,
       ReadingTone.neutral => colors.textSecondary,

@@ -92,8 +92,7 @@ class WellnessCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             wearStatus.labelAt(now),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+
             style: TextStyle(
               fontSize: 12,
               color: context.guardianColors.textSecondary,
@@ -251,37 +250,28 @@ class _BloodPressureRow extends StatelessWidget {
                 children: [
                   Text(
                     'Blood pressure',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+
                     style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 4,
                     children: [
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: Text(
-                          value,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: colors.textPrimary,
-                          ),
+                      Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colors.textSecondary,
-                          ),
+                      Text(
+                        status,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
                         ),
                       ),
                     ],
@@ -289,8 +279,7 @@ class _BloodPressureRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Watch estimate',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+
                     style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ],
@@ -329,9 +318,8 @@ class WellnessTile extends StatelessWidget {
   final Color tint;
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-    // Keep every tile's footprint stable while a snapshot changes from
-    // placeholder -> value -> timestamp. The max-lines guards also prevent
-    // a long error/status string from making a row reflow.
+    // Preserve the minimum footprint while allowing complete readings and
+    // timestamps to wrap on phones and at larger text sizes.
     constraints: const BoxConstraints(minHeight: 144),
     child: GuardianSurface(
       padding: const EdgeInsets.all(14),
@@ -346,8 +334,7 @@ class WellnessTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+
             style: TextStyle(
               fontSize: 13,
               color: context.guardianColors.textSecondary,
@@ -356,19 +343,17 @@ class WellnessTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+
             style: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w500,
               color: context.guardianColors.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             status,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+
             style: TextStyle(
               fontSize: 12,
               color: context.guardianColors.textSecondary,
@@ -407,7 +392,7 @@ class WellnessHeading extends StatelessWidget {
               title,
               style: TextStyle(
                 fontSize: 21,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
                 color: context.guardianColors.textPrimary,
               ),
             ),

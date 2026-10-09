@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../layout/guardian_scenic_background.dart';
 
 import '../../theme/colors.dart';
 import '../brand/guardian_pin_logo.dart';
@@ -22,46 +23,54 @@ class GuardianWelcomeLayout extends StatelessWidget {
     final colors = context.guardianColors;
     return Scaffold(
       backgroundColor: colors.canvas,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide =
-                constraints.maxWidth >= 1080 &&
-                MediaQuery.textScalerOf(context).scale(16) <= 20;
-            final gutter = constraints.maxWidth < 600 ? 20.0 : 40.0;
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(gutter, wide ? 36 : 24, gutter, 28),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: wide ? 1280 : 520),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _WelcomeBrand(wide: wide),
-                      SizedBox(height: wide ? 48 : 20),
-                      if (wide)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Expanded(child: _FamilyStory()),
-                            const SizedBox(width: 64),
-                            SizedBox(width: 440, child: form),
-                          ],
-                        )
-                      else ...[
-                        const _WelcomeHeadline(compact: true),
-                        const SizedBox(height: 16),
-                        const _FamilyPhoto(compact: true),
-                        const SizedBox(height: 20),
-                        form,
+      body: GuardianScenicBackground(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide =
+                  constraints.maxWidth >= 1080 &&
+                  MediaQuery.textScalerOf(context).scale(16) <= 20;
+              final gutter = constraints.maxWidth < 600 ? 20.0 : 40.0;
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  gutter,
+                  wide ? 36 : 24,
+                  gutter,
+                  28,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: wide ? 1280 : 520),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _WelcomeBrand(wide: wide),
+                        SizedBox(height: wide ? 48 : 20),
+                        if (wide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Expanded(child: _FamilyStory()),
+                              const SizedBox(width: 64),
+                              SizedBox(width: 440, child: form),
+                            ],
+                          )
+                        else ...[
+                          const _WelcomeHeadline(compact: true),
+                          const SizedBox(height: 16),
+                          const _FamilyPhoto(compact: true),
+                          const SizedBox(height: 20),
+                          form,
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
