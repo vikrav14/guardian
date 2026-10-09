@@ -10,6 +10,7 @@ const { readHomeWifiPriority } = require('./wifi-home-display-policy');
 const { isPlausibleJourneyHop, JOURNEY_CONTEXT_MAX_AGE_MS } = require('./journey-hop');
 const { enrichStoredJourneyPlaceNames } = require('./journey-place-labels');
 const { reverseGeocodeToPlaceName } = require('./geolocate/google');
+const { locationClockEvidence } = require('./location-receipt-time');
 
 const DAY_MS = 86400000;
 function millis(value) {
@@ -27,6 +28,7 @@ function normalizeGps(point, now = Date.now()) {
       Math.abs(point.lat) > 90 || Math.abs(point.lng) > 180 ||
       (Math.abs(point.lat) < 0.0001 && Math.abs(point.lng) < 0.0001)) return null;
   return { lat: point.lat, lng: point.lng, source: 'gps', accuracySource: 'gps', gpsValid: true,
+    ...locationClockEvidence(point),
     recordedAt: new Date(at), speedKmh: Number.isFinite(point.speedKmh) ? point.speedKmh : null,
     satellites: Number.isFinite(point.satellites) ? point.satellites : null,
     accuracyMeters: Number.isFinite(point.accuracyMeters) && point.accuracyMeters > 0 ? point.accuracyMeters : null,

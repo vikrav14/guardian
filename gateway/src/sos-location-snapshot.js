@@ -56,10 +56,9 @@ function copySosLocation(value, fallbackSource = null, capturedAt = null) {
 }
 
 /**
- * Mirror Device.mapDisplayLocation: Wi-Fi/LBS never displaces a retained GPS
- * primary pin. Retained GPS is ALWAYS last-known, even inside the fresh window.
- * Old/unknown-age GPS remains historical evidence, not a current-position claim.
- * Shared fixtures exercise this contract against the actual Flutter model.
+ * Legacy v1 construction, retained for historical compatibility tests.
+ * New physical incidents use buildIncidentLocationSnapshot (v2). Do not use
+ * this historical retained-GPS policy for new current-location decisions.
  */
 function buildSosLocationSnapshot(
   device = {}, { now = new Date(), observation = null } = {}
@@ -105,6 +104,7 @@ function buildSosLocationSnapshot(
 /** Top-level field is backend-only under the existing alerts create allowlist. */
 function readSosLocationSnapshot(alert = {}) {
   const raw = alert?.sosLocationSnapshot;
+  if (raw?.version === 2) return require('./incident-location-evidence').readIncidentLocationSnapshot(raw);
   if (!raw || raw.version !== SOS_LOCATION_SNAPSHOT_VERSION ||
       raw.policy !== SOS_LOCATION_SELECTION_POLICY ||
       !['fresh', 'last_known', 'unavailable'].includes(raw.state)) return null;
@@ -151,6 +151,9 @@ function formatSosLocationValue(snapshot) {
     return 'Current location unavailable';
   }
   const loc = snapshot.location;
+  if (loc.source === 'home_wifi') {
+    return `Home Wi-Fi detected · at or near the saved Home pin (not GPS) · detected ${formatLocationAge(snapshot.ageSeconds).replace(/ ago$/, '')} before alert receipt`;
+  }
   const parts = [];
   const label = snapshot.retainedSatellite
     ? 'Last reliable GPS location'
@@ -207,8 +210,10 @@ function buildSosSafetyContext({ device = {}, alert = {}, now = new Date() } = {
     locationFreshness: snapshot?.location
       ? formatAge(snapshot.location.recordedAt, snapshot.capturedAt) : null,
     approximate: Boolean(snapshot?.location && snapshot.location.source !== 'gps'),
-    positioningLabel: snapshot?.location && !snapshot.location.source
-      ? 'Positioning source unconfirmed' : context.positioningLabel,
+    positioningLabel: snapshot?.location?.source === 'home_wifi'
+      ? 'Home Wi-Fi detected · saved Home pin, not GPS'
+      : snapshot?.location && !snapshot.location.source
+        ? 'Positioning source unconfirmed' : context.positioningLabel,
   };
 }
 

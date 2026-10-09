@@ -62,6 +62,9 @@ function locationPlace(ctx) {
 }
 
 function buildFallLocationValue(ctx, locationDecision) {
+  if (locationDecision.source === 'home_wifi') {
+    return `Home Wi-Fi detected · near the saved Home pin (not GPS) · recorded ${eventRelativeAge(locationDecision.ageSeconds)}`;
+  }
   const details = [
     ctx.positioningLabel,
     `recorded ${eventRelativeAge(locationDecision.ageSeconds)}`,
@@ -92,6 +95,7 @@ function buildFallTemplatePlan({
         reason: snapshot.reason || null,
         ageSeconds: snapshot.ageSeconds ?? null,
         recordedAt: snapshot.location?.recordedAt || null,
+        source: snapshot.location?.source || null,
       }
     : unavailableDecision();
 

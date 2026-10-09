@@ -18,7 +18,7 @@ function watch(nickname = 'Test wearer', lat = -20.25) {
   return { nickname,
     lastSatelliteLocation: { lat, lng: 57.5, source: 'gps', gpsValid: true,
       recordedAt: new Date(Date.now() - 7200000), placeLabel: 'GPS test area' },
-    location: { lat: -20.26, lng: 57.51, source: 'wifi', accuracyMeters: 600,
+    location: { lat: lat - 0.01, lng: 57.51, source: 'wifi', accuracyMeters: 600,
       recordedAt: new Date(Date.now() - 60000), placeLabel: 'Network test area' },
     lastHeartbeatAt: new Date(), batteryPercent: 80 };
 }
@@ -80,15 +80,15 @@ function chatHarness({ plan = 'family', status = 'active', devices = { A: watch(
     chatFrom: (sender, text) => sandbox.module.exports.handleChat({ from: sender, text }) };
 }
 
-test('actual location? route retains GPS and renders uncertainty without any model call', async () => {
+test('actual location? route selects recent network evidence and renders uncertainty without any model call', async () => {
   const run = chatHarness();
   const result = await run.chat('location?');
   assert.equal(result.deterministic, true);
-  assert.match(result.reply, /Last known GPS location for Test wearer/);
+  assert.match(result.reply, /Approximate Wi-Fi location for Test wearer/);
   assert.match(result.reply, /Current position unconfirmed/);
-  assert.match(result.reply, /Newer approximate Wi-Fi reading/);
-  assert.match(result.reply, /\?q=-20.25,57.5/);
-  assert.doesNotMatch(result.reply, /Network test area|is at|Last updated/);
+  assert.match(result.reply, /Estimated radius 600 m/);
+  assert.match(result.reply, /\?q=-20.26,57.51/);
+  assert.doesNotMatch(result.reply, /GPS test area|is at|Last updated/);
   assert.equal(run.calls.tools.length, 1);
   assert.equal(run.calls.tools[0].input.imei, 'A');
   assert.equal(run.calls.provider + run.calls.fallback, 0);
@@ -107,13 +107,13 @@ test('actual authenticated location route uses fresh Home evidence and falls bac
   assert.equal(home.deterministic, true);
   assert.match(home.reply, /Home Wi-Fi detected for Test wearer/);
   assert.match(home.reply, /at or near your saved Home location/);
-  assert.match(home.reply, /Last GPS fix retained separately/);
+  assert.doesNotMatch(home.reply, /Last GPS fix retained separately/);
   assert.match(home.reply, /\?q=-20.15,57.15/);
   assert.equal((home.reply.match(/https:/g) || []).length, 1);
   device.homeWifiPresence.expiresAt = new Date(now - 1).toISOString();
   const expired = await run.chat('location?');
-  assert.match(expired.reply, /Last known GPS location for Test wearer/);
-  assert.match(expired.reply, /\?q=-20.25,57.5/);
+  assert.match(expired.reply, /Approximate Wi-Fi location for Test wearer/);
+  assert.match(expired.reply, /\?q=-20.26,57.51/);
   assert.doesNotMatch(expired.reply, /Home Wi-Fi detected/);
   assert.equal(run.calls.provider + run.calls.fallback, 0);
 });
@@ -124,8 +124,8 @@ test('multiple wearers require selection and the follow-up reads the selected li
   assert.match(question.reply, /Who would you like me to check—Alex or Sam/);
   assert.equal(run.calls.tools.length, 0);
   const reply = await run.chat('Sam');
-  assert.match(reply.reply, /GPS location for Sam/);
-  assert.match(reply.reply, /\?q=-20.24,57.5/);
+  assert.match(reply.reply, /Wi-Fi location for Sam/);
+  assert.match(reply.reply, /\?q=-20.25,57.51/);
   assert.equal(run.calls.tools[0].input.imei, 'B');
   assert.equal(run.calls.provider + run.calls.fallback, 0);
 });

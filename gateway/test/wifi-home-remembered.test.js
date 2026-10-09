@@ -18,23 +18,13 @@ for (const fixture of fixtures) {
     const remembered = readLastHomeWifiDetection(device, options);
     assert.equal(Boolean(remembered), fixture.expectedRemembered);
     const reply = buildLocationReplyData(device, options);
-    assert.equal(reply.lastDetectedAtHome, fixture.expectedRemembered);
+    assert.equal(reply.lastDetectedAtHome, false, 'history is not a current map');
     const without = { ...device, lastHomeWifiDetection: null };
     assert.deepEqual(buildSosLocationSnapshot(device, options), buildSosLocationSnapshot(without, options));
     assert.deepEqual(readHomeWifiPriority(device, options), readHomeWifiPriority(without, options));
-    if (remembered) {
-      assert.equal(reply.homeWifiDetected, false);
-      assert.equal(reply.locationState, 'last_known');
-      assert.equal(reply.recordedAt, device.lastHomeWifiDetection.observedAt);
-      assert.equal(reply.lat, device.lastHomeWifiDetection.anchor.lat);
-      const text = formatLocationReply({ ...reply, name: 'Test wearer' });
-      assert.match(text, /Last detected at Home/);
-      assert.match(text, /Current presence at Home is unconfirmed/);
-      assert.doesNotMatch(text, /watch is at or near|has left|has arrived|Home Wi-Fi detected for/);
-      assert.equal((text.match(/https:/g) || []).length, 1);
-    } else {
-      assert.equal(reply.mapsUrl, buildLocationReplyData(without, options).mapsUrl);
-    }
+    assert.equal(reply.mapsUrl, buildLocationReplyData(without, options).mapsUrl);
+    if (remembered) assert.doesNotMatch(formatLocationReply({ ...reply, name: 'Test wearer' }),
+      /Last detected at Home|watch is at or near|has left|has arrived|Home Wi-Fi detected for/);
     assert.deepEqual(device, fixture.device, 'presentation cannot mutate evidence');
   });
 }

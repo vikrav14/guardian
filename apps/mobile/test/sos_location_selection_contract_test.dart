@@ -6,11 +6,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:guardian/models/device.dart';
 
 // These exact fixtures are also run by gateway/test/sos-location-snapshot.test.js.
-// They keep SOS primary-pin selection aligned with the actual map model.
+// The dashboard retains its historical-pin contract; v2 SOS has separate
+// fresh-evidence expectations in the same fixtures and incident reader tests.
 void main() {
-  final fixtures = jsonDecode(
-    File('../../docs/testing/sos-location-selection.json').readAsStringSync(),
-  ) as List<dynamic>;
+  final fixtures =
+      jsonDecode(
+            File(
+              '../../docs/testing/sos-location-selection.json',
+            ).readAsStringSync(),
+          )
+          as List<dynamic>;
 
   DeviceLocation? location(dynamic raw) => raw is Map
       ? DeviceLocation.fromMap(Map<String, dynamic>.from(raw))
@@ -18,7 +23,7 @@ void main() {
 
   for (final raw in fixtures) {
     final fixture = Map<String, dynamic>.from(raw as Map);
-    test('app/SOS primary pin: ${fixture['name']}', () {
+    test('dashboard historical pin: ${fixture['name']}', () {
       final evidence = Map<String, dynamic>.from(fixture['device'] as Map);
       final device = Device(
         imei: 'fixture-watch',
@@ -29,7 +34,9 @@ void main() {
         lastSatelliteLocation: location(evidence['lastSatelliteLocation']),
       );
       final expected = (fixture['expected'] as Map)['location'];
-      final selected = device.mapDisplayLocation;
+      final selected = device.mapDisplayLocationAt(
+        DateTime.parse(fixture['now'] as String),
+      );
       if (expected == null) {
         expect(selected, isNull);
       } else {

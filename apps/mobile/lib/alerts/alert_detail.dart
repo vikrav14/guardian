@@ -208,6 +208,8 @@ class _SosLocation extends StatelessWidget {
     final locationAvailable = snapshot?.mapsUri != null && onLocation != null;
     final label = snapshot?.retainedSatellite == true
         ? 'Last reliable GPS'
+        : point?.source == 'home_wifi'
+        ? 'Home Wi-Fi detected'
         : point?.source == 'gps'
         ? 'Satellite GPS'
         : point?.source == 'wifi'
@@ -247,7 +249,9 @@ class _SosLocation extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            const Text('No trustworthy location was recorded with this alert.'),
+            const Text(
+              'No recent location was confirmed for this alert. Older positions are not shown as the current location.',
+            ),
           ] else ...[
             Text(
               label,
@@ -275,6 +279,10 @@ class _SosLocation extends StatelessWidget {
               ),
             if (point.source != 'gps' && point.accuracyMeters != null)
               Text('Estimated radius: ${point.accuracyMeters!.round()} m'),
+            if (point.source == 'home_wifi')
+              const Text(
+                'Near the enrolled Home router. The map shows your saved Home pin, not a GPS fix.',
+              ),
             if (snapshot.state == 'last_known') ...[
               const SizedBox(height: 8),
               const Text('Current position unconfirmed.'),
