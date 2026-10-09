@@ -162,8 +162,11 @@ emergency delivery runs immediately and never awaits the photo worker or AI.
 Client-created help alerts cannot authorize automatic capture. A separate worker
 uses enrolled household consent and an active Family/Care subscription.
 
-One durable device lock collapses duplicate SOS/fall reports into the same gallery
-for 12 minutes. The worker requests **up to five photos**, sequentially, at least
+Each accepted alert ID has its own gallery and follow-up; repeated processing of
+the same ID is idempotent. A durable device lock prevents overlapping capture.
+A separate alert received while the camera is busy gets an explicit no-photo
+result and retains its own follow-up, without borrowing an earlier alarm's photo.
+The legacy sequence worker requests **up to five photos**, sequentially, at least
 60 seconds after the previous image was saved. The first photo has no added
 spacing delay. This 2 October pacing change aims to spread context over time;
 it is not proof of firmware readiness or a fix for ACK-without-image failures.
