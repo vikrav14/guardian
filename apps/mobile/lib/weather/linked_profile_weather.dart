@@ -133,14 +133,9 @@ class _LinkedProfileWeatherState extends State<LinkedProfileWeather> {
     final now = widget.clock();
     final device = widget.device;
     final weather = _weather;
-    final expectedLocation = device?.weatherDisplayLocationAt(now);
     final detectedHome =
-        const {
-          'home_wifi',
-          'home_wifi_last_detected',
-        }.contains(expectedLocation?.source)
-        ? expectedLocation
-        : null;
+        device?.homeWifiLocationAt(now) ??
+        device?.rememberedHomeWifiLocationAt(now);
     final home =
         detectedHome?.recordedAt != null &&
             now.difference(detectedHome!.recordedAt!) <

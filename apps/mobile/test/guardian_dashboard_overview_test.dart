@@ -68,7 +68,7 @@ void main() {
             dark: dark,
             textScale: 2,
           );
-          expect(find.text('Approximate location'), findsWidgets);
+          expect(find.text('Last detected at Home'), findsWidgets);
           expect(
             find.textContaining(
               'Current presence at Home is unconfirmed.',
@@ -78,7 +78,7 @@ void main() {
           );
           expect(find.text('At or near saved Home.'), findsNothing);
           expect(find.text('Home Wi-Fi detected'), findsNothing);
-          expect(device.mapDisplayLocation?.source, 'wifi');
+          expect(device.mapDisplayLocation?.source, 'home_wifi_last_detected');
           expect(device.hasHomeWifiDisplay, false);
           expect(tester.takeException(), isNull);
           await _tap(tester, find.text('Call watch'));
@@ -474,28 +474,29 @@ void main() {
     expect(find.text('Battery unavailable'), findsOneWidget);
   });
 
-  testWidgets('connected watch shows fresh network place, age and uncertainty', (
+  testWidgets('connected watch retains GPS place and age over newer Wi-Fi', (
     tester,
   ) async {
     final device = dashboardFixtureDevice(now: DateTime.now());
     await _pump(tester, dashboardFixtureOverview(device: device));
+
     expect(find.text('Watch connected'), findsOneWidget);
     expect(find.text('Checked in 1m ago'), findsOneWidget);
-    expect(find.text('Just now'), findsOneWidget);
-    expect(
-      find.byTooltip('Approximate location recorded just now'),
-      findsOneWidget,
-    );
-    expect(find.text('Sample network estimate'), findsWidgets);
-    // The saved geofence may still name Sample garden; the current map must use the network point.
-    expect(device.mapDisplayLocation, same(device.location));
+    expect(find.text('Last reliable fix'), findsNothing);
+    expect(find.text('13m ago'), findsOneWidget);
+    expect(find.byTooltip('Last reliable GPS fix 13m ago'), findsOneWidget);
+    expect(find.text('Last known location'), findsOneWidget);
+    expect(find.text('Sample network estimate'), findsNothing);
     expect(
       find.textContaining(
-        'This network estimate may cover a wider area.',
+        'Showing the last reliable GPS position.',
         findRichText: true,
       ),
       findsOneWidget,
     );
+    expect(device.mapDisplayLocation, same(device.lastSatelliteLocation));
+    expect(device.location?.placeLabel, 'Sample network estimate');
+    expect(find.text('Sample garden'), findsNWidgets(2));
   });
 
   testWidgets(
@@ -551,11 +552,6 @@ void main() {
           dashboardFixtureOverview(device: device, mapStatus: sample.status),
         );
         expect(find.text('Watch connected'), findsOneWidget);
-        if (device.mapDisplayLocation == null) {
-          expect(find.text('Waiting for a location'), findsOneWidget);
-          expect(find.text('2h ago'), findsNothing);
-          continue;
-        }
         expect(
           find.text(sample.age.inHours >= 2 ? '2h ago' : 'Just now'),
           findsOneWidget,
@@ -625,8 +621,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Waiting for a location'), findsOneWidget);
-      expect(find.byTooltip('Location time unavailable'), findsNothing);
+      expect(find.text('Time unavailable'), findsOneWidget);
+      expect(find.byTooltip('Location time unavailable'), findsOneWidget);
       expect(find.byTooltip('Satellite GPS updated just now'), findsNothing);
       expect(find.text('Just now'), findsNothing);
       expect(

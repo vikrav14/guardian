@@ -170,11 +170,8 @@ function createHomeWifiPublisher({ readBinding, readObservation, readGpsObservat
         if (stopped) return;
         const key = binding?.ready ? binding.key : null;
         if (key !== bindingKey) {
-          // The first packet can start this publisher. Keep that fresh radio
-          // sighting when its initial binding is verified; reset only after a
-          // previously checked enrollment/anchor/owner binding changes.
-          if (bindingKey !== undefined) resetObservation();
           bindingKey = key;
+          resetObservation(); // Reconfirm after enrollment/anchor/owner changes.
         }
         if (binding?.ready && restorePresence) {
           lastDetection = matchesHomeBinding(binding.storedLastDetection, binding, new Date(now()))

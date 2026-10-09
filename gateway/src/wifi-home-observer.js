@@ -4,6 +4,10 @@ const crypto = require('node:crypto');
 
 // Pilot observation thresholds, not an assertion that the wearer is indoors.
 const POLICY = Object.freeze({
+  minSignalDbm: -75,
+  minReports: 3,
+  minSpanMs: 20_000,
+  maxGapMs: 60_000,
   maxAgeMs: 120_000,
   futureSkewMs: 15_000,
   maxAccessPoints: 32,
@@ -42,6 +46,8 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
   let reason = 'no_observation';
   let lastSourceMs = null;
   let lastReceiptMs = null;
+  let firstMatchSourceMs = null;
+  let firstMatchReceiptMs = null;
   let lastMatchSourceMs = null;
   let lastMatchReceiptMs = null;
   let streak = 0;
@@ -50,6 +56,7 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
 
   function clear(nextReason) {
     state = 'unknown'; reason = nextReason; streak = 0;
+    firstMatchSourceMs = null; firstMatchReceiptMs = null;
     lastMatchSourceMs = null; lastMatchReceiptMs = null; signalDbm = null;
   }
 
@@ -93,15 +100,11 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
       counts.ignoredTime += 1;
       return snapshot(nowMs);
     }
-    const deviceMs = timestamp(event.location?.deviceRecordedAt);
-    const sourceIdentityMs = event.location?.timeBasis === 'gateway_receipt_location_clock_skew' &&
-      deviceMs > sourceMs && deviceMs - sourceMs <= POLICY.futureSkewMs ? deviceMs : sourceMs;
-    // Receipt correction must not make repeat copies of one device report new.
-    if (lastSourceMs != null && sourceIdentityMs <= lastSourceMs) {
+    if (lastSourceMs != null && sourceMs <= lastSourceMs) {
       counts.duplicates += 1;
       return snapshot(nowMs);
     }
-    lastSourceMs = sourceIdentityMs;
+    lastSourceMs = sourceMs;
     lastReceiptMs = nowMs;
 
     const gps = event.gpsValid === true && event.location?.gpsValid === true &&
@@ -166,27 +169,25 @@ function createWifiHomeObserver({ enabled = false, imei, routerHash, hashKey } =
       }
     }
     if (seen) counts.routerSeen += 1;
-    // Router identity establishes the enrolled place. Weak but valid signal
-    // still counts; it is not a reliable measure of being inside the house.
-    if (!seen || strongest == null) {
-      clear(!seen ? 'router_not_seen' : 'signal_unknown');
+    if (!seen || strongest == null || strongest < POLICY.minSignalDbm) {
+      clear(!seen ? 'router_not_seen' : strongest == null ? 'signal_unknown' : 'signal_weak');
       return snapshot(nowMs);
     }
 
     counts.qualified += 1;
-    if (lastMatchSourceMs == null || sourceMs - lastMatchSourceMs >= POLICY.maxAgeMs ||
-        nowMs - lastMatchReceiptMs >= POLICY.maxAgeMs) {
-      streak = 0;
+    if (lastMatchSourceMs == null || sourceMs - lastMatchSourceMs > POLICY.maxGapMs ||
+        nowMs - lastMatchReceiptMs > POLICY.maxGapMs) {
+      streak = 0; firstMatchSourceMs = sourceMs; firstMatchReceiptMs = nowMs;
     }
     streak += 1;
     lastMatchSourceMs = sourceMs;
     lastMatchReceiptMs = nowMs;
     signalDbm = strongest;
-    // A fresh exact enrolled-router sighting identifies Home proximity even
-    // when normal reports are ten minutes apart. No old sighting, heartbeat or
-    // elapsed time can restore Home; the source-bound two-minute expiry remains.
-    state = 'matched';
-    reason = 'enrolled_router_observed';
+    const sustained = streak >= POLICY.minReports &&
+      sourceMs - firstMatchSourceMs >= POLICY.minSpanMs &&
+      nowMs - firstMatchReceiptMs >= POLICY.minSpanMs;
+    state = sustained ? 'matched' : 'candidate';
+    reason = sustained ? 'repeated_router_observations' : 'awaiting_repeated_observations';
     return snapshot(nowMs);
   }
 

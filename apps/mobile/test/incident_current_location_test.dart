@@ -88,30 +88,42 @@ void main() {
     },
   );
 
-  test('current app map expires without heartbeats renewing the location', () {
-    final device = Device(
-      imei: 'fixture',
-      online: true,
-      lastHeartbeatAt: at.add(const Duration(hours: 1)),
-      location: DeviceLocation.fromMap(point('wifi', at)),
-      lastSatelliteLocation: DeviceLocation(
-        lat: -20.1,
-        lng: 57.1,
-        source: 'gps',
-        recordedAt: at.subtract(const Duration(hours: 9)),
-      ),
-    );
-    expect(device.mapDisplayLocationAt(at)!.source, 'wifi');
-    expect(
-      device.mapDisplayLocationAt(at.add(const Duration(minutes: 11))),
-      isNull,
-    );
-    expect(
-      deviceMapLocationFixLabel(
-        device,
-        now: at.add(const Duration(minutes: 11)),
-      ),
-      'Waiting for a fresh location report',
-    );
-  });
+  test(
+    'dashboard retains its historical pin independently of SOS freshness',
+    () {
+      final device = Device(
+        imei: 'fixture',
+        online: true,
+        lastHeartbeatAt: at.add(const Duration(hours: 1)),
+        location: DeviceLocation.fromMap(point('wifi', at)),
+        lastSatelliteLocation: DeviceLocation(
+          lat: -20.1,
+          lng: 57.1,
+          source: 'gps',
+          recordedAt: at.subtract(const Duration(hours: 9)),
+        ),
+      );
+      expect(
+        device.mapDisplayLocationAt(at),
+        same(device.lastSatelliteLocation),
+      );
+      expect(
+        device.mapDisplayLocationAt(at.add(const Duration(minutes: 11))),
+        same(device.lastSatelliteLocation),
+      );
+      expect(
+        deviceMapLocationFixLabel(
+          device,
+          now: at.add(const Duration(minutes: 11)),
+        ),
+        startsWith('Last reliable GPS fix'),
+      );
+      expect(
+        SosLocationSnapshot.tryParse(
+          snapshot(point('gps', at.subtract(const Duration(hours: 9)))),
+        ),
+        isNull,
+      );
+    },
+  );
 }

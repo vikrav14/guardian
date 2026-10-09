@@ -157,31 +157,41 @@ String deviceLocationFixLabel(Device device, {DateTime? now}) {
 }
 
 String deviceMapLocationStatusLabel(Device device) {
-  final point = device.mapDisplayLocation;
-  if (point == null) return 'Current location unavailable';
   if (device.hasHomeWifiConflict) return 'Location uncertain';
-  if (point.source == 'home_wifi') return 'Home Wi-Fi detected';
-  if (point.source == 'wifi' || point.source == 'lbs') {
-    return 'Approximate location';
-  }
-  return 'Recent GPS location';
+  if (device.hasHomeWifiDisplay) return 'Home Wi-Fi detected';
+  if (device.hasRememberedHomeWifiDisplay) return 'Last detected at Home';
+  if (device.isMapDisplayingLastSatelliteLocation) return 'Last reliable fix';
+  return deviceLocationStatusLabel(device);
 }
 
 String deviceMapLocationFixLabel(Device device, {DateTime? now}) {
-  final point = device.mapDisplayLocationAt(now ?? DateTime.now());
-  if (point == null) return 'Waiting for a fresh location report';
-  if (point.source != 'home_wifi') {
-    final network = point.source == 'wifi' || point.source == 'lbs';
+  if (device.homeWifiConflictAt(now ?? DateTime.now())) {
+    final at = device.mapDisplayLocationAt(now ?? DateTime.now())?.recordedAt;
+    if (at == null) return 'Recorded position time unavailable';
     return _freshnessLabel(
-      point.recordedAt!,
+      at,
       now: now,
-      justNow: network
-          ? 'Approximate location recorded just now'
-          : 'GPS recorded just now',
-      prefix: network ? 'Approximate location recorded' : 'GPS recorded',
+      justNow: 'Position recorded just now · unconfirmed',
+      prefix: 'Unconfirmed position recorded',
     );
   }
-  return deviceHomeWifiFixLabel(device, now: now);
+  if (device.homeWifiLocationAt(now ?? DateTime.now()) != null) {
+    return deviceHomeWifiFixLabel(device, now: now);
+  }
+  if (device.rememberedHomeWifiLocationAt(now ?? DateTime.now()) != null) {
+    return deviceLastHomeWifiFixLabel(device, now: now);
+  }
+  if (!device.isMapDisplayingLastSatelliteLocation) {
+    return deviceLocationFixLabel(device, now: now);
+  }
+  final timestamp = device.mapDisplayLocation?.recordedAt;
+  if (timestamp == null) return 'Reliable location time unavailable';
+  return _freshnessLabel(
+    timestamp,
+    now: now,
+    justNow: 'Last reliable GPS fix was just now',
+    prefix: 'Last reliable GPS fix',
+  );
 }
 
 String deviceHomeWifiFixLabel(Device device, {DateTime? now}) {

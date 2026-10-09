@@ -48,14 +48,14 @@ void main() {
     );
   });
 
-  test('recent indoor evidence replaces and labels the old satellite fix', () {
-    final now = DateTime.now();
+  test('recent indoor fallback retains and labels the last satellite fix', () {
+    final now = DateTime.utc(2026, 8, 14, 19, 48);
     final satellite = DeviceLocation(
       lat: -20.029278,
       lng: 57.5960427,
       source: 'gps',
       gpsValid: true,
-      recordedAt: now.subtract(const Duration(minutes: 6)),
+      recordedAt: DateTime.utc(2026, 8, 14, 19, 42),
     );
     final approximate = DeviceLocation(
       lat: -20.028,
@@ -63,7 +63,7 @@ void main() {
       source: 'wifi',
       gpsValid: false,
       accuracyMeters: 308.701,
-      recordedAt: now.subtract(const Duration(minutes: 1)),
+      recordedAt: DateTime.utc(2026, 8, 14, 19, 47),
     );
     final device = Device(
       imei: '861397052547492',
@@ -76,64 +76,61 @@ void main() {
       lastHeartbeatAt: now,
     );
 
-    expect(device.isDisplayingRetainedSatelliteLocation, false);
-    expect(device.displayLocation, same(approximate));
-    expect(device.displayLocationSource, 'wifi');
-    expect(deviceLocationStatusLabel(device), 'Approximate location');
+    expect(device.isDisplayingRetainedSatelliteLocation, true);
+    expect(device.displayLocation, same(satellite));
+    expect(device.displayLocationSource, 'gps');
+    expect(deviceLocationStatusLabel(device), 'Last satellite fix');
     expect(
       deviceLocationFixLabel(device, now: now),
-      'Approximate network location updated 1m ago',
+      'Last satellite fix 6m ago',
     );
   });
 
-  test(
-    'broad network evidence retains its own uncertainty instead of old GPS',
-    () {
-      final satelliteAt = DateTime.now().subtract(const Duration(minutes: 31));
-      final approximateAt = satelliteAt.add(const Duration(minutes: 31));
-      final approximate = DeviceLocation(
-        lat: -20.028,
-        lng: 57.596,
-        source: 'lbs',
-        accuracyMeters: 724685,
-        recordedAt: approximateAt,
-      );
-      final device = Device(
-        imei: '861397052547492',
-        online: true,
-        connectionState: 'live',
-        accuracySource: 'lbs',
-        location: approximate,
-        lastLocationObservation: approximate,
-        lastSatelliteLocation: DeviceLocation(
-          lat: -20.029278,
-          lng: 57.5960427,
-          source: 'gps',
-          recordedAt: satelliteAt,
-        ),
-        lastHeartbeatAt: approximateAt,
-      );
+  test('broad network fix never displaces the last reliable satellite fix', () {
+    final satelliteAt = DateTime.utc(2026, 8, 14, 19);
+    final approximateAt = satelliteAt.add(const Duration(minutes: 31));
+    final approximate = DeviceLocation(
+      lat: -20.028,
+      lng: 57.596,
+      source: 'lbs',
+      accuracyMeters: 724685,
+      recordedAt: approximateAt,
+    );
+    final device = Device(
+      imei: '861397052547492',
+      online: true,
+      connectionState: 'live',
+      accuracySource: 'lbs',
+      location: approximate,
+      lastLocationObservation: approximate,
+      lastSatelliteLocation: DeviceLocation(
+        lat: -20.029278,
+        lng: 57.5960427,
+        source: 'gps',
+        recordedAt: satelliteAt,
+      ),
+      lastHeartbeatAt: approximateAt,
+    );
 
-      expect(device.isDisplayingRetainedSatelliteLocation, false);
-      expect(device.displayLocation, same(approximate));
-      expect(device.mapDisplayLocation, same(approximate));
-      expect(device.isMapDisplayingLastSatelliteLocation, false);
-      expect(deviceLocationStatusLabel(device), 'Approximate location');
-      expect(
-        deviceLocationFixLabel(device, now: approximateAt),
-        'Approximate network location updated just now',
-      );
-      expect(deviceMapLocationStatusLabel(device), 'Approximate location');
-      expect(
-        deviceMapLocationFixLabel(device, now: approximateAt),
-        'Approximate location recorded just now',
-      );
-      expect(
-        buildGuardianAiInterpretation(device),
-        isNot(contains('keeping the last satellite fix visible')),
-      );
-    },
-  );
+    expect(device.isDisplayingRetainedSatelliteLocation, true);
+    expect(device.displayLocation, same(device.lastSatelliteLocation));
+    expect(device.mapDisplayLocation, same(device.lastSatelliteLocation));
+    expect(device.isMapDisplayingLastSatelliteLocation, true);
+    expect(deviceLocationStatusLabel(device), 'Last satellite fix');
+    expect(
+      deviceLocationFixLabel(device, now: approximateAt),
+      'Last satellite fix 31m ago',
+    );
+    expect(deviceMapLocationStatusLabel(device), 'Last reliable fix');
+    expect(
+      deviceMapLocationFixLabel(device, now: approximateAt),
+      'Last reliable GPS fix 31m ago',
+    );
+    expect(
+      buildGuardianAiInterpretation(device),
+      contains('keeping the last satellite fix visible'),
+    );
+  });
 
   test('map moves again when a new satellite fix arrives', () {
     final now = DateTime.utc(2026, 8, 14, 20);
@@ -154,7 +151,7 @@ void main() {
       lastHeartbeatAt: now,
     );
 
-    expect(device.mapDisplayLocationAt(now), same(gps));
+    expect(device.mapDisplayLocation, same(gps));
     expect(device.isMapDisplayingLastSatelliteLocation, false);
   });
 
@@ -177,7 +174,7 @@ void main() {
       lastHeartbeatAt: now,
     );
 
-    expect(device.mapDisplayLocationAt(now), same(approximate));
+    expect(device.mapDisplayLocation, same(approximate));
     expect(device.isMapDisplayingLastSatelliteLocation, false);
   });
 

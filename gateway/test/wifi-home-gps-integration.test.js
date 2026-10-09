@@ -127,7 +127,7 @@ test('GPS and empty scans cannot extend Home beyond the last actual radio sighti
 });
 
 test('contradictory scans clear Home; network read failures cannot renew the lease and require requalification', async () => {
-  for (const [scan, expected] of [['other', 'router_not_seen'], ['invalid', 'invalid_scan']]) {
+  for (const [scan, expected] of [['other', 'router_not_seen'], ['weak', 'signal_weak'], ['invalid', 'invalid_scan']]) {
     const run = harness(); await run.publisher.tick();
     for (const at of [0, 10, 20]) await run.receive(at);
     await run.receive(30, { gps: true, scan });
@@ -146,18 +146,6 @@ test('contradictory scans clear Home; network read failures cannot renew the lea
   run.state.failBinding = false;
   await run.receive(60);
   assert.equal(run.selected(), null, 'binding recovery requires new sustained router evidence');
-});
-
-test('weak saved-router scans publish Home and a later missing router clears it', async () => {
-  const run = harness(); await run.publisher.tick();
-  for (const at of [0, 10, 20]) await run.receive(at, { scan: 'weak' });
-  assert.equal(run.selected().source, 'home_wifi');
-  assert.equal(run.selected().lat, anchor.lat);
-  assert.equal(run.radio().signalDbm, -90);
-  await run.receive(30, { gps: true, scan: 'weak' });
-  assert.equal(run.selected().source, 'home_wifi');
-  await run.receive(40, { scan: 'other' });
-  assert.equal(run.selected(), null);
 });
 
 test('SOS packet ACKs, GPS snapshot and telemetry stay identical when Home is selected', async () => {

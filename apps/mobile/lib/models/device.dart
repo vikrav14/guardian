@@ -427,10 +427,7 @@ class Device {
     final satellite = lastSatelliteLocation;
     if (latest?.isValid != true || satellite?.isValid != true) return false;
     final source = latestLocationSource;
-    return (source == 'wifi' || source == 'lbs') &&
-        satellite!.recordedAt != null &&
-        latest!.recordedAt != null &&
-        satellite.recordedAt!.isAfter(latest.recordedAt!);
+    return source == 'wifi' || source == 'lbs';
   }
 
   DeviceLocation? get displayLocation {
@@ -438,68 +435,34 @@ class Device {
     return latestLocationObservation ?? lastSatelliteLocation;
   }
 
-  /// Only recent evidence belongs on the current map. Network estimates keep
-  /// their own source/radius, and Home requires an unexpired router sighting.
-  /// Stored history remains available without representing current whereabouts.
+  /// Conservative map position for a family-facing live view.
+  ///
+  /// WiFi/LBS observations can be useful evidence but are too broad to move a
+  /// person's primary avatar. A fresh, backend-validated Home radio match can
+  /// temporarily select the saved Home pin with its own source/time label.
+  /// Otherwise the accepted satellite/network fallback applies. This overlay
+  /// never changes stored telemetry, journeys, geofences or SOS selection.
   DeviceLocation? get mapDisplayLocation =>
       mapDisplayLocationAt(DateTime.now());
 
   DeviceLocation? mapDisplayLocationAt(DateTime now) {
     final home = homeWifiLocationAt(now);
     if (home != null) return home;
-    return _newestRecordedLocationAt(now, const Duration(minutes: 10));
-  }
-
-  /// Weather may use a labelled historical area, but a remembered Home must
-  /// never displace newer GPS or network evidence shown by the map.
-  DeviceLocation? weatherDisplayLocationAt(DateTime now) {
-    final home = homeWifiLocationAt(now);
-    if (home != null) return home;
-    final latest = _newestRecordedLocationAt(now, const Duration(hours: 24));
     final remembered = rememberedHomeWifiLocationAt(now);
-    if (remembered?.recordedAt != null &&
-        now.difference(remembered!.recordedAt!) < const Duration(hours: 24) &&
-        (latest == null ||
-            remembered.recordedAt!.isAfter(latest.recordedAt!))) {
-      return remembered;
+    if (remembered != null) return remembered;
+    final source = latestLocationSource;
+    final satellite = lastSatelliteLocation;
+    if ((source == 'wifi' || source == 'lbs') && satellite?.isValid == true) {
+      return satellite;
     }
-    return latest != null &&
-            now.difference(latest.recordedAt!) < const Duration(hours: 24)
-        ? latest
-        : null;
-  }
-
-  DeviceLocation? _newestRecordedLocationAt(DateTime now, Duration maxAge) {
-    final candidates =
-        [
-            latestLocationObservation,
-            location,
-            lastApproximateLocation,
-            lastSatelliteLocation,
-          ].whereType<DeviceLocation>().where((point) {
-            final at = point.recordedAt;
-            final source =
-                point.source ??
-                (identical(point, lastSatelliteLocation)
-                    ? 'gps'
-                    : accuracySource);
-            return point.isValid &&
-                point.lat.isFinite &&
-                point.lng.isFinite &&
-                point.lat.abs() <= 90 &&
-                point.lng.abs() <= 180 &&
-                const {'gps', 'wifi', 'lbs'}.contains(source) &&
-                !(source == 'gps' && point.gpsValid == false) &&
-                at != null &&
-                !at.isAfter(now) &&
-                now.difference(at) <= maxAge;
-          }).toList()
-          ..sort((a, b) => b.recordedAt!.compareTo(a.recordedAt!));
-    return candidates.isEmpty ? null : candidates.first;
+    return displayLocation;
   }
 
   bool get isMapDisplayingLastSatelliteLocation {
-    return false; // Historical pins are not current positions.
+    if (hasHomeWifiDisplay || hasRememberedHomeWifiDisplay) return false;
+    final source = latestLocationSource;
+    return (source == 'wifi' || source == 'lbs') &&
+        lastSatelliteLocation?.isValid == true;
   }
 
   String? get displayLocationSource =>

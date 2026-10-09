@@ -160,29 +160,25 @@ password, prints the key or changes any existing Meta, watch or admin settings.
 This operator-controlled pilot setup is not the future customer enrollment or
 linked-caregiver authorization flow.
 
-The observation policy accepts a fresh exact sighting of the enrolled router,
-including weak valid signals. A single sighting can restore Home with normal
-ten-minute reporting; no burst or faster standing interval is required.
-Reports must be less than two minutes old. Evidence expires two minutes after the last qualifying
+The provisional observation policy requires three distinct, strong reports
+(at least -75 dBm) spanning at least 20 seconds in both source time and gateway
+receipt time. Reports must be less than two minutes old; gaps over one minute
+restart the sequence. Evidence expires two minutes after the last qualifying
 observation, using the earlier of source and receipt time. Heartbeats and
-repeated/out-of-order timestamps cannot extend it. Unknown routers, missing or invalid
+repeated/out-of-order timestamps cannot extend it. Unknown routers, absent/weak
 signal in a declared scan, malformed scans or contradictory sources end the match.
-The former -75 dBm cutoff was removed on 9 October at the pilot owner's request.
-Valid numeric signal readings from -120 through 0 dBm count. This identifies
-proximity to the saved router, not proof that the wearer is inside the house.
 The private pipeline inspects declared radio fields in both GPS and non-GPS
 packets without modifying their production events. A missing scan or a canonical
 GPS/cellular report with zero access points carries no new Wi-Fi evidence.
 It preserves an existing candidate/match without adding a
-qualifying report or changing its source time/expiry. Cellular packets cannot
-bridge expiry. Missing Wi-Fi is not labelled as a departure. A gateway restart
-starts with no match until a fresh enrolled-router sighting arrives. These are
-pilot thresholds, not proof of indoor presence.
+qualifying report or changing its source time/expiry. Gaps are measured between
+qualifying router observations, so cellular packets cannot bridge a gap over
+one minute. Missing Wi-Fi is not labelled as a departure. A gateway restart
+starts with no match. These are pilot thresholds, not proof of indoor presence.
 
-The `consecutiveMatches` diagnostic counts fresh qualifying router observations with
+The `consecutiveMatches` diagnostic counts qualifying router observations with
 no intervening conflicting radio evidence. Cellular-only packets do not
-count toward that number. It resets after expiry; it no longer gates Home on
-three reports within a minute. Wi-Fi-labelled packets with missing/malformed scans,
+count toward that number. Wi-Fi-labelled packets with missing/malformed scans,
 inconsistent source fields, a different router or insufficient signal still
 clear it. A run of cellular packets alone never establishes Home and cannot
 retain an old match beyond the original two-minute radio expiry.
@@ -233,7 +229,7 @@ router identifiers, fingerprints, keys or coordinates.
 | `candidate` | A qualifying report arrived; repeated fresh evidence is still needed |
 | `matched` | The provisional repeated-router observation policy passed; display requires its separate opt-in and saved Home binding |
 | `router_not_seen` | Reports did not contain the specifically configured router |
-| `signal_unknown` | Router sighting has a missing or invalid signal reading |
+| `signal_weak` / `signal_unknown` | Router sighting does not meet the provisional signal requirement |
 | `expired` | The qualifying evidence is older than two minutes |
 | `satellite_observation` | Historical v1 GPS-priority reset; v2 keeps radio and coordinates separate |
 | `gps_outside_home` / `gps_boundary_uncertain` | Historical v2/v3 comparison; v4 qualified Home radio has priority over GPS |

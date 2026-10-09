@@ -1,6 +1,7 @@
 'use strict';
 
 const WeatherProvider = require('./context/weatherProvider');
+const { selectWeatherLocation } = require('./weather-reply');
 const { normalizeLocationSource } = require('./location-provenance');
 const { readHomeWifiDisplay } = require('./wifi-home-display-policy');
 const { readLastHomeWifiDetection } = require('./last-home-wifi-detection');
@@ -49,13 +50,22 @@ function selectedLocation(device, now = Date.now()) {
   // Use the same qualified Home evidence as the map, never the phone's
   // position or a heartbeat. A historical Home sighting is labelled as such.
   const home = readHomeWifiDisplay(device, { now: new Date(now) });
-  if (home) {
-    return { location: home, observedAt: dateMs(home.recordedAt),
-      source: home.source, retainedSatellite: false, locationBasis: 'home_wifi' };
+  const rememberedHome = home ? null : readLastHomeWifiDetection(device, { now: new Date(now) });
+  const homeLocation = home || rememberedHome;
+  const homeObservedAt = dateMs(homeLocation?.recordedAt);
+  if (homeLocation && fresh(homeObservedAt, now, MAX_LOCATION_AGE_MS)) {
+    return { location: homeLocation, observedAt: homeObservedAt,
+      source: homeLocation.source, retainedSatellite: false,
+      locationBasis: home ? 'home_wifi' : 'last_known_home' };
   }
+  const selection = selectWeatherLocation(device, { now: new Date(now) });
   const valid = ({ location, source }) => location && finite(location.lat, -90, 90) &&
     finite(location.lng, -180, 180) && !(location.lat === 0 && location.lng === 0) &&
-    ['gps', 'wifi', 'lbs'].includes(source) && !(source === 'gps' && location.gpsValid === false);
+    ['gps', 'wifi', 'lbs'].includes(source);
+  const observedAt = dateMs(selection.location?.recordedAt);
+  if (valid(selection) && fresh(observedAt, now)) {
+    return { ...selection, observedAt, locationBasis: 'recent' };
+  }
 
   // The profile may show current weather for a clearly labelled last-known
   // area. Choose its newest real fix; an older GPS fix has no priority here.
@@ -70,29 +80,24 @@ function selectedLocation(device, now = Date.now()) {
     { location: device?.lastApproximateLocation,
       source: normalizeLocationSource(device?.lastApproximateLocation?.source) },
   ].filter(valid);
-  const rememberedHome = readLastHomeWifiDetection(device, { now: new Date(now) });
-  // A past router sighting is history, not priority over a newer network fix.
-  // Fresh Home above remains the only exception to newest-observation order.
-  if (rememberedHome) candidates.push({ location: rememberedHome, source: rememberedHome.source });
   const datedCandidates = candidates.map(candidate => ({ ...candidate,
     observedAt: dateMs(candidate.location.recordedAt) }));
   const lastKnown = datedCandidates
-    .filter(candidate => candidate.observedAt <= now && fresh(candidate.observedAt, now, MAX_LOCATION_AGE_MS))
+    .filter(candidate => fresh(candidate.observedAt, now, MAX_LOCATION_AGE_MS))
     .sort((left, right) => right.observedAt - left.observedAt)[0];
   if (!lastKnown) {
     // Retain rejected evidence for the read-only diagnostic; a reason always
     // prevents the scheduler from fetching or publishing usable conditions.
     const rejected = datedCandidates.filter(candidate => candidate.observedAt != null &&
-      candidate.observedAt <= now)
-      .sort((left, right) => right.observedAt - left.observedAt)[0] || {};
+      candidate.observedAt <= now + FUTURE_TOLERANCE_MS)
+      .sort((left, right) => right.observedAt - left.observedAt)[0] || { ...selection, observedAt };
     return { ...rejected, locationBasis: null,
       reason: candidates.length > 0 ? 'location_stale_or_undated' : 'location_unavailable' };
   }
   // Never substitute heartbeat, fetch or updatedAt for the original fix time.
   return { ...lastKnown, retainedSatellite: false,
     latestObservation: device?.lastLocationObservation || device?.location || null,
-    locationBasis: lastKnown.source === 'home_wifi_last_detected' ? 'last_known_home'
-      : now - lastKnown.observedAt < MAX_AGE_MS ? 'recent' : 'last_known' };
+    locationBasis: 'last_known' };
 }
 
 function unavailable(reason, now) {

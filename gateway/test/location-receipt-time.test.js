@@ -35,7 +35,7 @@ test('a three-second clock lead preserves both times and GPS durability before p
   assert.equal(runtime.route(fixed, receipt).reason, 'duplicate_record');
 });
 
-test('real V52 weak-radio reports with clock lead reach Home qualification', t => {
+test('real V52 enrolled-router reports with clock lead reach Home qualification', t => {
   let clock = now;
   const runtime = reliability(t, () => clock);
   const observer = createWifiHomeObserver({ enabled: true, imei, hashKey,
@@ -45,7 +45,7 @@ test('real V52 weak-radio reports with clock lead reach Home qualification', t =
     const raw = { type: 'location', imei, ...parseLocationData([
       '091026', `1000${String(seconds + 3).padStart(2, '0')}`, 'V', '0', 'N', '0', 'E',
       '0', '0', '0', '0', '70', '90', '0', '0', '00000000',
-      '1', '0', '617', '1', '53', '203778', '-80', '1', routerId, '-95',
+      '1', '0', '617', '1', '53', '203778', '-80', '1', routerId, '-65',
     ]) };
     const fixed = normalize(raw, new Date(clock));
     assert.equal(runtime.route(fixed, new Date(clock)).live, true);
@@ -53,7 +53,7 @@ test('real V52 weak-radio reports with clock lead reach Home qualification', t =
     assert.equal(+raw.location.recordedAt, clock + 3000);
   }
   assert.equal(observer.snapshot(clock).matchState, 'matched');
-  assert.equal(observer.snapshot(clock).signalDbm, -95);
+  assert.equal(observer.snapshot(clock).signalDbm, -65);
   assert.equal(observer.snapshot(clock + 120000).matchState, 'expired');
 });
 
@@ -72,7 +72,7 @@ test('old, undated and larger future reports cannot borrow current receipt fresh
   }
 });
 
-test('replayed clock-corrected radio reports cannot renew the first Home sighting', () => {
+test('replayed future-radio reports cannot become a sustained twenty-second match', () => {
   const observer = createWifiHomeObserver({ enabled: true, imei, hashKey,
     routerHash: fingerprintRouter({ imei, routerId, hashKey }) });
   const raw = { ...packet(now + 15000), gpsValid: false, accuracySource: 'wifi',
@@ -80,11 +80,6 @@ test('replayed clock-corrected radio reports cannot renew the first Home sightin
     wifiAccessPoints: [{ macAddress: routerId, signalStrength: -95 }] };
   for (const delay of [0, 5000, 10000, 15000, 20000, 30000]) {
     observer.observe(normalize(raw, new Date(now + delay)), now + delay);
-    const status = observer.snapshot(now + delay);
-    assert.equal(status.matchState, 'matched');
-    assert.equal(status.observedAt, new Date(now).toISOString());
-    assert.equal(status.expiresAt, new Date(now + 120_000).toISOString());
-    assert.equal(status.counts.qualified, 1);
+    assert.notEqual(observer.snapshot(now + delay).matchState, 'matched');
   }
-  assert.equal(observer.snapshot(now + 120_000).matchState, 'expired');
 });

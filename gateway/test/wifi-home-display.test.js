@@ -147,24 +147,9 @@ function publisherHarness() {
   return { state, ...publisher };
 }
 
-test('first radio sighting survives initial binding, while a changed binding requires new evidence', async () => {
-  const run = publisherHarness();
-  run.state.match();
-  run.state.observation.consecutiveMatches = 1;
-  await run.tick();
-  assert.equal(run.state.resets, 0);
-  assert.equal(run.state.writes.at(-1).state, 'matched');
-  assert.equal(run.state.writes.at(-1).observedAt, new Date(clock).toISOString());
-  run.state.now += 30_000;
-  run.state.key = 'different-home-binding';
-  await run.tick();
-  assert.equal(run.state.resets, 1);
-  assert.equal(run.state.writes.at(-1), null);
-});
-
 test('publisher bounds verified binding renewals by the original radio time and expiry', async () => {
   const run = publisherHarness();
-  await run.tick(); // The initial binding has no radio evidence yet.
+  await run.tick(); // Initial binding must require new radio observations.
   run.state.match();
   await run.tick();
   const saved = run.state.writes.at(-1);
@@ -222,8 +207,7 @@ test('display publication rejects candidates and never extends beyond the source
   const run = publisherHarness(); run.state.match();
   const binding = { ready: true, anchor: { geofenceId: 'home', lat: -20.15, lng: 57.15, radiusMeters: 150 },
     validUntilMs: clock + 300_000 };
-  assert.equal(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 0 }, binding, clock), null);
-  assert.ok(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 1 }, binding, clock));
+  assert.equal(buildHomeWifiDisplay({ ...run.state.observation, consecutiveMatches: 2 }, binding, clock), null);
   const value = buildHomeWifiDisplay(run.state.observation, binding, clock);
   assert.equal(value.expiresAt, run.state.observation.expiresAt);
   assert.deepEqual(Object.keys(value.anchor).sort(), ['geofenceId', 'label', 'lat', 'lng', 'radiusMeters']);

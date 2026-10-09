@@ -53,10 +53,10 @@ test('disabled, malformed and unscoped observations fail closed', () => {
   assert.equal(observer.snapshot(start).counts.reports, 0);
 });
 
-test('a fresh enrolled-router report matches without claiming the wearer is indoors', () => {
+test('three fresh strong reports over twenty seconds match without claiming Home', () => {
   const observer = createWifiHomeObserver(options);
-  assert.equal(observer.observe(packet(), start).matchState, 'matched');
-  assert.equal(observer.observe(packet(10_000), start + 10_000).matchState, 'matched');
+  assert.equal(observer.observe(packet(), start).matchState, 'candidate');
+  assert.equal(observer.observe(packet(10_000), start + 10_000).matchState, 'candidate');
   const status = observer.observe(packet(20_000), start + 20_000);
   assert.equal(status.matchState, 'matched');
   assert.equal(status.consecutiveMatches, 3);
@@ -83,7 +83,7 @@ test('canonical V52 passive packets feed the observer before provider geolocatio
 for (const [name, overrides, reason] of [
   ['unknown router', { wifiAccessPoints: [{ macAddress: otherRouter, signalStrength: -40 }] }, 'router_not_seen'],
   ['SSID alone', { wifiAccessPoints: [{ ssid: 'Home', signalStrength: -40 }] }, 'router_not_seen'],
-  ['out-of-range signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: -121 }] }, 'signal_unknown'],
+  ['weak signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: -95 }] }, 'signal_weak'],
   ['missing signal', { wifiAccessPoints: [{ macAddress: routerId }] }, 'signal_unknown'],
   ['string signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: '-40' }] }, 'signal_unknown'],
   ['impossible signal', { wifiAccessPoints: [{ macAddress: routerId, signalStrength: 20 }] }, 'signal_unknown'],
@@ -101,20 +101,6 @@ for (const [name, overrides, reason] of [
   });
 }
 
-test('weak enrolled-router reports establish and renew Home with the same freshness limits', () => {
-  const observer = createWifiHomeObserver(options);
-  for (const [at, signalStrength] of [[0, -95], [10_000, -110], [20_000, -120]]) {
-    observer.observe(packet(at, { wifiAccessPoints: [{ macAddress: routerId, signalStrength }] }), start + at);
-  }
-  assert.equal(observer.snapshot(start + 20_000).matchState, 'matched');
-  const renewed = observer.observe(packet(30_000, {
-    wifiAccessPoints: [{ macAddress: routerId, signalStrength: -96 }],
-  }), start + 30_000);
-  assert.equal(renewed.matchState, 'matched');
-  assert.equal(renewed.signalDbm, -96);
-  assert.equal(observer.snapshot(start + 150_000).matchState, 'expired');
-});
-
 test('contradictory source fields cannot establish a Wi-Fi match', () => {
   const observer = matched();
   const event = packet(30_000);
@@ -129,7 +115,7 @@ test('duplicate timestamps and duplicate AP entries never count as separate repo
   observer.observe(event, start);
   observer.observe(event, start + 10_000);
   const status = observer.observe(event, start + 20_000);
-  assert.equal(status.matchState, 'matched');
+  assert.equal(status.matchState, 'candidate');
   assert.equal(status.consecutiveMatches, 1);
   assert.equal(status.counts.qualified, 1);
   assert.equal(status.counts.duplicates, 2);
@@ -159,30 +145,21 @@ test('stale, future and missing source timestamps cannot create a match', () => 
   }
 });
 
-test('delayed radio reports retain source age rather than acquiring receipt freshness', () => {
+test('a backlog burst cannot impersonate sustained fresh radio observations', () => {
   const observer = createWifiHomeObserver(options);
   for (const [sourceOffset, receivedOffset] of [[-40_000, 0], [-30_000, 1], [-20_000, 2]]) {
     observer.observe(packet(sourceOffset), start + receivedOffset);
   }
-  const result = observer.snapshot(start + 2);
-  assert.equal(result.observedAt, new Date(start - 20_000).toISOString());
-  assert.equal(result.expiresAt, new Date(start + 100_000).toISOString());
-  assert.equal(observer.snapshot(start + 100_000).matchState, 'expired');
+  assert.equal(observer.snapshot(start + 2).matchState, 'candidate');
 });
 
-test('ten-minute reporting and restart restore Home only on a new actual router sighting', () => {
+test('long gaps and process restarts require a new observation sequence', () => {
   const observer = matched();
-  assert.equal(observer.snapshot(start + 140_000).matchState, 'expired');
-  observer.observe(packet(500_000, { type: 'heartbeat' }), start + 500_000);
-  assert.equal(observer.snapshot(start + 500_000).matchState, 'expired');
-  const status = observer.observe(packet(620_000), start + 620_000);
-  assert.equal(status.matchState, 'matched');
+  const status = observer.observe(packet(81_000), start + 81_000);
+  assert.equal(status.matchState, 'candidate');
   assert.equal(status.consecutiveMatches, 1);
-  assert.equal(status.observedAt, new Date(start + 620_000).toISOString());
   const restarted = createWifiHomeObserver(options);
-  assert.equal(restarted.snapshot(start + 620_000).matchState, 'unknown');
-  assert.equal(restarted.observe(packet(620_000), start + 620_000).matchState, 'matched');
-  assert.equal(restarted.snapshot(start + 740_000).matchState, 'expired');
+  assert.equal(restarted.observe(packet(81_000), start + 81_000).matchState, 'candidate');
 });
 
 test('GPS coordinates are retained separately and never erase or renew a radio match', () => {

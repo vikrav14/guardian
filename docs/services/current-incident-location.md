@@ -31,10 +31,10 @@ later watch movement cannot replace the incident point. Body text, template
 variant, map button and alert detail read the same snapshot. New v2 readers reject
 stale primaries, altered Home anchors, bad timing and unsupported sources.
 
-Ordinary WhatsApp location replies and the current app map also prefer recent
-evidence. The app removes a pin after ten minutes without a new fix even when
-Firestore is quiet; Home expires under its shorter lease. Past detections and
-journeys remain historical records. No AI infers a current place from an old pin.
+Ordinary WhatsApp location replies prefer recent evidence. The dashboard retains
+its previous historical-pin presentation, including labelled remembered Home,
+independently of the stricter SOS/fall snapshot. No AI infers a current place
+from an old pin.
 
 ## Verification and remaining hardware acceptance
 
@@ -114,64 +114,17 @@ preserved. This is a gateway-only correction; the web and Android release above
 already render the snapshot's place name. The already-delivered alert remains
 unchanged; a new physical alert with this correction still needs acceptance.
 
-## Dashboard and Home follow-up — 9 October afternoon
+## Restore the prior dashboard and Home behaviour — 9 October afternoon
 
-The weather panel incorrectly preferred a historical Home sighting over a newer
-Wi-Fi/cell observation. Gateway and client now select fresh qualified Home first,
-then the newest valid location evidence. Historical Home remains history and
-cannot override a newer network estimate. Weather can still describe a labelled
-last-known area for up to 24 hours; the map keeps its ten-minute limit.
+At the owner's explicit request, the dashboard map, location labels, remembered
+Home fallback, weather selection and Home-radio qualification are restored from
+the pre-PR baseline `7a0d5db`. The removal of remembered Home from the map in
+`24e9890` caused approximate estimates to replace the previous Home display.
+Today's weak-signal, single-sighting and initial-binding changes are reverted.
+Normal automatic reporting remains ten minutes; the temporary one-minute
+diagnostic was restored at 14:48 MUT.
 
-At the pilot owner's request, repeated sightings of the saved router now count
-even with weak valid signal (-120 to 0 dBm). Router identity, three reports over
-20 seconds, maximum one-minute gaps and two-minute expiry remain required. This
-is evidence of proximity to the saved router, not proof of being inside a house.
-
-Live diagnostics at 14:08–14:09 MUT also showed genuine watch reports arriving
-2.7–2.8 seconds before their device timestamp. Journey ingress rejected them
-before Home observation. Newly received location packets with a clock lead of
-at most 15 seconds now use that packet's receipt time for live processing and
-durable capture, retaining `deviceRecordedAt` and
-`timeBasis: gateway_receipt_location_clock_skew`. Original decoded evidence and
-alarm handling remain unchanged. Old, missing and larger future timestamps do
-not gain receipt freshness; stored database records never pass this correction.
-
-Validation: 1,810 gateway tests pass, including weak-router clock-lead replay,
-GPS durability with both timestamps, stale/future rejection and duplicate-radio
-replay. The composite runtime passes 15 focused location/incident/dispatch tests.
-The composite app passes 860 tests and clean analysis. The dashboard update is
-published on guardian-fbadd.web.app; Android 29859007 is installed on the Samsung
-with application UID, first-install time and data-directory inodes preserved.
-
-The clock correction was deployed at 14:15 MUT with runtime configuration and
-tunnels unchanged. At 14:17 MUT, the real watch qualified Home after three fresh
-router reports; the publisher confirmed fresh Home and the Samsung map showed
-`Home Wi-Fi detected just now` and `At or near saved Home`. At 14:18 MUT, a bounded
-one-device refresh through the production weather service selected fresh Home;
-the Samsung weather card visibly showed `Near Home`. A real stored location also
-retained its original 14:15:39 device time beside its 14:15:36.108 receipt time.
-This verifies actual Home recovery and the two dashboard displays. Weak-only
-radio acceptance is regression-tested; the final observed router signal was
--68 dBm. A walk-away/router-loss test and new SOS/fall tests remain pending.
-
-## Home recovery with ten-minute reporting — 9 October afternoon
-
-The owner reported that Home kept reverting to an approximate location while
-stationary at home. Live diagnostics showed ten-minute reporting but a
-qualification rule requiring three router sightings no more than one minute
-apart. An isolated fresh report therefore never restored Home. A brief
-one-minute diagnostic also exposed normal delivery jitter (61.935 seconds)
-resetting that sequence. At the owner's direction, normal automatic ten-minute
-reporting was restored at 14:48 MUT; faster reporting is not the solution.
-
-A fresh exact sighting of the enrolled router now establishes Home proximity
-on its own. The saved Home binding, valid numeric signal, source/receipt age,
-two-minute expiry and rejection of unknown routers remain enforced. Between
-reports, Home can expire and a recent network estimate can be shown. The next
-fresh matching radio report restores Home; time alone never does. Duplicate
-clock-corrected reports are deduplicated using their preserved device timestamp,
-so replay cannot renew Home. This does not change the normal reporting interval
-or imply that Home remains current throughout a ten-minute reporting gap.
-
-Regression tests cover ten-minute expiry/recovery cycles, cellular-only gaps,
-restart, clock-corrected replay and the existing invalid-router/time cases.
+SOS/fall keep their separate fresh-evidence snapshots and place-name correction.
+Historical Home remains labelled historical on the dashboard and cannot become
+a fresh emergency location. The bounded location clock-lead correction remains
+to prevent new watch reports being discarded before recording.

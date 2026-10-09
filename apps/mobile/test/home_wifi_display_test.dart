@@ -42,10 +42,10 @@ void main() {
       final expectedHome = fixture['expectedHome'] == true;
       expect(device.homeWifiLocationAt(now) != null, expectedHome);
       expect(device.homeWifiConflictAt(now), fixture['expectedConflict'] == true);
-      final pin = device.mapDisplayLocationAt(now);
+      final pin = device.mapDisplayLocationAt(now)!;
       if (expectedHome) {
         final anchor = (homeMap as Map)['anchor'] as Map;
-        expect(pin!.lat, anchor['lat']);
+        expect(pin.lat, anchor['lat']);
         expect(pin.lng, anchor['lng']);
         expect(pin.source, 'home_wifi');
         expect(pin.gpsValid, false);
@@ -58,10 +58,10 @@ void main() {
           location: network,
           lastLocationObservation: location(evidence['lastLocationObservation']),
           lastSatelliteLocation: gps,
-        ).mapDisplayLocationAt(now);
-        expect(pin?.lat, fallback?.lat);
-        expect(pin?.lng, fallback?.lng);
-        expect(pin?.source, fallback?.source);
+        ).mapDisplayLocationAt(now)!;
+        expect(pin.lat, fallback.lat);
+        expect(pin.lng, fallback.lng);
+        expect(pin.source, fallback.source);
       }
       expect(device.location, same(network));
       expect(device.lastSatelliteLocation, same(gps));
@@ -161,8 +161,7 @@ void main() {
     expect(changes, 2);
     expect(controller.selected!.homeWifiConflictAt(now), false);
     expect(controller.selected!.homeWifiLocationAt(now), isNull);
-    expect(controller.selected!.mapDisplayLocationAt(now), same(gps),
-      reason: 'Expiring Home evidence must retain a still-fresh GPS fix');
+    expect(controller.selected!.mapDisplayLocationAt(now), same(gps));
     controller.dispose(); await tester.pump();
   });
 
@@ -185,7 +184,7 @@ void main() {
     expect(buildGuardianAiInterpretation(device), contains('at or near your saved Home location'));
     expect(buildGuardianAiInterpretation(device), contains('Last GPS fix'));
     expect(device.lastHeartbeatAt!.microsecondsSinceEpoch, now.microsecondsSinceEpoch);
-    expect(device.displayLocationSource, 'wifi');
+    expect(device.displayLocationSource, 'gps');
     expect(device.lastSatelliteLocation!.recordedAt, DateTime.parse('2026-09-01T10:00:00Z'));
   });
 
@@ -216,10 +215,7 @@ void main() {
     now = now.add(const Duration(seconds: 30));
     await tester.pump(const Duration(seconds: 1));
     expect(changes, 2);
-    expect(controller.selected!.mapDisplayLocationAt(now), isNull,
-      reason: 'Expiring Home evidence must not restore an hour-old GPS fix');
-    expect(controller.selected!.lastSatelliteLocation, same(gps),
-      reason: 'The old GPS fix remains available as historical evidence');
+    expect(controller.selected!.mapDisplayLocationAt(now), same(gps));
     controller.dispose();
     await tester.pump(const Duration(seconds: 1));
   });

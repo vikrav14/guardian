@@ -96,26 +96,22 @@ void main() {
     );
   }
 
-  testWidgets(
-    'Android avatar uses logical pixels at the current network position',
-    (tester) async {
-      String? selected;
-      await tester.pumpWidget(host(onSelect: (imei) => selected = imei));
-      await tester.pump();
-      await tester.pump();
-      final marker = tester.widget<Positioned>(find.byType(Positioned).first);
-      expect(
-        marker.left,
-        129,
-      ); // Physical x 400 / DPR 2 - marker width 142 / 2.
-      expect(marker.top, 92); // Physical y 400 / DPR 2 - marker height 108.
-      expect(maps.positions.single, const LatLng(-20.2, 57.6));
-      expect(find.text('AM'), findsOneWidget);
-      await tester.tapAt(tester.getCenter(find.text('Alex Morgan')));
-      expect(selected, isNull);
-      expect(maps.pointerDowns, 1); // Touches pass through the selected photo.
-    },
-  );
+  testWidgets('Android avatar uses logical pixels at the saved Home position', (
+    tester,
+  ) async {
+    String? selected;
+    await tester.pumpWidget(host(onSelect: (imei) => selected = imei));
+    await tester.pump();
+    await tester.pump();
+    final marker = tester.widget<Positioned>(find.byType(Positioned).first);
+    expect(marker.left, 129); // Physical x 400 / DPR 2 - marker width 142 / 2.
+    expect(marker.top, 92); // Physical y 400 / DPR 2 - marker height 108.
+    expect(maps.positions.single, const LatLng(-20.15, 57.55));
+    expect(find.text('AM'), findsOneWidget);
+    await tester.tapAt(tester.getCenter(find.text('Alex Morgan')));
+    expect(selected, isNull);
+    expect(maps.pointerDowns, 1); // Touches pass through the selected photo.
+  });
 
   testWidgets('another person can still be selected from their avatar', (
     tester,
