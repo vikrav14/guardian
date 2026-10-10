@@ -145,7 +145,12 @@ function buildSafetyMessage({ type, device = {}, alert = {}, now = new Date() } 
   const eventLabel = isFall ? 'Fall alert received' : 'SOS alert received';
   const eventLine = `${eventLabel}${ctx.eventTime ? ` at ${ctx.eventTime}` : ''}.`;
 
-  const lines = [title, '', eventLine, '', ...buildLocationLines(ctx)];
+  const historicalHome = device.location?.source === 'home_wifi_last_detected';
+  const locationLines = historicalHome ? [
+    `📍 Last detected at Home · ${formatAge(device.location.recordedAt, alert.eventAt || alert.createdAt || now)?.replace(/ ago$/, '') || 'time unavailable'} before alert receipt`,
+    'Current position unconfirmed. Map shows the saved Home pin, not live GPS.',
+  ] : buildLocationLines(ctx);
+  const lines = [title, '', eventLine, '', ...locationLines];
   const statusParts = [`Watch ${ctx.online ? 'online' : 'offline'}`];
   if (ctx.batteryPercent != null) statusParts.push(`Battery ${ctx.batteryPercent}%`);
   lines.push(statusParts.join(' · '));

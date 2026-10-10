@@ -8,8 +8,10 @@ intermittently delayed or missing image uploads.
 - An eligible server-origin alarm creates one automatic capture attempt, with AI
   only if a fully decoded image is stored. There is no automatic second capture.
 - A server-owned photo-request window ends exactly one hour after alarm receipt,
-  even if the automatic photo fails. Duplicate alarms in the existing 12-minute
-  grouping window do not renew it. A later distinct incident has its own window.
+  even if the automatic photo fails. Reprocessing the same alert ID does not
+  renew it. Each separate accepted alert owns its own gallery and follow-up,
+  including a fall shortly after SOS. An occupied camera produces an explicit
+  no-photo result for the new alert, not a link to a previous event's photo.
 - The wearer card has a Photos action and time remaining. Outside the window it
   is disabled. Alerts retain access to historical photos under existing retention.
   The bottom bar contains Home, Safe zones, Alerts and Account; it does not create
@@ -53,7 +55,13 @@ backgrounding or failed reauthorization. Neither GET sends a watch command.
 ## AI, retention and WhatsApp
 
 The initial automatic photo/AI follow-up is attempted at most once independently
-of later guardian captures. A separate durable `analysisPending` queue allows AI
+of later guardian captures, per accepted alert ID. Camera locking is separate
+from notification identity: the former 12-minute cross-alert grouping could
+attach a new fall to an already-completed SOS and silently lose the fall's own
+readings update. Separate alerts now retain separate records. A new automatic
+capture cannot bypass an active capture/sequence, the successful-photo spacing,
+or the failed-upload quiet period, and a blocked capture never steals that lock.
+A separate durable `analysisPending` queue allows AI
 for guardian photos after that follow-up is terminal. Viewing, consent withdrawal,
 deletion and existing 24-hour retention protections remain in force.
 

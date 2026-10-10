@@ -92,7 +92,8 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
   }
 
   async function execute(operation, { expectedSession, shouldSend, isCurrent } = {}) {
-    const scheduled = operation.positionBasis === 'scheduled';
+    const incident = operation.positionBasis === 'incident';
+    const scheduled = operation.positionBasis === 'scheduled' || incident;
     // Uppercase is an explicitly selected protocol-family comparison. Never
     // fall back between spellings or change customer routine command builders.
     const command = operation.commandCase === 'uppercase' ? 'BODYTEMP2' : 'bodytemp2';
@@ -105,8 +106,8 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       if (!enabled() || !validConsent(consent, new Date(clock()))) {
         throw new Error('Current wearer consent and enabled pilot ingestion are required.');
       }
-      if ((scheduled ? routineRequest?.version !== 2 || !['gentle', 'balanced'].includes(routineRequest.routine)
-        : routineRequest?.routine && routineRequest.routine !== 'manual') ||
+      if ((!incident && (scheduled ? routineRequest?.version !== 2 || !['gentle', 'balanced'].includes(routineRequest.routine)
+        : routineRequest?.routine && routineRequest.routine !== 'manual')) ||
           state?.mayBeRunning === true || state?.temperatureMayBeRunning === true) {
         throw new Error('Select Manual and resolve any possibly running routine before this test.');
       }
@@ -135,7 +136,7 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       if (operation.operatorPosition === 'removed') quarantine.suppress();
       const requestedAt = new Date(clock()), trialId = randomUUID();
       lastAttemptAt = +requestedAt;
-      const startEvidence = scheduled ? evidence.startScheduled : evidence.start;
+      const startEvidence = incident ? evidence.startIncident : scheduled ? evidence.startScheduled : evidence.start;
       startEvidence(session, { requestedAt, trialId, operatorPosition: operation.operatorPosition, command,
         modeBt: session.wellnessTemperatureMode?.bt ?? session.wellnessLastReportedTemperatureBt ?? null });
       // Quarantine is independent of the capture window, packet limit and TCP
@@ -185,6 +186,14 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       { expectedSession, shouldSend, isCurrent });
   }
 
+  function requestIncident({ expectedSession, shouldSend, isCurrent } = {}) {
+    if (typeof isCurrent !== 'function' || typeof shouldSend !== 'function') {
+      return Promise.reject(new TypeError('Incident temperature requires trusted authorization and sequence guards.'));
+    }
+    return execute({ operatorPosition: 'unknown', positionBasis: 'incident', commandCase: 'uppercase' },
+      { expectedSession, shouldSend, isCurrent });
+  }
+
   async function status({ includeValues = false } = {}) {
     // Metadata is always available to strict admin; health values require
     // explicit opt-in and a fresh consent read, including after revocation.
@@ -200,7 +209,7 @@ function createSupervisedTemperatureTrial({ config, readContext, currentSession,
       ...(includeValues ? { valuesIncluded: trial.valuesIncluded === true } : {}) };
   }
 
-  return { request, requestScheduled, assertReady, assertScheduledReady,
+  return { request, requestScheduled, requestIncident, assertReady, assertScheduledReady,
     status, observe: evidence.observe, suppressTemperatureIngestion };
 }
 

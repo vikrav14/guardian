@@ -609,7 +609,16 @@ See `docs/services/sos-location.md` for the physical QA checklist and limits.
 ### Current incident snapshots (version 2)
 
 New physical SOS `sosLocationSnapshot` and fall `payload.locationSnapshot` use
-`version: 2`, `policy: fresh_incident_evidence_v2`. The tables above and below
+`version: 2`, `policy: fresh_incident_evidence_v2`. A bounded historical Home
+exception uses `version: 3`, `policy: recent_home_incident_evidence_v3`:
+`state: last_known`, `retainedSatellite: false`, source
+`home_wifi_last_detected`, and a frozen `lastHomeWifiEvidence` record with its
+original observedAt, qualifiedUntil, bindingHash and anchor. Only a still-valid
+runtime binding and a detection within ten minutes qualify. Newer GPS or a
+newer network fix with radius <=100 m supersedes it. `latestObservation` keeps
+any eligible coarse estimate separately; it cannot renew historical Home.
+V3 is never fresh Home presence and never changes the device's Home lease.
+All old snapshots remain immutable. The tables above and below
 describe immutable legacy v1 records, not new primary-pin selection.
 
 V2 has `capturedAt`, `state` (`fresh` or `unavailable`), `reason`, recomputed
@@ -1055,3 +1064,22 @@ Authenticated HTTP gallery/image/request routes recheck membership, plan and con
   clients store it explicitly; missing fields fall back to the legacy interval.
   `adaptiveReporting` remains backend-only and represents policy/handoff, not
   measured packet cadence. Deploy the updated rules before the updated client.
+
+### Incident wellbeing snapshots
+
+- Gateway-originated SOS/fall `alerts` may carry `incidentWellbeingEligible`,
+  `incidentWellbeingPending` and `wellbeingIncidentId`. Client create/update
+  allowlists exclude these fields.
+- `incidentWellbeing/{alertId}` is private to the gateway: owner/device/event,
+  state/reason, immutable `startDeadlineAt` and `deadlineAt`, dispatch/worker
+  lease, request/receipt times, first accepted per-metric `readings`, `frozenAt`
+  and 24-hour `expiresAt`. Version 2 admits optics before event+7 minutes;
+  results still end at event+9 minutes. Version-1 deadlines remain fixed.
+  Readings record receipt-time/session correlation and unconfirmed wearing;
+  they are never populated from latest routine history. Collection and disclosure
+  recheck service ownership, wellbeing access and wearer consent.
+- `incidentWellbeingLocks/{imei}` stores `incidentId` and `until` to serialize
+  hardware requests across incidents/restarts. Both collections use the existing
+  default-deny client rules; no new client access is granted.
+- The running gateway deletes expired snapshots; consent revocation deletes
+  retained readings. Neither cleanup recalls delivered WhatsApp messages.

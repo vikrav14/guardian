@@ -27,6 +27,11 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
     guardianWindowEnabled: rollout.guardianWindowEnabled,
     initialSosSettleEnabled: rollout.initialSosSettleEnabled,
     trialOnly: asBool(env.INCIDENT_PHOTOS_TRIAL_ONLY, true), analyze, log: console.warn,
+    followupReady: async incident => {
+      const readings = require('./incident-wellbeing-live').getIncidentWellbeing();
+      if (!readings || !asBool(env.INCIDENT_WELLBEING_FOLLOWUP_APPROVED)) return true;
+      return !(await readings.readForFollowup(incident.id, incident.ownerUid)).pending;
+    },
     onComplete: async incident => {
       if (!asBool(env.INCIDENT_PHOTO_FOLLOWUP_APPROVED) || !galleryBase(env.INCIDENT_PHOTOS_APP_URL) || !config.notifyWhatsApp) return { ok: false };
       const { findContactsForImei } = require('./notify');
@@ -53,15 +58,20 @@ function startIncidentPhotos({ db, snapshots, env = process.env }) {
       }
       const device = isGuardianWindow(incident)
         ? (await db.collection('devices').doc(incident.imei).get()).data() || {} : {};
-      const plan = buildFollowupPlan(incident.id, gallery, { incident, device,
-        compactTemplatesApproved: rollout.compactTemplatesApproved });
       const results = [];
       for (const contact of selected) {
+        const worker = require('./incident-wellbeing-live').getIncidentWellbeing();
+        const approved = !!worker && asBool(env.INCIDENT_WELLBEING_FOLLOWUP_APPROVED) &&
+          await require('./incident-wellbeing-message').canSendIncidentReadings(db, incident, contact);
+        const readings = approved ? await worker.readForFollowup(incident.id, incident.ownerUid, { freeze: true }) : null;
+        const plan = buildFollowupPlan(incident.id, gallery, { incident, device, readings,
+          incidentReadingsApproved: approved, compactTemplatesApproved: rollout.compactTemplatesApproved });
         const result = await sendMetaTemplate(contact.whatsapp || contact.phone, plan.templateName, { languageCode: 'en', components: plan.components });
-        results.push({ ok: result?.ok === true, messageId: result?.messageId || null });
+        results.push({ ok: result?.ok === true, messageId: result?.messageId || null, template: plan.templateName });
       }
       // No photo bytes, descriptions, bearer tokens or media URL in delivery logs.
-      await db.collection('incidentPhotoDelivery').doc(incident.id).set({ at: new Date(), results, template: plan.templateName });
+      await db.collection('incidentPhotoDelivery').doc(incident.id).set({ at: new Date(), results,
+        template: results[0]?.template || null });
       return { ok: results.some(result => result.ok) };
     },
   });

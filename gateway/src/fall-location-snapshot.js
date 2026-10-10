@@ -65,7 +65,7 @@ function buildFallLocationSnapshot(device = {}, { now = new Date() } = {}) {
 
 function readFallLocationSnapshot(alert = {}) {
   const snapshot = alert?.payload?.locationSnapshot;
-  if (snapshot?.version === 2) return require('./incident-location-evidence').readIncidentLocationSnapshot(snapshot);
+  if ([2, 3].includes(snapshot?.version)) return require('./incident-location-evidence').readIncidentLocationSnapshot(snapshot);
   if (
     !snapshot ||
     Number(snapshot.version) !== FALL_LOCATION_SNAPSHOT_VERSION ||
@@ -101,7 +101,7 @@ function deviceAtFall(device = {}, alert = {}) {
   const snapshot = readFallLocationSnapshot(alert);
   const location = snapshot?.state === 'unavailable'
     ? null
-    : snapshot?.version === 2 ? snapshot.location
+    : [2, 3].includes(snapshot?.version) ? snapshot.location
       : copyLocation(snapshot?.location, snapshot?.location?.source);
 
   return {

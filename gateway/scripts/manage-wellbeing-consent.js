@@ -44,6 +44,16 @@ async function deleteDeviceReadings(db, imei) {
       .collection('wellbeingReadings')
       .limit(400)
       .get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    for (const doc of snap.docs) batch.delete(doc.ref);
+    await batch.commit();
+    deleted += snap.size;
+  }
+  // Incident copies are private health records too. Revoking consent removes
+  // them as well as routine history; the worker cannot recreate a consumed job.
+  while (true) {
+    const snap = await db.collection('incidentWellbeing').where('imei', '==', imei).limit(400).get();
     if (snap.empty) return deleted;
     const batch = db.batch();
     for (const doc of snap.docs) batch.delete(doc.ref);

@@ -1,7 +1,7 @@
 'use strict';
 
 const { asDate } = require('./safety-snapshot-policy');
-const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CAPTURE_POLICY, REQUEST_WINDOW_MS, isGuardianWindow,
+const { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CAPTURE_POLICY, REQUEST_WINDOW_MS, photoQuietUntil, isGuardianWindow,
   guardianRequestAvailability, consentAllows, validIncidentId } = require('./incident-photo-policy');
 const { analysisRecord, analysisFailure } = require('./incident-photo-analysis');
 const { createPhotoProgress } = require('./incident-photo-progress');
@@ -11,7 +11,7 @@ const ACTIVE_PHOTO = ['dispatching', 'waiting_for_image', 'receiving'];
 const fail = (code, status = 403) => { throw Object.assign(new Error(code), { code, status }); };
 
 function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true, guardianWindowEnabled = true, analyze = null, now = () => new Date(),
-  onComplete = async () => {}, log = () => {}, initialSosSettleEnabled = false }) {
+  onComplete = async () => {}, followupReady = async () => true, log = () => {}, initialSosSettleEnabled = false }) {
   const incidentRef = id => db.collection('incidentPhotos').doc(id);
   const photoRef = id => db.collection('safetySnapshotAuthorizations').doc(id);
   const settingsRef = imei => db.collection('incidentPhotoSettings').doc(imei);
@@ -50,12 +50,15 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
         tx.update(alertRef, { incidentPhotoPending: false, incidentPhotoStatus: 'unavailable' });
         return;
       }
-      if (asDate(lock.incidentUntil) > now() && lock.incidentId) {
-        tx.update(alertRef, { incidentPhotoPending: false, photoIncidentId: lock.incidentId });
-        return;
-      }
-      const busy = asDate(lock.activeUntil) > now();
+      const previous = lock.incidentId ? (await tx.get(incidentRef(lock.incidentId))).data() : null;
+      const previousPhoto = lock.requestId ? (await tx.get(photoRef(lock.requestId))).data() : null;
       const at = now();
+      const quietUntil = photoQuietUntil(previousPhoto, lock.activeUntil);
+      const busy = asDate(lock.activeUntil) > at || quietUntil > at ||
+        (asDate(lock.incidentUntil) > at && (!previous || previous.state === 'collecting'));
+      // A distinct alert has its own readings and follow-up identity, even
+      // while another incident reserves the camera. Never alias its gallery
+      // to a previous alarm or inherit an already-sent WhatsApp result.
       const incident = { id, imei: alert.imei, ownerUid: consent.ownerUid, type: alert.type,
         eventAt, trial: alert.incidentPhotoTrial === true, createdAt: at, updatedAt: at, deadlineAt: new Date(at.getTime() + SEQUENCE_MS),
         ...(guardianWindowEnabled ? { capturePolicy: CAPTURE_POLICY, requestWindowEndsAt: new Date(+eventAt + REQUEST_WINDOW_MS) } : {}),
@@ -63,7 +66,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
         state: busy ? 'stopped' : 'collecting', reason: busy ? 'camera_busy' : null,
         nextAt: at, followupState: 'pending' };
       tx.create(incidentRef(id), incident);
-      tx.set(lockRef(alert.imei), { ...lock, incidentId: id,
+      if (!busy) tx.set(lockRef(alert.imei), { ...lock, incidentId: id,
         incidentUntil: new Date(+at + SEQUENCE_MS) });
       tx.update(alertRef, { incidentPhotoPending: false, photoIncidentId: id });
     });
@@ -278,6 +281,7 @@ function createIncidentPhotos({ db, snapshots, enabled = false, trialOnly = true
               db.collection('alerts').doc(fresh.id).get())).data();
             // An optional photo update must not overtake the initial alert.
             if (!fresh.trial && ['pending', 'sending'].includes(alert?.notifyStatus)) continue;
+            if (!await followupProgress.step('followup_readings_ready', () => followupReady(fresh))) continue;
             const claimed = await followupProgress.step('followup_claim', () => db.runTransaction(async tx => {
               const row = await tx.get(doc.ref);
               if (row.data()?.followupState !== 'pending') return false;

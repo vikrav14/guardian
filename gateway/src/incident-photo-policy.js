@@ -19,6 +19,14 @@ function consentAllows(settings, ownerUid, { ai = false } = {}) {
     (!ai || settings.aiConsentConfirmed === true);
 }
 
+// Applies across incident identities because V52 images contain no request ID.
+function photoQuietUntil(photo, fallbackExpiry = null) {
+  const saved = asDate(photo?.receivedAt);
+  const expires = asDate(photo?.authorizationExpiresAt) || asDate(fallbackExpiry);
+  return saved ? new Date(+saved + GAP_MS)
+    : expires ? new Date(+expires + LATE_UPLOAD_GUARD_MS) : null;
+}
+
 // Called inside the same transaction as the shared camera lock. Only the
 // server-owned incident record can authorize the shorter emergency spacing.
 async function readIncidentAuthorization(db, tx, incidentId, uid, imei, at, { guardian = false } = {}) {
@@ -63,14 +71,11 @@ function guardianRequestAvailability(incident, previous, at) {
     return { canRequest: false, reason: 'automatic_photo_pending' };
   if (['dispatching', 'waiting_for_image', 'receiving'].includes(previous?.state))
     return { canRequest: false, reason: 'camera_busy' };
-  const saved = asDate(previous?.receivedAt);
-  const expires = asDate(previous?.authorizationExpiresAt);
-  const retryAt = saved ? new Date(+saved + GAP_MS)
-    : expires ? new Date(+expires + LATE_UPLOAD_GUARD_MS) : null;
+  const retryAt = photoQuietUntil(previous);
   if (retryAt > at) return { canRequest: false, reason: 'incident_photo_settling', retryAt };
   return { canRequest: true, reason: null, retryAt: null };
 }
 
 module.exports = { MAX_PHOTOS, SEQUENCE_MS, GAP_MS, CONSENT_VERSION, validIncidentId,
-  CAPTURE_POLICY, REQUEST_WINDOW_MS, LATE_UPLOAD_GUARD_MS, isGuardianWindow,
+  CAPTURE_POLICY, REQUEST_WINDOW_MS, LATE_UPLOAD_GUARD_MS, isGuardianWindow, photoQuietUntil,
   guardianRequestAvailability, consentAllows, readIncidentAuthorization };

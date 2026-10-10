@@ -35,11 +35,11 @@ function trial(options = {}) {
 }
 
 test('first automatic image and four explicit guardian images, no CR or overlapping workers', async () => {
-  const s = trial(); s.alarm(); s.alarm('duplicateFall', 'fall');
+  const s = trial(); s.alarm();
   const other = createIncidentPhotos({ ...s.incidentArgs, snapshots: createSnapshotController(s.args) });
   await Promise.all([s.incidents.enqueue('alertOne'), other.enqueue('alertOne')]);
-  await other.enqueue('duplicateFall');
-  assert.equal(s.db.rows.get('alerts/duplicateFall').photoIncidentId, 'alertOne');
+  await other.enqueue('alertOne');
+  assert.equal(s.db.rows.get('alerts/alertOne').photoIncidentId, 'alertOne');
   for (let n = 1; n <= 5; n++) {
     if (n > 1) await s.manual();
     await s.incidents.tick('alertOne');
@@ -56,12 +56,87 @@ test('first automatic image and four explicit guardian images, no CR or overlapp
   assert.equal(s.writes.length, 5);
   assert(s.writes.every(bytes => bytes.toString() === '[3G*9705254749*0008*rcapture]'));
   assert.equal(s.incident().state, 'complete');
-  const gallery = await s.incidents.gallery('member', 'duplicateFall');
+  const gallery = await s.incidents.gallery('member', 'alertOne');
   assert.equal(gallery.photos.length, 5);
   assert.equal(gallery.summary[2].photo, 3);
   assert.equal(gallery.photos[0].analysis.basis, 'original_photo');
   assert.equal(JSON.stringify(gallery).includes('privateSafetySnapshots'), false);
   await assert.rejects(s.incidents.gallery('outsider', 'alertOne'), /incident_not_found/);
+});
+
+test('a fall after a completed SOS has its own photo, gallery and exactly one follow-up inside twelve minutes', async () => {
+  const sent = [], readiness = [];
+  const s = trial({ followupReady: async incident => { readiness.push(incident.id); return true; },
+    onComplete: async incident => { sent.push(incident.id); return { ok: true }; } });
+  s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  await receive(s, s.incident().requestIds[0]);
+  await s.incidents.tick('alertOne');
+  await s.incidents.sweep(); await s.incidents.drain();
+  assert.deepEqual(sent, ['alertOne']);
+  const old = structuredClone(s.incident());
+  advanceWithPacket(s, 11 * 60_000);
+  s.alarm('separateFall', 'fall'); await s.incidents.enqueue('separateFall');
+  assert.equal(s.db.rows.get('alerts/separateFall').photoIncidentId, 'separateFall');
+  assert.equal(s.incident('separateFall').state, 'collecting');
+  await s.incidents.tick('separateFall');
+  assert.equal(s.writes.length, 2);
+  await receive(s, s.incident('separateFall').requestIds[0], frame({ image: scene(2) }));
+  await s.incidents.tick('separateFall');
+  await s.incidents.sweep(); await s.incidents.drain();
+  const restarted = createIncidentPhotos(s.incidentArgs);
+  await restarted.sweep(); await restarted.drain();
+  assert.deepEqual(sent, ['alertOne', 'separateFall']);
+  assert.deepEqual(readiness, ['alertOne', 'separateFall']);
+  assert.deepEqual(s.incident(), old);
+  const gallery = await s.incidents.gallery('owner', 'separateFall');
+  assert.equal(gallery.type, 'fall');
+  assert.equal(gallery.photos.length, 1);
+  assert.equal(gallery.photos[0].id, s.incident('separateFall').requestIds[0]);
+  assert.notEqual(gallery.photos[0].id, s.incident().requestIds[0]);
+});
+
+test('overlapping alerts retain separate follow-ups without stealing an active camera or borrowing a photo', async () => {
+  const sent = [];
+  const s = trial({ onComplete: async incident => { sent.push(incident.id); return { ok: true }; } });
+  s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+  s.alarm('separateFall', 'fall'); await s.incidents.enqueue('separateFall');
+  assert.equal(s.incident('separateFall').state, 'stopped');
+  assert.equal(s.incident('separateFall').reason, 'camera_busy');
+  assert.equal(s.db.rows.get(`safetySnapshotDeviceLocks/${imei}`).incidentId, 'alertOne');
+  await s.incidents.sweep(); await s.incidents.drain();
+  assert.equal(s.writes.length, 1);
+  assert.deepEqual(sent, ['separateFall']);
+  const gallery = await s.incidents.gallery('owner', 'separateFall');
+  assert.equal(gallery.type, 'fall'); assert.deepEqual(gallery.photos, []);
+  assert.equal(s.incident().state, 'collecting');
+});
+
+test('new alarm identities cannot bypass successful-photo spacing or the failed-upload quiet period', async () => {
+  for (const success of [true, false]) {
+    const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne'); await s.incidents.tick('alertOne');
+    if (success) await receive(s, s.incident().requestIds[0]);
+    else { s.advance(240_000); await s.api.sweep(); }
+    await s.incidents.tick('alertOne');
+    advanceWithPacket(s, success ? 59_000 : 119_000);
+    s.alarm('tooSoon', 'fall'); await s.incidents.enqueue('tooSoon');
+    assert.equal(s.incident('tooSoon').state, 'stopped');
+    assert.equal(s.incident('tooSoon').reason, 'camera_busy');
+    await s.incidents.tick('tooSoon'); assert.equal(s.writes.length, 1);
+    advanceWithPacket(s, 1000);
+    s.alarm('later', 'fall'); await s.incidents.enqueue('later');
+    assert.equal(s.incident('later').state, 'collecting');
+  }
+});
+
+test('a new alert cannot manually bypass another incident late-upload guard after its grouping lock expires', async () => {
+  const s = trial(); s.alarm(); await s.incidents.enqueue('alertOne');
+  advanceWithPacket(s, 9 * 60_000); await s.incidents.tick('alertOne');
+  s.advance(3 * 60_000); await s.api.sweep(); await s.incidents.tick('alertOne');
+  advanceWithPacket(s, 30_000);
+  s.alarm('newFall', 'fall'); await s.incidents.enqueue('newFall');
+  assert.equal(s.incident('newFall').state, 'stopped');
+  await assert.rejects(s.incidents.requestByGuardian('owner', 'newFall', { requestKey: randomUUID() }), /incident_photo_settling/);
+  assert.equal(s.writes.length, 1);
 });
 
 test('first capture is prompt; the saved image starts a full minute gap across restart and competing workers', async () => {

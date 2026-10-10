@@ -119,7 +119,7 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     const atMs = timestamp(requestedAt), now = clock();
     if (!session || typeof session !== 'object' || atMs === null || atMs > now ||
         !(positionBasis === 'operator_reported' && ['worn', 'removed'].includes(operatorPosition) ||
-          positionBasis === 'scheduled' && operatorPosition === 'unknown') || ![null, 2].includes(modeBt) ||
+          ['scheduled', 'incident'].includes(positionBasis) && operatorPosition === 'unknown') || ![null, 2].includes(modeBt) ||
         !PROBE_COMMANDS.has(command) ||
         typeof trialId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(trialId)) {
       throw new TypeError('A session, valid request time, trial identifier and explicitly reported worn or removed position are required.');
@@ -145,6 +145,10 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
   // supervised start retains its required explicit worn/removed position.
   function startScheduled(session, options = {}) {
     return startTrial(session, { ...options, operatorPosition: 'unknown', positionBasis: 'scheduled' });
+  }
+
+  function startIncident(session, options = {}) {
+    return startTrial(session, { ...options, operatorPosition: 'unknown', positionBasis: 'incident' });
   }
 
   function markHandoff(outcome) {
@@ -183,7 +187,7 @@ function createTemperatureTrialEvidence({ clock = Date.now } = {}) {
     else trial.counts.uploads += 1;
   }
 
-  return { start, startScheduled, observe, markHandoff, current };
+  return { start, startScheduled, startIncident, observe, markHandoff, current };
 }
 
 module.exports = { createTemperatureTrialEvidence, CAPTURE_WINDOW_MS, VALUE_RETENTION_MS,

@@ -232,3 +232,12 @@ test('CLI requires explicit submission and rejects old fixed-number or ambiguous
     assert.throws(() => parseArgs(args));
   }
 });
+
+test('incident-readings CLI previews only the new follow-up without changing any templates', async () => {
+  const network = api([]);
+  const options = parseArgs(['--incident-readings', '--preview', '--app-url', appUrl]);
+  const result = await manageTemplates({ options, settings, env: {}, fetchImpl: network.fetchImpl });
+  assert.equal(result.changesMade, false);
+  assert.deepEqual(result.definitions.map(row => row.name), ['guardian_incident_update_v1']);
+  assert(network.requests.every(row => row.method === 'GET'));
+});

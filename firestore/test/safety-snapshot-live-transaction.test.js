@@ -15,7 +15,7 @@ before(async () => {
 });
 after(async () => { if (app) await app.delete(); });
 
-test('real Firestore transactions allow only one incident command across workers and duplicate alarms', async () => {
+test('real Firestore transactions serialize capture across workers while keeping overlapping alarms separate', async () => {
   const { createIncidentPhotos } = require('../../gateway/src/incident-photos');
   const { CONSENT_VERSION } = require('../../gateway/src/incident-photo-policy');
   const imei = '999999999999999';
@@ -24,7 +24,7 @@ test('real Firestore transactions allow only one incident command across workers
   await db.doc(`incidentPhotoSettings/${imei}`).set({ ownerUid: 'owner', enabled: true,
     consentConfirmed: true, aiConsentConfirmed: false, consentVersion: CONSENT_VERSION });
   let date = new Date();
-  for (const id of ['firstIncident', 'duplicateIncident']) await db.doc(`alerts/${id}`).set({
+  for (const id of ['firstIncident', 'overlappingIncident']) await db.doc(`alerts/${id}`).set({
     imei, type: 'sos', eventAt: date, incidentPhotoPending: true, incidentPhotoEligible: true,
   });
   const writes = [];
@@ -35,8 +35,8 @@ test('real Firestore transactions allow only one incident command across workers
   const one = createIncidentPhotos({ db, snapshots: createSnapshotController(args), enabled: true, trialOnly: false, now: () => date });
   const two = createIncidentPhotos({ db, snapshots: createSnapshotController(args), enabled: true, trialOnly: false, now: () => date });
   await Promise.all([one.enqueue('firstIncident'), two.enqueue('firstIncident')]);
-  await two.enqueue('duplicateIncident');
-  await Promise.all([one.tick('firstIncident'), two.tick('firstIncident')]);
+  await two.enqueue('overlappingIncident');
+  await Promise.all([one.tick('firstIncident'), two.tick('firstIncident'), two.tick('overlappingIncident')]);
   assert.deepEqual(writes, [], 'the alarm packet alone cannot trigger capture');
   assert.deepEqual((await db.doc('incidentPhotos/firstIncident').get()).data().requestIds, []);
   date = new Date(date.getTime() + 1);
@@ -45,7 +45,13 @@ test('real Firestore transactions allow only one incident command across workers
   assert.deepEqual(writes, ['[3G*9999999999*0008*rcapture]']);
   const incident = (await db.doc('incidentPhotos/firstIncident').get()).data();
   assert.equal(incident.requestIds.length, 1);
-  assert.equal((await db.doc('alerts/duplicateIncident').get()).data().photoIncidentId, 'firstIncident');
+  assert.equal((await db.doc('alerts/overlappingIncident').get()).data().photoIncidentId, 'overlappingIncident');
+  const overlapping = (await db.doc('incidentPhotos/overlappingIncident').get()).data();
+  assert.equal(overlapping.state, 'stopped');
+  assert.equal(overlapping.reason, 'camera_busy');
+  assert.equal(overlapping.followupState, 'pending', 'a busy camera must not suppress this alert\'s follow-up');
+  assert.deepEqual(overlapping.requestIds, [], 'a new alarm must not borrow another alarm\'s photo');
+  assert.equal((await db.doc(`safetySnapshotDeviceLocks/${imei}`).get()).data().incidentId, 'firstIncident');
   await db.doc(`safetySnapshotDeviceLocks/${imei}`).delete();
 });
 

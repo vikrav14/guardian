@@ -50,6 +50,33 @@ test('clients cannot manufacture backend-owned SOS location evidence', async () 
   }));
 });
 
+test('clients cannot request incident sensor collection or forge its snapshot pointer', async () => {
+  const db = env.authenticatedContext('linked').firestore();
+  for (const marker of [{ incidentWellbeingEligible: true }, { incidentWellbeingPending: true },
+    { wellbeingIncidentId: 'backend-sos' }]) {
+    await assertFails(setDoc(doc(db, 'alerts', 'forged-readings'), { ...appSos(), ...marker }));
+    await assertFails(updateDoc(doc(db, 'alerts', 'backend-sos'), marker));
+  }
+});
+
+test('incident readings and device reservations remain private for every client including linked guardians', async () => {
+  const { getDoc, getDocs, collection, deleteDoc } = require('firebase/firestore');
+  await env.withSecurityRulesDisabled(async context => {
+    for (const name of ['incidentWellbeing', 'incidentWellbeingLocks']) {
+      await setDoc(doc(context.firestore(), name, 'private-readings'), { imei, ownerUid: 'linked' });
+    }
+  });
+  for (const who of [env.authenticatedContext('linked'), env.authenticatedContext('unrelated'), env.unauthenticatedContext()]) {
+    for (const name of ['incidentWellbeing', 'incidentWellbeingLocks']) {
+      const ref = doc(who.firestore(), name, 'private-readings');
+      await assertFails(getDoc(ref));
+      await assertFails(getDocs(collection(who.firestore(), name)));
+      await assertFails(setDoc(ref, { imei, readings: {} }));
+      await assertFails(deleteDoc(ref));
+    }
+  }
+});
+
 test('clients can resolve an SOS but cannot change or remove its frozen location', async () => {
   const db = env.authenticatedContext('linked').firestore();
   const ref = doc(db, 'alerts', 'backend-sos');

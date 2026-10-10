@@ -46,6 +46,10 @@ class GuardianAlert {
           : null,
       sosLocationSnapshot: data['type'] == 'sos'
           ? SosLocationSnapshot.tryParse(data['sosLocationSnapshot'])
+          : data['type'] == 'fall' && data['payload'] is Map
+          ? SosLocationSnapshot.tryParse(
+              (data['payload'] as Map)['locationSnapshot'],
+            )
           : null,
     );
   }

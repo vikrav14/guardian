@@ -60,8 +60,15 @@ test('revocation helper deletes every retained reading in bounded batches', asyn
     { id: 'a', ref: { id: 'a' } },
     { id: 'b', ref: { id: 'b' } },
   ];
+  const incidents = [{ id: 'incident', ref: { id: 'incident' } }];
   const db = {
     collection(name) {
+      if (name === 'incidentWellbeing') return {
+        where(field, operator, value) {
+          assert.deepEqual([field, operator, value], ['imei', '==', '000000000000001']);
+          return { limit: () => ({ get: async () => ({ empty: !incidents.length, size: incidents.length, docs: [...incidents] }) }) };
+        },
+      };
       assert.equal(name, 'devices');
       return {
         doc() {
@@ -92,6 +99,8 @@ test('revocation helper deletes every retained reading in bounded batches', asyn
         delete(ref) { deleted.push(ref.id); },
         async commit() {
           for (const id of deleted) {
+            const incidentIndex = incidents.findIndex(doc => doc.id === id);
+            if (incidentIndex >= 0) incidents.splice(incidentIndex, 1);
             const index = remaining.findIndex((doc) => doc.id === id);
             if (index >= 0) remaining.splice(index, 1);
           }
@@ -100,6 +109,7 @@ test('revocation helper deletes every retained reading in bounded batches', asyn
     },
   };
 
-  assert.equal(await deleteDeviceReadings(db, '000000000000001'), 2);
+  assert.equal(await deleteDeviceReadings(db, '000000000000001'), 3);
   assert.deepEqual(remaining, []);
+  assert.deepEqual(incidents, []);
 });

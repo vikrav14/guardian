@@ -141,6 +141,11 @@ async function evaluateAdaptiveReporting(db, imei, {
 
   const lastCommandAtMs = millis(adaptive.lastCommandAt);
   const emergency = /^(sos_|fall_)/.test(policy.reason);
+  // Only a newly received alarm can interrupt capture. An existing emergency
+  // lease does not turn telemetry, reconnect reassertions or cooldown restores
+  // into new emergencies. Those retain intent and retry after camera release.
+  const alarmHandoff = ['sos', 'fall'].includes(trigger) &&
+    nowMs < (trigger === 'sos' ? sosActiveUntilMs : fallActiveUntilMs);
   const restoring = /^(sos_|fall_|outing_)/.test(adaptive.reason || '') &&
     !/^(sos_|fall_|outing_)/.test(policy.reason);
   const urgent =
@@ -186,7 +191,7 @@ async function evaluateAdaptiveReporting(db, imei, {
     await beforeSend();
     await send(db, imei, 'set_upload_interval', {
     seconds: policy.seconds,
-  }, { coordination: { emergency: emergency || policy.reason.startsWith('outing_') } }); }
+  }, { coordination: { emergency: alarmHandoff } }); }
   catch (error) {
     if (error.code !== 'camera_busy') throw error;
     setContext(imei, { expectedReportingIntervalSeconds: lastRequestedSeconds, outingActive,

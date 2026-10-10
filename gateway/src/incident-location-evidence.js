@@ -2,9 +2,11 @@
 
 const { classifySosLocation, toDate, MAX_FUTURE_CLOCK_SKEW_SECONDS, SOS_FRESH_LOCATION_MAX_SECONDS } = require('./sos-location-policy');
 const { readHomeWifiDisplay } = require('./wifi-home-display-policy');
+const { validLastHomeWifiDetection } = require('./last-home-wifi-detection');
 
 const VERSION = 2;
 const POLICY = 'fresh_incident_evidence_v2';
+const RECENT_HOME_POLICY = 'recent_home_incident_evidence_v3';
 const SOURCES = new Set(['gps', 'wifi', 'lbs']);
 const date = value => { try { return toDate(value); } catch { return null; } };
 // Lazy import keeps the legacy snapshot reader independent and backwards compatible.
@@ -44,6 +46,20 @@ function homeAt(evidence, device, at) {
   return home ? { ...home, gpsValid: false, accuracyMeters: null } : null;
 }
 
+function recentHomeAt(evidence, observations, at) {
+  if (!validLastHomeWifiDetection(evidence, at)) return null;
+  const observedAt = date(evidence.observedAt);
+  if (at - observedAt > SOS_FRESH_LOCATION_MAX_SECONDS * 1000) return null;
+  // A later accepted GPS fix supersedes historical Home, even if it has since
+  // aged. A precise newer network fix also wins. Coarse estimates do not prove
+  // departure, but remain visible as separate evidence with their own time.
+  if (observations.some(p => p.recordedAt > observedAt &&
+      (p.source === 'gps' || (freshAt(p, at) && p.accuracyMeters != null && p.accuracyMeters <= 100)))) return null;
+  return { lat: evidence.anchor.lat, lng: evidence.anchor.lng, placeLabel: 'Home',
+    source: 'home_wifi_last_detected', gpsValid: false, accuracyMeters: null,
+    recordedAt: observedAt };
+}
+
 /** Current evidence only. Older fixes remain history, never the emergency map.
  * Home means proximity to an enrolled router's saved pin, not a measured GPS fix. */
 function buildIncidentLocationSnapshot(device = {}, options = {}) {
@@ -61,6 +77,15 @@ function buildIncidentLocationSnapshot(device = {}, options = {}) {
   // fall back to a database record after enrollment revocation or runtime expiry.
   const evidence = Object.hasOwn(options, 'homeEvidence') ? options.homeEvidence : device.homeWifiPresence;
   const home = homeAt(evidence, device, capturedAt);
+  // Runtime-validated binding only; never revive a revoked database enrollment.
+  const lastHome = !home && recentHomeAt(options.lastHomeEvidence, observations, capturedAt);
+  if (lastHome) return {
+    version: 3, policy: RECENT_HOME_POLICY, capturedAt, state: 'last_known',
+    reason: 'recent_home_current_position_unconfirmed', retainedSatellite: false,
+    ageSeconds: Math.max(0, Math.round((capturedAt - lastHome.recordedAt) / 1000)),
+    location: lastHome, latestObservation: fresh || null, homeWifiEvidence: null,
+    lastHomeWifiEvidence: { ...options.lastHomeEvidence, anchor: { ...options.lastHomeEvidence.anchor } },
+  };
   const location = home || fresh || null;
   const homeWifiEvidence = home ? {
     version: evidence.version, policy: evidence.policy, pilot: evidence.pilot,
@@ -77,6 +102,20 @@ function buildIncidentLocationSnapshot(device = {}, options = {}) {
 }
 
 function readIncidentLocationSnapshot(raw) {
+  if (raw?.version === 3 && raw.policy === RECENT_HOME_POLICY) {
+    const capturedAt = date(raw.capturedAt);
+    if (!capturedAt || raw.state !== 'last_known' || raw.retainedSatellite !== false) return null;
+    const latestObservation = copyObservation(raw.latestObservation, null, capturedAt);
+    const location = recentHomeAt(raw.lastHomeWifiEvidence, latestObservation ? [latestObservation] : [], capturedAt);
+    if (!location || raw.location?.source !== location.source || raw.location.lat !== location.lat ||
+        raw.location.lng !== location.lng || +date(raw.location.recordedAt) !== +location.recordedAt) return null;
+    return { version: 3, policy: RECENT_HOME_POLICY, capturedAt, state: 'last_known',
+      reason: 'recent_home_current_position_unconfirmed', retainedSatellite: false,
+      ageSeconds: Math.max(0, Math.round((capturedAt - location.recordedAt) / 1000)),
+      location, latestObservation: latestObservation && freshAt(latestObservation, capturedAt) ? latestObservation : null,
+      lastHomeWifiEvidence: { ...raw.lastHomeWifiEvidence, anchor: { ...raw.lastHomeWifiEvidence.anchor } },
+      homeWifiEvidence: null };
+  }
   if (!raw || raw.version !== VERSION || raw.policy !== POLICY || raw.retainedSatellite !== false ||
       !['fresh', 'unavailable'].includes(raw.state)) return null;
   const capturedAt = date(raw.capturedAt);

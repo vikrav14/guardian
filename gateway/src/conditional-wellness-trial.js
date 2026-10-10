@@ -57,9 +57,10 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
   const enabled = () => config.wellnessRoutineEnabled === true &&
     config.careWellbeingRequestEnabled === true &&
     config.careWellbeingIngestEnabled === true;
-  const contextAllowed = (context, scheduled = false) => enabled() && validConsent(context?.consent, new Date(clock())) &&
-    (scheduled ? context?.request?.version === 2 && ['gentle', 'balanced'].includes(context.request.routine)
-      : !context?.request?.routine || context.request.routine === 'manual') &&
+  const contextAllowed = (context, mode) => enabled() && validConsent(context?.consent, new Date(clock())) &&
+    (mode === 'incident' || (mode === 'scheduled'
+      ? context?.request?.version === 2 && ['gentle', 'balanced'].includes(context.request.routine)
+      : !context?.request?.routine || context.request.routine === 'manual')) &&
     context?.state?.mayBeRunning !== true && context?.state?.temperatureMayBeRunning !== true;
 
   function boundedOperation(operation) {
@@ -141,7 +142,8 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
   }
 
   async function execute(operation, isCurrent) {
-    const scheduled = operation.positionBasis === 'scheduled';
+    const mode = operation.positionBasis;
+    const scheduled = mode === 'scheduled' || mode === 'incident';
     if (!enabled()) throw new Error('Wellness routine, request and ingestion must be enabled.');
     if (scheduled && clock() >= operation.startDeadlineAt) {
       throw new Error('The scheduled start window has ended; nothing sent.');
@@ -161,7 +163,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
         throw new Error('The scheduled reading is no longer authorized; nothing sent.');
       }
       if (generation !== preparation) throw new Error('The sequence was cancelled; nothing sent.');
-      if (!contextAllowed(context, scheduled)) {
+      if (!contextAllowed(context, mode)) {
         throw new Error('Current consent, enabled routine and an authorized schedule with no possibly running native routine are required.');
       }
       if (currentSession() !== session || session.imei !== config.wifiHomePilotImei || session.protocolId !== protocolId) {
@@ -172,9 +174,12 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
       if (scheduled && at >= operation.startDeadlineAt) {
         throw new Error('The scheduled start window has ended; nothing sent.');
       }
+      if (mode === 'incident' && at + OPTICAL_WINDOW_MS > operation.deadlineAt) {
+        throw new Error('The incident has insufficient time for a full optical response window; nothing sent.');
+      }
       const attempt = { attemptId: uuid(), session, sessionImei: session.imei,
         sessionProtocolId: session.protocolId, operatorPosition: operation.operatorPosition,
-        positionBasis: operation.positionBasis, isCurrent,
+        positionBasis: operation.positionBasis, isCurrent, deadlineAt: operation.deadlineAt,
         requestedAt: at, opticalDeadlineAt: at + OPTICAL_WINDOW_MS,
         lockUntil: at + OPTICAL_WINDOW_MS,
         valuesExpireAt: at + OPTICAL_WINDOW_MS + VALUE_RETENTION_MS,
@@ -209,6 +214,15 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     return execute({ operatorPosition: 'unknown', positionBasis: 'scheduled', startDeadlineAt }, isCurrent);
   }
 
+  // Internal incident worker only; HTTP payloads cannot supply this guard.
+  async function requestIncident({ isCurrent, startDeadlineAt, deadlineAt } = {}) {
+    if (typeof isCurrent !== 'function' || !Number.isFinite(startDeadlineAt) ||
+        !Number.isFinite(deadlineAt) || startDeadlineAt > deadlineAt - OPTICAL_WINDOW_MS) {
+      throw new TypeError('An incident authorization guard and bounded start/result deadlines are required.');
+    }
+    return execute({ operatorPosition: 'unknown', positionBasis: 'incident', startDeadlineAt, deadlineAt }, isCurrent);
+  }
+
   function eligible(attempt) {
     refresh();
     return sequence === attempt && !attempt.terminal && enabled() && matches(attempt) &&
@@ -220,12 +234,25 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     try {
       const context = await boundedContext();
       if (!eligible(attempt)) return;
-      const scheduled = attempt.positionBasis === 'scheduled';
-      if (!contextAllowed(context, scheduled)) { finish(attempt, 'consent_or_routine_changed'); return; }
+      const mode = attempt.positionBasis;
+      const scheduled = mode === 'scheduled' || mode === 'incident';
+      if (!contextAllowed(context, mode)) { finish(attempt, 'consent_or_routine_changed'); return; }
       assertTemperatureReady(attempt.session, scheduled);
       if (!eligible(attempt)) return;
-      const guard = { expectedSession: attempt.session, shouldSend: () => eligible(attempt) };
-      const result = scheduled
+      const temperatureBudget = () => {
+        if (mode === 'incident' && clock() + OPTICAL_WINDOW_MS > attempt.deadlineAt) {
+          finish(attempt, 'temperature_budget_exhausted'); return false;
+        }
+        return true;
+      };
+      if (!temperatureBudget()) return;
+      // Recheck synchronously inside the temperature sender after its async
+      // consent/lease checks. A slow read must not start a stage past budget.
+      const guard = { expectedSession: attempt.session,
+        shouldSend: () => eligible(attempt) && temperatureBudget() };
+      const result = mode === 'incident'
+        ? await temperatureTrial.requestIncident({ ...guard, isCurrent: attempt.isCurrent })
+        : scheduled
         ? await temperatureTrial.requestScheduled({ ...guard, isCurrent: attempt.isCurrent })
         : await temperatureTrial.request({ action: 'single',
           operatorPosition: attempt.operatorPosition, commandCase: 'uppercase' }, guard);
@@ -276,6 +303,8 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     if (!['waiting_optical', 'preparing_temperature'].includes(attempt.phase) ||
         !['bphrt', 'oxygen'].includes(command)) return;
     const key = command === 'bphrt' ? 'heartBloodPressure' : 'oxygen';
+    // Freeze the first accepted incident sample; routine uploads cannot replace it.
+    if (attempt.positionBasis === 'incident' && attempt.optical[key]) return;
     const values = opticalResult(decoded);
     attempt.optical[key] = { receivedAt: new Date(clock()).toISOString(), usable: values !== null,
       ...(values ? { values } : {}) };
@@ -324,7 +353,7 @@ function createConditionalWellnessTrial({ config, currentSession, readContext,
     return { outcome: 'read_only', connected: Boolean(currentSession()), sequence: summary };
   }
 
-  return { request, requestScheduled, status, observe, isBusy, cancel };
+  return { request, requestScheduled, requestIncident, status, observe, isBusy, cancel };
 }
 
 module.exports = { createConditionalWellnessTrial, parseConditionalWellnessOperation,

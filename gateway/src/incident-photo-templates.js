@@ -6,6 +6,7 @@ const { checkCallTemplates } = require('./watch-call-template-contract');
 const { compactAlertParameters, compactPhotoParameters } = require('./incident-message-copy');
 const FOLLOWUP_TEMPLATE = 'guardian_incident_photo_update_v1';
 const GUARDIAN_FOLLOWUP_TEMPLATE = 'guardian_incident_photo_update_v3';
+const WELLBEING_FOLLOWUP_TEMPLATE = 'guardian_incident_update_v1';
 const GUARDIAN_PHOTO_NOTICE = '\n\nOne photo may follow. Request more in Guardian for 1 hour after this alert. Keep checking on the wearer; do not wait for photos.';
 const PHOTO_NOTICE = '\n\nIncident photos may follow, if available (up to 5). Keep checking on the wearer; do not wait for photos.';
 const V3_TEMPLATES = Object.freeze(Object.fromEntries(Object.entries(DYNAMIC_CALL_TEMPLATES)
@@ -47,6 +48,16 @@ function withIncidentPhotoTemplate(prepared, { type, device, alert, env = proces
 
 function buildFollowupPlan(id, gallery, context = {}) {
   if (!validIncidentId(id)) throw Error('invalid_incident');
+  if (gallery.capturePolicy === CAPTURE_POLICY && context.compactTemplatesApproved === true &&
+      context.incidentReadingsApproved === true && context.readings?.pending === false) {
+    const photo = compactPhotoParameters(gallery, context);
+    const parameters = [...photo.slice(0, 4),
+      ...require('./incident-wellbeing-message').incidentReadingParameters(context.readings, context.incident?.timeZone), photo[4]];
+    return { templateName: WELLBEING_FOLLOWUP_TEMPLATE, components: [
+      { type: 'body', parameters: parameters.map(text => ({ type: 'text', text })) },
+      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: id }] },
+    ] };
+  }
   if (gallery.capturePolicy === CAPTURE_POLICY && context.compactTemplatesApproved === true) return { templateName: GUARDIAN_FOLLOWUP_TEMPLATE, components: [
     { type: 'body', parameters: compactPhotoParameters(gallery, context).map(text => ({ type: 'text', text })) },
     { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: id }] },
@@ -87,9 +98,18 @@ function writableComponents(components) {
   });
 }
 
-function templateDefinitions({ appUrl, callOrigin, baseTemplates, guardianWindow = false } = {}) {
+function templateDefinitions({ appUrl, callOrigin, baseTemplates, guardianWindow = false, incidentReadings = false } = {}) {
   const base = galleryBase(appUrl);
   if (!base) throw Error('A deployed HTTPS app URL without query or fragment is required.');
+  if (incidentReadings) return [{ name: WELLBEING_FOLLOWUP_TEMPLATE, language: 'en', category: 'UTILITY', components: [
+    { type: 'BODY', text: '📋 *Incident update for {{1}}*\nAlert time: {{2}}\n\n{{3}}\n{{4}}\n\n*Watch readings received after the alert*\n{{5}}\n{{6}}\n{{7}}\n{{8}}\n\n{{9}}\n\nWatch estimates; times shown are receipt times, not measurement times. Photos, AI and readings cannot confirm the wearer’s condition. Please keep checking on the wearer.',
+      example: { body_text: [['Alex', '5 Oct 2026, 13:22 GMT+4', 'The automatic incident photo is available.',
+        'AI description ready in Guardian (unverified).',
+        'Heart rate: 72 bpm · received 5 Oct 2026, 13:24 GMT+4', 'Oxygen estimate: 97% · received 5 Oct 2026, 13:24 GMT+4',
+        'Blood pressure estimate: 120/80 mmHg · received 5 Oct 2026, 13:24 GMT+4', 'Skin temperature: no fresh reading received.',
+        'Additional photo requests close at 5 Oct 2026, 14:22 GMT+4.']] } },
+    { type: 'BUTTONS', buttons: [{ type: 'URL', text: 'Incident details', url: `${base}{{1}}`, example: [`${base}sampleIncident123`] }] },
+  ] }];
   if (!Array.isArray(baseTemplates)) throw Error('Read the six existing v2 templates before preparing v3.');
   const checks = ['sos', 'fall'].flatMap(type => checkCallTemplates(baseTemplates,
     { type, settings: { watchCallPublicOrigin: callOrigin } }));
@@ -159,4 +179,4 @@ function checkPhotoTemplates(templates, definitions) {
 
 module.exports = { galleryBase, withIncidentPhotoTemplate, buildFollowupPlan,
   templateDefinitions, checkPhotoTemplates, FOLLOWUP_TEMPLATE, PHOTO_NOTICE, V3_TEMPLATES,
-  GUARDIAN_FOLLOWUP_TEMPLATE, GUARDIAN_PHOTO_NOTICE, V4_TEMPLATES, V5_TEMPLATES };
+  GUARDIAN_FOLLOWUP_TEMPLATE, WELLBEING_FOLLOWUP_TEMPLATE, GUARDIAN_PHOTO_NOTICE, V4_TEMPLATES, V5_TEMPLATES };
